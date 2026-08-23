@@ -4,8 +4,6 @@
 
 # Patcher
 
-[![npm version](https://img.shields.io/npm/v/patcher-app.svg)](https://www.npmjs.com/package/patcher-app)
-
 Patcher is an agentic IDE that builds itself. It can control, customize, and automate
 itself, laying the groundwork for your own software factory.
 
@@ -30,46 +28,36 @@ migrates the state of a bb install. The two can be installed side by side.
 
 ### Download the desktop app
 
-The recommended way to start using Patcher is the desktop app:
+Patcher ships as a macOS desktop app:
 
 **[Download the latest desktop app](https://github.com/laruss/patcher-browser/releases/tag/desktop-latest)**
-
-The desktop build is currently macOS Apple Silicon (arm64) only. Intel Mac and
-Linux users should run Patcher with `npx` instead. On Windows, run Patcher inside
-[WSL2 (Windows Subsystem for Linux)](https://learn.microsoft.com/windows/wsl/install):
-install WSL2 first, then run the same `npx` command below from your WSL2 (Linux)
-shell. Native Windows PowerShell and CMD are not supported.
 
 Early adopters can install
 **[Patcher Nightly](https://github.com/laruss/patcher-browser/releases/tag/desktop-nightly)**
 alongside the stable desktop app. It has a separate application identity,
 yellow icon, and auto-update feed.
 
-### Or run it anywhere with npx
-
-```bash
-npx patcher-app@latest
-```
-
-Then open `http://localhost:38986`.
-
-To run the newest automated build instead:
-
-```bash
-npx patcher-app@nightly
-```
-
 Patcher uses the provider CLI you already have authenticated.
 
-For install requirements, provider setup, configuration, and package-focused
-docs, start with
-[`packages/patcher-app`](./packages/patcher-app/README.md).
+### Supported platforms
+
+**macOS on Apple Silicon (arm64), and nothing else yet.** That is the only
+platform Patcher is built and tested for right now.
+
+There is no `npx` install: the `patcher-app` package is not published to npm, so
+the launcher that would serve Intel Macs, Linux and Windows/WSL2 has nowhere to
+be fetched from. Running Patcher on those platforms means building it from this
+repository — see [Development](#development) — and none of it is tested.
+
+Enrolling an additional machine from a running Patcher does not need the
+registry: the server builds and serves its own `patcher-app` package, and the
+enrollment script installs that.
 
 ### Telemetry
 
 Patcher currently sends no telemetry: it ships with an empty PostHog key, and
 an empty key disables the sender. The code path is still there, and if a key is
-ever configured, production runs (the desktop app and `npx patcher-app`) would
+ever configured, production runs (the desktop app and the packaged launcher) would
 send anonymous usage telemetry (app starts, thread creation counts, and user
 message counts). Identification would be a random per-install id stored in your
 data dir — no user, host, project, workspace, or message content is ever
@@ -91,7 +79,7 @@ a data directory under
 `~/.patcher-dev/<checkout-instance>/` and deterministic high ports derived from the
 checkout path. The checkout instance id is the sanitized path to the checkout,
 relative to your home directory, plus a short hash suffix. Separate worktrees
-can run alongside each other and the packaged `npx patcher-app@latest` instance.
+can run alongside each other and the packaged production instance.
 
 To run that same source dev server with the Electron desktop shell:
 
@@ -149,8 +137,7 @@ bun run start
 
 That builds only the app, server, and host-daemon runtime artifacts, then runs
 the launcher directly against those workspace outputs. Use the `patcher-app`
-tarball smoke task when validating the published `npx patcher-app@latest` package
-layout.
+tarball smoke task when validating the `patcher-app` package layout.
 
 ```bash
 bun run patcher --help            # built CLI, targets the default/prod instance
@@ -164,21 +151,20 @@ bun run reset:all            # clear both production and dev states
 
 These reset commands prompt for confirmation before deleting anything.
 
-## Repository Overview
-
-See [Repository overview](docs/repository-overview.md) for the monorepo package and app map.
-
-## System Overview
-
-See [System overview](docs/system-overview.md) for runtime architecture, data model, and component boundaries.
-
 ## Further Reading
 
-- [Vision](docs/VISION.md)
-- [Platform support](docs/platform-support.md)
-- [Configuration](docs/configuration.md)
-- [Using Patcher on multiple devices](docs/multiple-devices.md)
-- [Worktrees and setup scripts](docs/worktrees.md)
+Seven links here used to point at `docs/` pages the fork does not carry
+(`repository-overview`, `system-overview`, `VISION`, `platform-support`,
+`configuration`, `multiple-devices`, `worktrees`). What exists:
+
+- [AGENTS.md](AGENTS.md) — working agreements, and the invariants a passing build
+  does not protect
+- [Migration map](docs/architecture/bb-migration.md) — what this fork inherited,
+  and the contracts that must survive changing it
+- [Project plan](docs/PROJECT_PLAN.md) and [TODO](docs/TODO.md)
+- [Lifecycle diagrams](docs/lifecycle-diagrams.md)
+- [`docs/architecture/`](docs/architecture) — the browser surface, the plugin
+  contract, permissions, and the transport between them
 
 ## Contributing
 
@@ -198,22 +184,19 @@ Error: Could not locate the bindings file. Tried:
  → .../node_modules/better-sqlite3/build/better_sqlite3.node
 ```
 
-The usual cause is `ignore-scripts=true` in your `~/.npmrc`. Set the
-`npm_config_ignore_scripts` environment variable to let this one command run its
-install scripts:
+The usual cause is `ignore-scripts=true` in your `~/.npmrc`. The desktop app is
+unaffected — it ships its native modules prebuilt — so this bites the two paths
+that run `npm install` on your machine: enrolling a machine from a running
+Patcher, and building from this repository.
+
+Set the `npm_config_ignore_scripts` environment variable for that one command:
 
 ```bash
-npm_config_ignore_scripts=false npx patcher-app@latest
+npm_config_ignore_scripts=false sh install.sh --join-code <code> --host-id <id> --server <url>
+npm_config_ignore_scripts=false bun install    # in a checkout
 ```
 
-For a permanent install with the same setting, use:
-
-```bash
-npm_config_ignore_scripts=false npm install -g patcher-app
-patcher-app
-```
-
-The environment variable applies to that one command only. Keep
+The environment variable applies to the command you put it in front of. Keep
 `ignore-scripts=true` in your `~/.npmrc` if you want it for security.
 
 The same error has other causes. A Node.js major-version change after the
