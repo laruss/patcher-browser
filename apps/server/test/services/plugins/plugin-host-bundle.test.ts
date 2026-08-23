@@ -1,5 +1,5 @@
 import { execFileSync, fork } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ChildProcess } from "node:child_process";
@@ -42,7 +42,14 @@ describe("the plugin host, bundled", () => {
   beforeAll(async () => {
     // Into the package's own dist: natives stay external, so the process has
     // to sit somewhere `better-sqlite3` resolves — exactly as it ships.
-    outDir = await mkdtemp(join(PACKAGE_ROOT, "dist", "host-bundle-"));
+    //
+    // Created, not assumed: this suite builds its own bundle and so has no
+    // reason to need a prior `bun run build`, but `mkdtemp` fails with ENOENT
+    // when the parent is absent — which is every clean checkout, and every CI
+    // runner whose test shard does not build the server first.
+    const distDir = join(PACKAGE_ROOT, "dist");
+    await mkdir(distDir, { recursive: true });
+    outDir = await mkdtemp(join(distDir, "host-bundle-"));
     bundlePath = join(outDir, "plugin-host-entry.js");
     await buildNodeEsmEntry({
       entryPoint: HOST_ENTRY,

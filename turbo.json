@@ -240,6 +240,19 @@
       ],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"]
     },
+    // The plugin suites build a real plugin, and a plugin's frontend build
+    // resolves `@patcher/plugin-sdk` from that package's `dist/`. Without this
+    // the tests pass on any machine that has ever run a build and fail on a
+    // clean checkout or a CI shard that only runs tests: every plugin load
+    // lands on `status: "error"` and the assertions read as unexplained.
+    "@patcher/server#test": {
+      "dependsOn": [
+        "//#ensure-native-modules",
+        "@patcher/plugin-sdk#build",
+        "topo"
+      ],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"]
+    },
     "smoke:tarball": {
       "dependsOn": ["build"],
       "cache": false,
