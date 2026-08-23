@@ -197,7 +197,7 @@ const ALLOW = [
     // token elsewhere still fails.
     why: "the pre-rename artifact, skill and storage names, used to reach installations that still carry them",
     word: /^(?:bb|bb-app|bb-era|bb-cli|bb-plugin-authoring)$/u,
-    path: /^(?:apps\/server\/src\/(?:server\.ts|internal\/session\.ts)|apps\/server\/test\/(?:app\/skeleton|public\/public-host-management)\.test\.ts|apps\/host-daemon\/src\/command-handlers\/install-global-skills(?:\.test)?\.ts|apps\/app\/src\/lib\/legacy-storage-adoption(?:\.test)?\.ts|apps\/app\/src\/components\/sidebar\/sidebarCollapsedAtoms\.ts|packages\/host-daemon-contract\/src\/commands\.ts)$/u,
+    path: /^(?:apps\/server\/src\/(?:server\.ts|internal\/session\.ts)|apps\/server\/test\/(?:app\/skeleton|public\/public-host-management)\.test\.ts|apps\/host-daemon\/src\/command-handlers\/install-global-skills(?:\.test)?\.ts|apps\/app\/src\/lib\/(?:legacy-storage-adoption(?:\.test)?|host-update-status\.test)\.ts|apps\/app\/src\/components\/sidebar\/sidebarCollapsedAtoms\.ts|packages\/host-daemon-contract\/src\/commands\.ts)$/u,
   },
 
   // --- History: things that happened under the old name --------------------
@@ -373,10 +373,18 @@ const REVERSE_ALLOW = [
 // ---------------------------------------------------------------------------
 
 function trackedFiles() {
-  return execFileSync("git", ["ls-files", "-z"], {
-    encoding: "utf8",
-    maxBuffer: 1 << 28,
-  })
+  // `--others --exclude-standard` alongside the tracked list, because a file
+  // that is new is exactly the file most likely to carry a fresh leftover — and
+  // running the gate before `git add` used to hide it completely. Ignored paths
+  // stay out, which is the point of --exclude-standard.
+  return execFileSync(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    {
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+    },
+  )
     .split("\0")
     .filter(
       (path) =>
