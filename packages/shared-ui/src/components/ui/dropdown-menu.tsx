@@ -10,10 +10,10 @@ import {
   useResponsiveRoot,
   MobileTrigger,
   ResponsiveDrawerShell,
+  ResponsiveOverlayViewport,
   stripRadixContentProps,
 } from "./responsive-overlay.js";
 import {
-  blurActiveKeyboardInputBeforeOverlayOpen,
   getOverlayTriggerClassName,
   isLastInputKeyboard,
   preventOverlayTriggerSelection,
@@ -68,12 +68,16 @@ function DropdownMenu({
     defaultOpen,
   );
 
-  if (ctx.isCompactViewport) {
-    return (
-      <ResponsiveMenuContext.Provider value={ctx}>
+  const body = (
+    <ResponsiveMenuContext.Provider value={ctx}>
+      <ResponsiveOverlayViewport isCompactViewport={ctx.isCompactViewport}>
         {children}
-      </ResponsiveMenuContext.Provider>
-    );
+      </ResponsiveOverlayViewport>
+    </ResponsiveMenuContext.Provider>
+  );
+
+  if (ctx.isCompactViewport) {
+    return body;
   }
 
   return (
@@ -82,9 +86,7 @@ function DropdownMenu({
       onOpenChange={ctx.onOpenChange}
       {...props}
     >
-      <ResponsiveMenuContext.Provider value={ctx}>
-        {children}
-      </ResponsiveMenuContext.Provider>
+      {body}
     </DropdownMenuPrimitive.Root>
   );
 }
@@ -120,12 +122,16 @@ const DropdownMenuTrigger = React.forwardRef<
       ref={ref}
       asChild={asChild}
       className={getOverlayTriggerClassName(className)}
-      onMouseDown={(event) => {
-        if (!open) {
-          blurActiveKeyboardInputBeforeOverlayOpen();
-        }
-        preventOverlayTriggerSelection(event);
-      }}
+      // preventDefault only, and deliberately no pre-blur: this branch is
+      // Radix-managed floating content, and Radix moves focus into it once it
+      // opens. Blurring here instead would put focus nowhere for the whole
+      // press — Radix opens on click, not on mousedown — and a composer that
+      // collapses when focus settles off it (the compact prompt box) reads
+      // that gap as "the user clicked away", folds up, and takes this very
+      // trigger with it before the click can land. Keeping focus in the editor
+      // until the overlay is actually open is what lets the composer's
+      // aria-expanded guard see an open overlay and stay put.
+      onMouseDown={preventOverlayTriggerSelection}
       {...props}
     >
       {children}

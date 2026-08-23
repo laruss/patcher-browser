@@ -13,6 +13,12 @@ import {
   PersistentResponsiveDrawerShell,
   ResponsiveDrawerShell,
 } from "@patcher/shared-ui/responsive-overlay";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@patcher/shared-ui/dropdown-menu";
+import { Popover, PopoverTrigger } from "@patcher/shared-ui/popover";
+import { Dialog, DialogTrigger } from "@patcher/shared-ui/dialog";
 
 type CapturedAnimationEnd = (args: {
   currentTarget: HTMLElement;
@@ -468,6 +474,44 @@ describe("PersistentResponsiveDrawerShell", () => {
 // does for a dialog. Without this the drawer opens *behind* the page, which is
 // now reachable from any width: a thread in the side panel renders in this
 // single-column form and opens its details here.
+// A composer that folds up when focus settles off it — the compact prompt box —
+// keeps itself open while one of its own overlays is up, which it reads from the
+// trigger's aria-expanded. A trigger that blurs the editor on mousedown breaks
+// that: Radix opens on *click*, so for the whole press focus is nowhere and no
+// trigger reports open. The composer folds mid-press and takes the trigger with
+// it, so the click lands on nothing and no overlay ever appears.
+describe.each([
+  ["dropdown menu", DropdownMenu, DropdownMenuTrigger],
+  ["popover", Popover, PopoverTrigger],
+  ["dialog", Dialog, DialogTrigger],
+] as const)("%s trigger on the anchored path", (_name, Root, Trigger) => {
+  it("leaves the editor focused for the length of the press", () => {
+    render(
+      <>
+        <div
+          contentEditable
+          data-testid="editor"
+          suppressContentEditableWarning
+        >
+          draft
+        </div>
+        <Root>
+          <Trigger>Open</Trigger>
+        </Root>
+      </>,
+    );
+
+    const editor = screen.getByTestId("editor");
+    editor.focus();
+    expect(document.activeElement).toBe(editor);
+
+    // mousedown only: the press has begun, the overlay has not opened yet.
+    fireEvent.mouseDown(screen.getByText("Open"));
+
+    expect(document.activeElement).toBe(editor);
+  });
+});
+
 describe("PersistentResponsiveDrawerShell and the native browser view", () => {
   function DimmingProbe() {
     return (
@@ -501,5 +545,58 @@ describe("PersistentResponsiveDrawerShell and the native browser view", () => {
 
     view.rerender(renderShell(false));
     expect(screen.getByTestId("dimming").textContent).toBe("live");
+  });
+
+  // A sheet that stays inside its own column never reaches the page area, so
+  // taking the page away would blank the browser the user deliberately kept
+  // beside it. This is the agent side panel: 400px of a 1440px window.
+  it("leaves the page alone when it rises inside its own column", () => {
+    render(
+      <>
+        <DimmingProbe />
+        <div data-testid="column" className="relative">
+          <PersistentResponsiveDrawerShell
+            open
+            contained
+            onOpenChange={() => {}}
+            srLabel="Details"
+          >
+            <button type="button">Panel action</button>
+          </PersistentResponsiveDrawerShell>
+        </div>
+      </>,
+    );
+
+    expect(screen.getByTestId("dimming").textContent).toBe("live");
+  });
+
+  it("positions a contained sheet against its column, not the window", () => {
+    render(
+      <div data-testid="column" className="relative">
+        <PersistentResponsiveDrawerShell
+          open
+          contained
+          onOpenChange={() => {}}
+          srLabel="Details"
+        >
+          <button type="button">Panel action</button>
+        </PersistentResponsiveDrawerShell>
+      </div>,
+    );
+
+    const column = screen.getByTestId("column");
+    const sheet = document.querySelector("[data-persistent-drawer-content]");
+    const backdrop = document.querySelector(
+      "[data-persistent-drawer-backdrop]",
+    );
+
+    // In the column's own subtree rather than portaled to the body, so the
+    // column is what `absolute` resolves against and what clips it.
+    expect(column.contains(sheet)).toBe(true);
+    expect(column.contains(backdrop)).toBe(true);
+    expect(sheet?.className).toContain("absolute");
+    expect(sheet?.className).not.toContain("fixed");
+    expect(backdrop?.className).toContain("absolute");
+    expect(backdrop?.className).not.toContain("fixed");
   });
 });

@@ -35,3 +35,17 @@ export function useIsCompactViewport(): boolean {
   }
   return isCompactViewport;
 }
+
+/**
+ * The window's own answer, with any container override ignored.
+ *
+ * An overlay portals to `document.body` and lays itself out against the window,
+ * not against the box its trigger sits in. So a container that calls itself
+ * compact — a side panel one column wide — must not turn a 1440px window's
+ * dropdown into a bottom sheet that covers the whole app. Layout *inside* that
+ * container still asks {@link useIsCompactViewport}, which is what the override
+ * is for.
+ */
+export function useIsCompactWindow(): boolean {
+  return useMediaQuery(COMPACT_VIEWPORT_QUERY);
+}

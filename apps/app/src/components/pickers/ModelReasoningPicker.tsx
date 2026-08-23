@@ -40,7 +40,10 @@ import {
 } from "@patcher/shared-ui/menu-item-hover";
 import { cn } from "@patcher/shared-ui/lib/utils";
 import { useSystemExecutionOptions } from "@/hooks/queries/system-queries";
-import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import {
+  useIsCompactViewport,
+  useIsCompactWindow,
+} from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import {
   OPTION_BASE_CLASS_NAME,
@@ -268,7 +271,12 @@ export function ModelReasoningPicker({
   disabled,
   footerAction,
 }: ModelReasoningPickerProps) {
-  const isCompactViewport = useIsCompactViewport();
+  // The window, not the container: this component owns the popover, so what it
+  // shapes here — inline "More models" toggle vs hover submenu, touch row
+  // padding, search autofocus — has to match how that popover is presented.
+  // In a one-column side panel the container calls itself compact while the
+  // popover is still an anchored desktop one.
+  const isCompactViewport = useIsCompactWindow();
   const isPointerCoarse = usePointerCoarse();
   const [open, setOpen] = useState(defaultOpen);
   const triggerRef = useRef<HTMLButtonElement>(null);

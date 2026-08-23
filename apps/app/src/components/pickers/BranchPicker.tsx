@@ -22,7 +22,7 @@ import {
   COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
   COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
 } from "@patcher/shared-ui/coarse-pointer-sizing";
-import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import { useIsCompactWindow } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@patcher/shared-ui/input";
 import { blurActiveKeyboardInputWithin } from "@patcher/shared-ui/overlay-trigger";
@@ -745,7 +745,9 @@ export function BranchPicker({
 }: BranchPickerProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [query, setQuery] = useState("");
-  const isCompactViewport = useIsCompactViewport();
+  // The popover this owns is window-level, so its search autofocus follows
+  // the window rather than the container the trigger sits in.
+  const isCompactViewport = useIsCompactWindow();
   const isPointerCoarse = usePointerCoarse();
   const selectedCheckoutIntent = resolveCheckoutIntent({
     isCreatingNew,

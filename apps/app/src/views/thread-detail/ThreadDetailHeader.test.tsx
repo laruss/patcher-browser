@@ -27,8 +27,14 @@ vi.mock("@/components/layout/AppPageHeader", () => ({
   ),
 }));
 
-vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
+// Spread the real module: the header renders overlay roots, which also reach
+// for CompactViewportOverrideProvider.
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", async (original) => ({
+  ...(await original<
+    typeof import("@patcher/shared-ui/hooks/use-compact-viewport")
+  >()),
   useIsCompactViewport: () => false,
+  useIsCompactWindow: () => false,
 }));
 
 const PANE_CONTEXT: PaneContextValue = {

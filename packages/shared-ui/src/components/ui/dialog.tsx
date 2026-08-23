@@ -15,10 +15,10 @@ import {
   useResponsiveRoot,
   MobileTrigger,
   ResponsiveDrawerShell,
+  ResponsiveOverlayViewport,
   stripRadixContentProps,
 } from "./responsive-overlay.js";
 import {
-  blurActiveKeyboardInputBeforeOverlayOpen,
   getOverlayTriggerClassName,
   preventOverlayTriggerSelection,
 } from "./overlay-trigger.js";
@@ -65,7 +65,9 @@ function Dialog({
 
   return (
     <ResponsiveDialogContext.Provider value={ctx}>
-      {body}
+      <ResponsiveOverlayViewport isCompactViewport={ctx.isCompactViewport}>
+        {body}
+      </ResponsiveOverlayViewport>
     </ResponsiveDialogContext.Provider>
   );
 }
@@ -101,12 +103,16 @@ const DialogTrigger = React.forwardRef<
       ref={ref}
       asChild={asChild}
       className={getOverlayTriggerClassName(className)}
-      onMouseDown={(event) => {
-        if (!open) {
-          blurActiveKeyboardInputBeforeOverlayOpen();
-        }
-        preventOverlayTriggerSelection(event);
-      }}
+      // preventDefault only, and deliberately no pre-blur: this branch is
+      // Radix-managed floating content, and Radix moves focus into it once it
+      // opens. Blurring here instead would put focus nowhere for the whole
+      // press — Radix opens on click, not on mousedown — and a composer that
+      // collapses when focus settles off it (the compact prompt box) reads
+      // that gap as "the user clicked away", folds up, and takes this very
+      // trigger with it before the click can land. Keeping focus in the editor
+      // until the overlay is actually open is what lets the composer's
+      // aria-expanded guard see an open overlay and stay put.
+      onMouseDown={preventOverlayTriggerSelection}
       {...props}
     >
       {children}

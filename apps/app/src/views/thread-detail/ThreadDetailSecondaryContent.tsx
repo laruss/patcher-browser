@@ -13,16 +13,17 @@ import {
   type ImperativePanelGroupHandle,
 } from "react-resizable-panels";
 import { PersistentResponsiveDrawerShell } from "@patcher/shared-ui/responsive-overlay";
-import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import {
+  useIsCompactViewport,
+  useIsCompactWindow,
+} from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { Skeleton } from "@patcher/shared-ui/skeleton";
 import { DETAIL_GRID_CLASS } from "@/components/ui/detail-card.js";
 import { useAtomValue } from "jotai";
 import { cn } from "@patcher/shared-ui/lib/utils";
 import { ThreadSecondaryPanel } from "@/components/secondary-panel/ThreadSecondaryPanel";
 import { useDrawerPanelRealization } from "@/components/secondary-panel/useDrawerPanelRealization";
-import {
-  secondaryPanelWidthPercentAtom,
-} from "@/components/secondary-panel/threadSecondaryPanelAtoms";
+import { secondaryPanelWidthPercentAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
 import {
   ThreadMetadataCard,
   ThreadMetadataContent,
@@ -57,8 +58,7 @@ type ThreadSecondaryPanelProps = Omit<
   | "renderAsDrawer"
   | "isConversationCollapsed"
   | "onToggleConversationCollapse"
-> & {
-};
+> & {};
 
 interface ThreadDetailSecondaryContentProps {
   footer: ReactNode;
@@ -112,6 +112,11 @@ function ThreadDetailSecondaryContentBody({
   const stableSecondaryPanel = secondaryPanel;
   const stableTimeline = timeline;
   const renderAsDrawer = useIsCompactViewport();
+  // A sheet inside a narrow *column* of a wide window belongs to the column.
+  // On a genuinely narrow window the two are the same box, and the sheet keeps
+  // the window it has always had.
+  const isCompactWindow = useIsCompactWindow();
+  const isDrawerContained = renderAsDrawer && !isCompactWindow;
   const persistedSecondaryWidthPercent = useAtomValue(
     secondaryPanelWidthPercentAtom,
   );
@@ -349,8 +354,10 @@ function ThreadDetailSecondaryContentBody({
 
   return (
     <div
+      // `relative`: a contained drawer positions against this box and is
+      // clipped by it, which is what keeps it inside the column.
       className={cn(
-        "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-clip",
+        "relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-clip",
         !isBoundedPane && "-mx-4 -mb-4 -mt-4 md:-mx-5 md:-mb-5 md:-mt-5",
       )}
     >
@@ -426,7 +433,12 @@ function ThreadDetailSecondaryContentBody({
             if (!open) threadSecondaryPanelProps.onClose();
           }}
           srLabel="Thread details"
-          contentClassName="h-[92dvh] max-h-[92dvh]"
+          contained={isDrawerContained}
+          contentClassName={
+            isDrawerContained
+              ? "h-[92%] max-h-[92%]"
+              : "h-[92dvh] max-h-[92dvh]"
+          }
           onContentAnimationEnd={handleDrawerContentAnimationEnd}
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

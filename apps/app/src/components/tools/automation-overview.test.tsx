@@ -1,10 +1,37 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { COMPACT_VIEWPORT_QUERY } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { AutomationOverviewView } from "patcher-plugin-automations/overview-view";
 import type { AutomationsOverviewResponse } from "patcher-plugin-automations/rpc-types";
+
+/**
+ * Make the window itself compact for one test.
+ *
+ * The drawer is a window-level surface — it portals to `document.body` and
+ * covers the whole app — so what decides it is the media query, not a container
+ * that describes itself as narrow. jsdom's stub answers `false` to everything,
+ * so a test that wants the drawer has to say so here.
+ */
+function useCompactWindow(): void {
+  const original = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = ((query: string) => ({
+      matches: query === COMPACT_VIEWPORT_QUERY,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+  });
+  afterEach(() => {
+    window.matchMedia = original;
+  });
+}
 
 function iconNames(element: HTMLElement): string[] {
   return [...element.querySelectorAll("[data-icon]")].map(
@@ -347,9 +374,11 @@ describe("AutomationOverviewView", () => {
     );
   });
 
-  it("preserves sort selection semantics in the compact viewport drawer", async () => {
-    render(
-      <CompactViewportOverrideProvider isCompactViewport>
+  describe("in a compact window", () => {
+    useCompactWindow();
+
+    it("preserves sort selection semantics in the drawer", async () => {
+      render(
         <AutomationOverviewView
           entries={INSTALLED_AUTOMATIONS}
           error={null}
@@ -359,40 +388,40 @@ describe("AutomationOverviewView", () => {
           onCreateViaChat={() => {}}
           activeMode="installed"
           onModeChange={() => {}}
-        />
-      </CompactViewportOverrideProvider>,
-    );
+        />,
+      );
 
-    const sortTrigger = screen.getByRole("button", {
-      name: "Sort: Automation name, ascending",
-    });
-    fireEvent.click(sortTrigger);
+      const sortTrigger = screen.getByRole("button", {
+        name: "Sort: Automation name, ascending",
+      });
+      fireEvent.click(sortTrigger);
 
-    const projectOption = await screen.findByRole("menuitemradio", {
-      name: "Project",
-    });
-    const nameOption = screen.getByRole("menuitemradio", {
-      name: "Automation name",
-    });
-    expect(projectOption.getAttribute("aria-checked")).toBe("false");
-    expect(projectOption.getAttribute("aria-disabled")).toBe("true");
-    expect((projectOption as HTMLButtonElement).disabled).toBe(true);
-    expect(nameOption.getAttribute("aria-checked")).toBe("true");
-    expect(
-      screen
-        .getAllByRole("menuitemradio")
-        .filter((option) => option.getAttribute("aria-checked") === "true"),
-    ).toHaveLength(1);
+      const projectOption = await screen.findByRole("menuitemradio", {
+        name: "Project",
+      });
+      const nameOption = screen.getByRole("menuitemradio", {
+        name: "Automation name",
+      });
+      expect(projectOption.getAttribute("aria-checked")).toBe("false");
+      expect(projectOption.getAttribute("aria-disabled")).toBe("true");
+      expect((projectOption as HTMLButtonElement).disabled).toBe(true);
+      expect(nameOption.getAttribute("aria-checked")).toBe("true");
+      expect(
+        screen
+          .getAllByRole("menuitemradio")
+          .filter((option) => option.getAttribute("aria-checked") === "true"),
+      ).toHaveLength(1);
 
-    fireEvent.click(projectOption);
-    expect(sortTrigger.getAttribute("aria-label")).toBe(
-      "Sort: Automation name, ascending",
-    );
-    fireEvent.click(nameOption);
-    expect(sortTrigger.getAttribute("aria-label")).toBe(
-      "Sort: Automation name, descending",
-    );
-    expect(nameOption.getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(projectOption);
+      expect(sortTrigger.getAttribute("aria-label")).toBe(
+        "Sort: Automation name, ascending",
+      );
+      fireEvent.click(nameOption);
+      expect(sortTrigger.getAttribute("aria-label")).toBe(
+        "Sort: Automation name, descending",
+      );
+      expect(nameOption.getAttribute("aria-checked")).toBe("true");
+    });
   });
 
   it("renders template actions as icon-only controls with specific labels", () => {

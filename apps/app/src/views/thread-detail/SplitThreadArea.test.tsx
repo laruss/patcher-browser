@@ -108,8 +108,15 @@ vi.mock("@/hooks/useThreadSplitsEnabled", () => ({
   useThreadSplitsEnabled: () => experimentState.enabled,
 }));
 
-vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
+// Spread the real module rather than listing exports: the overlay roots this
+// renders also reach for CompactViewportOverrideProvider, and a mock that only
+// names the hook it cares about breaks whenever the module grows one.
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", async (original) => ({
+  ...(await original<
+    typeof import("@patcher/shared-ui/hooks/use-compact-viewport")
+  >()),
   useIsCompactViewport: () => viewportState.compact,
+  useIsCompactWindow: () => viewportState.compact,
 }));
 
 vi.mock("@/hooks/queries/thread-queries", () => ({

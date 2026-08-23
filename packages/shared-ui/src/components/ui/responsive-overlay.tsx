@@ -11,7 +11,10 @@ import {
   getOverlayTriggerClassName,
   preventOverlayTriggerSelection,
 } from "./overlay-trigger.js";
-import { useIsCompactViewport } from "./hooks/use-compact-viewport.js";
+import {
+  CompactViewportOverrideProvider,
+  useIsCompactWindow,
+} from "./hooks/use-compact-viewport.js";
 import { usePointerCoarse } from "./hooks/use-pointer-coarse.js";
 import { usePortalScopeProps } from "../../lib/portal-scope.js";
 import { cn } from "../../lib/utils.js";
@@ -52,6 +55,13 @@ function isSonnerToasterPointerTarget(target: EventTarget | null): boolean {
 // ---------------------------------------------------------------------------
 // Hook: manages open state, mobile detection, and breakpoint-cross close.
 // One useMediaQuery subscription per Root (not two).
+//
+// The window rather than the container: this overlay's content portals to
+// document.body and covers the window, so a narrow container that overrides
+// itself compact (the agent side panel) must not turn its dropdowns into
+// full-window bottom sheets. Roots re-publish this answer as the override for
+// their own subtree via ResponsiveOverlayViewport, so the items inside an
+// overlay are sized for the surface they actually render on.
 // ---------------------------------------------------------------------------
 
 export function useResponsiveRoot(
@@ -59,7 +69,7 @@ export function useResponsiveRoot(
   controlledOnChange: ((open: boolean) => void) | undefined,
   defaultOpen: boolean = false,
 ): ResponsiveOverlayContextValue {
-  const isCompactViewport = useIsCompactViewport();
+  const isCompactViewport = useIsCompactWindow();
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -80,6 +90,29 @@ export function useResponsiveRoot(
   return React.useMemo(
     () => ({ isCompactViewport, open, onOpenChange }),
     [isCompactViewport, open, onOpenChange],
+  );
+}
+
+/**
+ * Republishes an overlay's own compactness as the override for its subtree.
+ *
+ * A root wraps both its trigger and its content in this, so everything an
+ * overlay renders agrees with how the overlay is actually presented. Without
+ * it the drawer/dropdown choice and the item sizing can disagree: content
+ * inside a side panel would read the panel's override and lay out touch-sized
+ * rows and drawer separators inside an anchored desktop menu.
+ */
+export function ResponsiveOverlayViewport({
+  isCompactViewport,
+  children,
+}: {
+  isCompactViewport: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <CompactViewportOverrideProvider isCompactViewport={isCompactViewport}>
+      {children}
+    </CompactViewportOverrideProvider>
   );
 }
 
@@ -352,6 +385,21 @@ interface PersistentResponsiveDrawerShellProps {
   contentClassName?: string;
   motionDurationMs?: number;
   onContentAnimationEnd?: (open: boolean) => void;
+  /**
+   * Rise inside the caller's own box instead of over the window.
+   *
+   * A sheet is normally a window surface, and on a phone that is the same
+   * thing: the column it belongs to *is* the window. It stops being the same
+   * thing when a wide window holds a narrow column — the agent side panel —
+   * and a control 400px wide would otherwise black out 1440px and take the
+   * page the user was reading with it. Contained, the shell renders in place
+   * and positions against its parent, so it covers the column that owns it and
+   * nothing else.
+   *
+   * The caller's box has to establish a containing block (`relative`) and
+   * clip, which the surfaces that pass this already do.
+   */
+  contained?: boolean;
   children: React.ReactNode;
 }
 
@@ -383,14 +431,18 @@ export function PersistentResponsiveDrawerShell({
   contentClassName,
   motionDurationMs = 220,
   onContentAnimationEnd,
+  contained = false,
   children,
 }: PersistentResponsiveDrawerShellProps) {
   // Like every other modal that covers the page area: the in-app browser is an
   // OS-level overlay that this drawer's backdrop cannot dim, so the page steps
   // aside while the drawer is up. Without it the drawer opens *behind* the page
-  // wherever a browser view is on screen — which is now anywhere the agent
-  // panel is, since a thread in that column renders in this single-column form.
-  useBrowserDimmingModal(open);
+  // wherever a browser view is on screen.
+  //
+  // A contained shell never reaches the page: it stays inside its own column,
+  // which is DOM either way. Taking the page away for it would blank the very
+  // thing the user kept on screen beside it.
+  useBrowserDimmingModal(open && !contained);
   const parentDrawerDepth = React.useContext(ResponsiveDrawerDepthContext);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const backdropRef = React.useRef<HTMLDivElement>(null);
@@ -600,11 +652,7 @@ export function PersistentResponsiveDrawerShell({
   );
 
   const portalTarget = typeof document === "undefined" ? null : document.body;
-  if (portalTarget === null) {
-    return null;
-  }
-
-  return createPortal(
+  const surface = (
     <>
       <div
         ref={backdropRef}
@@ -612,7 +660,10 @@ export function PersistentResponsiveDrawerShell({
         aria-hidden="true"
         data-persistent-drawer-backdrop=""
         data-state={open ? "open" : "closed"}
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]"
+        className={cn(
+          "inset-0 z-50 bg-black/40 backdrop-blur-[1px]",
+          contained ? "absolute" : "fixed",
+        )}
         style={{
           opacity: open ? 1 : 0,
           pointerEvents: open ? "auto" : "none",
@@ -633,7 +684,8 @@ export function PersistentResponsiveDrawerShell({
         role="dialog"
         tabIndex={-1}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-xl border bg-background outline-none",
+          "inset-x-0 bottom-0 z-50 mt-24 flex flex-col rounded-t-xl border bg-background outline-none",
+          contained ? "absolute max-h-full" : "fixed max-h-[92dvh]",
           contentClassName,
         )}
         style={{
@@ -667,7 +719,18 @@ export function PersistentResponsiveDrawerShell({
           {children}
         </ResponsiveDrawerDepthContext.Provider>
       </div>
-    </>,
-    portalTarget,
+    </>
   );
+
+  // Contained: stay in the tree, so the caller's box is what `absolute`
+  // resolves against and what clips the sheet. Otherwise escape to the body,
+  // which is what a `fixed` window surface needs to clear every ancestor
+  // transform and overflow on the way up.
+  if (contained) {
+    return surface;
+  }
+  if (portalTarget === null) {
+    return null;
+  }
+  return createPortal(surface, portalTarget);
 }

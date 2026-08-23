@@ -76,10 +76,17 @@ export function AgentPanelSidebar({
         </SectionSidebarRow>
       </div>
       {/* Full bleed: the screen below owns its own scrolling, so this box only
-          gives it the remaining height. */}
+          gives it the remaining height.
+
+          Padded like the route's `<main>` even though nothing here wants
+          padding, because full bleed is how the agent screens spell it: they
+          cancel the page's `p-4 md:p-5` with matching negative margins. Given
+          none to cancel, that bleed escaped the panel — 20px out over each
+          edge, and up across the back row. The padding is what those margins
+          resolve against, so the screen lands on the panel box exactly. */}
       <div
         data-testid="agent-panel-sidebar-content"
-        className="flex min-h-0 min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden"
+        className="flex min-h-0 min-w-0 flex-1 flex-col p-4 group-data-[collapsible=icon]:hidden md:p-5"
       >
         {/* The panel is one narrow column, and this app already has a name for
             that: the compact viewport, which is what tells a thread to render
