@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
 import type { Task } from "../../shared/contract.js";
 
 // jsdom lacks ResizeObserver; cmdk's list observes its size on mount.
@@ -51,7 +51,7 @@ const project = {
   nextTaskNumber: 5,
   color: "blue",
   folderId: null,
-  linkedBbProjectId: null,
+  linkedPatcherProjectId: null,
   createdAt: "2026-07-15T00:00:00.000Z",
 };
 
@@ -263,7 +263,7 @@ describe("NewTaskDialog attachments", () => {
       }
       if (url.includes("/attachments/upload")) {
         fetchCalls.push(url);
-        const query = new URL(url, "http://bb.test").searchParams;
+        const query = new URL(url, "http://patcher.test").searchParams;
         if (uploadGate && query.get("fileName") === uploadGate.fileName) {
           await uploadGate.promise;
         }
@@ -345,7 +345,7 @@ describe("NewTaskDialog attachments", () => {
     );
     // Only the still-staged file uploaded, to the freshly created task.
     expect(fetchCalls).toHaveLength(1);
-    const query = new URL(fetchCalls[0]!, "http://bb.test").searchParams;
+    const query = new URL(fetchCalls[0]!, "http://patcher.test").searchParams;
     expect(query.get("taskId")).toBe(TASK_ID);
     expect(query.get("fileName")).toBe("shot.png");
   });
@@ -386,7 +386,7 @@ describe("NewTaskDialog attachments", () => {
         options: { subPath: "task/TSK-5" },
       }),
     );
-    const retryQuery = new URL(fetchCalls.at(-1)!, "http://bb.test")
+    const retryQuery = new URL(fetchCalls.at(-1)!, "http://patcher.test")
       .searchParams;
     expect(retryQuery.get("taskId")).toBe(TASK_ID);
     expect(retryQuery.get("fileName")).toBe("bad.bin");
@@ -775,7 +775,7 @@ describe("NewProjectDialog", () => {
       name: "Home Lab",
       prefix: "HL",
       folderId: null,
-      linkedBbProjectId: null,
+      linkedPatcherProjectId: null,
     });
     await waitFor(() =>
       expect(slot.navigateCalls).toContainEqual({
@@ -809,8 +809,8 @@ describe("NewProjectDialog", () => {
   it("links the personal project from the discovered project picker", async () => {
     const createCalls: Array<Record<string, unknown>> = [];
     const slot = renderEmptyState({
-      listBbProjects: () => ({
-        bbProjects: [{ id: "proj_personal", name: "Personal" }],
+      listPatcherProjects: () => ({
+        patcherProjects: [{ id: "proj_personal", name: "Personal" }],
       }),
       createProject: (input: Record<string, unknown>) => {
         createCalls.push(input);
@@ -821,13 +821,13 @@ describe("NewProjectDialog", () => {
     fireEvent.change(await slot.findByPlaceholderText("e.g. Tasks Plugin"), {
       target: { value: "Personal Tasks" },
     });
-    fireEvent.click(slot.getByLabelText("Linked bb project"));
+    fireEvent.click(slot.getByLabelText("Linked Patcher project"));
     fireEvent.click(await slot.findByRole("option", { name: "Personal" }));
     fireEvent.click(slot.getByRole("button", { name: "Create project" }));
 
     await waitFor(() => expect(createCalls).toHaveLength(1));
     expect(createCalls[0]).toMatchObject({
-      linkedBbProjectId: "proj_personal",
+      linkedPatcherProjectId: "proj_personal",
     });
     expect(slot.queryByPlaceholderText("proj_…")).toBeNull();
   });

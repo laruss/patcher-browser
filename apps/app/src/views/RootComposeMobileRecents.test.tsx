@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -101,7 +101,7 @@ describe("RootComposeMobileRecents", () => {
 
   it("keeps the mobile working draft state ahead of runtime activity", () => {
     window.localStorage.setItem(
-      "bb.promptbox.contents-proj_mobile-thr_mobile-3",
+      "patcher.promptbox.contents-proj_mobile-thr_mobile-3",
       JSON.stringify({ text: "Keep editing", attachments: [] }),
     );
 
@@ -125,7 +125,7 @@ describe("RootComposeMobileRecents", () => {
 
   it("includes only the resolved idle draft indicator in the link label", () => {
     window.localStorage.setItem(
-      "bb.promptbox.contents-proj_mobile-thr_mobile-3",
+      "patcher.promptbox.contents-proj_mobile-thr_mobile-3",
       JSON.stringify({ text: "Keep editing", attachments: [] }),
     );
 

@@ -35,7 +35,7 @@ export interface HighlightMarkdownCodeArgs {
  * input (`<` becomes `&lt;`), so the returned markup is safe to inject with
  * dangerouslySetInnerHTML; the input is fenced code text, never user-authored
  * HTML. Token colors come from the `--sh-*` custom properties scoped to
- * `.bb-code-highlight` (see markdown-code-highlight.css).
+ * `.patcher-code-highlight` (see markdown-code-highlight.css).
  */
 export function highlightMarkdownCode({
   code,

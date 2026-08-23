@@ -474,7 +474,7 @@ function describeParsedClaudeRawEvent(
             coverage: "normalized",
           };
         case "init":
-        // Known SDK system signals bb intentionally does not render — async
+        // Known SDK system signals Patcher intentionally does not render — async
         // hook lifecycle (hook_started/progress/response), slash-command list
         // changes, the bg-agent turn-over signal, the live thinking-token
         // estimate, and assorted control-channel notices. Classified as noise

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Environment } from "@bb/domain";
+import type { Environment } from "@patcher/domain";
 import {
   formatEnvironmentDisplay,
   type EnvironmentDisplayHostContext,

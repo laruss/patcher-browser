@@ -10,20 +10,20 @@ import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import * as fixtures from "../helpers/command-output-fixtures.js";
 import { registerThreadCommands } from "../../commands/thread/index.js";
 
-describe("bb thread log command output", () => {
+describe("patcher thread log command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerThreadCommands(program, () => "http://server");
 
-  it("bb thread log help describes verbose as expanded timeline output", async () => {
+  it("patcher thread log help describes verbose as expanded timeline output", async () => {
     const helpOutput = await getHelpOutput(["thread", "log"], register);
 
     expect(helpOutput).toContain("verbose (expanded timeline)");
     expect(helpOutput).not.toContain("verbose (full timeline)");
   });
 
-  it("bb thread log --json prints raw events", async () => {
+  it("patcher thread log --json prints raw events", async () => {
     const thread = {
       id: "thread-json-log",
       projectId: "proj-1",
@@ -57,7 +57,7 @@ describe("bb thread log command output", () => {
     ).toEqual(events);
   });
 
-  it("bb thread log renders merged timeline rows for human output", async () => {
+  it("patcher thread log renders merged timeline rows for human output", async () => {
     const getEvents = vi.fn(async () => []);
     const getTimeline = vi.fn(async () =>
       fixtures.makeTimelineResponse([
@@ -126,7 +126,7 @@ describe("bb thread log command output", () => {
     expect(getEvents).not.toHaveBeenCalled();
   });
 
-  it("bb thread log renders pending steers for human output", async () => {
+  it("patcher thread log renders pending steers for human output", async () => {
     const getEvents = vi.fn(async () => []);
     const getTimeline = vi.fn(async () =>
       fixtures.makeTimelineResponse([fixtures.makePendingSteerTimelineRow()]),
@@ -151,7 +151,7 @@ describe("bb thread log command output", () => {
     expect(getEvents).not.toHaveBeenCalled();
   });
 
-  it("bb thread log renders pending steers with default formatting", async () => {
+  it("patcher thread log renders pending steers with default formatting", async () => {
     const getEvents = vi.fn(async () => []);
     const getTimeline = vi.fn(async () =>
       fixtures.makeTimelineResponse([fixtures.makePendingSteerTimelineRow()]),
@@ -173,7 +173,7 @@ describe("bb thread log command output", () => {
     expect(getEvents).not.toHaveBeenCalled();
   });
 
-  it("bb thread log renders approval state on command and file-change rows", async () => {
+  it("patcher thread log renders approval state on command and file-change rows", async () => {
     const getEvents = vi.fn(async () => []);
     const getTimeline = vi.fn(async () =>
       fixtures.makeTimelineResponse([
@@ -237,8 +237,8 @@ describe("bb thread log command output", () => {
     expect(getEvents).not.toHaveBeenCalled();
   });
 
-  it("bb thread log --self resolves from BB_THREAD_ID", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-log-self");
+  it("patcher thread log --self resolves from PATCHER_THREAD_ID", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-log-self");
     const getEvents = vi.fn(async () => []);
     const getTimeline = vi.fn(async () => fixtures.makeTimelineResponse([]));
     stubServerApi({

@@ -1,5 +1,5 @@
 /**
- * What an external-link handler answered, checked before bb acts on it.
+ * What an external-link handler answered, checked before Patcher acts on it.
  *
  * The value arrives from plugin code — over JSON for an out-of-process plugin,
  * so it can be any shape at all — and what it asks for is a navigation. Two

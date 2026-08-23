@@ -1,5 +1,8 @@
 import { eq } from "drizzle-orm";
-import { CLOSED_SESSION_ROW_RETENTION_MS, hostDaemonSessions } from "@bb/db";
+import {
+  CLOSED_SESSION_ROW_RETENTION_MS,
+  hostDaemonSessions,
+} from "@patcher/db";
 import { describe, expect, it, vi } from "vitest";
 import {
   type PeriodicSweepJob,

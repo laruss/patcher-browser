@@ -74,7 +74,7 @@ export async function resolveWorkspaceProjectSkills(
   deps: LoggedWorkSessionDeps,
   args: ResolveWorkspaceProjectSkillsArgs,
 ): Promise<ProjectInjectedSkillSource[]> {
-  const skillsRootPath = path.join(args.workspacePath, ".bb", "skills");
+  const skillsRootPath = path.join(args.workspacePath, ".patcher", "skills");
   const result = await callHostRetryableOnlineRpc(deps, {
     hostId: args.hostId,
     timeoutMs: COMMAND_TIMEOUT_MS,

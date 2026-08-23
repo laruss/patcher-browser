@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ThreadEvent, ThreadEventTokenUsageBreakdown } from "@bb/domain";
+import type {
+  ThreadEvent,
+  ThreadEventTokenUsageBreakdown,
+} from "@patcher/domain";
 import {
   createProviderTurnStateRegistry,
   type ProviderTurnState,

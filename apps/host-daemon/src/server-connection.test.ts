@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import type { HostDaemonSessionOpenResponse } from "@bb/host-daemon-contract";
+import type { HostDaemonSessionOpenResponse } from "@patcher/host-daemon-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostDaemonLogger } from "./logger.js";
 import { ServerResponseError, type ServerClient } from "./server-client.js";
@@ -23,8 +23,6 @@ interface CreateWebSocketFixtureArgs {
 
 interface ConnectionFixtureArgs extends CreateServerClientFixtureArgs {
   autoReconnect?: boolean;
-  connectMachineId?: string;
-  machineCredential?: string;
   protocolSelfUpdater?: ProtocolSelfUpdater;
   onSelfUpdateInstalled?: () => void | Promise<void>;
   startupTimeoutMs?: number;
@@ -50,7 +48,6 @@ function createSession(args: CreateSessionArgs): HostDaemonSessionOpenResponse {
     heartbeatIntervalMs: args.heartbeatIntervalMs,
     leaseTimeoutMs: args.leaseTimeoutMs,
     retiredEnvironmentIds: [],
-    connectShares: { generation: 0, ports: [] },
     sessionId: args.sessionId,
     watchSet: {
       generation: 0,
@@ -164,19 +161,13 @@ function createConnectionFixture(args: ConnectionFixtureArgs = {}) {
   });
   const setSession = vi.fn();
   const connection = new ServerConnection({
-    dataDir: "/tmp/bb-server-connection-test",
+    dataDir: "/tmp/patcher-server-connection-test",
     hostId: "host-server-connection-test",
     hostKey: "host-key-server-connection-test",
     hostName: "Server Connection Test Host",
     hostType: "persistent",
     instanceId: "instance-server-connection-test",
     logger,
-    ...(args.machineCredential !== undefined
-      ? { machineCredential: args.machineCredential }
-      : {}),
-    ...(args.connectMachineId !== undefined
-      ? { connectMachineId: args.connectMachineId }
-      : {}),
     serverClient: serverClient.serverClient,
     serverUrl: "http://127.0.0.1:3334",
     protocolSelfUpdater: args.protocolSelfUpdater,
@@ -275,38 +266,15 @@ describe("ServerConnection", () => {
     await connection.shutdown();
   });
 
-  it("adds the machine credential to WS dial headers only when configured", async () => {
-    const configured = createConnectionFixture({
-      machineCredential: "bbcm_machine",
-    });
+  it("dials the websocket with only the host-key authorization header", async () => {
     const plain = createConnectionFixture();
     try {
-      await configured.connection.start();
       await plain.connection.start();
-      expect(configured.webSocket.headers[0]).toEqual({
-        authorization: "Bearer host-key-server-connection-test",
-        "x-bb-connect-machine": "bbcm_machine",
-      });
       expect(plain.webSocket.headers[0]).toEqual({
         authorization: "Bearer host-key-server-connection-test",
       });
     } finally {
-      await configured.connection.shutdown();
       await plain.connection.shutdown();
-    }
-  });
-
-  it("reports the connect machine id when opening a session", async () => {
-    const fixture = createConnectionFixture({
-      connectMachineId: "machine-cloud-1",
-    });
-    try {
-      await fixture.connection.start();
-      expect(fixture.openSession).toHaveBeenCalledWith(
-        expect.objectContaining({ connectMachineId: "machine-cloud-1" }),
-      );
-    } finally {
-      await fixture.connection.shutdown();
     }
   });
 

@@ -20,12 +20,14 @@ const tempDirs: string[] = [];
 
 async function initReadGitBlobRepo() {
   const repoPath = await fs.mkdtemp(
-    path.join(os.tmpdir(), "bb-read-git-blob-"),
+    path.join(os.tmpdir(), "patcher-read-git-blob-"),
   );
   tempDirs.push(repoPath);
   await runGit(["init", "-b", "main"], { cwd: repoPath });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
-  await runGit(["config", "user.email", "bb@example.com"], { cwd: repoPath });
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
+    cwd: repoPath,
+  });
   await fs.mkdir(path.join(repoPath, "docs"));
   await fs.writeFile(path.join(repoPath, "README.md"), "hello\n", "utf8");
   await fs.writeFile(path.join(repoPath, "docs", "index.md"), "docs\n", "utf8");
@@ -36,18 +38,24 @@ async function initReadGitBlobRepo() {
 }
 
 async function initEmptyRepo() {
-  const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "bb-empty-git-"));
+  const repoPath = await fs.mkdtemp(
+    path.join(os.tmpdir(), "patcher-empty-git-"),
+  );
   tempDirs.push(repoPath);
   await runGit(["init", "-b", "main"], { cwd: repoPath });
   return repoPath;
 }
 
 async function initConflictRepo() {
-  const repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "bb-git-conflict-"));
+  const repoPath = await fs.mkdtemp(
+    path.join(os.tmpdir(), "patcher-git-conflict-"),
+  );
   tempDirs.push(repoPath);
   await runGit(["init", "-b", "main"], { cwd: repoPath });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
-  await runGit(["config", "user.email", "bb@example.com"], { cwd: repoPath });
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
+    cwd: repoPath,
+  });
   await fs.writeFile(path.join(repoPath, "README.md"), "base\n", "utf8");
   await runGit(["add", "."], { cwd: repoPath });
   await runGit(["commit", "-m", "Initial commit"], { cwd: repoPath });
@@ -62,7 +70,9 @@ async function initConflictRepo() {
 
 async function initDefaultBranchRemoteRepo() {
   const repoPath = await initReadGitBlobRepo();
-  const remotePath = await fs.mkdtemp(path.join(os.tmpdir(), "bb-git-remote-"));
+  const remotePath = await fs.mkdtemp(
+    path.join(os.tmpdir(), "patcher-git-remote-"),
+  );
   tempDirs.push(remotePath);
   await runGit(["init", "--bare"], { cwd: remotePath });
   await runGit(["remote", "add", "origin", remotePath], { cwd: repoPath });
@@ -73,15 +83,15 @@ async function initDefaultBranchRemoteRepo() {
 
 async function pushRemoteMainCommit(remotePath: string) {
   const cloneParent = await fs.mkdtemp(
-    path.join(os.tmpdir(), "bb-git-remote-clone-"),
+    path.join(os.tmpdir(), "patcher-git-remote-clone-"),
   );
   tempDirs.push(cloneParent);
   const clonePath = path.join(cloneParent, "repo");
   await runGit(["clone", "--branch", "main", remotePath, clonePath], {
     cwd: cloneParent,
   });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: clonePath });
-  await runGit(["config", "user.email", "bb@example.com"], {
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: clonePath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
     cwd: clonePath,
   });
   await fs.writeFile(path.join(clonePath, "remote.txt"), "remote\n", "utf8");
@@ -100,14 +110,14 @@ afterEach(async () => {
 });
 
 describe("runShellPipeline", () => {
-  it("scrubs inherited bb runtime env vars and node mode", async () => {
+  it("scrubs inherited Patcher runtime env vars and node mode", async () => {
     const repoPath = await initEmptyRepo();
-    vi.stubEnv("BB_DATA_DIR", "/tmp/leaked-bb-data");
+    vi.stubEnv("PATCHER_DATA_DIR", "/tmp/leaked-patcher-data");
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("OPENAI_API_KEY", "external-secret");
 
     const result = await runShellPipeline(
-      `printf '%s|%s|%s' "\${BB_DATA_DIR-missing}" "\${NODE_ENV-missing}" "\${OPENAI_API_KEY-missing}"`,
+      `printf '%s|%s|%s' "\${PATCHER_DATA_DIR-missing}" "\${NODE_ENV-missing}" "\${OPENAI_API_KEY-missing}"`,
       [],
       { cwd: repoPath },
     );
@@ -255,7 +265,7 @@ describe("command timeouts", () => {
     const repoPath = await initEmptyRepo();
 
     await expect(
-      runGit(["-c", "alias.bb-sleep=!sleep 5", "bb-sleep"], {
+      runGit(["-c", "alias.patcher-sleep=!sleep 5", "patcher-sleep"], {
         cwd: repoPath,
         allowFailure: true,
         timeoutMs: 10,

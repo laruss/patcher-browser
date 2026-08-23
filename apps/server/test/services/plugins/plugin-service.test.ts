@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createConnection, migrate, type DbConnection } from "@bb/db";
-import type { SystemChangeKind } from "@bb/domain";
-import type { Logger } from "@bb/logger";
+import { createConnection, migrate, type DbConnection } from "@patcher/db";
+import type { SystemChangeKind } from "@patcher/domain";
+import type { Logger } from "@patcher/logger";
 import {
   createPluginService,
   type PluginService,
@@ -20,7 +20,7 @@ async function writePlugin(
     version?: string;
     engines?: string;
     serverSource: string;
-    bb?: Record<string, unknown>;
+    patcher?: Record<string, unknown>;
   },
 ): Promise<string> {
   const rootDir = join(dir, options.name);
@@ -30,13 +30,13 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: options.version ?? "0.1.0",
-      ...(options.engines ? { engines: { bb: options.engines } } : {}),
-      bb: {
+      ...(options.engines ? { engines: { patcher: options.engines } } : {}),
+      patcher: {
         name: "Service fixture",
         description: "Plugin service fixture.",
         branding: { icon: "Zap" },
         server: "./server.ts",
-        ...options.bb,
+        ...options.patcher,
       },
     }),
   );
@@ -54,10 +54,10 @@ async function writeEsmPlugin(rootDir: string, id: string): Promise<void> {
   await writeFile(
     join(rootDir, "package.json"),
     JSON.stringify({
-      name: `bb-plugin-${id}`,
+      name: `patcher-plugin-${id}`,
       version: "0.1.0",
       type: "module",
-      bb: {
+      patcher: {
         name: `${id} fixture`,
         description: "ESM reload fixture.",
         branding: { icon: "Zap" },
@@ -95,7 +95,7 @@ describe("plugin service", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-test-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-test-"));
     service = createPluginService({
       db,
       hub: {
@@ -117,12 +117,12 @@ describe("plugin service", () => {
 
   it("installs a path plugin, runs its factory, and reports running", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-greeter",
+      name: "patcher-plugin-greeter",
       serverSource: `
-        import type { BbPluginApi } from "@bb/plugin-sdk";
-        export default function plugin(bb: any) {
+        import type { PatcherPluginApi } from "@patcher/plugin-sdk";
+        export default function plugin(patcher: any) {
           (globalThis as any).__greeterLoads = ((globalThis as any).__greeterLoads ?? 0) + 1;
-          bb.log.info("hello from greeter");
+          patcher.log.info("hello from greeter");
         }
       `,
     });
@@ -133,7 +133,7 @@ describe("plugin service", () => {
   });
 
   it("summarizes user-facing capabilities and drops the live ones when disabled", async () => {
-    const rootDir = join(workDir, "bb-plugin-capabilities");
+    const rootDir = join(workDir, "patcher-plugin-capabilities");
     // Two real skills plus a stray directory without a SKILL.md, so the
     // summary is proven to name the skills rather than their containing folder.
     await mkdir(join(rootDir, "skills", "review"), { recursive: true });
@@ -143,8 +143,8 @@ describe("plugin service", () => {
     await writeFile(join(rootDir, "skills", "triage", "SKILL.md"), "# triage");
     await writeFile(join(rootDir, "midnight.css"), ":root { --canvas: #000; }");
     await writePlugin(workDir, {
-      name: "bb-plugin-capabilities",
-      bb: {
+      name: "patcher-plugin-capabilities",
+      patcher: {
         themes: [
           {
             id: "midnight",
@@ -155,14 +155,14 @@ describe("plugin service", () => {
         ],
       },
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "capabilities_probe",
             description: "Probe capabilities",
             parameters: { type: "object" },
             execute: async () => ({ content: "ok" }),
           });
-          bb.ui.registerMentionProvider({
+          patcher.ui.registerMentionProvider({
             id: "issues",
             label: "Issues",
             triggers: ["#"],
@@ -222,11 +222,11 @@ describe("plugin service", () => {
 
   it("marks a throwing factory as error without affecting others", async () => {
     const bad = await writePlugin(workDir, {
-      name: "bb-plugin-bad",
+      name: "patcher-plugin-bad",
       serverSource: `export default function plugin() { throw new Error("boom at load"); }`,
     });
     const good = await writePlugin(workDir, {
-      name: "bb-plugin-good",
+      name: "patcher-plugin-good",
       serverSource: `export default function plugin() {}`,
     });
     await service.installPath(bad);
@@ -241,14 +241,14 @@ describe("plugin service", () => {
 
   it("reload re-runs the factory against current sources and runs dispose hooks LIFO", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-cycler",
+      name: "patcher-plugin-cycler",
       serverSource: `
-        export default function plugin(bb: any) {
+        export default function plugin(patcher: any) {
           const g = globalThis as any;
           g.__cyclerVersion = "v1";
           g.__cyclerDisposals = g.__cyclerDisposals ?? [];
-          bb.onDispose(() => g.__cyclerDisposals.push("first"));
-          bb.onDispose(() => g.__cyclerDisposals.push("second"));
+          patcher.onDispose(() => g.__cyclerDisposals.push("first"));
+          patcher.onDispose(() => g.__cyclerDisposals.push("second"));
         }
       `,
     });
@@ -274,7 +274,7 @@ describe("plugin service", () => {
   // re-run the first-evaluated factory. Submodules regressed separately from
   // the entry, so both are asserted.
   it("reload re-reads an ESM plugin's entry and its submodules", async () => {
-    const rootDir = join(workDir, "bb-plugin-esm-reloader");
+    const rootDir = join(workDir, "patcher-plugin-esm-reloader");
     await writeEsmPlugin(rootDir, "esm-reloader");
     const globals = globalThis as Record<string, unknown>;
 
@@ -295,7 +295,7 @@ describe("plugin service", () => {
   // resolved filename and ignores the query, so both a static `.cjs` import
   // and a `createRequire()` call must be invalidated another way.
   it("reload re-reads a plugin's CommonJS children", async () => {
-    const rootDir = join(workDir, "bb-plugin-cjs-child");
+    const rootDir = join(workDir, "patcher-plugin-cjs-child");
     await writeEsmPlugin(rootDir, "cjs-child");
     const writeSources = async (value: string): Promise<void> => {
       await writeFile(
@@ -331,8 +331,8 @@ describe("plugin service", () => {
   // import that crosses into another plugin's tree would carry the importer's
   // epoch and pin the imported plugin to a stale module.
   it("reload of an imported plugin is visible to a plugin that imports it", async () => {
-    const importerDir = join(workDir, "bb-plugin-importer");
-    const importedDir = join(workDir, "bb-plugin-imported");
+    const importerDir = join(workDir, "patcher-plugin-importer");
+    const importedDir = join(workDir, "patcher-plugin-imported");
     await writeEsmPlugin(importerDir, "importer");
     await writeEsmPlugin(importedDir, "imported");
     await writeEsmSources(importedDir, "imported", "entry1", "sub1");
@@ -369,8 +369,8 @@ describe("plugin service", () => {
   // not inherit the retained plugin's epoch (they resolve against the imported
   // root), so without a rollback they would read the rejected files.
   it("hides a failed reload's sources from a plugin that imports it", async () => {
-    const importerDir = join(workDir, "bb-plugin-fail-importer");
-    const importedDir = join(workDir, "bb-plugin-fail-imported");
+    const importerDir = join(workDir, "patcher-plugin-fail-importer");
+    const importedDir = join(workDir, "patcher-plugin-fail-imported");
     await writeEsmPlugin(importerDir, "fail-importer");
     await writeEsmPlugin(importedDir, "fail-imported");
     await writeEsmSources(importedDir, "failImported", "entry1", "sub1");
@@ -465,7 +465,7 @@ describe("plugin service", () => {
   // surviving plugin mixes its own modules with those of a newer — or failed —
   // load.
   it("keeps a live plugin's lazy imports coherent after a failed reload", async () => {
-    const rootDir = join(workDir, "bb-plugin-rollback");
+    const rootDir = join(workDir, "patcher-plugin-rollback");
     await writeEsmPlugin(rootDir, "rollbacker");
     await writeFile(join(rootDir, "lazy.js"), `export const LAZY = "lazy1";\n`);
     await writeFile(
@@ -499,10 +499,10 @@ describe("plugin service", () => {
 
   it("stale API handles throw after reload", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-staler",
+      name: "patcher-plugin-staler",
       serverSource: `
-        export default function plugin(bb: any) {
-          (globalThis as any).__stalerApi = bb;
+        export default function plugin(patcher: any) {
+          (globalThis as any).__stalerApi = patcher;
         }
       `,
     });
@@ -516,7 +516,7 @@ describe("plugin service", () => {
 
   it("marks initial engine mismatches incompatible and preserves a live plugin when reload finds its directory missing", async () => {
     const tooNew = await writePlugin(workDir, {
-      name: "bb-plugin-too-new",
+      name: "patcher-plugin-too-new",
       engines: ">=99.0.0",
       serverSource: `export default function plugin() {}`,
     });
@@ -526,7 +526,7 @@ describe("plugin service", () => {
     );
 
     const vanishing = await writePlugin(workDir, {
-      name: "bb-plugin-vanishing",
+      name: "patcher-plugin-vanishing",
       serverSource: `export default function plugin() {}`,
     });
     await service.installPath(vanishing);
@@ -553,7 +553,7 @@ describe("plugin service", () => {
       loadTimeoutMs: 2000,
     });
     const gated = await writePlugin(workDir, {
-      name: "bb-plugin-dev-gated",
+      name: "patcher-plugin-dev-gated",
       engines: ">=0.9",
       serverSource: `export default function plugin() {}`,
     });
@@ -564,7 +564,7 @@ describe("plugin service", () => {
 
   it("times out a hung factory and reports error", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-hang",
+      name: "patcher-plugin-hang",
       serverSource: `export default function plugin() { return new Promise(() => {}); }`,
     });
     await service.installPath(rootDir);
@@ -575,9 +575,9 @@ describe("plugin service", () => {
 
   it("disable unloads and disposes; enable loads again", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-switchable",
-      serverSource: `export default function plugin(bb: any) {
-        bb.onDispose(() => { (globalThis as any).__switchableDisposed = true; });
+      name: "patcher-plugin-switchable",
+      serverSource: `export default function plugin(patcher: any) {
+        patcher.onDispose(() => { (globalThis as any).__switchableDisposed = true; });
       }`,
     });
     await service.installPath(rootDir);
@@ -592,7 +592,7 @@ describe("plugin service", () => {
 
   it("enables a disabled path plugin when it is reinstalled", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-reinstalled",
+      name: "patcher-plugin-reinstalled",
       serverSource: `export default function plugin() {}`,
     });
     await service.install(rootDir);
@@ -622,7 +622,7 @@ describe("plugins-changed broadcast", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-notify-test-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-notify-test-"));
     notifySystem = vi.fn<(changes: SystemChangeKind[]) => void>();
     service = createPluginService({
       db,
@@ -645,7 +645,7 @@ describe("plugins-changed broadcast", () => {
 
   it("broadcasts plugins-changed on install, reload, and enable/disable", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-notifier",
+      name: "patcher-plugin-notifier",
       serverSource: `export default function plugin() {}`,
     });
     await service.installPath(rootDir);

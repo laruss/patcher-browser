@@ -21,7 +21,7 @@ export const CDP_MODIFIER_META = 4;
 export const CDP_MODIFIER_SHIFT = 8;
 
 /** Guard on a caller-supplied chord, so nothing unbounded reaches the parser. */
-export const BB_BROWSER_MAX_KEY_CHORD_LENGTH = 64;
+export const PATCHER_BROWSER_MAX_KEY_CHORD_LENGTH = 64;
 
 export interface BrowserKeyEvent {
   key: string;
@@ -135,7 +135,10 @@ export function characterKeyEvent(character: string): BrowserKeyEvent {
  * separator and a legitimate key collide.
  */
 export function parseBrowserKeyChord(chord: string): BrowserKeyEvent | null {
-  if (chord.length === 0 || chord.length > BB_BROWSER_MAX_KEY_CHORD_LENGTH) {
+  if (
+    chord.length === 0 ||
+    chord.length > PATCHER_BROWSER_MAX_KEY_CHORD_LENGTH
+  ) {
     return null;
   }
   const tokens = chord.split("+");

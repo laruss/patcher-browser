@@ -1,7 +1,8 @@
 import { useAtom } from "jotai";
 import { createBooleanPreferenceAtom } from "./browser-storage";
 
-export const REWRITE_LOCALHOST_LINKS_STORAGE_KEY = "bb.rewriteLocalhostLinks";
+export const REWRITE_LOCALHOST_LINKS_STORAGE_KEY =
+  "patcher.rewriteLocalhostLinks";
 
 export const REWRITE_LOCALHOST_LINKS_DEFAULT = true;
 

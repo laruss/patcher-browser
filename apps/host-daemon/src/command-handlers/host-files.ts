@@ -5,7 +5,7 @@ import type {
   DirectoryEntry,
   HostDaemonOnlineRpcResult,
   HostPathEntryKind,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { CommandDispatchError } from "../command-dispatch-support.js";
 import type { CommandOf } from "../command-dispatch-support.js";
 import { isFsErrorWithCode } from "../fs-errors.js";

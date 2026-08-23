@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useStore } from "jotai";
 import { resolvePluginBrowserPdfText } from "@/hooks/queries/plugin-contribution-queries";
-import { getDesktopBrowserApi } from "../bb-desktop";
+import { getDesktopBrowserApi } from "../patcher-desktop";
 import { browserSurfaceTabsAtom } from "../browser-surface-tabs";
 import { browserMutedTabsAtom, withBrowserTabMuted } from "../browser-tab-mute";
 import { destroyPersistedBrowserView } from "@/components/secondary-panel/browserViewVisibilityCoordinator";

@@ -1,5 +1,5 @@
 import { useLocation, useMatch } from "react-router-dom";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 
 export interface RouteState {
   /** ID of the project in view (any project-scoped route), else undefined. */

@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createConnection } from "@bb/db";
+import { createConnection } from "@patcher/db";
 import { exportLegacyAutomationsForPluginImport } from "../../../apps/server/src/legacy-automations-export.js";
 import {
   getAutomation,
@@ -117,7 +117,7 @@ function insertLegacyAutomation(
 
 describe("legacy automation export/import round trip", () => {
   it("exports kernel rows that the automations plugin schema can parse and ingest", async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), "bb-legacy-roundtrip-"));
+    const dataDir = await mkdtemp(join(tmpdir(), "patcher-legacy-roundtrip-"));
     const legacyDb = createConnection(":memory:");
     const pluginDb = createConnection(":memory:");
     try {
@@ -198,7 +198,7 @@ describe("legacy automation export/import round trip", () => {
       ]);
 
       await ingestLegacyImport({
-        bb: {
+        patcher: {
           storage: {
             kv: {
               async get(): Promise<undefined> {

@@ -46,7 +46,7 @@ export function resolveWindowOpenAction(url: string): WindowOpenDecision {
  * Everything else stays refused for the reason it always was: the URL comes
  * from the page, so `javascript:` would be a click that runs it, `file:` a
  * reader for the local disk, and a loopback or private host a way to knock on
- * bb's own services.
+ * Patcher's own services.
  */
 export function isAllowedBrowserPopupTarget(url: string): boolean {
   return url === "about:blank" || isAllowedPublicBrowserPopupUrl(url);
@@ -54,7 +54,7 @@ export function isAllowedBrowserPopupTarget(url: string): boolean {
 
 // --- Loopback / LAN request firewall ---
 //
-// Untrusted browsed pages must never be able to reach bb's own loopback
+// Untrusted browsed pages must never be able to reach Patcher's own loopback
 // services (server `/ws`, host-daemon local API) or other hosts on the user's
 // LAN. CORS only filters responses; it does not stop the request from being
 // sent and acted on. So we block at the network layer (see the

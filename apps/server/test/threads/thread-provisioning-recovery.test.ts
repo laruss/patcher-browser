@@ -1,10 +1,15 @@
 import { eq } from "drizzle-orm";
-import { environments, getEnvironment, getThread, listEvents } from "@bb/db";
+import {
+  environments,
+  getEnvironment,
+  getThread,
+  listEvents,
+} from "@patcher/db";
 import {
   encodeClientTurnRequestIdNumber,
   threadScope,
   type ResolvedThreadExecutionOptions,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { runThreadLifecycleSweep } from "../../src/services/system/periodic-sweeps.js";
 import {
@@ -456,7 +461,7 @@ describe("thread provisioning recovery", () => {
         }
         await reportQueuedCommandSuccess(harness, provisionCommand, {
           path: "/tmp/error-retry-before-late-ready",
-          branchName: `bb/${thread.id}`,
+          branchName: `patcher/${thread.id}`,
           defaultBranch: "main",
           isGitRepo: true,
           isWorktree: true,

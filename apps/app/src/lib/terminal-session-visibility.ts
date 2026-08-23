@@ -1,5 +1,5 @@
-import { isActiveTerminalSessionStatus } from "@bb/domain";
-import type { TerminalSession } from "@bb/server-contract";
+import { isActiveTerminalSessionStatus } from "@patcher/domain";
+import type { TerminalSession } from "@patcher/server-contract";
 
 interface RetainedTerminalSessionArgs {
   retainedTerminalId: string | null;

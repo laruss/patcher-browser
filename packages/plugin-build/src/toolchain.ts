@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 /**
- * Exact versions bb builds plugin bundles with. Pinned rather than ranged so
+ * Exact versions Patcher builds plugin bundles with. Pinned rather than ranged so
  * a fetched toolchain is reproducible and its directory name is stable.
  * Bump deliberately; {@link toolchainCacheDir} keys off these, so a bump
  * installs alongside the old set instead of mutating it.
@@ -29,7 +29,7 @@ export const PLUGIN_TOOLCHAIN_PINS = {
  * is a directory rather than a module because Tailwind's CSS entry points
  * (`index.css`, `theme.css`, …) are resolved by name at compile time, and the
  * package holding them lives wherever the toolchain does — which, for a
- * shipped server, is neither the plugin nor bb's own bundle.
+ * shipped server, is neither the plugin nor Patcher's own bundle.
  */
 export interface PluginBuildToolchain {
   esbuild: string;
@@ -47,7 +47,7 @@ function pinKey(): string {
 
 /**
  * Directory holding one pinned toolchain set. Keyed by the pins themselves so
- * upgrading bb installs a fresh set beside the old one rather than mutating a
+ * upgrading Patcher installs a fresh set beside the old one rather than mutating a
  * directory a concurrent build may be importing from.
  */
 export function toolchainCacheDir(baseDir: string): string {
@@ -113,7 +113,7 @@ function readVersion(require: NodeRequire, name: string): string | null {
  * Build a toolchain from `require`, or null if any package is missing or is
  * not the pinned version.
  *
- * Version equality matters: the build emits artifacts whose compatibility bb
+ * Version equality matters: the build emits artifacts whose compatibility Patcher
  * later validates, and an unpinned local Tailwind or esbuild would silently
  * produce bundles the pinned set would not.
  */
@@ -139,7 +139,7 @@ function toolchainFrom(require: NodeRequire): PluginBuildToolchain | null {
  * The toolchain as resolved from this package's own dependencies, or null.
  *
  * Non-null in the monorepo and in tests, where these are devDependencies of
- * `@bb/plugin-build`. Null in a shipped server, CLI, or desktop app, which
+ * `@patcher/plugin-build`. Null in a shipped server, CLI, or desktop app, which
  * carry none of them — those fetch. Checked first so development never pays a
  * download and never gets a second copy of a toolchain it already has.
  */
@@ -149,7 +149,7 @@ function resolveLocalToolchain(): PluginBuildToolchain | null {
 
 async function isInstalled(dir: string): Promise<boolean> {
   try {
-    const raw = await readFile(join(dir, ".bb-toolchain.json"), "utf8");
+    const raw = await readFile(join(dir, ".patcher-toolchain.json"), "utf8");
     const parsed: unknown = JSON.parse(raw);
     if (
       typeof parsed !== "object" ||
@@ -169,7 +169,7 @@ async function isInstalled(dir: string): Promise<boolean> {
  * Ensure the pinned toolchain exists under `baseDir` and return specifiers the
  * build functions can import.
  *
- * bb installs its own pinned packages here — never plugin code — so this runs
+ * Patcher installs its own pinned packages here — never plugin code — so this runs
  * with `--ignore-scripts` and touches no plugin-authored script.
  *
  * Cross-process safe: a server and a CLI can race here. Each installs into a
@@ -206,7 +206,7 @@ export async function resolvePluginBuildToolchain(
     // configuration or lockfile.
     await writeFile(
       join(staging, "package.json"),
-      `${JSON.stringify({ name: "bb-plugin-toolchain", private: true, version: "0.0.0" }, null, 2)}\n`,
+      `${JSON.stringify({ name: "patcher-plugin-toolchain", private: true, version: "0.0.0" }, null, 2)}\n`,
     );
     await run(
       "npm",
@@ -231,7 +231,7 @@ export async function resolvePluginBuildToolchain(
       );
     }
     await writeFile(
-      join(staging, ".bb-toolchain.json"),
+      join(staging, ".patcher-toolchain.json"),
       `${JSON.stringify({ pins: pinKey() }, null, 2)}\n`,
     );
     await mkdir(dirname(dir), { recursive: true });

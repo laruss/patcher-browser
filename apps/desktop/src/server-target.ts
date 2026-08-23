@@ -5,16 +5,8 @@ import { z } from "zod";
 export const SERVER_TARGET_FILE_NAME = "server-target.json";
 export const BUILTIN_SERVER_NAME = "This Mac";
 
-/** The Connect account server the app targets, snapshotted at selection time. */
-export interface ConnectServerRef {
-  handle: string;
-  name: string;
-  url: string;
-}
-
 export type DesktopServerTarget =
   | { kind: "builtin" }
-  | { kind: "connect"; server: ConnectServerRef }
   | { kind: "custom"; url: string };
 
 export interface ServerTargetFs {
@@ -32,20 +24,10 @@ export interface CreateServerTargetStoreArgs {
 }
 
 export interface ServerTargetStore {
-  /** The selected Connect server, whether or not it is the active target. */
-  getConnectServer(): ConnectServerRef | null;
   /** The custom server URL, whether or not it is the active target. */
   getCustomServerUrl(): string | null;
   getTarget(): DesktopServerTarget;
   load(): Promise<void>;
-  /**
-   * Update the selected Connect server's name/url after an account sync
-   * (matched by handle). Does not change the active target. Returns whether
-   * anything changed.
-   */
-  refreshConnectServer(server: ConnectServerRef): Promise<boolean>;
-  /** Select a Connect server and make it the active target. */
-  setConnectServer(server: ConnectServerRef): Promise<void>;
   /**
    * Set the custom server URL and make it the active target. Passing null
    * clears the custom entry and re-targets the builtin server.
@@ -53,26 +35,15 @@ export interface ServerTargetStore {
   setCustomServerUrl(url: string | null): Promise<void>;
   /**
    * Switch the active target. Returns false (no-op) when asked to target
-   * "custom"/"connect" while no such server is set.
+   * "custom" while no such server is set.
    */
-  setTarget(kind: "builtin" | "connect" | "custom"): Promise<boolean>;
+  setTarget(kind: "builtin" | "custom"): Promise<boolean>;
 }
-
-const persistedConnectServerSchema = z
-  .object({
-    handle: z.string().min(1),
-    name: z.string().min(1),
-    url: z.string().min(1),
-  })
-  .strict();
 
 const persistedServerTargetSchema = z
   .object({
-    // Absent on files written before connect targets → treated as null at
-    // the load boundary.
-    connectServer: persistedConnectServerSchema.nullable().optional(),
     customServerUrl: z.string().min(1).nullable(),
-    target: z.enum(["builtin", "connect", "custom"]),
+    target: z.enum(["builtin", "custom"]),
   })
   .strict();
 
@@ -117,14 +88,12 @@ export function createServerTargetStore(
   args: CreateServerTargetStoreArgs,
 ): ServerTargetStore {
   const fsImpl = args.fs ?? defaultFs;
-  let connectServer: ConnectServerRef | null = null;
   let customServerUrl: string | null = null;
-  let target: "builtin" | "connect" | "custom" = "builtin";
+  let target: "builtin" | "custom" = "builtin";
 
   async function persist(): Promise<void> {
     await fsImpl.mkdir(dirname(args.storagePath), { recursive: true });
     const payload: PersistedServerTarget = {
-      connectServer,
       customServerUrl,
       target,
     };
@@ -136,18 +105,12 @@ export function createServerTargetStore(
   }
 
   return {
-    getConnectServer() {
-      return connectServer === null ? null : { ...connectServer };
-    },
     getCustomServerUrl() {
       return customServerUrl;
     },
     getTarget() {
       if (target === "custom" && customServerUrl !== null) {
         return { kind: "custom", url: customServerUrl };
-      }
-      if (target === "connect" && connectServer !== null) {
-        return { kind: "connect", server: { ...connectServer } };
       }
       return { kind: "builtin" };
     },
@@ -161,42 +124,20 @@ export function createServerTargetStore(
         persisted = null;
       }
       if (persisted === null) {
-        connectServer = null;
         customServerUrl = null;
         target = "builtin";
         return;
       }
-      connectServer = persisted.connectServer ?? null;
       customServerUrl =
         persisted.customServerUrl === null
           ? null
           : normalizeCustomServerUrl(persisted.customServerUrl);
-      // A custom/connect target without a valid server falls back to builtin
-      // at the load boundary so getTarget() never returns a dangling target.
-      if (persisted.target === "custom" && customServerUrl !== null) {
-        target = "custom";
-      } else if (persisted.target === "connect" && connectServer !== null) {
-        target = "connect";
-      } else {
-        target = "builtin";
-      }
-    },
-    async refreshConnectServer(server) {
-      if (
-        connectServer === null ||
-        connectServer.handle !== server.handle ||
-        (connectServer.name === server.name && connectServer.url === server.url)
-      ) {
-        return false;
-      }
-      connectServer = { ...server };
-      await persist();
-      return true;
-    },
-    async setConnectServer(server) {
-      connectServer = { ...server };
-      target = "connect";
-      await persist();
+      // A custom target without a valid server falls back to builtin at the
+      // load boundary so getTarget() never returns a dangling target.
+      target =
+        persisted.target === "custom" && customServerUrl !== null
+          ? "custom"
+          : "builtin";
     },
     async setCustomServerUrl(url) {
       if (url === null) {
@@ -212,9 +153,6 @@ export function createServerTargetStore(
     },
     async setTarget(kind) {
       if (kind === "custom" && customServerUrl === null) {
-        return false;
-      }
-      if (kind === "connect" && connectServer === null) {
         return false;
       }
       if (target === kind) {

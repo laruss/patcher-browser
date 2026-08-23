@@ -34,14 +34,19 @@ export function resolveDesktopBridgePath(
       return join(
         `${args.paths.appPath}.unpacked`,
         "dist",
-        "bb-app-bridge.mjs",
+        "patcher-app-bridge.mjs",
       );
     }
 
-    return join(args.paths.resourcesPath, "app", "dist", "bb-app-bridge.mjs");
+    return join(
+      args.paths.resourcesPath,
+      "app",
+      "dist",
+      "patcher-app-bridge.mjs",
+    );
   }
 
-  return join(args.paths.appPath, "dist", "bb-app-bridge.mjs");
+  return join(args.paths.appPath, "dist", "patcher-app-bridge.mjs");
 }
 
 export function resolveDesktopAssetPath(

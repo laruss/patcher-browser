@@ -12,7 +12,7 @@ import {
   type StoredEventRow,
   type ThreadClientTurnRequestKey,
   type ThreadWithPendingInteractionState,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   Thread,
   ThreadActivityState,
@@ -20,13 +20,13 @@ import type {
   ThreadRuntimeState,
   ThreadStatus,
   ThreadWithRuntime,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   extractThreadTimelineActivePlanTurn,
   extractThreadTimelineGoal,
   type ThreadEventWithMeta,
-} from "@bb/thread-view";
-import type { ThreadResponse } from "@bb/server-contract";
+} from "@patcher/thread-view";
+import type { ThreadResponse } from "@patcher/server-contract";
 import { DAEMON_ACTIVE_WORK_DISCONNECT_GRACE_MS } from "../../constants.js";
 import type { NotificationHub } from "../../ws/hub.js";
 import { parseStoredEvent } from "./thread-data.js";

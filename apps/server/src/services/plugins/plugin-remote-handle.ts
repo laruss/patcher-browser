@@ -21,14 +21,14 @@ import type { PluginServiceCommand } from "./plugin-service-message.js";
 import { alreadyValidatedElsewhere } from "./plugin-rpc-call.js";
 import { readBrowserHistoryDecision } from "./plugin-history-filter.js";
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginAgentToolContext,
   PluginAgentToolResult,
   PluginApiHandle,
   PluginBackgroundServiceRecord,
   PluginHttpRouteRecord,
 } from "./plugin-api.js";
-import type { PluginBrowserToolbarContext } from "@bb/plugin-sdk";
+import type { PluginBrowserToolbarContext } from "@patcher/plugin-sdk";
 import type { PluginRegistrationSnapshot } from "./plugin-child-runtime.js";
 
 type HostChannel = PluginChannel<PluginCallbackKind, PluginHostCallPath>;
@@ -43,7 +43,7 @@ type HostChannel = PluginChannel<PluginCallbackKind, PluginHostCallPath>;
  * in the server under `plugin-placement.ts`. An *installed* plugin no longer
  * gets that escape: the shipped policy moves it out, so a route that never ends
  * its body (SSE, say) buffers forever here rather than streaming. That is a
- * real difference between the two placements, not a detail; `BB_PLUGIN_PROCESS`
+ * real difference between the two placements, not a detail; `PATCHER_PLUGIN_PROCESS`
  * is the way back for a deployment that hits it.
  */
 export function remoteHttpRoute(args: {
@@ -145,10 +145,10 @@ export function createRemotePluginApiHandle(args: {
   };
 
   return {
-    // `bb` lives in the plugin's process. Nothing on the server should reach
+    // `patcher` lives in the plugin's process. Nothing on the server should reach
     // for it, and a thrown explanation beats a plausible-looking empty object.
-    get api(): BbPluginApi {
-      return notLocal("bb.api");
+    get api(): PatcherPluginApi {
+      return notLocal("patcher.api");
     },
     // Dispose hooks, database handles and the settings descriptors all belong
     // to the far side. The host's dispose path sends the `dispose` callback,

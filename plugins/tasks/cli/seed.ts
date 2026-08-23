@@ -9,7 +9,7 @@ export interface SeedDemoResult {
   labelsCreated: number;
   tasksCreated: number;
   commentsCreated: number;
-  linkedBbProjectId: string | null;
+  linkedPatcherProjectId: string | null;
   projects: Array<{ id: string; keyPrefix: string; name: string }>;
 }
 
@@ -52,7 +52,7 @@ function nextPrefix(base: string, used: Set<string>): string {
 
 export async function seedDemo(
   domain: TasksDomain,
-  linkedBbProjectId: string | undefined,
+  linkedPatcherProjectId: string | undefined,
 ): Promise<SeedDemoResult> {
   const existing = tasksRpcContract.listProjects.output.parse(
     await domain.listProjects(tasksRpcContract.listProjects.input.parse({})),
@@ -77,21 +77,21 @@ export async function seedDemo(
       prefix: nextPrefix("TASKS", prefixes),
       color: "blue",
       folderId: productFolder.id,
-      linkedBbProjectId: linkedBbProjectId ?? null,
+      linkedPatcherProjectId: linkedPatcherProjectId ?? null,
     },
     {
       name: "Operations",
       prefix: nextPrefix("OPS", prefixes),
       color: "orange",
       folderId: productFolder.id,
-      linkedBbProjectId: null,
+      linkedPatcherProjectId: null,
     },
     {
       name: "Personal",
       prefix: nextPrefix("HOME", prefixes),
       color: "violet",
       folderId: lifeFolder.id,
-      linkedBbProjectId: null,
+      linkedPatcherProjectId: null,
     },
   ]) {
     projects.push(
@@ -266,7 +266,7 @@ export async function seedDemo(
     labelsCreated: labels.length,
     tasksCreated: tasks.length,
     commentsCreated: comments.length,
-    linkedBbProjectId: linkedBbProjectId ?? null,
+    linkedPatcherProjectId: linkedPatcherProjectId ?? null,
     projects: projects.map((project) => ({
       id: project.id,
       keyPrefix: project.prefix,

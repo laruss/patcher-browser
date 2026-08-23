@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Editor } from "@tiptap/core";
-import { POINTER_COARSE_QUERY } from "@bb/shared-ui/hooks/use-pointer-coarse";
+import { POINTER_COARSE_QUERY } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import { createEditorExtensions } from "./extensions.js";
 import { TasksEditor } from "./tasks-editor.js";
 
@@ -56,16 +56,16 @@ describe("markdown round-trip", () => {
     ["task list", "- [ ] open task\n- [x] done task"],
     ["code block", "```ts\nconst answer = 42;\n```"],
     ["blockquote", "> quoted wisdom"],
-    ["link", "Read the [bb guide](https://example.com/guide)."],
+    ["link", "Read the [Patcher guide](https://example.com/guide)."],
     ["image", "![diagram](https://example.com/diagram.png)"],
-    ["mention", "Blocked on [TSK-42](bbtask://TSK-42) for review."],
+    ["mention", "Blocked on [TSK-42](patchertask://TSK-42) for review."],
     [
       "thread mention",
-      "Discussed in [Fix login flow](bbthread://thr_a82u8wp8qq) yesterday.",
+      "Discussed in [Fix login flow](patcherthread://thr_a82u8wp8qq) yesterday.",
     ],
     [
       "mixed document",
-      "## Plan\n\nShip the **editor** with `tiptap`.\n\n- [x] parse\n- [ ] serialize\n\n> Notes on [TSK-7](bbtask://TSK-7)\n\n```\nplain code\n```",
+      "## Plan\n\nShip the **editor** with `tiptap`.\n\n- [x] parse\n- [ ] serialize\n\n> Notes on [TSK-7](patchertask://TSK-7)\n\n```\nplain code\n```",
     ],
   ];
   it.each(cases)("preserves %s", (_name, markdown) => {
@@ -74,10 +74,10 @@ describe("markdown round-trip", () => {
 });
 
 describe("mention extension", () => {
-  it("parses a bbtask link into a pill node and serializes it back", () => {
+  it("parses a patchertask link into a pill node and serializes it back", () => {
     const editor = new Editor({
       extensions: createEditorExtensions(),
-      content: "Ping [TSK-42](bbtask://TSK-42) today.",
+      content: "Ping [TSK-42](patchertask://TSK-42) today.",
     });
     const findMentions = () => {
       const found: Array<Record<string, unknown>> = [];
@@ -92,7 +92,7 @@ describe("mention extension", () => {
       const pill = editor.view.dom.querySelector(
         '[data-task-mention="TSK-42"]',
       );
-      expect(pill?.classList.contains("bb-tasks-mention")).toBe(true);
+      expect(pill?.classList.contains("patcher-tasks-mention")).toBe(true);
       expect(pill?.textContent).toBe("TSK-42");
       // A regular link must still parse as a link mark, not a mention.
       editor.commands.setContent("[docs](https://example.com)");
@@ -141,7 +141,7 @@ describe("mention extension", () => {
     fireEvent.click(option.closest("button")!);
     // The command inserts the pill plus a trailing space to keep typing.
     await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith("[TSK-42](bbtask://TSK-42) "),
+      expect(onChange).toHaveBeenCalledWith("[TSK-42](patchertask://TSK-42) "),
     );
     expect(
       screen.container.querySelector('[data-task-mention="TSK-42"]'),
@@ -198,7 +198,7 @@ describe("mention extension", () => {
     fireEvent.click(screen.getByText("Fix login flow").closest("button")!);
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
-        "[Fix login flow](bbthread://thr_a82u8wp8qq) ",
+        "[Fix login flow](patcherthread://thr_a82u8wp8qq) ",
       ),
     );
     expect(
@@ -210,21 +210,21 @@ describe("mention extension", () => {
 });
 
 describe("thread mention extension", () => {
-  it("parses a bbthread link into a pill and serializes it back", () => {
+  it("parses a patcherthread link into a pill and serializes it back", () => {
     const editor = new Editor({
       extensions: createEditorExtensions(),
-      content: "See [Fix login flow](bbthread://thr_a82u8wp8qq).",
+      content: "See [Fix login flow](patcherthread://thr_a82u8wp8qq).",
     });
     try {
       const pill = editor.view.dom.querySelector(
         '[data-thread-mention="thr_a82u8wp8qq"]',
       );
-      expect(pill?.classList.contains("bb-tasks-thread-mention")).toBe(true);
+      expect(pill?.classList.contains("patcher-tasks-thread-mention")).toBe(true);
       expect(pill?.textContent).toBe("Fix login flow");
       // The pill carries the distinguishing chat glyph.
-      expect(pill?.querySelector("svg.bb-tasks-mention-icon")).toBeTruthy();
+      expect(pill?.querySelector("svg.patcher-tasks-mention-icon")).toBeTruthy();
       expect(editor.storage.markdown.getMarkdown()).toBe(
-        "See [Fix login flow](bbthread://thr_a82u8wp8qq).",
+        "See [Fix login flow](patcherthread://thr_a82u8wp8qq).",
       );
     } finally {
       editor.destroy();
@@ -235,7 +235,7 @@ describe("thread mention extension", () => {
     const onOpenThread = vi.fn();
     const screen = render(
       <TasksEditor
-        value="See [Fix login flow](bbthread://thr_a82u8wp8qq)."
+        value="See [Fix login flow](patcherthread://thr_a82u8wp8qq)."
         onChange={() => undefined}
         readOnly
         variant="comment"

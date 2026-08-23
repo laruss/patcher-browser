@@ -1,12 +1,15 @@
-import { createFakeAdapter } from "@bb/agent-runtime/test";
+import { createFakeAdapter } from "@patcher/agent-runtime/test";
 import {
   isUserQuestionPendingInteractionPayload,
   type PendingInteraction,
   type PendingInteractionResolution,
   type ProviderPendingInteraction,
   type UserQuestionPendingInteractionPayload,
-} from "@bb/domain";
-import type { TimelineQuestionWorkRow, TimelineRow } from "@bb/server-contract";
+} from "@patcher/domain";
+import type {
+  TimelineQuestionWorkRow,
+  TimelineRow,
+} from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import {
   getThreadOutput,

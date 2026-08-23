@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PromptMentionResource } from "@bb/domain";
+import type { PromptMentionResource } from "@patcher/domain";
 import {
   appendQuoteAndAttachmentsToDraft,
   appendQuoteToDraftText,
@@ -131,7 +131,7 @@ describe("prompt draft helpers", () => {
     expect(input).toEqual([
       {
         type: "text",
-        text: "Create a new bb automation to keep checking CI",
+        text: "Create a new Patcher automation to keep checking CI",
         mentions: [],
       },
     ]);
@@ -170,11 +170,11 @@ describe("prompt draft helpers", () => {
     expect(input).toEqual([
       {
         type: "text",
-        text: "Create a new bb automation to inspect @thread",
+        text: "Create a new Patcher automation to inspect @thread",
         mentions: [
           {
-            start: "Create a new bb automation to inspect ".length,
-            end: "Create a new bb automation to inspect @thread".length,
+            start: "Create a new Patcher automation to inspect ".length,
+            end: "Create a new Patcher automation to inspect @thread".length,
             resource: threadResource,
           },
         ],

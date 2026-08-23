@@ -1,4 +1,4 @@
-import { pluginCatalogInstallRequestSchema } from "@bb/server-contract";
+import { pluginCatalogInstallRequestSchema } from "@patcher/server-contract";
 import type { Hono } from "hono";
 import type { PluginCatalogService } from "../services/plugin-catalog/plugin-catalog-service.js";
 

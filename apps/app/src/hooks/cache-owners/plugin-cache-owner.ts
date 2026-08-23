@@ -7,7 +7,7 @@ import {
   type PluginListResult,
   type PluginSettingsView,
 } from "../queries/plugin-settings-queries";
-import type { InstalledPlugin } from "@bb/server-contract";
+import type { InstalledPlugin } from "@patcher/server-contract";
 import { allPluginCatalogSearchQueryKeyPrefix } from "../queries/plugin-catalog-queries";
 import { pluginToolbarStatesQueryKeyPrefix } from "../queries/plugin-contribution-queries";
 

@@ -9,16 +9,16 @@ import {
   ResourceListState,
   ResourceOverflowMenu,
   type ResourceOverflowMenuItem,
-} from "@bb/shared-ui/resource-list";
-import { Switch } from "@bb/shared-ui/switch";
+} from "@patcher/shared-ui/resource-list";
+import { Switch } from "@patcher/shared-ui/switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
-import { formatHomePathForDisplay } from "@bb/shared-ui/lib/utils";
-import { Icon } from "@bb/shared-ui/icon";
+} from "@patcher/shared-ui/tooltip";
+import { formatHomePathForDisplay } from "@patcher/shared-ui/lib/utils";
+import { Icon } from "@patcher/shared-ui/icon";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import {
   PluginDetailReleaseControl,
@@ -56,7 +56,7 @@ import {
 
 function pluginSourceLabel(plugin: PluginListItem): string | null {
   return plugin.provenance === "builtin" || plugin.provenance === "catalog"
-    ? "BB Official"
+    ? "Patcher Official"
     : null;
 }
 
@@ -71,7 +71,7 @@ export function pluginIsLocalSource(plugin: PluginListItem): boolean {
 }
 
 export function pluginRemovalLabel(plugin: PluginListItem): string {
-  return pluginIsLocalSource(plugin) ? "Remove from bb" : "Uninstall";
+  return pluginIsLocalSource(plugin) ? "Remove from Patcher" : "Uninstall";
 }
 
 function PluginPath({ path }: { path: string }) {
@@ -114,7 +114,7 @@ function PluginPath({ path }: { path: string }) {
 }
 
 /**
- * Read-only detail for an uninstalled BB Official catalog entry.
+ * Read-only detail for an uninstalled Patcher Official catalog entry.
  *
  * The catalog exposes identity, category, description, and compatibility. It
  * cannot enumerate runtime capabilities until the plugin is installed and
@@ -138,7 +138,7 @@ export function CatalogPluginDetail({
         />
       }
       title={entry.displayName}
-      titleMeta={<ProvenancePill label="BB Official" />}
+      titleMeta={<ProvenancePill label="Patcher Official" />}
       metadata={<span>{entry.category}</span>}
       actions={
         <ResourceInstallControl
@@ -172,7 +172,7 @@ export function CatalogPluginDetailBanner({
     <PluginBannerBar
       tone="warning"
       icon="AlertTriangle"
-      title="Update bb to install this plugin"
+      title="Update Patcher to install this plugin"
       detail={entry.incompatibleReason}
     />
   );
@@ -303,11 +303,11 @@ export function PluginDetail({
   const canEditSource = pluginIsLocalSource(plugin);
   // Delivery policy comes from the source itself. Source detail is auxiliary:
   // a missing or still-loading install date must never make a managed plugin
-  // look as though it ships with bb.
-  const updatesWithBb = plugin.source.startsWith("builtin:");
+  // look as though it ships with Patcher.
+  const updatesWithPatcher = plugin.source.startsWith("builtin:");
   const installedAt = sourceQuery.data?.installedAt ?? null;
-  const installedValue = updatesWithBb
-    ? "Updates with bb"
+  const installedValue = updatesWithPatcher
+    ? "Updates with Patcher"
     : installedAt !== null
       ? formatAbsoluteDate(installedAt)
       : sourceQuery.isPending
@@ -351,7 +351,7 @@ export function PluginDetail({
       disabled: pending || plugin.provenance === "builtin",
       disabledReason:
         plugin.provenance === "builtin"
-          ? "Included with BB; disable this plugin instead."
+          ? "Included with Patcher; disable this plugin instead."
           : undefined,
       onSelect: () => onDelete(plugin),
     },
@@ -362,9 +362,9 @@ export function PluginDetail({
       leading={<PluginLogo plugin={plugin} className="size-4" />}
       title={pluginName}
       // Provenance is a label, not a control: it sits flush to the name as a
-      // passive badge. Default owned sources need no label; only BB-published
+      // passive badge. Default owned sources need no label; only Patcher-published
       // plugins carry provenance here. It used to render as a green
-      // "Installed"/"BB Official"
+      // "Installed"/"Patcher Official"
       // button that swapped to a red Uninstall on hover — a status that
       // deleted on click, at the same weight as the enable toggle.
       titleMeta={<PluginProvenancePill plugin={plugin} />}
@@ -402,15 +402,12 @@ export function PluginDetail({
         >
           <PluginDetailTable>
             <PluginDetailFieldRow
-              label={updatesWithBb ? "Delivery" : "Installed"}
+              label={updatesWithPatcher ? "Delivery" : "Installed"}
               labelClassName="font-medium"
             >
               {installedValue}
             </PluginDetailFieldRow>
-            <PluginDetailFieldRow
-              label="Version"
-              labelClassName="font-medium"
-            >
+            <PluginDetailFieldRow label="Version" labelClassName="font-medium">
               <span className="font-mono text-xs">{plugin.version}</span>
             </PluginDetailFieldRow>
             {hasReleaseUpdate ? (

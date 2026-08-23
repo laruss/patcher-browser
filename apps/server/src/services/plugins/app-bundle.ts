@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import semver from "semver";
-import { PLUGIN_SDK_MAJOR } from "@bb/domain";
-import { assertValidPluginCompactIconSvg } from "@bb/plugin-build";
+import { PLUGIN_SDK_MAJOR } from "@patcher/domain";
+import { assertValidPluginCompactIconSvg } from "@patcher/plugin-build";
 
 export interface PluginArtifactMeta {
   sdkMajor: number;
@@ -12,7 +12,7 @@ export interface PluginArtifactMeta {
   pluginId?: string;
   pluginVersion?: string;
   builtWith?: {
-    bbVersion: string;
+    patcherVersion: string;
     pluginSdkVersion: string;
   };
 }
@@ -23,7 +23,7 @@ export interface PluginArtifactMetaParseResult {
 }
 
 /**
- * Frontend bundle inventory + asset state for plugins that declare `bb.app`
+ * Frontend bundle inventory + asset state for plugins that declare `patcher.app`
  * (design §5.1). The plugin service refreshes this per load (install, boot,
  * reload); GET /api/v1/plugins serves the wire shape and the asset routes
  * serve the recorded file paths with the recorded content hash.
@@ -49,7 +49,7 @@ export interface PluginAppBundleInfo {
 
 /** App-bundle slice of a GET /api/v1/plugins entry. */
 export interface PluginAppState {
-  /** Whether the manifest declares a `bb.app` frontend entry. */
+  /** Whether the manifest declares a `patcher.app` frontend entry. */
   hasApp: boolean;
   /** Null when dist/app.js or dist/app.meta.json is missing/unreadable. */
   bundle: PluginAppBundleInfo | null;
@@ -68,8 +68,8 @@ export interface PluginAppBundleSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Plugin branding assets from path-shaped `bb.branding.icon` values and
-// `bb.branding.logo`. Served with the same hash-busting scheme as bundle
+// Plugin branding assets from path-shaped `patcher.branding.icon` values and
+// `patcher.branding.logo`. Served with the same hash-busting scheme as bundle
 // assets and refreshed on every load like the bundle snapshot.
 // ---------------------------------------------------------------------------
 
@@ -227,15 +227,15 @@ export function parsePluginArtifactMeta(
   }
   const builtWith = Object.fromEntries(Object.entries(meta.builtWith));
   if (
-    typeof builtWith.bbVersion !== "string" ||
-    builtWith.bbVersion.length === 0 ||
+    typeof builtWith.patcherVersion !== "string" ||
+    builtWith.patcherVersion.length === 0 ||
     typeof builtWith.pluginSdkVersion !== "string" ||
     semver.valid(builtWith.pluginSdkVersion) === null
   ) {
     return {
       meta: null,
       error:
-        "builtWith.bbVersion must be non-empty and builtWith.pluginSdkVersion must be a valid semver",
+        "builtWith.patcherVersion must be non-empty and builtWith.pluginSdkVersion must be a valid semver",
     };
   }
   if (builtWith.pluginSdkVersion !== meta.sdkVersion) {
@@ -252,7 +252,7 @@ export function parsePluginArtifactMeta(
       pluginId: meta.pluginId,
       pluginVersion: meta.pluginVersion,
       builtWith: {
-        bbVersion: builtWith.bbVersion,
+        patcherVersion: builtWith.patcherVersion,
         pluginSdkVersion: builtWith.pluginSdkVersion,
       },
     },
@@ -279,7 +279,7 @@ export function validatePluginArtifactMeta(args: {
   }
   const meta = parsed.meta;
   if (meta.sdkMajor !== PLUGIN_SDK_MAJOR) {
-    return `${args.artifact} artifact for plugin "${args.pluginId}" was built for SDK major ${meta.sdkMajor}, running SDK major is ${PLUGIN_SDK_MAJOR}; rebuild the ${args.artifact} artifact with this bb version`;
+    return `${args.artifact} artifact for plugin "${args.pluginId}" was built for SDK major ${meta.sdkMajor}, running SDK major is ${PLUGIN_SDK_MAJOR}; rebuild the ${args.artifact} artifact with this Patcher version`;
   }
   if (meta.artifactFormatVersion !== 1) return null;
   if (meta.pluginId !== args.pluginId) {

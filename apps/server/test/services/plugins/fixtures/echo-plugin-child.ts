@@ -6,7 +6,7 @@
  * It runs the same two pieces the real plugin host will:
  * `createParentProcessPort` and `createPluginChannel`.
  */
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 import { createPluginChannel } from "../../../../src/services/plugins/plugin-channel.js";
 import { createParentProcessPort } from "../../../../src/services/plugins/plugin-ports.js";
 

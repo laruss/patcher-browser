@@ -2,16 +2,16 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BbDesktopInfo } from "@bb/desktop-contract";
-import { createBbDesktopApi } from "@/test/bb-desktop-test-utils";
+import type { PatcherDesktopInfo } from "@patcher/desktop-contract";
+import { createPatcherDesktopApi } from "@/test/patcher-desktop-test-utils";
 import type { BrowserFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import { createAppSurfaceTab } from "@/lib/browser-surface-tabs";
 import {
   MACOS_TRAFFIC_LIGHT_LEADING_RESERVE_CLASS,
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
-} from "@/lib/bb-desktop";
+} from "@/lib/patcher-desktop";
 import type { BrowserSurfaceTab } from "@/lib/browser-surface-tabs";
-import type { PluginBrowserTabStatus } from "@bb/plugin-sdk";
+import type { PluginBrowserTabStatus } from "@patcher/plugin-sdk";
 import {
   BrowserSurfaceTabStrip,
   resolveTabStripChromeReserveClassName,
@@ -83,7 +83,7 @@ function tabBox(name: string | RegExp): HTMLElement {
   return box;
 }
 
-const MACOS_DESKTOP_INFO: BbDesktopInfo = {
+const MACOS_DESKTOP_INFO: PatcherDesktopInfo = {
   lastCheckedAt: null,
   latestVersion: null,
   pendingVersion: null,
@@ -95,7 +95,7 @@ const MACOS_DESKTOP_INFO: BbDesktopInfo = {
 
 afterEach(() => {
   cleanup();
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
 });
 
 // The surface draws no page header, so this strip owns the window's title-bar
@@ -278,7 +278,7 @@ describe("browser surface tab strip hit target", () => {
   // tailwind-merge applied over the close control's `absolute` and dropped the
   // control into the strip's flow, outside the tab it belongs to.
   it("keeps the close control positioned inside its tab in desktop chrome", () => {
-    window.bbDesktop = createBbDesktopApi(MACOS_DESKTOP_INFO);
+    window.patcherDesktop = createPatcherDesktopApi(MACOS_DESKTOP_INFO);
     renderStrip([browserTab("tab-1", "One")]);
 
     const close = screen.getByRole("button", { name: "Close One" });
@@ -336,7 +336,7 @@ describe("browser surface tab strip separators", () => {
   });
 });
 
-// Chromium shows the page's own icon; bb's shell fetches it and hands over a
+// Chromium shows the page's own icon; Patcher's shell fetches it and hands over a
 // data URI, so the strip renders bytes rather than a page-supplied URL.
 describe("browser surface tab strip icons", () => {
   const ICON_DATA_URL = "data:image/png;base64,aWNvbg==";
@@ -386,11 +386,11 @@ describe("browser surface tab strip icons", () => {
   });
 });
 
-// bb's own screens ride the same strip as web pages. They have no page icon and
+// Patcher's own screens ride the same strip as web pages. They have no page icon and
 // never will, so they carry a mark of their own — otherwise a Settings tab
 // would be indistinguishable from a page that has not loaded its favicon yet.
 describe("app tabs in the strip", () => {
-  it("names a screen by its title and marks it as bb's own", () => {
+  it("names a screen by its title and marks it as Patcher's own", () => {
     const settings = createAppSurfaceTab({
       path: "/settings/servers",
       title: "Settings",
@@ -437,9 +437,9 @@ describe("browser surface tab menu", () => {
     expect(screen.getByText("Close tab")).not.toBeNull();
   });
 
-  // A bb screen is a remembered route with no page of its own: duplicating it
+  // A Patcher screen is a remembered route with no page of its own: duplicating it
   // would leave two tabs claiming one route, and its audio is the app's.
-  it("leaves duplicate and mute off a bb screen", () => {
+  it("leaves duplicate and mute off a Patcher screen", () => {
     renderStrip([
       createAppSurfaceTab({ path: "/settings", title: "Settings" }),
     ]);

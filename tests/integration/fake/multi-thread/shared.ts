@@ -1,4 +1,4 @@
-import type { ThreadEventRow } from "@bb/domain";
+import type { ThreadEventRow } from "@patcher/domain";
 import { expect } from "vitest";
 import { scaleTimeoutMs } from "../../helpers/time.js";
 

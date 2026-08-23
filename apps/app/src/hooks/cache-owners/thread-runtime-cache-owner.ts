@@ -6,7 +6,7 @@ import type {
   ThreadListEntry,
   ThreadQueuedMessage,
   ThreadWithRuntime,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CreateQueuedMessageRequest,
   PromptHistoryResponse,
@@ -18,7 +18,7 @@ import type {
   TimelineConversationAttachments,
   TimelineRow,
   UpdateQueuedMessageRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { AppCreateThreadRequest } from "@/lib/api-types";
 import { OPTIMISTIC_TIMELINE_ROW_ID_PREFIX } from "@/lib/optimistic-timeline-row";
 import { collectPromptAttachments } from "@/lib/prompt-attachments";

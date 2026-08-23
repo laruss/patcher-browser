@@ -4,13 +4,13 @@ import {
   type DbNotifier,
   type DbTransaction,
   updateThread,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   PromptInput,
   SystemMessageSubject,
   Thread,
-} from "@bb/domain";
-import { renderTemplate } from "@bb/templates";
+} from "@patcher/domain";
+import { renderTemplate } from "@patcher/templates";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import { NotificationBuffer } from "../lib/notification-buffer.js";
 import {
@@ -63,7 +63,7 @@ interface ThreadOwnershipTransactionDeps {
   hub: DbNotifier;
 }
 
-const THREAD_OWNERSHIP_MENTION_SLOT = "__BB_THREAD_OWNERSHIP_MENTION__";
+const THREAD_OWNERSHIP_MENTION_SLOT = "__PATCHER_THREAD_OWNERSHIP_MENTION__";
 
 async function queueParentSystemMessageBestEffort(
   deps: LoggedPendingInteractionWorkSessionDeps,

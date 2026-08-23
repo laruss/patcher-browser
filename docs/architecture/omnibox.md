@@ -23,7 +23,7 @@ ranking, or the chrome.
 | Chrome (nav controls + input + list)         | `components/browser-surface/BrowserSurfaceChrome.tsx`      |
 | Suggestion list                              | `components/browser-surface/BrowserOmniboxSuggestions.tsx` |
 
-Everything above `useOmnibox` is free of React and of any bb service, so the
+Everything above `useOmnibox` is free of React and of any Patcher service, so the
 timing rules are tested with fake timers rather than through a rendered
 component.
 
@@ -49,13 +49,13 @@ the default action by returning 99 — which matters once scores come from plugi
 That synchronous resolution is also what decided the shape of the search-engine
 setting. A plugin **cannot** own Enter by being asked for it — every provider is
 asynchronous, and the whole point above is that Enter does not wait. So an engine
-is a _declared URL template_ (`bb.browser.registerSearchEngine`, permission
+is a _declared URL template_ (`patcher.browser.registerSearchEngine`, permission
 `searchEngine.register`) that the app holds and formats itself, the same way the
-shell holds declared context-menu items: bb ships a few, plugins declare more, and
+shell holds declared context-menu items: Patcher ships a few, plugins declare more, and
 the setting picks among them by id.
 
 Two consequences worth stating. An id whose plugin has been removed resolves back
-to bb's default rather than failing on Enter. And an engine need not search — any
+to Patcher's default rather than failing on Enter. And an engine need not search — any
 `https` or **loopback** template qualifies, so a plugin route that spawns an agent
 thread is a legal engine, which is the thing an agent-first browser wants from its
 address bar (`examples/plugins/omnibox-agent` ships one). Plain http to another
@@ -97,16 +97,16 @@ list would reshuffle under the user's cursor as answers trickle in.
 
 ## Providers
 
-| Provider     | Offers                                       | Action       |
-| ------------ | -------------------------------------------- | ------------ |
-| `navigation` | the typed text as an address, when it is one | navigate     |
-| `search`     | a search for the typed text (always)         | navigate     |
-| `open-tabs`  | open tabs matching by title or host          | activate-tab |
-| `history`    | previously visited pages                     | navigate     |
-| `app-routes` | bb's own screens, and every plugin panel     | open-app-tab |
+| Provider     | Offers                                        | Action       |
+| ------------ | --------------------------------------------- | ------------ |
+| `navigation` | the typed text as an address, when it is one  | navigate     |
+| `search`     | a search for the typed text (always)          | navigate     |
+| `open-tabs`  | open tabs matching by title or host           | activate-tab |
+| `history`    | previously visited pages                      | navigate     |
+| `app-routes` | Patcher's own screens, and every plugin panel | open-app-tab |
 
 `app-routes` is what makes Settings reachable by typing "settings" rather than by
-knowing bb spells Extensions `/tools/plugins`. Its action is `open-app-tab`, not
+knowing Patcher spells Extensions `/tools/plugins`. Its action is `open-app-tab`, not
 `navigate`, because the destination belongs to the window's router: the surface
 opens or focuses the destination's tab instead of pointing a `WebContentsView` at
 a path (see [browser-surface.md](browser-surface.md), "App tabs"). Its list is
@@ -177,16 +177,16 @@ declines when it has no address input of its own to focus.
 - `BrowserSurfaceChrome.test.tsx` — mixed list for a real query, Enter before any
   suggestion arrives, highlighted row overriding the default action, click,
   Escape, blur, and navigation state filtered by tab.
-- Full `apps/app` suite: 2630 tests. `@bb/server`: 1436. Repo typecheck: 58/58.
+- Full `apps/app` suite: 2630 tests. `@patcher/server`: 1436. Repo typecheck: 58/58.
   `bun run lint`: 0 errors.
 
 ## The plugin contribution point
 
-Milestone C: `bb.browser.registerOmniboxProvider` — plugin rows in the same
+Milestone C: `patcher.browser.registerOmniboxProvider` — plugin rows in the same
 ranked list, which is the plan's §12 vertical slice and its central hypothesis.
 
-The contribution point is modelled on the mention providers bb already had
-(`bb.ui.registerMentionProvider`), deliberately: same shape, same guarantees,
+The contribution point is modelled on the mention providers Patcher already had
+(`patcher.ui.registerMentionProvider`), deliberately: same shape, same guarantees,
 same failure discipline. A plugin registers a provider with an `id` and a `label`
 in its server module; `suggest({ query })` runs server-side; the host namespaces
 item ids as `<providerId>:<itemId>` and never lets the plugin's internals reach
@@ -196,7 +196,7 @@ the client.
 
 | Step                                                        | Where                                                       |
 | ----------------------------------------------------------- | ----------------------------------------------------------- |
-| `bb.browser.registerOmniboxProvider`                        | `packages/plugin-sdk/src/backend-contract.ts`               |
+| `patcher.browser.registerOmniboxProvider`                   | `packages/plugin-sdk/src/backend-contract.ts`               |
 | Registration validation, runtime record                     | `apps/server/.../plugins/plugin-api.ts`                     |
 | Fan-out, time box, isolation, normalization                 | `apps/server/.../plugins/plugin-service.ts`                 |
 | `GET /plugins/omnibox/suggest`, `POST /plugins/omnibox/run` | `apps/server/src/routes/plugins.ts`                         |
@@ -237,7 +237,7 @@ picks it — a mistake in a plugin should surface in its log, not as a dead row.
   contributed provider — so two plugins get a budget each rather than sharing one.
 - **Break the omnibox.** A throwing, hanging (2s box) or malformed provider
   contributes nothing; the browser's own rows are unaffected. Errors land in the
-  plugin's handler stats and log, visible in `bb plugin list`.
+  plugin's handler stats and log, visible in `patcher plugin list`.
 - **Impersonate another source.** The host stamps provider attribution, and the
   row's visible label is the plugin's own — a plugin row is identifiable as one.
 
@@ -259,7 +259,7 @@ abort signal, so the shared request is cancelled exactly when the run is.
   the cross-origin guard on both routes.
 - `heroes.test.ts` > `hero plugin: omnibox-agent` — the real example plugin
   installed as shipped: unconfigured it still contributes its navigate row, then
-  configure + `reload` adds the agent row, and picking it spawns a BB thread
+  configure + `reload` adds the agent row, and picking it spawns a Patcher thread
   attributed to the plugin whose URL the browser is told to open.
 - `plugin.test.ts` — adapter mapping, query stamping, per-provider group
   filtering, one request per query, rows from different plugins staying distinct.
@@ -268,7 +268,7 @@ abort signal, so the shared request is cancelled exactly when the run is.
   navigating to the returned URL, and a failing plugin endpoint leaving the
   built-in rows intact.
 - `examples/plugins/omnibox-agent/server.test.ts` — the example against
-  `@bb/plugin-sdk/testing`.
+  `@patcher/plugin-sdk/testing`.
 
 ## Next
 

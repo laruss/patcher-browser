@@ -55,17 +55,17 @@ function createDesktopVersionFeed(version) {
     platform: "macos",
     version,
     releaseDate: new Date(0).toISOString(),
-    releaseName: `bb desktop ${version}`,
+    releaseName: `Patcher desktop ${version}`,
     releaseNotes: null,
     minimumSystemVersion: null,
     files: [
       {
-        url: "https://example.invalid/bb.zip",
+        url: "https://example.invalid/Patcher.zip",
         sha512: "smoke",
         size: 0,
       },
     ],
-    path: "bb.zip",
+    path: "Patcher.zip",
     sha512: "smoke",
     stagingPercentage: null,
   };
@@ -74,23 +74,23 @@ function createDesktopVersionFeed(version) {
 function renderSmokePage(expectedDesktopVersion) {
   return `<!doctype html>
 <meta charset="utf-8">
-<title>bb packaged desktop smoke</title>
+<title>Patcher packaged desktop smoke</title>
 <main>packaged desktop smoke</main>
 <script>
 (async () => {
   let ok = false;
   let reason = "";
   try {
-    if (typeof window.bbDesktop !== "object" || window.bbDesktop === null) {
-      reason = "missing window.bbDesktop";
-    } else if (typeof window.bbDesktop.getInfo !== "function") {
-      reason = "missing window.bbDesktop.getInfo";
+    if (typeof window.patcherDesktop !== "object" || window.patcherDesktop === null) {
+      reason = "missing window.patcherDesktop";
+    } else if (typeof window.patcherDesktop.getInfo !== "function") {
+      reason = "missing window.patcherDesktop.getInfo";
     } else {
-      const info = await window.bbDesktop.getInfo();
+      const info = await window.patcherDesktop.getInfo();
       const expectedVersion = ${JSON.stringify(expectedDesktopVersion)};
       ok =
-        window.bbDesktop.platform === "macos" &&
-        window.bbDesktop.version === expectedVersion &&
+        window.patcherDesktop.platform === "macos" &&
+        window.patcherDesktop.version === expectedVersion &&
         info.version === expectedVersion;
       reason = ok ? "" : "unexpected desktop bridge info";
     }
@@ -174,7 +174,7 @@ async function startSmokeServer({ dataDir, expectedDesktopVersion }) {
         generalSettings: {
           caffeinate: false,
         },
-        hostDaemonPort: 38887,
+        hostDaemonPort: 38987,
         primaryHostPlatform: null,
         voiceTranscriptionEnabled: false,
       });
@@ -360,7 +360,9 @@ async function smokePackagedApp() {
 
   const desktopVersion = await readDesktopPackageVersion();
   const appBinary = await resolvePackagedAppBinary();
-  const smokeRoot = await mkdtemp(join(tmpdir(), "bb-desktop-packaged-smoke-"));
+  const smokeRoot = await mkdtemp(
+    join(tmpdir(), "patcher-desktop-packaged-smoke-"),
+  );
   const dataDir = join(smokeRoot, "data");
   const userDataDir = join(smokeRoot, "user-data");
   const smokeServer = await startSmokeServer({
@@ -372,17 +374,17 @@ async function smokePackagedApp() {
   const stderr = [];
   const childEnv = {
     ...process.env,
-    BB_DATA_DIR: dataDir,
-    // The smoke server answers the bb probe, so a packaged build treats it as a
-    // foreign bb and asks before attaching. No one is here to click, so opt out
+    PATCHER_DATA_DIR: dataDir,
+    // The smoke server answers the Patcher probe, so a packaged build treats it as a
+    // foreign Patcher and asks before attaching. No one is here to click, so opt out
     // and keep exercising the real attach path.
-    BB_DESKTOP_ATTACH_WITHOUT_PROMPT: "1",
-    BB_DESKTOP_OPEN_DEVTOOLS: "0",
-    BB_DESKTOP_VERSION_FEED_URL: `${serverUrl}/desktop-version.json`,
-    BB_SERVER_PORT: String(smokeServer.port),
+    PATCHER_DESKTOP_ATTACH_WITHOUT_PROMPT: "1",
+    PATCHER_DESKTOP_OPEN_DEVTOOLS: "0",
+    PATCHER_DESKTOP_VERSION_FEED_URL: `${serverUrl}/desktop-version.json`,
+    PATCHER_SERVER_PORT: String(smokeServer.port),
   };
-  delete childEnv.BB_DESKTOP_APP_URL;
-  delete childEnv.BB_DESKTOP_NODE_EXEC_PATH;
+  delete childEnv.PATCHER_DESKTOP_APP_URL;
+  delete childEnv.PATCHER_DESKTOP_NODE_EXEC_PATH;
   delete childEnv.ELECTRON_RUN_AS_NODE;
 
   const child = spawn(appBinary, [`--user-data-dir=${userDataDir}`], {

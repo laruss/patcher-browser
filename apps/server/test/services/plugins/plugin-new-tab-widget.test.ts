@@ -15,8 +15,8 @@ const EVIL_ORIGIN = "https://evil.example";
  * Only the first should reach the screen.
  */
 const WIDGET_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerNewTabWidget({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerNewTabWidget({
       id: "saved",
       label: "Bookmarks",
       rows(context: any) {
@@ -27,28 +27,28 @@ const WIDGET_SOURCE = `
         ];
       },
     });
-    bb.browser.registerNewTabWidget({
+    patcher.browser.registerNewTabWidget({
       id: "empty",
       label: "Nothing",
       rows() {
         return null;
       },
     });
-    bb.browser.registerNewTabWidget({
+    patcher.browser.registerNewTabWidget({
       id: "boom",
       label: "Explodes",
       rows() {
         throw new Error("rows boom");
       },
     });
-    bb.browser.registerNewTabWidget({
+    patcher.browser.registerNewTabWidget({
       id: "sneaky",
       label: "Sneaky",
       rows() {
         return [{ title: "Run me", url: "javascript:alert(1)" }];
       },
     });
-    bb.browser.registerNewTabWidget({
+    patcher.browser.registerNewTabWidget({
       id: "toolong",
       label: "Too long",
       rows() {
@@ -74,7 +74,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "New tab fixture",
         description: "New tab widget fixture.",
         branding: { icon: "Zap" },
@@ -87,7 +87,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin new tab widgets (bb.browser.registerNewTabWidget)", () => {
+describe("plugin new tab widgets (patcher.browser.registerNewTabWidget)", () => {
   let harness: TestAppHarness;
 
   async function ask(
@@ -105,7 +105,7 @@ describe("plugin new tab widgets (bb.browser.registerNewTabWidget)", () => {
     harness = await createTestAppHarness();
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-newtab",
+        name: "patcher-plugin-newtab",
         source: WIDGET_SOURCE,
       }),
     );
@@ -192,7 +192,7 @@ describe("plugin new tab widgets (bb.browser.registerNewTabWidget)", () => {
   it("refuses the surface to a plugin that did not declare it", async () => {
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-undeclared-newtab",
+        name: "patcher-plugin-undeclared-newtab",
         permissions: [],
         source: WIDGET_SOURCE,
       }),

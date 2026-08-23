@@ -1,4 +1,4 @@
-import { BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@patcher/desktop-contract";
 import { getDocumentProxy } from "unpdf";
 import {
   buildBrowserPdfText,
@@ -65,7 +65,7 @@ async function extractPdfText(request: PdfTextRequest): Promise<unknown> {
     // are the bulk of what a parse holds, and a long document is exactly the
     // case where holding all of them at once is the problem.
     page.cleanup();
-    if (collected > BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH) {
+    if (collected > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH) {
       truncated = pageNumber < document.numPages;
       break;
     }

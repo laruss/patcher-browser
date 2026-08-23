@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ThreadEvent, ToolCallResponse } from "@bb/domain";
+import type { ThreadEvent, ToolCallResponse } from "@patcher/domain";
 import { createAgentRuntimeWithAdapters } from "./runtime.js";
 import { handleRuntimeProviderRequest } from "./runtime-provider-requests.js";
 import {
@@ -40,7 +40,7 @@ describe("createAgentRuntime tool calls", () => {
   let scriptPath: string;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "bb-runtime-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "patcher-runtime-test-"));
     scriptPath = fakeProviderScriptPath;
   });
 
@@ -216,7 +216,9 @@ describe("createAgentRuntime tool calls", () => {
         resolveThreadId: () => "t1",
       });
 
-      const parsed = parseJsonRpcLine((await readChildStdoutLine(child)).trim());
+      const parsed = parseJsonRpcLine(
+        (await readChildStdoutLine(child)).trim(),
+      );
       if (parsed.kind !== "response") {
         throw new Error(`Expected JSON-RPC response, got ${parsed.kind}`);
       }
@@ -284,7 +286,9 @@ describe("createAgentRuntime tool calls", () => {
         resolveThreadId: () => "t1",
       });
 
-      const parsed = parseJsonRpcLine((await readChildStdoutLine(child)).trim());
+      const parsed = parseJsonRpcLine(
+        (await readChildStdoutLine(child)).trim(),
+      );
       if (parsed.kind !== "response") {
         throw new Error(`Expected JSON-RPC response, got ${parsed.kind}`);
       }
@@ -302,7 +306,7 @@ describe("createAgentRuntime tool calls", () => {
     }
   });
 
-  it("rejects tool calls whose BB thread hint disagrees with the provider-thread mapping", async () => {
+  it("rejects tool calls whose Patcher thread hint disagrees with the provider-thread mapping", async () => {
     const toolCalls: string[] = [];
     const events: ThreadEvent[] = [];
     const runtime = createAgentRuntimeWithAdapters({

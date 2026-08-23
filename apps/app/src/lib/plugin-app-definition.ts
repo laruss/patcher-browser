@@ -16,7 +16,7 @@ import {
   type PluginThreadListRegistration,
   type PluginThreadHeaderActionRegistration,
   type PluginThreadPanelActionRegistration,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import {
   collectComposerCustomization,
   PLUGIN_SLOT_ID_PATTERN,
@@ -26,7 +26,7 @@ import {
   requireOptionalString,
   requireSlotId,
   requireUniqueId,
-} from "@bb/plugin-sdk/internal/composer-customization-validation";
+} from "@patcher/plugin-sdk/internal/composer-customization-validation";
 import type { PluginFrontendRecord } from "./plugin-frontend";
 import type { PluginRegistrationSet } from "./plugin-slots";
 
@@ -49,7 +49,7 @@ const MAX_LEADING_PANEL_MATCHES = 16;
 /**
  * A registration's URL globs, checked for shape only.
  *
- * No scheme or host rule, unlike `bb.sites`: this decides whether bb draws one
+ * No scheme or host rule, unlike `patcher.sites`: this decides whether Patcher draws one
  * of its own columns, not what a plugin may reach, so a pattern that matches
  * nothing costs the plugin its panel and nobody else anything.
  */
@@ -73,12 +73,12 @@ function requirePatternList(kind: string, value: unknown): string[] {
   });
 }
 
-/** Real `@bb/plugin-sdk/app` implementation of `definePluginApp`. */
+/** Real `@patcher/plugin-sdk/app` implementation of `definePluginApp`. */
 export function definePluginApp(setup: PluginAppSetup): PluginAppDefinition {
   if (typeof setup !== "function") {
     throw new Error("definePluginApp expects a setup function");
   }
-  return Object.freeze({ __bbPluginApp: true as const, setup });
+  return Object.freeze({ __patcherPluginApp: true as const, setup });
 }
 
 export function isPluginAppDefinition(
@@ -87,7 +87,7 @@ export function isPluginAppDefinition(
   return (
     typeof value === "object" &&
     value !== null &&
-    (value as { __bbPluginApp?: unknown }).__bbPluginApp === true &&
+    (value as { __patcherPluginApp?: unknown }).__patcherPluginApp === true &&
     typeof (value as { setup?: unknown }).setup === "function"
   );
 }
@@ -456,7 +456,7 @@ export function interpretPluginFrontends(
       const definition = record.module.default;
       if (!isPluginAppDefinition(definition)) {
         throw new Error(
-          "the bundle's default export is not definePluginApp(...) from @bb/plugin-sdk/app",
+          "the bundle's default export is not definePluginApp(...) from @patcher/plugin-sdk/app",
         );
       }
       deps.setRegistrations(

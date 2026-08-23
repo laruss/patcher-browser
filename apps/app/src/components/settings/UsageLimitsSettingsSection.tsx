@@ -1,11 +1,11 @@
 import { useId, useState } from "react";
-import type { Host } from "@bb/domain";
+import type { Host } from "@patcher/domain";
 import type {
   ProviderUsage,
   ProviderUsageWindow,
-} from "@bb/host-daemon-contract";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
+} from "@patcher/host-daemon-contract";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   SettingsBadge,
   SettingsRowList,
@@ -17,8 +17,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@patcher/shared-ui/tooltip";
 import {
   useSystemConfig,
   useSystemUsageLimits,
@@ -28,7 +32,7 @@ import {
   getProviderIconColorClass,
   getProviderIconInfo,
 } from "@/lib/provider-icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 interface ProviderConfig {
   key: "codex" | "claudeCode" | "cursor";

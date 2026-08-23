@@ -7,7 +7,7 @@ import {
   getEnvironment,
   hostDaemonSessions,
   markThreadDeleted,
-} from "@bb/db";
+} from "@patcher/db";
 import { describe, expect, it, vi } from "vitest";
 import {
   runEnvironmentCleanupAdvance,

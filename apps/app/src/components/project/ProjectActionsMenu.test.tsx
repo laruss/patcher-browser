@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { ProjectResponse } from "@bb/server-contract";
+import type { ProjectResponse } from "@patcher/server-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ProjectActionsMenu } from "./ProjectActionsMenu";

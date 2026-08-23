@@ -20,7 +20,7 @@ import {
   migrate,
   noopNotifier,
   upsertHost,
-} from "@bb/db";
+} from "@patcher/db";
 import type { ServerLogger } from "../../src/types.js";
 import { runDatabaseMaintenanceSweep } from "../../src/services/system/periodic-sweeps.js";
 import { testLogger } from "../helpers/test-app.js";
@@ -77,12 +77,12 @@ function nextSweepTime(): number {
 }
 
 function createTempDatabasePath(): TempDatabasePath {
-  const dir = mkdtempSync(join(tmpdir(), "bb-server-db-maintenance-"));
+  const dir = mkdtempSync(join(tmpdir(), "patcher-server-db-maintenance-"));
   return {
     cleanup(): void {
       rmSync(dir, { force: true, recursive: true });
     },
-    dbPath: join(dir, "bb.db"),
+    dbPath: join(dir, "patcher.db"),
   };
 }
 

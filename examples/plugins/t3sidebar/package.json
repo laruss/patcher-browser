@@ -1,14 +1,14 @@
 {
-  "name": "bb-plugin-t3sidebar",
+  "name": "patcher-plugin-t3sidebar",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "An inbox-style sidebar: one flat list of cards that never re-orders.",
   "engines": {
-    "bb": ">=0.0",
-    "bbPluginSdk": "^0.4.1"
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "t3sidebar",
     "description": "An inbox-style sidebar: one flat list of cards that never re-orders.",
     "branding": {
@@ -21,7 +21,7 @@
     "server": "./src/server.ts"
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
@@ -35,7 +35,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

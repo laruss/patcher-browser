@@ -3,15 +3,19 @@ import { dirname } from "node:path";
 import {
   loadHostDaemonStartConfig,
   type HostDaemonConnectionConfig,
-} from "@bb/config/host-daemon";
-import type { HostType, ToolCallRequest, ToolCallResponse } from "@bb/domain";
+} from "@patcher/config/host-daemon";
+import type {
+  HostType,
+  ToolCallRequest,
+  ToolCallResponse,
+} from "@patcher/domain";
 import {
   createHostWatcher,
   createSubprocessParcelWatcherBackend,
   setParcelWatcherBackend,
   type HostWatcher,
-} from "@bb/host-watcher";
-import { createLogger } from "@bb/logger";
+} from "@patcher/host-watcher";
+import { createLogger } from "@patcher/logger";
 import { type CreateHostDaemonAppOptions, createHostDaemonApp } from "./app.js";
 import {
   readHostAuthState,
@@ -28,15 +32,11 @@ import {
 } from "./local-api-config.js";
 import {
   prepareRuntimeShellEnv,
-  resolveBbExecutablePathInDirectory,
-  resolveLocalBbExecutablePath,
+  resolvePatcherExecutablePathInDirectory,
+  resolveLocalPatcherExecutablePath,
   resolveUserShellPath,
 } from "./runtime-shell-env.js";
 import type { HostDaemonLogger } from "./logger.js";
-import {
-  startMachineAuthProxy,
-  type MachineAuthProxy,
-} from "./machine-auth-proxy.js";
 import type { CreateReconnectingWebSocket } from "./server-connection.js";
 
 export interface StartHostDaemonOptions {
@@ -46,13 +46,11 @@ export interface StartHostDaemonOptions {
   enrollKey?: string;
   hostId?: string;
   hostName?: string;
-  bbExecutableDirectory?: string;
+  patcherExecutableDirectory?: string;
   bridgeBundleDir?: string;
   hostType?: HostType;
   enableLocalApi?: boolean;
   localApi?: HostDaemonLocalApiOverrides;
-  machineCredential?: string;
-  connectMachineId?: string;
   autoUpdate?: boolean;
   logger?: HostDaemonLogger;
   createInstanceId?: () => string;
@@ -123,7 +121,6 @@ export async function startHostDaemon(
   );
 
   let app: Awaited<ReturnType<typeof createHostDaemonApp>> | undefined;
-  let machineAuthProxy: MachineAuthProxy | undefined;
   try {
     const persistedAuth = await readHostAuthState(dataDir);
     const identity = await (options.loadIdentity ?? loadHostIdentity)({
@@ -133,7 +130,8 @@ export async function startHostDaemon(
     });
     const instanceId = (options.createInstanceId ?? randomUUID)();
     const serverUrl = resolveServerUrl({
-      providedServerUrl: options.serverUrl ?? hostDaemonConfig?.BB_SERVER_URL,
+      providedServerUrl:
+        options.serverUrl ?? hostDaemonConfig?.PATCHER_SERVER_URL,
     });
     if (!serverUrl) {
       throw new Error("Host daemon server URL is required");
@@ -165,14 +163,12 @@ export async function startHostDaemon(
           hostId: identity.hostId,
           hostName: identity.hostName,
           hostType,
-          connectMachineId: options.connectMachineId,
           serverUrl,
-          machineCredential: options.machineCredential,
           token:
             options.enrollKey ??
             (() => {
               throw new Error(
-                `Missing host bootstrap material. Provide BB_HOST_ENROLL_KEY or populate ${dataDir}/auth.json first.`,
+                `Missing host bootstrap material. Provide PATCHER_HOST_ENROLL_KEY or populate ${dataDir}/auth.json first.`,
               );
             })(),
         })
@@ -191,16 +187,18 @@ export async function startHostDaemon(
       ? resolveHostDaemonLocalApiConfig({
           hostDaemonPort:
             options.hostDaemonPort ??
-            requireHostDaemonConfig(hostDaemonConfig).BB_HOST_DAEMON_PORT,
+            requireHostDaemonConfig(hostDaemonConfig).PATCHER_HOST_DAEMON_PORT,
           hostType,
           localApi: options.localApi,
         })
       : null;
-    const bbExecutablePath =
-      options.bbExecutableDirectory !== undefined
-        ? resolveBbExecutablePathInDirectory(options.bbExecutableDirectory)
-        : await resolveLocalBbExecutablePath();
-    const bbExecutableDirectory = dirname(bbExecutablePath);
+    const patcherExecutablePath =
+      options.patcherExecutableDirectory !== undefined
+        ? resolvePatcherExecutablePathInDirectory(
+            options.patcherExecutableDirectory,
+          )
+        : await resolveLocalPatcherExecutablePath();
+    const patcherExecutableDirectory = dirname(patcherExecutablePath);
     const logger =
       options.logger ??
       createLogger({
@@ -210,12 +208,6 @@ export async function startHostDaemon(
         transportMode: "worker",
       });
     lockDiagnosticsLogger = logger;
-    if (options.machineCredential !== undefined) {
-      machineAuthProxy = await startMachineAuthProxy({
-        machineCredential: options.machineCredential,
-        serverUrl,
-      });
-    }
     let hostWatcher = options.hostWatcher;
     if (hostWatcher === undefined) {
       // Run @parcel/watcher in an isolated child process. A parcel inotify
@@ -238,11 +230,11 @@ export async function startHostDaemon(
     }
     const resolveRuntimeShellEnv = async () =>
       prepareRuntimeShellEnv({
-        bbExecutableDirectory,
-        bbExecutablePath,
+        patcherExecutableDirectory,
+        patcherExecutablePath,
         hostDaemonPort: localApiConfig?.port,
         inheritedPath: (await resolveUserShellPath()) ?? process.env.PATH,
-        serverUrl: machineAuthProxy?.serverUrl ?? serverUrl,
+        serverUrl,
       });
     const runtimeShellEnv = await resolveRuntimeShellEnv();
     const runtimeShellEnvResolvedAtMs = Date.now();
@@ -250,8 +242,6 @@ export async function startHostDaemon(
       dataDir,
       serverUrl,
       hostKey,
-      machineCredential: options.machineCredential,
-      connectMachineId: options.connectMachineId,
       autoUpdate: options.autoUpdate,
       bridgeBundleDir: options.bridgeBundleDir,
       hostType,
@@ -259,10 +249,10 @@ export async function startHostDaemon(
       hostName: identity.hostName,
       instanceId,
       appUrl:
-        hostDaemonConfig?.BB_APP_URL === ""
+        hostDaemonConfig?.PATCHER_APP_URL === ""
           ? undefined
-          : hostDaemonConfig?.BB_APP_URL,
-      devAppPort: hostDaemonConfig?.BB_DEV_APP_PORT,
+          : hostDaemonConfig?.PATCHER_APP_URL,
+      devAppPort: hostDaemonConfig?.PATCHER_DEV_APP_PORT,
       logger,
       releaseLock,
       localApiConfig,
@@ -274,7 +264,6 @@ export async function startHostDaemon(
       onToolCall: options.onToolCall,
       fetchFn: options.fetchFn,
       createWebSocket: options.createWebSocket,
-      closeMachineAuthProxy: machineAuthProxy?.close,
       // This function owns the daemon process, so it arms the shutdown
       // force-exit. A self-update restart depends on the process exiting.
       forceExit: (code) => process.exit(code),
@@ -293,7 +282,6 @@ export async function startHostDaemon(
     // the normal shutdown lifecycle. Before that point, release the resources
     // acquired directly by this function.
     if (!app) {
-      await machineAuthProxy?.close().catch(() => undefined);
       await releaseLock().catch(() => undefined);
     }
     throw error;

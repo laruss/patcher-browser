@@ -15,8 +15,8 @@ const PAGE_URL = "https://example.test/article?ref=1";
  * about it, and one that throws. Only the first should reach the popover.
  */
 const SITE_INFO_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerSiteInfoProvider({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerSiteInfoProvider({
       id: "logins",
       label: "Passwords",
       describe(context: any) {
@@ -28,14 +28,14 @@ const SITE_INFO_SOURCE = `
         ];
       },
     });
-    bb.browser.registerSiteInfoProvider({
+    patcher.browser.registerSiteInfoProvider({
       id: "quiet",
       label: "Nothing",
       describe() {
         return null;
       },
     });
-    bb.browser.registerSiteInfoProvider({
+    patcher.browser.registerSiteInfoProvider({
       id: "boom",
       label: "Explodes",
       describe() {
@@ -46,14 +46,14 @@ const SITE_INFO_SOURCE = `
 `;
 
 async function writePlugin(dir: string): Promise<string> {
-  const rootDir = join(dir, "bb-plugin-site");
+  const rootDir = join(dir, "patcher-plugin-site");
   await mkdir(rootDir, { recursive: true });
   await writeFile(
     join(rootDir, "package.json"),
     JSON.stringify({
-      name: "bb-plugin-site",
+      name: "patcher-plugin-site",
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Site info fixture",
         description: "Site info plugin fixture.",
         branding: { icon: "Zap" },
@@ -66,7 +66,7 @@ async function writePlugin(dir: string): Promise<string> {
   return rootDir;
 }
 
-describe("plugin site info (bb.browser.registerSiteInfoProvider)", () => {
+describe("plugin site info (patcher.browser.registerSiteInfoProvider)", () => {
   let harness: TestAppHarness;
 
   async function ask(

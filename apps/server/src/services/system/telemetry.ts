@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { DEFAULTS } from "@bb/config/defaults";
-import { readOrCreateSecretFile } from "@bb/secret-storage";
-import type { AppSurface } from "@bb/config/app-surface";
+import { DEFAULTS } from "@patcher/config/defaults";
+import { readOrCreateSecretFile } from "@patcher/secret-storage";
+import type { AppSurface } from "@patcher/config/app-surface";
 import type { ServerLogger } from "../../types.js";
 
 /**
@@ -16,12 +16,13 @@ import type { ServerLogger } from "../../types.js";
  * workflow state, so lost sends (offline, PostHog outage, process exit
  * mid-flight) are dropped without retry or persistence.
  *
- * A default public write-only PostHog key ships in @bb/config. Telemetry only
- * activates for production server runs with a resolved release version (the
- * bb-app launcher and desktop app set NODE_ENV=production). Dev/source runs
- * never send, even if a test starts them in production mode.
+ * The default PostHog key in @patcher/config is empty, which disables telemetry
+ * entirely — Patcher has no project of its own yet. With a key set, telemetry
+ * still only activates for production server runs with a resolved release
+ * version (the patcher-app launcher and desktop app set NODE_ENV=production).
+ * Dev/source runs never send, even if a test starts them in production mode.
  * Disabled telemetry creates nothing, not even the install-id file. Opt out
- * any run with BB_TELEMETRY=false; override the key with BB_POSTHOG_API_KEY.
+ * any run with PATCHER_TELEMETRY=false; override the key with PATCHER_POSTHOG_API_KEY.
  */
 
 const POSTHOG_INGESTION_URL = "https://us.i.posthog.com/capture/";

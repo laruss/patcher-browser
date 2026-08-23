@@ -6,7 +6,7 @@ import {
 } from "./common.js";
 
 export interface LoggerConfig extends LogLevelConfig {
-  BB_DATA_DIR: string;
+  PATCHER_DATA_DIR: string;
 }
 
 export interface LoadLoggerConfigArgs extends LoadCommonConfigArgs {
@@ -19,7 +19,7 @@ export function loadLoggerConfig(
   if (args.dataDir !== undefined) {
     return {
       ...loadLogLevelConfig(args),
-      BB_DATA_DIR: args.dataDir,
+      PATCHER_DATA_DIR: args.dataDir,
     };
   }
 

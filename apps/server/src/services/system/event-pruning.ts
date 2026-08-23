@@ -7,8 +7,8 @@ import {
   pruneResolvedItemDeltas,
   pruneTokenUsageEventsBeforeSequence,
   pruneThreadEventsBeforeSequence,
-} from "@bb/db";
-import type { ThreadEventType } from "@bb/domain";
+} from "@patcher/db";
+import type { ThreadEventType } from "@patcher/domain";
 import { roundDurationMs } from "../lib/duration.js";
 import type { AppDeps } from "../../types.js";
 

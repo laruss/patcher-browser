@@ -5,7 +5,7 @@ import { atomFamily } from "jotai-family";
 import { z } from "zod";
 import { createLocalStorageSyncStorage } from "@/lib/browser-storage";
 
-export const THREAD_RECENT_ITEMS_STORAGE_PREFIX = "bb.thread.recentItems";
+export const THREAD_RECENT_ITEMS_STORAGE_PREFIX = "patcher.thread.recentItems";
 export const THREAD_RECENT_ITEMS_STORAGE_VERSION = 1;
 /** How many recent items we persist per thread before dropping the oldest. */
 export const THREAD_RECENT_ITEMS_MAX_STORED = 24;

@@ -7,43 +7,43 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { hostSchema } from "@bb/domain";
-import type { Host } from "@bb/domain";
+import { hostSchema } from "@patcher/domain";
+import type { Host } from "@patcher/domain";
 import {
   type CreateProjectRequest,
   type ProjectResponse,
   projectResponseSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   hostDaemonEnrollKeyResponseSchema,
   type HostDaemonEnrollKeyRequest,
   type HostDaemonEnrollKeyResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { z } from "zod";
 
 const execFile = promisify(execFileCallback);
 
-export const STANDALONE_INSTANCE_ENV = "BB_STANDALONE_INSTANCE";
-export const STANDALONE_PARENT_PID_ENV = "BB_STANDALONE_PARENT_PID";
-export const STANDALONE_OPENAI_API_KEY_ENV = "BB_QA_OPENAI_API_KEY";
-const STANDALONE_TMP_PREFIX = "bb-standalone-";
+export const STANDALONE_INSTANCE_ENV = "PATCHER_STANDALONE_INSTANCE";
+export const STANDALONE_PARENT_PID_ENV = "PATCHER_STANDALONE_PARENT_PID";
+export const STANDALONE_OPENAI_API_KEY_ENV = "PATCHER_QA_OPENAI_API_KEY";
+const STANDALONE_TMP_PREFIX = "patcher-standalone-";
 const PROCESS_SCAN_MAX_BUFFER = 10 * 1024 * 1024;
 
 type EnvironmentMap = Record<string, string>;
 // Thread-context env the parent agent injects into every shell. A standalone
-// pair must not inherit it: BB_THREAD_STORAGE in particular points at the parent
+// pair must not inherit it: PATCHER_THREAD_STORAGE in particular points at the parent
 // thread's own storage subdirectory, which the daemon would otherwise adopt as
 // its storage root and diverge from the server's data-dir-derived path, breaking
 // thread.start with "Thread storage path escapes the storage root".
 const STANDALONE_THREAD_CONTEXT_ENV = [
-  "BB_THREAD_ID",
-  "BB_ENVIRONMENT_ID",
-  "BB_THREAD_STORAGE",
+  "PATCHER_THREAD_ID",
+  "PATCHER_ENVIRONMENT_ID",
+  "PATCHER_THREAD_STORAGE",
 ];
-const RESTART_DAEMON_ENTRYPOINT_ENV = "BB_RESTART_DAEMON_ENTRYPOINT";
-const RESTART_DAEMON_CWD_ENV = "BB_RESTART_DAEMON_CWD";
-const RESTART_DAEMON_LOG_PATH_ENV = "BB_RESTART_DAEMON_LOG_PATH";
-const RESTART_DAEMON_PID_PATH_ENV = "BB_RESTART_DAEMON_PID_PATH";
+const RESTART_DAEMON_ENTRYPOINT_ENV = "PATCHER_RESTART_DAEMON_ENTRYPOINT";
+const RESTART_DAEMON_CWD_ENV = "PATCHER_RESTART_DAEMON_CWD";
+const RESTART_DAEMON_LOG_PATH_ENV = "PATCHER_RESTART_DAEMON_LOG_PATH";
+const RESTART_DAEMON_PID_PATH_ENV = "PATCHER_RESTART_DAEMON_PID_PATH";
 const DETACHED_DAEMON_LAUNCHER_SCRIPT = [
   'const { spawn } = require("node:child_process");',
   'const { closeSync, openSync, writeFileSync } = require("node:fs");',
@@ -243,7 +243,7 @@ export function buildStandaloneShellExports(env: EnvironmentMap): string {
  * Builds the standalone QA process environment. Isolates the pair from the
  * parent agent by stripping inherited thread context (see
  * STANDALONE_THREAD_CONTEXT_ENV) and applies provider-key policy: ambient
- * OPENAI_API_KEY is stripped unless BB_QA_OPENAI_API_KEY opts in.
+ * OPENAI_API_KEY is stripped unless PATCHER_QA_OPENAI_API_KEY opts in.
  */
 export function buildStandaloneRuntimeEnv(
   args: BuildStandaloneRuntimeEnvArgs,
@@ -326,7 +326,7 @@ export async function createTestGitRepo(repoDir: string): Promise<string> {
   await fs.mkdir(repoDir, { recursive: true });
   await runGit(repoDir, ["init", "--initial-branch", "main"]);
   await runGit(repoDir, ["config", "user.email", "standalone-qa@example.com"]);
-  await runGit(repoDir, ["config", "user.name", "BB Standalone QA"]);
+  await runGit(repoDir, ["config", "user.name", "Patcher Standalone QA"]);
   await fs.writeFile(path.join(repoDir, "alpha.txt"), "alpha\n", "utf8");
   await fs.writeFile(
     path.join(repoDir, "beta.md"),
@@ -536,15 +536,15 @@ export async function startQaServer(
 
   const serverEnv: NodeJS.ProcessEnv = {
     ...(args.env ?? process.env),
-    BB_DATA_DIR: args.dataDir,
-    BB_SERVER_PORT: String(args.port),
+    PATCHER_DATA_DIR: args.dataDir,
+    PATCHER_SERVER_PORT: String(args.port),
   };
   if (args.publicUrl) {
-    serverEnv.BB_APP_URL = args.publicUrl;
-    serverEnv.BB_EXTERNAL_URL = args.publicUrl;
+    serverEnv.PATCHER_APP_URL = args.publicUrl;
+    serverEnv.PATCHER_EXTERNAL_URL = args.publicUrl;
   } else {
-    delete serverEnv.BB_APP_URL;
-    delete serverEnv.BB_EXTERNAL_URL;
+    delete serverEnv.PATCHER_APP_URL;
+    delete serverEnv.PATCHER_EXTERNAL_URL;
   }
 
   const serverProcess = spawnLoggedProcess({
@@ -835,11 +835,11 @@ export function buildDaemonRestartCommand(
     `OPENAI_API_KEY="$${STANDALONE_OPENAI_API_KEY_ENV}"; export OPENAI_API_KEY ;; ` +
     "*) unset OPENAI_API_KEY ;; esac";
   const daemonEnv = [
-    `BB_DATA_DIR=${shellQuote(args.dataDir)}`,
-    `BB_HOST_DAEMON_PORT=${shellQuote(String(args.daemonPort))}`,
-    `BB_SERVER_URL=${shellQuote(args.serverUrl)}`,
+    `PATCHER_DATA_DIR=${shellQuote(args.dataDir)}`,
+    `PATCHER_HOST_DAEMON_PORT=${shellQuote(String(args.daemonPort))}`,
+    `PATCHER_SERVER_URL=${shellQuote(args.serverUrl)}`,
     `${STANDALONE_INSTANCE_ENV}=${shellQuote(args.instanceId)}`,
-    `BB_STANDALONE_PARENT_PID=${shellQuote(String(args.parentPid))}`,
+    `PATCHER_STANDALONE_PARENT_PID=${shellQuote(String(args.parentPid))}`,
   ].join(" ");
   const launcherEnv = [
     `${RESTART_DAEMON_ENTRYPOINT_ENV}=${shellQuote(args.entrypoint)}`,

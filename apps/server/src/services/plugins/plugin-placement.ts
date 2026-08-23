@@ -22,14 +22,14 @@
  * where a plugin is *asked* to run, not where it ends up.
  */
 
-import type { InstalledPluginRow } from "@bb/db";
+import type { InstalledPluginRow } from "@patcher/db";
 
 /** What the decision reads. A row, narrowed to the part that matters. */
 export type PluginPlacementInput = Pick<InstalledPluginRow, "provenance">;
 
 export function pluginProcessPolicy(args: {
   /**
-   * `BB_PLUGIN_PROCESS`. False loads every plugin in the server, which is what
+   * `PATCHER_PLUGIN_PROCESS`. False loads every plugin in the server, which is what
    * the server did before this policy existed — the way back if putting
    * plugins in their own process turns out to break something in the field.
    */

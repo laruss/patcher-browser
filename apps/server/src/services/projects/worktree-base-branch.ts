@@ -1,5 +1,5 @@
-import type { ProjectSourceCheckout } from "@bb/domain";
-import type { BaseBranchSpec } from "@bb/server-contract";
+import type { ProjectSourceCheckout } from "@patcher/domain";
+import type { BaseBranchSpec } from "@patcher/server-contract";
 
 export interface ResolveDefaultWorktreeBaseBranchArgs {
   defaultBranch: ProjectSourceCheckout["defaultBranch"];

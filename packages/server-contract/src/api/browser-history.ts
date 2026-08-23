@@ -4,7 +4,7 @@ import {
   BROWSER_HISTORY_QUERY_MAX_LENGTH,
   BROWSER_HISTORY_SCOPE_ID_MAX_LENGTH,
   BROWSER_HISTORY_URL_MAX_LENGTH,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 /**
  * Longer than what is stored: `recordBrowserHistoryVisit` truncates the title

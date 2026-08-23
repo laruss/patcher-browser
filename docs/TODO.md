@@ -33,9 +33,9 @@ Reading order is the order in which they block each other.
 
 - **A password manager.** Reverses a Non-Goal, deliberately:
   [PROJECT_PLAN.md](PROJECT_PLAN.md) §19 rules out a _sophisticated_ one, and that
-  still stands — no sync, no sharing, no breach monitoring. What is missing is the plain thing. bb prompts for **HTTP
+  still stands — no sync, no sharing, no breach monitoring. What is missing is the plain thing. Patcher prompts for **HTTP
   authentication** today and lets a plugin answer one
-  (`bb.browser.registerAuthProvider`), which is the rare case; a **form login**,
+  (`patcher.browser.registerAuthProvider`), which is the rare case; a **form login**,
   which is nearly every case, has nowhere to be saved from, nothing to fill it,
   and no "save this password?" at all. Chromium's own manager is not in Electron,
   so it is not a switch to flip.
@@ -52,7 +52,7 @@ Reading order is the order in which they block each other.
 - **A keychain-backed secret store for the server side.** Present-tense
   weakness, not a feature: every plugin secret — an API token, a cookie a plugin
   saved, whatever a credential plugin would hold — is written by
-  `@bb/secret-storage` as a **plaintext file with `0600` permissions**
+  `@patcher/secret-storage` as a **plaintext file with `0600` permissions**
   (`packages/secret-storage/src/secret-file.ts`). Any process running as the user
   reads it, and so does anyone who gets a copy of the data directory: a backup, a
   synced folder, a laptop without FileVault.
@@ -77,7 +77,7 @@ Reading order is the order in which they block each other.
     is how a biometric gate becomes theatre.
   - `app.setSecureKeyboardEntryEnabled` → present. Chrome turns this on while a
     password field has focus, which stops other processes on the machine from
-    logging the keystrokes. bb never turns it on. Cheap, and the shell already
+    logging the keystrokes. Patcher never turns it on. Cheap, and the shell already
     knows when a page's focused field is a password one.
 
 - **Passkeys, and the way the page hangs without them.** The measurement that
@@ -99,7 +99,7 @@ Reading order is the order in which they block each other.
   honestly so the site's fallback runs), the refusal is the part that cannot
   wait.
 
-- **A per-site grant the user makes at runtime.** `bb.sites` is declared in the
+- **A per-site grant the user makes at runtime.** `patcher.sites` is declared in the
   manifest, and that is exactly right for "declutter GitHub". It is the wrong
   shape for a credential filler, which legitimately needs every site the user has
   an account on — and `["https://**/**"]` in a manifest is a disclosure that says
@@ -120,14 +120,14 @@ Reading order is the order in which they block each other.
 ## A plugin could own these — and now nothing is in the way
 
 Each of these is a whole feature a plugin can store, act on and search
-(`bb.storage.database`, tab and page menu entries, an omnibox provider, a
-site-info section, its own panel). What they used to be missing was a place in bb's
+(`patcher.storage.database`, tab and page menu entries, an omnibox provider, a
+site-info section, its own panel). What they used to be missing was a place in Patcher's
 chrome; as of 2026-08-19 they have all three:
 
-- a **star in the address bar** — `bb.browser.registerToolbarItem`, with the
+- a **star in the address bar** — `patcher.browser.registerToolbarItem`, with the
   per-page state a star needs;
-- a section on the **new-tab screen** — `bb.browser.registerNewTabWidget`;
-- **a chord of their own** — `bb.ui.registerCommand`.
+- a section on the **new-tab screen** — `patcher.browser.registerNewTabWidget`;
+- **a chord of their own** — `patcher.ui.registerCommand`.
 
 See [architecture/browser-surface.md](architecture/browser-surface.md) for all
 three.
@@ -140,7 +140,7 @@ three.
   worked example makes the point and three would be three copies of it.
 
 **Nothing here is waiting on core work any more.** What is left in this file is
-either a screen bb has not drawn (below) or a decision nobody has needed yet.
+either a screen Patcher has not drawn (below) or a decision nobody has needed yet.
 
 ## Core-only, cheap
 
@@ -169,10 +169,10 @@ either a screen bb has not drawn (below) or a decision nobody has needed yet.
 - **Session restore fidelity.** A restart brings back URLs; scroll position and
   form state come back only for a tab reopened within the session (the shell holds
   Chromium's `pageState` in memory).
-- **Per-site permission toggles and a cookie count** in the site panel. bb's
+- **Per-site permission toggles and a cookie count** in the site panel. Patcher's
   permission policy is fixed in the shell, so there is nothing per-site to toggle
   yet.
-- **Incognito and profiles.** One fixed `persist:bb-browser` partition.
+- **Incognito and profiles.** One fixed `persist:patcher-browser` partition.
 - **Picture-in-picture and media keys**; **DRM will not play** at all (no Widevine
   in Electron).
 - **One overlay owner per window.** Freezing the page for a panel is owned in two
@@ -182,19 +182,19 @@ either a screen bb has not drawn (below) or a decision nobody has needed yet.
 - **Streaming HTTP across the plugin boundary.** Deferred on purpose; a plugin's
   route buffers its response.
 - **Permissions the user grants, rather than the plugin declaring them.** Today
-  `bb.permissions` is written by whoever wrote the plugin — which, in the case this
+  `patcher.permissions` is written by whoever wrote the plugin — which, in the case this
   product exists for, is the user's own agent. The install is one all-or-nothing
   yes (and only in the CLI), nothing can be granted in part, and nothing can be
   taken back afterwards short of uninstalling. So "the agent asked for `threads`
   and `filesystem`" is a sentence the user has never actually answered, and a
   plugin that reads more of their data than they expected — by accident as easily
-  as by design — is inside what bb currently permits.
+  as by design — is inside what Patcher currently permits.
 
   Not higher up this list for a reason that has to be said before anyone builds
   the dialog: **a grant UI over today's mechanism would be theatre.**
   [architecture/plugin-permissions.md](architecture/plugin-permissions.md) states
   the case — a plugin is a Node module with `node:fs`, `child_process` and the
-  loopback base URL, so a gate on the `bb` object stops none of it. Running it out
+  loopback base URL, so a gate on the `patcher` object stops none of it. Running it out
   of process closed **none** of those three: the child is a Node process like any
   other and is handed `loopbackBaseUrl` as soon as the server binds
   (`plugin-child-runtime.ts`). What that move bought was crash and memory
@@ -204,7 +204,7 @@ either a screen bb has not drawn (below) or a decision nobody has needed yet.
   first, then consented** — which is also why this is one item and not two.
 
   What is cheap and honest before any of that exists is the **record**: the gate is
-  two chokepoints (`callBrowser` and the `bb.sdk` wrapper), so "what has this
+  two chokepoints (`callBrowser` and the `patcher.sdk` wrapper), so "what has this
   plugin actually reached" is collectable today, and it describes behaviour instead
   of promising containment. Three questions the design has to answer when it is
   time: which permissions are worth asking about at all (a dialog listing twenty is
@@ -215,8 +215,8 @@ either a screen bb has not drawn (below) or a decision nobody has needed yet.
   handle.
 
 - **The app shows no plugin permissions.** Nothing in the SPA renders
-  `bb.permissions`, and nothing renders `bb.sites` either. The CLI prints both
-  before an install and `bb plugin info` lists them, so the agent-authored path
+  `patcher.permissions`, and nothing renders `patcher.sites` either. The CLI prints both
+  before an install and `patcher plugin info` lists them, so the agent-authored path
   discloses them — but a plugin installed through the app's own dialog does not,
   and `sites` is the one whose scope only the reader can judge. It now scopes two
   permissions, one of which runs the plugin's code in those pages, which raises what

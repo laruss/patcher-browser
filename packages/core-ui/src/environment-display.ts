@@ -1,5 +1,5 @@
-import type { Environment, EnvironmentWorkspaceDisplayKind } from "@bb/domain";
-import { resolveEnvironmentWorkspaceDisplayKind } from "@bb/domain";
+import type { Environment, EnvironmentWorkspaceDisplayKind } from "@patcher/domain";
+import { resolveEnvironmentWorkspaceDisplayKind } from "@patcher/domain";
 
 export type EnvironmentDisplayHostLocality = "local" | "remote";
 

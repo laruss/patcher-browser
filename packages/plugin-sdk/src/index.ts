@@ -1,10 +1,10 @@
 /**
- * `@bb/plugin-sdk` — the typed facade plugin authors compile against.
+ * `@patcher/plugin-sdk` — the typed facade plugin authors compile against.
  *
  * The root export carries the side-effect-free app types plus the backend
- * contract (`BbPluginApi`, the
- * `server.ts` factory argument — types only, implemented by the BB server).
- * The `./app` subpath adds the runtime bindings that `bb plugin build` shims
+ * contract (`PatcherPluginApi`, the
+ * `server.ts` factory argument — types only, implemented by the Patcher server).
+ * The `./app` subpath adds the runtime bindings that `patcher plugin build` shims
  * to the host's shared runtime.
  */
 export * from "./app-contract.js";

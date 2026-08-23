@@ -11,7 +11,7 @@ import {
   notInArray,
   or,
 } from "drizzle-orm";
-import type { PermissionMode, PromptInput } from "@bb/domain";
+import type { PermissionMode, PromptInput } from "@patcher/domain";
 import type {
   DbConnection,
   DbQueryConnection,

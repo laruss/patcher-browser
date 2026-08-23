@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 import {
   getPluginDetailRoutePath,
   getPluginsRoutePath,
@@ -146,8 +146,8 @@ describe("route path helpers", () => {
   it("resolves same-origin hrefs to router paths", () => {
     expect(
       resolveRouteHref({
-        currentOrigin: "https://bb.local",
-        href: "https://bb.local/projects/proj_standard/threads/thr_standard?q=1",
+        currentOrigin: "https://patcher.local",
+        href: "https://patcher.local/projects/proj_standard/threads/thr_standard?q=1",
       }),
     ).toEqual({
       path: "/projects/proj_standard/threads/thr_standard?q=1",
@@ -157,13 +157,13 @@ describe("route path helpers", () => {
   it("rejects external and protocol-relative route-shaped hrefs", () => {
     expect(
       resolveRouteHref({
-        currentOrigin: "https://bb.local",
+        currentOrigin: "https://patcher.local",
         href: "https://example.test/projects/proj_standard/threads/thr_standard",
       }),
     ).toBeNull();
     expect(
       resolveRouteHref({
-        currentOrigin: "https://bb.local",
+        currentOrigin: "https://patcher.local",
         href: "//example.test/projects/proj_standard/threads/thr_standard",
       }),
     ).toBeNull();
@@ -172,13 +172,13 @@ describe("route path helpers", () => {
   it("rejects fragment-only and query-only hrefs", () => {
     expect(
       resolveRouteHref({
-        currentOrigin: "https://bb.local",
+        currentOrigin: "https://patcher.local",
         href: "#timeline-row",
       }),
     ).toBeNull();
     expect(
       resolveRouteHref({
-        currentOrigin: "https://bb.local",
+        currentOrigin: "https://patcher.local",
         href: "?panel=files",
       }),
     ).toBeNull();

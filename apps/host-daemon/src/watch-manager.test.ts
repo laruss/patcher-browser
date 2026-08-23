@@ -3,9 +3,12 @@ import type {
   WatchThreadStorageRootArgs,
   WatchWorkspaceArgs,
   WorkspaceWatchError,
-} from "@bb/host-watcher";
-import type { HostWorkspace } from "@bb/host-workspace";
-import { makeWorkspaceMergeBase, makeWorkspaceStatus } from "@bb/test-helpers";
+} from "@patcher/host-watcher";
+import type { HostWorkspace } from "@patcher/host-workspace";
+import {
+  makeWorkspaceMergeBase,
+  makeWorkspaceStatus,
+} from "@patcher/test-helpers";
 import { describe, expect, it, vi } from "vitest";
 import { WatchManager, type WatchManagerOptions } from "./watch-manager.js";
 
@@ -927,7 +930,7 @@ describe("WatchManager", () => {
     const manager = new WatchManager({
       hostWatcher,
       onThreadStorageChanged,
-      threadStorageRootPath: "/tmp/bb-data/thread-storage",
+      threadStorageRootPath: "/tmp/patcher-data/thread-storage",
     });
 
     await manager.replaceWatchSet({
@@ -968,7 +971,7 @@ describe("WatchManager", () => {
     });
     const manager = new WatchManager({
       hostWatcher,
-      threadStorageRootPath: "/tmp/bb-data/thread-storage",
+      threadStorageRootPath: "/tmp/patcher-data/thread-storage",
     });
 
     await manager.replaceWatchSet({

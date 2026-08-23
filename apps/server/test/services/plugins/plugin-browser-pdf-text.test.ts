@@ -23,18 +23,18 @@ const DOCUMENT = {
  */
 function decliningSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerPdfTextProvider(() => null);
-    bb.browser.registerPdfTextProvider(() => "");
-    bb.browser.registerPdfTextProvider(() => 42);
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPdfTextProvider(() => null);
+    patcher.browser.registerPdfTextProvider(() => "");
+    patcher.browser.registerPdfTextProvider(() => 42);
   }
 `;
 }
 
 function answeringSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerPdfTextProvider((document: any) =>
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPdfTextProvider((document: any) =>
       document.pageUrl.endsWith("scan.pdf")
         ? "Scanned page one, read by OCR."
         : null,
@@ -45,8 +45,8 @@ function answeringSource(): string {
 
 function throwingSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerPdfTextProvider(() => {
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPdfTextProvider(() => {
       throw new Error("the OCR service is down");
     });
   }
@@ -55,8 +55,8 @@ function throwingSource(): string {
 
 function longAnswerSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerPdfTextProvider(() => "x".repeat(70000));
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPdfTextProvider(() => "x".repeat(70000));
   }
 `;
 }
@@ -72,7 +72,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "PDF fixture",
         description: "PDF text provider fixture.",
         branding: { icon: "Zap" },
@@ -85,7 +85,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin PDF text providers (bb.browser.registerPdfTextProvider)", () => {
+describe("plugin PDF text providers (patcher.browser.registerPdfTextProvider)", () => {
   let harness: TestAppHarness;
 
   async function install(name: string, serverSource: string): Promise<void> {
@@ -122,7 +122,7 @@ describe("plugin PDF text providers (bb.browser.registerPdfTextProvider)", () =>
   });
 
   it("answers with the text a provider produced", async () => {
-    await install("bb-plugin-ocr", answeringSource());
+    await install("patcher-plugin-ocr", answeringSource());
 
     expect(await resolve(DOCUMENT)).toEqual({
       status: 200,
@@ -138,7 +138,7 @@ describe("plugin PDF text providers (bb.browser.registerPdfTextProvider)", () =>
       body: { ok: true, text: "" },
     });
 
-    await install("bb-plugin-ocr", answeringSource());
+    await install("patcher-plugin-ocr", answeringSource());
 
     expect(
       await resolve({ ...DOCUMENT, pageUrl: "https://example.com/a.pdf" }),
@@ -148,9 +148,9 @@ describe("plugin PDF text providers (bb.browser.registerPdfTextProvider)", () =>
   // Declining, answering with the wrong shape, answering with nothing, and
   // throwing all mean the same thing: ask the next one.
   it("walks past providers that decline, malform or throw", async () => {
-    await install("bb-plugin-aaa", decliningSource());
-    await install("bb-plugin-bbb", throwingSource());
-    await install("bb-plugin-ocr", answeringSource());
+    await install("patcher-plugin-aaa", decliningSource());
+    await install("patcher-plugin-bbb", throwingSource());
+    await install("patcher-plugin-ocr", answeringSource());
 
     expect((await resolve(DOCUMENT)).body).toEqual({
       ok: true,
@@ -161,7 +161,7 @@ describe("plugin PDF text providers (bb.browser.registerPdfTextProvider)", () =>
   it("caps what a provider returns at the browser's own page-read cap", async () => {
     // A plugin's text lands in the same agent context the browser's would
     // have, so it is bounded by the same number.
-    await install("bb-plugin-ocr", longAnswerSource());
+    await install("patcher-plugin-ocr", longAnswerSource());
 
     const result = await resolve(DOCUMENT);
     const text = (result.body as { text: string }).text;
@@ -175,7 +175,7 @@ describe("plugin PDF text providers (bb.browser.registerPdfTextProvider)", () =>
 
   // This route runs plugin code, so it takes the same guard as the rest.
   it("refuses a cross-origin caller", async () => {
-    await install("bb-plugin-ocr", answeringSource());
+    await install("patcher-plugin-ocr", answeringSource());
 
     const result = await resolve(DOCUMENT, EVIL_ORIGIN);
 

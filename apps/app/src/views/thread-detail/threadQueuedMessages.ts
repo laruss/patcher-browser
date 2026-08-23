@@ -1,5 +1,5 @@
-import { type PromptInput } from "@bb/domain";
-import { fileNameFromPath } from "@bb/thread-view";
+import { type PromptInput } from "@patcher/domain";
+import { fileNameFromPath } from "@patcher/thread-view";
 import { promptInputToDraft, type PromptDraftState } from "@/lib/prompt-draft";
 
 const QUEUED_MESSAGE_PREVIEW_MAX_CHARS = 140;

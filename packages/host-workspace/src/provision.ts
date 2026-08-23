@@ -3,7 +3,7 @@ import path from "node:path";
 import type {
   ProvisioningTranscriptEntry,
   WorkspaceStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CommitOptions,
   CommitResult,
@@ -42,7 +42,7 @@ import {
 import { resolveAdditionalWorkspaceWriteRoots } from "./workspace-write-roots.js";
 
 // ---------------------------------------------------------------------------
-// Options (discriminated union on workspaceProvisionType from @bb/domain)
+// Options (discriminated union on workspaceProvisionType from @patcher/domain)
 // ---------------------------------------------------------------------------
 
 type ProvisionProgressCallback = (entry: ProvisioningTranscriptEntry) => void;
@@ -111,7 +111,7 @@ export interface PersonalWorkspaceOpts extends ProvisionBase {
   workspaceProvisionType: "personal";
   /** Environment ID that owns the personal scratch workspace. */
   environmentId: string;
-  /** Root directory containing bb-managed personal scratch workspaces. */
+  /** Root directory containing Patcher-managed personal scratch workspaces. */
   personalWorkspaceRoot: string;
   /** Target directory for the scratch workspace. Created if missing. */
   targetPath: string;

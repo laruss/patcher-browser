@@ -4,8 +4,8 @@ import {
   ensurePersonalProject,
   listPublicProjects,
   setExperiments,
-} from "@bb/db";
-import { defaultExperiments, PERSONAL_PROJECT_ID } from "@bb/domain";
+} from "@patcher/db";
+import { defaultExperiments, PERSONAL_PROJECT_ID } from "@patcher/domain";
 import {
   reportQueuedCommandSuccess,
   waitForQueuedCommand,

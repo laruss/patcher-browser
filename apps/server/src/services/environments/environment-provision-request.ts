@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { environmentProvisionCommandSchema } from "@bb/host-daemon-contract";
-import type { EnvironmentProvisionCommand } from "@bb/host-daemon-contract";
+import { environmentProvisionCommandSchema } from "@patcher/host-daemon-contract";
+import type { EnvironmentProvisionCommand } from "@patcher/host-daemon-contract";
 
 const environmentProvisionRequestBaseSchema = z.object({
   provisioningId: z.string().min(1),

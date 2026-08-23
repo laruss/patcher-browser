@@ -1,5 +1,5 @@
 import { HTTPException } from "hono/http-exception";
-import type { ThreadEventScopeKind, ThreadEventType } from "@bb/domain";
+import type { ThreadEventScopeKind, ThreadEventType } from "@patcher/domain";
 import type { ServerLogger } from "./types.js";
 
 export interface ApiErrorBody {

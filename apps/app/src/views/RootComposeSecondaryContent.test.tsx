@@ -3,7 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import {
   PaneContext,
   type PaneContextValue,
@@ -37,7 +37,7 @@ interface RenderRootComposeArgs {
 }
 
 type TestDesktopWindow = {
-  bbDesktop?: { platform: "macos" };
+  patcherDesktop?: { platform: "macos" };
 };
 
 const panelGroupState = vi.hoisted(() => ({
@@ -47,11 +47,13 @@ const panelGroupState = vi.hoisted(() => ({
 const noop = () => {};
 
 function setMacosDesktopChrome(): void {
-  (window as unknown as TestDesktopWindow).bbDesktop = { platform: "macos" };
+  (window as unknown as TestDesktopWindow).patcherDesktop = {
+    platform: "macos",
+  };
 }
 
 function clearDesktopChrome(): void {
-  delete (window as unknown as TestDesktopWindow).bbDesktop;
+  delete (window as unknown as TestDesktopWindow).patcherDesktop;
 }
 
 vi.mock("jotai", async (importOriginal) => ({
@@ -84,7 +86,7 @@ vi.mock("react-resizable-panels", async () => {
   return { Panel, PanelGroup };
 });
 
-vi.mock("@bb/shared-ui/responsive-overlay", async () => {
+vi.mock("@patcher/shared-ui/responsive-overlay", async () => {
   const React = await import("react");
 
   const PersistentResponsiveDrawerShell = ({

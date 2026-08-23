@@ -1,4 +1,4 @@
-import { threadScope, turnScope } from "@bb/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import type {
   AdapterCommand,
   DecodedInteractiveRequest,

@@ -1,6 +1,6 @@
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { TruncateStart } from "./truncate-start.js";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 
 interface FilePathLinkProps {
   path: string;

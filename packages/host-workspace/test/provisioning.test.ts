@@ -2,8 +2,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_ENV_SETUP_SCRIPT_NAME } from "@bb/domain";
-import { shellSingleQuote, waitForSetupMarkerCount } from "@bb/test-helpers";
+import { DEFAULT_ENV_SETUP_SCRIPT_NAME } from "@patcher/domain";
+import {
+  shellSingleQuote,
+  waitForSetupMarkerCount,
+} from "@patcher/test-helpers";
 import { Workspace } from "../src/workspace.js";
 import {
   buildSetupScriptCommand,
@@ -25,10 +28,12 @@ async function makeTempDir(prefix: string): Promise<string> {
 async function initRepoWithOptionalSetup(
   setupScript?: string,
 ): Promise<string> {
-  const repoPath = await makeTempDir("bb-provisioning-repo-");
+  const repoPath = await makeTempDir("patcher-provisioning-repo-");
   await runGit(["init", "-b", "main"], { cwd: repoPath });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
-  await runGit(["config", "user.email", "bb@example.com"], { cwd: repoPath });
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
+    cwd: repoPath,
+  });
   await fs.writeFile(path.join(repoPath, "README.md"), "hello\n", "utf8");
   if (setupScript) {
     await fs.writeFile(
@@ -47,7 +52,7 @@ async function initRemoteBackedRepo(): Promise<{
   repoPath: string;
 }> {
   const repoPath = await initRepoWithOptionalSetup();
-  const remotePath = await makeTempDir("bb-provisioning-remote-");
+  const remotePath = await makeTempDir("patcher-provisioning-remote-");
   await runGit(["init", "--bare"], { cwd: remotePath });
   await runGit(["remote", "add", "origin", remotePath], { cwd: repoPath });
   await runGit(["push", "-u", "origin", "main"], { cwd: repoPath });
@@ -56,13 +61,13 @@ async function initRemoteBackedRepo(): Promise<{
 }
 
 async function pushRemoteMainCommit(remotePath: string): Promise<string> {
-  const cloneParent = await makeTempDir("bb-provisioning-remote-clone-");
+  const cloneParent = await makeTempDir("patcher-provisioning-remote-clone-");
   const clonePath = path.join(cloneParent, "repo");
   await runGit(["clone", "--branch", "main", remotePath, clonePath], {
     cwd: cloneParent,
   });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: clonePath });
-  await runGit(["config", "user.email", "bb@example.com"], {
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: clonePath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
     cwd: clonePath,
   });
   await fs.writeFile(path.join(clonePath, "remote.txt"), "remote\n", "utf8");
@@ -102,7 +107,7 @@ afterEach(async () => {
 describe("workspace provisioning", () => {
   it("creates worktrees and is idempotent for valid targets", async () => {
     const sourceRepo = await initRepoWithOptionalSetup();
-    const parentDir = await makeTempDir("bb-worktree-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-parent-");
     const targetPath = path.join(parentDir, "feature");
 
     const first = await createWorktree({
@@ -127,7 +132,7 @@ describe("workspace provisioning", () => {
 
   it("fetches remote base branches before creating worktrees", async () => {
     const { remotePath, repoPath } = await initRemoteBackedRepo();
-    const parentDir = await makeTempDir("bb-worktree-remote-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-remote-parent-");
     const targetPath = path.join(parentDir, "feature");
     const remoteHead = await pushRemoteMainCommit(remotePath);
 
@@ -157,7 +162,7 @@ describe("workspace provisioning", () => {
     const sourceRepo = await initRepoWithOptionalSetup(
       "echo failing >&2\nexit 1\n",
     );
-    const parentDir = await makeTempDir("bb-worktree-fail-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-fail-parent-");
     const targetPath = path.join(parentDir, "broken");
 
     await expect(
@@ -174,7 +179,9 @@ describe("workspace provisioning", () => {
   });
 
   it("runs worktree setup scripts concurrently after creating worktrees", async () => {
-    const coordinationDir = await makeTempDir("bb-worktree-setup-concurrency-");
+    const coordinationDir = await makeTempDir(
+      "patcher-worktree-setup-concurrency-",
+    );
     const markerDir = path.join(coordinationDir, "markers");
     const releaseFile = path.join(coordinationDir, "release");
     const sourceRepo = await initRepoWithOptionalSetup(
@@ -189,7 +196,7 @@ describe("workspace provisioning", () => {
         "echo setup released",
       ].join("\n") + "\n",
     );
-    const parentDir = await makeTempDir("bb-worktree-concurrent-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-concurrent-parent-");
     const firstTargetPath = path.join(parentDir, "feature-a");
     const secondTargetPath = path.join(parentDir, "feature-b");
 
@@ -231,10 +238,10 @@ describe("workspace provisioning", () => {
 
   it("creates nested worktree targets when parent directories do not exist", async () => {
     const sourceRepo = await initRepoWithOptionalSetup();
-    const parentDir = await makeTempDir("bb-worktree-nested-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-nested-parent-");
     const targetPath = path.join(
       parentDir,
-      ".bb-worktrees",
+      ".patcher-worktrees",
       "proj_123",
       "thr_456",
     );
@@ -265,7 +272,7 @@ describe("workspace provisioning", () => {
   });
 
   it("streams setup script output and respects timeouts", async () => {
-    const workspacePath = await makeTempDir("bb-setup-script-");
+    const workspacePath = await makeTempDir("patcher-setup-script-");
     await fs.writeFile(
       path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
       "echo first\necho second\n",
@@ -296,8 +303,8 @@ describe("workspace provisioning", () => {
   });
 
   it("aborts setup scripts and emits cancellation progress", async () => {
-    const workspacePath = await makeTempDir("bb-setup-abort-");
-    const markerDir = await makeTempDir("bb-setup-abort-markers-");
+    const workspacePath = await makeTempDir("patcher-setup-abort-");
+    const markerDir = await makeTempDir("patcher-setup-abort-markers-");
     await fs.writeFile(
       path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
       [
@@ -331,12 +338,16 @@ describe("workspace provisioning", () => {
       markerDir,
       timeoutMs: 2_000,
     });
-    expect(entries).toContain("setup-cancelled:.bb-env-setup.sh cancelled");
+    expect(entries).toContain(
+      "setup-cancelled:.patcher-env-setup.sh cancelled",
+    );
   });
 
   it("aborts setup scripts when the signal is aborted at listener registration", async () => {
-    const workspacePath = await makeTempDir("bb-setup-listener-abort-");
-    const markerDir = await makeTempDir("bb-setup-listener-abort-markers-");
+    const workspacePath = await makeTempDir("patcher-setup-listener-abort-");
+    const markerDir = await makeTempDir(
+      "patcher-setup-listener-abort-markers-",
+    );
     const completedMarker = path.join(markerDir, "completed-setup");
     await fs.writeFile(
       path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
@@ -361,11 +372,13 @@ describe("workspace provisioning", () => {
     ).rejects.toMatchObject({ code: "provision_cancelled" });
 
     await expect(fs.stat(completedMarker)).rejects.toThrow();
-    expect(entries).toContain("setup-cancelled:.bb-env-setup.sh cancelled");
+    expect(entries).toContain(
+      "setup-cancelled:.patcher-env-setup.sh cancelled",
+    );
   });
 
   it("removes managed worktrees after setup script cancellation", async () => {
-    const markerDir = await makeTempDir("bb-worktree-abort-markers-");
+    const markerDir = await makeTempDir("patcher-worktree-abort-markers-");
     const sourceRepo = await initRepoWithOptionalSetup(
       [
         "set -euo pipefail",
@@ -375,7 +388,7 @@ describe("workspace provisioning", () => {
         "while true; do sleep 0.05; done",
       ].join("\n") + "\n",
     );
-    const parentDir = await makeTempDir("bb-worktree-abort-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-abort-parent-");
     const targetPath = path.join(parentDir, "cancelled");
     const abortController = new AbortController();
     const provision = createWorktree({
@@ -410,7 +423,7 @@ describe("workspace provisioning", () => {
   });
 
   it("compacts carriage-return setup script progress in transcript output", async () => {
-    const workspacePath = await makeTempDir("bb-setup-progress-");
+    const workspacePath = await makeTempDir("patcher-setup-progress-");
     await fs.writeFile(
       path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
       "printf 'progress 1\\rprogress 2\\rprogress done\\n'\n",
@@ -433,7 +446,7 @@ describe("workspace provisioning", () => {
   });
 
   it("closes setup script stdin so hooks do not block on input", async () => {
-    const workspacePath = await makeTempDir("bb-setup-stdin-closed-");
+    const workspacePath = await makeTempDir("patcher-setup-stdin-closed-");
     await fs.writeFile(
       path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
       "if read line; then echo unexpected-input; else echo stdin-closed; fi\n",
@@ -449,18 +462,18 @@ describe("workspace provisioning", () => {
     expect(result.output).toContain("stdin-closed");
   });
 
-  it("scrubs inherited bb runtime env vars before running setup scripts", async () => {
-    vi.stubEnv("BB_DATA_DIR", "/tmp/leaked-bb-data");
-    vi.stubEnv("BB_SERVER_PORT", "38886");
+  it("scrubs inherited Patcher runtime env vars before running setup scripts", async () => {
+    vi.stubEnv("PATCHER_DATA_DIR", "/tmp/leaked-patcher-data");
+    vi.stubEnv("PATCHER_SERVER_PORT", "38986");
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("EXTERNAL_SETUP_ENV", "external-value");
-    const workspacePath = await makeTempDir("bb-setup-env-");
+    const workspacePath = await makeTempDir("patcher-setup-env-");
     await fs.writeFile(
       path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
       [
         'printf "%s|%s|%s|%s\\n" \\',
-        '  "${BB_DATA_DIR-missing}" \\',
-        '  "${BB_SERVER_PORT-missing}" \\',
+        '  "${PATCHER_DATA_DIR-missing}" \\',
+        '  "${PATCHER_SERVER_PORT-missing}" \\',
         '  "${NODE_ENV-missing}" \\',
         '  "${EXTERNAL_SETUP_ENV-missing}"',
       ].join("\n"),
@@ -477,8 +490,8 @@ describe("workspace provisioning", () => {
   });
 
   it("uses the resolved user-shell PATH for setup scripts", async () => {
-    const workspacePath = await makeTempDir("bb-setup-shell-path-");
-    const binPath = await makeTempDir("bb-setup-shell-bin-");
+    const workspacePath = await makeTempDir("patcher-setup-shell-path-");
+    const binPath = await makeTempDir("patcher-setup-shell-bin-");
     const executablePath = path.join(binPath, "shell-path-tool");
     await fs.writeFile(executablePath, "#!/bin/sh\necho resolved-shell-path\n");
     await fs.chmod(executablePath, 0o755);
@@ -502,12 +515,12 @@ describe("workspace provisioning", () => {
     expect(
       buildSetupScriptCommand({
         platform: "darwin",
-        scriptPath: "/tmp/.bb-env-setup.sh",
+        scriptPath: "/tmp/.patcher-env-setup.sh",
       }),
     ).toMatchObject({
       command: "env",
-      args: ["bash", "/tmp/.bb-env-setup.sh"],
-      text: "env bash .bb-env-setup.sh",
+      args: ["bash", "/tmp/.patcher-env-setup.sh"],
+      text: "env bash .patcher-env-setup.sh",
     });
   });
 
@@ -515,13 +528,13 @@ describe("workspace provisioning", () => {
     expect(() =>
       buildSetupScriptCommand({
         platform: "win32",
-        scriptPath: "C:\\repo\\.bb-env-setup.sh",
+        scriptPath: "C:\\repo\\.patcher-env-setup.sh",
       }),
     ).toThrow(/not supported on Windows/u);
   });
 
   it("returns a no-op when the setup script is missing", async () => {
-    const workspacePath = await makeTempDir("bb-setup-noop-");
+    const workspacePath = await makeTempDir("patcher-setup-noop-");
 
     await expect(
       runSetupScript({ workspacePath, timeoutMs: 900000 }),
@@ -530,7 +543,7 @@ describe("workspace provisioning", () => {
 
   it("removes worktrees and plain directories", async () => {
     const sourceRepo = await initRepoWithOptionalSetup();
-    const parentDir = await makeTempDir("bb-remove-parent-");
+    const parentDir = await makeTempDir("patcher-remove-parent-");
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
@@ -548,7 +561,7 @@ describe("workspace provisioning", () => {
     });
     expect(worktrees.stdout).not.toContain(targetPath);
 
-    const directoryPath = await makeTempDir("bb-remove-dir-");
+    const directoryPath = await makeTempDir("patcher-remove-dir-");
     await fs.writeFile(path.join(directoryPath, "file.txt"), "data\n", "utf8");
     await removeDirectory({ path: directoryPath });
     await expect(fs.stat(directoryPath)).rejects.toThrow();
@@ -556,7 +569,7 @@ describe("workspace provisioning", () => {
 
   it("removes orphaned worktree directories after the .git file is gone", async () => {
     const sourceRepo = await initRepoWithOptionalSetup();
-    const parentDir = await makeTempDir("bb-remove-orphan-gitfile-");
+    const parentDir = await makeTempDir("patcher-remove-orphan-gitfile-");
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
@@ -574,7 +587,7 @@ describe("workspace provisioning", () => {
   });
 
   it("removes directories that no longer resolve as git repositories", async () => {
-    const targetPath = await makeTempDir("bb-remove-non-git-dir-");
+    const targetPath = await makeTempDir("patcher-remove-non-git-dir-");
     await fs.writeFile(path.join(targetPath, "file.txt"), "data\n", "utf8");
 
     await removeWorktree({ path: targetPath, force: true });
@@ -584,7 +597,7 @@ describe("workspace provisioning", () => {
 
   it("removes worktree directories when git metadata cleanup fails", async () => {
     const sourceRepo = await initRepoWithOptionalSetup();
-    const parentDir = await makeTempDir("bb-remove-metadata-failure-");
+    const parentDir = await makeTempDir("patcher-remove-metadata-failure-");
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({

@@ -1,6 +1,6 @@
-import { APP_SURFACE_HEADER_NAME } from "@bb/config/app-surface";
+import { APP_SURFACE_HEADER_NAME } from "@patcher/config/app-surface";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createBbDesktopApi } from "@/test/bb-desktop-test-utils";
+import { createPatcherDesktopApi } from "@/test/patcher-desktop-test-utils";
 import { appSurfaceRequestInit, getAppSurface } from "./app-surface";
 
 const desktopInfo = {
@@ -31,7 +31,7 @@ describe("app surface request metadata", () => {
 
   it("marks Electron preload requests as desktop", () => {
     vi.stubGlobal("window", {
-      bbDesktop: createBbDesktopApi(desktopInfo),
+      patcherDesktop: createPatcherDesktopApi(desktopInfo),
     });
 
     const init = appSurfaceRequestInit();

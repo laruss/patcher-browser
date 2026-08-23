@@ -1,13 +1,13 @@
-import { threadScope, type ProvisioningTranscriptEntry } from "@bb/domain";
+import { threadScope, type ProvisioningTranscriptEntry } from "@patcher/domain";
 import type {
   EnvironmentProvisionCommand,
   HostDaemonCommandResult,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   getPersonalWorkspaceRoot,
   validatePersonalWorkspaceTargetPath,
   type ProvisionWorkspaceArgs,
-} from "@bb/host-workspace";
+} from "@patcher/host-workspace";
 import {
   type CommandDispatchOptions,
   type CommandOf,

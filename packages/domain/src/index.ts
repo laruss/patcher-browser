@@ -1,5 +1,5 @@
 // NOTE: "./thread-status.js" is deliberately not re-exported here. It has its
-// own subpath export (@bb/domain/thread-status) for low-level consumers, and
+// own subpath export (@patcher/domain/thread-status) for low-level consumers, and
 // thread.ts re-exports its public names; starring it here would collide with
 // "./thread.js".
 export * from "./active-thinking.js";

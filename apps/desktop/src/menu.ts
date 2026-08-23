@@ -17,7 +17,6 @@ export const TOGGLE_DEVELOPER_TOOLS_ACCELERATOR = "Command+Option+I";
 export const RELOAD_ACCELERATOR = "CommandOrControl+R";
 export const FORCE_RELOAD_ACCELERATOR = "CommandOrControl+Shift+R";
 export const SERVER_MENU_LABEL = "Server";
-export const SERVER_MENU_ITEM_ID = "bb-server-menu";
 export const SET_SERVER_URL_MENU_LABEL = "Set Server URL…";
 
 export interface ApplicationMenuServerItem {
@@ -40,8 +39,6 @@ export interface InstallApplicationMenuArgs {
   openServerDaemonLogs(): void;
   selectServer(serverId: string): void;
   setServerUrl(): void;
-  /** Fired when the Window ▸ Server submenu opens (freshness trigger). */
-  onServerMenuWillShow?: () => void;
   serverDaemonLogsMenuEnabled: boolean;
   servers: ApplicationMenuServerItem[];
 }
@@ -204,7 +201,6 @@ export function buildApplicationMenuTemplate(
         { role: "zoom" },
         { type: "separator" },
         {
-          id: SERVER_MENU_ITEM_ID,
           label: SERVER_MENU_LABEL,
           submenu: createServerMenuItems(args),
         },
@@ -216,14 +212,7 @@ export function buildApplicationMenuTemplate(
 }
 
 export function installApplicationMenu(args: InstallApplicationMenuArgs): void {
-  const menu = Menu.buildFromTemplate(buildApplicationMenuTemplate(args));
-  const onServerMenuWillShow = args.onServerMenuWillShow;
-  if (onServerMenuWillShow !== undefined) {
-    menu
-      .getMenuItemById(SERVER_MENU_ITEM_ID)
-      ?.submenu?.on("menu-will-show", () => {
-        onServerMenuWillShow();
-      });
-  }
-  Menu.setApplicationMenu(menu);
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(buildApplicationMenuTemplate(args)),
+  );
 }

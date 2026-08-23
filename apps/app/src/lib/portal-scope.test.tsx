@@ -4,31 +4,31 @@ import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { PluginContext } from "@/components/plugin/plugin-context";
-import { Dialog, DialogContent, DialogTitle } from "@bb/shared-ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@patcher/shared-ui/dialog";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/tooltip";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@bb/shared-ui/select";
+} from "@patcher/shared-ui/select";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "@bb/shared-ui/context-menu";
+} from "@patcher/shared-ui/context-menu";
 
 /**
  * Portaled overlay content renders into document.body — outside every
- * `[data-bb-plugin-root]` slot mount — so plugin-scoped utilities
- * (`@scope ([data-bb-plugin-root])`, see buildPluginApp) would not style it.
+ * `[data-patcher-plugin-root]` slot mount — so plugin-scoped utilities
+ * (`@scope ([data-patcher-plugin-root])`, see buildPluginApp) would not style it.
  * usePortalScopeProps re-attaches the scope iff the component rendered from a
  * plugin slot (PluginContext present). Regression for the Phase-3 bug where a
  * plugin's `className` on DialogContent silently didn't apply.
@@ -60,16 +60,16 @@ describe("usePortalScopeProps", () => {
 
     const content = baseElement.querySelector('[role="dialog"]');
     expect(content).not.toBeNull();
-    expect(content!.getAttribute("data-bb-portaled-overlay")).toBe("");
+    expect(content!.getAttribute("data-patcher-portaled-overlay")).toBe("");
     // Portaled out of the plugin mount subtree, so it must carry its own
     // scope root for the plugin stylesheet to reach it.
-    expect(content!.getAttribute("data-bb-plugin-root")).toBe("");
+    expect(content!.getAttribute("data-patcher-plugin-root")).toBe("");
 
-    const scoped = baseElement.querySelectorAll("[data-bb-plugin-root]");
+    const scoped = baseElement.querySelectorAll("[data-patcher-plugin-root]");
     // Overlay + content (both portaled top-level elements).
     expect(scoped.length).toBe(2);
     expect(
-      baseElement.querySelectorAll("[data-bb-portaled-overlay]").length,
+      baseElement.querySelectorAll("[data-patcher-portaled-overlay]").length,
     ).toBe(2);
   });
 
@@ -78,11 +78,11 @@ describe("usePortalScopeProps", () => {
 
     const content = baseElement.querySelector('[role="dialog"]');
     expect(content).not.toBeNull();
-    expect(content!.hasAttribute("data-bb-plugin-root")).toBe(false);
-    expect(content!.getAttribute("data-bb-portaled-overlay")).toBe("");
-    expect(baseElement.querySelectorAll("[data-bb-plugin-root]").length).toBe(
-      0,
-    );
+    expect(content!.hasAttribute("data-patcher-plugin-root")).toBe(false);
+    expect(content!.getAttribute("data-patcher-portaled-overlay")).toBe("");
+    expect(
+      baseElement.querySelectorAll("[data-patcher-plugin-root]").length,
+    ).toBe(0);
   });
 
   it("stamps tooltip content (inline-hook variant) inside a plugin slot", () => {
@@ -98,12 +98,12 @@ describe("usePortalScopeProps", () => {
     );
 
     const tip = baseElement.querySelector(
-      '[data-bb-plugin-root][role="tooltip"], [role="tooltip"]',
+      '[data-patcher-plugin-root][role="tooltip"], [role="tooltip"]',
     );
     expect(tip).not.toBeNull();
-    const scopedTip = baseElement.querySelector("[data-bb-plugin-root]");
+    const scopedTip = baseElement.querySelector("[data-patcher-plugin-root]");
     expect(scopedTip).not.toBeNull();
-    expect(scopedTip!.getAttribute("data-bb-portaled-overlay")).toBe("");
+    expect(scopedTip!.getAttribute("data-patcher-portaled-overlay")).toBe("");
   });
 
   it("stamps select content so native drag regions cannot swallow options", () => {
@@ -121,7 +121,7 @@ describe("usePortalScopeProps", () => {
     expect(
       baseElement
         .querySelector('[role="listbox"]')
-        ?.getAttribute("data-bb-portaled-overlay"),
+        ?.getAttribute("data-patcher-portaled-overlay"),
     ).toBe("");
   });
 
@@ -138,7 +138,7 @@ describe("usePortalScopeProps", () => {
     fireEvent.contextMenu(screen.getByText("Context target"));
 
     const menu = baseElement.querySelector('[role="menu"]');
-    expect(menu?.getAttribute("data-bb-portaled-overlay")).toBe("");
+    expect(menu?.getAttribute("data-patcher-portaled-overlay")).toBe("");
     expect(menu?.classList.contains("z-[70]")).toBe(true);
   });
 });

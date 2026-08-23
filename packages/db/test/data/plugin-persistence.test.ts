@@ -26,14 +26,14 @@ describe("normalized plugin persistence", () => {
   it("persists typed plugin intent and an active artifact reference", () => {
     upsertInstalledPlugin(db, {
       id: "linear",
-      source: "npm:bb-plugin-linear@1.2.3",
+      source: "npm:patcher-plugin-linear@1.2.3",
       provenance: {
         kind: "catalog",
         entryId: "linear",
       },
       sourceIntent: {
         kind: "npm",
-        packageName: "bb-plugin-linear",
+        packageName: "patcher-plugin-linear",
         registry: "https://registry.npmjs.org",
         requestedSpec: "^1.2.0",
         specKind: "range",

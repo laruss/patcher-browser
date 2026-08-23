@@ -3,14 +3,14 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import { BrowserDevToolsPanel } from "./BrowserDevToolsPanel";
 
 afterEach(() => {
   cleanup();
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
 });
 
 describe("BrowserDevToolsPanel", () => {
@@ -34,7 +34,7 @@ describe("BrowserDevToolsPanel", () => {
   // tell the shell the difference, and being mounted is how it says so.
   it("reports itself on screen for as long as it is mounted", () => {
     const setDevToolsVisible = vi.fn();
-    window.bbDesktop = createBbDesktopApi(
+    window.patcherDesktop = createPatcherDesktopApi(
       {
         lastCheckedAt: null,
         latestVersion: null,

@@ -1,8 +1,8 @@
-import type { BbDesktopInfo } from "@bb/desktop-contract";
+import type { PatcherDesktopInfo } from "@patcher/desktop-contract";
 
 export interface MergeDesktopUpdateInfoArgs {
-  autoInfo: BbDesktopInfo | null;
-  feedInfo: BbDesktopInfo | null;
+  autoInfo: PatcherDesktopInfo | null;
+  feedInfo: PatcherDesktopInfo | null;
 }
 
 function latestCheckedAt(
@@ -25,7 +25,7 @@ function latestCheckedAt(
  */
 export function mergeDesktopUpdateInfo(
   args: MergeDesktopUpdateInfoArgs,
-): BbDesktopInfo | null {
+): PatcherDesktopInfo | null {
   const baseInfo = args.feedInfo ?? args.autoInfo;
   if (baseInfo === null) {
     return null;

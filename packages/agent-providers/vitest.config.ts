@@ -3,7 +3,7 @@ import { defineWorkspaceTestConfig } from "../../vitest.shared.js";
 export default defineWorkspaceTestConfig({
   test: {
     silent: "passed-only",
-    name: "@bb/agent-providers",
+    name: "@patcher/agent-providers",
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
   },

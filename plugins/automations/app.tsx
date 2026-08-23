@@ -1,4 +1,4 @@
-// bb-plugin-automations — the frontend bundle.
+// patcher-plugin-automations — the frontend bundle.
 //
 // A single navPanel "Automations" that replaces the kernel's Automations
 // views. The panel root lists every automation across projects (rpc
@@ -8,14 +8,14 @@
 // from chat with enough resource context for the agent to do the work.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { buildAutomationEditThreadPrompt } from "@bb/shared-ui/resource-edit-prompt";
+import { buildAutomationEditThreadPrompt } from "@patcher/shared-ui/resource-edit-prompt";
 import {
   definePluginApp,
-  useBbNavigate,
+  usePatcherNavigate,
   useRealtime,
   useRpc,
   type PluginNavPanelProps,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import type { automationRpcContract } from "./src/rpc.js";
 import { toast } from "sonner";
 import type {
@@ -33,7 +33,7 @@ import {
   CREATE_AUTOMATION_PROMPT,
   type AutomationCollectionMode,
 } from "./overview-view";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   Dialog,
   DialogContent,
@@ -41,10 +41,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { ResourceListState } from "@bb/shared-ui/resource-list";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/dialog";
+import { EmptyStatePanel } from "@patcher/shared-ui/empty-state";
+import { ResourceListState } from "@patcher/shared-ui/resource-list";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { OptionRequestGate } from "./src/option-request-gate.js";
 
 const PANEL_PATH = "automations";
@@ -556,7 +556,7 @@ function OverviewView({
   activeMode: AutomationCollectionMode;
   onModeChange: (mode: AutomationCollectionMode) => void;
 }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const { entries, error, refetch } = useOverview();
   const mutations = useMutations();
 
@@ -605,7 +605,7 @@ function DetailView({
   initialEditing: boolean;
   onBack: () => void;
 }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const { automation, error, missing, refetch } = useAutomation(route);
   const [editingRequested, setEditingRequested] = useState(initialEditing);
   const editingExecutionKey =
@@ -822,7 +822,7 @@ function AutomationsPageFrame({
 }
 
 function AutomationsPanel({ subPath }: PluginNavPanelProps) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const parsedRoute = useMemo(() => parseSubPath(subPath), [subPath]);
   const collectionMode: AutomationCollectionMode =
     subPath === "browse" ? "browse" : "installed";

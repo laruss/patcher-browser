@@ -14,7 +14,7 @@ const JSDOM_STORAGE_SETUP_FILE = fileURLToPath(
 );
 
 /**
- * Wraps a package's Vitest config so workspace imports (`@bb/*`) resolve to
+ * Wraps a package's Vitest config so workspace imports (`@patcher/*`) resolve to
  * package sources instead of built `dist/` output.
  *
  * Every workspace package's export map carries a `source` condition pointing
@@ -46,8 +46,8 @@ const ISOLATION_REQUIRING_API =
  * waiting on `git commit`, an FSEvents callback or a daemon's first HTTP
  * response does not — it waits out its deadline and fails. Measured on a
  * 12-core machine: a full `turbo run test` failed 30 tests in
- * `@bb/integration-tests`, 15 in `@bb/host-workspace`, 2 in `@bb/server` and 1
- * in `@bb/host-daemon`, every one of them a timeout; the same suites pass
+ * `@patcher/integration-tests`, 15 in `@patcher/host-workspace`, 2 in `@patcher/server` and 1
+ * in `@patcher/host-daemon`, every one of them a timeout; the same suites pass
  * whole at this cap.
  *
  * Raising deadlines instead was tried first and did not hold —

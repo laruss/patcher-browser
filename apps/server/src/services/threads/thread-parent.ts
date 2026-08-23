@@ -1,5 +1,5 @@
-import { getThread, listNonDeletedChildThreads } from "@bb/db";
-import type { Thread } from "@bb/domain";
+import { getThread, listNonDeletedChildThreads } from "@patcher/db";
+import type { Thread } from "@patcher/domain";
 import type { AppDeps } from "../../types.js";
 import { throwParentThreadInvalid } from "../lib/lifecycle-api-errors.js";
 

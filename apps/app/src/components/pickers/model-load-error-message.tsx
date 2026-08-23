@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { SystemExecutionOptionsModelLoadError } from "@bb/server-contract";
+import type { SystemExecutionOptionsModelLoadError } from "@patcher/server-contract";
 import { useUrlAnchorClickHandler } from "@/lib/url-open-routing";
 
 interface ModelLoadErrorMessageProps {

@@ -1,4 +1,4 @@
-import type { TerminalSession } from "@bb/server-contract";
+import type { TerminalSession } from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import {
   isVisibleTerminalSession,

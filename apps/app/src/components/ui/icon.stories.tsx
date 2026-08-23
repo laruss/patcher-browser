@@ -1,11 +1,11 @@
-import { Icon, ICON_NAMES, type IconName } from "@bb/shared-ui/icon";
-import { Button } from "@bb/shared-ui/button";
+import { Icon, ICON_NAMES, type IconName } from "@patcher/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/tooltip";
 import { StoryCard, StoryRow } from "../../../.ladle/story-card";
 
 export default {
@@ -51,7 +51,7 @@ const USAGE: Partial<Record<IconName, string>> = {
   CornerDownLeft: "Mod+Enter submit hint in prompt footer",
   CornerDownRight:
     "Queued message indicator, steer/edit request label marker in conversation",
-  Discord: "Join Discord link in Settings → Community",
+  Discord: "Available to plugins; Patcher has no server of its own yet",
   Github: "View on GitHub link in Settings → Community",
   Edit: "Rename project, edit queued message, edit project source",
   ExternalLink: "FilePathLink external indicator",

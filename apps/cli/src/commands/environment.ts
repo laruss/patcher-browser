@@ -2,15 +2,15 @@ import { Command } from "commander";
 import type {
   CommitActionResponse,
   SquashMergeActionResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   EnvironmentDiffArgs,
   EnvironmentDiffFileArgs,
   EnvironmentDiffPatchArgs,
   EnvironmentUpdateArgs,
-} from "@bb/sdk";
+} from "@patcher/sdk";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import {
   outputJson,
   prependErrorContext,
@@ -311,7 +311,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentShowCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const env = await sdk.environments.get({ environmentId: id });
         if (outputJson(opts, env)) return;
         console.log(`Environment: ${env.id}`);
@@ -348,7 +348,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentStatusCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).environments.status({
+        const result = await createCliPatcherSdk(getUrl()).environments.status({
           environmentId: id,
           ...(opts.mergeBaseBranch !== undefined
             ? { mergeBaseBranch: opts.mergeBaseBranch }
@@ -387,13 +387,13 @@ export function registerEnvironmentCommands(
     .action(
       action(async (id: string, opts: EnvironmentBranchesCommandOptions) => {
         validateLimit(opts.limit);
-        const result = await createCliBbSdk(getUrl()).environments.diffBranches(
-          {
-            environmentId: id,
-            ...(opts.query !== undefined ? { query: opts.query } : {}),
-            ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
-          },
-        );
+        const result = await createCliPatcherSdk(
+          getUrl(),
+        ).environments.diffBranches({
+          environmentId: id,
+          ...(opts.query !== undefined ? { query: opts.query } : {}),
+          ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+        });
         if (outputJson(opts, result)) return;
         console.log("Local branches:");
         for (const branch of result.branches) console.log(`  ${branch}`);
@@ -420,7 +420,7 @@ export function registerEnvironmentCommands(
         const includeFiles = opts.files === true || opts.directories !== true;
         const includeDirectories =
           opts.directories === true || opts.files !== true;
-        const result = await createCliBbSdk(getUrl()).environments.paths({
+        const result = await createCliPatcherSdk(getUrl()).environments.paths({
           environmentId: id,
           includeFiles: booleanQueryValue(includeFiles),
           includeDirectories: booleanQueryValue(includeDirectories),
@@ -447,7 +447,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentDiffCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).environments.diff(
+        const result = await createCliPatcherSdk(getUrl()).environments.diff(
           buildEnvironmentDiffArgs(id, opts),
         );
         if (outputJson(opts, result)) return;
@@ -484,9 +484,9 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentDiffCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).environments.diffFiles(
-          buildEnvironmentDiffArgs(id, opts),
-        );
+        const result = await createCliPatcherSdk(
+          getUrl(),
+        ).environments.diffFiles(buildEnvironmentDiffArgs(id, opts));
         if (outputJson(opts, result)) return;
         if (result.outcome === "not_applicable") {
           console.log(`Diff files unavailable: ${result.message}`);
@@ -527,9 +527,9 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentDiffFileCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).environments.diffFile(
-          buildEnvironmentDiffFileArgs(id, opts),
-        );
+        const result = await createCliPatcherSdk(
+          getUrl(),
+        ).environments.diffFile(buildEnvironmentDiffFileArgs(id, opts));
         if (outputJson(opts, result)) return;
         if (result.contentEncoding === "base64") {
           console.log(`Binary file: ${result.path}`);
@@ -556,9 +556,9 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentDiffPatchCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).environments.diffPatch(
-          buildEnvironmentDiffPatchArgs(id, opts),
-        );
+        const result = await createCliPatcherSdk(
+          getUrl(),
+        ).environments.diffPatch(buildEnvironmentDiffPatchArgs(id, opts));
         if (outputJson(opts, result)) return;
         if (result.outcome === "not_applicable") {
           console.log(`Diff patches unavailable: ${result.message}`);
@@ -616,7 +616,7 @@ export function registerEnvironmentCommands(
           );
         }
 
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const environment = await sdk.environments.update(
           buildEnvironmentUpdateArgs({ id, opts }),
         );
@@ -644,7 +644,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentCommitCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         let result: CommitActionResponse;
         try {
           result = await sdk.environments.commit({ environmentId: id });
@@ -666,7 +666,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentSquashMergeCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const result: SquashMergeActionResponse =
           await sdk.environments.squashMerge({
             environmentId: id,
@@ -683,7 +683,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentCommitCommandOptions) => {
-        const result = await createCliBbSdk(
+        const result = await createCliPatcherSdk(
           getUrl(),
         ).environments.archiveThreads({
           environmentId: id,
@@ -705,7 +705,9 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentPullRequestCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).environments.pullRequest({
+        const result = await createCliPatcherSdk(
+          getUrl(),
+        ).environments.pullRequest({
           environmentId: id,
         });
         if (outputJson(opts, result)) return;
@@ -740,7 +742,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentPullRequestCommandOptions) => {
-        const result = await createCliBbSdk(
+        const result = await createCliPatcherSdk(
           getUrl(),
         ).environments.markPullRequestReady({ environmentId: id });
         if (outputJson(opts, result)) return;
@@ -754,7 +756,7 @@ export function registerEnvironmentCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: EnvironmentPullRequestCommandOptions) => {
-        const result = await createCliBbSdk(
+        const result = await createCliPatcherSdk(
           getUrl(),
         ).environments.markPullRequestDraft({ environmentId: id });
         if (outputJson(opts, result)) return;
@@ -780,7 +782,7 @@ export function registerEnvironmentCommands(
         ) {
           throw new Error("--method must be merge, squash, or rebase.");
         }
-        const result = await createCliBbSdk(
+        const result = await createCliPatcherSdk(
           getUrl(),
         ).environments.mergePullRequest({
           environmentId: id,

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
-  clampBbDesktopBrowserViewBounds,
-  type BbDesktopBrowserViewBounds,
-} from "@bb/desktop-contract";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+  clampPatcherDesktopBrowserViewBounds,
+  type PatcherDesktopBrowserViewBounds,
+} from "@patcher/desktop-contract";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@/components/ui/chromeStyleTokens";
-import { getDesktopBrowserApi } from "@/lib/bb-desktop";
+import { getDesktopBrowserApi } from "@/lib/patcher-desktop";
 import { BROWSER_VIEW_BOUNDS_SYNC_EVENT } from "@/lib/browser-view-bounds-sync";
 
 /**
@@ -42,7 +42,7 @@ export function BrowserDevToolsPanel({
   tabId,
 }: BrowserDevToolsPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastBoundsRef = useRef<BbDesktopBrowserViewBounds | null>(null);
+  const lastBoundsRef = useRef<PatcherDesktopBrowserViewBounds | null>(null);
 
   const syncBounds = useCallback(() => {
     const element = containerRef.current;
@@ -51,7 +51,7 @@ export function BrowserDevToolsPanel({
       return;
     }
     const rect = element.getBoundingClientRect();
-    const bounds = clampBbDesktopBrowserViewBounds({
+    const bounds = clampPatcherDesktopBrowserViewBounds({
       bounds: {
         x: Math.round(rect.left),
         y: Math.round(rect.top),

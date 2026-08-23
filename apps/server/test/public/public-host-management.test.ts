@@ -4,14 +4,16 @@ import {
   getSessionById,
   getThread,
   updateHost,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   createHostJoinCodeResponseSchema,
   type CreateHostJoinCodeResponse,
-} from "@bb/server-contract";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+} from "@patcher/server-contract";
+import {
+  FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION,
+  HOST_DAEMON_PROTOCOL_VERSION,
+} from "@patcher/host-daemon-contract";
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 import { readJson } from "../helpers/json.js";
 import {
   seedEnvironment,
@@ -49,7 +51,7 @@ describe("public host management", () => {
   it("mints a join code that enrolls through the existing internal route", async () => {
     await withTestHarness(async (harness) => {
       const issued = await createJoinCode(harness.app);
-      expect(issued.joinCode).toMatch(/^bbde_/u);
+      expect(issued.joinCode).toMatch(/^patcherde_/u);
       expect(issued.expiresAt).toBeGreaterThan(Date.now());
       expect(issued.expiresAt).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000);
       // Minting must not create a host row — an unredeemed code would leave a
@@ -66,7 +68,6 @@ describe("public host management", () => {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            connectMachineId: "machine-cloud-1",
             hostId: issued.hostId,
             hostName: "Build Machine",
             hostType: "persistent",
@@ -77,7 +78,6 @@ describe("public host management", () => {
       expect(enrollResponse.status).toBe(201);
       const enrolled = (await readJson(enrollResponse)) as { hostKey: string };
       expect(getHost(harness.db, issued.hostId)).toMatchObject({
-        connectMachineId: "machine-cloud-1",
         name: "Build Machine",
         type: "persistent",
       });
@@ -92,9 +92,7 @@ describe("public host management", () => {
           },
           body: JSON.stringify({
             activeThreads: [],
-            connectMachineId: "machine-cloud-2",
-            dataDir: "/tmp/remote-bb",
-            hasMachineCredential: true,
+            dataDir: "/tmp/remote-patcher",
             hostId: issued.hostId,
             hostName: "Build Machine",
             hostType: "persistent",
@@ -106,92 +104,10 @@ describe("public host management", () => {
         },
       );
       expect(sessionResponse.status).toBe(201);
-      expect(getHost(harness.db, issued.hostId)?.connectMachineId).toBe(
-        "machine-cloud-2",
-      );
     });
   });
 
-  it("rejects a forged connect machine id at enrollment", async () => {
-    await withTestHarness(async (harness) => {
-      const issued = await createJoinCode(harness.app);
-      const response = await harness.app.request("/internal/hosts/enroll", {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${issued.joinCode}`,
-          "content-type": "application/json",
-          "x-bb-gate-auth": "machine",
-          "x-bb-gate-machine-id": "machine-authenticated",
-        },
-        body: JSON.stringify({
-          connectMachineId: "machine-forged",
-          hostId: issued.hostId,
-          hostName: "Forged Machine",
-          hostType: "persistent",
-        }),
-      });
-      expect(response.status).toBe(403);
-      expect(await readJson(response)).toMatchObject({
-        code: "connect_machine_id_mismatch",
-      });
-      expect(getHost(harness.db, issued.hostId)).toBeNull();
-    });
-  });
-
-  it("rejects machine-gated host-management mutations", async () => {
-    await withTestHarness(async (harness) => {
-      const host = seedHost(harness.deps, { id: "host_machine_forbidden" });
-      const requests = [
-        harness.app.request(`${API}/hosts/join-codes`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-bb-gate-auth": "machine",
-          },
-          body: JSON.stringify({}),
-        }),
-        harness.app.request(`${API}/hosts/${host.id}`, {
-          method: "PATCH",
-          headers: {
-            "content-type": "application/json",
-            "x-bb-gate-auth": "machine",
-          },
-          body: JSON.stringify({ name: "forbidden" }),
-        }),
-        harness.app.request(`${API}/hosts/${host.id}`, {
-          method: "DELETE",
-          headers: { "x-bb-gate-auth": "machine" },
-        }),
-        harness.app.request(`${API}/hosts/${host.id}/retry-update`, {
-          method: "POST",
-          headers: { "x-bb-gate-auth": "machine" },
-        }),
-        // The permission ceiling is the control that stops one machine from
-        // running privileged work on another, so a machine must never set it.
-        harness.app.request(`${API}/hosts/${host.id}/permission-ceiling`, {
-          method: "PATCH",
-          headers: {
-            "content-type": "application/json",
-            "x-bb-gate-auth": "machine",
-          },
-          body: JSON.stringify({ maxPermissionMode: "full" }),
-        }),
-      ];
-      for (const response of await Promise.all(requests)) {
-        expect(response.status).toBe(403);
-        expect(await readJson(response)).toMatchObject({
-          code: "machine_host_management_forbidden",
-        });
-      }
-      expect(getHost(harness.db, host.id)).toMatchObject({
-        destroyedAt: null,
-        maxPermissionMode: "full",
-        name: host.name,
-      });
-    });
-  });
-
-  it("stores a permission ceiling for a session-gated request", async () => {
+  it("stores a permission ceiling", async () => {
     await withTestHarness(async (harness) => {
       const host = seedHost(harness.deps, { id: "host_ceiling" });
       expect(getHost(harness.db, host.id)?.maxPermissionMode).toBe("full");
@@ -200,10 +116,7 @@ describe("public host management", () => {
         `${API}/hosts/${host.id}/permission-ceiling`,
         {
           method: "PATCH",
-          headers: {
-            "content-type": "application/json",
-            "x-bb-gate-auth": "session",
-          },
+          headers: { "content-type": "application/json" },
           body: JSON.stringify({ maxPermissionMode: "accept-edits" }),
         },
       );
@@ -216,20 +129,6 @@ describe("public host management", () => {
       expect(getHost(harness.db, host.id)?.maxPermissionMode).toBe(
         "accept-edits",
       );
-    });
-  });
-
-  it("allows session-gated join-code minting", async () => {
-    await withTestHarness(async (harness) => {
-      const response = await harness.app.request(`${API}/hosts/join-codes`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-bb-gate-auth": "session",
-        },
-        body: JSON.stringify({}),
-      });
-      expect(response.status).toBe(201);
     });
   });
 
@@ -310,6 +209,26 @@ describe("public host management", () => {
       expect(await readJson(newerDaemon)).toMatchObject({
         code: "host_cannot_self_update",
       });
+
+      // Older than the install artifact's rename: the daemon asks for
+      // /install/bb-app.tgz, which this server answers with 410, so a queued
+      // retry could only fail again. Note the case above uses
+      // HOST_DAEMON_PROTOCOL_VERSION - 1, which is still allowed to retry —
+      // the artifact rename landed inside that version without a bump, so it
+      // gets the benefit of the doubt.
+      updateHost(harness.db, harness.hub, host.id, {
+        lastRejectedProtocolVersion:
+          FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION - 1,
+      });
+      const preRenameDaemon = await harness.app.request(
+        `${API}/hosts/${host.id}/retry-update`,
+        { method: "POST" },
+      );
+      expect(preRenameDaemon.status).toBe(409);
+      expect(await readJson(preRenameDaemon)).toMatchObject({
+        code: "host_must_re_enroll",
+      });
+      expect(harness.hub.takeHostProtocolUpdateRetry(host.id)).toBe(false);
     });
   });
 
@@ -414,52 +333,4 @@ describe("public host management", () => {
       expect(getHost(harness.db, primary.id)?.destroyedAt).toBeNull();
     });
   });
-
-  it("asks the connect plugin to revoke the removed host's cloud machine", async () => {
-    await withTestHarness(async (harness) => {
-      const primary = seedHost(harness.deps, { id: "host_primary" });
-      seedPrimaryHost(harness.deps, primary.id);
-      const host = seedHost(harness.deps, {
-        connectMachineId: "machine-cloud-remove",
-        id: "host_cloud_remove",
-      });
-      await harness.pluginService.start();
-      const connectPlugin = harness.pluginService
-        .list()
-        .find((plugin) => plugin.source === "builtin:connect");
-      expect(connectPlugin).toBeDefined();
-      if (!connectPlugin) throw new Error("connect plugin was not installed");
-      const revokeHandler = vi.fn(async () => ({ ok: true }));
-      const revokeRecord = {
-        inputSchema: z.object({ machineId: z.string() }),
-        outputSchema: z.object({ ok: z.literal(true) }),
-        handler: revokeHandler,
-      };
-      vi.spyOn(harness.pluginService, "getRpcHandler").mockReturnValue({
-        outcome: "found",
-        value: revokeRecord,
-      });
-      const invoke = vi
-        .spyOn(harness.pluginService, "invokeRpcHandler")
-        .mockResolvedValue({ ok: true, result: { ok: true } });
-
-      try {
-        const response = await harness.app.request(`${API}/hosts/${host.id}`, {
-          method: "DELETE",
-        });
-        expect(response.status).toBe(200);
-        expect(invoke).toHaveBeenCalledWith(
-          connectPlugin.id,
-          "revokeMachine",
-          revokeRecord,
-          { machineId: "machine-cloud-remove" },
-        );
-      } finally {
-        await harness.pluginService.stop();
-      }
-    });
-    // Starting the plugin service builds and loads the builtin plugins, which
-    // is real work; the other plugin-service suites budget 30s+ for it. The
-    // 5s default is a coin flip on a loaded CI runner.
-  }, 30_000);
 });

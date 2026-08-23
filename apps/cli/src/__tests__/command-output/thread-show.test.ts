@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import * as domain from "@bb/domain";
-import type * as serverContract from "@bb/server-contract";
+import * as domain from "@patcher/domain";
+import type * as serverContract from "@patcher/server-contract";
 import {
   setupCommandOutputTestEnvironment,
   collectLogLines,
@@ -12,7 +12,7 @@ import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import * as fixtures from "../helpers/command-output-fixtures.js";
 import { registerThreadCommands } from "../../commands/thread/index.js";
 
-describe("bb thread show command output", () => {
+describe("patcher thread show command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
@@ -25,9 +25,9 @@ describe("bb thread show command output", () => {
       number: 42,
       title: "Review thread show",
       state: "open",
-      url: "https://github.com/example/bb/pull/42",
+      url: "https://github.com/example/patcher/pull/42",
       baseRefName: "main",
-      headRefName: "bb/thread-show-pr",
+      headRefName: "patcher/thread-show-pr",
       updatedAt: "2026-06-24T12:00:00.000Z",
       checks: {
         state: "passing",
@@ -50,7 +50,7 @@ describe("bb thread show command output", () => {
     };
   }
 
-  it("bb thread show prints archived timestamp for archived threads", async () => {
+  it("patcher thread show prints archived timestamp for archived threads", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-archived-1",
       projectId: "proj-1",
@@ -80,7 +80,7 @@ describe("bb thread show command output", () => {
     expect(lines.some((line) => line.includes("Archived:"))).toBe(true);
   });
 
-  it("bb thread show prints pinned timestamp for pinned threads", async () => {
+  it("patcher thread show prints pinned timestamp for pinned threads", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-pinned-1",
       projectId: "proj-1",
@@ -103,8 +103,8 @@ describe("bb thread show command output", () => {
     expect(lines.some((line) => line.includes("Pinned:"))).toBe(true);
   });
 
-  it("bb thread show --self resolves from BB_THREAD_ID", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-show-self");
+  it("patcher thread show --self resolves from PATCHER_THREAD_ID", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-show-self");
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-show-self",
       projectId: "proj-1",
@@ -128,7 +128,7 @@ describe("bb thread show command output", () => {
     expect(collectLogLines(vi.mocked(console.error))).toEqual([]);
   });
 
-  it("bb thread show --work-status prints non-git environment message", async () => {
+  it("patcher thread show --work-status prints non-git environment message", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-show-work-status",
       projectId: "proj-1",
@@ -177,8 +177,8 @@ describe("bb thread show command output", () => {
     );
   });
 
-  it("bb thread show rejects combining a thread id with --self", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-show-self");
+  it("patcher thread show rejects combining a thread id with --self", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-show-self");
 
     await expect(
       runCommand(["thread", "show", "thread-explicit", "--self"], register),
@@ -190,7 +190,7 @@ describe("bb thread show command output", () => {
     expect(createClientMock).not.toHaveBeenCalled();
   });
 
-  it("bb thread show --git-diff uses the environment base branch before the repository default", async () => {
+  it("patcher thread show --git-diff uses the environment base branch before the repository default", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-show-diff-base",
       projectId: "proj-1",
@@ -248,7 +248,7 @@ describe("bb thread show command output", () => {
     });
   });
 
-  it("bb thread show --git-diff renders an available uncommitted diff response", async () => {
+  it("patcher thread show --git-diff renders an available uncommitted diff response", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-show-uncommitted-diff",
       projectId: "proj-1",
@@ -313,7 +313,7 @@ describe("bb thread show command output", () => {
     expect(output).toContain("diff --git a/smoke.txt b/smoke.txt");
   });
 
-  it("bb thread show prints pull request details for the thread environment", async () => {
+  it("patcher thread show prints pull request details for the thread environment", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-show-pr",
       projectId: "proj-1",
@@ -327,7 +327,7 @@ describe("bb thread show command output", () => {
       id: "env-show-pr",
       projectId: "proj-1",
       hostId: "host-1",
-      branchName: "bb/thread-show-pr",
+      branchName: "patcher/thread-show-pr",
       createdAt: 1,
       updatedAt: 2,
     });
@@ -337,7 +337,10 @@ describe("bb thread show command output", () => {
     });
     const get = vi.fn(async () => thread);
     const environmentGet = vi.fn(async () => environment);
-    const pullRequestGet = vi.fn(async () => ({ outcome: "available", pullRequest }));
+    const pullRequestGet = vi.fn(async () => ({
+      outcome: "available",
+      pullRequest,
+    }));
     const timelineGet = fixtures.makeEmptyTimelineGetMock();
     stubServerApi({
       "v1.environments.:id.$get": environmentGet,
@@ -359,8 +362,8 @@ describe("bb thread show command output", () => {
       "Pull request: #42 open - Show pull requests in thread show",
     );
     expect(output).toContain("#42 open - Show pull requests in thread show");
-    expect(output).toContain("https://github.com/example/bb/pull/42");
-    expect(output).toContain("Branch:       bb/thread-show-pr -> main");
+    expect(output).toContain("https://github.com/example/patcher/pull/42");
+    expect(output).toContain("Branch:       patcher/thread-show-pr -> main");
     expect(output).toContain(
       "Checks:       passing (3 passed, 0 failed, 0 pending, 3 total)",
     );
@@ -368,7 +371,7 @@ describe("bb thread show command output", () => {
     expect(output).toContain("Merge:        mergeable");
   });
 
-  it("bb thread show reports a failed pull request lookup distinctly from none", async () => {
+  it("patcher thread show reports a failed pull request lookup distinctly from none", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-show-pr-down",
       projectId: "proj-1",
@@ -407,7 +410,7 @@ describe("bb thread show command output", () => {
     expect(output).not.toContain("Pull request: none");
   });
 
-  it("bb thread show --json includes pull request details", async () => {
+  it("patcher thread show --json includes pull request details", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-json-show-pr",
       projectId: "proj-1",
@@ -427,7 +430,10 @@ describe("bb thread show command output", () => {
     const pullRequest = makePullRequest();
     const get = vi.fn(async () => thread);
     const environmentGet = vi.fn(async () => environment);
-    const pullRequestGet = vi.fn(async () => ({ outcome: "available", pullRequest }));
+    const pullRequestGet = vi.fn(async () => ({
+      outcome: "available",
+      pullRequest,
+    }));
     const timelineGet = fixtures.makeEmptyTimelineGetMock();
     stubServerApi({
       "v1.environments.:id.$get": environmentGet,
@@ -456,7 +462,7 @@ describe("bb thread show command output", () => {
     });
   });
 
-  it("bb thread show --json prints the thread in status payload format", async () => {
+  it("patcher thread show --json prints the thread in status payload format", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-json-show",
       projectId: "proj-1",

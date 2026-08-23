@@ -10,7 +10,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createComment, createStore } from "../../api/index.js";
 import type { Attachment, DisplayComment } from "../../shared/contract.js";
@@ -29,8 +29,8 @@ vi.mock("../../shell/data.js", () => ({
   useTasksRpc: () => ({ call: rpcCall }),
 }));
 
-vi.mock("@bb/plugin-sdk/app", () => ({
-  useBbNavigate: () => ({ toThread: vi.fn() }),
+vi.mock("@patcher/plugin-sdk/app", () => ({
+  usePatcherNavigate: () => ({ toThread: vi.fn() }),
 }));
 
 vi.mock("../../editor/tasks-editor.js", () => ({
@@ -262,7 +262,7 @@ async function renderComposerWithTask(options?: {
   if (!options?.holdSend) {
     releaseSend = () => {};
   }
-  const { bb, harness } = createFakePluginHost({
+  const { patcher, harness } = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "tasks",
     sdk: {
@@ -273,7 +273,7 @@ async function renderComposerWithTask(options?: {
       },
     },
   });
-  const store = createStore(bb);
+  const store = createStore(patcher);
   const project = store.tasks.createProject({
     name: "Composer",
     prefix: "CMP",
@@ -300,7 +300,7 @@ async function renderComposerWithTask(options?: {
       notify: boolean;
     };
     return {
-      comment: await createComment(bb, store, {
+      comment: await createComment(patcher, store, {
         taskId: request.taskId,
         kind: "user",
         authorName: "You",

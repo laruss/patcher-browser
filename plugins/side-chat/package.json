@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-side-chat",
+  "name": "patcher-plugin-side-chat",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Reply to messages in hidden side-chat forks rendered in a thread panel.",
   "engines": {
-    "bb": ">=0.0"
+    "patcher": ">=0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Side chat",
     "description": "Reply to messages in hidden side-chat forks rendered in a thread panel.",
     "branding": {
@@ -20,18 +20,18 @@
     ]
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bb/shared-ui": "workspace:*",
+    "@patcher/shared-ui": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

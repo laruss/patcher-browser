@@ -29,7 +29,7 @@ function plugin(updateState: Partial<PluginUpdateState>): PluginListItem {
     provenance: "catalog",
     isOrphanedBuiltin: false,
     catalogEntryId: "linear",
-    sourceDisplay: "npm · @bb-plugins/linear · tracks compatible",
+    sourceDisplay: "npm · @patcher-plugins/linear · tracks compatible",
     updateState: { ...EMPTY_PLUGIN_UPDATE_STATE, ...updateState },
     handlerStats: { count: 0, totalMs: 0, maxMs: 0, errorCount: 0 },
     services: [],
@@ -68,7 +68,7 @@ describe("UpdatePluginDialog", () => {
 
     expect(screen.getByText("Update Linear to 1.7.0?")).toBeTruthy();
     expect(screen.getByTestId("rollback-note").textContent).toContain(
-      "if 1.7.0 fails to start, bb restores 1.6.2",
+      "if 1.7.0 fails to start, Patcher restores 1.6.2",
     );
     expect(
       screen
@@ -84,7 +84,7 @@ describe("UpdatePluginDialog", () => {
       <UpdatePluginDialog
         plugin={plugin({
           blockedVersion: "1.9.0",
-          blockedReasons: ["needs bb >= 0.15 — you have 0.14.1"],
+          blockedReasons: ["needs Patcher >= 0.15 — you have 0.14.1"],
         })}
         open
         failureStateLabel="Update failed"
@@ -94,7 +94,7 @@ describe("UpdatePluginDialog", () => {
     );
 
     const compatibilityCopy = screen.getByText(
-      "1.9.0 isn’t compatible with this bb",
+      "1.9.0 isn’t compatible with this Patcher",
     );
     const compatibilityLine = compatibilityCopy.parentElement as HTMLElement;
     expect(compatibilityLine.className).not.toContain("text-warning");
@@ -103,13 +103,15 @@ describe("UpdatePluginDialog", () => {
         .querySelector('[data-icon="AlertTriangle"]')
         ?.getAttribute("class"),
     ).toContain("text-warning");
-    expect(screen.getByText("needs bb >= 0.15 — you have 0.14.1")).toBeTruthy();
+    expect(
+      screen.getByText("needs Patcher >= 0.15 — you have 0.14.1"),
+    ).toBeTruthy();
     expect(
       screen.getByText(
         "Keep using 1.6.2 and check again when a compatible plugin version is available.",
       ),
     ).toBeTruthy();
-    expect(screen.queryByText(/once this bb meets/i)).toBeNull();
+    expect(screen.queryByText(/once this Patcher meets/i)).toBeNull();
     expect(
       (screen.getByRole("button", { name: "Update" }) as HTMLButtonElement)
         .disabled,
@@ -150,7 +152,7 @@ describe("UpdatePluginDialog", () => {
     expect(screen.getByText("Failed on Jul 22, 2026.")).toBeTruthy();
     expect(
       screen.getByText(
-        "bb couldn’t activate 1.7.0. It restored 1.6.2 and its data.",
+        "Patcher couldn’t activate 1.7.0. It restored 1.6.2 and its data.",
       ),
     ).toBeTruthy();
     expect(screen.getByText("factory threw during activation")).toBeTruthy();

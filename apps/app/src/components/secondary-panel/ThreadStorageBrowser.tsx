@@ -6,18 +6,18 @@ import {
   type ReactNode,
 } from "react";
 import { FileTree } from "@pierre/trees/react";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
   COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
   COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { EmptyState } from "@bb/shared-ui/empty-state";
-import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { Input } from "@bb/shared-ui/input";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { EmptyState } from "@patcher/shared-ui/empty-state";
+import { Icon } from "@patcher/shared-ui/icon";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
+import { Input } from "@patcher/shared-ui/input";
 import { usePreferredTheme } from "@/hooks/useTheme";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   describeLifecycleError,
   formatLifecycleErrorDescription,

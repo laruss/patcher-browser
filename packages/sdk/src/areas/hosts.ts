@@ -1,5 +1,5 @@
-import { hostProviderCliInstallEventSchema } from "@bb/server-contract";
-import type { Host } from "@bb/domain";
+import { hostProviderCliInstallEventSchema } from "@patcher/server-contract";
+import type { Host } from "@patcher/domain";
 import type {
   CreateHostJoinCodeResponse,
   HostCloneDefaultPathQuery,
@@ -15,7 +15,7 @@ import type {
   HostProviderCliStatusResponse,
   HostRetryUpdateResponse,
   UpdateHostRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 export interface HostGetArgs {

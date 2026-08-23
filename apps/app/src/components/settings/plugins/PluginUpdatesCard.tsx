@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
 import { appToast } from "@/components/ui/app-toast.js";
 import { pluginAdminErrorMessage } from "@/lib/plugin-admin-error";
 import { SettingsWithControl } from "@/components/ui/settings-section.js";
@@ -27,7 +27,7 @@ import { UpdatePluginDialog } from "@/components/plugin/management/UpdatePluginD
  * disclosure deeper under "Source details".
  *
  * Bundled plugins — auto builtins and store-installed officials alike — are
- * pinned to the copy shipped inside the app and update with bb releases, so
+ * pinned to the copy shipped inside the app and update with Patcher releases, so
  * none of these surfaces render for them.
  */
 export function pluginHasUpdateSurfaces(plugin: PluginListItem): boolean {
@@ -77,7 +77,7 @@ export function PluginUpdateBanner({ plugin }: { plugin: PluginListItem }) {
             Update available — {availableVersion}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Compatible with your bb.
+            Compatible with your Patcher.
           </p>
         </div>
         <Button
@@ -177,17 +177,17 @@ export function PluginUpdatesSourceCard({
                       ...(source.registry !== null
                         ? [{ key: "Registry", value: source.registry }]
                         : []),
-                      ...(source.engines.bb !== null ||
-                      source.engines.bbPluginSdk !== null
+                      ...(source.engines.patcher !== null ||
+                      source.engines.patcherPluginSdk !== null
                         ? [
                             {
                               key: "Requires",
                               value: [
-                                source.engines.bb !== null
-                                  ? `bb ${source.engines.bb}`
+                                source.engines.patcher !== null
+                                  ? `Patcher ${source.engines.patcher}`
                                   : null,
-                                source.engines.bbPluginSdk !== null
-                                  ? `sdk ${source.engines.bbPluginSdk}`
+                                source.engines.patcherPluginSdk !== null
+                                  ? `sdk ${source.engines.patcherPluginSdk}`
                                   : null,
                               ]
                                 .filter((part): part is string => part !== null)
@@ -256,7 +256,7 @@ export function PluginUpdatesSourceCard({
             // toast — just the explanation one click away.
             <div className="pt-3">
               <SettingsWithControl
-                label={`${blockedVersion} isn't compatible with this bb`}
+                label={`${blockedVersion} isn't compatible with this Patcher`}
                 description={
                   plugin.updateState.blockedReasons[0] ??
                   `Staying on ${plugin.version}.`

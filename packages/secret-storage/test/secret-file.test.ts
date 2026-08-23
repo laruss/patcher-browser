@@ -7,7 +7,7 @@ import { readOrCreateSecretFile } from "../src/index.js";
 const tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bb-secret-file-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "patcher-secret-file-"));
   tempDirs.push(tempDir);
   return tempDir;
 }

@@ -3,7 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
 import { ThreadDetailSecondaryContent } from "./ThreadDetailSecondaryContent";
 import {
@@ -27,9 +27,9 @@ vi.mock("@/lib/browser-view-bounds-sync", () => ({
   dispatchBrowserViewBoundsSync: vi.fn(),
 }));
 
-vi.mock("@/lib/bb-desktop", () => ({
+vi.mock("@/lib/patcher-desktop", () => ({
   DEFAULT_DESKTOP_WINDOW_STATE: { isFullScreen: false },
-  getBbDesktopInfo: () => null,
+  getPatcherDesktopInfo: () => null,
   // Reached through the leading panel, which reads the browser strip to decide
   // whether a site-scoped panel applies; the strip is keyed per window.
   getDesktopWindowKey: () => null,
@@ -72,7 +72,7 @@ vi.mock("react-resizable-panels", async () => {
   return { Panel, PanelGroup };
 });
 
-vi.mock("@bb/shared-ui/responsive-overlay", async () => {
+vi.mock("@patcher/shared-ui/responsive-overlay", async () => {
   const React = await import("react");
 
   const PersistentResponsiveDrawerShell = ({

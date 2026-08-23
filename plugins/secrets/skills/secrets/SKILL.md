@@ -5,12 +5,12 @@ description: Securely request API keys, access tokens, passwords, webhook secret
 
 # Request secrets securely
 
-Use `bb secret request` whenever work needs a credential. Do not ask the user to paste a secret into chat.
+Use `patcher secret request` whenever work needs a credential. Do not ask the user to paste a secret into chat.
 
 Batch every currently known variable into one request. Inspect documentation or `.env.example` to identify variable names, but do not read or print an existing secret-bearing env file.
 
 ```bash
-bb secret request OPENAI_API_KEY RESEND_API_KEY \
+patcher secret request OPENAI_API_KEY RESEND_API_KEY \
   --purpose "Configure application credentials" \
   --describe OPENAI_API_KEY "OpenAI API key used by the server" \
   --describe RESEND_API_KEY "Resend API key used for transactional email" \

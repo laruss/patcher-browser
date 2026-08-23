@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
- * Per-plugin log file (design §3 observability): every `bb.log` line is
+ * Per-plugin log file (design §3 observability): every `patcher.log` line is
  * appended as JSONL to <dataDir>/plugins/<id>/logs/plugin.log in addition to
  * the prefixed server log. Simple size rotation: past 5MB the file is renamed
  * to plugin.log.1 (one rotated file kept, replacing the previous one).
@@ -19,7 +19,7 @@ function pluginLogsDir(dataDir: string, pluginId: string): string {
 }
 
 /**
- * Append one log line synchronously (bb.log is a sync API; lines are tiny).
+ * Append one log line synchronously (patcher.log is a sync API; lines are tiny).
  * Never throws — a full disk or permission problem must not break the plugin
  * call site; the prefixed server log still carries the message.
  */

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import { createTasksStore } from "../db";
 import {
@@ -14,11 +14,11 @@ import {
 } from ".";
 
 function setup(options?: Parameters<typeof registerAttachments>[2]) {
-  const { bb, harness } = createFakePluginHost({
+  const { patcher, harness } = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "tasks",
   });
-  const db = bb.storage.database();
+  const db = patcher.storage.database();
   const store = createTasksStore(db);
   const project = store.createProject({
     name: "Attachments",
@@ -29,13 +29,13 @@ function setup(options?: Parameters<typeof registerAttachments>[2]) {
     projectId: project.id,
     title: "Attachment owner",
   });
-  registerAttachments(bb, store, options);
+  registerAttachments(patcher, store, options);
   const database = db
     .prepare<[], { name: string; file: string }>("PRAGMA database_list")
     .all()
     .find((entry) => entry.name === "main");
   if (!database) throw new Error("test database path is missing");
-  return { bb, harness, store, task, root: dirname(database.file) };
+  return { patcher, harness, store, task, root: dirname(database.file) };
 }
 
 async function upload(
@@ -248,7 +248,7 @@ describe("task attachments", () => {
   });
 
   it("deleteAttachmentById removes the row and blob and returns the attachment", async () => {
-    const { bb, harness, root, store, task } = setup();
+    const { patcher, harness, root, store, task } = setup();
     try {
       const uploaded = await upload(
         harness,
@@ -264,7 +264,7 @@ describe("task attachments", () => {
       if (!attachment) throw new Error("attachment row was not created");
       const blobDirectory = dirname(join(root, attachment.blobPath));
 
-      const deleted = await deleteAttachmentById(bb, store, attachmentId);
+      const deleted = await deleteAttachmentById(patcher, store, attachmentId);
       expect(deleted).toMatchObject({ id: attachmentId });
       expect(store.getAttachment(attachmentId)).toBeUndefined();
       await expect(stat(blobDirectory)).rejects.toMatchObject({
@@ -362,10 +362,10 @@ describe("task attachments", () => {
   });
 
   it("deleteAttachmentById is a safe no-op for an unknown id", async () => {
-    const { bb, harness, store } = setup();
+    const { patcher, harness, store } = setup();
     try {
       await expect(
-        deleteAttachmentById(bb, store, "01JZZZZZZZZZZZZZZZZZZZZZZZ"),
+        deleteAttachmentById(patcher, store, "01JZZZZZZZZZZZZZZZZZZZZZZZ"),
       ).resolves.toBeNull();
     } finally {
       await harness.dispose();

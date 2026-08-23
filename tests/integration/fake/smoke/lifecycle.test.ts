@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createFakeAdapter } from "@bb/agent-runtime/test";
+import { createFakeAdapter } from "@patcher/agent-runtime/test";
 import { describe, expect, it } from "vitest";
 import {
   createReuseThread,
@@ -184,37 +184,37 @@ describe.sequential("fake provider smoke lifecycle integration", () => {
         expect(childRuntimeCommand.dynamicToolNames).toEqual([
           "update_environment_directory",
         ]);
-        expect(parentRuntimeCommand.instructions).toContain("bb status");
-        expect(parentRuntimeCommand.instructions).toContain("bb guide");
+        expect(parentRuntimeCommand.instructions).toContain("patcher status");
+        expect(parentRuntimeCommand.instructions).toContain("patcher guide");
         expect(parentRuntimeCommand.instructions).toContain("Markdown links");
-        expect(childRuntimeCommand.instructions).toContain("bb status");
-        expect(childRuntimeCommand.instructions).toContain("bb guide");
+        expect(childRuntimeCommand.instructions).toContain("patcher status");
+        expect(childRuntimeCommand.instructions).toContain("patcher guide");
         expect(childRuntimeCommand.instructions).toContain("Markdown links");
         expect(parentRuntimeCommand.instructions).not.toContain("manager");
         expect(childRuntimeCommand.instructions).not.toContain("manager");
 
-        const parentHasBbCliSkill = await Promise.all(
+        const parentHasPatcherCliSkill = await Promise.all(
           parentRuntimeCommand.skillRootPaths.map(async (rootPath) => {
             try {
-              await fs.access(path.join(rootPath, "bb-cli", "SKILL.md"));
+              await fs.access(path.join(rootPath, "patcher-cli", "SKILL.md"));
               return true;
             } catch {
               return false;
             }
           }),
         );
-        const childHasBbCliSkill = await Promise.all(
+        const childHasPatcherCliSkill = await Promise.all(
           childRuntimeCommand.skillRootPaths.map(async (rootPath) => {
             try {
-              await fs.access(path.join(rootPath, "bb-cli", "SKILL.md"));
+              await fs.access(path.join(rootPath, "patcher-cli", "SKILL.md"));
               return true;
             } catch {
               return false;
             }
           }),
         );
-        expect(parentHasBbCliSkill).toContain(true);
-        expect(childHasBbCliSkill).toContain(true);
+        expect(parentHasPatcherCliSkill).toContain(true);
+        expect(childHasPatcherCliSkill).toContain(true);
       },
     );
   });

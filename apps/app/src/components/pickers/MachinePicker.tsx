@@ -1,23 +1,23 @@
 import { useMemo } from "react";
-import type { Host } from "@bb/domain";
-import { Icon } from "@bb/shared-ui/icon";
-import { Button } from "@bb/shared-ui/button";
+import type { Host } from "@patcher/domain";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import {
   COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
   COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { formatRelativeTime } from "@/lib/relative-time";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { formatHostUpdateStatus } from "@/lib/host-update-status";
 import {
   OPTION_BASE_CLASS_NAME,

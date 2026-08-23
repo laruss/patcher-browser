@@ -3,12 +3,12 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
-import { defineRpcContract } from "@bb/plugin-sdk";
-import type { PluginRpcClient, PluginRpcHandlers } from "@bb/plugin-sdk";
+import { defineRpcContract } from "@patcher/plugin-sdk";
+import type { PluginRpcClient, PluginRpcHandlers } from "@patcher/plugin-sdk";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import simpleNotes, { docsRpcContract } from "./server";
 
 const temporaryDirectories: string[] = [];
@@ -26,7 +26,9 @@ afterEach(async () => {
 });
 
 async function loadNotebook(notes: Record<string, string>) {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "bb-simple-notes-"));
+  const directory = await mkdtemp(
+    path.join(os.tmpdir(), "patcher-simple-notes-"),
+  );
   temporaryDirectories.push(directory);
   await Promise.all(
     Object.entries(notes).map(([name, content]) =>
@@ -76,8 +78,8 @@ async function loadNotebook(notes: Record<string, string>) {
       hosts: { list: async () => [] },
     },
   });
-  await simpleNotes(host.bb);
-  host.bb.storage
+  await simpleNotes(host.patcher);
+  host.patcher.storage
     .database()
     .prepare("UPDATE vaults SET root_path = ? WHERE id = 'personal'")
     .run(directory);
@@ -230,8 +232,8 @@ async function loadVirtualSyncVault(initial: Record<string, VirtualFile>) {
       hosts: { list: async () => [] },
     },
   });
-  await simpleNotes(host.bb);
-  host.bb.storage
+  await simpleNotes(host.patcher);
+  host.patcher.storage
     .database()
     .prepare("UPDATE vaults SET root_path = ? WHERE id = 'personal'")
     .run("/vault");
@@ -287,14 +289,14 @@ describe("Docs RPC contract", () => {
   });
 
   it("rejects invalid method inputs and outputs at runtime", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "docs-contract",
     });
     const contract = defineRpcContract({
       saveNote: docsRpcContract.saveNote,
     });
-    bb.rpc.register(contract, {
+    patcher.rpc.register(contract, {
       saveNote(): { outcome: "written"; sha256: string; sizeBytes: number } {
         return { outcome: "written", sha256: "sha", sizeBytes: -1 };
       },
@@ -530,7 +532,7 @@ describe("Docs vault operations", () => {
       },
     });
 
-    await simpleNotes(host.bb);
+    await simpleNotes(host.patcher);
 
     const result = await host.harness.runCli(["vaults", "--json"]);
     expect(result.exitCode).toBe(0);
@@ -614,7 +616,7 @@ describe("Docs vault operations", () => {
       content: "AP+AQA==",
       contentEncoding: "base64",
     });
-    expect(files.has("/work/sync/.bb-docs-state.json")).toBe(true);
+    expect(files.has("/work/sync/.patcher-docs-state.json")).toBe(true);
 
     setUtf8("/work/sync/plans/plan.md", "# Plan\n\nEdited locally\n");
     const status = await harness.runCli(
@@ -853,7 +855,7 @@ describe("Docs vault operations", () => {
         modifiedAtMs: 1,
       },
     });
-    setUtf8("/work/sync/.bb-docs-state.json", "{not-json");
+    setUtf8("/work/sync/.patcher-docs-state.json", "{not-json");
 
     const result = await harness.runCli(["push", "sync", "--json"], {
       cwd: "/work",

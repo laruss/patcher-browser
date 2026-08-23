@@ -2,7 +2,7 @@ import type {
   ThreadEvent,
   ThreadEventBackgroundTaskItem,
   ThreadEventItemStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { EventMeta } from "./event-decode.js";
 import type {
   EventProjectionMessage,

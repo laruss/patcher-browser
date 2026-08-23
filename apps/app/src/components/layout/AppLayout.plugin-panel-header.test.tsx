@@ -11,7 +11,7 @@ const viewportState = vi.hoisted(() => ({ compact: false }));
 // the shell that hosts the browser surface and the agent side panel.
 const desktopState = vi.hoisted(() => ({ browserAvailable: false }));
 
-vi.mock("@bb/shared-ui/hooks/use-compact-viewport", () => ({
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
   useIsCompactViewport: () => viewportState.compact,
   CompactViewportOverrideProvider: ({ children }: { children: ReactNode }) => (
     <>{children}</>
@@ -111,7 +111,7 @@ vi.mock("@/hooks/useBrowserSurfaceRouteSync", () => ({
   useBrowserSurfaceRouteSync: vi.fn(),
 }));
 
-vi.mock("@/lib/bb-desktop", () => ({
+vi.mock("@/lib/patcher-desktop", () => ({
   CHROME_ROW_CLASS: "",
   DEFAULT_DESKTOP_WINDOW_STATE: { isFullScreen: false },
   MACOS_CHROME_CONTROL_AXIS_CLASS: "",
@@ -123,7 +123,7 @@ vi.mock("@/lib/bb-desktop", () => ({
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS: "",
   MACOS_WINDOW_DRAG_CLASS: "",
   MACOS_WINDOW_NO_DRAG_CLASS: "",
-  getBbDesktopInfo: () => null,
+  getPatcherDesktopInfo: () => null,
   getDesktopWindowKey: () => null,
   isDesktopBrowserAvailable: () => desktopState.browserAvailable,
   shouldReserveMacosTrafficLights: () => false,

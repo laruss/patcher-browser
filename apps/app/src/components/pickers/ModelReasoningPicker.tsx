@@ -12,36 +12,36 @@ import {
 import type {
   SystemExecutionOptionsModelLoadError,
   SystemProvidersQuery,
-} from "@bb/server-contract";
-import { type ReasoningLevel } from "@bb/domain";
+} from "@patcher/server-contract";
+import { type ReasoningLevel } from "@patcher/domain";
 import { stripModelBrandPrefix } from "./model-brand-prefix";
 import { REASONING_LABELS } from "@/lib/reasoning-labels";
-import { Button } from "@bb/shared-ui/button";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { Input } from "@bb/shared-ui/input";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
 import {
   COARSE_POINTER_ICON_SIZE_CLASS,
   COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
   COARSE_POINTER_PROVIDER_TAB_SIZE_CLASS,
   COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
-} from "@bb/shared-ui/popover";
-import { Switch } from "@bb/shared-ui/switch";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+} from "@patcher/shared-ui/popover";
+import { Switch } from "@patcher/shared-ui/switch";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 import {
   MENU_ITEM_LAST_HOVERED_CLASS,
   MenuHoverProvider,
   useMenuItemHover,
-} from "@bb/shared-ui/menu-item-hover";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/menu-item-hover";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { useSystemExecutionOptions } from "@/hooks/queries/system-queries";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -206,7 +206,7 @@ interface ModelReasoningPickerProps {
   formatModelLabel?: (displayName: string) => string;
   // Reasoning state — supported efforts are per-model, so callers derive
   // these options from the SELECTED model and reconcile the level on model
-  // change via `reconcileReasoningLevel` in @bb/domain.
+  // change via `reconcileReasoningLevel` in @patcher/domain.
   reasoningValue: ReasoningLevel;
   reasoningOptions: readonly PickerOption<ReasoningLevel>[];
   onReasoningChange: (value: ReasoningLevel) => void;

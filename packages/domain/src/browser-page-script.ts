@@ -5,7 +5,7 @@
  * The other half of {@link BrowserPageStyle}, and the more expensive one: a
  * stylesheet cannot read the page and cannot ask anything of the plugin, while
  * this can do both. So it takes its own permission (`pageScript.register`) over
- * the same `bb.sites`, and everything the browser guarantees about running it is
+ * the same `patcher.sites`, and everything the browser guarantees about running it is
  * written down here rather than left to be discovered.
  *
  * Measured against Electron 41.7.0 rather than assumed (the scripts run from a
@@ -15,12 +15,12 @@
  *   been created and the parser has produced *nothing* — `document.documentElement`
  *   is still null. That is earlier than a page style lands and earlier than any
  *   inline script on the page, which is the point: it can patch what the page is
- *   about to use. It also means DOM work has to wait, which is what `bb.ready`
+ *   about to use. It also means DOM work has to wait, which is what `patcher.ready`
  *   is for.
  * - **A world of its own, per plugin.** Each plugin's scripts share one isolated
  *   world; the page's own world and every other plugin's are separate objects
- *   graphs. The page cannot see `bb`, cannot see anything the script defines, and
- *   the script cannot be shadowed by globals the page redefines. bb's own
+ *   graphs. The page cannot see `patcher`, cannot see anything the script defines, and
+ *   the script cannot be shadowed by globals the page redefines. Patcher's own
  *   automation world (the CDP one behind the agent tools) is a third world again
  *   and shares nothing with either.
  * - **Main frame only.** A session preload does not run in subframes unless the
@@ -31,7 +31,7 @@
  *   is created, so a plugin installed while a matching page is open takes effect
  *   when that page is reloaded. Chrome's content scripts behave the same way.
  * - **A throwing script is contained.** The error lands in the page's console —
- *   where bb's observation log already collects it, so an agent can read it — and
+ *   where Patcher's observation log already collects it, so an agent can read it — and
  *   the next script still runs.
  *
  * Zod-free for the same reason as its neighbours: the plugin API validates
@@ -56,7 +56,7 @@ export const BROWSER_PAGE_SCRIPT_MAX_MATCHES = 16;
 export interface BrowserPageScript {
   pluginId: string;
   scriptId: string;
-  /** Site patterns, each one the plugin declared in `bb.sites`. */
+  /** Site patterns, each one the plugin declared in `patcher.sites`. */
   matches: string[];
   code: string;
 }

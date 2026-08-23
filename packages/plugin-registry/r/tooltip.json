@@ -3,13 +3,13 @@
   "name": "tooltip",
   "type": "registry:ui",
   "title": "tooltip",
-  "description": "BB ui \"tooltip\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"tooltip\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-tooltip"
   ],
   "registryDependencies": [
-    "@bb/portal-scope",
-    "@bb/utils"
+    "@patcher/portal-scope",
+    "@patcher/utils"
   ],
   "files": [
     {

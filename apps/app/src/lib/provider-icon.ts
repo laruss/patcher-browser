@@ -2,7 +2,7 @@ import {
   getBuiltInAgentProviderInfo,
   isAcpProviderId,
   isAgentProviderId,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import type { ComponentType } from "react";
 import { createElement, useState } from "react";
 import { ClaudeIcon } from "@/components/icons/ClaudeIcon";
@@ -13,7 +13,7 @@ import { OpenAiIcon } from "@/components/icons/OpenAiIcon";
 import { OpencodeIcon } from "@/components/icons/OpencodeIcon";
 import { OmpIcon } from "@/components/icons/OmpIcon";
 import { PiIcon } from "@/components/icons/PiIcon";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 
 const ACP_ID_PREFIX = "acp-";
 

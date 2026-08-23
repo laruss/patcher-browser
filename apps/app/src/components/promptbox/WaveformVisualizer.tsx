@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useMediaQuery } from "@bb/shared-ui/hooks/use-media-query";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { useMediaQuery } from "@patcher/shared-ui/hooks/use-media-query";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 interface WaveformVisualizerProps {
   stream: MediaStream | null;

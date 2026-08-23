@@ -4,14 +4,15 @@ import {
   openSession,
   upsertHost,
   updateHost,
-} from "@bb/db";
+} from "@patcher/db";
 import {
+  FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION,
   HOST_DAEMON_PROTOCOL_VERSION,
   hostDaemonProjectAttachmentContentQuerySchema,
   hostDaemonSessionOpenRequestSchema,
   typedRoutes,
   type HostDaemonInternalSchema,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { Hono } from "hono";
 import type { AppDeps } from "../types.js";
 import { HEARTBEAT_INTERVAL_MS, LEASE_TIMEOUT_MS } from "../constants.js";
@@ -24,7 +25,6 @@ import {
 import { requireAuthenticatedDaemonSession } from "./session-state.js";
 import { readAttachment } from "../services/projects/attachments.js";
 import { handleHostSessionOpened } from "./session-owner-side-effects.js";
-import { resolveReportedConnectMachineId } from "./hosts.js";
 
 export function registerInternalSessionRoutes(app: Hono, deps: AppDeps): void {
   const { get, post } = typedRoutes<HostDaemonInternalSchema>(app, {
@@ -53,7 +53,9 @@ export function registerInternalSessionRoutes(app: Hono, deps: AppDeps): void {
             daemonProtocolVersion: payload.protocolVersion,
             serverProtocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
           },
-          "Rejecting daemon session: protocol version mismatch. An older auto-update-enabled daemon will install this server's bb-app; a newer daemon requires the server to be updated.",
+          payload.protocolVersion < FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION
+            ? "Rejecting daemon session: protocol version mismatch. This daemon predates the install artifact's rename, so it will keep asking for /install/bb-app.tgz and cannot update itself — the machine has to be enrolled again."
+            : "Rejecting daemon session: protocol version mismatch. An older auto-update-enabled daemon will install this server's patcher-app; a newer daemon requires the server to be updated.",
         );
         throw new ApiError(
           400,
@@ -75,12 +77,7 @@ export function registerInternalSessionRoutes(app: Hono, deps: AppDeps): void {
       const previousSession = getLatestSessionForHost(deps.db, {
         hostId: daemon.hostId,
       });
-      const connectMachineId = resolveReportedConnectMachineId(
-        context,
-        payload.connectMachineId,
-      );
       upsertHost(deps.db, deps.hub, {
-        ...(connectMachineId !== undefined ? { connectMachineId } : {}),
         id: daemon.hostId,
         name: payload.hostName,
         type: daemon.hostType,
@@ -99,12 +96,6 @@ export function registerInternalSessionRoutes(app: Hono, deps: AppDeps): void {
         leaseTimeoutMs: LEASE_TIMEOUT_MS,
       });
       deps.hub.recordDaemonSessionPlatform(session.id, payload.platform);
-      deps.sharedPorts.recordHostConnectCapability({
-        hostId: daemon.hostId,
-        sessionId: session.id,
-        hasMachineCredential: payload.hasMachineCredential,
-      });
-
       await handleHostSessionOpened(deps, {
         activeThreads: payload.activeThreads,
         hostId: daemon.hostId,
@@ -128,9 +119,6 @@ export function registerInternalSessionRoutes(app: Hono, deps: AppDeps): void {
           heartbeatIntervalMs: HEARTBEAT_INTERVAL_MS,
           leaseTimeoutMs: LEASE_TIMEOUT_MS,
           watchSet: deps.watchInterests.reconcileWatchSetForHost(daemon.hostId),
-          connectShares: deps.sharedPorts.reconcileSharedPortsForHost(
-            daemon.hostId,
-          ),
           retiredEnvironmentIds,
         },
         201,

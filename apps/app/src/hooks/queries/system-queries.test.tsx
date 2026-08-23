@@ -4,11 +4,11 @@ import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import type {
   OnboardingAgentOverview,
   SystemExecutionOptionsResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   ProviderCliStatusResponse,
   ProviderUsageResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sdk } from "@/lib/sdk";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
@@ -27,7 +27,7 @@ import {
 } from "./system-queries";
 
 vi.mock("@/lib/sdk", () => ({
-  BbHttpError: class BbHttpError extends Error {},
+  PatcherHttpError: class PatcherHttpError extends Error {},
   sdk: {
     hosts: { providerCliStatus: vi.fn() },
     system: {

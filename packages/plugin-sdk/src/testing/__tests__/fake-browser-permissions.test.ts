@@ -3,11 +3,11 @@ import {
   permissionForBrowserCommand,
   type BrowserCommand,
   type PluginPermission,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { createFakePluginHost } from "../fake-plugin-host.js";
 
 /**
- * The fake host charges each `bb.browser` method a permission, spelled out at
+ * The fake host charges each `patcher.browser` method a permission, spelled out at
  * the call site. The host charges the *command* that method builds. Those are
  * two sets of decisions about the same thing, and this file is what stops them
  * disagreeing: each row states the method, what the fake charges it, and the
@@ -17,7 +17,7 @@ import { createFakePluginHost } from "../fake-plugin-host.js";
  * the point is that nobody moves one silently.
  */
 const SURFACE: ReadonlyArray<{
-  /** How a plugin calls it, as an expression on `bb.browser`. */
+  /** How a plugin calls it, as an expression on `patcher.browser`. */
   readonly call: (browser: never) => unknown;
   readonly label: string;
   readonly charged: PluginPermission;
@@ -140,23 +140,30 @@ describe("the fake host charges what the host charges", () => {
   }
 
   it.each(SURFACE)("$label refuses without it", async ({ call, charged }) => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
-
-    expect(await errorFrom(() => call(bb.browser as never))).toMatchObject({
-      name: "PluginPermissionError",
-      permission: charged,
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
     });
+
+    expect(await errorFrom(() => call(patcher.browser as never))).toMatchObject(
+      {
+        name: "PluginPermissionError",
+        permission: charged,
+      },
+    );
   });
 
   it.each(SURFACE)("$label is allowed with it", async ({ call, charged }) => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: [charged],
     });
 
     // Most of these then fail on the fake's own state ("no trace is running").
     // What matters here is only that the permission is no longer the reason.
-    expect(await errorFrom(() => call(bb.browser as never))).not.toMatchObject({
+    expect(
+      await errorFrom(() => call(patcher.browser as never)),
+    ).not.toMatchObject({
       name: "PluginPermissionError",
     });
   });
@@ -164,10 +171,13 @@ describe("the fake host charges what the host charges", () => {
 
 describe("contribution points", () => {
   it("refuses an omnibox provider the plugin did not declare", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.browser.registerOmniboxProvider({
+      patcher.browser.registerOmniboxProvider({
         id: "x",
         label: "X",
         suggest: () => [],
@@ -176,13 +186,13 @@ describe("contribution points", () => {
   });
 
   it("admits it once declared", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["omnibox.register"],
     });
 
     expect(() =>
-      bb.browser.registerOmniboxProvider({
+      patcher.browser.registerOmniboxProvider({
         id: "x",
         label: "X",
         suggest: () => [],
@@ -191,10 +201,13 @@ describe("contribution points", () => {
   });
 
   it("refuses a toolbar control the plugin did not declare", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.browser.registerToolbarItem({
+      patcher.browser.registerToolbarItem({
         id: "star",
         title: "Save this page",
         run: () => {},
@@ -203,10 +216,13 @@ describe("contribution points", () => {
   });
 
   it("refuses a new-tab section the plugin did not declare", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.browser.registerNewTabWidget({
+      patcher.browser.registerNewTabWidget({
         id: "saved",
         label: "Bookmarks",
         rows: () => [],
@@ -215,10 +231,13 @@ describe("contribution points", () => {
   });
 
   it("refuses a page style the plugin did not declare", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.browser.registerPageStyle({
+      patcher.browser.registerPageStyle({
         id: "declutter",
         matches: ["https://github.com/**"],
         css: ".ad { display: none }",
@@ -226,27 +245,27 @@ describe("contribution points", () => {
     ).toThrow(/"pageStyle\.register" permission/);
   });
 
-  // The permission says the plugin restyles pages; `bb.sites` says which ones.
+  // The permission says the plugin restyles pages; `patcher.sites` says which ones.
   // Holding one without the other reaches nothing, and the double has to say so
   // or a plugin ships a style the install refuses.
   it("refuses a page style whose site is not declared, and names the list", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["pageStyle.register"],
       sites: ["https://gitlab.com/**"],
     });
 
     expect(() =>
-      bb.browser.registerPageStyle({
+      patcher.browser.registerPageStyle({
         id: "declutter",
         matches: ["https://github.com/**"],
         css: ".ad { display: none }",
       }),
-    ).toThrow(/does not declare in "bb\.sites".*https:\/\/gitlab\.com/su);
+    ).toThrow(/does not declare in "patcher\.sites".*https:\/\/gitlab\.com/su);
   });
 
   it("admits a page style matching a site the plugin declared", () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       pluginId: "p",
       permissions: ["pageStyle.register"],
       sites: ["https://github.com/**"],
@@ -257,19 +276,22 @@ describe("contribution points", () => {
       css: ".ad { display: none }",
     };
 
-    bb.browser.registerPageStyle(style);
+    patcher.browser.registerPageStyle(style);
 
     expect(harness.registrations.pageStyles).toEqual([style]);
-    expect(() => bb.browser.registerPageStyle(style)).toThrow(
+    expect(() => patcher.browser.registerPageStyle(style)).toThrow(
       /already registered/,
     );
   });
 
   it("refuses a page script the plugin did not declare", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.browser.registerPageScript({
+      patcher.browser.registerPageScript({
         id: "toolbar",
         matches: ["https://github.com/**"],
         code: "void 0",
@@ -280,14 +302,14 @@ describe("contribution points", () => {
   // Two permissions over one list, and this is the line between them: a plugin
   // the user let restyle a site has not been let read it.
   it("does not let the styling permission run code", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["pageStyle.register"],
       sites: ["https://github.com/**"],
     });
 
     expect(() =>
-      bb.browser.registerPageScript({
+      patcher.browser.registerPageScript({
         id: "toolbar",
         matches: ["https://github.com/**"],
         code: "void 0",
@@ -296,23 +318,23 @@ describe("contribution points", () => {
   });
 
   it("refuses a page script whose site is not declared, and names the list", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["pageScript.register"],
       sites: ["https://gitlab.com/**"],
     });
 
     expect(() =>
-      bb.browser.registerPageScript({
+      patcher.browser.registerPageScript({
         id: "toolbar",
         matches: ["https://github.com/**"],
         code: "void 0",
       }),
-    ).toThrow(/does not declare in "bb\.sites".*https:\/\/gitlab\.com/su);
+    ).toThrow(/does not declare in "patcher\.sites".*https:\/\/gitlab\.com/su);
   });
 
   it("admits a page script matching a site the plugin declared", () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       pluginId: "p",
       permissions: ["pageScript.register"],
       sites: ["https://github.com/**"],
@@ -320,13 +342,13 @@ describe("contribution points", () => {
     const script = {
       id: "toolbar",
       matches: ["https://github.com/**"],
-      code: "bb.ready(function(){})",
+      code: "patcher.ready(function(){})",
     };
 
-    bb.browser.registerPageScript(script);
+    patcher.browser.registerPageScript(script);
 
     expect(harness.registrations.pageScripts).toEqual([script]);
-    expect(() => bb.browser.registerPageScript(script)).toThrow(
+    expect(() => patcher.browser.registerPageScript(script)).toThrow(
       /already registered/,
     );
   });
@@ -334,10 +356,13 @@ describe("contribution points", () => {
   // A command is ungated on purpose: a chord that runs the plugin's own code
   // discloses nothing, and what the command then reads is gated where it was.
   it("admits a command with no permissions at all", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.ui.registerCommand({
+      patcher.ui.registerCommand({
         id: "save-page",
         title: "Save this page",
         shortcut: { key: "d", mod: true },
@@ -349,7 +374,10 @@ describe("contribution points", () => {
   // Every refusal the host makes at load, the double has to make in the test —
   // otherwise a plugin's suite is green and the install fails.
   it("refuses a second command with the same id or the same chord", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
     const command = {
       id: "save-page",
       title: "Save this page",
@@ -357,39 +385,44 @@ describe("contribution points", () => {
       run: () => {},
     };
 
-    bb.ui.registerCommand(command);
+    patcher.ui.registerCommand(command);
 
-    expect(() => bb.ui.registerCommand(command)).toThrow(/already registered/);
-    expect(() => bb.ui.registerCommand({ ...command, id: "other" })).toThrow(
-      /already bound/,
+    expect(() => patcher.ui.registerCommand(command)).toThrow(
+      /already registered/,
     );
+    expect(() =>
+      patcher.ui.registerCommand({ ...command, id: "other" }),
+    ).toThrow(/already bound/);
   });
 
   it("refuses a new-tab section with no label, or a second with one id", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["newTab.register"],
     });
     const widget = { id: "saved", label: "Bookmarks", rows: () => [] };
 
     expect(() =>
-      bb.browser.registerNewTabWidget({ ...widget, label: "  " }),
+      patcher.browser.registerNewTabWidget({ ...widget, label: "  " }),
     ).toThrow(/label/);
 
-    bb.browser.registerNewTabWidget(widget);
+    patcher.browser.registerNewTabWidget(widget);
 
-    expect(() => bb.browser.registerNewTabWidget(widget)).toThrow(
+    expect(() => patcher.browser.registerNewTabWidget(widget)).toThrow(
       /already registered/,
     );
   });
 
-  // bb has no palette, so a command with no chord could never be run — the double
+  // Patcher has no palette, so a command with no chord could never be run — the double
   // refuses it exactly like the host, or a plugin ships one that does nothing.
   it("refuses a command with no chord", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
     expect(() =>
-      bb.ui.registerCommand({
+      patcher.ui.registerCommand({
         id: "orphan",
         title: "Nowhere",
         run: () => {},
@@ -400,20 +433,20 @@ describe("contribution points", () => {
   // One control per plugin is the host's rule, so the double has to refuse the
   // second one too — otherwise a plugin ships a button that never appears.
   it("admits one toolbar control and refuses a second", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["toolbar.register"],
     });
 
     expect(() =>
-      bb.browser.registerToolbarItem({
+      patcher.browser.registerToolbarItem({
         id: "star",
         title: "Save this page",
         run: () => {},
       }),
     ).not.toThrow();
     expect(() =>
-      bb.browser.registerToolbarItem({
+      patcher.browser.registerToolbarItem({
         id: "second",
         title: "Something else",
         run: () => {},
@@ -424,26 +457,32 @@ describe("contribution points", () => {
   // getStatus reports only whether a browser window is connected, which is not
   // the user's data — the host leaves it open and so does this.
   it("leaves getStatus open to a plugin that declared nothing", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
-    expect(() => bb.browser.getStatus()).not.toThrow();
+    expect(() => patcher.browser.getStatus()).not.toThrow();
   });
 });
 
-describe("bb.sdk in the fake host", () => {
+describe("patcher.sdk in the fake host", () => {
   it("refuses an area the plugin did not declare, on the property read", () => {
-    const { bb } = createFakePluginHost({ pluginId: "p", permissions: [] });
+    const { patcher } = createFakePluginHost({
+      pluginId: "p",
+      permissions: [],
+    });
 
-    expect(() => bb.sdk.terminals).toThrow(/"shell" permission/);
+    expect(() => patcher.sdk.terminals).toThrow(/"shell" permission/);
   });
 
   it("passes through an area it did declare", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["shell"],
     });
 
-    expect(() => bb.sdk.terminals).not.toThrow();
+    expect(() => patcher.sdk.terminals).not.toThrow();
   });
 
   // Two methods reach across areas. The fake missed them at first, which is
@@ -459,22 +498,22 @@ describe("bb.sdk in the fake host", () => {
       permissions: ["workspace"],
     });
 
-    expect(() => threadsOnly.bb.sdk.threadSections.list()).toThrow(
+    expect(() => threadsOnly.patcher.sdk.threadSections.list()).toThrow(
       /"workspace"/,
     );
     expect(() =>
-      workspaceOnly.bb.sdk.environments.archiveThreads({} as never),
+      workspaceOnly.patcher.sdk.environments.archiveThreads({} as never),
     ).toThrow(/"threads"/);
   });
 
   it("charges thread events to threads, not to workspace", () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       pluginId: "p",
       permissions: ["workspace"],
     });
 
     expect(() =>
-      bb.sdk.subscribe({ event: "thread:changed", callback: () => {} }),
+      patcher.sdk.subscribe({ event: "thread:changed", callback: () => {} }),
     ).toThrow(/"threads" permission/);
   });
 });

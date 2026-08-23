@@ -19,7 +19,7 @@ vi.mock("@/lib/sdk", () => ({
     threads: { get: vi.fn() },
     environments: { get: vi.fn() },
   },
-  BbHttpError: class BbHttpError extends Error {
+  PatcherHttpError: class PatcherHttpError extends Error {
     status: number;
     constructor(status: number) {
       super(`http ${status}`);

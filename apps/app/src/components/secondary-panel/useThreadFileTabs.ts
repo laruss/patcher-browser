@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import type { TerminalSession } from "@bb/server-contract";
+import type { TerminalSession } from "@patcher/server-contract";
 import {
   useFixedPanelTabsState,
   useUpdateFixedPanelTabsState,
@@ -402,7 +402,7 @@ export function useThreadFileTabs({
       options?: { viewer?: FileTabViewerOverride },
     ): SecondaryPanelTab | null => {
       // Default-opener diversion (plugin design §5.2): every file-open flow
-      // funnels through here (links, file search, `bb thread open`), so a
+      // funnels through here (links, file search, `patcher thread open`), so a
       // preferred plugin opener applies uniformly. Falls through to the
       // built-in tab when no opener matches; a link menu's per-open viewer
       // choice overrides the default in either direction.

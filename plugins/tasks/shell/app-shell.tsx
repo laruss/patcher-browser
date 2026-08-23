@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { PluginNavPanelProps } from "@bb/plugin-sdk/app";
+import type { PluginNavPanelProps } from "@patcher/plugin-sdk/app";
 import {
   useActiveTasks,
   useFolders,
@@ -26,8 +26,8 @@ import {
   NewProjectDialog,
   NewTaskDialog,
 } from "../views/manage/index.js";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
 import { TasksRefreshProvider } from "./refresh.js";
 
 /** Below this container width (panel splits, not the window) the sidebar

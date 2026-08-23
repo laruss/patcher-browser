@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { shouldStartOnBrowserSurface } from "./browser-first-startup";
 
 describe("browser-first startup", () => {
-  it("opens the browser when the desktop app starts on bb's home", () => {
+  it("opens the browser when the desktop app starts on Patcher's home", () => {
     expect(
       shouldStartOnBrowserSurface({ isDesktop: true, pathname: "/" }),
     ).toBe(true);
@@ -23,7 +23,7 @@ describe("browser-first startup", () => {
   });
 
   // The web build has no native view to put in the surface.
-  it("keeps the web build on bb's home", () => {
+  it("keeps the web build on Patcher's home", () => {
     expect(
       shouldStartOnBrowserSurface({ isDesktop: false, pathname: "/" }),
     ).toBe(false);

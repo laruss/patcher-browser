@@ -47,7 +47,7 @@ function jsonResponse(value: object, status = 200): Response {
   });
 }
 
-describe("bb plugin update commands", () => {
+describe("patcher plugin update commands", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
@@ -75,7 +75,7 @@ describe("bb plugin update commands", () => {
             outcome: "incompatible",
             devMode: true,
             installed: version("1.0.0"),
-            blocked: { version: "2.0.0", reasons: ["requires bb >= 9"] },
+            blocked: { version: "2.0.0", reasons: ["requires Patcher >= 9"] },
           },
           {
             id: "e",
@@ -92,9 +92,9 @@ describe("bb plugin update commands", () => {
     const output = collectLogPayloads(vi.mocked(console.log)).join("\n");
     expect(output).toContain("update available");
     expect(output).toContain("pinned");
-    expect(output).toContain("2.0.0: requires bb >= 9");
+    expect(output).toContain("2.0.0: requires Patcher >= 9");
     expect(output).toContain(
-      "incompatible [dev build: engines.bb not enforced]",
+      "incompatible [dev build: engines.patcher not enforced]",
     );
     expect(output).toContain("unavailable");
   });
@@ -123,7 +123,7 @@ describe("bb plugin update commands", () => {
         resolved: "1.2.0",
         integrity: "sha512-test",
         registry: "https://registry.npmjs.org",
-        engines: { bb: ">=0.9", bbPluginSdk: "^0.2.0" },
+        engines: { patcher: ">=0.9", patcherPluginSdk: "^0.2.0" },
         installedAt: 1_752_300_000_000,
         history: [
           { version: "1.2.0", activatedAt: 1_752_300_000_000 },
@@ -137,7 +137,7 @@ describe("bb plugin update commands", () => {
     const output = collectLogPayloads(vi.mocked(console.log)).join("\n");
     expect(output).toContain("requested: npm:notes@^1");
     expect(output).toContain("resolved: 1.2.0");
-    expect(output).toContain("engines.bbPluginSdk: ^0.2.0");
+    expect(output).toContain("engines.patcherPluginSdk: ^0.2.0");
     expect(output).toContain("1.1.0");
   });
 
@@ -226,7 +226,7 @@ describe("bb plugin update commands", () => {
               id: "bad",
               outcome: "incompatible",
               installed: version("1"),
-              blocked: { version: "2", reasons: ["requires newer bb"] },
+              blocked: { version: "2", reasons: ["requires newer Patcher"] },
             },
             {
               id: "good",
@@ -251,7 +251,9 @@ describe("bb plugin update commands", () => {
 
     const output = collectLogPayloads(vi.mocked(console.log)).join("\n");
     expect(output).toContain("pin: skipped — pinned");
-    expect(output).toContain("bad: skipped — incompatible: requires newer bb");
+    expect(output).toContain(
+      "bad: skipped — incompatible: requires newer Patcher",
+    );
     expect(output).toContain("good: updated and activated 1 → 2");
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({});
   });

@@ -3,7 +3,7 @@ import {
   DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST,
   DEFAULT_HOST_DAEMON_LOCAL_HEALTH_PATH,
   DEFAULT_HOST_DAEMON_LOCAL_HEALTH_VALUE,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { resolveHostDaemonLocalApiConfig } from "./local-api-config.js";
 
 describe("host daemon local API config", () => {

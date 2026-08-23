@@ -1,7 +1,7 @@
 import type {
   ThreadTimelineResponse,
   TimelineRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 export function timelineHasAssistantConversation(
   timeline: ThreadTimelineResponse,

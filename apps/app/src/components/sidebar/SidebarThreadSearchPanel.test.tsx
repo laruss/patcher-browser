@@ -4,11 +4,11 @@ import { createRef } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import type {
   ThreadSearchMatch,
   ThreadSearchResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   useThreadSearch,
   type UseThreadSearchResult,
@@ -232,7 +232,7 @@ describe("SidebarThreadSearchPanel", () => {
     });
     thread.activity = { ...thread.activity, activePlanModeCount: 1 };
     window.localStorage.setItem(
-      "bb.promptbox.contents-proj_search-thr_search_draft-3",
+      "patcher.promptbox.contents-proj_search-thr_search_draft-3",
       JSON.stringify({ text: "Keep editing", attachments: [] }),
     );
     mockThreadSearch({
@@ -270,7 +270,7 @@ describe("SidebarThreadSearchPanel", () => {
       title: "Idle draft",
     });
     window.localStorage.setItem(
-      "bb.promptbox.contents-proj_search-thr_search_idle_draft-3",
+      "patcher.promptbox.contents-proj_search-thr_search_idle_draft-3",
       JSON.stringify({ text: "Keep editing", attachments: [] }),
     );
     mockThreadSearch({

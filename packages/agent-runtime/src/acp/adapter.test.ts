@@ -4,7 +4,7 @@ import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
   threadScope,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { ProviderExecutionContext } from "../provider-adapter.js";
 import { promptTextInput } from "../test/prompt-input.js";
 import { createAcpProviderAdapter } from "./adapter.js";
@@ -138,7 +138,7 @@ describe("acp adapter command plans", () => {
         approvalReviewer: "user",
         permissionEscalation: "ask",
         instructions: "Stay focused.",
-        envVars: { BB_THREAD_ID: "thread-1" },
+        envVars: { PATCHER_THREAD_ID: "thread-1" },
       },
       instructionMode: "append",
     });
@@ -153,7 +153,7 @@ describe("acp adapter command plans", () => {
         permissionMode: "accept-edits",
         permissionEscalation: "ask",
         workspaceWriteRoots: ["/workspace", "/extra-root"],
-        envVars: { BB_THREAD_ID: "thread-1" },
+        envVars: { PATCHER_THREAD_ID: "thread-1" },
         instructions: "Stay focused.",
       },
     });
@@ -173,7 +173,7 @@ describe("acp adapter command plans", () => {
             id: "global-skills:abc123:acp",
             providerId: "acp",
             skillDirectoryRootPath:
-              "/tmp/bb/runtime/global-skills/abc123/skills",
+              "/tmp/patcher/runtime/global-skills/abc123/skills",
             skills: [
               {
                 name: "release-notes",
@@ -198,11 +198,11 @@ describe("acp adapter command plans", () => {
       instructions: [
         "Stay focused.",
         "",
-        "bb skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
+        "Patcher skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
         "",
-        "Available bb skills:",
-        "- release-notes: Use release-notes when /system_instructions tests run. (SKILL.md: /tmp/bb/runtime/global-skills/abc123/skills/release-notes/SKILL.md)",
-        "- copywriting: Use when writing customer copy. (SKILL.md: /tmp/bb/runtime/global-skills/abc123/skills/copywriting/SKILL.md)",
+        "Available Patcher skills:",
+        "- release-notes: Use release-notes when /system_instructions tests run. (SKILL.md: /tmp/patcher/runtime/global-skills/abc123/skills/release-notes/SKILL.md)",
+        "- copywriting: Use when writing customer copy. (SKILL.md: /tmp/patcher/runtime/global-skills/abc123/skills/copywriting/SKILL.md)",
       ].join("\n"),
     });
   });
@@ -254,7 +254,7 @@ describe("acp adapter command plans", () => {
             id: "global-skills:def456:acp",
             providerId: "acp",
             skillDirectoryRootPath:
-              "/tmp/bb/runtime/global-skills/def456/skills",
+              "/tmp/patcher/runtime/global-skills/def456/skills",
             skills: [
               {
                 name: "debugging",
@@ -273,10 +273,10 @@ describe("acp adapter command plans", () => {
     expect(plan.params).toMatchObject({
       providerThreadId: "sess-1",
       instructions: [
-        "bb skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
+        "Patcher skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
         "",
-        "Available bb skills:",
-        "- debugging: Use when debugging runtime state. (SKILL.md: /tmp/bb/runtime/global-skills/def456/skills/debugging/SKILL.md)",
+        "Available Patcher skills:",
+        "- debugging: Use when debugging runtime state. (SKILL.md: /tmp/patcher/runtime/global-skills/def456/skills/debugging/SKILL.md)",
       ].join("\n"),
     });
   });

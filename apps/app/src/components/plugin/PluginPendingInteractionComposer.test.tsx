@@ -2,8 +2,8 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PluginPendingInteraction } from "@bb/domain";
-import type { PluginPendingInteractionProps } from "@bb/plugin-sdk";
+import type { PluginPendingInteraction } from "@patcher/domain";
+import type { PluginPendingInteractionProps } from "@patcher/plugin-sdk";
 import {
   resetPluginSlotStoreForTest,
   setPluginSlotRegistrations,

@@ -1,11 +1,11 @@
 // Backend tests for the omnibox-agent example, written against the official
-// harness (`@bb/plugin-sdk/testing`) — no bb server, no browser.
+// harness (`@patcher/plugin-sdk/testing`) — no Patcher server, no browser.
 import { describe, expect, it } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   type FakePluginHost,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import omniboxAgent from "./server";
 
 const PROJECT_ID = "proj-1";
@@ -16,11 +16,11 @@ async function load(
   const host = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "omnibox-agent",
-    loopbackBaseUrl: "http://127.0.0.1:38886",
+    loopbackBaseUrl: "http://127.0.0.1:38986",
     settings,
     sdk: { threads: { spawn: async () => ({ id: "th_1" }) } },
   });
-  await omniboxAgent(host.bb);
+  await omniboxAgent(host.patcher);
   return host;
 }
 
@@ -84,7 +84,7 @@ describe("omnibox-agent", () => {
         }),
       ],
     ]);
-    expect(result).toEqual({ navigate: "http://127.0.0.1:38886/threads/th_1" });
+    expect(result).toEqual({ navigate: "http://127.0.0.1:38986/threads/th_1" });
   });
 
   it("refuses to run without a project", async () => {
@@ -105,7 +105,7 @@ describe("omnibox-agent", () => {
         id: "ask-agent",
         name: "Ask an agent",
         urlTemplate:
-          "http://127.0.0.1:38886/api/v1/plugins/omnibox-agent/http/ask?q=%s",
+          "http://127.0.0.1:38986/api/v1/plugins/omnibox-agent/http/ask?q=%s",
       },
       {
         id: "kagi",
@@ -125,7 +125,7 @@ describe("omnibox-agent", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      "http://127.0.0.1:38886/threads/th_1",
+      "http://127.0.0.1:38986/threads/th_1",
     );
     expect(host.harness.sdk.callsTo("threads.spawn")).toEqual([
       [

@@ -56,7 +56,7 @@ one timestamp should not lose an arbitrary half of them.
 
 ## Plugins see a visit before it is stored
 
-`bb.browser.registerHistoryFilter(filter)` is called with every visit on its way
+`patcher.browser.registerHistoryFilter(filter)` is called with every visit on its way
 to the table, and returns one of three things:
 
 | Return           | Effect                        |
@@ -80,10 +80,10 @@ filter's return value on the other. The out-of-process test in
 `plugin-browser-history.test.ts` exists because the first version of this
 normalised twice and silently dropped every rewrite.
 
-Reading and editing the store afterwards is `bb.sdk.browserHistory` —
+Reading and editing the store afterwards is `patcher.sdk.browserHistory` —
 `list`, `record`, `remove`, `clear`. Both halves are gated by one `history`
 permission rather than a read/write pair: neither gate that enforces it sees the
-HTTP method (one keys on the `bb.sdk` area, the other on the URL prefix), so a
+HTTP method (one keys on the `patcher.sdk` area, the other on the URL prefix), so a
 read-only variant would be a boundary on paper that `DELETE
 /browser-history/:id` walks straight through.
 

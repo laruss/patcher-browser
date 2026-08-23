@@ -5,23 +5,23 @@ import path from "node:path";
 import { parseMarkdownDocument } from "./markdown-document.js";
 import {
   defineRpcContract,
-  type BbPluginApi,
+  type PatcherPluginApi,
   type PluginCliContext,
   type PluginRpcHandlers,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 const DEFAULT_DIR = "~/Notes";
 const PREVIEW_LENGTH = 100;
 const MAX_TREE_ENTRIES = 5_000;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const SYNC_STATE_FILE = ".bb-docs-state.json";
+const SYNC_STATE_FILE = ".patcher-docs-state.json";
 const SYNC_STATE_VERSION = 1;
 
 class CliUsageError extends Error {}
 
 const DOCS_CLI_USAGE =
-  "Usage: bb docs <vaults|vault-add|vault-remove|list|read|pull|status|push|write|mkdir|move|remove>";
+  "Usage: patcher docs <vaults|vault-add|vault-remove|list|read|pull|status|push|write|mkdir|move|remove>";
 
 const CLI_OPTIONS_BY_COMMAND: Record<string, ReadonlySet<string>> = {
   vaults: new Set(["--json"]),
@@ -682,7 +682,9 @@ function parseCli(argv: string[]): {
   for (let index = 1; index < argv.length; index += 1) {
     const arg = argv[index]!;
     if (arg.startsWith("--") && allowedOptions && !allowedOptions.has(arg)) {
-      throw new CliUsageError(`${arg} is not valid for bb docs ${command}`);
+      throw new CliUsageError(
+        `${arg} is not valid for patcher docs ${command}`,
+      );
     }
     if (arg === "--vault") vaultId = nextValue(arg, index++);
     else if (arg === "--content") content = nextValue(arg, index++);
@@ -738,7 +740,7 @@ function validateCliPositionals(args: ReturnType<typeof parseCli>): void {
     args.positionals.length > range.maximum
   ) {
     throw new CliUsageError(
-      `bb docs ${args.command} received ${args.positionals.length} positional argument(s); expected ${
+      `patcher docs ${args.command} received ${args.positionals.length} positional argument(s); expected ${
         range.minimum === range.maximum
           ? range.minimum
           : `${range.minimum}-${range.maximum}`
@@ -760,9 +762,9 @@ function waitForDelay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, [
+export default async function plugin(patcher: PatcherPluginApi) {
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, [
     `CREATE TABLE IF NOT EXISTS vaults (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -824,9 +826,9 @@ export default async function plugin(bb: BbPluginApi) {
   if (seededDefaultVault) {
     const vault = getVault("personal");
     try {
-      await bb.sdk.files.mkdir({ path: vault.rootPath, recursive: true });
+      await patcher.sdk.files.mkdir({ path: vault.rootPath, recursive: true });
     } catch (error) {
-      bb.log.warn(
+      patcher.log.warn(
         `could not create default vault: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -835,7 +837,7 @@ export default async function plugin(bb: BbPluginApi) {
   async function listEntries(
     vault: Vault,
   ): Promise<{ entries: VaultEntry[]; truncated: boolean }> {
-    const result = await bb.sdk.files.listPaths({
+    const result = await patcher.sdk.files.listPaths({
       ...hostArgs(vault),
       path: vault.rootPath,
       includeFiles: true,
@@ -867,7 +869,7 @@ export default async function plugin(bb: BbPluginApi) {
       .map((entry) => entry.path);
     for (const notePath of markdownPaths) {
       try {
-        const file = await bb.sdk.files.read({
+        const file = await patcher.sdk.files.read({
           ...hostArgs(vault),
           path: absolutePath(vault, notePath),
           rootPath: vault.rootPath,
@@ -892,7 +894,7 @@ export default async function plugin(bb: BbPluginApi) {
     try {
       const [{ entries, truncated }, hosts] = await Promise.all([
         listEntries(vault),
-        bb.sdk.hosts.list(),
+        patcher.sdk.hosts.list(),
       ]);
       const notes = await listNoteSummaries(vault, entries);
       return {
@@ -909,7 +911,7 @@ export default async function plugin(bb: BbPluginApi) {
       return {
         vaults: listVaults(),
         vault,
-        hosts: await bb.sdk.hosts.list().catch(() => []),
+        hosts: await patcher.sdk.hosts.list().catch(() => []),
         entries: [],
         entryOrder: listEntryOrder(vault.id),
         notes: [],
@@ -922,7 +924,7 @@ export default async function plugin(bb: BbPluginApi) {
   async function readFile(vaultId: string | undefined, rawPath: unknown) {
     const vault = getVault(vaultId);
     const relativePath = requireVaultPath(rawPath);
-    const file = await bb.sdk.files.read({
+    const file = await patcher.sdk.files.read({
       ...hostArgs(vault),
       path: absolutePath(vault, relativePath),
       rootPath: vault.rootPath,
@@ -942,7 +944,7 @@ export default async function plugin(bb: BbPluginApi) {
     const relativePath = requireVaultPath(args.rawPath);
     if (typeof args.content !== "string")
       throw new Error('"content" must be a string');
-    const result = await bb.sdk.files.write({
+    const result = await patcher.sdk.files.write({
       ...hostArgs(vault),
       path: absolutePath(vault, relativePath),
       rootPath: vault.rootPath,
@@ -957,7 +959,7 @@ export default async function plugin(bb: BbPluginApi) {
           : {}),
     });
     if (result.outcome === "written") {
-      bb.realtime.publish("vault-changed", { vaultId: vault.id });
+      patcher.realtime.publish("vault-changed", { vaultId: vault.id });
     }
     return result;
   }
@@ -983,7 +985,7 @@ export default async function plugin(bb: BbPluginApi) {
       };
     }
     if (source.kind === "workspace" && source.environmentId) {
-      const environment = await bb.sdk.environments.get({
+      const environment = await patcher.sdk.environments.get({
         environmentId: source.environmentId,
       });
       if (!environment.path) {
@@ -1034,13 +1036,13 @@ export default async function plugin(bb: BbPluginApi) {
     const vault = getVault(vaultId);
     const from = requireVaultPath(fromValue);
     const to = requireVaultPath(toValue);
-    await bb.sdk.files.move({
+    await patcher.sdk.files.move({
       ...hostArgs(vault),
       sourcePath: absolutePath(vault, from),
       destinationPath: absolutePath(vault, to),
       rootPath: vault.rootPath,
     });
-    bb.realtime.publish("vault-changed", { vaultId: vault.id });
+    patcher.realtime.publish("vault-changed", { vaultId: vault.id });
     return { path: to };
   }
 
@@ -1051,13 +1053,13 @@ export default async function plugin(bb: BbPluginApi) {
   ): Promise<{ ok: true }> {
     const vault = getVault(vaultId);
     const relativePath = requireVaultPath(rawPath);
-    await bb.sdk.files.remove({
+    await patcher.sdk.files.remove({
       ...hostArgs(vault),
       path: absolutePath(vault, relativePath),
       rootPath: vault.rootPath,
       recursive,
     });
-    bb.realtime.publish("vault-changed", { vaultId: vault.id });
+    patcher.realtime.publish("vault-changed", { vaultId: vault.id });
     return { ok: true };
   }
 
@@ -1077,9 +1079,9 @@ export default async function plugin(bb: BbPluginApi) {
   async function readExistingFile(
     vault: Vault,
     relativePath: string,
-  ): Promise<Awaited<ReturnType<typeof bb.sdk.files.read>> | null> {
+  ): Promise<Awaited<ReturnType<typeof patcher.sdk.files.read>> | null> {
     try {
-      return await bb.sdk.files.read({
+      return await patcher.sdk.files.read({
         ...hostArgs(vault),
         path: absolutePath(vault, relativePath),
         rootPath: vault.rootPath,
@@ -1111,7 +1113,7 @@ export default async function plugin(bb: BbPluginApi) {
         content: file.content,
       });
     } else {
-      const result = await bb.sdk.files.listPaths({
+      const result = await patcher.sdk.files.listPaths({
         ...hostArgs(vault),
         path: vault.rootPath,
         includeFiles: true,
@@ -1265,7 +1267,7 @@ export default async function plugin(bb: BbPluginApi) {
       ],
       "Sync request",
     );
-    const currentListing = await bb.sdk.files.listPaths({
+    const currentListing = await patcher.sdk.files.listPaths({
       ...hostArgs(vault),
       path: vault.rootPath,
       includeFiles: true,
@@ -1383,7 +1385,7 @@ export default async function plugin(bb: BbPluginApi) {
     for (const directory of [...directories].sort()) {
       if (currentByPath.get(directory)?.kind === "directory") continue;
       try {
-        await bb.sdk.files.mkdir({
+        await patcher.sdk.files.mkdir({
           ...hostArgs(vault),
           path: absolutePath(vault, directory),
           rootPath: vault.rootPath,
@@ -1519,13 +1521,13 @@ export default async function plugin(bb: BbPluginApi) {
     async createFolder(input) {
       const vault = getVault(input.vaultId);
       const relativePath = requireVaultPath(input.path);
-      await bb.sdk.files.mkdir({
+      await patcher.sdk.files.mkdir({
         ...hostArgs(vault),
         path: absolutePath(vault, relativePath),
         rootPath: vault.rootPath,
         recursive: false,
       });
-      bb.realtime.publish("vault-changed", { vaultId: vault.id });
+      patcher.realtime.publish("vault-changed", { vaultId: vault.id });
       return { path: relativePath };
     },
     async reorderFiles(input) {
@@ -1571,7 +1573,7 @@ export default async function plugin(bb: BbPluginApi) {
         );
       });
       replaceOrder();
-      bb.realtime.publish("vault-changed", { vaultId: vault.id });
+      patcher.realtime.publish("vault-changed", { vaultId: vault.id });
       return { paths };
     },
     async movePath(input) {
@@ -1606,7 +1608,7 @@ export default async function plugin(bb: BbPluginApi) {
         throw new Error('"rootPath" must be absolute');
       const hostId = optionalString(input.hostId) ?? null;
       const resolvedRoot = normalizeHostRoot(rootPath);
-      await bb.sdk.files.mkdir({
+      await patcher.sdk.files.mkdir({
         ...(hostId ? { hostId } : {}),
         path: resolvedRoot,
         recursive: true,
@@ -1619,7 +1621,7 @@ export default async function plugin(bb: BbPluginApi) {
       db.prepare(
         "INSERT INTO vaults (id, name, host_id, root_path, created_at) VALUES (?, ?, ?, ?, ?)",
       ).run(id, name, hostId, resolvedRoot, Date.now());
-      bb.realtime.publish("vault-changed", { vaultId: id });
+      patcher.realtime.publish("vault-changed", { vaultId: id });
       return getVault(id);
     },
     async removeVault(input) {
@@ -1628,7 +1630,7 @@ export default async function plugin(bb: BbPluginApi) {
         throw new Error("At least one vault is required");
       db.prepare("DELETE FROM entry_order WHERE vault_id = ?").run(id);
       db.prepare("DELETE FROM vaults WHERE id = ?").run(id);
-      bb.realtime.publish("vault-changed", { vaultId: id });
+      patcher.realtime.publish("vault-changed", { vaultId: id });
       return { ok: true };
     },
     async uploadAttachment(input) {
@@ -1671,12 +1673,12 @@ export default async function plugin(bb: BbPluginApi) {
     async preparePreview(input) {
       const vault = getVault(input.vaultId);
       const relativePath = requireVaultPath(input.path);
-      await bb.sdk.files.read({
+      await patcher.sdk.files.read({
         ...hostArgs(vault),
         path: absolutePath(vault, relativePath),
         rootPath: vault.rootPath,
       });
-      return bb.sdk.files.createPreview({
+      return patcher.sdk.files.createPreview({
         ...hostArgs(vault),
         rootPath: vault.rootPath,
       });
@@ -1689,8 +1691,8 @@ export default async function plugin(bb: BbPluginApi) {
         rootPath: target.rootPath,
       };
       const [file, preview] = await Promise.all([
-        bb.sdk.files.read(args),
-        bb.sdk.files.createPreview({
+        patcher.sdk.files.read(args),
+        patcher.sdk.files.createPreview({
           ...(target.hostId ? { hostId: target.hostId } : {}),
           rootPath: target.rootPath,
         }),
@@ -1708,7 +1710,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     async saveOpenedFile(input) {
       const target = await resolveOpenerFile(input.source, input.path);
-      return bb.sdk.files.write({
+      return patcher.sdk.files.write({
         ...(target.hostId ? { hostId: target.hostId } : {}),
         path: target.path,
         rootPath: target.rootPath,
@@ -1721,10 +1723,10 @@ export default async function plugin(bb: BbPluginApi) {
     },
   };
 
-  bb.rpc.register(docsRpcContract, handlers);
+  patcher.rpc.register(docsRpcContract, handlers);
 
   async function readHttpInput<Schema extends z.ZodType>(
-    context: Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0],
+    context: Parameters<Parameters<PatcherPluginApi["http"]["route"]>[2]>[0],
     schema: Schema,
   ): Promise<
     { ok: true; value: z.output<Schema> } | { ok: false; response: Response }
@@ -1768,7 +1770,7 @@ export default async function plugin(bb: BbPluginApi) {
     };
   }
 
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/list",
     async (context) => {
@@ -1805,9 +1807,11 @@ export default async function plugin(bb: BbPluginApi) {
   ): Promise<string | undefined> {
     if (args.workspaceHostId) return args.workspaceHostId;
     if (!context.threadId) return undefined;
-    const thread = await bb.sdk.threads.get({ threadId: context.threadId });
+    const thread = await patcher.sdk.threads.get({
+      threadId: context.threadId,
+    });
     if (!thread.environmentId) return undefined;
-    const environment = await bb.sdk.environments.get({
+    const environment = await patcher.sdk.environments.get({
       environmentId: thread.environmentId,
     });
     return environment.hostId;
@@ -1821,9 +1825,9 @@ export default async function plugin(bb: BbPluginApi) {
     rootPath: string,
     hostId: string | undefined,
     relativePath: string,
-  ): Promise<Awaited<ReturnType<typeof bb.sdk.files.read>> | null> {
+  ): Promise<Awaited<ReturnType<typeof patcher.sdk.files.read>> | null> {
     try {
-      return await bb.sdk.files.read({
+      return await patcher.sdk.files.read({
         ...workspaceFileArgs(hostId),
         path: localFilePath(rootPath, relativePath),
         rootPath,
@@ -1891,7 +1895,7 @@ export default async function plugin(bb: BbPluginApi) {
     state: SyncState,
     expectedSha256: string | null,
   ): Promise<void> {
-    const result = await bb.sdk.files.write({
+    const result = await patcher.sdk.files.write({
       ...workspaceFileArgs(hostId),
       path: localFilePath(rootPath, SYNC_STATE_FILE),
       rootPath,
@@ -2076,13 +2080,13 @@ export default async function plugin(bb: BbPluginApi) {
     const deleted: string[] = [];
     const deletedDirectories: string[] = [];
     try {
-      await bb.sdk.files.mkdir({
+      await patcher.sdk.files.mkdir({
         ...workspaceFileArgs(hostId),
         path: rootPath,
         recursive: true,
       });
       for (const directory of snapshot.directories) {
-        await bb.sdk.files.mkdir({
+        await patcher.sdk.files.mkdir({
           ...workspaceFileArgs(hostId),
           path: localFilePath(rootPath, directory),
           rootPath,
@@ -2090,7 +2094,7 @@ export default async function plugin(bb: BbPluginApi) {
         });
       }
       for (const write of writes) {
-        const result = await bb.sdk.files.write({
+        const result = await patcher.sdk.files.write({
           ...workspaceFileArgs(hostId),
           path: localFilePath(rootPath, write.file.localPath),
           rootPath,
@@ -2117,7 +2121,7 @@ export default async function plugin(bb: BbPluginApi) {
             `Local file changed during pull: ${deletion.path}; rerun pull to recover`,
           );
         }
-        await bb.sdk.files.remove({
+        await patcher.sdk.files.remove({
           ...workspaceFileArgs(hostId),
           path: localFilePath(rootPath, deletion.path),
           rootPath,
@@ -2131,7 +2135,7 @@ export default async function plugin(bb: BbPluginApi) {
           right.localeCompare(left),
       )) {
         try {
-          await bb.sdk.files.remove({
+          await patcher.sdk.files.remove({
             ...workspaceFileArgs(hostId),
             path: localFilePath(rootPath, directory),
             rootPath,
@@ -2195,7 +2199,7 @@ export default async function plugin(bb: BbPluginApi) {
     const existing = await readSyncState(rootPath, hostId);
     if (!existing) {
       throw new Error(
-        `${SYNC_STATE_FILE} was not found; run bb docs pull first`,
+        `${SYNC_STATE_FILE} was not found; run patcher docs pull first`,
       );
     }
     if (args.vaultId && args.vaultId !== existing.state.vault.id) {
@@ -2207,7 +2211,7 @@ export default async function plugin(bb: BbPluginApi) {
       existing.state.vault.id,
       existing.state.scope,
     );
-    const listing = await bb.sdk.files.listPaths({
+    const listing = await patcher.sdk.files.listPaths({
       ...workspaceFileArgs(hostId),
       path: rootPath,
       includeFiles: true,
@@ -2235,7 +2239,7 @@ export default async function plugin(bb: BbPluginApi) {
       });
     const localFiles = new Map<
       string,
-      Awaited<ReturnType<typeof bb.sdk.files.read>>
+      Awaited<ReturnType<typeof patcher.sdk.files.read>>
     >();
     for (const entry of localPaths) {
       if (entry.kind !== "file") continue;
@@ -2539,7 +2543,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
     return JSON.stringify(result, null, 2);
   }
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/read",
     async (context) => {
@@ -2552,7 +2556,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "token" },
   );
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/write",
     async (context) => {
@@ -2565,7 +2569,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "token" },
   );
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/mkdir",
     async (context) => {
@@ -2578,7 +2582,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "token" },
   );
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/move",
     async (context) => {
@@ -2591,7 +2595,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "token" },
   );
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/remove",
     async (context) => {
@@ -2604,7 +2608,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "token" },
   );
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/sync/snapshot",
     async (context) => {
@@ -2617,7 +2621,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "token" },
   );
-  bb.http.route(
+  patcher.http.route(
     "POST",
     "/sync/apply",
     async (context) => {
@@ -2631,72 +2635,72 @@ export default async function plugin(bb: BbPluginApi) {
     { auth: "token" },
   );
 
-  bb.cli.register({
+  patcher.cli.register({
     name: "docs",
     summary: "Discover and safely sync Docs vaults",
     commands: [
       {
         name: "vaults",
         summary: "List configured vaults",
-        usage: "bb docs vaults [--json]",
+        usage: "patcher docs vaults [--json]",
       },
       {
         name: "vault-add",
         summary: "Add a vault",
-        usage: "bb docs vault-add <name> <absolute-root> [host-id]",
+        usage: "patcher docs vault-add <name> <absolute-root> [host-id]",
       },
       {
         name: "vault-remove",
         summary: "Remove a vault configuration",
-        usage: "bb docs vault-remove <id>",
+        usage: "patcher docs vault-remove <id>",
       },
       {
         name: "list",
         summary: "List notes and folders",
-        usage: "bb docs list [--vault <id>] [--json]",
+        usage: "patcher docs list [--vault <id>] [--json]",
       },
       {
         name: "read",
         summary: "Read a file",
-        usage: "bb docs read <path> [--vault <id>]",
+        usage: "patcher docs read <path> [--vault <id>]",
       },
       {
         name: "pull",
         summary: "Pull one file, a folder subtree, or a whole vault",
         usage:
-          "bb docs pull <path> [--folder] | --all [--vault <id>] [--into <dir>] [--workspace-host <id>] [--json]",
+          "patcher docs pull <path> [--folder] | --all [--vault <id>] [--into <dir>] [--workspace-host <id>] [--json]",
       },
       {
         name: "status",
         summary: "Show local edits, conflicts, and ignored deletions",
         usage:
-          "bb docs status [workspace-dir] [--delete] [--diff] [--workspace-host <id>] [--json]",
+          "patcher docs status [workspace-dir] [--delete] [--diff] [--workspace-host <id>] [--json]",
       },
       {
         name: "push",
         summary: "Safely push local edits using optimistic concurrency",
         usage:
-          "bb docs push [workspace-dir] [--delete] [--dry-run] [--diff] [--workspace-host <id>] [--json]",
+          "patcher docs push [workspace-dir] [--delete] [--dry-run] [--diff] [--workspace-host <id>] [--json]",
       },
       {
         name: "write",
         summary: "Deprecated: write a UTF-8 file directly",
-        usage: "bb docs write <path> --content <text> [--vault <id>]",
+        usage: "patcher docs write <path> --content <text> [--vault <id>]",
       },
       {
         name: "mkdir",
         summary: "Deprecated: create a folder directly",
-        usage: "bb docs mkdir <path> [--vault <id>]",
+        usage: "patcher docs mkdir <path> [--vault <id>]",
       },
       {
         name: "move",
         summary: "Deprecated: move a path directly",
-        usage: "bb docs move <from> <to> [--vault <id>]",
+        usage: "patcher docs move <from> <to> [--vault <id>]",
       },
       {
         name: "remove",
         summary: "Deprecated: remove a file or directory directly",
-        usage: "bb docs remove <path> [--vault <id>] [--recursive]",
+        usage: "patcher docs remove <path> [--vault <id>] [--recursive]",
       },
     ],
     async run(argv, context) {
@@ -2763,14 +2767,14 @@ export default async function plugin(bb: BbPluginApi) {
             content: args.content,
           });
           warning =
-            "Deprecated: direct Docs mutations will be removed; use bb docs pull, edit local files, then bb docs push.";
+            "Deprecated: direct Docs mutations will be removed; use patcher docs pull, edit local files, then patcher docs push.";
         } else if (args.command === "mkdir") {
           result = await handlers.createFolder({
             vaultId: args.vaultId,
             path: args.positionals[0],
           });
           warning =
-            "Deprecated: direct Docs mutations will be removed; use bb docs pull, edit local files, then bb docs push.";
+            "Deprecated: direct Docs mutations will be removed; use patcher docs pull, edit local files, then patcher docs push.";
         } else if (args.command === "move") {
           result = await movePath(
             args.vaultId,
@@ -2778,7 +2782,7 @@ export default async function plugin(bb: BbPluginApi) {
             args.positionals[1],
           );
           warning =
-            "Deprecated: direct Docs mutations will be removed; use bb docs pull, edit local files, then bb docs push.";
+            "Deprecated: direct Docs mutations will be removed; use patcher docs pull, edit local files, then patcher docs push.";
         } else if (args.command === "remove") {
           result = await removePath(
             args.vaultId,
@@ -2786,7 +2790,7 @@ export default async function plugin(bb: BbPluginApi) {
             args.recursive,
           );
           warning =
-            "Deprecated: direct Docs mutations will be removed; use bb docs pull, edit local files, then bb docs push --delete.";
+            "Deprecated: direct Docs mutations will be removed; use patcher docs pull, edit local files, then patcher docs push --delete.";
         } else {
           return {
             exitCode: 2,
@@ -2832,7 +2836,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.ui.registerMentionProvider({
+  patcher.ui.registerMentionProvider({
     id: "note",
     label: "Docs",
     async search({ query }) {
@@ -2870,7 +2874,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.background.service("watch-vaults", {
+  patcher.background.service("watch-vaults", {
     async start(signal) {
       const watchers = new Map<string, FSWatcher>();
       const retryNative = new Set<string>();
@@ -2894,7 +2898,7 @@ export default async function plugin(bb: BbPluginApi) {
               const watcher = watch(vault.rootPath, { recursive: true }, () => {
                 if (debounce) clearTimeout(debounce);
                 debounce = setTimeout(() => {
-                  bb.realtime.publish("vault-changed", {
+                  patcher.realtime.publish("vault-changed", {
                     vaultId: vault.id,
                   });
                 }, 250);
@@ -2908,7 +2912,7 @@ export default async function plugin(bb: BbPluginApi) {
               retryNative.delete(vault.id);
             } catch (error) {
               if (!retryNative.has(vault.id)) {
-                bb.log.warn(
+                patcher.log.warn(
                   `cannot watch ${vault.rootPath}; using polling: ${error instanceof Error ? error.message : String(error)}`,
                 );
               }
@@ -2939,7 +2943,7 @@ export default async function plugin(bb: BbPluginApi) {
           }
           const next = snapshots.join("\n");
           if (previous && previous !== next) {
-            bb.realtime.publish("vault-changed", {});
+            patcher.realtime.publish("vault-changed", {});
           }
           previous = next;
           await waitForDelay(10_000, signal);

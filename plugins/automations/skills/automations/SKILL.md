@@ -1,6 +1,6 @@
 ---
 name: automations
-description: Create and manage bb automations from the first-party automations plugin. Use when scheduling recurring or one-shot agent/script work with bb automation commands.
+description: Create and manage Patcher automations from the first-party automations plugin. Use when scheduling recurring or one-shot agent/script work with patcher automation commands.
 ---
 
 # Automations
@@ -10,13 +10,13 @@ An automation is a scheduled task. When due it runs in one of two modes:
 agent Spawn a thread or re-prompt a target thread with a configured prompt.
 script Run a stored server-side script and capture stdout/stderr/exit.
 
-Use `bb plugin run automations ...` while the kernel `bb automation` command still exists; once the kernel command is removed, `bb automation ...` will route to this plugin command.
+Use `patcher plugin run automations ...` while the kernel `patcher automation` command still exists; once the kernel command is removed, `patcher automation ...` will route to this plugin command.
 
 Pass `--project` explicitly for every automation command. Inside a thread, automations are stamped origin `agent` and record the creating thread automatically. Automation-spawned threads cannot create automations.
 
 Choosing a mode:
 
-Use `script` when the output is fully determined by code: watchdogs, threshold alerts, health checks, heartbeats, and API pollers with a fixed output shape. Scripts run on the bb server, with cwd inside the plugin data directory's `scripts/` area. Script automations do not have an environment field and do not accept environment flags.
+Use `script` when the output is fully determined by code: watchdogs, threshold alerts, health checks, heartbeats, and API pollers with a fixed output shape. Scripts run on the Patcher server, with cwd inside the plugin data directory's `scripts/` area. Script automations do not have an environment field and do not accept environment flags.
 
 Design the script to print nothing when there is nothing to report: an exit-0 run with empty stdout/stderr, or a last non-empty line of `{"wakeAgent": false}`, is recorded as a skipped silent tick. Any other output is captured; non-zero exit or timeout is recorded as a failed run.
 
@@ -25,7 +25,7 @@ Use `agent` when the run needs reasoning: summarize a feed, pick interesting ite
 Creating:
 
 ```bash
-bb plugin run automations create --project <id> --name "..." [schedule flags] [mode flags]
+patcher plugin run automations create --project <id> --name "..." [schedule flags] [mode flags]
 ```
 
 Schedule flags:
@@ -67,28 +67,28 @@ Script mode flags:
 Script environment variables:
 
 ```text
-BB_SERVER_URL          The bb server API base URL
-BB_PROJECT_ID          The automation's project
-BB_AUTOMATION_ID       The automation id
-BB_AUTOMATION_RUN_ID   This run id
-BB_CLI                 Absolute path to the bb CLI, when it could be resolved
+PATCHER_SERVER_URL          The Patcher server API base URL
+PATCHER_PROJECT_ID          The automation's project
+PATCHER_AUTOMATION_ID       The automation id
+PATCHER_AUTOMATION_RUN_ID   This run id
+PATCHER_CLI                 Absolute path to the Patcher CLI, when it could be resolved
 ```
 
-`BB_ENVIRONMENT_ID` and `BB_HOST_DAEMON_PORT` are intentionally not injected by the plugin. The plugin resolves `bb` and prepends its directory to `PATH` so scripts can call the CLI. It looks at `BB_CLI`, then `BB_CLI_DIR`, then `PATH`, then the common macOS install paths.
+`PATCHER_ENVIRONMENT_ID` and `PATCHER_HOST_DAEMON_PORT` are intentionally not injected by the plugin. The plugin resolves `patcher` and prepends its directory to `PATH` so scripts can call the CLI. It looks at `PATCHER_CLI`, then `PATCHER_CLI_DIR`, then `PATH`, then the common macOS install paths.
 
-If `bb` cannot be found, the script still runs. The run output starts with a `[bb] warning:` line, and a script that calls `bb` fails on that line rather than before its first line.
+If `patcher` cannot be found, the script still runs. The run output starts with a `[Patcher] warning:` line, and a script that calls `patcher` fails on that line rather than before its first line.
 
 Managing:
 
 ```bash
-bb plugin run automations list --project <id>
-bb plugin run automations show <automationId> --project <id>
-bb plugin run automations update <automationId> --project <id> [--name <name>] [schedule flags] [complete execution flags | partial agent update flags]
-bb plugin run automations pause <automationId> --project <id>
-bb plugin run automations resume <automationId> --project <id>
-bb plugin run automations run <automationId> --project <id> [--idempotency-key <key>]
-bb plugin run automations runs <automationId> --project <id> [--limit <count>] [--output <runId>]
-bb plugin run automations delete <automationId> --project <id> --yes
+patcher plugin run automations list --project <id>
+patcher plugin run automations show <automationId> --project <id>
+patcher plugin run automations update <automationId> --project <id> [--name <name>] [schedule flags] [complete execution flags | partial agent update flags]
+patcher plugin run automations pause <automationId> --project <id>
+patcher plugin run automations resume <automationId> --project <id>
+patcher plugin run automations run <automationId> --project <id> [--idempotency-key <key>]
+patcher plugin run automations runs <automationId> --project <id> [--limit <count>] [--output <runId>]
+patcher plugin run automations delete <automationId> --project <id> --yes
 ```
 
 Choose one of two execution update forms:
@@ -104,11 +104,11 @@ Choose one of two execution update forms:
   target:
 
 ```bash
-bb plugin run automations update <automationId> --project <id> \
+patcher plugin run automations update <automationId> --project <id> \
   --environment <environment-id-or-path>
-bb plugin run automations update <automationId> --project <id> \
+patcher plugin run automations update <automationId> --project <id> \
   --target-thread <thread-id>
-bb plugin run automations update <automationId> --project <id> \
+patcher plugin run automations update <automationId> --project <id> \
   --new-environment worktree [--base-branch <branch>]
 ```
 

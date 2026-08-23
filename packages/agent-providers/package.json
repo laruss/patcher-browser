@@ -1,5 +1,5 @@
 {
-  "name": "@bb/agent-providers",
+  "name": "@patcher/agent-providers",
   "version": "0.0.1",
   "type": "module",
   "exports": {
@@ -16,11 +16,11 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/domain": "workspace:*",
+    "@patcher/domain": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "typescript": "^6.0.2",
     "typescript-7": "npm:typescript@^7.0.2",
     "vitest": "^4.1.1"

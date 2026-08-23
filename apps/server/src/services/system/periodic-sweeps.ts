@@ -25,7 +25,7 @@ import {
   sweepManagedEnvironments,
   threads,
   truncateCompletedEventItemOutputs,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   AppDeps,
   LoggedPendingInteractionWorkSessionDeps,

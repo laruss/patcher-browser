@@ -1,6 +1,9 @@
 import { WebSocket as NodeWsWebSocket, type RawData } from "ws";
 import { wrapStandardWebsocket } from "./realtime-client.js";
-import type { BbRealtimeSocket, BbRealtimeSocketFactory } from "./transport.js";
+import type {
+  PatcherRealtimeSocket,
+  PatcherRealtimeSocketFactory,
+} from "./transport.js";
 
 function decodeWsMessageData(data: RawData): string {
   if (typeof data === "string") {
@@ -24,9 +27,9 @@ function decodeWsMessageData(data: RawData): string {
 export function wrapNodeWsWebsocket(
   url: string,
   options?: { headers?: Readonly<Record<string, string>> },
-): BbRealtimeSocket {
+): PatcherRealtimeSocket {
   const socket = new NodeWsWebSocket(url, options);
-  const adapter: BbRealtimeSocket = {
+  const adapter: PatcherRealtimeSocket = {
     close: () => socket.close(),
     onclose: null,
     onerror: null,
@@ -48,7 +51,7 @@ export function wrapNodeWsWebsocket(
 
 /**
  * Node 22+ ships a global WebSocket; older supported Node versions (20.x)
- * fall back to the `ws` package so bb.subscribe works out of the box everywhere.
+ * fall back to the `ws` package so patcher.subscribe works out of the box everywhere.
  *
  * `headers` forces the `ws` path whatever the runtime: the global WebSocket
  * has no way to set request headers, and a socket that has to say who it is
@@ -56,7 +59,7 @@ export function wrapNodeWsWebsocket(
  */
 export function createNodeWebsocketFactory(options?: {
   headers?: Readonly<Record<string, string>>;
-}): BbRealtimeSocketFactory {
+}): PatcherRealtimeSocketFactory {
   return (url) => {
     if (options?.headers !== undefined) {
       return wrapNodeWsWebsocket(url, { headers: options.headers });

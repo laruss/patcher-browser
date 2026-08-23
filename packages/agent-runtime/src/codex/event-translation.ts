@@ -13,8 +13,8 @@ import type {
   ThreadEventItemStatus,
   ThreadEventTurnStatus,
   ThreadEventUserContent,
-} from "@bb/domain";
-import { threadScope, turnScope } from "@bb/domain";
+} from "@patcher/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import { toOptionalRecord } from "../shared/adapter-utils.js";
 import { createUnhandledProviderEvent } from "../shared/provider-unhandled-event.js";
 import { UNSTAMPED_THREAD_ID } from "../shared/unstamped-thread-id.js";

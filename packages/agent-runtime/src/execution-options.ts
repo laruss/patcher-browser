@@ -8,7 +8,7 @@ import type {
   AgentRuntimeSkillRoot,
 } from "./types.js";
 import type { ProviderExecutionContext } from "./provider-adapter.js";
-import { DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG } from "@bb/domain";
+import { DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG } from "@patcher/domain";
 import { resolveAdapterPermissionPolicy } from "./shared/permission-policy.js";
 
 interface AssertProviderSupportsExecutionOptionsArgs {

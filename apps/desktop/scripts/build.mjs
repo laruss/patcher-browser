@@ -30,10 +30,10 @@ const desktopReleaseChannel = resolveDesktopReleaseChannel(process.env);
 const commonOptions = {
   bundle: true,
   define: {
-    "process.env.BB_DESKTOP_RELEASE_CHANNEL": JSON.stringify(
+    "process.env.PATCHER_DESKTOP_RELEASE_CHANNEL": JSON.stringify(
       desktopReleaseChannel,
     ),
-    "process.env.BB_DESKTOP_VERSION": JSON.stringify(desktopVersion),
+    "process.env.PATCHER_DESKTOP_VERSION": JSON.stringify(desktopVersion),
   },
   legalComments: "none",
   platform: "node",
@@ -60,7 +60,7 @@ await Promise.all([
     ...commonOptions,
     // The preload for browsed pages. Bundled like the others, and with one thing
     // to keep true: it imports only `electron` and type-only names, so nothing
-    // from @bb/desktop-contract (zod included) ends up in a website's renderer.
+    // from @patcher/desktop-contract (zod included) ends up in a website's renderer.
     entryPoints: [resolve(packageRoot, "src", "page-script-preload.ts")],
     external: ["electron"],
     format: "cjs",
@@ -98,11 +98,11 @@ await Promise.all([
   }),
   build({
     ...commonOptions,
-    entryPoints: [resolve(packageRoot, "src", "bb-app-bridge.ts")],
-    external: ["bb-app", "bb-app/*"],
+    entryPoints: [resolve(packageRoot, "src", "patcher-app-bridge.ts")],
+    external: ["patcher-app", "patcher-app/*"],
     format: "esm",
-    outfile: resolve(distDir, "bb-app-bridge.mjs"),
+    outfile: resolve(distDir, "patcher-app-bridge.mjs"),
   }),
 ]);
 
-process.stdout.write("@bb/desktop: built Electron entries\n");
+process.stdout.write("@patcher/desktop: built Electron entries\n");

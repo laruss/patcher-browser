@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginCliContext,
   PluginCliResult,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { z } from "zod";
 import type { AutomationService } from "./service.js";
 import type {
@@ -240,9 +240,9 @@ function looksLikePath(value: string): boolean {
 }
 
 async function resolveConnectedHostId(
-  bb: Pick<BbPluginApi, "sdk">,
+  patcher: Pick<PatcherPluginApi, "sdk">,
 ): Promise<string> {
-  const hosts = hostListSchema.parse(await bb.sdk.hosts.list());
+  const hosts = hostListSchema.parse(await patcher.sdk.hosts.list());
   const host =
     hosts.find((candidate) => candidate.connected === true) ??
     hosts.find((candidate) => candidate.status === "connected") ??
@@ -252,7 +252,7 @@ async function resolveConnectedHostId(
 }
 
 async function buildAgentEnvironment(
-  bb: Pick<BbPluginApi, "sdk">,
+  patcher: Pick<PatcherPluginApi, "sdk">,
   args: ParsedArgs,
 ): Promise<AgentEnvironment> {
   const environment = flag(args, "environment")?.trim();
@@ -269,7 +269,7 @@ async function buildAgentEnvironment(
     }
     return {
       type: "host",
-      hostId: await resolveConnectedHostId(bb),
+      hostId: await resolveConnectedHostId(patcher),
       workspace: {
         type: "managed-worktree",
         baseBranch: baseBranch
@@ -282,7 +282,7 @@ async function buildAgentEnvironment(
   if (looksLikePath(environment)) {
     return {
       type: "host",
-      hostId: await resolveConnectedHostId(bb),
+      hostId: await resolveConnectedHostId(patcher),
       workspace: { type: "unmanaged", path: environment },
     };
   }
@@ -290,7 +290,7 @@ async function buildAgentEnvironment(
 }
 
 async function buildExecution(
-  bb: Pick<BbPluginApi, "sdk">,
+  patcher: Pick<PatcherPluginApi, "sdk">,
   args: ParsedArgs,
 ): Promise<ResolvedCreateAutomationInput["execution"]> {
   const prompt = flag(args, "prompt");
@@ -327,14 +327,14 @@ async function buildExecution(
       );
     }
     validateAgentTargetOptions(args);
-    const environment = await buildAgentEnvironment(bb, args);
+    const environment = await buildAgentEnvironment(patcher, args);
     return {
       mode: "agent",
       prompt,
       providerId: provider,
       model,
       permissionMode: await resolvePermissionMode(
-        bb,
+        patcher,
         provider,
         parsePermissionMode(flag(args, "permission-mode")),
         providerRoutingForEnvironment(environment),
@@ -388,7 +388,7 @@ const COMPLETE_EXECUTION_FLAG_NAMES = [
 ] as const;
 
 async function buildAgentExecutionUpdate(
-  bb: Pick<BbPluginApi, "sdk">,
+  patcher: Pick<PatcherPluginApi, "sdk">,
   args: ParsedArgs,
 ): Promise<AgentExecutionUpdate | undefined> {
   const agentOptionNames = [
@@ -420,14 +420,14 @@ async function buildAgentExecutionUpdate(
   ) {
     update.target = {
       type: "environment",
-      environment: await buildAgentEnvironment(bb, args),
+      environment: await buildAgentEnvironment(patcher, args),
     };
   }
   return update;
 }
 
 async function buildUpdateRequest(
-  bb: Pick<BbPluginApi, "sdk">,
+  patcher: Pick<PatcherPluginApi, "sdk">,
   args: ParsedArgs,
 ): Promise<UpdateAutomationInput> {
   const projectId = requireFlag(args, "project");
@@ -445,9 +445,9 @@ async function buildUpdateRequest(
     request.trigger = buildTrigger(args);
   }
   if (COMPLETE_EXECUTION_FLAG_NAMES.some((name) => args.flags.has(name))) {
-    request.execution = await buildExecution(bb, args);
+    request.execution = await buildExecution(patcher, args);
   } else {
-    const agentUpdate = await buildAgentExecutionUpdate(bb, args);
+    const agentUpdate = await buildAgentExecutionUpdate(patcher, args);
     if (agentUpdate !== undefined) {
       request.agent = agentUpdate;
     }
@@ -537,75 +537,78 @@ function printRunTable(runs: AutomationRunResponse[]): string {
 function helpText(): string {
   return `Automation commands
 
-bb automation list --project <id>
-bb automation create --project <id> --name <name> (--cron <expr> --timezone <tz> | --at <datetime> | --in <duration>) (--prompt <text> --provider <id> --model <model> | --script <inline> | --script-file <path>)
-bb automation show <automationId> --project <id>
-bb automation update <automationId> --project <id> [--name <name>] [schedule flags] [complete agent/script execution flags | partial agent update flags]
-bb automation pause <automationId> --project <id>
-bb automation resume <automationId> --project <id>
-bb automation run <automationId> --project <id> [--idempotency-key <key>]
-bb automation runs <automationId> --project <id> [--limit <count>] [--output <runId>]
-bb automation delete <automationId> --project <id> --yes
+patcher automation list --project <id>
+patcher automation create --project <id> --name <name> (--cron <expr> --timezone <tz> | --at <datetime> | --in <duration>) (--prompt <text> --provider <id> --model <model> | --script <inline> | --script-file <path>)
+patcher automation show <automationId> --project <id>
+patcher automation update <automationId> --project <id> [--name <name>] [schedule flags] [complete agent/script execution flags | partial agent update flags]
+patcher automation pause <automationId> --project <id>
+patcher automation resume <automationId> --project <id>
+patcher automation run <automationId> --project <id> [--idempotency-key <key>]
+patcher automation runs <automationId> --project <id> [--limit <count>] [--output <runId>]
+patcher automation delete <automationId> --project <id> --yes
 `;
 }
 
 export function registerAutomationCli(args: {
-  bb: Pick<BbPluginApi, "cli" | "sdk">;
+  patcher: Pick<PatcherPluginApi, "cli" | "sdk">;
   service: AutomationService;
 }): void {
-  const { bb, service } = args;
-  bb.cli.register({
+  const { patcher, service } = args;
+  patcher.cli.register({
     name: "automation",
     summary: "Inspect and manage automations (scheduled agent/script runs)",
     commands: [
       {
         name: "list",
         summary: "List automations for a project",
-        usage: "bb automation list --project <id> [--json]",
+        usage: "patcher automation list --project <id> [--json]",
       },
       {
         name: "create",
         summary: "Create an automation",
         usage:
-          "bb automation create --project <id> --name <name> [schedule flags] [mode flags]",
+          "patcher automation create --project <id> --name <name> [schedule flags] [mode flags]",
       },
       {
         name: "show",
         summary: "Show automation details",
-        usage: "bb automation show <automationId> --project <id> [--json]",
+        usage: "patcher automation show <automationId> --project <id> [--json]",
       },
       {
         name: "update",
         summary: "Update automation configuration",
-        usage: "bb automation update <automationId> --project <id> [flags]",
+        usage:
+          "patcher automation update <automationId> --project <id> [flags]",
       },
       {
         name: "pause",
         summary: "Pause an automation",
-        usage: "bb automation pause <automationId> --project <id> [--json]",
+        usage:
+          "patcher automation pause <automationId> --project <id> [--json]",
       },
       {
         name: "resume",
         summary: "Resume an automation",
-        usage: "bb automation resume <automationId> --project <id> [--json]",
+        usage:
+          "patcher automation resume <automationId> --project <id> [--json]",
       },
       {
         name: "run",
         summary: "Run an automation now",
         usage:
-          "bb automation run <automationId> --project <id> [--idempotency-key <key>] [--json]",
+          "patcher automation run <automationId> --project <id> [--idempotency-key <key>] [--json]",
       },
       {
         name: "runs",
         summary: "List automation runs",
         usage:
-          "bb automation runs <automationId> --project <id> [--limit <count>] [--output <runId>] [--json]",
+          "patcher automation runs <automationId> --project <id> [--limit <count>] [--output <runId>] [--json]",
       },
       {
         name: "delete",
         summary: "Delete an automation",
         usage:
-          "bb automation delete <automationId> --project <id> --yes [--json]",
+          "patcher automation delete <automationId> --project <id> --yes [--json]",
       },
     ],
     async run(argv: string[], ctx: PluginCliContext): Promise<PluginCliResult> {
@@ -631,7 +634,7 @@ export function registerAutomationCli(args: {
         }
         if (command === "create") {
           const projectId = requireFlag(parsed, "project");
-          const execution = await buildExecution(bb, parsed);
+          const execution = await buildExecution(patcher, parsed);
           const request: ResolvedCreateAutomationInput = {
             projectId,
             name: requireFlag(parsed, "name"),
@@ -662,7 +665,7 @@ export function registerAutomationCli(args: {
         }
         if (command === "update") {
           const updated = await service.update(
-            await buildUpdateRequest(bb, parsed),
+            await buildUpdateRequest(patcher, parsed),
           );
           const json = optionalJson(parsed, updated);
           return {

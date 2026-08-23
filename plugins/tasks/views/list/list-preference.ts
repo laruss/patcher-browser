@@ -13,12 +13,12 @@ import {
 /**
  * Client-local list filter/sort preferences. Stored in the browser profile so
  * one client (or user profile) does not rewrite another client connected to
- * the same bb server — same boundary as the Tasks sidebar preference.
+ * the same Patcher server — same boundary as the Tasks sidebar preference.
  *
  * Preferences are scoped per list surface so All / Active / each project keep
  * independent restored and cleared state.
  */
-export const LIST_PREFERENCE_STORAGE_KEY = "bb-tasks:list-preferences";
+export const LIST_PREFERENCE_STORAGE_KEY = "patcher-tasks:list-preferences";
 export const LIST_PREFERENCE_VERSION = 1 as const;
 
 export type ListPreferenceScope =

@@ -14,14 +14,14 @@ import {
   type ReasoningLevel,
   type ServiceTier,
   type ThreadRuntimeDisplayStatus,
-} from "@bb/domain";
-import type { TimelineRow } from "@bb/server-contract";
+} from "@patcher/domain";
+import type { TimelineRow } from "@patcher/server-contract";
 import type {
   AttachmentsConfig,
   HistoryConfig,
 } from "@/components/promptbox/PromptBoxInternal";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { BottomAnchoredScrollBody } from "@/components/ui/bottom-anchored-scroll-body";
 import { PageShell } from "@/components/ui/page-shell.js";
 import {

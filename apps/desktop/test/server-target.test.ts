@@ -35,8 +35,8 @@ describe("normalizeCustomServerUrl", () => {
     expect(normalizeCustomServerUrl(" https://example.com/ ")).toBe(
       "https://example.com",
     );
-    expect(normalizeCustomServerUrl("http://10.0.0.5:38886/#x")).toBe(
-      "http://10.0.0.5:38886",
+    expect(normalizeCustomServerUrl("http://10.0.0.5:38986/#x")).toBe(
+      "http://10.0.0.5:38986",
     );
     expect(normalizeCustomServerUrl("")).toBeNull();
     expect(normalizeCustomServerUrl("example.com")).toBeNull();
@@ -57,10 +57,10 @@ describe("server target store", () => {
     const { files, fs } = createMemoryFs();
     const store = createServerTargetStore({ fs, storagePath: "/tmp/t.json" });
     await store.load();
-    await store.setCustomServerUrl("https://example.com:38886");
+    await store.setCustomServerUrl("https://example.com:38986");
     expect(store.getTarget()).toEqual({
       kind: "custom",
-      url: "https://example.com:38886",
+      url: "https://example.com:38986",
     });
 
     const reloaded = createServerTargetStore({
@@ -70,9 +70,9 @@ describe("server target store", () => {
     await reloaded.load();
     expect(reloaded.getTarget()).toEqual({
       kind: "custom",
-      url: "https://example.com:38886",
+      url: "https://example.com:38986",
     });
-    expect(files.get("/tmp/t.json")).toContain("https://example.com:38886");
+    expect(files.get("/tmp/t.json")).toContain("https://example.com:38986");
   });
 
   it("switches back to builtin while keeping the custom URL", async () => {
@@ -115,73 +115,6 @@ describe("server target store", () => {
     expect(reloaded.getTarget()).toEqual({ kind: "builtin" });
   });
 
-  it("selects, persists, and refreshes a connect server target", async () => {
-    const { fs } = createMemoryFs();
-    const store = createServerTargetStore({ fs, storagePath: "/tmp/t.json" });
-    await store.load();
-    expect(await store.setTarget("connect")).toBe(false);
-
-    await store.setConnectServer({
-      handle: "laptop",
-      name: "Laptop",
-      url: "https://laptop.getbb.app",
-    });
-    expect(store.getTarget()).toEqual({
-      kind: "connect",
-      server: {
-        handle: "laptop",
-        name: "Laptop",
-        url: "https://laptop.getbb.app",
-      },
-    });
-
-    // Sync refresh updates the ref by handle without switching the target.
-    expect(await store.setTarget("builtin")).toBe(true);
-    expect(
-      await store.refreshConnectServer({
-        handle: "laptop",
-        name: "Laptop Renamed",
-        url: "https://laptop-new.getbb.app",
-      }),
-    ).toBe(true);
-    expect(
-      await store.refreshConnectServer({
-        handle: "unknown",
-        name: "Nope",
-        url: "https://nope.getbb.app",
-      }),
-    ).toBe(false);
-    expect(store.getTarget()).toEqual({ kind: "builtin" });
-    expect(store.getConnectServer()?.name).toBe("Laptop Renamed");
-
-    const reloaded = createServerTargetStore({
-      fs,
-      storagePath: "/tmp/t.json",
-    });
-    await reloaded.load();
-    expect(reloaded.getTarget()).toEqual({ kind: "builtin" });
-    expect(reloaded.getConnectServer()).toEqual({
-      handle: "laptop",
-      name: "Laptop Renamed",
-      url: "https://laptop-new.getbb.app",
-    });
-  });
-
-  it("keeps a connect target while clearing the custom URL", async () => {
-    const { fs } = createMemoryFs();
-    const store = createServerTargetStore({ fs, storagePath: "/tmp/t.json" });
-    await store.load();
-    await store.setCustomServerUrl("https://example.com");
-    await store.setConnectServer({
-      handle: "laptop",
-      name: "Laptop",
-      url: "https://laptop.getbb.app",
-    });
-    await store.setCustomServerUrl(null);
-    expect(store.getTarget().kind).toBe("connect");
-    expect(store.getCustomServerUrl()).toBeNull();
-  });
-
   it("falls back to builtin when the persisted file is corrupt or dangling", async () => {
     const corrupt = createServerTargetStore({
       fs: createMemoryFs({ "/tmp/t.json": "{not json" }).fs,
@@ -202,7 +135,10 @@ describe("server target store", () => {
     await dangling.load();
     expect(dangling.getTarget()).toEqual({ kind: "builtin" });
 
-    const danglingConnect = createServerTargetStore({
+    // A file left by a build that still had connect targets: the strict
+    // schema rejects it whole, and the fallback is builtin rather than a
+    // dangling target.
+    const retiredTarget = createServerTargetStore({
       fs: createMemoryFs({
         "/tmp/t.json": JSON.stringify({
           connectServer: null,
@@ -212,8 +148,8 @@ describe("server target store", () => {
       }).fs,
       storagePath: "/tmp/t.json",
     });
-    await danglingConnect.load();
-    expect(danglingConnect.getTarget()).toEqual({ kind: "builtin" });
+    await retiredTarget.load();
+    expect(retiredTarget.getTarget()).toEqual({ kind: "builtin" });
 
     const invalidUrl = createServerTargetStore({
       fs: createMemoryFs({

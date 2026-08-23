@@ -1,13 +1,13 @@
-# @bb/db
+# @patcher/db
 
 ## Migration Workflow
 
 Schema changes must be checked in as generated SQL migrations:
 
 ```sh
-bun run --filter @bb/db db:generate
+bun run --filter @patcher/db db:generate
 ```
 
 Review the generated SQL before committing it. `db:push` is intentionally not
 exposed for this package because it mutates the target database directly and can
-hide migration drift in persistent BB data directories.
+hide migration drift in persistent Patcher data directories.

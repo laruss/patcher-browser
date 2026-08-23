@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { BrowserHistoryEntry } from "@bb/server-contract";
+import type { BrowserHistoryEntry } from "@patcher/server-contract";
 import {
   createTestAppHarness,
   type TestAppHarness,

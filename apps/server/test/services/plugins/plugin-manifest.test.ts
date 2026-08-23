@@ -8,7 +8,7 @@ describe("plugin manifest", () => {
   let rootDir: string;
 
   beforeEach(async () => {
-    rootDir = await mkdtemp(join(tmpdir(), "bb-plugin-manifest-"));
+    rootDir = await mkdtemp(join(tmpdir(), "patcher-plugin-manifest-"));
     await writeFile(join(rootDir, "server.ts"), "export default () => {};\n");
   });
 
@@ -16,7 +16,7 @@ describe("plugin manifest", () => {
     await rm(rootDir, { recursive: true, force: true });
   });
 
-  const validBb = {
+  const validPatcher = {
     name: "Contract fixture",
     description: "Plugin manifest contract fixture.",
     branding: { icon: "Zap" },
@@ -24,66 +24,70 @@ describe("plugin manifest", () => {
   };
 
   async function writeManifest(
-    bbPluginSdk?: string,
-    bb: Record<string, unknown> = validBb,
+    patcherPluginSdk?: string,
+    patcher: Record<string, unknown> = validPatcher,
   ): Promise<void> {
     await writeFile(
       join(rootDir, "package.json"),
       JSON.stringify({
-        name: "bb-plugin-contract",
+        name: "patcher-plugin-contract",
         version: "2.3.4",
-        ...(bbPluginSdk === undefined ? {} : { engines: { bbPluginSdk } }),
-        bb,
+        ...(patcherPluginSdk === undefined
+          ? {}
+          : { engines: { patcherPluginSdk } }),
+        patcher,
       }),
     );
   }
 
-  it("accepts a valid engines.bbPluginSdk range", async () => {
+  it("accepts a valid engines.patcherPluginSdk range", async () => {
     await writeManifest("^0.2.0 || >=2.0.0");
-    expect((await readPluginManifest(rootDir)).bbPluginSdkRange).toBe(
+    expect((await readPluginManifest(rootDir)).patcherPluginSdkRange).toBe(
       "^0.2.0 || >=2.0.0",
     );
   });
 
-  it("rejects an invalid engines.bbPluginSdk range clearly", async () => {
+  it("rejects an invalid engines.patcherPluginSdk range clearly", async () => {
     await writeManifest("definitely not semver");
     await expect(readPluginManifest(rootDir)).rejects.toThrow(
-      /engines\.bbPluginSdk.*valid semver range/,
+      /engines\.patcherPluginSdk.*valid semver range/,
     );
   });
 
   it("accepts an absent range as a legacy manifest", async () => {
     await writeManifest();
     expect(
-      (await readPluginManifest(rootDir)).bbPluginSdkRange,
+      (await readPluginManifest(rootDir)).patcherPluginSdkRange,
     ).toBeUndefined();
   });
 
   it.each(["name", "description"] as const)(
-    "requires a non-empty bb.%s string",
+    "requires a non-empty patcher.%s string",
     async (field: "name" | "description") => {
-      const { [field]: _omitted, ...withoutField } = validBb;
+      const { [field]: _omitted, ...withoutField } = validPatcher;
       await writeManifest(undefined, withoutField);
       await expect(readPluginManifest(rootDir)).rejects.toThrow(
-        new RegExp(`bb\\.${field}`),
+        new RegExp(`patcher\\.${field}`),
       );
 
-      await writeManifest(undefined, { ...validBb, [field]: "   " });
+      await writeManifest(undefined, { ...validPatcher, [field]: "   " });
       await expect(readPluginManifest(rootDir)).rejects.toThrow(
-        new RegExp(`bb\\.${field}`),
+        new RegExp(`patcher\\.${field}`),
       );
 
-      await writeManifest(undefined, { ...validBb, [field]: null });
+      await writeManifest(undefined, { ...validPatcher, [field]: null });
       await expect(readPluginManifest(rootDir)).rejects.toThrow(
-        new RegExp(`bb\\.${field}`),
+        new RegExp(`patcher\\.${field}`),
       );
     },
   );
 
   it("requires branding with an icon or light logo", async () => {
     for (const branding of [undefined, null, {}, { icon: "   " }]) {
-      await writeManifest(undefined, { ...validBb, branding });
-      await expect(readPluginManifest(rootDir)).rejects.toThrow(/bb\.branding/);
+      await writeManifest(undefined, { ...validPatcher, branding });
+      await expect(readPluginManifest(rootDir)).rejects.toThrow(
+        /patcher\.branding/,
+      );
     }
   });
 
@@ -91,7 +95,7 @@ describe("plugin manifest", () => {
     await mkdir(join(rootDir, "assets"));
     await writeFile(join(rootDir, "assets", "icon.svg"), "<svg/>");
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { icon: "./assets/icon.svg" },
     });
 
@@ -111,13 +115,13 @@ describe("plugin manifest", () => {
 
   it("requires path-shaped branding.icon to be a readable SVG", async () => {
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { icon: "./missing.svg" },
     });
     await expect(readPluginManifest(rootDir)).rejects.toThrow(/missing file/);
 
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { icon: "./icon.png" },
     });
     await expect(readPluginManifest(rootDir)).rejects.toThrow(
@@ -139,7 +143,7 @@ describe("plugin manifest", () => {
     async (_case, icon, error) => {
       await writeFile(join(rootDir, "icon.svg"), icon);
       await writeManifest(undefined, {
-        ...validBb,
+        ...validPatcher,
         branding: { icon: "./icon.svg" },
       });
 
@@ -149,31 +153,31 @@ describe("plugin manifest", () => {
 
   it("rejects a dark logo without a light logo", async () => {
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { logo: { dark: "./dark.svg" } },
     });
     await expect(readPluginManifest(rootDir)).rejects.toThrow(
-      /bb\.branding\.logo\.light/,
+      /patcher\.branding\.logo\.light/,
     );
   });
 
   it("rejects null and empty branding asset paths", async () => {
     for (const light of [null, "   "]) {
       await writeManifest(undefined, {
-        ...validBb,
+        ...validPatcher,
         branding: { logo: { light } },
       });
       await expect(readPluginManifest(rootDir)).rejects.toThrow(
-        /bb\.branding\.logo\.light/,
+        /patcher\.branding\.logo\.light/,
       );
     }
     for (const dark of [null, "   "]) {
       await writeManifest(undefined, {
-        ...validBb,
+        ...validPatcher,
         branding: { logo: { light: "./light.svg", dark } },
       });
       await expect(readPluginManifest(rootDir)).rejects.toThrow(
-        /bb\.branding\.logo\.dark/,
+        /patcher\.branding\.logo\.dark/,
       );
     }
   });
@@ -184,9 +188,9 @@ describe("plugin manifest", () => {
     ["logo", "./logo.svg"],
     ["logoDark", "./logo-dark.svg"],
   ])(
-    "rejects the legacy bb.%s field instead of ignoring it",
+    "rejects the legacy patcher.%s field instead of ignoring it",
     async (field, value) => {
-      await writeManifest(undefined, { ...validBb, [field]: value });
+      await writeManifest(undefined, { ...validPatcher, [field]: value });
       await expect(readPluginManifest(rootDir)).rejects.toThrow(
         /unrecognized key/i,
       );
@@ -195,14 +199,14 @@ describe("plugin manifest", () => {
 
   it("requires declared logo assets to be supported files", async () => {
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { logo: { light: "./missing.svg" } },
     });
     await expect(readPluginManifest(rootDir)).rejects.toThrow(/missing file/);
 
     await mkdir(join(rootDir, "directory.svg"));
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { logo: { light: "./directory.svg" } },
     });
     await expect(readPluginManifest(rootDir)).rejects.toThrow(
@@ -210,7 +214,7 @@ describe("plugin manifest", () => {
     );
 
     await writeManifest(undefined, {
-      ...validBb,
+      ...validPatcher,
       branding: { logo: { light: "./logo.gif" } },
     });
     await expect(readPluginManifest(rootDir)).rejects.toThrow(
@@ -220,14 +224,14 @@ describe("plugin manifest", () => {
 
   it("rejects a branding asset symlink that escapes the plugin directory", async () => {
     const outsideDir = await mkdtemp(
-      join(tmpdir(), "bb-plugin-branding-outside-"),
+      join(tmpdir(), "patcher-plugin-branding-outside-"),
     );
     try {
       const outsideAsset = join(outsideDir, "outside.svg");
       await writeFile(outsideAsset, "<svg/>");
       await symlink(outsideAsset, join(rootDir, "linked.svg"));
       await writeManifest(undefined, {
-        ...validBb,
+        ...validPatcher,
         branding: { logo: { light: "./linked.svg" } },
       });
       await expect(readPluginManifest(rootDir)).rejects.toThrow(

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import type { BbDesktopApi, BbDesktopInfo } from "@bb/desktop-contract";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import type {
+  PatcherDesktopApi,
+  PatcherDesktopInfo,
+} from "@patcher/desktop-contract";
+import { getPatcherDesktopInfo } from "@/lib/patcher-desktop";
 
 export interface DesktopUpdateInfo {
-  desktopApi: BbDesktopApi | null;
-  desktopInfo: BbDesktopInfo | null;
+  desktopApi: PatcherDesktopApi | null;
+  desktopInfo: PatcherDesktopInfo | null;
   /**
    * Whether this is the desktop shell at all. Known on the first render,
    * unlike `desktopInfo`, which only arrives once the shell answers. Callers
-   * deciding whether bb updates itself must gate on this — gating on
+   * deciding whether patcher updates itself must gate on this — gating on
    * `desktopInfo` would treat the desktop as a web install until then and
    * surface the npm upgrade path that the desktop never uses.
    */
@@ -21,13 +24,17 @@ export interface DesktopUpdateInfo {
  * its info object into React state.
  */
 export function useDesktopUpdateInfo(): DesktopUpdateInfo {
-  // The preload script installs `window.bbDesktop` before this bundle runs, so
+  // The preload script installs `window.patcherDesktop` before this bundle runs, so
   // the bridge is readable on the first render; only its info is asynchronous.
-  const [desktopApi] = useState<BbDesktopApi | null>(() => getBbDesktopInfo());
-  const [desktopInfo, setDesktopInfo] = useState<BbDesktopInfo | null>(null);
+  const [desktopApi] = useState<PatcherDesktopApi | null>(() =>
+    getPatcherDesktopInfo(),
+  );
+  const [desktopInfo, setDesktopInfo] = useState<PatcherDesktopInfo | null>(
+    null,
+  );
 
   useEffect(() => {
-    const api = getBbDesktopInfo();
+    const api = getPatcherDesktopInfo();
     if (api === null) {
       return;
     }

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostDaemonLogger } from "./logger.js";
 import {
@@ -31,7 +31,7 @@ async function createFixture(
     useDefaultInstaller?: boolean;
   } = {},
 ) {
-  const dataDir = await mkdtemp(join(tmpdir(), "bb-self-update-test-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "patcher-self-update-test-"));
   roots.push(dataDir);
   const installTarball = vi.fn(async () => {
     if (args.installFailure) throw args.installFailure;
@@ -46,7 +46,7 @@ async function createFixture(
           args.protocolVersion ?? HOST_DAEMON_PROTOCOL_VERSION + 1,
       });
     }
-    if (url.endsWith("/install/bb-app.tgz")) {
+    if (url.endsWith("/install/patcher-app.tgz")) {
       return new Response("tarball");
     }
     throw new Error(`Unexpected URL: ${url}`);
@@ -92,7 +92,7 @@ describe("protocol self-update", () => {
     expect(test.runProcess).toHaveBeenCalledOnce();
     expect(test.runProcess).toHaveBeenCalledWith(
       "npm",
-      ["install", "-g", expect.stringContaining("bb-app-update-")],
+      ["install", "-g", expect.stringContaining("patcher-app-update-")],
       {
         env: expect.objectContaining({
           PATH: `${dirname(process.execPath)}${delimiter}/usr/bin:/bin`,
@@ -124,7 +124,7 @@ describe("protocol self-update", () => {
   });
 
   it("allows auto-update over loopback HTTP", async () => {
-    const test = await createFixture({ serverUrl: "http://127.0.0.1:38886" });
+    const test = await createFixture({ serverUrl: "http://127.0.0.1:38986" });
     await expect(test.updater.handleProtocolMismatch()).resolves.toBe(
       "updated",
     );

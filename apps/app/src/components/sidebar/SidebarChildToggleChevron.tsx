@@ -1,10 +1,10 @@
-import { Icon } from "@bb/shared-ui/icon";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+import { Icon } from "@patcher/shared-ui/icon";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
 } from "@/components/ui/sidebar-hover-actions.js";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 interface SidebarChildToggleChevronProps {
   isCollapsed: boolean;

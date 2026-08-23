@@ -62,7 +62,7 @@ describe("BrowsePluginsTab", () => {
     expect(
       await screen.findByRole("heading", { name: "Context & knowledge" }),
     ).toBeTruthy();
-    expect(screen.queryByText("BB Official plugins")).toBeNull();
+    expect(screen.queryByText("Patcher Official plugins")).toBeNull();
     const card = await screen.findByTestId("browse-card-memory");
     expect(card.querySelector('[data-icon="Brain"]')).not.toBeNull();
 

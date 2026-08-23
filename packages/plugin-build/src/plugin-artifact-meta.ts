@@ -2,12 +2,12 @@ import {
   derivePluginId,
   PLUGIN_SDK_MAJOR,
   PLUGIN_SDK_VERSION,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export function createPluginArtifactMeta(args: {
   packageName: string;
   pluginVersion: string;
-  bbVersion: string;
+  patcherVersion: string;
 }) {
   return {
     sdkMajor: PLUGIN_SDK_MAJOR,
@@ -16,7 +16,7 @@ export function createPluginArtifactMeta(args: {
     pluginId: derivePluginId(args.packageName),
     pluginVersion: args.pluginVersion,
     builtWith: {
-      bbVersion: args.bbVersion,
+      patcherVersion: args.patcherVersion,
       pluginSdkVersion: PLUGIN_SDK_VERSION,
     },
   } as const;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { resolveAppTabIconName } from "@/lib/app-surface-tabs";
 import {
   isAppSurfaceTab,

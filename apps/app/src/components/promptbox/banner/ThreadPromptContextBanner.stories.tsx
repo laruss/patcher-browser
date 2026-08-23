@@ -3,7 +3,7 @@ import type {
   ThreadPullRequest,
   WorkspaceFileStatus,
   WorkspaceStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   ThreadPromptContextBanner,
   type ContextBannerMergeBaseConfig,
@@ -40,9 +40,7 @@ function PromptStage({
   return (
     <div
       data-promptbox-shell=""
-      className={
-        size === "desktop" ? "min-w-0 flex-1" : "w-[20rem] shrink-0"
-      }
+      className={size === "desktop" ? "min-w-0 flex-1" : "w-[20rem] shrink-0"}
     >
       {children}
     </div>
@@ -91,12 +89,12 @@ const dirtyUncommittedStatus: WorkspaceStatus = {
     deletions: 47,
   },
   branch: {
-    currentBranch: "bb/promptbox-stories",
+    currentBranch: "patcher/promptbox-stories",
     defaultBranch: "main",
   },
   checkout: {
     kind: "branch",
-    branchName: "bb/promptbox-stories",
+    branchName: "patcher/promptbox-stories",
     headSha: null,
   },
   mergeBase: null,
@@ -228,12 +226,12 @@ const dirtyUncommittedManyStatus: WorkspaceStatus = {
     deletions: 312,
   },
   branch: {
-    currentBranch: "bb/promptbox-stories",
+    currentBranch: "patcher/promptbox-stories",
     defaultBranch: "main",
   },
   checkout: {
     kind: "branch",
-    branchName: "bb/promptbox-stories",
+    branchName: "patcher/promptbox-stories",
     headSha: null,
   },
   mergeBase: null,
@@ -251,7 +249,7 @@ const untrackedOnlyStatus: WorkspaceStatus = {
         deletions: 0,
       },
       {
-        path: "apps/app/scripts/dev-bb-worktree.sh",
+        path: "apps/app/scripts/dev-patcher-worktree.sh",
         status: "??",
         insertions: 42,
         deletions: 0,
@@ -261,12 +259,12 @@ const untrackedOnlyStatus: WorkspaceStatus = {
     deletions: 0,
   },
   branch: {
-    currentBranch: "bb/promptbox-stories",
+    currentBranch: "patcher/promptbox-stories",
     defaultBranch: "main",
   },
   checkout: {
     kind: "branch",
-    branchName: "bb/promptbox-stories",
+    branchName: "patcher/promptbox-stories",
     headSha: null,
   },
   mergeBase: null,
@@ -281,12 +279,12 @@ const committedUnmergedStatus: WorkspaceStatus = {
     deletions: 0,
   },
   branch: {
-    currentBranch: "bb/promptbox-stories",
+    currentBranch: "patcher/promptbox-stories",
     defaultBranch: "main",
   },
   checkout: {
     kind: "branch",
-    branchName: "bb/promptbox-stories",
+    branchName: "patcher/promptbox-stories",
     headSha: null,
   },
   mergeBase: {
@@ -377,9 +375,9 @@ function buildPullRequestFixture(
     number: 128,
     title: "Show pull request status in the prompt context banner",
     state: "open",
-    url: "https://github.com/acme/bb/pull/128",
+    url: "https://github.com/acme/patcher/pull/128",
     baseRefName: "main",
-    headRefName: "bb/pr-context-banner",
+    headRefName: "patcher/pr-context-banner",
     updatedAt: "2026-06-16T12:30:00Z",
     checks: {
       state: "failing",

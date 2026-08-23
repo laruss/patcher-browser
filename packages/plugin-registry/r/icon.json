@@ -3,13 +3,13 @@
   "name": "icon",
   "type": "registry:ui",
   "title": "icon",
-  "description": "BB ui \"icon\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"icon\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@hugeicons/core-free-icons",
     "@hugeicons/react"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

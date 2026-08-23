@@ -1,23 +1,23 @@
-// bb-plugin-bookmarks — the Phase 8 chrome surfaces, in the shape they were built
+// patcher-plugin-bookmarks — the Phase 8 chrome surfaces, in the shape they were built
 // for.
 //
-// bb has no bookmarks, deliberately: a plugin can own the whole feature, and
+// Patcher has no bookmarks, deliberately: a plugin can own the whole feature, and
 // building it in the core would have spent the demonstration this repo exists to
 // make. What the core *did* have to provide was somewhere to put a control, since
 // nothing else could — and that is the three surfaces this file uses:
 //
-//   * `bb.browser.registerToolbarItem` — the star in the address bar, which has to
+//   * `patcher.browser.registerToolbarItem` — the star in the address bar, which has to
 //     know whether *this* page is saved before anyone touches it;
-//   * `bb.browser.registerNewTabWidget` — the list, where a browser has nothing
+//   * `patcher.browser.registerNewTabWidget` — the list, where a browser has nothing
 //     else to show;
-//   * `bb.ui.registerCommand` — Cmd+D, a chord bb had never heard of.
+//   * `patcher.ui.registerCommand` — Cmd+D, a chord Patcher had never heard of.
 //
 // Plus two the browser already had: an omnibox provider, so a saved page is
 // findable by typing, and the plugin's own SQLite, so the list survives a restart.
 //
 // See docs/architecture/browser-surface.md for the surfaces and docs/TODO.md for
 // why this is an example rather than a feature.
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 
 interface BookmarkRow {
   url: string;
@@ -26,7 +26,7 @@ interface BookmarkRow {
 }
 
 /**
- * Append-only, as `bb.storage.migrate` requires: the statement's index *is* its
+ * Append-only, as `patcher.storage.migrate` requires: the statement's index *is* its
  * migration id, so an edit to a shipped line would be a migration that never
  * runs on an install that already has it.
  */
@@ -46,7 +46,7 @@ const OMNIBOX_ROWS = 5;
 /**
  * A page worth saving is one the browser can go back to.
  *
- * bb's own screens (`bb:`), a `file:` path and a `data:` blob are all things the
+ * Patcher's own screens (`patcher:`), a `file:` path and a `data:` blob are all things the
  * chord can fire on, and none of them is a bookmark: the new-tab row would be
  * refused by the host anyway (rows are `http`/`https` links), so refusing here
  * keeps the store from holding what the list could never show.
@@ -60,9 +60,9 @@ function isSaveable(url: string): boolean {
   }
 }
 
-export default function plugin(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, MIGRATIONS);
+export default function plugin(patcher: PatcherPluginApi) {
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, MIGRATIONS);
 
   const findOne = db.prepare(`SELECT url FROM bookmarks WHERE url = ?`);
   // The conflict clause is not decoration: two presses in the same tick both read
@@ -109,7 +109,7 @@ export default function plugin(bb: BbPluginApi) {
   // the surface exists, because a star that only fills in after you press it is
   // not a star — and `run` is asked again once it resolves, so a toggle shows its
   // new look without this plugin doing anything else.
-  bb.browser.registerToolbarItem({
+  patcher.browser.registerToolbarItem({
     id: "star",
     title: "Save this page",
     icon: "Star",
@@ -128,7 +128,7 @@ export default function plugin(bb: BbPluginApi) {
 
   // The list, on the screen a fresh tab shows. Rows are links the plugin resolved
   // here, so opening one costs no round trip back into this process.
-  bb.browser.registerNewTabWidget({
+  patcher.browser.registerNewTabWidget({
     id: "saved",
     label: "Bookmarks",
     rows() {
@@ -148,9 +148,9 @@ export default function plugin(bb: BbPluginApi) {
   });
 
   // Cmd+D, the chord every browser uses for this. It is matched after every one of
-  // bb's own bindings, so if bb ever takes Cmd+D this stops firing rather than
+  // Patcher's own bindings, so if Patcher ever takes Cmd+D this stops firing rather than
   // shadowing the browser — Settings → Keyboard says so outright.
-  bb.ui.registerCommand({
+  patcher.ui.registerCommand({
     id: "toggle",
     title: "Bookmark this page",
     shortcut: { key: "d", mod: true },
@@ -161,8 +161,8 @@ export default function plugin(bb: BbPluginApi) {
       let url: string;
       let title: string | null;
       try {
-        url = await bb.browser.page.getUrl();
-        title = await bb.browser.page.getTitle();
+        url = await patcher.browser.page.getUrl();
+        title = await patcher.browser.page.getTitle();
       } catch {
         // No browser tab to read — the chord fired on an agent screen, or the
         // desktop app is not running. Nothing to bookmark and nothing to report.
@@ -175,7 +175,7 @@ export default function plugin(bb: BbPluginApi) {
   // Typing finds what was saved. A `navigate` action rather than a `run` one: the
   // row already knows where it goes, so picking it is navigation and this plugin
   // is never called back.
-  bb.browser.registerOmniboxProvider({
+  patcher.browser.registerOmniboxProvider({
     id: "bookmarks",
     label: "Bookmarks",
     suggest(context) {

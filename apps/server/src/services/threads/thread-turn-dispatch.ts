@@ -6,9 +6,9 @@ import type {
   SystemMessageSubject,
   Thread,
   ThreadTurnInitiator,
-} from "@bb/domain";
-import { createThreadProvisioningId } from "@bb/db";
-import type { DbTransaction } from "@bb/db";
+} from "@patcher/domain";
+import { createThreadProvisioningId } from "@patcher/db";
+import type { DbTransaction } from "@patcher/db";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import {

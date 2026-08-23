@@ -31,7 +31,7 @@ export function createBrowserPdfTextExtractor(args: {
         // Named for the Activity Monitor row it becomes, and silenced because
         // a parser's chatter about a malformed document is the page's content
         // talking, not ours.
-        serviceName: "bb-pdf-text",
+        serviceName: "patcher-pdf-text",
         stdio: "ignore",
       });
 

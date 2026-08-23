@@ -1,4 +1,4 @@
-// bb-plugin-side-chat frontend — the plugin-owned side chat surface.
+// patcher-plugin-side-chat frontend — the plugin-owned side chat surface.
 //
 // "Reply in side chat" (message action bar + selection menu) asks the backend
 // for an idle hidden fork, then opens a thread panel tab rendering the fork
@@ -7,7 +7,7 @@
 // messages.
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   definePluginApp,
   Markdown,
@@ -17,7 +17,7 @@ import {
   type PluginThreadPanelActionContext,
   type PluginThreadPanelProps,
   type ThreadChatMessageAction,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import type { sideChatRpcContract } from "./server.js";
 
 const PLUGIN_ID = "side-chat";

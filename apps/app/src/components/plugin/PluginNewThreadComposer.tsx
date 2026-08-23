@@ -1,9 +1,9 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import type { NewThreadComposerProps, NewThreadRequest } from "@bb/plugin-sdk";
-import type { CreateExecutionInputSources } from "@bb/server-contract";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import type { NewThreadComposerProps, NewThreadRequest } from "@patcher/plugin-sdk";
+import type { CreateExecutionInputSources } from "@patcher/server-contract";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { NewThreadPromptBox } from "@/components/promptbox/NewThreadPromptBox";
 import { withAutomationPromptAction } from "@/components/promptbox/PromptBoxActionsMenu";
 import { buildProviderPromptActionProps } from "@/components/promptbox/mentions/command-trigger";
@@ -72,7 +72,7 @@ import {
  * docs/api_to_audit.md.
  *
  * The composer resolves selections and hands them to `onSubmit`; the PLUGIN
- * performs the creation through `bb.sdk.threads.spawn`, which is what keeps
+ * performs the creation through `patcher.sdk.threads.spawn`, which is what keeps
  * `origin: "plugin"` + `originPluginId` attribution correct.
  */
 export function PluginNewThreadComposer({
@@ -769,7 +769,7 @@ export function PluginNewThreadComposer({
         isSubmitting={isSubmitting}
         disabled={isSubmitDisabled}
         placeholder={placeholder}
-        zenModeStorageKey={`bb.promptbox.zen-mode.plugin-new-thread.${
+        zenModeStorageKey={`patcher.promptbox.zen-mode.plugin-new-thread.${
           draftKey ?? pluginId ?? "default"
         }`}
         history={{

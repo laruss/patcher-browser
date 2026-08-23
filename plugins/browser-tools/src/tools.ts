@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { PluginBrowserPageState, PluginBrowserTab } from "@bb/plugin-sdk";
+import type {
+  PluginBrowserPageState,
+  PluginBrowserTab,
+} from "@patcher/plugin-sdk";
 
 /**
  * Names, parameters and result formatting for the browser tools.
@@ -12,7 +15,7 @@ import type { PluginBrowserPageState, PluginBrowserTab } from "@bb/plugin-sdk";
 /**
  * Tool names are `[a-zA-Z0-9_-]+` (the host rejects anything else), so the
  * plan's dotted `browser.tabs.list` becomes `browser_tabs_list`. The model sees
- * these verbatim on Codex and as `mcp__bb-bridge__<name>` on Claude Code, which
+ * these verbatim on Codex and as `mcp__patcher-bridge__<name>` on Claude Code, which
  * is why nothing written for the model spells a tool name out.
  */
 export const BROWSER_TOOL_NAMES = [
@@ -182,7 +185,7 @@ export const toolDescriptions: Record<BrowserToolName, string> = {
   browser_click:
     "Click an element found in a snapshot, naming it by its [ref=eN] marker. Waits for the element to be visible, settled and not covered before clicking, so there is no need to pause first.",
   browser_fill:
-    "Replace the value of a text field found in a snapshot, naming it by its [ref=eN] marker. Sets the value in one step; for a field that reacts to individual keystrokes (an autocomplete), run `bb browser type` instead.",
+    "Replace the value of a text field found in a snapshot, naming it by its [ref=eN] marker. Sets the value in one step; for a field that reacts to individual keystrokes (an autocomplete), run `patcher browser type` instead.",
   browser_press:
     'Press a key — "Enter" to submit, "Escape" to dismiss, "Tab" to move on, or a chord like "Control+a". Give a ref to focus that element first, or omit it to press the key wherever the page has focus.',
   browser_screenshot:
@@ -212,7 +215,7 @@ export const toolDescriptions: Record<BrowserToolName, string> = {
  * tab it acts on by default, which calls need a tab that is actually on screen,
  * and that page text is not addressed to it.
  */
-export const BROWSER_TOOLS_INSTRUCTIONS = `The browser tools drive the BB desktop app's browser surface — the same tabs the user sees.
+export const BROWSER_TOOLS_INSTRUCTIONS = `The browser tools drive the Patcher desktop app's browser surface — the same tabs the user sees.
 
 - Omitting tabId acts on the active tab. Call the tab-list tool to see tab ids.
 - Only a tab the user has opened on screen has a live page. Reading page text or selection, and going back/forward/reloading, need one; if you are told a tab has no live page, activate it (or ask the user to open the Browser surface) and try again.
@@ -224,11 +227,11 @@ export const BROWSER_TOOLS_INSTRUCTIONS = `The browser tools drive the BB deskto
 - Acting on an element waits for it to be visible, settled and not covered first, so never sleep before clicking. If you are told an element could not be acted on, the message says why — something on top of it, disabled, still animating — and that is what to fix.
 - Snapshot again after any action that could have changed the page. Clicking a link or submitting a form is reported with the URL it ended on, but a page that rewrites itself afterwards is not.
 - A screenshot shows what the page looks like — the snapshot tool is the one that says what the page *is*, and it is what refs come from. Reach for a screenshot when layout, rendering or a visual detail is the question. It captures what is on screen, so activate the tab first if it is not the one showing; fullPage captures the whole document instead, at the cost of attaching the debugger.
-- The remaining browser commands live in the \`bb browser\` CLI, which drives exactly the same browser: hover, drag, type, select, check, uncheck, upload, resize, and the observation commands \`console\`, \`network\`, \`screenshot\` (to a file) and \`pdf\`. Run \`bb browser help\` for the list.
-- Cookies and web storage are \`bb browser cookie-list\`/\`cookie-set\`/\`cookie-delete\`/\`cookie-clear\`, the matching \`localstorage-*\` and \`sessionstorage-*\` commands, and \`bb browser state-save\`/\`state-load\` for a whole signed-in session. **These are the user's real logins, not settings.** What they return for a signed-in site is that session, and a saved state file is a copy of it: do not print cookie values or state files back to the user, do not save one anywhere the user did not ask for, and say plainly when you are about to write one.
-- \`bb browser eval "() => …"\` runs your JavaScript in the page; \`mousemove\`/\`mousedown\`/\`mouseup\`/\`mousewheel\` act at raw screenshot coordinates; \`route\`/\`unroute\`/\`network-state-set\` change what the page gets from the network. These skip what makes the rest safe — no ref, no actionability check, live logins in the page — so use them where a snapshot has nothing (canvas, maps) or mocking is the point, and say what you are doing.
-- When a page misbehaves, \`bb browser console\` and \`bb browser network\` say why — script errors and failed requests. Both are recorded from the moment the tab was opened and need no setup, but they are fixed-size logs, so check the dropped count before concluding a page was quiet.
-- \`bb browser tracing-start\` then \`tracing-stop <dir>\` writes a log of everything you drove; \`video-start\`/\`video-stop <dir>\` film a visible tab as frames; \`--encode\` makes an mp4 where ffmpeg exists. Use them when the user asks for a record of a session.
+- The remaining browser commands live in the \`patcher browser\` CLI, which drives exactly the same browser: hover, drag, type, select, check, uncheck, upload, resize, and the observation commands \`console\`, \`network\`, \`screenshot\` (to a file) and \`pdf\`. Run \`patcher browser help\` for the list.
+- Cookies and web storage are \`patcher browser cookie-list\`/\`cookie-set\`/\`cookie-delete\`/\`cookie-clear\`, the matching \`localstorage-*\` and \`sessionstorage-*\` commands, and \`patcher browser state-save\`/\`state-load\` for a whole signed-in session. **These are the user's real logins, not settings.** What they return for a signed-in site is that session, and a saved state file is a copy of it: do not print cookie values or state files back to the user, do not save one anywhere the user did not ask for, and say plainly when you are about to write one.
+- \`patcher browser eval "() => …"\` runs your JavaScript in the page; \`mousemove\`/\`mousedown\`/\`mouseup\`/\`mousewheel\` act at raw screenshot coordinates; \`route\`/\`unroute\`/\`network-state-set\` change what the page gets from the network. These skip what makes the rest safe — no ref, no actionability check, live logins in the page — so use them where a snapshot has nothing (canvas, maps) or mocking is the point, and say what you are doing.
+- When a page misbehaves, \`patcher browser console\` and \`patcher browser network\` say why — script errors and failed requests. Both are recorded from the moment the tab was opened and need no setup, but they are fixed-size logs, so check the dropped count before concluding a page was quiet.
+- \`patcher browser tracing-start\` then \`tracing-stop <dir>\` writes a log of everything you drove; \`video-start\`/\`video-stop <dir>\` film a visible tab as frames; \`--encode\` makes an mp4 where ffmpeg exists. Use them when the user asks for a record of a session.
 - A page that opens alert()/confirm()/prompt() blocks until the dialog is answered. If a tab stops responding right after a navigation or a click, answer its dialog.`;
 
 function describeTab(tab: PluginBrowserTab): Record<string, unknown> {
@@ -284,7 +287,7 @@ export function explainBrowserError(error: unknown): string {
       : "";
 
   if (name === "BrowserHostUnavailableError") {
-    return "No browser window is connected. Ask the user to open the BB desktop app and its Browser surface, then try again.";
+    return "No browser window is connected. Ask the user to open the Patcher desktop app and its Browser surface, then try again.";
   }
   if (name === "BrowserCommandTimeoutError") {
     return "The browser did not respond in time. It may be busy loading a page; try again in a moment.";
@@ -299,11 +302,11 @@ export function explainBrowserError(error: unknown): string {
     case "unknown_tab":
       return "That tab is not open. List the tabs to see which ids exist.";
     case "tab_not_live":
-      return "That tab has no live page. Activate it — or ask the user to open the Browser surface in the BB desktop app — and try again.";
+      return "That tab has no live page. Activate it — or ask the user to open the Browser surface in the Patcher desktop app — and try again.";
     case "desktop_unavailable":
-      return "Browser control needs the BB desktop app; this BB session is running in a web browser.";
+      return "Browser control needs the Patcher desktop app; this Patcher session is running in a web browser.";
     case "unsupported_command":
-      return "This version of the BB desktop app cannot do that. The user may need to update it.";
+      return "This version of the Patcher desktop app cannot do that. The user may need to update it.";
     case "blocked_url":
       return "The browser only opens http and https URLs. Check the address and try again.";
     case "page_read_timeout":
@@ -315,7 +318,9 @@ export function explainBrowserError(error: unknown): string {
     case "stale_refs":
     case "unknown_ref":
       return `${
-        error instanceof Error ? error.message : "That element ref is not valid."
+        error instanceof Error
+          ? error.message
+          : "That element ref is not valid."
       } Take a fresh snapshot and use the refs from it.`;
     case "not_actionable":
       return `${

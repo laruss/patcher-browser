@@ -1,4 +1,4 @@
-import { assertNever } from "@bb/core-ui";
+import { assertNever } from "@patcher/core-ui";
 import type {
   ApprovalPendingInteractionResolution,
   PendingInteraction,
@@ -8,7 +8,7 @@ import type {
   ThreadEventItemApprovalStatus,
   ThreadEventItem,
   UserQuestionPendingInteractionResolution,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
@@ -17,8 +17,8 @@ import {
   turnScope,
   threadScope,
   isPluginPendingInteraction,
-} from "@bb/domain";
-import { getThread, type DbNotifier, type DbTransaction } from "@bb/db";
+} from "@patcher/domain";
+import { getThread, type DbNotifier, type DbTransaction } from "@patcher/db";
 import type { AppDeps } from "../../types.js";
 import {
   appendThreadEvent,

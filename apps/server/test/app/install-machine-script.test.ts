@@ -42,7 +42,7 @@ const SCRIPT_RUN_TIMEOUT_MS = 30_000;
 const createdDirectories: string[] = [];
 
 function createFixture(): { binDir: string; dataDir: string; homeDir: string } {
-  const root = mkdtempSync(join(tmpdir(), "bb-install-script-test-"));
+  const root = mkdtempSync(join(tmpdir(), "patcher-install-script-test-"));
   createdDirectories.push(root);
   const binDir = join(root, "bin");
   const dataDir = join(root, "data");
@@ -67,7 +67,7 @@ function createScriptEnv(
 ): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    BB_DATA_DIR: fixture.dataDir,
+    PATCHER_DATA_DIR: fixture.dataDir,
     HOME: fixture.homeDir,
     PATH: [fixture.binDir, "/usr/bin", "/bin"].join(delimiter),
     ...env,
@@ -116,12 +116,12 @@ const JOIN_ARGS = [
   "--host-id",
   "host-test",
   "--server",
-  "https://machine.getbb.app",
+  "https://machine.patcher.app",
 ];
 
 function writeJoinedState(
   fixture: ReturnType<typeof createFixture>,
-  serverUrl = "https://machine.getbb.app",
+  serverUrl = "https://machine.patcher.app",
   hostId = "host-test",
 ): void {
   writeFileSync(
@@ -134,7 +134,7 @@ function writeJoinedState(
   );
 }
 
-function createEnrollingBbAppScript(args: {
+function createEnrollingPatcherAppScript(args: {
   hostId: string;
   invocationPath?: string;
   statusServerUrl?: string;
@@ -153,7 +153,7 @@ const option = (name) => {
   return index === -1 ? undefined : cliArgs[index + 1];
 };
 ${recordInvocation}
-const dataDir = process.env.BB_DATA_DIR;
+const dataDir = process.env.PATCHER_DATA_DIR;
 const hostId = ${JSON.stringify(args.hostId)};
 const port = Number(option("--host-daemon-port"));
 const serverUrl = option("--server-url");
@@ -179,20 +179,19 @@ process.on("SIGTERM", () => server.close(() => process.exit(0)));
 `;
 }
 
-// Mocks curl to serve the redeem endpoint and answer the bb-app tarball
+// Mocks curl to answer the patcher-app tarball
 // download with the given status; npm records invocations and fabricates a
-// bb-app that enrolls into whatever BB_DATA_DIR the script hands it.
+// patcher-app that enrolls into whatever PATCHER_DATA_DIR the script hands it.
 function writeServerInstallTools(
   fixture: ReturnType<typeof createFixture>,
   artifactStatus: 200 | 404,
 ): void {
   const npmLog = join(fixture.dataDir, "npm.log");
-  const bbAppPath = join(fixture.binDir, "bb-app");
+  const patcherAppPath = join(fixture.binDir, "patcher-app");
   writeExecutable(
     join(fixture.binDir, "curl"),
     `#!/bin/sh
 case "$*" in
-  *redeem-machine*) printf '%s' '{"credential":"bbcm_durable","machineId":"machine-1"}' ;;
   *)
     output=
     while [ "$#" -gt 0 ]; do
@@ -204,30 +203,34 @@ case "$*" in
 esac
 `,
   );
-  const bbAppTemplatePath = join(fixture.dataDir, "bb-app-template");
+  const patcherAppTemplatePath = join(fixture.dataDir, "patcher-app-template");
   writeExecutable(
-    bbAppTemplatePath,
-    createEnrollingBbAppScript({ hostId: "host-test" }),
+    patcherAppTemplatePath,
+    createEnrollingPatcherAppScript({ hostId: "host-test" }),
   );
   writeExecutable(
     join(fixture.binDir, "npm"),
     `#!/bin/sh
 printf '%s\n' "$*" >>"${npmLog}"
-cp "${bbAppTemplatePath}" "${bbAppPath}"
-chmod +x "${bbAppPath}"
+cp "${patcherAppTemplatePath}" "${patcherAppPath}"
+chmod +x "${patcherAppPath}"
 `,
   );
 }
 
-function writeEnrollingBbApp(
+function writeEnrollingPatcherApp(
   fixture: ReturnType<typeof createFixture>,
   invocationPath: string,
   hostId = "host-test",
   statusServerUrl?: string,
 ): void {
   writeExecutable(
-    join(fixture.binDir, "bb-app"),
-    createEnrollingBbAppScript({ hostId, invocationPath, statusServerUrl }),
+    join(fixture.binDir, "patcher-app"),
+    createEnrollingPatcherAppScript({
+      hostId,
+      invocationPath,
+      statusServerUrl,
+    }),
   );
 }
 
@@ -308,167 +311,15 @@ describe("machine install script", () => {
     );
   });
 
-  it("uses bb-app from PATH and passes the launcher join flags verbatim", () => {
-    const fixture = createFixture();
-    const invocationPath = join(fixture.dataDir, "invocation");
-    writeCurlArtifactMock(fixture, 404);
-    writeEnrollingBbApp(fixture, invocationPath);
-    const result = runScript(JOIN_ARGS, fixture, {
-      BB_INSTALL_SKIP_SERVICE: "1",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    const selectedPort = readFileSync(
-      join(fixture.dataDir, "host-daemon-port"),
-      "utf8",
-    ).trim();
-    expect(readFileSync(invocationPath, "utf8").trim().split("\n")).toEqual([
-      "host-daemon",
-      "join",
-      "--auto-update",
-      "--host-daemon-port",
-      selectedPort,
-      "--join-code",
-      "join-secret",
-      "--host-id",
-      "host-test",
-      "--server-url",
-      "https://machine.getbb.app",
-    ]);
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("accepts the daemon's normalized loopback server URL", () => {
-    const fixture = createFixture();
-    const invocationPath = join(fixture.dataDir, "invocation");
-    writeCurlArtifactMock(fixture, 404);
-    writeEnrollingBbApp(
-      fixture,
-      invocationPath,
-      "host-test",
-      "http://127.0.0.1:20101",
-    );
-    const result = runScript(
-      [
-        "--join-code",
-        "join-secret",
-        "--host-id",
-        "host-test",
-        "--server",
-        "http://localhost:20101",
-      ],
-      fixture,
-      { BB_INSTALL_SKIP_SERVICE: "1" },
-    );
-
-    expect(result.status, result.stderr).toBe(0);
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("installs the server tarball even when a same-version bb-app is on PATH", () => {
-    const fixture = createFixture();
-    writeServerInstallTools(fixture, 200);
-    // A stale build with the same version string must not be reused.
-    writeExecutable(join(fixture.binDir, "bb-app"), "#!/bin/sh\nexit 99\n");
-    const result = runScript(JOIN_ARGS, fixture, {
-      BB_INSTALL_SKIP_SERVICE: "1",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    const npmInvocation = readFileSync(
-      join(fixture.dataDir, "npm.log"),
-      "utf8",
-    );
-    expect(npmInvocation).toMatch(/^install -g \/.*bb-app\..*\.tgz$/mu);
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("prefers the server-matched tarball when bb-app is absent", () => {
-    const fixture = createFixture();
-    writeServerInstallTools(fixture, 200);
-    const result = runScript(JOIN_ARGS, fixture, {
-      BB_INSTALL_SKIP_SERVICE: "1",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    const npmInvocation = readFileSync(
-      join(fixture.dataDir, "npm.log"),
-      "utf8",
-    );
-    expect(npmInvocation).toMatch(/^install -g \/.*bb-app\..*\.tgz$/mu);
-    expect(npmInvocation).not.toContain("bb-app\n");
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("falls back to npm only when the server artifact returns 404", () => {
-    const fixture = createFixture();
-    writeServerInstallTools(fixture, 404);
-    const result = runScript(JOIN_ARGS, fixture, {
-      BB_INSTALL_SKIP_SERVICE: "1",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    expect(readFileSync(join(fixture.dataDir, "npm.log"), "utf8")).toBe(
-      "install -g bb-app\n",
-    );
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("defaults the data dir to a per-server directory under ~/.bb-machines", () => {
-    const fixture = createFixture();
-    writeServerInstallTools(fixture, 200);
-    const result = runScript(JOIN_ARGS, fixture, {
-      BB_DATA_DIR: "",
-      BB_INSTALL_SKIP_SERVICE: "1",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    const defaultDataDir = join(
-      fixture.homeDir,
-      ".bb-machines/machine.getbb.app",
-    );
-    expect(
-      JSON.parse(readFileSync(join(defaultDataDir, "auth.json"), "utf8")),
-    ).toMatchObject({ hostId: "host-test" });
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("refuses a data dir enrolled for a different host instead of faking success", () => {
-    const fixture = createFixture();
-    writeCurlArtifactMock(fixture, 404);
-    writeExecutable(join(fixture.binDir, "bb-app"), "#!/bin/sh\nexit 99\n");
-    writeJoinedState(fixture, "https://machine.getbb.app", "host-other");
-    const result = runScript(JOIN_ARGS, fixture, {
-      BB_INSTALL_SKIP_SERVICE: "1",
-    });
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("credentials for a different host");
-    expect(result.stdout).not.toContain("Joined successfully");
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("assigns a different port when the first enrolled-daemon port is occupied", async () => {
-    const occupied = createNetServer();
-    let occupiedByTest = false;
-    await new Promise<void>((resolve, reject) => {
-      occupied.once("error", (error) => {
-        const code =
-          typeof error === "object" && error !== null && "code" in error
-            ? error.code
-            : undefined;
-        if (code === "EADDRINUSE") {
-          resolve();
-          return;
-        }
-        reject(error);
-      });
-      occupied.listen(38888, "127.0.0.1", () => {
-        occupiedByTest = true;
-        resolve();
-      });
-    });
-    const fixture = createFixture();
-    const invocationPath = join(fixture.dataDir, "invocation");
-    writeCurlArtifactMock(fixture, 404);
-    writeEnrollingBbApp(fixture, invocationPath);
-
-    try {
+  it(
+    "uses patcher-app from PATH and passes the launcher join flags verbatim",
+    () => {
+      const fixture = createFixture();
+      const invocationPath = join(fixture.dataDir, "invocation");
+      writeCurlArtifactMock(fixture, 404);
+      writeEnrollingPatcherApp(fixture, invocationPath);
       const result = runScript(JOIN_ARGS, fixture, {
-        BB_INSTALL_SKIP_SERVICE: "1",
+        PATCHER_INSTALL_SKIP_SERVICE: "1",
       });
 
       expect(result.status, result.stderr).toBe(0);
@@ -476,200 +327,391 @@ describe("machine install script", () => {
         join(fixture.dataDir, "host-daemon-port"),
         "utf8",
       ).trim();
-      expect(selectedPort).not.toBe("38888");
-      expect(readFileSync(invocationPath, "utf8")).toContain(
-        `--host-daemon-port\n${selectedPort}\n`,
-      );
-    } finally {
-      if (occupiedByTest) {
-        await new Promise<void>((resolve, reject) => {
-          occupied.close((error) => (error ? reject(error) : resolve()));
-        });
-      }
-    }
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("atomically reserves different ports for concurrent custom data directories", async () => {
-    const fixture = createFixture();
-    const firstDataDir = join(fixture.homeDir, "custom-machine-one");
-    const secondDataDir = join(fixture.homeDir, "custom-machine-two");
-    mkdirSync(firstDataDir, { recursive: true });
-    mkdirSync(secondDataDir, { recursive: true });
-    const firstFixture = { ...fixture, dataDir: firstDataDir };
-    const secondFixture = { ...fixture, dataDir: secondDataDir };
-    writeJoinedState(firstFixture);
-    writeJoinedState(secondFixture);
-    writeCurlArtifactMock(fixture, 404);
-    writeExecutable(join(fixture.binDir, "bb-app"), "#!/bin/sh\nexit 99\n");
-
-    const [firstResult, secondResult] = await Promise.all([
-      runScriptAsync(JOIN_ARGS, firstFixture, { BB_INSTALL_SKIP_SERVICE: "1" }),
-      runScriptAsync(JOIN_ARGS, secondFixture, {
-        BB_INSTALL_SKIP_SERVICE: "1",
-      }),
-    ]);
-
-    expect(firstResult.status, firstResult.stderr).toBe(0);
-    expect(secondResult.status, secondResult.stderr).toBe(0);
-    const firstPort = readFileSync(
-      join(firstDataDir, "host-daemon-port"),
-      "utf8",
-    ).trim();
-    const secondPort = readFileSync(
-      join(secondDataDir, "host-daemon-port"),
-      "utf8",
-    ).trim();
-    expect(firstPort).not.toBe(secondPort);
-    const registryDir = join(fixture.homeDir, ".bb-machines/host-daemon-ports");
-    expect(
-      new Set([
-        readFileSync(join(registryDir, firstPort, "data-dir"), "utf8").trim(),
-        readFileSync(join(registryDir, secondPort, "data-dir"), "utf8").trim(),
-      ]),
-    ).toEqual(
-      new Set([realpathSync(firstDataDir), realpathSync(secondDataDir)]),
-    );
-  }, SCRIPT_RUN_TIMEOUT_MS);
-
-  it("redeems and persists a connect machine code before joining through the tunnel", () => {
-    const fixture = createFixture();
-    const invocationPath = join(fixture.dataDir, "invocation");
-    writeServerInstallTools(fixture, 404);
-    writeEnrollingBbApp(fixture, invocationPath);
-    const result = runScript(
-      [
+      expect(readFileSync(invocationPath, "utf8").trim().split("\n")).toEqual([
+        "host-daemon",
+        "join",
+        "--auto-update",
+        "--host-daemon-port",
+        selectedPort,
         "--join-code",
         "join-secret",
         "--host-id",
         "host-test",
-        "--server",
-        "https://sawyer.getbb.app",
-        "--machine-code",
-        "MACH-INE1",
-      ],
-      fixture,
-      { BB_INSTALL_SKIP_SERVICE: "1" },
-    );
+        "--server-url",
+        "https://machine.patcher.app",
+      ]);
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(readFileSync(invocationPath, "utf8")).not.toContain("bbcm_durable");
-    expect(readFileSync(invocationPath, "utf8")).not.toContain(
-      "--machine-credential",
-    );
-    expect(
-      JSON.parse(readFileSync(join(fixture.dataDir, "config.json"), "utf8")),
-    ).toMatchObject({
-      connectMachineId: "machine-1",
-      machineCredential: "bbcm_durable",
-      serverUrl: "https://sawyer.getbb.app",
-    });
-  }, SCRIPT_RUN_TIMEOUT_MS);
+  it(
+    "accepts the daemon's normalized loopback server URL",
+    () => {
+      const fixture = createFixture();
+      const invocationPath = join(fixture.dataDir, "invocation");
+      writeCurlArtifactMock(fixture, 404);
+      writeEnrollingPatcherApp(
+        fixture,
+        invocationPath,
+        "host-test",
+        "http://127.0.0.1:20101",
+      );
+      const result = runScript(
+        [
+          "--join-code",
+          "join-secret",
+          "--host-id",
+          "host-test",
+          "--server",
+          "http://localhost:20101",
+        ],
+        fixture,
+        { PATCHER_INSTALL_SKIP_SERVICE: "1" },
+      );
 
-  it("installs an idempotent macOS launch agent for joined state", () => {
-    const fixture = createFixture();
-    writeJoinedState(fixture);
-    writeCurlArtifactMock(fixture, 404);
-    writeEnrollingBbApp(fixture, join(fixture.dataDir, "service-invocation"));
-    writeExecutable(join(fixture.binDir, "uname"), "#!/bin/sh\necho Darwin\n");
-    writeExecutable(
-      join(fixture.binDir, "launchctl"),
-      `#!/bin/sh
+      expect(result.status, result.stderr).toBe(0);
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "installs the server tarball even when a same-version patcher-app is on PATH",
+    () => {
+      const fixture = createFixture();
+      writeServerInstallTools(fixture, 200);
+      // A stale build with the same version string must not be reused.
+      writeExecutable(
+        join(fixture.binDir, "patcher-app"),
+        "#!/bin/sh\nexit 99\n",
+      );
+      const result = runScript(JOIN_ARGS, fixture, {
+        PATCHER_INSTALL_SKIP_SERVICE: "1",
+      });
+
+      expect(result.status, result.stderr).toBe(0);
+      const npmInvocation = readFileSync(
+        join(fixture.dataDir, "npm.log"),
+        "utf8",
+      );
+      expect(npmInvocation).toMatch(/^install -g \/.*patcher-app\..*\.tgz$/mu);
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "prefers the server-matched tarball when patcher-app is absent",
+    () => {
+      const fixture = createFixture();
+      writeServerInstallTools(fixture, 200);
+      const result = runScript(JOIN_ARGS, fixture, {
+        PATCHER_INSTALL_SKIP_SERVICE: "1",
+      });
+
+      expect(result.status, result.stderr).toBe(0);
+      const npmInvocation = readFileSync(
+        join(fixture.dataDir, "npm.log"),
+        "utf8",
+      );
+      expect(npmInvocation).toMatch(/^install -g \/.*patcher-app\..*\.tgz$/mu);
+      expect(npmInvocation).not.toContain("patcher-app\n");
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "falls back to npm only when the server artifact returns 404",
+    () => {
+      const fixture = createFixture();
+      writeServerInstallTools(fixture, 404);
+      const result = runScript(JOIN_ARGS, fixture, {
+        PATCHER_INSTALL_SKIP_SERVICE: "1",
+      });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(readFileSync(join(fixture.dataDir, "npm.log"), "utf8")).toBe(
+        "install -g patcher-app\n",
+      );
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "defaults the data dir to a per-server directory under ~/.patcher-machines",
+    () => {
+      const fixture = createFixture();
+      writeServerInstallTools(fixture, 200);
+      const result = runScript(JOIN_ARGS, fixture, {
+        PATCHER_DATA_DIR: "",
+        PATCHER_INSTALL_SKIP_SERVICE: "1",
+      });
+
+      expect(result.status, result.stderr).toBe(0);
+      const defaultDataDir = join(
+        fixture.homeDir,
+        ".patcher-machines/machine.patcher.app",
+      );
+      expect(
+        JSON.parse(readFileSync(join(defaultDataDir, "auth.json"), "utf8")),
+      ).toMatchObject({ hostId: "host-test" });
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "refuses a data dir enrolled for a different host instead of faking success",
+    () => {
+      const fixture = createFixture();
+      writeCurlArtifactMock(fixture, 404);
+      writeExecutable(
+        join(fixture.binDir, "patcher-app"),
+        "#!/bin/sh\nexit 99\n",
+      );
+      writeJoinedState(fixture, "https://machine.patcher.app", "host-other");
+      const result = runScript(JOIN_ARGS, fixture, {
+        PATCHER_INSTALL_SKIP_SERVICE: "1",
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("credentials for a different host");
+      expect(result.stdout).not.toContain("Joined successfully");
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "assigns a different port when the first enrolled-daemon port is occupied",
+    async () => {
+      const occupied = createNetServer();
+      let occupiedByTest = false;
+      await new Promise<void>((resolve, reject) => {
+        occupied.once("error", (error) => {
+          const code =
+            typeof error === "object" && error !== null && "code" in error
+              ? error.code
+              : undefined;
+          if (code === "EADDRINUSE") {
+            resolve();
+            return;
+          }
+          reject(error);
+        });
+        // The floor the scan actually starts at. It moved 38888 -> 38988 with
+        // the prod port pair; occupying the old floor made this test pass
+        // without ever exercising the availability probe it exists to cover.
+        occupied.listen(38988, "127.0.0.1", () => {
+          occupiedByTest = true;
+          resolve();
+        });
+      });
+      const fixture = createFixture();
+      const invocationPath = join(fixture.dataDir, "invocation");
+      writeCurlArtifactMock(fixture, 404);
+      writeEnrollingPatcherApp(fixture, invocationPath);
+
+      try {
+        const result = runScript(JOIN_ARGS, fixture, {
+          PATCHER_INSTALL_SKIP_SERVICE: "1",
+        });
+
+        expect(result.status, result.stderr).toBe(0);
+        const selectedPort = readFileSync(
+          join(fixture.dataDir, "host-daemon-port"),
+          "utf8",
+        ).trim();
+        expect(selectedPort).not.toBe("38988");
+        expect(readFileSync(invocationPath, "utf8")).toContain(
+          `--host-daemon-port\n${selectedPort}\n`,
+        );
+      } finally {
+        if (occupiedByTest) {
+          await new Promise<void>((resolve, reject) => {
+            occupied.close((error) => (error ? reject(error) : resolve()));
+          });
+        }
+      }
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "atomically reserves different ports for concurrent custom data directories",
+    async () => {
+      const fixture = createFixture();
+      const firstDataDir = join(fixture.homeDir, "custom-machine-one");
+      const secondDataDir = join(fixture.homeDir, "custom-machine-two");
+      mkdirSync(firstDataDir, { recursive: true });
+      mkdirSync(secondDataDir, { recursive: true });
+      const firstFixture = { ...fixture, dataDir: firstDataDir };
+      const secondFixture = { ...fixture, dataDir: secondDataDir };
+      writeJoinedState(firstFixture);
+      writeJoinedState(secondFixture);
+      writeCurlArtifactMock(fixture, 404);
+      writeExecutable(
+        join(fixture.binDir, "patcher-app"),
+        "#!/bin/sh\nexit 99\n",
+      );
+
+      const [firstResult, secondResult] = await Promise.all([
+        runScriptAsync(JOIN_ARGS, firstFixture, {
+          PATCHER_INSTALL_SKIP_SERVICE: "1",
+        }),
+        runScriptAsync(JOIN_ARGS, secondFixture, {
+          PATCHER_INSTALL_SKIP_SERVICE: "1",
+        }),
+      ]);
+
+      expect(firstResult.status, firstResult.stderr).toBe(0);
+      expect(secondResult.status, secondResult.stderr).toBe(0);
+      const firstPort = readFileSync(
+        join(firstDataDir, "host-daemon-port"),
+        "utf8",
+      ).trim();
+      const secondPort = readFileSync(
+        join(secondDataDir, "host-daemon-port"),
+        "utf8",
+      ).trim();
+      expect(firstPort).not.toBe(secondPort);
+      const registryDir = join(
+        fixture.homeDir,
+        ".patcher-machines/host-daemon-ports",
+      );
+      expect(
+        new Set([
+          readFileSync(join(registryDir, firstPort, "data-dir"), "utf8").trim(),
+          readFileSync(
+            join(registryDir, secondPort, "data-dir"),
+            "utf8",
+          ).trim(),
+        ]),
+      ).toEqual(
+        new Set([realpathSync(firstDataDir), realpathSync(secondDataDir)]),
+      );
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
+
+  it(
+    "installs an idempotent macOS launch agent for joined state",
+    () => {
+      const fixture = createFixture();
+      writeJoinedState(fixture);
+      writeCurlArtifactMock(fixture, 404);
+      writeEnrollingPatcherApp(
+        fixture,
+        join(fixture.dataDir, "service-invocation"),
+      );
+      writeExecutable(
+        join(fixture.binDir, "uname"),
+        "#!/bin/sh\necho Darwin\n",
+      );
+      writeExecutable(
+        join(fixture.binDir, "launchctl"),
+        `#!/bin/sh
 printf '%s\n' "$*" >>"${join(fixture.dataDir, "launchctl.log")}"
 if [ "$1" = kickstart ]; then
   port=$(sed -n '1p' "${join(fixture.dataDir, "host-daemon-port")}")
-  BB_DATA_DIR="${fixture.dataDir}" "${join(fixture.binDir, "bb-app")}" host-daemon --host-daemon-port "$port" --server-url https://machine.getbb.app >/dev/null 2>&1 &
+  PATCHER_DATA_DIR="${fixture.dataDir}" "${join(fixture.binDir, "patcher-app")}" host-daemon --host-daemon-port "$port" --server-url https://machine.patcher.app >/dev/null 2>&1 &
   echo $! >"${join(fixture.dataDir, "service-daemon.pid")}"
 fi
 `,
-    );
+      );
 
-    const result = runScript(
-      [
-        "--join-code",
-        "unused-fresh-code",
-        "--host-id",
-        "host-test",
-        "--server",
-        "https://machine.getbb.app",
-      ],
-      fixture,
-    );
+      const result = runScript(
+        [
+          "--join-code",
+          "unused-fresh-code",
+          "--host-id",
+          "host-test",
+          "--server",
+          "https://machine.patcher.app",
+        ],
+        fixture,
+      );
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("already joined");
-    const plist = readFileSync(
-      join(
-        fixture.homeDir,
-        "Library/LaunchAgents/app.getbb.host-daemon.machine-getbb-app.plist",
-      ),
-      "utf8",
-    );
-    expect(plist).toContain(
-      "<string>app.getbb.host-daemon.machine-getbb-app</string>",
-    );
-    expect(plist).toContain("<string>host-daemon</string>");
-    expect(plist).toContain("<string>--auto-update</string>");
-    const selectedPort = readFileSync(
-      join(fixture.dataDir, "host-daemon-port"),
-      "utf8",
-    ).trim();
-    expect(plist).toContain(
-      `<string>--host-daemon-port</string>\n    <string>${selectedPort}</string>`,
-    );
-    expect(plist).toContain("<string>https://machine.getbb.app</string>");
-    expect(
-      readFileSync(join(fixture.dataDir, "launchctl.log"), "utf8"),
-    ).toContain("bootstrap");
-  }, SCRIPT_RUN_TIMEOUT_MS);
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain("already joined");
+      const plist = readFileSync(
+        join(
+          fixture.homeDir,
+          "Library/LaunchAgents/app.patcher.host-daemon.machine-patcher-app.plist",
+        ),
+        "utf8",
+      );
+      expect(plist).toContain(
+        "<string>app.patcher.host-daemon.machine-patcher-app</string>",
+      );
+      expect(plist).toContain("<string>host-daemon</string>");
+      expect(plist).toContain("<string>--auto-update</string>");
+      const selectedPort = readFileSync(
+        join(fixture.dataDir, "host-daemon-port"),
+        "utf8",
+      ).trim();
+      expect(plist).toContain(
+        `<string>--host-daemon-port</string>\n    <string>${selectedPort}</string>`,
+      );
+      expect(plist).toContain("<string>https://machine.patcher.app</string>");
+      expect(
+        readFileSync(join(fixture.dataDir, "launchctl.log"), "utf8"),
+      ).toContain("bootstrap");
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
 
-  it("restarts an active Linux systemd user unit after replacing it", () => {
-    const fixture = createFixture();
-    writeJoinedState(fixture);
-    writeCurlArtifactMock(fixture, 404);
-    writeEnrollingBbApp(fixture, join(fixture.dataDir, "service-invocation"));
-    writeExecutable(join(fixture.binDir, "uname"), "#!/bin/sh\necho Linux\n");
-    writeExecutable(
-      join(fixture.binDir, "systemctl"),
-      `#!/bin/sh
+  it(
+    "restarts an active Linux systemd user unit after replacing it",
+    () => {
+      const fixture = createFixture();
+      writeJoinedState(fixture);
+      writeCurlArtifactMock(fixture, 404);
+      writeEnrollingPatcherApp(
+        fixture,
+        join(fixture.dataDir, "service-invocation"),
+      );
+      writeExecutable(join(fixture.binDir, "uname"), "#!/bin/sh\necho Linux\n");
+      writeExecutable(
+        join(fixture.binDir, "systemctl"),
+        `#!/bin/sh
 printf '%s\n' "$*" >>"${join(fixture.dataDir, "systemctl.log")}"
-if [ "$*" = "--user restart bb-host-daemon-machine-getbb-app.service" ]; then
+if [ "$*" = "--user restart patcher-host-daemon-machine-patcher-app.service" ]; then
   port=$(sed -n '1p' "${join(fixture.dataDir, "host-daemon-port")}")
-  BB_DATA_DIR="${fixture.dataDir}" "${join(fixture.binDir, "bb-app")}" host-daemon --host-daemon-port "$port" --server-url https://machine.getbb.app >/dev/null 2>&1 &
+  PATCHER_DATA_DIR="${fixture.dataDir}" "${join(fixture.binDir, "patcher-app")}" host-daemon --host-daemon-port "$port" --server-url https://machine.patcher.app >/dev/null 2>&1 &
   echo $! >"${join(fixture.dataDir, "service-daemon.pid")}"
 fi
 `,
-    );
+      );
 
-    const result = runScript(
-      [
-        "--join-code",
-        "unused-fresh-code",
-        "--host-id",
-        "host-test",
-        "--server",
-        "https://machine.getbb.app",
-      ],
-      fixture,
-    );
+      const result = runScript(
+        [
+          "--join-code",
+          "unused-fresh-code",
+          "--host-id",
+          "host-test",
+          "--server",
+          "https://machine.patcher.app",
+        ],
+        fixture,
+      );
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("already joined");
-    const unit = readFileSync(
-      join(
-        fixture.homeDir,
-        ".config/systemd/user/bb-host-daemon-machine-getbb-app.service",
-      ),
-      "utf8",
-    );
-    const selectedPort = readFileSync(
-      join(fixture.dataDir, "host-daemon-port"),
-      "utf8",
-    ).trim();
-    expect(unit).toContain(
-      `host-daemon --auto-update --host-daemon-port "${selectedPort}" --server-url "https://machine.getbb.app"`,
-    );
-    expect(readFileSync(join(fixture.dataDir, "systemctl.log"), "utf8")).toBe(
-      "--user daemon-reload\n--user enable bb-host-daemon-machine-getbb-app.service\n--user restart bb-host-daemon-machine-getbb-app.service\n",
-    );
-  }, SCRIPT_RUN_TIMEOUT_MS);
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain("already joined");
+      const unit = readFileSync(
+        join(
+          fixture.homeDir,
+          ".config/systemd/user/patcher-host-daemon-machine-patcher-app.service",
+        ),
+        "utf8",
+      );
+      const selectedPort = readFileSync(
+        join(fixture.dataDir, "host-daemon-port"),
+        "utf8",
+      ).trim();
+      expect(unit).toContain(
+        `host-daemon --auto-update --host-daemon-port "${selectedPort}" --server-url "https://machine.patcher.app"`,
+      );
+      expect(readFileSync(join(fixture.dataDir, "systemctl.log"), "utf8")).toBe(
+        "--user daemon-reload\n--user enable patcher-host-daemon-machine-patcher-app.service\n--user restart patcher-host-daemon-machine-patcher-app.service\n",
+      );
+    },
+    SCRIPT_RUN_TIMEOUT_MS,
+  );
 });

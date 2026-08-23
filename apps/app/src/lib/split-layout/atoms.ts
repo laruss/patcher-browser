@@ -38,7 +38,7 @@ export const splitLayoutAtom = atomWithStorage<SplitLayout | null>(
   { getOnInit: true },
 );
 
-export const MAXIMIZED_PANE_STORAGE_KEY = "bb.splitLayout.maximizedPaneId";
+export const MAXIMIZED_PANE_STORAGE_KEY = "patcher.splitLayout.maximizedPaneId";
 
 /**
  * The pane temporarily filling the split workspace. This is persisted beside,

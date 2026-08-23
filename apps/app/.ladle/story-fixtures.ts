@@ -6,8 +6,8 @@ import type {
   Thread,
   ThreadListEntry,
   WorkspaceStatus,
-} from "@bb/domain";
-import type { ProjectResponse } from "@bb/server-contract";
+} from "@patcher/domain";
+import type { ProjectResponse } from "@patcher/server-contract";
 import { ClaudeIcon } from "../src/components/icons/ClaudeIcon";
 import { OpenAiIcon } from "../src/components/icons/OpenAiIcon";
 import { PiIcon } from "../src/components/icons/PiIcon";
@@ -43,13 +43,13 @@ export const HOST_NAMES = {
 } as const;
 
 export const PROJECT_IDS = {
-  bb: "proj_bb",
+  patcher: "proj_patcher",
   pierre: "proj_pierre",
   ingest: "proj_ingest_pipeline",
 } as const;
 
 export const PROJECT_NAMES = {
-  bb: "bb",
+  patcher: "Patcher",
   pierre: "pierre",
   ingest: "ingest-pipeline",
 } as const;
@@ -90,7 +90,7 @@ export function makeAttachmentsConfig(
 ): AttachmentsConfig {
   const base: AttachmentsConfig = {
     items: [],
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     onAttachFiles: noop,
     onRemove: noop,
     isAttaching: false,
@@ -218,20 +218,20 @@ export const STORY_SERVICE_TIER_SUPPORT: Record<string, boolean> = {
 export const STORY_PROJECT_SOURCES: readonly ProjectSource[] = [
   {
     id: "src_local",
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     type: "local_path",
     hostId: HOST_IDS.local,
-    path: "/Users/michael/Projects/bb",
+    path: "/Users/michael/Projects/patcher",
     isDefault: true,
     createdAt: 0,
     updatedAt: 0,
   },
   {
     id: "src_remote",
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     type: "local_path",
     hostId: HOST_IDS.remote,
-    path: "/home/michael/bb",
+    path: "/home/michael/patcher",
     isDefault: false,
     createdAt: 0,
     updatedAt: 0,
@@ -243,13 +243,13 @@ export const STORY_BRANCH_OPTIONS: readonly string[] = [
   "release/1.2",
   "feat/sidebar-rail",
   "fix/timeline-pagination",
-  "bb/refactor-project-creation-thr_jj65bdsiwa",
+  "patcher/refactor-project-creation-thr_jj65bdsiwa",
 ];
 
 export const STORY_WORKTREE_OPTIONS: readonly ReuseThreadOption[] = [
   {
     environmentId: "env_review_flow",
-    branchName: "bb/review-flow-thr_4hge9xn14m",
+    branchName: "patcher/review-flow-thr_4hge9xn14m",
     name: null,
     threads: [
       { id: "thr_review", title: "Review flow cleanup" },
@@ -258,14 +258,14 @@ export const STORY_WORKTREE_OPTIONS: readonly ReuseThreadOption[] = [
   },
   {
     environmentId: "env_timeline",
-    branchName: "bb/timeline-pagination-thr_qfk8ksbxkk",
+    branchName: "patcher/timeline-pagination-thr_qfk8ksbxkk",
     name: "Timeline workspace",
     threads: [{ id: "thr_timeline", title: "Timeline pagination" }],
   },
 ];
 
 export const STORY_PROJECTS: readonly ProjectSelectorOption[] = [
-  { id: PROJECT_IDS.bb, name: PROJECT_NAMES.bb },
+  { id: PROJECT_IDS.patcher, name: PROJECT_NAMES.patcher },
   { id: PROJECT_IDS.pierre, name: PROJECT_NAMES.pierre },
 ];
 
@@ -318,7 +318,7 @@ export function makeExecutionControlsProps(
 export function makeThread(overrides: Partial<Thread> = {}): Thread {
   const base: Thread = {
     id: "thr_demo",
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     environmentId: "env_demo",
     providerId: "codex",
     title: "Audit recurring permission failures",
@@ -347,7 +347,7 @@ export function makeThreadListEntry(
 ): ThreadListEntry {
   const base: ThreadListEntry = {
     id: "thr_demo",
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     environmentId: null,
     providerId: "codex",
     title: "Audit recurring permission failures",
@@ -389,9 +389,9 @@ export function makeProject(
   overrides: Partial<ProjectResponse> = {},
 ): ProjectResponse {
   const base: ProjectResponse = {
-    id: PROJECT_IDS.bb,
+    id: PROJECT_IDS.patcher,
     kind: "standard",
-    name: PROJECT_NAMES.bb,
+    name: PROJECT_NAMES.patcher,
     gitRemoteUrl: null,
     sources: [],
     createdAt: 1,
@@ -421,9 +421,9 @@ export function makeEnvironment(
   const base: Environment = {
     id: "env_demo",
     name: null,
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     hostId: HOST_IDS.local,
-    path: "/Users/michael/Projects/bb",
+    path: "/Users/michael/Projects/patcher",
     managed: true,
     isGitRepo: true,
     isWorktree: true,

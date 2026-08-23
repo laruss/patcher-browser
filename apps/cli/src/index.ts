@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { maybeReexecViaBbCli } from "./bb-cli-reexec.js";
+import { maybeReexecViaPatcherCli } from "./patcher-cli-reexec.js";
 import { registerEnvironmentCommands } from "./commands/environment.js";
 import { registerFileCommands } from "./commands/file.js";
 import { registerGuideCommand } from "./commands/guide.js";
@@ -31,11 +31,11 @@ import {
   pluginProxyCandidate,
   runPluginCliCommand,
 } from "./plugin-cli-proxy.js";
-import { resolveBbCliVersion } from "./version.js";
+import { resolvePatcherCliVersion } from "./version.js";
 
-// Hop to the daemon-managed binary when BB_CLI is set (agent shell env). Must
+// Hop to the daemon-managed binary when PATCHER_CLI is set (agent shell env). Must
 // run before Commander so flags/help match the intended build.
-maybeReexecViaBbCli();
+maybeReexecViaPatcherCli();
 
 const program = new Command();
 let cliRuntimeContext: CliRuntimeContext | undefined;
@@ -46,12 +46,12 @@ function getCliRuntimeContext(): CliRuntimeContext {
 }
 
 program
-  .name("bb")
-  .description("BB CLI - manage your AI coding agents")
+  .name("patcher")
+  .description("Patcher CLI - manage your AI coding agents")
   // Program flags (--version/--help) must precede the subcommand; required
-  // so `bb plugin run <id> --flag` passes flags through to the plugin.
+  // so `patcher plugin run <id> --flag` passes flags through to the plugin.
   .enablePositionalOptions()
-  .version(resolveBbCliVersion());
+  .version(resolvePatcherCliVersion());
 
 program.addHelpText("after", () => {
   const context = resolveContextSnapshot(getCliRuntimeContext());
@@ -61,15 +61,15 @@ program.addHelpText("after", () => {
   return `
 
 Current context:
-  BB_PROJECT_ID: ${project}
-  BB_THREAD_ID: ${thread}
-  BB_SERVER_URL: ${context.serverUrl}
+  PATCHER_PROJECT_ID: ${project}
+  PATCHER_THREAD_ID: ${thread}
+  PATCHER_SERVER_URL: ${context.serverUrl}
 
 Quick start:
-  bb status
-  bb project list
-  bb thread show <id>
-  bb thread spawn --project <id> --provider codex --prompt "..."
+  patcher status
+  patcher project list
+  patcher thread show <id>
+  patcher thread spawn --project <id> --provider codex --prompt "..."
 `;
 });
 
@@ -101,7 +101,7 @@ registerGuideCommand(program);
 registerVoiceCommands(program, getUrl);
 
 /**
- * Unknown top-level commands may be plugin-contributed `bb` subcommands
+ * Unknown top-level commands may be plugin-contributed `patcher` subcommands
  * (design §4.4): before letting commander error, ask the server for plugin
  * CLI contributions (short timeout, silent fallback) and proxy on a match.
  * Core commands always win — this only runs for names commander doesn't own.
@@ -118,8 +118,8 @@ async function tryPluginCommandProxy(): Promise<void> {
   if (candidate === null) return;
   const result = await fetchPluginCliContributions(getUrl());
   if (result.outcome === "unreachable") {
-    // The candidate may be a plugin command (`bb connect` on a fresh
-    // machine is the canonical case) — only the running server can say, so
+    // The candidate may be a plugin command — only the running server can
+    // say which ones exist, so
     // an unreachable server must not degrade into commander's "unknown
     // command".
     console.error(describeUnreachableServer(getUrl(), result.cause));
@@ -133,8 +133,8 @@ async function tryPluginCommandProxy(): Promise<void> {
     const disabled = await findDisabledPluginForCommand(getUrl(), candidate);
     if (disabled !== null) {
       console.error(
-        `bb ${candidate} is provided by the "${disabled.id}" plugin, which is disabled — ` +
-          `run \`bb plugin enable ${disabled.id}\` or enable it in Plugins.`,
+        `patcher ${candidate} is provided by the "${disabled.id}" plugin, which is disabled — ` +
+          `run \`patcher plugin enable ${disabled.id}\` or enable it in Plugins.`,
       );
       process.exit(1);
     }

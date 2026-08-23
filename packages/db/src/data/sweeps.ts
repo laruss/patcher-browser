@@ -5,7 +5,7 @@ import {
   lt,
   inArray,
 } from "drizzle-orm";
-import { type ThreadEventItemType } from "@bb/domain";
+import { type ThreadEventItemType } from "@patcher/domain";
 import type { DbConnection } from "../connection.js";
 import type { DbNotifier } from "../notifier.js";
 import { environments, maintenanceScanCursors } from "../schema.js";

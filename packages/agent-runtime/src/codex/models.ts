@@ -4,7 +4,7 @@ import {
   type AvailableModel,
   type ModelReasoningEffort,
   type ReasoningLevel,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 
 const DEFAULT_REASONING_EFFORTS: readonly ModelReasoningEffort[] =
@@ -17,21 +17,21 @@ const codexModelIdentitySchema = z
   })
   .passthrough();
 
-/** Map a Codex-native reasoning effort string into a BB ReasoningLevel. */
-export function mapCodexReasoningLevelToBb(
+/** Map a Codex-native reasoning effort string into a Patcher ReasoningLevel. */
+export function mapCodexReasoningLevelToPatcher(
   value: unknown,
 ): ReasoningLevel | null {
   if (typeof value !== "string") {
     return null;
   }
-  // Codex levels that BB knows about (including Codex-only "ultra") pass
+  // Codex levels that Patcher knows about (including Codex-only "ultra") pass
   // through via the shared schema. Unknown future names soft-fail to null.
   const parsed = reasoningLevelSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
 /**
- * Map a BB ReasoningLevel to the string Codex app-server expects for
+ * Map a Patcher ReasoningLevel to the string Codex app-server expects for
  * `model_reasoning_effort`. Returns null for levels Codex never accepts
  * (currently only "none").
  *
@@ -39,7 +39,7 @@ export function mapCodexReasoningLevelToBb(
  * offer it for Codex models. "ultra" is the Codex-native top tier and passes
  * through as-is.
  */
-export function mapBbReasoningLevelToCodex(
+export function mapPatcherReasoningLevelToCodex(
   level: ReasoningLevel,
 ): string | null {
   switch (level) {
@@ -60,14 +60,12 @@ function cloneDefaultReasoningEfforts(): ModelReasoningEffort[] {
   return DEFAULT_REASONING_EFFORTS.map((effort) => ({ ...effort }));
 }
 
-function parseReasoningEffortOption(
-  raw: unknown,
-): ModelReasoningEffort | null {
+function parseReasoningEffortOption(raw: unknown): ModelReasoningEffort | null {
   if (raw == null || typeof raw !== "object") {
     return null;
   }
   const record = raw as Record<string, unknown>;
-  const level = mapCodexReasoningLevelToBb(record.reasoningEffort);
+  const level = mapCodexReasoningLevelToPatcher(record.reasoningEffort);
   if (!level) {
     return null;
   }
@@ -81,9 +79,7 @@ function parseReasoningEffortOption(
   };
 }
 
-function parseSupportedReasoningEfforts(
-  raw: unknown,
-): ModelReasoningEffort[] {
+function parseSupportedReasoningEfforts(raw: unknown): ModelReasoningEffort[] {
   if (!Array.isArray(raw) || raw.length === 0) {
     return cloneDefaultReasoningEfforts();
   }
@@ -106,10 +102,10 @@ function parseSupportedReasoningEfforts(
 function toAvailableModel(
   raw: z.infer<typeof codexModelIdentitySchema>,
 ): AvailableModel {
-  const efforts = parseSupportedReasoningEfforts(
-    raw.supportedReasoningEfforts,
+  const efforts = parseSupportedReasoningEfforts(raw.supportedReasoningEfforts);
+  const mappedDefault = mapCodexReasoningLevelToPatcher(
+    raw.defaultReasoningEffort,
   );
-  const mappedDefault = mapCodexReasoningLevelToBb(raw.defaultReasoningEffort);
   const defaultReasoningEffort =
     mappedDefault &&
     efforts.some((effort) => effort.reasoningEffort === mappedDefault)

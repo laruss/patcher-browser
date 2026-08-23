@@ -1,5 +1,5 @@
-import { countProjectSources, getProject, setExperiments } from "@bb/db";
-import { defaultExperiments } from "@bb/domain";
+import { countProjectSources, getProject, setExperiments } from "@patcher/db";
+import { defaultExperiments } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   listQueuedCommands,

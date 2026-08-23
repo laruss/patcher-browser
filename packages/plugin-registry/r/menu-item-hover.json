@@ -3,7 +3,7 @@
   "name": "menu-item-hover",
   "type": "registry:ui",
   "title": "menu-item-hover",
-  "description": "BB ui \"menu-item-hover\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"menu-item-hover\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "files": [
     {
       "path": "registry/components/ui/menu-item-hover.tsx",

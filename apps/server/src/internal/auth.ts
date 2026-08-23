@@ -1,4 +1,4 @@
-import { hostTypeSchema, type HostType } from "@bb/domain";
+import { hostTypeSchema, type HostType } from "@patcher/domain";
 import { z } from "zod";
 import type { AppDeps } from "../types.js";
 import { ApiError } from "../errors.js";

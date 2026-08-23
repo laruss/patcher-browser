@@ -22,10 +22,10 @@ import {
   listPluginArtifacts,
   migrate,
   type DbConnection,
-} from "@bb/db";
-import type { Logger } from "@bb/logger";
-import { scaffoldPlugin } from "@bb/templates/plugin-scaffold";
-import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION } from "@bb/domain";
+} from "@patcher/db";
+import type { Logger } from "@patcher/logger";
+import { scaffoldPlugin } from "@patcher/templates/plugin-scaffold";
+import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION } from "@patcher/domain";
 import { validatePluginArtifactMeta } from "../../../src/services/plugins/app-bundle.js";
 import {
   gitArtifactCacheDir,
@@ -74,14 +74,14 @@ async function writePluginFixture(
       ...(options.engines || options.pluginSdkRange
         ? {
             engines: {
-              ...(options.engines ? { bb: options.engines } : {}),
+              ...(options.engines ? { patcher: options.engines } : {}),
               ...(options.pluginSdkRange
-                ? { bbPluginSdk: options.pluginSdkRange }
+                ? { patcherPluginSdk: options.pluginSdkRange }
                 : {}),
             },
           }
         : {}),
-      bb: {
+      patcher: {
         name: "Install fixture",
         description: "Plugin installation fixture.",
         branding: { icon: "Zap" },
@@ -92,7 +92,7 @@ async function writePluginFixture(
   );
   await writeFile(
     join(rootDir, "server.ts"),
-    `export default function plugin(bb: any) { bb.log.info("loaded"); }`,
+    `export default function plugin(patcher: any) { patcher.log.info("loaded"); }`,
   );
   if (options.appSource !== undefined) {
     await writeFile(join(rootDir, "app.tsx"), options.appSource);
@@ -145,7 +145,7 @@ function artifactMeta(args: {
     pluginId: args.pluginId,
     pluginVersion: args.pluginVersion ?? "0.1.0",
     builtWith: {
-      bbVersion: "0.9.0-test",
+      patcherVersion: "0.9.0-test",
       pluginSdkVersion: sdkVersion,
     },
   });
@@ -153,34 +153,38 @@ function artifactMeta(args: {
 
 describe("plugin install sources", () => {
   it("parses git URLs, tracks HEAD by default, and rejects traversal", () => {
-    expect(parsePluginSource("git:github.com/acme/bb-plugin-foo@v1")).toEqual({
+    expect(
+      parsePluginSource("git:github.com/acme/patcher-plugin-foo@v1"),
+    ).toEqual({
       kind: "git",
-      url: "https://github.com/acme/bb-plugin-foo",
+      url: "https://github.com/acme/patcher-plugin-foo",
       ref: "v1",
-      installDir: "github.com/acme/bb-plugin-foo@v1",
-      cachePath: "github.com/acme/bb-plugin-foo",
+      installDir: "github.com/acme/patcher-plugin-foo@v1",
+      cachePath: "github.com/acme/patcher-plugin-foo",
     });
     expect(
       parsePluginSource(
-        "git:https://github.com/acme/bb-plugin-foo.git@abc1234",
+        "git:https://github.com/acme/patcher-plugin-foo.git@abc1234",
       ),
     ).toMatchObject({
       kind: "git",
-      url: "https://github.com/acme/bb-plugin-foo.git",
-    });
-    expect(parsePluginSource("https://github.com/acme/bb-plugin-foo")).toEqual({
-      kind: "git",
-      url: "https://github.com/acme/bb-plugin-foo",
-      ref: "HEAD",
-      installDir: "github.com/acme/bb-plugin-foo@HEAD",
-      cachePath: "github.com/acme/bb-plugin-foo",
+      url: "https://github.com/acme/patcher-plugin-foo.git",
     });
     expect(
-      parsePluginSource("https://github.com/acme/bb-plugin-foo/"),
+      parsePluginSource("https://github.com/acme/patcher-plugin-foo"),
+    ).toEqual({
+      kind: "git",
+      url: "https://github.com/acme/patcher-plugin-foo",
+      ref: "HEAD",
+      installDir: "github.com/acme/patcher-plugin-foo@HEAD",
+      cachePath: "github.com/acme/patcher-plugin-foo",
+    });
+    expect(
+      parsePluginSource("https://github.com/acme/patcher-plugin-foo/"),
     ).toMatchObject({
       kind: "git",
       ref: "HEAD",
-      cachePath: "github.com/acme/bb-plugin-foo",
+      cachePath: "github.com/acme/patcher-plugin-foo",
     });
     expect(parsePluginSource("git:github.com/acme/repo")).toMatchObject({
       kind: "git",
@@ -201,32 +205,32 @@ describe("plugin install sources", () => {
   });
 
   it("classifies omitted, exact, range, and dist-tag npm specs", () => {
-    expect(parsePluginSource("npm:bb-plugin-linear@0.3.0")).toEqual({
+    expect(parsePluginSource("npm:patcher-plugin-linear@0.3.0")).toEqual({
       kind: "npm",
-      name: "bb-plugin-linear",
+      name: "patcher-plugin-linear",
       spec: "0.3.0",
       specKind: "exact",
     });
-    expect(parsePluginSource("npm:@acme/bb-plugin-x@1.2.3")).toEqual({
+    expect(parsePluginSource("npm:@acme/patcher-plugin-x@1.2.3")).toEqual({
       kind: "npm",
-      name: "@acme/bb-plugin-x",
+      name: "@acme/patcher-plugin-x",
       spec: "1.2.3",
       specKind: "exact",
     });
-    expect(parsePluginSource("npm:bb-plugin-x@^1.0.0")).toMatchObject({
+    expect(parsePluginSource("npm:patcher-plugin-x@^1.0.0")).toMatchObject({
       spec: "^1.0.0",
       specKind: "range",
     });
-    expect(parsePluginSource("npm:bb-plugin-x@next")).toMatchObject({
+    expect(parsePluginSource("npm:patcher-plugin-x@next")).toMatchObject({
       spec: "next",
       specKind: "tag",
     });
-    expect(parsePluginSource("npm:bb-plugin-x")).toMatchObject({
+    expect(parsePluginSource("npm:patcher-plugin-x")).toMatchObject({
       spec: "",
       specKind: "default",
     });
-    expect(parsePluginSource("npm:@acme/bb-plugin-x")).toMatchObject({
-      name: "@acme/bb-plugin-x",
+    expect(parsePluginSource("npm:@acme/patcher-plugin-x")).toMatchObject({
+      name: "@acme/patcher-plugin-x",
       spec: "",
       specKind: "default",
     });
@@ -282,7 +286,7 @@ describe("plugin install flows", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-install-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-install-"));
     dataDir = join(workDir, "data");
     afterArtifactPromoted = undefined;
     materializationCount = 0;
@@ -315,7 +319,9 @@ describe("plugin install flows", () => {
   describe.skipIf(!hasGit)("git sources", { timeout: 30_000 }, () => {
     it("installs and tracks the default branch when the ref is omitted", async () => {
       const repoDir = join(workDir, "repo-default-branch");
-      await writePluginFixture(repoDir, { name: "bb-plugin-default-branch" });
+      await writePluginFixture(repoDir, {
+        name: "patcher-plugin-default-branch",
+      });
       await initGitRepo(repoDir);
       const commit = await commitAll(repoDir, "init");
 
@@ -340,7 +346,7 @@ describe("plugin install flows", () => {
 
     it("clones a pinned tag into its exact immutable cache dir and loads it", async () => {
       const repoDir = join(workDir, "repo");
-      await writePluginFixture(repoDir, { name: "bb-plugin-gitty" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-gitty" });
       await initGitRepo(repoDir);
       const commit = await commitAll(repoDir, "init");
       await git(repoDir, ["tag", "v1"]);
@@ -373,25 +379,25 @@ describe("plugin install flows", () => {
     });
 
     it("refuses a git plugin that shadows a builtin after materialization", async () => {
-      const repoDir = join(workDir, "repo-connect");
-      await writePluginFixture(repoDir, { name: "bb-plugin-connect" });
+      const repoDir = join(workDir, "repo-side-chat");
+      await writePluginFixture(repoDir, { name: "patcher-plugin-side-chat" });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "init");
 
       await expect(service.install(`git:${repoDir}@main`)).rejects.toThrowError(
-        /reserved by the bundled plugin.*builtin:connect/,
+        /reserved by the bundled plugin.*builtin:side-chat/,
       );
-      expect(getInstalledPluginRegistration(db, "connect")).toBeUndefined();
+      expect(getInstalledPluginRegistration(db, "side-chat")).toBeUndefined();
     });
 
     it("installs a pinned commit sha via clone + checkout", async () => {
       const repoDir = join(workDir, "repo-sha");
-      await writePluginFixture(repoDir, { name: "bb-plugin-shaman" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-shaman" });
       await initGitRepo(repoDir);
       const sha = await commitAll(repoDir, "init");
       // Advance the branch so the sha is not the tip — proves the checkout.
       await writePluginFixture(repoDir, {
-        name: "bb-plugin-shaman",
+        name: "patcher-plugin-shaman",
         version: "9.9.9",
       });
       await commitAll(repoDir, "later");
@@ -403,7 +409,7 @@ describe("plugin install flows", () => {
 
     it("never reuses an exact-resolution artifact owned by another plugin", async () => {
       const repoDir = join(workDir, "repo-owner");
-      await writePluginFixture(repoDir, { name: "bb-plugin-owner" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-owner" });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "init");
       await git(repoDir, ["tag", "v1"]);
@@ -430,7 +436,7 @@ describe("plugin install flows", () => {
 
     it("serializes concurrent installs of the same exact resolution", async () => {
       const repoDir = join(workDir, "repo-concurrent");
-      await writePluginFixture(repoDir, { name: "bb-plugin-concurrent" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-concurrent" });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "init");
       await git(repoDir, ["tag", "v1"]);
@@ -446,7 +452,9 @@ describe("plugin install flows", () => {
           expect.objectContaining({
             status: "rejected",
             reason: expect.objectContaining({
-              message: expect.stringContaining("bb plugin update concurrent"),
+              message: expect.stringContaining(
+                "patcher plugin update concurrent",
+              ),
             }),
           }),
         ]),
@@ -457,7 +465,7 @@ describe("plugin install flows", () => {
 
     it("refuses a managed reinstall and points to the update command", async () => {
       const repoDir = join(workDir, "repo-refresh");
-      await writePluginFixture(repoDir, { name: "bb-plugin-fresh" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-fresh" });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "v0.1.0");
       const source = `git:${repoDir}@main`;
@@ -465,12 +473,12 @@ describe("plugin install flows", () => {
       expect(first.version).toBe("0.1.0");
 
       await writePluginFixture(repoDir, {
-        name: "bb-plugin-fresh",
+        name: "patcher-plugin-fresh",
         version: "0.2.0",
       });
       await commitAll(repoDir, "v0.2.0");
       await expect(service.install(source)).rejects.toThrow(
-        "bb plugin update fresh",
+        "patcher plugin update fresh",
       );
       expect(
         service.list().find((plugin) => plugin.id === "fresh"),
@@ -480,7 +488,7 @@ describe("plugin install flows", () => {
     it("refuses a managed frontend reinstall before validating a broken new tip or creating an artifact", async () => {
       const repoDir = join(workDir, "repo-managed-frontend");
       await writePluginFixture(repoDir, {
-        name: "bb-plugin-managed-frontend",
+        name: "patcher-plugin-managed-frontend",
         appSource:
           'export default function App() { return <div className="line-clamp-2">working</div>; }\n',
       });
@@ -501,14 +509,14 @@ describe("plugin install flows", () => {
       expect(artifactsBefore).toHaveLength(1);
 
       await writePluginFixture(repoDir, {
-        name: "bb-plugin-managed-frontend",
+        name: "patcher-plugin-managed-frontend",
         version: "0.2.0",
         appSource: "export default function App( {\n",
       });
       await commitAll(repoDir, "broken frontend");
 
       await expect(service.install(source)).rejects.toThrow(
-        "bb plugin update managed-frontend",
+        "patcher plugin update managed-frontend",
       );
       expect(getInstalledPluginRegistration(db, "managed-frontend")).toEqual(
         registrationBefore,
@@ -523,7 +531,7 @@ describe("plugin install flows", () => {
 
     it("keeps the previous install intact when a reinstall fails validation", async () => {
       const repoDir = join(workDir, "repo-sturdy");
-      await writePluginFixture(repoDir, { name: "bb-plugin-sturdy" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-sturdy" });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "v1");
       const source = `git:${repoDir}@main`;
@@ -544,7 +552,7 @@ describe("plugin install flows", () => {
       expect(entry?.version).toBe("0.1.0");
     });
 
-    // bb now builds a git plugin's server bundle itself, so a committed
+    // Patcher now builds a git plugin's server bundle itself, so a committed
     // dist/ is not authoritative for git the way it is for npm: whatever the
     // author checked in is replaced by a bundle built against this SDK.
     // `validatePluginArtifactMeta` still guards npm artifacts; it is covered
@@ -552,7 +560,7 @@ describe("plugin install flows", () => {
     it("rebuilds a git plugin's server bundle over any committed dist", async () => {
       const identityRepo = join(workDir, "repo-artifact-identity");
       await writePluginFixture(identityRepo, {
-        name: "bb-plugin-artifact-identity",
+        name: "patcher-plugin-artifact-identity",
       });
       await mkdir(join(identityRepo, "dist"), { recursive: true });
       await writeFile(
@@ -565,10 +573,7 @@ describe("plugin install flows", () => {
       const entry = await service.install(`git:${identityRepo}@main`);
       expect(entry.status).toBe("running");
       const meta: unknown = JSON.parse(
-        await readFile(
-          join(entry.rootDir, "dist", "server.meta.json"),
-          "utf8",
-        ),
+        await readFile(join(entry.rootDir, "dist", "server.meta.json"), "utf8"),
       );
       expect(meta).toMatchObject({
         pluginId: "artifact-identity",
@@ -577,10 +582,10 @@ describe("plugin install flows", () => {
       });
     });
 
-    it("hard-fails install on an engines.bb mismatch and cleans up the clone", async () => {
+    it("hard-fails install on an engines.patcher mismatch and cleans up the clone", async () => {
       const repoDir = join(workDir, "repo-too-new");
       await writePluginFixture(repoDir, {
-        name: "bb-plugin-too-new",
+        name: "patcher-plugin-too-new",
         engines: ">=99.0.0",
       });
       await initGitRepo(repoDir);
@@ -588,7 +593,7 @@ describe("plugin install flows", () => {
 
       const source = `git:${repoDir}@main`;
       await expect(service.install(source)).rejects.toThrowError(
-        /install refused.*requires bb >=99\.0\.0/,
+        /install refused.*requires Patcher >=99\.0\.0/,
       );
       expect(service.list()).toHaveLength(0);
       const managed = join(
@@ -601,10 +606,10 @@ describe("plugin install flows", () => {
       await expect(stat(`${managed}@main`)).rejects.toThrowError();
     });
 
-    it("hard-fails managed install on an engines.bbPluginSdk mismatch", async () => {
+    it("hard-fails managed install on an engines.patcherPluginSdk mismatch", async () => {
       const repoDir = join(workDir, "repo-sdk-too-new");
       await writePluginFixture(repoDir, {
-        name: "bb-plugin-sdk-too-new",
+        name: "patcher-plugin-sdk-too-new",
         pluginSdkRange: ">=99.0.0",
       });
       await initGitRepo(repoDir);
@@ -612,20 +617,20 @@ describe("plugin install flows", () => {
 
       await expect(service.install(`git:${repoDir}@main`)).rejects.toThrowError(
         new RegExp(
-          `install refused.*requires bb plugin SDK >=99\\.0\\.0, running SDK is ${PLUGIN_SDK_VERSION.replaceAll(".", "\\.")}`,
+          `install refused.*requires patcher plugin SDK >=99\\.0\\.0, running SDK is ${PLUGIN_SDK_VERSION.replaceAll(".", "\\.")}`,
         ),
       );
     });
 
     it("remove retains immutable git artifacts and never touches a path source", async () => {
       const repoDir = join(workDir, "repo-rm");
-      await writePluginFixture(repoDir, { name: "bb-plugin-managed" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-managed" });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "init");
       const managedEntry = await service.install(`git:${repoDir}@main`);
 
       const pathDir = join(workDir, "local-plugin");
-      await writePluginFixture(pathDir, { name: "bb-plugin-localdir" });
+      await writePluginFixture(pathDir, { name: "patcher-plugin-localdir" });
       await service.install(pathDir);
 
       expect(await service.remove("managed")).toBe(true);
@@ -643,7 +648,9 @@ describe("plugin install flows", () => {
 
     it("builds both bundles for a git plugin", async () => {
       const repoDir = join(workDir, "repo-selfcontained");
-      await writePluginFixture(repoDir, { name: "bb-plugin-selfcontained" });
+      await writePluginFixture(repoDir, {
+        name: "patcher-plugin-selfcontained",
+      });
       await initGitRepo(repoDir);
       await commitAll(repoDir, "init");
 
@@ -657,7 +664,7 @@ describe("plugin install flows", () => {
 
     it("ignores a repository .npmrc when installing dependencies", async () => {
       const repoDir = join(workDir, "repo-npmrc");
-      await writePluginFixture(repoDir, { name: "bb-plugin-npmrc" });
+      await writePluginFixture(repoDir, { name: "patcher-plugin-npmrc" });
       // `npm --prefix <clone>` reads this file. An author could redirect the
       // registry, relax TLS, or interpolate ${ENV} into request URLs, so it
       // must not survive into the install.
@@ -682,7 +689,7 @@ describe("plugin install flows", () => {
         await writeFile(
           join(depDir, "package.json"),
           JSON.stringify({
-            name: "bb-test-greeter",
+            name: "patcher-test-greeter",
             version: "1.0.0",
             main: "index.js",
           }),
@@ -693,7 +700,7 @@ describe("plugin install flows", () => {
         );
 
         const repoDir = join(workDir, "repo-with-deps");
-        await writePluginFixture(repoDir, { name: "bb-plugin-withdeps" });
+        await writePluginFixture(repoDir, { name: "patcher-plugin-withdeps" });
         const manifestPath = join(repoDir, "package.json");
         const manifest: unknown = JSON.parse(
           await readFile(manifestPath, "utf8"),
@@ -702,13 +709,13 @@ describe("plugin install flows", () => {
           manifestPath,
           JSON.stringify({
             ...(manifest as Record<string, unknown>),
-            dependencies: { "bb-test-greeter": `file:${depDir}` },
+            dependencies: { "patcher-test-greeter": `file:${depDir}` },
           }),
         );
         await writeFile(
           join(repoDir, "server.ts"),
-          `import { greet } from "bb-test-greeter";\n` +
-            `export default function plugin(bb: any) { bb.log.info(greet()); }`,
+          `import { greet } from "patcher-test-greeter";\n` +
+            `export default function plugin(patcher: any) { patcher.log.info(greet()); }`,
         );
         await initGitRepo(repoDir);
         await commitAll(repoDir, "init");
@@ -728,7 +735,7 @@ describe("plugin install flows", () => {
   });
 
   describe("plugin artifact metadata validation", () => {
-    // Guards npm artifacts, which bb never builds. Covered directly because
+    // Guards npm artifacts, which Patcher never builds. Covered directly because
     // git installs now overwrite any committed dist/ metadata.
     it("rejects an artifact whose pluginId does not match the manifest", () => {
       expect(
@@ -772,14 +779,14 @@ describe("plugin install flows", () => {
   it("keeps path installs developer-friendly while surfacing SDK incompatibility", async () => {
     const rootDir = join(workDir, "local-sdk-mismatch");
     await writePluginFixture(rootDir, {
-      name: "bb-plugin-local-sdk-mismatch",
+      name: "patcher-plugin-local-sdk-mismatch",
       pluginSdkRange: ">=99.0.0",
     });
 
     const entry = await service.installPath(rootDir);
     expect(entry.status).toBe("incompatible");
     expect(entry.statusDetail).toContain(
-      `requires bb plugin SDK >=99.0.0, running SDK is ${PLUGIN_SDK_VERSION}`,
+      `requires patcher plugin SDK >=99.0.0, running SDK is ${PLUGIN_SDK_VERSION}`,
     );
   });
 
@@ -787,7 +794,7 @@ describe("plugin install flows", () => {
     const rootDir = join(workDir, "local-stale-server-meta");
     const incompatibleMajor = PLUGIN_SDK_MAJOR + 1;
     await writePluginFixture(rootDir, {
-      name: "bb-plugin-local-stale-server-meta",
+      name: "patcher-plugin-local-stale-server-meta",
     });
     await mkdir(join(rootDir, "dist"), { recursive: true });
     await writeFile(
@@ -812,7 +819,7 @@ describe("plugin install flows", () => {
       "installs a scoped package into the immutable cache and retains it on removal",
       { timeout: 120_000 },
       async () => {
-        const name = "@acme/bb-plugin-npmhero";
+        const name = "@acme/patcher-plugin-npmhero";
         const version = "0.1.0";
         const fixtureDir = join(workDir, "npm-fixture");
         await writePluginFixture(fixtureDir, { name, version });
@@ -954,26 +961,26 @@ describe("plugin install flows", () => {
 
   it("refuses an npm package whose derived id shadows a builtin before install", async () => {
     await expect(
-      service.install("npm:bb-plugin-connect@1.2.3"),
-    ).rejects.toThrowError(/reserved by the bundled plugin.*builtin:connect/);
-    expect(getInstalledPluginRegistration(db, "connect")).toBeUndefined();
+      service.install("npm:patcher-plugin-side-chat@1.2.3"),
+    ).rejects.toThrowError(/reserved by the bundled plugin.*builtin:side-chat/);
+    expect(getInstalledPluginRegistration(db, "side-chat")).toBeUndefined();
   });
 
   it("refuses a path plugin whose manifest id shadows a builtin", async () => {
-    const rootDir = join(workDir, "bb-plugin-connect");
-    await writePluginFixture(rootDir, { name: "bb-plugin-connect" });
+    const rootDir = join(workDir, "patcher-plugin-side-chat");
+    await writePluginFixture(rootDir, { name: "patcher-plugin-side-chat" });
     await expect(service.installPath(rootDir)).rejects.toThrowError(
-      /reserved by the bundled plugin.*builtin:connect/,
+      /reserved by the bundled plugin.*builtin:side-chat/,
     );
-    expect(getInstalledPluginRegistration(db, "connect")).toBeUndefined();
+    expect(getInstalledPluginRegistration(db, "side-chat")).toBeUndefined();
   });
 
-  it("the bb plugin new scaffold installs and loads through the plugin service", async () => {
-    const targetDir = join(workDir, "bb-plugin-scaffolded");
+  it("the Patcher plugin new scaffold installs and loads through the plugin service", async () => {
+    const targetDir = join(workDir, "patcher-plugin-scaffolded");
     await scaffoldPlugin({
       targetDir,
-      packageName: "bb-plugin-scaffolded",
-      bbVersion: "0.9.0",
+      packageName: "patcher-plugin-scaffolded",
+      patcherVersion: "0.9.0",
     });
     await stat(join(targetDir, "skills", "example-skill", "SKILL.md"));
     await stat(join(targetDir, ".gitignore"));
@@ -998,8 +1005,8 @@ describe("plugin install flows", () => {
     await expect(
       scaffoldPlugin({
         targetDir,
-        packageName: "bb-plugin-scaffolded",
-        bbVersion: "0.9.0",
+        packageName: "patcher-plugin-scaffolded",
+        patcherVersion: "0.9.0",
       }),
     ).rejects.toThrowError(/already exists/);
   });

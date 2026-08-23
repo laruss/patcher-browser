@@ -1,4 +1,4 @@
-import type { ThreadEvent } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
 import type { AgentRuntimeProviderSession } from "./types.js";
 
 interface PendingIdentityWaiter {
@@ -30,7 +30,7 @@ export interface RecordProviderThreadIdentityArgs {
   threadId: string;
 }
 
-export interface ResolveBbThreadIdForProviderThreadArgs {
+export interface ResolvePatcherThreadIdForProviderThreadArgs {
   providerState: RuntimeProviderIdentityState;
   providerThreadId: string | undefined;
 }
@@ -133,20 +133,20 @@ export class RuntimeThreadIdentityRegistry {
     });
   }
 
-  resolveBbThreadIdForProviderThread(
-    args: ResolveBbThreadIdForProviderThreadArgs,
+  resolvePatcherThreadIdForProviderThread(
+    args: ResolvePatcherThreadIdForProviderThreadArgs,
   ): string | undefined {
     if (!args.providerThreadId) {
       return undefined;
     }
 
-    for (const [bbThreadId, mappedProviderThreadId] of this
+    for (const [patcherThreadId, mappedProviderThreadId] of this
       .threadToProviderThread) {
       if (
         mappedProviderThreadId === args.providerThreadId &&
-        args.providerState.threadIds.has(bbThreadId)
+        args.providerState.threadIds.has(patcherThreadId)
       ) {
-        return bbThreadId;
+        return patcherThreadId;
       }
     }
 
@@ -172,13 +172,13 @@ export class RuntimeThreadIdentityRegistry {
 
     const lookupId = args.sourceThreadId || args.eventThreadId;
     if (lookupId) {
-      for (const [bbThreadId, providerThreadId] of this
+      for (const [patcherThreadId, providerThreadId] of this
         .threadToProviderThread) {
         if (
           providerThreadId === lookupId &&
-          args.providerState.threadIds.has(bbThreadId)
+          args.providerState.threadIds.has(patcherThreadId)
         ) {
-          return bbThreadId;
+          return patcherThreadId;
         }
       }
     }

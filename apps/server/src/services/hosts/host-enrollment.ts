@@ -1,4 +1,4 @@
-import { createHostId, getHost } from "@bb/db";
+import { createHostId, getHost } from "@patcher/db";
 import type { AppDeps } from "../../types.js";
 import { assertMatchingExistingHostType } from "./host-type-guard.js";
 

@@ -10,7 +10,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defaultAppSettings, type AppCommandId } from "@bb/domain";
+import { defaultAppSettings, type AppCommandId } from "@patcher/domain";
 import {
   AppCommandProvider,
   useAppCommandContext,
@@ -198,8 +198,8 @@ vi.mock("@/hooks/queries/system-queries", () => ({
   }),
 }));
 
-vi.mock("@/lib/bb-desktop", () => ({
-  getBbDesktopInfo: () => null,
+vi.mock("@/lib/patcher-desktop", () => ({
+  getPatcherDesktopInfo: () => null,
 }));
 vi.mock("@/hooks/queries/plugin-contribution-queries", () => ({
   usePluginContributions: () => ({
@@ -571,7 +571,7 @@ describe("AppCommandProvider", () => {
   // Commands plugins added (`app.commands`). They are matched here rather than by
   // a listener of their own so precedence is decided in one place.
   describe("plugin commands", () => {
-    /** A main surface with one of bb's own commands handled on it. */
+    /** A main surface with one of Patcher's own commands handled on it. */
     function Surface() {
       useAppCommandContext("mainSurface", true);
       return <Handler command="thread.new" name="thread.new" result={true} />;
@@ -600,10 +600,10 @@ describe("AppCommandProvider", () => {
       expect(event.defaultPrevented).toBe(true);
     });
 
-    // bb's own binding is matched first and consumes the event, so the plugin's
+    // Patcher's own binding is matched first and consumes the event, so the plugin's
     // command never sees a chord the app already uses — the user's shortcut keeps
     // doing what they expect, and a plugin cannot take it.
-    it("leaves a chord bb already uses to bb", () => {
+    it("leaves a chord Patcher already uses to Patcher", () => {
       testState.pluginCommands.push(
         pluginCommand({ key: "o", mod: true, shift: true }),
       );
@@ -615,7 +615,7 @@ describe("AppCommandProvider", () => {
       expect(testState.pluginRuns).toEqual([]);
     });
 
-    // The one scope rule a plugin command gets, and it is bb's own: a chord that
+    // The one scope rule a plugin command gets, and it is Patcher's own: a chord that
     // fired mid-word would be a plugin taking a key from the thing in front of
     // the user.
     it("does not fire while the user is typing", () => {

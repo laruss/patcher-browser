@@ -10,13 +10,13 @@ vi.setConfig({ testTimeout: 120_000 });
 import {
   buildPluginApp,
   resolvePluginBuildToolchain,
-} from "@bb/plugin-build";
+} from "@patcher/plugin-build";
 /**
- * The monorepo's own toolchain: resolved from `@bb/plugin-build`'s
+ * The monorepo's own toolchain: resolved from `@patcher/plugin-build`'s
  * devDependencies, so tests never download one.
  */
 function testToolchain() {
-  return resolvePluginBuildToolchain(join(tmpdir(), "bb-toolchain-unused"));
+  return resolvePluginBuildToolchain(join(tmpdir(), "patcher-toolchain-unused"));
 }
 
 
@@ -42,12 +42,12 @@ describe("Docs official plugin frontend bundle", () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bb-simple-notes-bundle-"));
+    root = await mkdtemp(join(tmpdir(), "patcher-simple-notes-bundle-"));
   });
 
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
-    delete (globalThis as { __bbPluginRuntime?: unknown }).__bbPluginRuntime;
+    delete (globalThis as { __patcherPluginRuntime?: unknown }).__patcherPluginRuntime;
     delete (globalThis as { document?: unknown }).document;
   });
 
@@ -84,7 +84,7 @@ describe("Docs official plugin frontend bundle", () => {
           : (componentStub as object),
       set: () => true,
     });
-    (globalThis as { __bbPluginRuntime?: unknown }).__bbPluginRuntime = {
+    (globalThis as { __patcherPluginRuntime?: unknown }).__patcherPluginRuntime = {
       react: {
         forwardRef: (render: unknown) => render,
         createContext: () => ({}),
@@ -94,7 +94,7 @@ describe("Docs official plugin frontend bundle", () => {
       reactDomClient: componentStub,
       jsxRuntime: { jsx: () => ({}), jsxs: () => ({}), Fragment: {} },
       pluginSdkApp: {
-        definePluginApp: (setup: unknown) => ({ __bbPluginApp: true, setup }),
+        definePluginApp: (setup: unknown) => ({ __patcherPluginApp: true, setup }),
       },
       sonner: componentStub,
       vaul: componentStub,
@@ -117,13 +117,13 @@ describe("Docs official plugin frontend bundle", () => {
       /* @vite-ignore */ pathToFileURL(jsPath).href
     )) as {
       default: {
-        __bbPluginApp: boolean;
+        __patcherPluginApp: boolean;
         setup: (app: {
           slots: Record<string, (registration: SlotRegistration) => void>;
         }) => void;
       };
     };
-    expect(mod.default.__bbPluginApp).toBe(true);
+    expect(mod.default.__patcherPluginApp).toBe(true);
     mod.default.setup({
       slots: {
         homepageSection: (r) => registered.homepageSection.push(r),

@@ -1,4 +1,4 @@
-import type { CreateThreadEnvironmentArgs } from "@bb/server-contract";
+import type { CreateThreadEnvironmentArgs } from "@patcher/server-contract";
 import {
   encodeHostValue,
   encodeReuseValue,

@@ -7,7 +7,7 @@ import {
   listGarbageCollectablePluginArtifacts,
   type DbConnection,
   type PluginArtifactRow,
-} from "@bb/db";
+} from "@patcher/db";
 
 export function pluginArtifactStorageRoot(
   artifact: PluginArtifactRow,

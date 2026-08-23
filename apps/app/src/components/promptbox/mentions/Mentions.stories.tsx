@@ -23,7 +23,7 @@ function PromptStage({ children }: { children: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// Realistic suggestion fixtures — bb-flavored paths + thread refs.
+// Realistic suggestion fixtures — Patcher-flavored paths + thread refs.
 // ---------------------------------------------------------------------------
 
 function getPathName(path: string): string {
@@ -87,7 +87,7 @@ const threadSuggestions: PromptMentionSuggestion[] = [
     kind: "thread",
     path: "thread:thr_qfk8ksbxkk",
     replacement: "thread:thr_qfk8ksbxkk",
-    projectId: "proj_bb",
+    projectId: "proj_patcher",
     threadId: "thr_qfk8ksbxkk",
     title: "Wire up promptbox stories and trim FollowUp API",
   },
@@ -95,7 +95,7 @@ const threadSuggestions: PromptMentionSuggestion[] = [
     kind: "thread",
     path: "thread:thr_mgr_kj4n2x",
     replacement: "thread:thr_mgr_kj4n2x",
-    projectId: "proj_bb",
+    projectId: "proj_patcher",
     threadId: "thr_mgr_kj4n2x",
     title: "Parent: app/timeline cleanup sprint",
   },

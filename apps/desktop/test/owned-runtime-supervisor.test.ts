@@ -27,7 +27,7 @@ interface CreateFakeProcessOpsArgs {
 const tempDirs: TempDir[] = [];
 
 async function createTempDir(): Promise<TempDir> {
-  const path = await mkdtemp(join(tmpdir(), "bb-desktop-supervisor-"));
+  const path = await mkdtemp(join(tmpdir(), "patcher-desktop-supervisor-"));
   const tempDir = { path };
   tempDirs.push(tempDir);
   return tempDir;
@@ -69,18 +69,18 @@ afterEach(async () => {
 });
 
 describe("owned runtime supervisor", () => {
-  it("reaps a stale Electron-owned bb-app bridge process", async () => {
+  it("reaps a stale Electron-owned patcher-app bridge process", async () => {
     const tempDir = await createTempDir();
-    const bridgePath = "/Applications/bb.app/bb-app-bridge.mjs";
+    const bridgePath = "/Applications/Patcher.app/patcher-app-bridge.mjs";
     const fakeProcessOps = createFakeProcessOps({
-      command: `/Applications/bb.app/Contents/MacOS/bb ${bridgePath}`,
+      command: `/Applications/Patcher.app/Contents/MacOS/patcher ${bridgePath}`,
       running: true,
     });
 
     await writeOwnedRuntimePidFile({
       bridgePath,
       pid: 12345,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
       userDataPath: tempDir.path,
     });
 
@@ -103,7 +103,7 @@ describe("owned runtime supervisor", () => {
 
   it("does not kill a PID that no longer matches the owned bridge command", async () => {
     const tempDir = await createTempDir();
-    const bridgePath = "/Applications/bb.app/bb-app-bridge.mjs";
+    const bridgePath = "/Applications/Patcher.app/patcher-app-bridge.mjs";
     const fakeProcessOps = createFakeProcessOps({
       command: "/usr/bin/vim",
       running: true,
@@ -112,7 +112,7 @@ describe("owned runtime supervisor", () => {
     await writeOwnedRuntimePidFile({
       bridgePath,
       pid: 12345,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
       userDataPath: tempDir.path,
     });
 
@@ -129,7 +129,7 @@ describe("owned runtime supervisor", () => {
 
   it("clears a stale pid file when the process is already gone", async () => {
     const tempDir = await createTempDir();
-    const bridgePath = "/Applications/bb.app/bb-app-bridge.mjs";
+    const bridgePath = "/Applications/Patcher.app/patcher-app-bridge.mjs";
     const fakeProcessOps = createFakeProcessOps({
       command: null,
       running: false,
@@ -138,7 +138,7 @@ describe("owned runtime supervisor", () => {
     await writeOwnedRuntimePidFile({
       bridgePath,
       pid: 12345,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
       userDataPath: tempDir.path,
     });
 

@@ -53,7 +53,7 @@ vi.mock("@/hooks/useRouteState", () => ({
   useRouteState: () => ({ projectId: "p1", threadId: "t1" }),
 }));
 
-vi.mock("@bb/shared-ui/hooks/use-compact-viewport", () => ({
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
   useIsCompactViewport: () => false,
 }));
 

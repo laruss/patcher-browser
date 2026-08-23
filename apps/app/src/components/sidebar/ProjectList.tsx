@@ -13,12 +13,12 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type {
   ProjectResponse,
   ThreadSectionResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   findLocalPathProjectSourceForHost,
   PERSONAL_PROJECT_ID,
   type ThreadListEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { useRouteState } from "@/hooks/useRouteState";
 import {
   useConnectionAwareQueryState,
@@ -44,10 +44,10 @@ import { getCollapsedChildActivity } from "@/lib/thread-activity";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { BbHttpError } from "@bb/sdk/browser";
+import { PatcherHttpError } from "@patcher/sdk/browser";
 import { useSetRootComposeProjectId } from "@/lib/root-compose-selection";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { Button } from "@bb/shared-ui/button";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { Button } from "@patcher/shared-ui/button";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import {
   ThreadSectionCreateDialog,
@@ -59,9 +59,9 @@ import {
   ConfirmDeleteDialogContent,
 } from "@/components/dialogs/ConfirmDeleteDialog";
 import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chromeStyleTokens";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import {
   SidebarGroupContent,
   SidebarStickyStack,
@@ -72,7 +72,7 @@ import {
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
   COARSE_POINTER_ROW_HEIGHT_CLASS,
   COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
   ChronologicalSectionThreadSections,
   ProjectThreadTree,
@@ -125,8 +125,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@patcher/shared-ui/tooltip";
 import {
   SIDEBAR_LEADING_GLYPH_SLOT_CLASS,
   SIDEBAR_ROW_BASE_CLASS,
@@ -503,7 +507,10 @@ function getSectionMutationErrorMessage(
   error: unknown,
   fallbackMessage: string,
 ): string {
-  if (error instanceof BbHttpError && error.code === "section_name_conflict") {
+  if (
+    error instanceof PatcherHttpError &&
+    error.code === "section_name_conflict"
+  ) {
     return "Section name already exists.";
   }
   return getMutationErrorMessage({ error, fallbackMessage });

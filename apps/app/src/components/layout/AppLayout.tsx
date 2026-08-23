@@ -16,9 +16,9 @@ import {
 import { useAtom, useStore } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { Link, matchPath, useLocation, useNavigate } from "react-router-dom";
-import type { ProjectResponse } from "@bb/server-contract";
-import { Icon } from "@bb/shared-ui/icon";
-import { RESOURCE_ROUTE_LABEL_EVENT } from "@bb/shared-ui/resource-list";
+import type { ProjectResponse } from "@patcher/server-contract";
+import { Icon } from "@patcher/shared-ui/icon";
+import { RESOURCE_ROUTE_LABEL_EVENT } from "@patcher/shared-ui/resource-list";
 import {
   SidebarInset,
   SidebarProvider,
@@ -52,7 +52,7 @@ import {
 import { useRouteState } from "@/hooks/useRouteState";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { applyResizeCursor, clearResizeCursor } from "@/lib/resizeCursor";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { ProjectActionsMenu } from "@/components/project/ProjectActionsMenu";
 import { ProjectActionsProvider } from "@/components/project/ProjectActionsProvider";
@@ -67,14 +67,14 @@ import { classifySurfaceRoute } from "@/lib/app-surface-tabs";
 import { useBrowserSurfaceRouteSync } from "@/hooks/useBrowserSurfaceRouteSync";
 import {
   CHROME_ROW_CLASS,
-  getBbDesktopInfo,
+  getPatcherDesktopInfo,
   isDesktopBrowserAvailable,
   MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
   MACOS_CHROME_TRAFFIC_LIGHT_AXIS_NUDGE_CLASS,
   MACOS_WINDOW_DRAG_CLASS,
   shouldUseMacosDesktopChrome,
   SIDEBAR_TRIGGER_TRAILING_INSET_CLASS,
-} from "@/lib/bb-desktop";
+} from "@/lib/patcher-desktop";
 import {
   BROWSER_SURFACE_ROUTE_PATH,
   getLegacyProjectComposeRoutePath,
@@ -95,7 +95,7 @@ import {
   useAppCommandHandler,
   useAppCommandShortcut,
 } from "@/components/commands/AppCommandProvider";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import {
   shouldRestoreIOSViewportOnKeyboardDismissal,
   useMobileVisualViewportHeight,
@@ -122,8 +122,8 @@ import { useSystemConfig } from "@/hooks/queries/system-queries";
  */
 const BrowserSurfaceView = lazy(() => import("@/views/BrowserSurfaceView"));
 
-const SIDEBAR_WIDTH_KEY = "bb.sidebar.width";
-const SIDEBAR_OPEN_KEY = "bb.sidebar.open";
+const SIDEBAR_WIDTH_KEY = "patcher.sidebar.width";
+const SIDEBAR_OPEN_KEY = "patcher.sidebar.open";
 // The panel is no longer only a nav list: the agent screens (New thread, a
 // thread) paint inside it, so it has to hold a conversation and a composer. The
 // ceiling is raised well past the default so dragging the panel wide is a real
@@ -413,7 +413,7 @@ function SidebarTriggerOverlay({
 }
 
 const routeTitles: Record<string, { title: string; subtitle?: string }> = {
-  "/": { title: "bb" },
+  "/": { title: "Patcher" },
   "/settings": { title: "Settings" },
   "/automations": { title: "Automations" },
   "/skills": { title: "Skills" },
@@ -755,7 +755,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     !isRootView &&
     !isBrowserSurfaceView &&
     !(splitWorkspaceActive && pluginPanelMatch !== null);
-  const [desktopInfo] = useState(getBbDesktopInfo);
+  const [desktopInfo] = useState(getPatcherDesktopInfo);
   const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
   const sidebarProviderStyle: SidebarProviderStyle = {
     "--sidebar-width": `${sidebarWidth}px`,
@@ -863,7 +863,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       return pluginPanel.title;
     }
     if (routeBreadcrumbs) {
-      const sectionLabel = routeBreadcrumbs[0]?.label ?? "BB";
+      const sectionLabel = routeBreadcrumbs[0]?.label ?? "Patcher";
       const pageLabel = routeBreadcrumbs.at(-1)?.label ?? sectionLabel;
       return pageLabel === sectionLabel
         ? sectionLabel
@@ -884,7 +884,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       return projectLabel ?? projectId;
     }
     const routeTitle = resolveRouteTitle(location.pathname)?.title;
-    return routeTitle && routeTitle.length > 0 ? routeTitle : "BB";
+    return routeTitle && routeTitle.length > 0 ? routeTitle : "Patcher";
   })();
   // The sidebar list omits archived threads and side chats, so it can't answer
   // whether the currently-viewed thread is blocked on input. Read the current
@@ -991,7 +991,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     document.title = documentTitle;
   }, [documentTitle]);
 
-  // bb's own screens: the shared header, then the route's output. Composed once
+  // Patcher's own screens: the shared header, then the route's output. Composed once
   // and placed in one of two hosts — inside the browser's active tab on desktop,
   // or straight into the content shell on the web build, which has no surface.
   const appScreen = (

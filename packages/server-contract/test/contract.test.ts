@@ -1,8 +1,8 @@
 import {
   collectOptionalFieldPaths,
   makeWorkspaceStatus,
-} from "@bb/test-helpers";
-import type { WorkspaceResolutionFailure } from "@bb/host-daemon-contract";
+} from "@patcher/test-helpers";
+import type { WorkspaceResolutionFailure } from "@patcher/host-daemon-contract";
 import { describe, expect, it } from "vitest";
 import * as contract from "../src/index.js";
 import {
@@ -378,7 +378,7 @@ describe("git branch name contract", () => {
       "release/1.2",
       "feature.foo",
       "user_name",
-      "bb/thread-123",
+      "patcher/thread-123",
     ];
 
     for (const name of validNames) {
@@ -859,7 +859,7 @@ describe("server-contract canonical schemas", () => {
           hasPendingInteraction: true,
           environmentHostId: "host_123",
           environmentName: null,
-          environmentBranchName: "bb/test",
+          environmentBranchName: "patcher/test",
           environmentWorkspaceDisplayKind: "managed-worktree",
         },
       ]),
@@ -869,7 +869,7 @@ describe("server-contract canonical schemas", () => {
         hasPendingInteraction: true,
         environmentHostId: "host_123",
         environmentName: null,
-        environmentBranchName: "bb/test",
+        environmentBranchName: "patcher/test",
         environmentWorkspaceDisplayKind: "managed-worktree",
       },
     ]);
@@ -1050,7 +1050,7 @@ describe("server-contract canonical schemas", () => {
     expect(() =>
       contract.updateProjectSourceRequestSchema.parse({
         type: "local_path",
-        path: " C:\\Users\\michael\\bb\\ ",
+        path: " C:\\Users\\michael\\Patcher\\ ",
       }),
     ).toThrow("Native Windows paths are not supported");
 

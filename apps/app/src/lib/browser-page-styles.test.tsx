@@ -3,14 +3,14 @@
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  BB_DESKTOP_BROWSER_MAX_PAGE_STYLES,
-  type BbDesktopBrowserApi,
-  type BbDesktopBrowserPageStyles,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES,
+  type PatcherDesktopBrowserApi,
+  type PatcherDesktopBrowserPageStyles,
+} from "@patcher/desktop-contract";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import type { PluginBrowserPageStyleContribution } from "@/hooks/queries/plugin-contribution-queries";
 import { useBrowserPageStyles } from "./browser-page-styles";
 
@@ -38,10 +38,10 @@ const STYLE: PluginBrowserPageStyleContribution = {
 };
 
 function installShell(
-  overrides: Partial<BbDesktopBrowserApi> = {},
-): BbDesktopBrowserPageStyles[] {
-  const pushes: BbDesktopBrowserPageStyles[] = [];
-  window.bbDesktop = createBbDesktopApi(desktopInfo, {
+  overrides: Partial<PatcherDesktopBrowserApi> = {},
+): PatcherDesktopBrowserPageStyles[] {
+  const pushes: PatcherDesktopBrowserPageStyles[] = [];
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, {
     ...createNoopDesktopBrowserApi(),
     setPageStyles(request) {
       pushes.push(request);
@@ -54,7 +54,7 @@ function installShell(
 afterEach(() => {
   cleanup();
   contributions.value = undefined;
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
 });
 
 describe("useBrowserPageStyles", () => {
@@ -100,7 +100,7 @@ describe("useBrowserPageStyles", () => {
   it("pushes no more styles than the shell will accept", async () => {
     contributions.value = {
       browserPageStyles: Array.from(
-        { length: BB_DESKTOP_BROWSER_MAX_PAGE_STYLES + 5 },
+        { length: PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES + 5 },
         (_unused, index) => ({ ...STYLE, styleId: `feed-${index}` }),
       ),
     };
@@ -110,7 +110,7 @@ describe("useBrowserPageStyles", () => {
 
     await waitFor(() => {
       expect(pushes[0]?.styles).toHaveLength(
-        BB_DESKTOP_BROWSER_MAX_PAGE_STYLES,
+        PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES,
       );
     });
   });
@@ -119,7 +119,7 @@ describe("useBrowserPageStyles", () => {
     contributions.value = { browserPageStyles: [STYLE] };
     // No `setPageStyles`: an older shell, whose strict parser would drop the
     // payload anyway.
-    window.bbDesktop = createBbDesktopApi(
+    window.patcherDesktop = createPatcherDesktopApi(
       desktopInfo,
       createNoopDesktopBrowserApi(),
     );

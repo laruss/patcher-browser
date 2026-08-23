@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH } from "@patcher/desktop-contract";
 import {
-  BB_DESKTOP_BROWSER_MAX_FAVICON_BYTES,
+  PATCHER_DESKTOP_BROWSER_MAX_FAVICON_BYTES,
   resolveBrowserFaviconDataUrl,
   resolveBrowserFaviconMediaType,
   resolveBrowserFaviconPageKey,
@@ -192,7 +192,10 @@ describe("resolveBrowserFaviconDataUrl", () => {
   // The byte cap is the guard that keeps a hostile page from pushing megabytes
   // into IPC and renderer memory, one tab at a time.
   it("drops an icon past the byte cap", async () => {
-    const oversized = Buffer.alloc(BB_DESKTOP_BROWSER_MAX_FAVICON_BYTES + 1, 1);
+    const oversized = Buffer.alloc(
+      PATCHER_DESKTOP_BROWSER_MAX_FAVICON_BYTES + 1,
+      1,
+    );
 
     expect(
       await resolveBrowserFaviconDataUrl({
@@ -205,7 +208,7 @@ describe("resolveBrowserFaviconDataUrl", () => {
   // The two caps are stated in different packages; this is what keeps them from
   // drifting into a payload the wire schema would reject.
   it("keeps the largest accepted icon inside the wire cap", async () => {
-    const largest = Buffer.alloc(BB_DESKTOP_BROWSER_MAX_FAVICON_BYTES, 1);
+    const largest = Buffer.alloc(PATCHER_DESKTOP_BROWSER_MAX_FAVICON_BYTES, 1);
 
     const dataUrl = await resolveBrowserFaviconDataUrl({
       fetchFavicon: async () => response({ body: largest }),
@@ -214,7 +217,7 @@ describe("resolveBrowserFaviconDataUrl", () => {
 
     expect(dataUrl).not.toBeNull();
     expect(dataUrl?.length).toBeLessThanOrEqual(
-      BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH,
     );
   });
 });

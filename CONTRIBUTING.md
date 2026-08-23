@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve bb.
+Thanks for helping improve Patcher.
 
 ## Bugs
 

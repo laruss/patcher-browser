@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { registrySkillInstallRequestSchema } from "@bb/server-contract";
+import { registrySkillInstallRequestSchema } from "@patcher/server-contract";
 import { ApiError } from "../errors.js";
 import {
   githubRepoForSource,

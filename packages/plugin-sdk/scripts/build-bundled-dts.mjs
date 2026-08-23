@@ -1,17 +1,17 @@
-// Generates the self-contained `.d.ts` bundles that `bb plugin new` ships into
-// a scaffolded plugin's `types/` directory, so authors get real BbPluginApi /
-// @bb/plugin-sdk/app types WITHOUT the (unpublished) @bb/* workspace packages
+// Generates the self-contained `.d.ts` bundles that `patcher plugin new` ships into
+// a scaffolded plugin's `types/` directory, so authors get real PatcherPluginApi /
+// @patcher/plugin-sdk/app types WITHOUT the (unpublished) @patcher/* workspace packages
 // on disk.
 //
-// rollup-plugin-dts flattens @bb/plugin-sdk's own contracts plus every @bb/*
-// type it references (BbSdk, PromptInput, ThreadResponse, …) into the root
+// rollup-plugin-dts flattens @patcher/plugin-sdk's own contracts plus every @patcher/*
+// type it references (PatcherSdk, PromptInput, ThreadResponse, …) into the root
 // file. Testing subpaths reuse that already-portable root declaration through
 // the package's own public name instead of flattening the same contracts a
 // second time. Genuine npm packages remain external imports and resolve from
 // the consumer's own dependencies.
 //
 // The output is committed as bundled-types/*.d.ts (read at scaffold time by
-// @bb/templates via file path — no package edge, to avoid a dependency cycle).
+// @patcher/templates via file path — no package edge, to avoid a dependency cycle).
 // Run with --check to fail (in CI/typecheck) when the committed copy is stale.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -26,24 +26,25 @@ const publicApiModule = path.join(pkgsDir, "server-contract/src/public-api.ts");
 const publicApiStub = path.join(here, "public-api-stub.d.ts");
 const outDir = path.join(pkgRoot, "bundled-types");
 const outputs = {
-  "bb-plugin-sdk.d.ts": path.join(pkgRoot, "src/index.ts"),
-  "bb-plugin-sdk-app.d.ts": path.join(pkgRoot, "src/app.ts"),
-  "bb-plugin-sdk-internal-composer-customization-validation.d.ts": path.join(
-    pkgRoot,
-    "src/internal/composer-customization-validation.ts",
-  ),
-  "bb-plugin-sdk-internal-composer-view.d.ts": path.join(
+  "patcher-plugin-sdk.d.ts": path.join(pkgRoot, "src/index.ts"),
+  "patcher-plugin-sdk-app.d.ts": path.join(pkgRoot, "src/app.ts"),
+  "patcher-plugin-sdk-internal-composer-customization-validation.d.ts":
+    path.join(pkgRoot, "src/internal/composer-customization-validation.ts"),
+  "patcher-plugin-sdk-internal-composer-view.d.ts": path.join(
     pkgRoot,
     "src/internal/composer-view.ts",
   ),
-  "bb-plugin-sdk-testing.d.ts": path.join(pkgRoot, "src/testing/index.ts"),
-  "bb-plugin-sdk-testing-app.d.ts": path.join(pkgRoot, "src/testing/app.tsx"),
+  "patcher-plugin-sdk-testing.d.ts": path.join(pkgRoot, "src/testing/index.ts"),
+  "patcher-plugin-sdk-testing-app.d.ts": path.join(
+    pkgRoot,
+    "src/testing/app.tsx",
+  ),
 };
 
 // Real npm packages the bundle imports from — kept external so they resolve
 // from the scaffold's devDependencies rather than being inlined.
 const EXTERNAL = [
-  /^@bb\/plugin-sdk$/,
+  /^@patcher\/plugin-sdk$/,
   /^@testing-library\/react($|\/)/,
   /^better-sqlite3/,
   /^hono($|\/)/,
@@ -52,9 +53,9 @@ const EXTERNAL = [
   /^zod($|\/)/,
 ];
 
-/** Resolve any `@bb/<pkg>[/<sub>]` to its `source` export target on disk. */
-function resolveBbSource(id) {
-  const match = /^@bb\/([^/]+)(\/.*)?$/.exec(id);
+/** Resolve any `@patcher/<pkg>[/<sub>]` to its `source` export target on disk. */
+function resolvePatcherSource(id) {
+  const match = /^@patcher\/([^/]+)(\/.*)?$/.exec(id);
   if (!match) return null;
   const pkgDir = path.join(pkgsDir, match[1]);
   const manifestPath = path.join(pkgDir, "package.json");
@@ -70,7 +71,7 @@ function resolveBbSource(id) {
 }
 
 const inlineWorkspace = {
-  name: "inline-bb-workspace",
+  name: "inline-patcher-workspace",
   resolveId(id, importer) {
     // Redirect server-contract's non-portable route table to the loose stub,
     // whether imported by bare specifier or by its own barrel's relative path.
@@ -82,7 +83,7 @@ const inlineWorkspace = {
       if (asTs === publicApiModule) return publicApiStub;
     }
     if (id === publicApiModule) return publicApiStub;
-    return resolveBbSource(id);
+    return resolvePatcherSource(id);
   },
 };
 
@@ -90,6 +91,17 @@ async function bundle(input) {
   const build = await rollup({
     input,
     external: EXTERNAL,
+    // Load one file at a time. TypeScript emits the members of an inferred
+    // object type in the order it interned them, so a concurrent load order
+    // made the declaration bytes vary run to run while the types stayed
+    // identical — a real one-line change arrived buried in dozens of unrelated
+    // swaps. Sequential loading fixes the cause: measured 6 clean regenerations
+    // byte-identical with no normalization at all, against roughly one in three
+    // differing without it. It costs about a second on this graph.
+    //
+    // Note the name: `maxParallelFileOperations` is silently accepted as an
+    // unknown option and does nothing.
+    maxParallelFileOps: 1,
     plugins: [inlineWorkspace, dts({ respectExternal: false })],
     onwarn(warning) {
       // Circular type references are fine in .d.ts output; surface everything
@@ -104,12 +116,12 @@ async function bundle(input) {
 }
 
 const HEADER = [
-  "// Portable type declarations for `@bb/plugin-sdk`. Unpublished BB",
+  "// Portable type declarations for `@patcher/plugin-sdk`. Unpublished Patcher",
   "// workspace contracts are flattened; public subpaths may reuse the",
-  "// package root without requiring any other @bb/* package.",
+  "// package root without requiring any other @patcher/* package.",
   "//",
-  "// Confused by the API, or need a symbol that isn't here? Clone the BB repo",
-  "// and read the real source: https://github.com/get-bb/bb",
+  "// Confused by the API, or need a symbol that isn't here? Clone the Patcher repo",
+  "// and read the real source: https://github.com/laruss/patcher-browser",
 ].join("\n");
 
 const generated = {};
@@ -118,22 +130,91 @@ for (const [fileName, entry] of Object.entries(outputs)) {
 }
 
 /**
- * rollup-plugin-dts loads modules concurrently, so the emission order of
- * inferred type members (zod enum maps especially) varies run to run while
- * the content stays semantically identical. Compare (and skip rewrites) on
- * the sorted line multiset: real drift adds/removes/changes lines and is
- * still caught, but a pure reordering neither fails --check nor churns the
- * committed bytes.
+ * What the staleness check treats as "the same declaration".
+ *
+ * Sequential loading above makes emission deterministic, so this is a belt to
+ * that brace rather than the fix: it absorbs the two constructs whose order
+ * carries no meaning, in case a different toolchain or platform reorders them
+ * anyway. A literal union on one line, and a run of *inferred* members — a
+ * member typed by a `z.*` reference, or a literal key -> same-literal entry,
+ * which is what `z.enum` emits.
+ *
+ * Deliberately narrow. It used to compare the sorted line multiset of the whole
+ * file, which passes for any reordering whatsoever: a member moved from one
+ * interface into another was invisible to it. Hand-written interfaces are now
+ * compared where their author put them.
  */
 function canonicalize(content) {
-  // Union member order can vary on a single emitted line as well as across
-  // object-member lines. Normalize quoted literal unions before sorting lines
-  // so semantically identical output does not rewrite committed declarations.
-  const normalizedLiteralUnions = content.replace(
+  return sortInferredMembers(sortLiteralUnions(content));
+}
+
+// Comparison only: the written bytes stay in the order the compiler emitted
+// them, which is deterministic now and readable — these files ship into
+// scaffolded plugins for people to read, so alphabetizing them would cost more
+// than it buys.
+
+/** `"b" | "a"` -> `"a" | "b"`. Union member order carries no meaning. */
+function sortLiteralUnions(content) {
+  return content.replace(
     /"(?:[^"\\]|\\.)+"(?: \| "(?:[^"\\]|\\.)+")+/gu,
     (union) => union.split(" | ").sort().join(" | "),
   );
-  return normalizedLiteralUnions.split("\n").sort().join("\n");
+}
+
+/**
+ * A complete one-line object member: `name: type;`, optionally `readonly` and
+ * optionally `?`. Balanced-bracket check below keeps multi-line members out.
+ */
+const MEMBER =
+  /^(\s*)(?:readonly )?(?:"((?:[^"\\]|\\.)+)"|([A-Za-z_$][\w$]*))\??: (.+);$/u;
+
+function inferredMember(line) {
+  const match = MEMBER.exec(line);
+  if (match === null) return null;
+  const [, indent, quotedKey, bareKey, type] = match;
+  // A member whose value spans lines cannot be moved on its own.
+  if (!isBalanced(type)) return null;
+  const key = quotedKey ?? bareKey;
+  const isZodType = /^z\$?\d*\./u.test(type);
+  const isLiteralSelfMap = type === `"${key}"`;
+  return isZodType || isLiteralSelfMap ? { indent } : null;
+}
+
+function isBalanced(text) {
+  const pairs = { ")": "(", "]": "[", "}": "{", ">": "<" };
+  const stack = [];
+  for (const character of text) {
+    if ("([{<".includes(character)) stack.push(character);
+    else if (character in pairs && stack.pop() !== pairs[character])
+      return false;
+  }
+  return stack.length === 0;
+}
+
+/** Sort each maximal run of same-indent inferred members in place. */
+function sortInferredMembers(content) {
+  const lines = content.split("\n");
+  let start = 0;
+  while (start < lines.length) {
+    const first = inferredMember(lines[start]);
+    if (first === null) {
+      start += 1;
+      continue;
+    }
+    let end = start + 1;
+    while (end < lines.length) {
+      const next = inferredMember(lines[end]);
+      if (next === null || next.indent !== first.indent) break;
+      end += 1;
+    }
+    if (end - start > 1) {
+      const run = lines.slice(start, end);
+      run.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+      lines.splice(start, run.length, ...run);
+    }
+    start = end;
+  }
+  return lines.join("\n");
 }
 
 const check = process.argv.includes("--check");
@@ -148,7 +229,7 @@ for (const [fileName, content] of Object.entries(generated)) {
   if (check) {
     if (!unchanged) {
       console.error(
-        `bundled-types/${fileName} is stale. Run \`bun run --filter @bb/plugin-sdk build\`.`,
+        `bundled-types/${fileName} is stale. Run \`bun run --filter @patcher/plugin-sdk build\`.`,
       );
       stale = true;
     }

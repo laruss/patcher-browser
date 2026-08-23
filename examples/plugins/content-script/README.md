@@ -1,10 +1,10 @@
 # Content script example
 
-This frontend-only enhancement adds a theme-aware focus ring to editable bb
+This frontend-only enhancement adds a theme-aware focus ring to editable Patcher
 surfaces without rendering a React slot. Install it from this directory and
-use `bb plugin dev` to exercise reloads.
+use `patcher plugin dev` to exercise reloads.
 
-The static rule lives in `app.css`, which is bb's preferred path for plugin
+The static rule lives in `app.css`, which is Patcher's preferred path for plugin
 styles. The script owns only listeners and class names: it observes the
 generation `AbortSignal`, returns an idempotent disposer, and removes every
 class it installed. Reloading, disabling, removing, or closing the app window

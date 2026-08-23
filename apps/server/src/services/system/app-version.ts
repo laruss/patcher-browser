@@ -1,12 +1,12 @@
 import semver from "semver";
 import { z } from "zod";
-import type { SystemVersionResponse } from "@bb/server-contract";
+import type { SystemVersionResponse } from "@patcher/server-contract";
 import type { ServerLogger, ServerRuntimeConfig } from "../../types.js";
 
-const NPM_LATEST_URL = "https://registry.npmjs.org/bb-app/latest";
+const NPM_LATEST_URL = "https://registry.npmjs.org/patcher-app/latest";
 const NPM_LATEST_TIMEOUT_MS = 5_000;
 const NPM_LATEST_CACHE_TTL_MS = 60 * 60 * 1000;
-const UPGRADE_COMMAND = "npx bb-app@latest";
+const UPGRADE_COMMAND = "npx patcher-app@latest";
 
 const npmLatestResponseSchema = z
   .object({
@@ -65,7 +65,7 @@ export function createAppVersionService(
       if (!response.ok) {
         logger.warn(
           { status: response.status, url: NPM_LATEST_URL },
-          "Failed to fetch latest bb-app version from npm",
+          "Failed to fetch latest patcher-app version from npm",
         );
         return null;
       }

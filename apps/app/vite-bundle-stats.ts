@@ -27,7 +27,7 @@ export interface BundleStats {
  */
 export function bundleStats(): Plugin {
   return {
-    name: "bb:bundle-stats",
+    name: "patcher:bundle-stats",
     apply: "build",
     async writeBundle(_options, bundle) {
       const entry = Object.values(bundle).find(
@@ -76,6 +76,7 @@ function packageNameOf(moduleId: string): string | null {
   const segments = moduleId.slice(marker + "node_modules/".length).split("/");
   const [first, second] = segments;
   if (first === undefined) return null;
-  if (first.startsWith("@")) return second === undefined ? null : `${first}/${second}`;
+  if (first.startsWith("@"))
+    return second === undefined ? null : `${first}/${second}`;
   return first;
 }

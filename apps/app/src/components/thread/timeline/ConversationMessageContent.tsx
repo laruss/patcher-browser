@@ -3,10 +3,10 @@ import type {
   TimelineConversationAttachments,
   TimelineRowBase,
   TimelineUserConversationRow,
-} from "@bb/server-contract";
-import type { PromptTextMention, ThreadChildOrigin } from "@bb/domain";
-import { fileNameFromPath } from "@bb/thread-view";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/server-contract";
+import type { PromptTextMention, ThreadChildOrigin } from "@patcher/domain";
+import { fileNameFromPath } from "@patcher/thread-view";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   MarkdownPreview,
   type MarkdownThreadMentions,
@@ -231,7 +231,7 @@ interface CollapsibleMessageTextProps {
   text: string;
   /**
    * When set, the first `mutePrefixLength` characters of `text` are rendered
-   * inside a muted, max-width-truncated pill — used for `[bb …]` prefixes on
+   * inside a muted, max-width-truncated pill — used for `[Patcher …]` prefixes on
    * system-initiated messages and non-user messages without sender metadata.
    */
   mutePrefixLength?: number;
@@ -306,8 +306,7 @@ function CollapsibleMessageText({
     enabled: !isExpanded,
     measurementKey: body.text,
   });
-  const showToggle =
-    isExpanded || exceedsCollapsedRenderCap || isOverflowing;
+  const showToggle = isExpanded || exceedsCollapsedRenderCap || isOverflowing;
 
   return (
     <>
@@ -445,7 +444,7 @@ function UserConversationMessage({
         resolveSegmentLinkHref={resolveSegmentLinkHref}
         onTitleAction={onTitleAction}
         sourceKind="system"
-        sourceName="BB"
+        sourceName="Patcher"
         sourceThreadId={null}
         sourceIsPluginSideChat={false}
         systemMessageKind={systemMessageKind}

@@ -1,12 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
-import { type DbConnection, events, promptHistoryEntries } from "@bb/db";
+import { type DbConnection, events, promptHistoryEntries } from "@patcher/db";
 import {
   arePromptHistoryInputsEqual,
   promptInputSchema,
   turnRequestEventDataSchema,
   type PromptHistoryScope,
   type PromptInput,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 import { expect } from "vitest";
 

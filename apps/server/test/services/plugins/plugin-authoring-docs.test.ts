@@ -2,9 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import * as pluginSdkApp from "@bb/plugin-sdk/app";
+import { pluginPatcherManifestSchema } from "@patcher/domain";
+import * as pluginSdkApp from "@patcher/plugin-sdk/app";
 import {
-  type BbPluginApi,
+  type PatcherPluginApi,
   type PluginAppBuilder,
   type PluginAppSlots,
   type PluginContentScriptContext,
@@ -30,13 +31,13 @@ import {
   type PluginThreadPanelProps,
   type ThreadChatMessageAction,
   type ThreadChatProps,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 
 const FRONTEND_RUNTIME_EXPORT_NAMES = Object.keys(pluginSdkApp).sort();
 
 /**
- * Durability test for the bb-plugin-authoring builtin skill: the skill must
- * document the ENTIRE plugin API. Growing BbPluginApi or the frontend SDK
+ * Durability test for the patcher-plugin-authoring builtin skill: the skill must
+ * document the ENTIRE plugin API. Growing PatcherPluginApi or the frontend SDK
  * surface without documenting the new member fails here.
  *
  * The skill is progressively disclosed — SKILL.md stays small and routes to
@@ -47,7 +48,7 @@ const FRONTEND_RUNTIME_EXPORT_NAMES = Object.keys(pluginSdkApp).sort();
 
 const SKILL_DIR = fileURLToPath(
   new URL(
-    "../../../src/services/skills/builtin-skills/bb-plugin-authoring/",
+    "../../../src/services/skills/builtin-skills/patcher-plugin-authoring/",
     import.meta.url,
   ),
 );
@@ -61,11 +62,11 @@ function readReferenceFileNames(): string[] {
 }
 
 /**
- * Every property of BbPluginApi, compile-time checked in both directions:
+ * Every property of PatcherPluginApi, compile-time checked in both directions:
  * `satisfies` rejects entries that are not keys, and the Missing assertion
  * below rejects keys that are not entries.
  */
-const BB_PLUGIN_API_KEYS = [
+const PATCHER_PLUGIN_API_KEYS = [
   "pluginId",
   "log",
   "settings",
@@ -81,14 +82,13 @@ const BB_PLUGIN_API_KEYS = [
   "events",
   "status",
   "server",
-  "hosts",
   "sdk",
   "onDispose",
-] as const satisfies readonly (keyof BbPluginApi)[];
+] as const satisfies readonly (keyof PatcherPluginApi)[];
 
 type MissingApiKey = Exclude<
-  keyof BbPluginApi,
-  (typeof BB_PLUGIN_API_KEYS)[number]
+  keyof PatcherPluginApi,
+  (typeof PATCHER_PLUGIN_API_KEYS)[number]
 >;
 const _assertAllApiKeysListed: MissingApiKey extends never ? true : never =
   true;
@@ -98,7 +98,7 @@ void _assertAllApiKeysListed;
  * Mirrors PluginSettingDescriptor["type"]
  * (packages/plugin-sdk/src/backend-contract.ts) — types only, so the union is
  * mirrored here and compile-time checked in both directions like
- * BB_PLUGIN_API_KEYS above.
+ * PATCHER_PLUGIN_API_KEYS above.
  */
 const SETTING_DESCRIPTOR_TYPES = [
   "string",
@@ -369,7 +369,7 @@ const _assertAllThreadChatMessageActionFieldsListed: MissingThreadChatMessageAct
   : never = true;
 void _assertAllThreadChatMessageActionFieldsListed;
 
-describe("bb-plugin-authoring skill", () => {
+describe("patcher-plugin-authoring skill", () => {
   const skillEntry = readFileSync(SKILL_PATH, "utf8");
   const referenceFileNames = readReferenceFileNames();
   /** SKILL.md plus every reference file: the agent reaches all of it. */
@@ -381,18 +381,48 @@ describe("bb-plugin-authoring skill", () => {
   ].join("\n");
 
   it("has frontmatter naming the skill after its directory", () => {
-    expect(skillEntry).toMatch(/^---\nname: bb-plugin-authoring\n/);
+    expect(skillEntry).toMatch(/^---\nname: patcher-plugin-authoring\n/);
   });
 
-  it("documents every BbPluginApi property", () => {
-    for (const key of BB_PLUGIN_API_KEYS) {
-      expect(skill, `bb.${key} is not documented in the skill`).toContain(
-        `bb.${key}`,
+  it("documents every PatcherPluginApi property", () => {
+    for (const key of PATCHER_PLUGIN_API_KEYS) {
+      expect(skill, `patcher.${key} is not documented in the skill`).toContain(
+        `patcher.${key}`,
       );
     }
   });
 
-  it("documents every @bb/plugin-sdk/app runtime export", () => {
+  // The other direction, and the one that was missing. The assertion above
+  // proves the skill covers the API; nothing proved the API covers the skill,
+  // so a namespace the fork *removed* went on being documented and CI stayed
+  // green. An agent with this skill loaded then emits a call that throws.
+  //
+  // `patcher.<x>` is legitimately three things in this text: a member of
+  // PatcherPluginApi, a field of the manifest's `patcher` block, and the
+  // page-script global's `ready`. All three are derived rather than listed —
+  // the manifest fields come out of the schema's own shape — so the only
+  // hand-maintained part is the page-script name.
+  it("documents no plugin API that does not exist", () => {
+    const manifestFields = Object.keys(pluginPatcherManifestSchema.shape);
+    const pageScriptMembers = ["ready", "rpc"];
+    const known = new Set<string>([
+      ...PATCHER_PLUGIN_API_KEYS,
+      ...manifestFields,
+      ...pageScriptMembers,
+    ]);
+
+    const documented = new Set(
+      [...skill.matchAll(/\bpatcher\.([A-Za-z][A-Za-z0-9]*)/gu)].map(
+        (match) => match[1],
+      ),
+    );
+
+    expect([...documented].filter((name) => !known.has(name)).sort()).toEqual(
+      [],
+    );
+  });
+
+  it("documents every @patcher/plugin-sdk/app runtime export", () => {
     for (const name of FRONTEND_RUNTIME_EXPORT_NAMES) {
       expect(skill, `${name} is not documented in the skill`).toContain(name);
     }
@@ -501,9 +531,9 @@ describe("bb-plugin-authoring skill", () => {
   });
 
   it("documents the explicit plugin branding contract", () => {
-    expect(skill).toContain("bb.name");
-    expect(skill).toContain("bb.description");
-    expect(skill).toContain("bb.branding");
+    expect(skill).toContain("patcher.name");
+    expect(skill).toContain("patcher.description");
+    expect(skill).toContain("patcher.branding");
     expect(skill).toContain("logo.light");
     expect(skill).toContain("logo.dark");
     expect(skill).toContain("no root logo auto-detection");
@@ -511,8 +541,8 @@ describe("bb-plugin-authoring skill", () => {
     expect(skill).toContain("branding.icon");
     expect(skill).toContain("./assets/icon.svg");
     expect(skill).toContain("CSS mask");
-    expect(skill).toContain("canonical BB icon name");
-    expect(skill).toContain("BB reuses this icon on roomy");
+    expect(skill).toContain("canonical Patcher icon name");
+    expect(skill).toContain("Patcher reuses this icon on roomy");
     expect(skill).toContain("Logo-only");
     expect(skill).toContain("manifests remain supported");
     expect(skill).toContain("Do not duplicate");

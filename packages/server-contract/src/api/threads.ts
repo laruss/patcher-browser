@@ -25,8 +25,8 @@ import {
   threadTimelinePendingTodosSchema,
   threadVisibilitySchema,
   threadWithRuntimeSchema,
-} from "@bb/domain";
-import type { CallerExecutionInputSource } from "@bb/domain";
+} from "@patcher/domain";
+import type { CallerExecutionInputSource } from "@patcher/domain";
 import {
   timelineDeltaSchema,
   timelineRowSchema,
@@ -712,7 +712,7 @@ export const threadTimelineQuerySchema = z
      * `rows: []` with the tail-only fields (`activeThinking`,
      * `activeWorkflows`, `pendingTodos`, `contextWindowUsage`) populated
      * normally. Used by the CLI to read tail state without paying for the full
-     * row payload on every `bb status` invocation. Implies `latest` page
+     * row payload on every `patcher status` invocation. Implies `latest` page
      * semantics.
      */
     summaryOnly: z.enum(["true", "false"]),

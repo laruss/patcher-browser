@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   FILE_LIST_LIMIT_MAX,
   type HostDaemonOnlineRpcResultByType,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 /**
  * Host file read/write API (`POST /files/*`). Unlike the preview-oriented

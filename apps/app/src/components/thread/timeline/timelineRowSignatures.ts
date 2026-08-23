@@ -1,9 +1,9 @@
-import type { TimelineActivityIntent } from "@bb/server-contract";
+import type { TimelineActivityIntent } from "@patcher/server-contract";
 import {
   assertNever,
   type ThreadTimelineViewRow,
   type TimelineViewWorkRow,
-} from "@bb/thread-view";
+} from "@patcher/thread-view";
 
 type TimelineRowSignaturePart = boolean | number | string | null | undefined;
 

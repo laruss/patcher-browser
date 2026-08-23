@@ -4,8 +4,8 @@ import {
   getThread,
   listEvents,
   threads,
-} from "@bb/db";
-import { systemThreadProvisioningEventDataSchema } from "@bb/domain";
+} from "@patcher/db";
+import { systemThreadProvisioningEventDataSchema } from "@patcher/domain";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../src/errors.js";
 import {
@@ -95,7 +95,7 @@ describe("environment reprovisioning", () => {
       );
       const managedCommand =
         requireManagedWorktreeEnvironmentProvisionLiveCommand(queued);
-      expect(managedCommand.command.branchName).toBe(`bb/${thread.id}`);
+      expect(managedCommand.command.branchName).toBe(`patcher/${thread.id}`);
       expect(managedCommand.command.type).toBe("environment.provision");
     });
   });
@@ -116,7 +116,7 @@ describe("environment reprovisioning", () => {
         status: "error",
         managed: true,
         workspaceProvisionType: "managed-worktree",
-        branchName: "bb/existing-readable-branch",
+        branchName: "patcher/existing-readable-branch",
       });
       const thread = seedThread(harness.deps, {
         projectId: project.id,
@@ -138,7 +138,7 @@ describe("environment reprovisioning", () => {
       const managedCommand =
         requireManagedWorktreeEnvironmentProvisionLiveCommand(queued);
       expect(managedCommand.command.branchName).toBe(
-        "bb/existing-readable-branch",
+        "patcher/existing-readable-branch",
       );
     });
   });
@@ -159,7 +159,7 @@ describe("environment reprovisioning", () => {
         status: "error",
         managed: true,
         workspaceProvisionType: "managed-worktree",
-        branchName: "bb/base-branch-thread",
+        branchName: "patcher/base-branch-thread",
         baseBranch: "release/2026-05",
       });
       const thread = seedThread(harness.deps, {
@@ -201,7 +201,7 @@ describe("environment reprovisioning", () => {
         status: "error",
         managed: true,
         workspaceProvisionType: "managed-worktree",
-        branchName: "bb/default-base-branch-thread",
+        branchName: "patcher/default-base-branch-thread",
         baseBranch: null,
       });
       const thread = seedThread(harness.deps, {

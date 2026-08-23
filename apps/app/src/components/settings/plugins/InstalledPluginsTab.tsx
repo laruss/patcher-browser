@@ -1,9 +1,9 @@
 import { useState, type KeyboardEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { EmptyState } from "@bb/shared-ui/empty-state";
-import { Icon } from "@bb/shared-ui/icon";
-import { Switch } from "@bb/shared-ui/switch";
+import { EmptyState } from "@patcher/shared-ui/empty-state";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Switch } from "@patcher/shared-ui/switch";
 import { appToast } from "@/components/ui/app-toast.js";
 import { pluginAdminErrorMessage } from "@/lib/plugin-admin-error";
 import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
@@ -41,7 +41,7 @@ export function InstalledPluginsTab({
 
   if (plugins.length === 0) {
     return (
-      <EmptyState message="No plugins installed. Use “Add plugin”, browse the official catalog, or run bb plugin install <source>." />
+      <EmptyState message="No plugins installed. Use “Add plugin”, browse the official catalog, or run patcher plugin install <source>." />
     );
   }
 

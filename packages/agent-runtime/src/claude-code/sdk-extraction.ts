@@ -3,8 +3,8 @@ import type {
   ThreadEventContextWindowUsage,
   ThreadEventTokenUsage,
   ThreadEventTokenUsageBreakdown,
-} from "@bb/domain";
-import { toPositiveNumber } from "@bb/domain";
+} from "@patcher/domain";
+import { toPositiveNumber } from "@patcher/domain";
 import { textBlockSchema } from "../shared/tool-arg-schemas.js";
 import {
   extractResultText,

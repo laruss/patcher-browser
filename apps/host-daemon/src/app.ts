@@ -15,7 +15,7 @@ import { shutdownDefaultListModelsRuntimes } from "./command-dispatch-support.js
 import { startLocalApiServer, type LocalApiServer } from "./local-api.js";
 import type { HostDaemonLocalApiConfig } from "./local-api-config.js";
 import type { HostDaemonLogger } from "./logger.js";
-import type { HostDaemonDaemonWsMessage } from "@bb/host-daemon-contract";
+import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import {
   RuntimeManager,
   type RuntimeManagerReapIdleProviderSessionsArgs,
@@ -23,7 +23,6 @@ import {
   type RuntimeManagerOptions,
 } from "./runtime-manager.js";
 import { WatchManager } from "./watch-manager.js";
-import { ConnectTunnelClient } from "./connect-tunnel/index.js";
 import {
   TerminalManager,
   type TerminalManagerOptions,
@@ -49,17 +48,17 @@ import {
 } from "./server-connection.js";
 import { runtimeErrorLogFields, summarizeError } from "./error-utils.js";
 import { ensureThreadStorageRoot } from "./thread-storage-root.js";
-import type { AgentRuntimeOptions } from "@bb/agent-runtime";
+import type { AgentRuntimeOptions } from "@patcher/agent-runtime";
 import { createProtocolSelfUpdater } from "./protocol-self-update.js";
 import {
   type HostType,
   type ToolCallRequest,
   type ToolCallResponse,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   disposeParcelWatcherBackend,
   type HostWatcher,
-} from "@bb/host-watcher";
+} from "@patcher/host-watcher";
 
 interface SessionState {
   value: string | null;
@@ -116,8 +115,6 @@ export interface CreateHostDaemonAppOptions {
   appUrl?: string;
   devAppPort?: number;
   logger: HostDaemonLogger;
-  machineCredential?: string;
-  connectMachineId?: string;
   autoUpdate?: boolean;
   installUpdateTarball?: (tarballPath: string) => Promise<void>;
   releaseLock: () => Promise<void>;
@@ -135,7 +132,6 @@ export interface CreateHostDaemonAppOptions {
   onToolCall?: (request: ToolCallRequest) => Promise<ToolCallResponse>;
   fetchFn?: FetchFn;
   createWebSocket?: CreateReconnectingWebSocket;
-  closeMachineAuthProxy?: () => Promise<void>;
   forceExit?: (code: number) => void;
 }
 
@@ -145,7 +141,6 @@ export interface HostDaemonApp {
   localApi: LocalApiServer | null;
   runtimeManager: RuntimeManager;
   watchManager: WatchManager;
-  connectTunnel: ConnectTunnelClient;
   terminalManager: TerminalManager;
   router: CommandRouter;
   connection: ServerConnection;
@@ -305,7 +300,6 @@ export async function createHostDaemonApp(
     serverUrl: options.serverUrl,
     hostKey: options.hostKey,
     logger: options.logger,
-    machineCredential: options.machineCredential,
     getSessionId: () => {
       if (!sessionState.value) {
         throw new Error("Server session is not open");
@@ -477,25 +471,6 @@ export async function createHostDaemonApp(
           watchError: error.message,
         },
         "Host filesystem watch error (live updates for this path may be stale until it recovers)",
-      );
-    },
-  });
-  const connectTunnel = new ConnectTunnelClient({
-    serverUrl: options.serverUrl,
-    hostName: options.hostName,
-    machineCredential: options.machineCredential,
-    fetchFn: options.fetchFn,
-    logger: options.logger,
-    onIdentity: (identity) => {
-      sendServerMessage({
-        type: "connect-tunnel.identity",
-        identity,
-      });
-    },
-    onStatusChange: (status) => {
-      options.logger.debug(
-        { connectTunnelStatus: status },
-        "Machine tunnel status",
       );
     },
   });
@@ -754,7 +729,6 @@ export async function createHostDaemonApp(
     resolveInteractiveRequest: async (request) => {
       interactiveRequestRegistry.resolve(request);
     },
-    ensureConnectTunnelIdentity: () => connectTunnel.ensureTunnelIdentity(),
     caffeinateManager,
     threadStorageRootPath,
     logger: options.logger,
@@ -774,8 +748,6 @@ export async function createHostDaemonApp(
     dataDir: options.dataDir,
     instanceId: options.instanceId,
     logger: options.logger,
-    machineCredential: options.machineCredential,
-    connectMachineId: options.connectMachineId,
     serverClient,
     protocolSelfUpdater: createProtocolSelfUpdater({
       dataDir: options.dataDir,
@@ -805,20 +777,9 @@ export async function createHostDaemonApp(
         threadStorageTargets: message.threadStorageTargets,
       });
     },
-    onConnectSharesReplace: (message) => {
-      connectTunnel.replaceShareSet({
-        generation: message.generation,
-        ports: message.ports,
-      });
-    },
     onTerminalMessage: (message) => terminalManager.handleMessage(message),
     onSessionOpened: async (session) => {
       sessionState.value = session.sessionId;
-      // Apply the HTTP session snapshot before the first await. A plugin may
-      // declare shares after session/open and immediately push generation 1;
-      // applying generation 0 synchronously prevents that newer websocket
-      // replacement from being overwritten by the initial empty snapshot.
-      connectTunnel.replaceAuthoritativeShareSet(session.connectShares);
       if (session.retiredEnvironmentIds.length > 0) {
         await Promise.all(
           session.retiredEnvironmentIds.map((environmentId) =>
@@ -896,9 +857,7 @@ export async function createHostDaemonApp(
       eventLoopStallMonitor.stop();
       hostDaemonHealthMonitor.stop();
       caffeinateManager.shutdown();
-      await options.closeMachineAuthProxy?.();
       await localApi?.close();
-      connectTunnel.shutdown();
       await watchManager.shutdown();
       // Tear down the isolated parcel watcher child (SIGKILL + clear timers) so
       // the daemon's event loop can drain and the child is not orphaned.
@@ -933,7 +892,6 @@ export async function createHostDaemonApp(
     localApi,
     runtimeManager,
     watchManager,
-    connectTunnel,
     terminalManager,
     router,
     connection,

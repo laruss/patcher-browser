@@ -7,7 +7,7 @@ import {
   type AppThemeSelection,
   type FaviconColor,
   type FaviconColorPreference,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { invalidateSystemConfig } from "@/hooks/cache-owners/system-cache-effects";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { sdk } from "@/lib/sdk";
@@ -15,9 +15,9 @@ import { sdk } from "@/lib/sdk";
 // Reused as both the boot cache (apply the last-known tint before /system/config
 // loads, so the tab icon doesn't flash) and the legacy source for the one-time
 // migration off the old localStorage-only preference.
-export const FAVICON_COLOR_STORAGE_KEY = "bb.faviconColor";
+export const FAVICON_COLOR_STORAGE_KEY = "patcher.faviconColor";
 export const FAVICON_COLOR_SERVER_SYNCED_STORAGE_KEY =
-  "bb.faviconColor.serverSynced";
+  "patcher.faviconColor.serverSynced";
 
 export const FAVICON_BADGES = ["none", "unread"] as const;
 export type FaviconBadge = (typeof FAVICON_BADGES)[number];

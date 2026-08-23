@@ -11,7 +11,7 @@ import {
   type SecondaryPanelFileTab,
 } from "./ThreadSecondaryPanel";
 import type { ThreadSecondaryPanel as ThreadSecondaryPanelTab } from "@/lib/thread-secondary-panel";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   createGitDiffFixedPanelTab,
   createTerminalFixedPanelTab,
@@ -19,7 +19,7 @@ import {
   type HostFilePreviewFixedPanelTab,
   type SecondaryFixedPanelTab,
 } from "@/lib/fixed-panel-tabs-state";
-import type { WorkspaceFile } from "@bb/server-contract";
+import type { WorkspaceFile } from "@patcher/server-contract";
 import { StoryCard, StoryRow } from "../../../.ladle/story-card";
 import {
   ThreadMetadataContent,

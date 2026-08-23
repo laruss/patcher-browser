@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ThreadEvent } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
 import type { AdapterCommand } from "./provider-adapter.js";
 import { createAgentRuntimeWithAdapters } from "./runtime.js";
 import {
@@ -21,7 +21,9 @@ afterEach(() => {
 
 describe("prepareThreadRewind", () => {
   it("stages one independently discardable fork per lease and suppresses staging events", async () => {
-    const workspacePath = mkdtempSync(join(tmpdir(), "bb-runtime-rewind-"));
+    const workspacePath = mkdtempSync(
+      join(tmpdir(), "patcher-runtime-rewind-"),
+    );
     temporaryDirectories.push(workspacePath);
     const commands: AdapterCommand[] = [];
     const events: ThreadEvent[] = [];
@@ -98,7 +100,9 @@ describe("prepareThreadRewind", () => {
   });
 
   it("retains a staged rewind when provider cleanup fails so cleanup can retry", async () => {
-    const workspacePath = mkdtempSync(join(tmpdir(), "bb-runtime-rewind-"));
+    const workspacePath = mkdtempSync(
+      join(tmpdir(), "patcher-runtime-rewind-"),
+    );
     temporaryDirectories.push(workspacePath);
     const stderr: string[] = [];
     const commands: AdapterCommand[] = [];
@@ -153,7 +157,9 @@ describe("prepareThreadRewind", () => {
   });
 
   it("discards a staged fork when its response does not identify an adoptable provider thread", async () => {
-    const workspacePath = mkdtempSync(join(tmpdir(), "bb-runtime-rewind-"));
+    const workspacePath = mkdtempSync(
+      join(tmpdir(), "patcher-runtime-rewind-"),
+    );
     temporaryDirectories.push(workspacePath);
     const commands: AdapterCommand[] = [];
     const runtime = createAgentRuntimeWithAdapters({

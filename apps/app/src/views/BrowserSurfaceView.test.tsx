@@ -10,11 +10,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import type { BbDesktopBrowserStateHandler } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserStateHandler } from "@patcher/desktop-contract";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { getBrowserSurfaceTabsStorageKey } from "@/lib/browser-surface-tabs";
 import { getBrowserFaviconsStorageKey } from "@/lib/browser-favicons";
@@ -38,8 +38,8 @@ function renderSurface(
     closeWindow,
   }: { appScreen?: ReactNode; closeWindow?: () => void } = {},
 ) {
-  window.bbDesktop = {
-    ...createBbDesktopApi(desktopInfo, browserApi),
+  window.patcherDesktop = {
+    ...createPatcherDesktopApi(desktopInfo, browserApi),
     // Absent by default, which is a shell older than the call and the web
     // build — both of which must keep the older behaviour.
     ...(closeWindow === undefined ? {} : { closeWindow }),
@@ -48,7 +48,7 @@ function renderSurface(
   // the previous test's tabs leak into the next) plus a query client, which the
   // surface needs to read its plugin omnibox contributions.
   const { wrapper: Wrapper } = createQueryClientTestHarness();
-  // A router because tab selection navigates: picking bb's own screen sends the
+  // A router because tab selection navigates: picking Patcher's own screen sends the
   // window to it, and picking a page sends it back to the browser.
   const result = render(
     <Wrapper>
@@ -156,7 +156,7 @@ describe("BrowserSurfaceView", () => {
     const attach = vi.fn();
     const detach = vi.fn();
     const setVisible = vi.fn();
-    const stateListeners: BbDesktopBrowserStateHandler[] = [];
+    const stateListeners: PatcherDesktopBrowserStateHandler[] = [];
     const { setAppScreen } = renderSurface({
       ...createNoopDesktopBrowserApi(),
       attach,
@@ -242,7 +242,7 @@ describe("BrowserSurfaceView", () => {
 
   // The fallback, and what the web build always gets: with no shell to ask,
   // closing the last tab must leave the new-tab screen rather than an empty
-  // surface. `createBbDesktopApi` has no `closeWindow`, which is the shape of a
+  // surface. `createPatcherDesktopApi` has no `closeWindow`, which is the shape of a
   // shell that predates it.
   it("reopens an empty tab after the last one closes, with no shell to close", () => {
     renderSurface();
@@ -509,8 +509,8 @@ describe("BrowserSurfaceView", () => {
     expect(tabButtons()).toHaveLength(1);
   });
 
-  // Links macOS handed the shell because bb is the user's default browser. The
-  // surface pulls them: the click that launched bb reached main before this
+  // Links macOS handed the shell because Patcher is the user's default browser. The
+  // surface pulls them: the click that launched Patcher reached main before this
   // renderer existed, so there was nobody to push to.
   it("opens the links waiting in the shell when it mounts", async () => {
     const takeExternalUrls = vi

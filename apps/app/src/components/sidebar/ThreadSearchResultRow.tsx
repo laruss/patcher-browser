@@ -6,10 +6,10 @@ import {
   type MouseEventHandler,
   type ReactNode,
 } from "react";
-import type { ThreadListEntry } from "@bb/domain";
-import type { ThreadSearchMatch } from "@bb/server-contract";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { Icon } from "@bb/shared-ui/icon";
+import type { ThreadListEntry } from "@patcher/domain";
+import type { ThreadSearchMatch } from "@patcher/server-contract";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import { Icon } from "@patcher/shared-ui/icon";
 import { formatRelativeTime } from "@/lib/relative-time";
 import {
   hasActiveBackgroundAgentActivity,
@@ -23,7 +23,7 @@ import {
   type ThreadListIndicatorState,
 } from "@/lib/thread-activity";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { ThreadStatusGlyph } from "./ThreadRow";
 import { isSidebarThreadTitleMatch } from "./sidebarThreadSearch";
 import { usePromptDraftHasInput } from "@/hooks/usePromptDraftStorage";

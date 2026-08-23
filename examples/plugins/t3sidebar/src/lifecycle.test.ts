@@ -32,7 +32,7 @@ describe("canPark", () => {
     expect(canPark({ ...quiet, hasPendingInteraction: true })).toBe(false);
   });
 
-  // The trap this whole feature has to avoid: bb has more kinds of live work
+  // The trap this whole feature has to avoid: Patcher has more kinds of live work
   // than a session status, and parking any of them hides running work.
   it("refuses while any work is running", () => {
     expect(canPark({ ...quiet, isWorking: true })).toBe(false);

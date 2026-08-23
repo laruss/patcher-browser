@@ -1,4 +1,4 @@
-import { loadCliConfig, type CliConfig } from "@bb/config/cli";
+import { loadCliConfig, type CliConfig } from "@patcher/config/cli";
 
 const VALID_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -41,18 +41,18 @@ function trimToUndefined(value?: string): string | undefined {
 export function resolveServerUrl(
   context: CliRuntimeContext = createCliRuntimeContext(),
 ): string {
-  return context.cliConfig.BB_SERVER_URL;
+  return context.cliConfig.PATCHER_SERVER_URL;
 }
 
 export function resolveContextProjectId(): string | undefined {
-  const fromEnv = trimToUndefined(process.env.BB_PROJECT_ID);
-  if (fromEnv) return validateId(fromEnv, "BB_PROJECT_ID");
+  const fromEnv = trimToUndefined(process.env.PATCHER_PROJECT_ID);
+  if (fromEnv) return validateId(fromEnv, "PATCHER_PROJECT_ID");
   return undefined;
 }
 
 export function resolveContextThreadId(): string | undefined {
-  const fromEnv = trimToUndefined(process.env.BB_THREAD_ID);
-  if (fromEnv) return validateId(fromEnv, "BB_THREAD_ID");
+  const fromEnv = trimToUndefined(process.env.PATCHER_THREAD_ID);
+  if (fromEnv) return validateId(fromEnv, "PATCHER_THREAD_ID");
   return undefined;
 }
 
@@ -84,7 +84,7 @@ export function requireThreadId(positionalId?: string): string {
 
 export interface ResolvedId {
   id: string;
-  /** "arg" when provided as a positional/flag, "env" when resolved from BB_* env. */
+  /** "arg" when provided as a positional/flag, "env" when resolved from PATCHER_* env. */
   source: "arg" | "env";
 }
 
@@ -96,7 +96,7 @@ export interface ThreadSelfTargetOptions {
  * Require a thread ID for commands that support `--self`.
  *
  * - Positional `<id>` and `--self` are mutually exclusive.
- * - `--self` resolves from BB_THREAD_ID.
+ * - `--self` resolves from PATCHER_THREAD_ID.
  * - If neither is provided, error with guidance.
  */
 export function requireThreadIdOrSelf(
@@ -109,7 +109,7 @@ export function requireThreadIdOrSelf(
   if (opts.self) {
     const envThreadId = resolveContextThreadId();
     if (!envThreadId) {
-      throw new Error("--self requires BB_THREAD_ID to be set.");
+      throw new Error("--self requires PATCHER_THREAD_ID to be set.");
     }
     return envThreadId;
   }
@@ -131,6 +131,6 @@ export function resolveContextSnapshot(
   return {
     projectId: resolveContextProjectId(),
     threadId: resolveContextThreadId(),
-    serverUrl: context.cliConfig.BB_SERVER_URL,
+    serverUrl: context.cliConfig.PATCHER_SERVER_URL,
   };
 }

@@ -3,15 +3,15 @@
   "name": "popover",
   "type": "registry:ui",
   "title": "popover",
-  "description": "BB ui \"popover\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"popover\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-popover"
   ],
   "registryDependencies": [
-    "@bb/overlay-trigger",
-    "@bb/portal-scope",
-    "@bb/responsive-overlay",
-    "@bb/utils"
+    "@patcher/overlay-trigger",
+    "@patcher/portal-scope",
+    "@patcher/responsive-overlay",
+    "@patcher/utils"
   ],
   "files": [
     {

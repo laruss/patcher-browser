@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import type { HostDaemonOnlineRpcRequestMessage } from "@bb/host-daemon-contract";
+import type { HostDaemonOnlineRpcRequestMessage } from "@patcher/host-daemon-contract";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../src/errors.js";
 import { transcribeVoiceInput } from "../../src/services/ai/voice-transcription.js";

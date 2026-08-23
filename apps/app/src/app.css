@@ -7,9 +7,9 @@
    * selectors are class-scoped because Ladle imports app.css but does not use
    * the Vite index.html shell classes.
    */
-  html.bb-app-shell-root,
-  body.bb-app-shell,
-  body.bb-app-shell #root {
+  html.patcher-app-shell-root,
+  body.patcher-app-shell,
+  body.patcher-app-shell #root {
     height: 100%;
   }
 
@@ -30,21 +30,21 @@
    * variable is the single switch both they and the shell root read.
    */
   :root {
-    --bb-shell-height: 100dvh;
+    --patcher-shell-height: 100dvh;
   }
 
   @media (display-mode: standalone) {
     :root {
-      --bb-shell-height: 100lvh;
+      --patcher-shell-height: 100lvh;
     }
 
-    html.bb-app-shell-root {
-      height: var(--bb-shell-height);
+    html.patcher-app-shell-root {
+      height: var(--patcher-shell-height);
     }
   }
 
-  html.bb-app-shell-root,
-  body.bb-app-shell {
+  html.patcher-app-shell-root,
+  body.patcher-app-shell {
     overflow: hidden;
     /*
      * Suppress vertical rubber-banding without blocking the native horizontal
@@ -587,7 +587,7 @@
    * toast in the stack.
    */
   :where(
-    [data-sonner-toast].bb-app-toast[data-expanded="false"][data-front="false"]
+    [data-sonner-toast].patcher-app-toast[data-expanded="false"][data-front="false"]
   ) {
     overflow: hidden;
     border-radius: var(--radius-md);
@@ -723,7 +723,7 @@
 
 /* Briefly highlight a conversation message that a sidebar search result
  * deep-links to, then fade back to transparent. */
-@keyframes bb-search-flash {
+@keyframes patcher-search-flash {
   from {
     background-color: color-mix(in oklch, var(--ring) 22%, transparent);
   }
@@ -732,13 +732,13 @@
   }
 }
 
-.bb-search-flash {
+.patcher-search-flash {
   border-radius: var(--radius-lg, 0.5rem);
-  animation: bb-search-flash 1.6s ease-out;
+  animation: patcher-search-flash 1.6s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bb-search-flash {
+  .patcher-search-flash {
     animation: none;
   }
 }

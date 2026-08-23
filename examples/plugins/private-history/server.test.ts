@@ -1,11 +1,11 @@
 // Backend tests for the private-history example, written against the official
-// harness (`@bb/plugin-sdk/testing`) — no bb server, no browser.
+// harness (`@patcher/plugin-sdk/testing`) — no Patcher server, no browser.
 import { describe, expect, it } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   type FakePluginHost,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import privateHistory from "./server";
 
 const STORED = [
@@ -19,7 +19,7 @@ async function load(
   const host = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "private-history",
-    loopbackBaseUrl: "http://127.0.0.1:38886",
+    loopbackBaseUrl: "http://127.0.0.1:38986",
     settings,
     sdk: {
       browserHistory: {
@@ -28,7 +28,7 @@ async function load(
       },
     },
   });
-  await privateHistory(host.bb);
+  await privateHistory(host.patcher);
   return host;
 }
 
@@ -84,7 +84,7 @@ describe("private-history", () => {
 
   it("says it needs configuring only while no host is named", async () => {
     expect((await load()).harness.needsConfigurationMessages).toEqual([
-      expect.stringContaining("bb plugin config private-history"),
+      expect.stringContaining("patcher plugin config private-history"),
     ]);
     expect(
       (await load({ hosts: "internal.example" })).harness

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { setAppSettings } from "@bb/db";
-import { defaultAppSettings, threadScope } from "@bb/domain";
-import { threadTimelineResponseSchema } from "@bb/server-contract";
+import { setAppSettings } from "@patcher/db";
+import { defaultAppSettings, threadScope } from "@patcher/domain";
+import { threadTimelineResponseSchema } from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import { seedEvent, seedThreadFixture } from "../helpers/seed.js";
 import { withTestHarness } from "../helpers/test-app.js";

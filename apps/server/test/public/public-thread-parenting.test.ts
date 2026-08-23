@@ -1,11 +1,11 @@
-import { getThread } from "@bb/db";
-import { threadSchema } from "@bb/domain";
+import { getThread } from "@patcher/db";
+import { threadSchema } from "@patcher/domain";
 import {
   apiErrorSchema,
   threadArchiveAllResponseSchema,
   threadChildSummaryResponseSchema,
   threadListResponseSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import { waitForQueuedCommand } from "../helpers/commands.js";
 import { readJson } from "../helpers/json.js";
@@ -353,7 +353,7 @@ describe("public thread parenting routes", () => {
     });
   });
 
-  // The cascade is BB's own, not the plugin's: a hidden fork retires with its
+  // The cascade is Patcher's own, not the plugin's: a hidden fork retires with its
   // source whether or not the plugin that created it is enabled.
   it("archives hierarchy children and hidden source-derived forks", async () => {
     await withTestHarness(async (harness) => {

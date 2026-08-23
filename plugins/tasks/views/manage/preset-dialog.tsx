@@ -16,17 +16,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
+} from "@patcher/shared-ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@bb/shared-ui/select";
-import { Button } from "@bb/shared-ui/button";
-import { Input } from "@bb/shared-ui/input";
-import { Textarea } from "@bb/shared-ui/textarea";
+} from "@patcher/shared-ui/select";
+import { Button } from "@patcher/shared-ui/button";
+import { Input } from "@patcher/shared-ui/input";
+import { Textarea } from "@patcher/shared-ui/textarea";
 import { Field } from "./shared.js";
 
 // Enum options mirror the contract's preset create/update inputs.

@@ -1,20 +1,20 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createConnection,
   getThread,
   migrate,
   type DbConnection,
-} from "@bb/db";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import type { Logger } from "@bb/logger";
+} from "@patcher/db";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import type { Logger } from "@patcher/logger";
 import {
   createPluginService,
   type PluginService,
 } from "../../../src/services/plugins/plugin-service.js";
-import type { BbPluginApi } from "../../../src/services/plugins/plugin-api.js";
+import type { PatcherPluginApi } from "../../../src/services/plugins/plugin-api.js";
 import {
   seedHostSession,
   seedEnvironment,
@@ -38,7 +38,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "SDK fixture",
         description: "Plugin SDK fixture.",
         branding: { icon: "Zap" },
@@ -51,42 +51,25 @@ async function writePlugin(
   return rootDir;
 }
 
-function requireApi(service: PluginService, pluginId: string): BbPluginApi {
+function requireApi(
+  service: PluginService,
+  pluginId: string,
+): PatcherPluginApi {
   const api = service.getApi(pluginId);
   if (!api) throw new Error(`plugin ${pluginId} is not running`);
   return api;
 }
 
-describe("plugin bb.sdk bind gate", () => {
+describe("plugin patcher.sdk bind gate", () => {
   let db: DbConnection;
   let workDir: string;
   let service: PluginService;
-  const sharedPorts = {
-    declareSharedPorts: vi.fn(),
-    validateSharedPortDeclaration: vi.fn(
-      (_hostId: string, ports: readonly number[]) => [...ports],
-    ),
-    replaceDeclarationsForOwner: vi.fn(),
-    clearDeclarationsForOwner: vi.fn(),
-  };
-  const ensureSharedPortTunnel = vi.fn().mockResolvedValue({
-    label: "sawyer-air",
-    baseDomain: "getbb.app",
-  });
-
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-sdk-test-"));
-    sharedPorts.declareSharedPorts.mockClear();
-    sharedPorts.validateSharedPortDeclaration.mockClear();
-    sharedPorts.replaceDeclarationsForOwner.mockClear();
-    sharedPorts.clearDeclarationsForOwner.mockClear();
-    ensureSharedPortTunnel.mockClear();
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-sdk-test-"));
     service = createPluginService({
       db,
-      sharedPorts,
-      ensureSharedPortTunnel,
       hub: {
         getDaemonSessionIdForHost: () => null,
         notifyPluginSignal: () => 0,
@@ -106,14 +89,14 @@ describe("plugin bb.sdk bind gate", () => {
 
   it("throws a descriptive error before bindSdk and resolves after", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-gate",
+      name: "patcher-plugin-gate",
       serverSource: `export default function plugin() {}`,
     });
     await service.installPath(rootDir);
     const api = requireApi(service, "gate");
 
     expect(() => api.sdk).toThrow(
-      /bb\.sdk is not available until the server is listening/,
+      /patcher\.sdk is not available until the server is listening/,
     );
 
     service.bindSdk({ baseUrl: "http://127.0.0.1:9" });
@@ -121,87 +104,27 @@ describe("plugin bb.sdk bind gate", () => {
     expect(typeof api.sdk.threads.spawn).toBe("function");
   });
 
-  it("marks a plugin error when its factory touches bb.sdk at load time", async () => {
+  it("marks a plugin error when its factory touches patcher.sdk at load time", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-eager",
+      name: "patcher-plugin-eager",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.sdk.threads.spawn({});
+        export default function plugin(patcher: any) {
+          patcher.sdk.threads.spawn({});
         }
       `,
     });
     const entry = await service.installPath(rootDir);
     expect(entry.status).toBe("error");
     expect(entry.statusDetail).toContain(
-      "bb.sdk is not available until the server is listening",
+      "patcher.sdk is not available until the server is listening",
     );
-  });
-
-  it("delivers shared-port declarations through the server control plane", async () => {
-    const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-shares",
-      serverSource: `export default function plugin() {}`,
-    });
-    await service.installPath(rootDir);
-    const api = requireApi(service, "shares");
-
-    await expect(api.hosts.ensureSharedPortTunnel("host-1")).resolves.toEqual({
-      label: "sawyer-air",
-      baseDomain: "getbb.app",
-    });
-    api.hosts.declareSharedPorts("host-1", [8080, 3000]);
-
-    expect(ensureSharedPortTunnel).toHaveBeenCalledWith("host-1");
-
-    expect(sharedPorts.declareSharedPorts).toHaveBeenCalledWith({
-      ownerId: "shares",
-      hostId: "host-1",
-      ports: [8080, 3000],
-    });
-
-    await service.stop();
-    expect(sharedPorts.clearDeclarationsForOwner).toHaveBeenCalledWith(
-      "shares",
-    );
-  });
-
-  it("does not publish candidate host declarations when reload fails", async () => {
-    const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-atomic-shares",
-      serverSource: `
-        export default function plugin(bb: any) {
-          bb.hosts.declareSharedPorts("host-1", [3000]);
-        }
-      `,
-    });
-    await service.installPath(rootDir);
-    const previousApi = requireApi(service, "atomic-shares");
-    expect(sharedPorts.replaceDeclarationsForOwner).toHaveBeenCalledWith(
-      "atomic-shares",
-      [{ hostId: "host-1", ports: [3000] }],
-    );
-    sharedPorts.replaceDeclarationsForOwner.mockClear();
-
-    await writeFile(
-      join(rootDir, "server.ts"),
-      `
-        export default function plugin(bb: any) {
-          bb.hosts.declareSharedPorts("host-1", [4000]);
-          throw new Error("candidate failed");
-        }
-      `,
-    );
-    await service.reload("atomic-shares");
-
-    expect(service.getApi("atomic-shares")).toBe(previousApi);
-    expect(sharedPorts.replaceDeclarationsForOwner).not.toHaveBeenCalled();
   });
 });
 
-describe("plugin bb.sdk against a running server", () => {
+describe("plugin patcher.sdk against a running server", () => {
   it("keeps hidden plugin threads attributed and directly operable by id", async () => {
     const server = await startTestServer();
-    const workDir = await mkdtemp(join(tmpdir(), "bb-plugin-sdk-live-"));
+    const workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-sdk-live-"));
     try {
       const { host } = seedHostSession(server.deps);
       seedPrimaryHost(server.deps, host.id);
@@ -217,7 +140,7 @@ describe("plugin bb.sdk against a running server", () => {
 
       server.pluginService.bindSdk({ baseUrl: server.baseUrl });
       const rootDir = await writePlugin(workDir, {
-        name: "bb-plugin-spawner",
+        name: "patcher-plugin-spawner",
         serverSource: `export default function plugin() {}`,
       });
       const entry = await server.pluginService.installPath(rootDir);

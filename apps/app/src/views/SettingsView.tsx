@@ -8,22 +8,22 @@ import {
   type AppTheme,
   type FaviconColorPreference,
   type PluginThemeMeta,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   WorkspaceOpenTarget,
   WorkspaceOpenTargetId,
-} from "@bb/host-daemon-contract";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { Switch } from "@bb/shared-ui/switch";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+} from "@patcher/host-daemon-contract";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Switch } from "@patcher/shared-ui/switch";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import { PageShell } from "@/components/ui/page-shell.js";
 import {
   SettingsSection,
@@ -58,7 +58,7 @@ import {
 } from "@/hooks/mutations/settings-mutations";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useWorkspaceOpenTargets } from "@/hooks/useWorkspaceOpenTargets";
-import { isDesktopBrowserAvailable } from "@/lib/bb-desktop";
+import { isDesktopBrowserAvailable } from "@/lib/patcher-desktop";
 import { useBrowserSearchEngineOptions } from "@/lib/browser-search-engine";
 import {
   FAVICON_COLOR_VALUES,
@@ -73,7 +73,7 @@ import {
   getRootComposeRoutePath,
 } from "@/lib/route-paths";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   resolvePreferredWorkspaceOpenTarget,
   supportsWorkspaceOpenTargetCapability,
@@ -174,7 +174,7 @@ export interface AppearanceSettingsSectionProps {
 }
 
 export interface GeneralSettingsSectionProps {
-  /** The stored engine id, bb's own or a plugin's. */
+  /** The stored engine id, Patcher's own or a plugin's. */
   browserSearchEngineId: string;
   onBrowserSearchEngineChange: (engineId: string) => void;
   caffeinateAvailable: boolean;
@@ -267,9 +267,9 @@ const SETTINGS_DROPDOWN_CONTENT_CLASS =
   "min-w-[var(--radix-dropdown-menu-trigger-width)]";
 
 const CREATE_CUSTOM_PALETTE_PROMPT =
-  "Create a custom bb palette. First run `bb theme dir` to find the custom theme directory. Ask me for the palette name and visual direction, then create `<theme-dir>/<name>/theme.css` with light and dark theme variables compatible with bb's theme tokens.";
+  "Create a custom Patcher palette. First run `patcher theme dir` to find the custom theme directory. Ask me for the palette name and visual direction, then create `<theme-dir>/<name>/theme.css` with light and dark theme variables compatible with Patcher's theme tokens.";
 const PALETTE_SETTING_DESCRIPTION =
-  "Palettes change bb's colors across light and dark mode. Choose a built-in palette or create one from a prompt.";
+  "Palettes change Patcher's colors across light and dark mode. Choose a built-in palette or create one from a prompt.";
 
 // Renders the favicon glyph itself in the candidate color by using the
 // favicon image as a CSS mask, so the preview matches the resulting tab icon.
@@ -521,7 +521,7 @@ export function CaffeinateSettingsControl({
   return (
     <SettingsWithControl
       label={CAFFEINATE_SETTING_LABEL}
-      description="Prevent system idle sleep while bb is running. Closing the lid or choosing Sleep still sleeps the Mac."
+      description="Prevent system idle sleep while Patcher is running. Closing the lid or choosing Sleep still sleeps the Mac."
     >
       <Switch
         checked={enabled}
@@ -560,7 +560,7 @@ export function InAppBrowserLinkSettingsControl({
   return (
     <SettingsWithControl
       label={IN_APP_BROWSER_LINK_SETTING_LABEL}
-      description="Open web links inside bb."
+      description="Open web links inside Patcher."
     >
       <Switch
         checked={enabled}
@@ -572,7 +572,7 @@ export function InAppBrowserLinkSettingsControl({
 }
 
 /**
- * Making bb the browser macOS hands links to.
+ * Making Patcher the browser macOS hands links to.
  *
  * A button rather than a switch, because the choice is not this app's to make:
  * Launch Services shows its own "keep using …?" confirmation and returns before
@@ -584,14 +584,14 @@ export function InAppBrowserLinkSettingsControl({
 export function DefaultBrowserSettingsControl() {
   const { request, status } = useDefaultBrowserStatus();
   const description = status.isDefault
-    ? "macOS opens web links in bb."
+    ? "macOS opens web links in Patcher."
     : status.canRequest
       ? "macOS opens web links in another browser."
       : "A development build cannot register itself with macOS.";
   return (
     <SettingsWithControl label="Default web browser" description={description}>
       {status.isDefault ? (
-        <span className="text-muted-foreground text-sm">bb</span>
+        <span className="text-muted-foreground text-sm">Patcher</span>
       ) : (
         <Button
           variant="outline"
@@ -599,7 +599,7 @@ export function DefaultBrowserSettingsControl() {
           disabled={!status.canRequest}
           onClick={request}
         >
-          Make bb the default
+          Make Patcher the default
         </Button>
       )}
     </SettingsWithControl>
@@ -607,8 +607,8 @@ export function DefaultBrowserSettingsControl() {
 }
 
 /**
- * The address bar's search engine: bb's own, plus whatever plugins declared
- * (`bb.browser.registerSearchEngine`). A plugin's row says which plugin it came
+ * The address bar's search engine: Patcher's own, plus whatever plugins declared
+ * (`patcher.browser.registerSearchEngine`). A plugin's row says which plugin it came
  * from, the way the palette list does for plugin themes — the user is picking who
  * receives everything they type.
  */
@@ -635,7 +635,7 @@ export function BrowserSearchEngineSettingsControl({
             aria-label="Search engine"
           >
             <span className="min-w-0 truncate">
-              {/* An id whose plugin is gone still resolves to bb's default when
+              {/* An id whose plugin is gone still resolves to Patcher's default when
                   searching, and says so here rather than showing a blank. */}
               {selected?.name ?? "Google"}
             </span>
@@ -717,7 +717,7 @@ export function UnhandledProviderEventsSettingsControl({
   return (
     <SettingsWithControl
       label={UNHANDLED_PROVIDER_EVENTS_SETTING_LABEL}
-      description="Show raw provider events bb does not recognize. Development builds always show these events."
+      description="Show raw provider events Patcher does not recognize. Development builds always show these events."
     >
       <Switch
         checked={enabled}
@@ -1031,8 +1031,8 @@ export function ProviderSettingsSection({
           label={label}
           description={
             isCodex
-              ? "Allow Codex to recall existing memories and generate new memories from bb threads."
-              : "Allow Claude Code to read and write its native auto-memory for bb threads."
+              ? "Allow Codex to recall existing memories and generate new memories from Patcher threads."
+              : "Allow Claude Code to read and write its native auto-memory for Patcher threads."
           }
         >
           <Switch
@@ -1046,8 +1046,8 @@ export function ProviderSettingsSection({
           label="Disable provider subagents"
           description={
             isCodex
-              ? "Prevent Codex from starting native subagents so agents use bb for delegation."
-              : "Hide Claude Code's native Task tool so agents use bb for delegation."
+              ? "Prevent Codex from starting native subagents so agents use Patcher for delegation."
+              : "Hide Claude Code's native Task tool so agents use Patcher for delegation."
           }
         >
           <Switch
@@ -1060,7 +1060,7 @@ export function ProviderSettingsSection({
         {!isCodex ? (
           <SettingsWithControl
             label="Disable Workflow tool"
-            description="Hide Claude Code's native Workflow tool for bb threads."
+            description="Hide Claude Code's native Workflow tool for Patcher threads."
           >
             <Switch
               aria-label="Disable Workflow tool"

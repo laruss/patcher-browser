@@ -4,7 +4,7 @@ import {
   isPluginOwnedIconPath,
   pluginPackageJsonSchema,
   type PluginPackageJson,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { assertValidPluginCompactIconSvg } from "./svg-asset.js";
 
 function resolveManifestPath(
@@ -37,16 +37,16 @@ export async function validatePluginBuildManifest(
       `invalid plugin package.json${path ? ` (${path})` : ""} at ${packageJsonPath}: ${issue?.message ?? "unknown error"}`,
     );
   }
-  const logo = parsed.data.bb.branding.logo;
+  const logo = parsed.data.patcher.branding.logo;
   const compactIcon =
-    parsed.data.bb.branding.icon !== undefined &&
-    isPluginOwnedIconPath(parsed.data.bb.branding.icon)
-      ? parsed.data.bb.branding.icon
+    parsed.data.patcher.branding.icon !== undefined &&
+    isPluginOwnedIconPath(parsed.data.patcher.branding.icon)
+      ? parsed.data.patcher.branding.icon
       : undefined;
   for (const [label, entry] of [
-    ["bb.branding.icon", compactIcon],
-    ["bb.branding.logo.light", logo?.light],
-    ["bb.branding.logo.dark", logo?.dark],
+    ["patcher.branding.icon", compactIcon],
+    ["patcher.branding.logo.light", logo?.light],
+    ["patcher.branding.logo.dark", logo?.dark],
   ] as const) {
     if (entry === undefined) continue;
     if (!/\.(svg|png|webp)$/i.test(entry)) {
@@ -73,7 +73,7 @@ export async function validatePluginBuildManifest(
         `manifest ${label} escapes the plugin directory through a symlink`,
       );
     }
-    if (label === "bb.branding.icon") {
+    if (label === "patcher.branding.icon") {
       assertValidPluginCompactIconSvg(await readFile(realAsset), label);
     }
   }

@@ -1,14 +1,14 @@
-// bb-plugin-inline-vis frontend — assistant message directive that previews
+// patcher-plugin-inline-vis frontend — assistant message directive that previews
 // a workspace HTML file through the same path-shaped, sandboxed iframe route
-// as bb's sidebar HTML preview. Scripts, relative assets, and normal web
+// as Patcher's sidebar HTML preview. Scripts, relative assets, and normal web
 // resources work inside an opaque origin that cannot access the host page.
 import { useEffect, useState } from "react";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   definePluginApp,
   useRpc,
   type PluginMessageDirectiveProps,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import type { inlineVisRpcContract } from "./server.js";
 
 type LoadState =
@@ -200,7 +200,7 @@ function InlineVisDirective({
         title={`inline-vis: ${state.file}`}
         src={previewUrl}
         // Scripts run, but without allow-same-origin they get an opaque origin
-        // and cannot access the bb page, its cookies/storage, forms, or popups.
+        // and cannot access the Patcher page, its cookies/storage, forms, or popups.
         sandbox="allow-scripts"
         style={{ height: previewHeight ?? DEFAULT_HEIGHT_PX }}
         className="block w-full border-0 bg-background"

@@ -6,11 +6,11 @@ import { basename, join } from "node:path";
 import type {
   DiscoverReposResult,
   DiscoveredRepo,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 /**
  * Find candidate projects on this host: git repositories under the user's home
- * directory, ranked by how likely the user wants them in bb.
+ * directory, ranked by how likely the user wants them in Patcher.
  *
  * The walk is cheap because of one rule: stop descending the moment a directory
  * contains `.git`. Everything below a repo root belongs to that repo, so we
@@ -99,7 +99,7 @@ interface FoundRepo {
  * Walk `root` breadth-first to `maxDepth`, stopping at each repo root.
  *
  * Dot-directories are skipped deliberately, and not only for speed: on a real
- * machine the repos they hide were inside `.nvm`, `.codex/.tmp`, and `.bb-dev`
+ * machine the repos they hide were inside `.nvm`, `.codex/.tmp`, and `.patcher-dev`
  * — tool internals, never user projects.
  */
 async function walkForRepos(
@@ -251,7 +251,7 @@ interface CodexHistory {
  * (`thread/list`) rather than its private SQLite file. `useStateDbOnly` skips
  * the JSONL rollout scan; measured at ~190ms for 142 threads including spawn.
  *
- * `gitInfo.originUrl` matters here: a user running Codex through bb accumulates
+ * `gitInfo.originUrl` matters here: a user running Codex through Patcher accumulates
  * many ephemeral worktree paths for a single repo, and the origin collapses
  * them into one signal.
  */
@@ -334,7 +334,7 @@ async function readCodexHistory(
       id: 1,
       method: "initialize",
       params: {
-        clientInfo: { name: "bb", title: "bb", version: "0.0.0" },
+        clientInfo: { name: "patcher", title: "Patcher", version: "0.0.0" },
       },
     });
   });
@@ -432,7 +432,7 @@ export async function discoverRepos(
   );
 
   // Recency filter, then rank: repos an agent has already worked in come first
-  // (the strongest signal that the user wants them in bb), then local activity.
+  // (the strongest signal that the user wants them in Patcher), then local activity.
   const recent = enriched.filter(
     ({ entry }) => Date.parse(entry.lastActivityAt) >= cutoff,
   );

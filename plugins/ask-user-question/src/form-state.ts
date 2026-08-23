@@ -5,7 +5,7 @@ import type {
 } from "./contracts.js";
 
 /**
- * Per-question answer state, ported from BB's native user-question form.
+ * Per-question answer state, ported from Patcher's native user-question form.
  *
  * Free text is modeled as an explicit "Other" choice (`otherSelected`) rather
  * than a parallel always-on textarea: for single-select, picking a real option

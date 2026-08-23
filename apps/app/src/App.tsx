@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthCallbackView } from "./views/AuthCallbackView";
-import { isDesktopBrowserAvailable } from "./lib/bb-desktop";
+import { isDesktopBrowserAvailable } from "./lib/patcher-desktop";
 import { useBrowserFirstStartupRoute } from "./lib/browser-first-startup";
 import { QuickCreateProjectProvider } from "./hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
@@ -277,7 +277,7 @@ export function App() {
   // Connect WebSocket for real-time invalidation
   useWebSocket();
   // Keep the Electron window chrome (traffic lights, inactive title bar)
-  // in sync with bb's theme preference.
+  // in sync with Patcher's theme preference.
   useDesktopThemeSync();
   // Apply the server-stored app palette (built-in or custom CSS) app-wide.
   useAppTheme();

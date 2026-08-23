@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  BB_CDP_PROTOCOL_VERSION,
+  PATCHER_CDP_PROTOCOL_VERSION,
   CdpUnavailableError,
   createCdpSession,
   type CdpDebuggerTarget,
@@ -89,7 +89,7 @@ describe("createCdpSession", () => {
 
     const session = createCdpSession({ target });
 
-    expect(target.attachCalls).toEqual([BB_CDP_PROTOCOL_VERSION]);
+    expect(target.attachCalls).toEqual([PATCHER_CDP_PROTOCOL_VERSION]);
     expect(session.isAttached()).toBe(true);
   });
 

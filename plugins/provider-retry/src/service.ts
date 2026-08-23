@@ -1,8 +1,8 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import type { ProviderRetryView } from "./contract.js";
 
 type RecoveryStatus = Awaited<
-  ReturnType<BbPluginApi["sdk"]["threads"]["rateLimitRecovery"]>
+  ReturnType<PatcherPluginApi["sdk"]["threads"]["rateLimitRecovery"]>
 >;
 type RecoveryCandidate = NonNullable<RecoveryStatus["candidate"]>;
 
@@ -64,7 +64,7 @@ export class ProviderRetryService {
   private disposed = false;
 
   constructor(
-    private readonly bb: BbPluginApi,
+    private readonly patcher: PatcherPluginApi,
     private readonly sources: ProviderRetrySources = {
       now: () => Date.now(),
       random: () => Math.random(),
@@ -162,7 +162,9 @@ export class ProviderRetryService {
     threadId: string,
   ): Promise<ProviderRetryView | null> {
     if (this.disposed) return null;
-    const status = await this.bb.sdk.threads.rateLimitRecovery({ threadId });
+    const status = await this.patcher.sdk.threads.rateLimitRecovery({
+      threadId,
+    });
     if (this.disposed) return null;
     const existing = this.entries.get(threadId);
     if (existing?.releasing) return null;
@@ -274,7 +276,7 @@ export class ProviderRetryService {
   }
 
   private publish(threadId: string): void {
-    this.bb.realtime.publish(REALTIME_CHANNEL, { threadId });
+    this.patcher.realtime.publish(REALTIME_CHANNEL, { threadId });
   }
 
   private schedule(scopeKey: string): void {
@@ -355,26 +357,28 @@ export class ProviderRetryService {
     entry.releasing = true;
     this.publish(threadId);
     try {
-      const status = await this.bb.sdk.threads.rateLimitRecovery({ threadId });
+      const status = await this.patcher.sdk.threads.rateLimitRecovery({
+        threadId,
+      });
       if (status.candidate?.failedRequestId !== failedRequestId) {
         this.remove(threadId);
         return false;
       }
-      await this.bb.sdk.threads.continueAfterRateLimit({
+      await this.patcher.sdk.threads.continueAfterRateLimit({
         threadId,
         failedRequestId,
       });
       this.remove(threadId);
       return true;
     } catch (error) {
-      this.bb.log.warn(
+      this.patcher.log.warn(
         `Provider retry for thread ${threadId} could not start: ${errorMessage(error)}`,
       );
       let status: RecoveryStatus | null = null;
       try {
-        status = await this.bb.sdk.threads.rateLimitRecovery({ threadId });
+        status = await this.patcher.sdk.threads.rateLimitRecovery({ threadId });
       } catch (inspectionError) {
-        this.bb.log.warn(
+        this.patcher.log.warn(
           `Provider retry status refresh for thread ${threadId} failed: ${errorMessage(inspectionError)}`,
         );
       }

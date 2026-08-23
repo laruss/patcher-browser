@@ -4,7 +4,7 @@ import {
   BROWSER_COMMAND_MAX_TRACE_STEPS,
   type BrowserCommand,
   type BrowserCommandOutcome,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   BrowserTraceRecorder,
   browserCommandChangesPage,

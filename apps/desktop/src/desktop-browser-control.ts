@@ -19,7 +19,7 @@
  *   cap and a flag saying whether that was all of it.
  */
 
-import type { BbDesktopBrowserRoute } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserRoute } from "@patcher/desktop-contract";
 
 /**
  * Playwright's URL glob, which is the dialect route patterns are written in:
@@ -57,7 +57,7 @@ export function browserRoutePatternToRegExp(pattern: string): RegExp {
  * most recently added matching route, and "the one I just added wins" is the
  * rule a person debugging a mock expects. Callers keep the list newest-first.
  */
-export function matchBrowserRoute<TRoute extends BbDesktopBrowserRoute>(
+export function matchBrowserRoute<TRoute extends PatcherDesktopBrowserRoute>(
   routes: readonly TRoute[],
   url: string,
 ): TRoute | null {
@@ -80,7 +80,7 @@ export function matchBrowserRoute<TRoute extends BbDesktopBrowserRoute>(
 
 /** Response headers for `Fetch.fulfillRequest`, content type first. */
 export function toBrowserFulfillHeaders(
-  route: BbDesktopBrowserRoute,
+  route: PatcherDesktopBrowserRoute,
 ): { name: string; value: string }[] {
   return [
     ...(route.contentType.length === 0

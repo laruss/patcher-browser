@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BbSdk } from "@bb/sdk";
+import type { PatcherSdk } from "@patcher/sdk";
 import {
   applySdkPermissions,
   createPluginPermissionGate,
@@ -18,7 +18,7 @@ describe("createPluginPermissionGate", () => {
 
     expect(gate.has("threads")).toBe(false);
     expect(gate.granted).toEqual([]);
-    expect(() => gate.assert("threads", "bb.sdk.threads.list")).toThrow(
+    expect(() => gate.assert("threads", "patcher.sdk.threads.list")).toThrow(
       PluginPermissionError,
     );
   });
@@ -27,9 +27,9 @@ describe("createPluginPermissionGate", () => {
     const gate = createPluginPermissionGate("noisy", ["tabs.read"]);
 
     expect(() =>
-      gate.assert("page.credentials", 'bb.browser command "page.storage"'),
+      gate.assert("page.credentials", 'patcher.browser command "page.storage"'),
     ).toThrow(
-      /page\.storage.*"page\.credentials".*"noisy".*bb\.permissions.*bb plugin reload noisy/s,
+      /page\.storage.*"page\.credentials".*"noisy".*patcher\.permissions.*patcher plugin reload noisy/s,
     );
   });
 
@@ -37,7 +37,7 @@ describe("createPluginPermissionGate", () => {
     const gate = createPluginPermissionGate("noisy", ["tabs.read"]);
 
     expect(() =>
-      gate.assert("tabs.read", "bb.browser tabs.list"),
+      gate.assert("tabs.read", "patcher.browser tabs.list"),
     ).not.toThrow();
   });
 
@@ -61,7 +61,7 @@ describe("applySdkPermissions", () => {
       terminals: { create: vi.fn() },
       threads: { list: vi.fn(() => []) },
       subscribe: vi.fn(() => () => {}),
-    } as unknown as BbSdk;
+    } as unknown as PatcherSdk;
   }
 
   it("passes through an area the plugin declared", () => {
@@ -78,7 +78,7 @@ describe("applySdkPermissions", () => {
     const sdk = applySdkPermissions(fakeSdk(), "p", gate);
 
     expect(() => sdk.terminals.create).toThrow(
-      /bb\.sdk\.terminals\.create needs the "shell" permission/,
+      /patcher\.sdk\.terminals\.create needs the "shell" permission/,
     );
   });
 
@@ -96,7 +96,7 @@ describe("applySdkPermissions", () => {
   it("charges archiving an environment's threads to threads as well", () => {
     const sdk = {
       environments: { archiveThreads: vi.fn(() => "archived"), diff: vi.fn() },
-    } as unknown as BbSdk;
+    } as unknown as PatcherSdk;
     const workspaceOnly = applySdkPermissions(
       sdk,
       "p",
@@ -106,13 +106,13 @@ describe("applySdkPermissions", () => {
     expect(() => workspaceOnly.environments.diff({} as never)).not.toThrow();
     expect(() =>
       workspaceOnly.environments.archiveThreads({} as never),
-    ).toThrow(/bb\.sdk\.environments\.archiveThreads needs the "threads"/);
+    ).toThrow(/patcher\.sdk\.environments\.archiveThreads needs the "threads"/);
   });
 
   it("lets it through when both are declared", () => {
     const sdk = {
       environments: { archiveThreads: vi.fn(() => "archived") },
-    } as unknown as BbSdk;
+    } as unknown as PatcherSdk;
     const both = applySdkPermissions(
       sdk,
       "p",
@@ -128,7 +128,7 @@ describe("applySdkPermissions", () => {
   it("charges listing thread sections to workspace as well", () => {
     const sdk = {
       threadSections: { list: vi.fn(() => []) },
-    } as unknown as BbSdk;
+    } as unknown as PatcherSdk;
     const threadsOnly = applySdkPermissions(
       sdk,
       "p",

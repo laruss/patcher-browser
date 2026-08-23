@@ -3,12 +3,12 @@ import { useIsSidebarShowing } from "@/components/ui/sidebar.js";
 import {
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
   COARSE_POINTER_HEADER_REDUCED_GLYPH_ICON_BUTTON_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import {
   CHROME_ROW_CLASS,
   CHROME_ROW_HEIGHT_CLASS,
-  getBbDesktopInfo,
+  getPatcherDesktopInfo,
   MACOS_CHROME_CONTROL_AXIS_CLASS,
   MACOS_TRAFFIC_LIGHT_LEADING_RESERVE_CLASS,
   MACOS_WINDOW_DRAG_CLASS,
@@ -16,10 +16,10 @@ import {
   shouldReserveMacosTrafficLights,
   shouldUseMacosDesktopChrome,
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
-} from "@/lib/bb-desktop";
+} from "@/lib/patcher-desktop";
 import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
 import { useIsLeadingPanelShowing } from "./PluginLeadingPanel";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 /**
  * Shared sizing for icon-only header action buttons (sidebar trigger, kebab
@@ -88,7 +88,7 @@ export function AppPageHeader({
 }: AppPageHeaderProps) {
   const isSidebarShowing = useIsSidebarShowing();
   const isCompactViewport = useIsCompactViewport();
-  const [desktopInfo] = useState(getBbDesktopInfo);
+  const [desktopInfo] = useState(getPatcherDesktopInfo);
   const desktopWindowState = useDesktopWindowState();
   const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
   // Not while the plugin panel is there: it owns the window's leading edge, so
@@ -115,7 +115,7 @@ export function AppPageHeader({
         HEADER_SEAM_CLASS,
         // The fill and the seam stay full-bleed; the inset lives on the content
         // row below, because that is the element the chrome reserves replace a
-        // side of. See `lib/bb-desktop.ts` — an inset on this element instead
+        // side of. See `lib/patcher-desktop.ts` — an inset on this element instead
         // would make every reserve 16px too wide.
         "relative shrink-0 bg-surface-scrim backdrop-blur-sm",
         usesDesktopChrome && isWindowDragRegion && MACOS_WINDOW_DRAG_CLASS,

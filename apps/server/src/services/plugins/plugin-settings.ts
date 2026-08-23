@@ -4,16 +4,16 @@ import {
   getPluginSettingsValues,
   setPluginSettingsValues,
   type DbConnection,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   PluginSettingDescriptor,
   PluginSettingDescriptors,
   PluginSettingValue,
-} from "@bb/plugin-sdk";
-import { deleteSecretFile, writeSecretFile } from "@bb/secret-storage";
+} from "@patcher/plugin-sdk";
+import { deleteSecretFile, writeSecretFile } from "@patcher/secret-storage";
 
 // The descriptor types are part of the backend plugin contract in
-// @bb/plugin-sdk; re-exported so server code keeps one import site. Descriptor
+// @patcher/plugin-sdk; re-exported so server code keeps one import site. Descriptor
 // validation is re-exported too, from the half that does not need a database.
 export {
   PluginSettingsValidationError,
@@ -23,7 +23,7 @@ export type {
   PluginSettingDescriptor,
   PluginSettingDescriptors,
   PluginSettingValue,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 
 /** A settings update the routes rejected: unknown key or wrong value type. */
 export function pluginSecretsDir(dataDir: string, pluginId: string): string {

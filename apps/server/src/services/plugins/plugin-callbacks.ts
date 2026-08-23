@@ -1,8 +1,8 @@
 /**
  * Every call the server makes *into* a plugin.
  *
- * The other direction is settled: `bb.sdk` is a loopback HTTP client that now
- * identifies itself, and `bb.browser` is already a serialisable command union
+ * The other direction is settled: `patcher.sdk` is a loopback HTTP client that now
+ * identifies itself, and `patcher.browser` is already a serialisable command union
  * on a message bus. What has no described shape is this direction — the server
  * holds a function the plugin registered and calls it. A function is exactly
  * the thing that cannot cross a process boundary, so plan Phase 7 is blocked on
@@ -25,7 +25,7 @@
  * own.
  */
 
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 
 /**
  * How a call behaves, which decides what a transport has to provide for it.
@@ -64,7 +64,7 @@ export interface PluginCallbackShape {
    * How this call reads in a log line and in the plugin's status detail.
    *
    * Separate from the kind on purpose: the kind is the transport's vocabulary
-   * and the label is the user's. `bb plugin list` shows the status detail, and
+   * and the label is the user's. `patcher plugin list` shows the status detail, and
    * "threadEvent thread.deleted failed" is this file's word leaking into text
    * somebody reads about their own plugin.
    */

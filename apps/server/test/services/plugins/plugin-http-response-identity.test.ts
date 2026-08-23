@@ -6,7 +6,7 @@ import {
 } from "../../../src/services/plugins/plugin-child-runtime.js";
 import { isResponseLike } from "../../../src/services/plugins/plugin-http-message.js";
 import { createLinkedPorts } from "../../../src/services/plugins/plugin-ports.js";
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 
 /**
  * A plugin route's `Response` must be recognised by shape, never by class.
@@ -70,8 +70,8 @@ describe("recognising a plugin route's Response", () => {
       });
       createPluginChildRuntime({
         port: pluginPort,
-        loadFactory: async () => (bb) => {
-          bb.http.route("GET", "/echo", () =>
+        loadFactory: async () => (patcher) => {
+          patcher.http.route("GET", "/echo", () =>
             NativeResponse.json({ who: "мир" }),
           );
         },

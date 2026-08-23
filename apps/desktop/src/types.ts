@@ -1,5 +1,13 @@
-export const DEFAULT_BB_SERVER_PORT = 38886;
-export const DEFAULT_BB_SERVER_URL = `http://127.0.0.1:${DEFAULT_BB_SERVER_PORT}`;
+import {
+  PATCHER_LOOPBACK_HOST,
+  PATCHER_PROD_SERVER_PORT,
+} from "@patcher/config/runtime";
+
+// Derived, not restated: the shell probes the port the packaged server binds,
+// and a second literal here is a pair that can drift silently — the symptom
+// being "no server found", which says nothing about the cause.
+export const DEFAULT_PATCHER_SERVER_PORT = PATCHER_PROD_SERVER_PORT;
+export const DEFAULT_PATCHER_SERVER_URL = `http://${PATCHER_LOOPBACK_HOST}:${DEFAULT_PATCHER_SERVER_PORT}`;
 export const DEFAULT_WINDOW_HEIGHT = 900;
 export const DEFAULT_WINDOW_WIDTH = 1280;
 export const MIN_WINDOW_HEIGHT = 600;

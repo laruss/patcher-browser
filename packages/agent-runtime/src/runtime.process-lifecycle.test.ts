@@ -8,7 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { turnScope, type ThreadEvent } from "@bb/domain";
+import { turnScope, type ThreadEvent } from "@patcher/domain";
 import type { ProviderAdapter } from "./provider-adapter.js";
 import { createAgentRuntimeWithAdapters } from "./runtime.js";
 import { RuntimeProviderProcessManager } from "./runtime-provider-process.js";
@@ -49,7 +49,7 @@ describe("createAgentRuntime process lifecycle", () => {
   let scriptPath: string;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "bb-runtime-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "patcher-runtime-test-"));
     scriptPath = fakeProviderScriptPath;
   });
 
@@ -1063,20 +1063,20 @@ rl.on("line", (line) => {
     }
   });
 
-  it("scrubs inherited bb runtime env vars before spawning provider processes", async () => {
-    vi.stubEnv("BB_DATA_DIR", "/tmp/leaked-bb-data");
-    vi.stubEnv("BB_SERVER_PORT", "38886");
+  it("scrubs inherited Patcher runtime env vars before spawning provider processes", async () => {
+    vi.stubEnv("PATCHER_DATA_DIR", "/tmp/leaked-patcher-data");
+    vi.stubEnv("PATCHER_SERVER_PORT", "38986");
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("OPENAI_API_KEY", "external-secret");
     const envScript = join(tmpDir, "env-provider.cjs");
     writeFileSync(
       envScript,
       `const values = [
-        process.env.BB_DATA_DIR ?? "missing",
-        process.env.BB_SERVER_PORT ?? "missing",
+        process.env.PATCHER_DATA_DIR ?? "missing",
+        process.env.PATCHER_SERVER_PORT ?? "missing",
         process.env.NODE_ENV ?? "missing",
         process.env.OPENAI_API_KEY ?? "missing",
-        process.env.BB_THREAD_ID ?? "missing"
+        process.env.PATCHER_THREAD_ID ?? "missing"
       ];
       process.stderr.write(values.join("|") + "\\n");
       setInterval(() => {}, 1000);`,
@@ -1084,7 +1084,7 @@ rl.on("line", (line) => {
     const stderrLines: string[] = [];
     const manager = createProviderProcessManager({
       env: {
-        BB_THREAD_ID: "thr_explicit",
+        PATCHER_THREAD_ID: "thr_explicit",
       },
       onProcessExit: vi.fn(),
       onStderr: (line) => {
@@ -1151,7 +1151,7 @@ rl.on("line", (line) => {
       `const values = [
         process.env.ELECTRON_RUN_AS_NODE ?? "missing",
         process.env.BRIDGE_ONLY ?? "missing",
-        process.env.BB_THREAD_ID ?? "missing"
+        process.env.PATCHER_THREAD_ID ?? "missing"
       ];
       process.stderr.write(values.join("|") + "\\n");
       setInterval(() => {}, 1000);`,
@@ -1163,7 +1163,7 @@ rl.on("line", (line) => {
         ELECTRON_RUN_AS_NODE: "1",
       },
       env: {
-        BB_THREAD_ID: "thr_explicit",
+        PATCHER_THREAD_ID: "thr_explicit",
         ELECTRON_RUN_AS_NODE: "runtime",
       },
       onProcessExit: vi.fn(),
@@ -1418,7 +1418,7 @@ rl.on("line", (line) => {
       workspacePath: tmpDir,
       skillRoots: [
         {
-          id: "bb-cli",
+          id: "patcher-cli",
           providerId: "codex",
           skillDirectoryRootPath: join(tmpDir, "skill-root"),
         },
@@ -1518,7 +1518,7 @@ rl.on("line", (line) => {
       workspacePath: tmpDir,
       skillRoots: [
         {
-          id: "bb-cli",
+          id: "patcher-cli",
           providerId: "codex",
           skillDirectoryRootPath: join(tmpDir, "skill-root"),
         },

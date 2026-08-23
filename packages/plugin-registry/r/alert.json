@@ -3,12 +3,12 @@
   "name": "alert",
   "type": "registry:ui",
   "title": "alert",
-  "description": "BB ui \"alert\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"alert\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "class-variance-authority"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

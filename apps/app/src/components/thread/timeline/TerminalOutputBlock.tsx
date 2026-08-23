@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from "react";
 import Convert from "ansi-to-html";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { getDetailScrollMaxHeightClass } from "../../ui/detail-scroll-size.js";
 import { ExpandableLine } from "../../ui/expandable-line.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";

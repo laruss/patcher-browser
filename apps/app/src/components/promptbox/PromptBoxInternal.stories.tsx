@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { PromptMentionResource, PromptTextMention } from "@bb/domain";
-import type { UploadedPromptAttachment } from "@bb/server-contract";
+import type { PromptMentionResource, PromptTextMention } from "@patcher/domain";
+import type { UploadedPromptAttachment } from "@patcher/server-contract";
 import { ExecutionControls } from "@/components/promptbox/ExecutionControls";
 import type {
   PromptMentionSuggestion,

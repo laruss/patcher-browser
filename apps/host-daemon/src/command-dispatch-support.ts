@@ -3,20 +3,19 @@ import {
   fingerprintAcpLaunchSpec,
   type AgentRuntime,
   type AgentRuntimeOptions,
-} from "@bb/agent-runtime";
-import type { AvailableModel } from "@bb/domain";
+} from "@patcher/agent-runtime";
+import type { AvailableModel } from "@patcher/domain";
 import type { EventSinkInput } from "./event-sink.js";
 import type {
   HostDaemonCommand,
   HostDaemonAcpLaunchSpec,
   HostDaemonInjectedSkillSource,
   HostDaemonOnlineRpcCommand,
-  HostDaemonConnectTunnelIdentity,
   ProviderCliInstallRequest,
   ProviderCliStatus,
   WorkspaceContext,
-} from "@bb/host-daemon-contract";
-import { getPersonalWorkspaceRoot } from "@bb/host-workspace";
+} from "@patcher/host-daemon-contract";
+import { getPersonalWorkspaceRoot } from "@patcher/host-workspace";
 import type { InteractiveResolveCommandInput } from "./interactive-request-registry.js";
 import { RuntimeManager, type RuntimeEntry } from "./runtime-manager.js";
 import type { TerminalManager } from "./terminals/terminal-manager.js";
@@ -66,7 +65,6 @@ export interface CommandDispatchOptions {
     request: InteractiveResolveCommandInput,
   ) => Promise<void>;
   caffeinateManager?: CaffeinateManager;
-  ensureConnectTunnelIdentity?: () => Promise<HostDaemonConnectTunnelIdentity>;
   threadStorageRootPath: string;
 }
 

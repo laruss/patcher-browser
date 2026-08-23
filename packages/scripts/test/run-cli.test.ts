@@ -26,8 +26,10 @@ describe("run-cli", () => {
       "thread",
       "list",
     ]);
-    expect(execution.env.BB_SERVER_URL).toBe(expectedDevServerUrl(repoRoot));
-    expect(execution.env.BB_HOST_DAEMON_PORT).toBe(
+    expect(execution.env.PATCHER_SERVER_URL).toBe(
+      expectedDevServerUrl(repoRoot),
+    );
+    expect(execution.env.PATCHER_HOST_DAEMON_PORT).toBe(
       String(expectedDevPorts(repoRoot).hostDaemonPort),
     );
   });
@@ -44,12 +46,12 @@ describe("run-cli", () => {
 
   it("lets explicit development CLI targets win", () => {
     vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv("BB_SERVER_URL", "http://localhost:4444");
-    vi.stubEnv("BB_HOST_DAEMON_PORT", "5555");
+    vi.stubEnv("PATCHER_SERVER_URL", "http://localhost:4444");
+    vi.stubEnv("PATCHER_HOST_DAEMON_PORT", "5555");
 
     const execution = resolveCliExecution(["status"]);
 
-    expect(execution.env.BB_SERVER_URL).toBe("http://localhost:4444");
-    expect(execution.env.BB_HOST_DAEMON_PORT).toBe("5555");
+    expect(execution.env.PATCHER_SERVER_URL).toBe("http://localhost:4444");
+    expect(execution.env.PATCHER_HOST_DAEMON_PORT).toBe("5555");
   });
 });

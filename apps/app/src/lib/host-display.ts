@@ -1,5 +1,5 @@
-import type { Host } from "@bb/domain";
-import type { IconName } from "@bb/shared-ui/icon";
+import type { Host } from "@patcher/domain";
+import type { IconName } from "@patcher/shared-ui/icon";
 
 /**
  * Canonical icon for a known persistent host (the user's machine,

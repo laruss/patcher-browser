@@ -4,7 +4,7 @@ import {
   permissionEscalationValues,
   reasoningLevelValues,
   runtimePermissionScopeValues,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 import { jsonRpcEnvelopeSchema } from "../../shared/bridge-tool-calls.js";
 import { claudePermissionModeSchema } from "../interactive-contract.js";

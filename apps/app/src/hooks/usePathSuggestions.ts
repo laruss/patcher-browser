@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { WorkspacePathEntry } from "@bb/server-contract";
+import type { WorkspacePathEntry } from "@patcher/server-contract";
 import { useDebounceValue } from "usehooks-ts";
 import { useEnvironmentPathSuggestions } from "./queries/environment-queries";
 import { useProjectPathSuggestions } from "./queries/project-queries";

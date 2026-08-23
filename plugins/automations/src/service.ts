@@ -1,4 +1,4 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import {
   createAutomation,
@@ -56,12 +56,12 @@ import {
 } from "./script-files.js";
 import { executeAgentRun, executeScriptRun } from "./run.js";
 
-type ServiceApi = Pick<BbPluginApi, "realtime" | "log"> & {
+type ServiceApi = Pick<PatcherPluginApi, "realtime" | "log"> & {
   sdk: {
-    projects: Pick<BbPluginApi["sdk"]["projects"], "get" | "list">;
-    providers: Pick<BbPluginApi["sdk"]["providers"], "list"> &
-      Partial<Pick<BbPluginApi["sdk"]["providers"], "models">>;
-    threads: Pick<BbPluginApi["sdk"]["threads"], "get" | "send" | "spawn">;
+    projects: Pick<PatcherPluginApi["sdk"]["projects"], "get" | "list">;
+    providers: Pick<PatcherPluginApi["sdk"]["providers"], "list"> &
+      Partial<Pick<PatcherPluginApi["sdk"]["providers"], "models">>;
+    threads: Pick<PatcherPluginApi["sdk"]["threads"], "get" | "send" | "spawn">;
   };
 };
 
@@ -173,7 +173,7 @@ async function resolveStoredExecution(args: {
 }
 
 async function discardUncommittedScript(args: {
-  bb: Pick<ServiceApi, "log">;
+  patcher: Pick<ServiceApi, "log">;
   pluginDataDir: string;
   automationId: string;
   scriptFile: string | undefined;
@@ -186,7 +186,7 @@ async function discardUncommittedScript(args: {
       scriptFile: args.scriptFile,
     });
   } catch (error) {
-    args.bb.log.warn(
+    args.patcher.log.warn(
       `Failed to discard uncommitted script for automation ${args.automationId}: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -220,7 +220,7 @@ async function toEditableAutomationResponse(args: {
 }
 
 async function cleanupSupersededScript(args: {
-  bb: Pick<ServiceApi, "log">;
+  patcher: Pick<ServiceApi, "log">;
   pluginDataDir: string;
   automationId: string;
   previous: AutomationExecution;
@@ -247,7 +247,7 @@ async function cleanupSupersededScript(args: {
       });
     }
   } catch (error) {
-    args.bb.log.warn(
+    args.patcher.log.warn(
       `Failed to remove superseded script for automation ${args.automationId}: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -304,11 +304,11 @@ function parseRunCursor(
 }
 
 async function projectNameById(
-  bb: Pick<ServiceApi, "sdk" | "log">,
+  patcher: Pick<ServiceApi, "sdk" | "log">,
 ): Promise<Map<string, string>> {
   try {
     const projects = projectSummaryListSchema.parse(
-      await bb.sdk.projects.list({ includePersonal: true }),
+      await patcher.sdk.projects.list({ includePersonal: true }),
     );
     return new Map(
       projects
@@ -319,7 +319,7 @@ async function projectNameById(
         .map((project) => [project.id, project.name ?? project.id]),
     );
   } catch (error) {
-    bb.log.warn(
+    patcher.log.warn(
       `Failed to list projects for automations overview: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -339,11 +339,11 @@ const projectSummarySchema = z
 const projectSummaryListSchema = z.array(projectSummarySchema);
 
 async function requireProjectAvailable(
-  bb: Pick<ServiceApi, "sdk">,
+  patcher: Pick<ServiceApi, "sdk">,
   projectId: string,
 ): Promise<void> {
   try {
-    projectAvailableSchema.parse(await bb.sdk.projects.get({ projectId }));
+    projectAvailableSchema.parse(await patcher.sdk.projects.get({ projectId }));
   } catch (error) {
     throw new Error(
       `Project ${projectId} is not available: ${
@@ -354,16 +354,16 @@ async function requireProjectAvailable(
 }
 
 export function createAutomationService(args: {
-  bb: ServiceApi;
+  patcher: ServiceApi;
   db: Db;
   pluginDataDir: string;
   serverUrl: string;
 }): AutomationService {
-  const { bb, db, pluginDataDir, serverUrl } = args;
+  const { patcher, db, pluginDataDir, serverUrl } = args;
 
   return {
     async overview() {
-      const projects = await projectNameById(bb);
+      const projects = await projectNameById(patcher);
       const rows = listAllAutomations(db);
       const automations = (
         await Promise.all(
@@ -379,7 +379,7 @@ export function createAutomationService(args: {
                 },
               };
             } catch (error) {
-              bb.log.warn(
+              patcher.log.warn(
                 `Skipping malformed automation ${row.id}: ${
                   error instanceof Error ? error.message : String(error)
                 }`,
@@ -414,7 +414,7 @@ export function createAutomationService(args: {
         );
       }
       const routing = providerRoutingForEnvironment(execution.environment);
-      const loadModels = bb.sdk.providers.models;
+      const loadModels = patcher.sdk.providers.models;
       if (loadModels === undefined) {
         throw new Error("Provider model discovery is unavailable.");
       }
@@ -455,7 +455,7 @@ export function createAutomationService(args: {
           : environment.type === "host" && environment.hostId !== undefined
             ? { hostId: environment.hostId }
             : {};
-      const providers = await bb.sdk.providers.list(routing);
+      const providers = await patcher.sdk.providers.list(routing);
       const provider = providers.find(
         (candidate) => candidate.id === execution.providerId,
       );
@@ -468,13 +468,13 @@ export function createAutomationService(args: {
     },
 
     async create(payload) {
-      await requireProjectAvailable(bb, payload.projectId);
+      await requireProjectAvailable(patcher, payload.projectId);
       const now = Date.now();
       validateTrigger(payload.trigger, now);
       assertNotRecursiveCreation(db, payload.createdByThreadId);
       if (payload.execution.mode === "agent") {
         await resolvePermissionMode(
-          bb,
+          patcher,
           payload.execution.providerId,
           payload.execution.permissionMode,
           providerRoutingForEnvironment(payload.execution.environment),
@@ -506,19 +506,23 @@ export function createAutomationService(args: {
         });
       } catch (error) {
         await discardUncommittedScript({
-          bb,
+          patcher,
           pluginDataDir,
           automationId,
           scriptFile: stored.writtenScriptFile,
         });
         throw error;
       }
-      publishAutomationChange(bb, payload.projectId, "automations-changed");
+      publishAutomationChange(
+        patcher,
+        payload.projectId,
+        "automations-changed",
+      );
       return toAutomationResponse(created);
     },
 
     async update(input) {
-      await requireProjectAvailable(bb, input.projectId);
+      await requireProjectAvailable(patcher, input.projectId);
       const current = requireProjectAutomation(db, input);
       if (input.execution !== undefined && input.agent !== undefined) {
         throw new Error("execution and agent updates cannot be combined");
@@ -538,7 +542,7 @@ export function createAutomationService(args: {
       if (input.execution !== undefined) {
         if (input.execution.mode === "agent") {
           await resolvePermissionMode(
-            bb,
+            patcher,
             input.execution.providerId,
             input.execution.permissionMode,
             providerRoutingForEnvironment(input.execution.environment),
@@ -564,7 +568,7 @@ export function createAutomationService(args: {
             );
           }
           await resolvePermissionMode(
-            bb,
+            patcher,
             updatedExecution.providerId,
             input.agent.permissionMode,
             providerRoutingForEnvironment(updatedExecution.environment),
@@ -581,7 +585,7 @@ export function createAutomationService(args: {
         });
       } catch (error) {
         await discardUncommittedScript({
-          bb,
+          patcher,
           pluginDataDir,
           automationId: current.id,
           scriptFile: stagedScriptFile,
@@ -590,7 +594,7 @@ export function createAutomationService(args: {
       }
       if (!updated) {
         await discardUncommittedScript({
-          bb,
+          patcher,
           pluginDataDir,
           automationId: current.id,
           scriptFile: stagedScriptFile,
@@ -599,14 +603,14 @@ export function createAutomationService(args: {
       }
       if (patch.execution !== undefined) {
         await cleanupSupersededScript({
-          bb,
+          patcher,
           pluginDataDir,
           automationId: current.id,
           previous: currentExecution,
           next: patch.execution,
         });
       }
-      publishAutomationChange(bb, input.projectId, "automations-changed");
+      publishAutomationChange(patcher, input.projectId, "automations-changed");
       return toAutomationResponse(updated);
     },
 
@@ -617,7 +621,7 @@ export function createAutomationService(args: {
         dataDir: pluginDataDir,
         automationId: automation.id,
       });
-      publishAutomationChange(bb, input.projectId, [
+      publishAutomationChange(patcher, input.projectId, [
         "automations-changed",
         "automation-runs-changed",
       ]);
@@ -633,7 +637,7 @@ export function createAutomationService(args: {
         nextRunAt: null,
       });
       if (!updated) throw new Error("Automation not found");
-      publishAutomationChange(bb, input.projectId, "automations-changed");
+      publishAutomationChange(patcher, input.projectId, "automations-changed");
       return toAutomationResponse(updated);
     },
 
@@ -650,7 +654,7 @@ export function createAutomationService(args: {
         lastError: null,
       });
       if (!updated) throw new Error("Automation not found");
-      publishAutomationChange(bb, input.projectId, "automations-changed");
+      publishAutomationChange(patcher, input.projectId, "automations-changed");
       return toAutomationResponse(updated);
     },
 
@@ -665,7 +669,11 @@ export function createAutomationService(args: {
         now,
       });
       if (!deduped) {
-        publishAutomationChange(bb, input.projectId, "automation-runs-changed");
+        publishAutomationChange(
+          patcher,
+          input.projectId,
+          "automation-runs-changed",
+        );
         const closeFailedRun = (error: unknown): void => {
           closeAutomationRun(db, {
             runId: run.id,
@@ -677,14 +685,14 @@ export function createAutomationService(args: {
         void (async () => {
           try {
             if (execution.mode === "agent") {
-              await executeAgentRun(bb, db, {
+              await executeAgentRun(patcher, db, {
                 automation,
                 run,
                 execution,
                 onFailure: closeFailedRun,
               });
             } else {
-              await executeScriptRun(bb, db, {
+              await executeScriptRun(patcher, db, {
                 pluginDataDir,
                 automation,
                 run,
@@ -695,12 +703,12 @@ export function createAutomationService(args: {
             }
           } catch (error) {
             closeFailedRun(error);
-            bb.log.error(
+            patcher.log.error(
               `Manual automation run ${run.id} failed unexpectedly: ${
                 error instanceof Error ? error.message : String(error)
               }`,
             );
-            publishAutomationChange(bb, input.projectId, [
+            publishAutomationChange(patcher, input.projectId, [
               "automations-changed",
               "automation-runs-changed",
             ]);

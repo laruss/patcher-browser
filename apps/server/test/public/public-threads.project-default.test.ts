@@ -1,5 +1,5 @@
-import { getThread } from "@bb/db";
-import { PERSONAL_PROJECT_ID, threadSchema } from "@bb/domain";
+import { getThread } from "@patcher/db";
+import { PERSONAL_PROJECT_ID, threadSchema } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { resolveProjectDefaultThreadEnvironment } from "../../src/services/threads/thread-default-policy.js";
 import {

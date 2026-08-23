@@ -3,13 +3,13 @@ import {
   getBuiltInAgentProviderInfo,
   isAcpProviderId,
   isAgentProviderId,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import {
   providerCommandSectionRank,
   type CommandListResponse,
   type ProviderCommand,
-} from "@bb/server-contract";
-import type { HostProviderCommand } from "@bb/host-daemon-contract";
+} from "@patcher/server-contract";
+import type { HostProviderCommand } from "@patcher/host-daemon-contract";
 import type { ResolvedSkillCatalogEntry } from "../skills/injected-skills.js";
 
 const BUILT_IN_PROVIDER_COMMANDS: ProviderCommand[] = [

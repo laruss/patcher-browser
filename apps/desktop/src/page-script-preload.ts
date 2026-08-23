@@ -1,14 +1,14 @@
 // The preload a browsed page gets when — and only when — a plugin has declared a
 // page script for the site it is on.
 //
-// Every other preload in this app runs in a window bb built. This one runs in a
+// Every other preload in this app runs in a window Patcher built. This one runs in a
 // renderer that is also running a website, so it is written to a different
 // standard, and three properties are the whole design:
 //
 //   * **Nothing is exposed to the page.** The APIs go into per-plugin *isolated
 //     worlds* via `contextBridge.exposeInIsolatedWorld`. The page's own world
-//     gets nothing — no `bb`, no `require`, no `process` — which is what keeps
-//     the shell's standing rule (a browsed page never receives a bb bridge)
+//     gets nothing — no `patcher`, no `require`, no `process` — which is what keeps
+//     the shell's standing rule (a browsed page never receives a Patcher bridge)
 //     true even though a preload now exists.
 //   * **The shell decides what runs here.** This asks, synchronously, at document
 //     start, and the shell answers from the frame URL *it* resolved. A renderer
@@ -27,13 +27,13 @@
 // rest of the preload**, which is why every step below is contained.
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import type {
-  BbDesktopPageScriptBootstrap,
-  BbDesktopPageScriptRpcAnswer,
-  BbDesktopPageScriptWorld,
-} from "@bb/desktop-contract";
+  PatcherDesktopPageScriptBootstrap,
+  PatcherDesktopPageScriptRpcAnswer,
+  PatcherDesktopPageScriptWorld,
+} from "@patcher/desktop-contract";
 import {
-  BB_DESKTOP_PAGE_SCRIPT_BOOTSTRAP_CHANNEL,
-  BB_DESKTOP_PAGE_SCRIPT_RPC_CHANNEL,
+  PATCHER_DESKTOP_PAGE_SCRIPT_BOOTSTRAP_CHANNEL,
+  PATCHER_DESKTOP_PAGE_SCRIPT_RPC_CHANNEL,
 } from "./desktop-browser-ipc.js";
 
 /**
@@ -67,18 +67,18 @@ function buildApi(pluginId: string): PageScriptApi {
         serialized = input === undefined ? "" : (JSON.stringify(input) ?? "");
       } catch {
         throw new Error(
-          `bb.rpc("${method}"): the input is not JSON-serialisable.`,
+          `patcher.rpc("${method}"): the input is not JSON-serialisable.`,
         );
       }
       const answer = (await ipcRenderer.invoke(
-        BB_DESKTOP_PAGE_SCRIPT_RPC_CHANNEL,
+        PATCHER_DESKTOP_PAGE_SCRIPT_RPC_CHANNEL,
         { pluginId, method, input: serialized },
-      )) as BbDesktopPageScriptRpcAnswer | undefined;
+      )) as PatcherDesktopPageScriptRpcAnswer | undefined;
       if (answer === undefined || answer.ok !== true) {
         throw new Error(
           answer?.ok === false
             ? answer.message
-            : `bb.rpc("${method}"): the browser did not answer.`,
+            : `patcher.rpc("${method}"): the browser did not answer.`,
         );
       }
       return answer.result.length === 0
@@ -87,7 +87,7 @@ function buildApi(pluginId: string): PageScriptApi {
     },
     ready(callback: () => void): void {
       // Deliberately not wrapped in try/catch: a throw from the script's own
-      // callback belongs in the page's console, where bb's observation log
+      // callback belongs in the page's console, where Patcher's observation log
       // collects it and an agent debugging the plugin can read it. Swallowing it
       // here would make a broken page script indistinguishable from one that ran.
       //
@@ -105,15 +105,19 @@ function buildApi(pluginId: string): PageScriptApi {
   };
 }
 
-function runWorld(world: BbDesktopPageScriptWorld): void {
+function runWorld(world: PatcherDesktopPageScriptWorld): void {
   try {
+    // One name, exposed once: a second `exposeInIsolatedWorld` for the same
+    // world throws and aborts the rest of this preload (see the header), so an
+    // alias would have to be an assignment queued after it. There is nothing
+    // to alias — no shipped Patcher build ever exposed page scripts under `bb`.
     contextBridge.exposeInIsolatedWorld(
       world.worldId,
-      "bb",
+      "patcher",
       buildApi(world.pluginId),
     );
   } catch {
-    // Nothing to run in a world that has no `bb`; the next plugin still gets its.
+    // Nothing to run in a world that took no API; the next plugin still gets its.
     return;
   }
   for (const script of world.scripts) {
@@ -132,11 +136,11 @@ function runWorld(world: BbDesktopPageScriptWorld): void {
 }
 
 function bootstrap(): void {
-  let answer: BbDesktopPageScriptBootstrap | undefined;
+  let answer: PatcherDesktopPageScriptBootstrap | undefined;
   try {
-    answer = ipcRenderer.sendSync(BB_DESKTOP_PAGE_SCRIPT_BOOTSTRAP_CHANNEL) as
-      | BbDesktopPageScriptBootstrap
-      | undefined;
+    answer = ipcRenderer.sendSync(
+      PATCHER_DESKTOP_PAGE_SCRIPT_BOOTSTRAP_CHANNEL,
+    ) as PatcherDesktopPageScriptBootstrap | undefined;
   } catch {
     return;
   }

@@ -4,10 +4,10 @@ import {
   fileNameFromPath,
   type TimelineImageViewViewWorkRow,
   type TimelineViewWorkRow,
-} from "@bb/thread-view";
+} from "@patcher/thread-view";
 import { EventCodeBlock } from "../../ui/event-code-block.js";
 import { ImageLightbox } from "../../ui/image-lightbox.js";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
+import { EmptyStatePanel } from "@patcher/shared-ui/empty-state";
 import { TerminalOutputBlock } from "./TerminalOutputBlock.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
 import { TimelineFileDiffBlock } from "./TimelineFileDiffBlock.js";

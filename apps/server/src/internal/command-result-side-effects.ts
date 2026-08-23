@@ -1,9 +1,9 @@
-import type { DbNotifier, DbTransaction } from "@bb/db";
+import type { DbNotifier, DbTransaction } from "@patcher/db";
 import type {
   HostDaemonCommand,
   HostDaemonCommandResult,
   HostDaemonSettledCommandType,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { InteractiveLifecycleCoordinationDeps } from "../lifecycle-coordination-deps.js";
 import type { AppDeps } from "../types.js";
 

@@ -1,4 +1,4 @@
-import { BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@patcher/desktop-contract";
 
 /**
  * Reading a PDF tab as text, for the agent browser tools.
@@ -35,7 +35,7 @@ import { BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@bb/desktop-contract";
  *   fetch would cover them and is the fallback to add if it turns out to
  *   matter.
  * - **The same cap as any other page read.** A long document is truncated to
- *   {@link BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH} with `textTruncated` set,
+ *   {@link PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH} with `textTruncated` set,
  *   exactly as a long article is; there is no page range to ask for.
  *
  * Parsing happens in a **utility process**. Not for privilege — the parser is
@@ -57,7 +57,7 @@ import { BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@bb/desktop-contract";
  * under it parses in well under the deadline below, and a caller told
  * `too-large` knows to stop asking rather than to try again.
  */
-export const BB_DESKTOP_BROWSER_MAX_PDF_BYTES = 32 * 1024 * 1024;
+export const PATCHER_DESKTOP_BROWSER_MAX_PDF_BYTES = 32 * 1024 * 1024;
 
 /**
  * The whole read — fetch, fork, parse — under one deadline, because an agent's
@@ -65,10 +65,10 @@ export const BB_DESKTOP_BROWSER_MAX_PDF_BYTES = 32 * 1024 * 1024;
  * this one includes a network request and a document parse, where two seconds
  * would refuse ordinary work rather than catch a hang.
  */
-export const BB_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS = 15_000;
+export const PATCHER_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS = 15_000;
 
 /** What the viewer sets as the main frame's `document.contentType`. */
-export const BB_DESKTOP_BROWSER_PDF_CONTENT_TYPE = "application/pdf";
+export const PATCHER_DESKTOP_BROWSER_PDF_CONTENT_TYPE = "application/pdf";
 
 /**
  * Whether a page read is looking at a PDF.
@@ -81,7 +81,7 @@ export const BB_DESKTOP_BROWSER_PDF_CONTENT_TYPE = "application/pdf";
 export function isBrowserPdfContentType(contentType: string): boolean {
   return (
     contentType.split(";")[0]?.trim().toLowerCase() ===
-    BB_DESKTOP_BROWSER_PDF_CONTENT_TYPE
+    PATCHER_DESKTOP_BROWSER_PDF_CONTENT_TYPE
   );
 }
 
@@ -130,8 +130,8 @@ export function buildBrowserPdfText(
   }
   const joined = rendered.join("\n\n").replace(/\n{3,}/g, "\n\n");
   return {
-    text: joined.slice(0, BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
-    truncated: joined.length > BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+    text: joined.slice(0, PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    truncated: joined.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
   };
 }
 
@@ -166,7 +166,7 @@ export async function readBrowserPdfBytes(
   const stream = response.body ?? null;
   if (stream === null) {
     const buffer = await response.arrayBuffer();
-    return buffer.byteLength > BB_DESKTOP_BROWSER_MAX_PDF_BYTES
+    return buffer.byteLength > PATCHER_DESKTOP_BROWSER_MAX_PDF_BYTES
       ? { ok: false, reason: "too-large" }
       : { ok: true, bytes: new Uint8Array(buffer) };
   }
@@ -183,7 +183,7 @@ export async function readBrowserPdfBytes(
       continue;
     }
     total += value.length;
-    if (total > BB_DESKTOP_BROWSER_MAX_PDF_BYTES) {
+    if (total > PATCHER_DESKTOP_BROWSER_MAX_PDF_BYTES) {
       void reader.cancel();
       return { ok: false, reason: "too-large" };
     }
@@ -249,9 +249,9 @@ export function parseBrowserPdfTextMessage(
     ok: true,
     // Re-truncated here for the same reason the page read is: the cap must hold
     // even if the child ever stops agreeing with it.
-    text: message.text.slice(0, BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    text: message.text.slice(0, PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
     truncated:
       message.truncated === true ||
-      message.text.length > BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+      message.text.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
   };
 }

@@ -1,5 +1,5 @@
-import { claudeTaskToolNameValues } from "@bb/domain";
-import type { ThreadEvent } from "@bb/domain";
+import { claudeTaskToolNameValues } from "@patcher/domain";
+import type { ThreadEvent } from "@patcher/domain";
 
 const SUPPRESSED_TIMELINE_TOOL_NAMES = new Set([
   ...claudeTaskToolNameValues,

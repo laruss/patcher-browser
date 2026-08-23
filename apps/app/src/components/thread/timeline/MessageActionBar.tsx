@@ -2,24 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CopyButton } from "../../ui/copy-button.js";
-import { Icon } from "@bb/shared-ui/icon";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { preventOverlayTriggerSelection } from "@bb/shared-ui/overlay-trigger";
+import { Icon } from "@patcher/shared-ui/icon";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
+import { preventOverlayTriggerSelection } from "@patcher/shared-ui/overlay-trigger";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/tooltip";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import type { PromptDraftAttachment } from "@/lib/prompt-draft";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { PluginIcon, pluginIconName } from "@/components/plugin/PluginIcon";

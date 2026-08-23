@@ -6,8 +6,8 @@ import { z } from "zod";
  * (localStorage) tab state. The main process truncates to these before sending;
  * the schemas reject anything longer.
  */
-export const BB_DESKTOP_BROWSER_MAX_URL_LENGTH = 4096;
-export const BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH = 1024;
+export const PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH = 4096;
+export const PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH = 1024;
 
 /**
  * Pixel rect of the panel region the native browser view must overlay,
@@ -20,7 +20,7 @@ export const BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH = 1024;
  * native window resizes, whose size the renderer's (possibly lagging) chrome
  * paint does not yet reflect.
  */
-export const bbDesktopBrowserViewBoundsSchema = z
+export const patcherDesktopBrowserViewBoundsSchema = z
   .object({
     x: z.number().int(),
     y: z.number().int(),
@@ -28,11 +28,11 @@ export const bbDesktopBrowserViewBoundsSchema = z
     height: z.number().int().nonnegative(),
   })
   .strict();
-export type BbDesktopBrowserViewBounds = z.infer<
-  typeof bbDesktopBrowserViewBoundsSchema
+export type PatcherDesktopBrowserViewBounds = z.infer<
+  typeof patcherDesktopBrowserViewBoundsSchema
 >;
 
-export interface BbDesktopBrowserViewportBounds {
+export interface PatcherDesktopBrowserViewportBounds {
   width: number;
   height: number;
 }
@@ -43,18 +43,18 @@ interface ClampIntegerToRangeArgs {
   value: number;
 }
 
-export interface ClampBbDesktopBrowserViewBoundsArgs {
-  bounds: BbDesktopBrowserViewBounds;
-  viewport: BbDesktopBrowserViewportBounds;
+export interface ClampPatcherDesktopBrowserViewBoundsArgs {
+  bounds: PatcherDesktopBrowserViewBounds;
+  viewport: PatcherDesktopBrowserViewportBounds;
 }
 
 function clampIntegerToRange(args: ClampIntegerToRangeArgs): number {
   return Math.min(Math.max(args.value, args.min), args.max);
 }
 
-export function clampBbDesktopBrowserViewBounds(
-  args: ClampBbDesktopBrowserViewBoundsArgs,
-): BbDesktopBrowserViewBounds {
+export function clampPatcherDesktopBrowserViewBounds(
+  args: ClampPatcherDesktopBrowserViewBoundsArgs,
+): PatcherDesktopBrowserViewBounds {
   const viewportRight = Math.max(0, Math.round(args.viewport.width));
   const viewportBottom = Math.max(0, Math.round(args.viewport.height));
   const x = clampIntegerToRange({
@@ -90,7 +90,7 @@ export function clampBbDesktopBrowserViewBounds(
  * Create-or-update the view for a browser tab. `url` may be empty to mean "no
  * page yet" (the renderer shows its new-tab screen and keeps the view hidden).
  *
- * Version-skew warning: the desktop shell attaches to any already-running bb
+ * Version-skew warning: the desktop shell attaches to any already-running Patcher
  * server that passes its health probe (no version handshake — see
  * apps/desktop/src/server-probe.ts) and loads the SPA that server serves, so
  * the renderer and the shell's main process routinely come from different
@@ -100,46 +100,46 @@ export function clampBbDesktopBrowserViewBounds(
  * Change them only alongside an explicit capability/version negotiation in
  * the preload bridge.
  */
-export const bbDesktopBrowserAttachRequestSchema = z
+export const patcherDesktopBrowserAttachRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    bounds: bbDesktopBrowserViewBoundsSchema,
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    bounds: patcherDesktopBrowserViewBoundsSchema,
     visible: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserAttachRequest = z.infer<
-  typeof bbDesktopBrowserAttachRequestSchema
+export type PatcherDesktopBrowserAttachRequest = z.infer<
+  typeof patcherDesktopBrowserAttachRequestSchema
 >;
 
-export const bbDesktopBrowserNavigateRequestSchema = z
+export const patcherDesktopBrowserNavigateRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    url: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    url: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserNavigateRequest = z.infer<
-  typeof bbDesktopBrowserNavigateRequestSchema
+export type PatcherDesktopBrowserNavigateRequest = z.infer<
+  typeof patcherDesktopBrowserNavigateRequestSchema
 >;
 
-export const bbDesktopBrowserSetBoundsRequestSchema = z
+export const patcherDesktopBrowserSetBoundsRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    bounds: bbDesktopBrowserViewBoundsSchema,
+    bounds: patcherDesktopBrowserViewBoundsSchema,
   })
   .strict();
-export type BbDesktopBrowserSetBoundsRequest = z.infer<
-  typeof bbDesktopBrowserSetBoundsRequestSchema
+export type PatcherDesktopBrowserSetBoundsRequest = z.infer<
+  typeof patcherDesktopBrowserSetBoundsRequestSchema
 >;
 
-export const bbDesktopBrowserSetVisibleRequestSchema = z
+export const patcherDesktopBrowserSetVisibleRequestSchema = z
   .object({
     tabId: z.string().min(1),
     visible: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserSetVisibleRequest = z.infer<
-  typeof bbDesktopBrowserSetVisibleRequestSchema
+export type PatcherDesktopBrowserSetVisibleRequest = z.infer<
+  typeof patcherDesktopBrowserSetVisibleRequestSchema
 >;
 
 /**
@@ -153,34 +153,38 @@ export type BbDesktopBrowserSetVisibleRequest = z.infer<
  * clamps so its steps cannot walk out, and the shell clamps because a plugin
  * can ask for anything.
  */
-export const BB_DESKTOP_BROWSER_MIN_ZOOM_FACTOR = 0.25;
-export const BB_DESKTOP_BROWSER_MAX_ZOOM_FACTOR = 5;
+export const PATCHER_DESKTOP_BROWSER_MIN_ZOOM_FACTOR = 0.25;
+export const PATCHER_DESKTOP_BROWSER_MAX_ZOOM_FACTOR = 5;
 
-const bbDesktopBrowserZoomFactorSchema = z
+const patcherDesktopBrowserZoomFactorSchema = z
   .number()
-  .min(BB_DESKTOP_BROWSER_MIN_ZOOM_FACTOR)
-  .max(BB_DESKTOP_BROWSER_MAX_ZOOM_FACTOR);
+  .min(PATCHER_DESKTOP_BROWSER_MIN_ZOOM_FACTOR)
+  .max(PATCHER_DESKTOP_BROWSER_MAX_ZOOM_FACTOR);
 
-export const bbDesktopBrowserSetZoomRequestSchema = z
+export const patcherDesktopBrowserSetZoomRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    factor: bbDesktopBrowserZoomFactorSchema,
+    factor: patcherDesktopBrowserZoomFactorSchema,
   })
   .strict();
-export type BbDesktopBrowserSetZoomRequest = z.infer<
-  typeof bbDesktopBrowserSetZoomRequestSchema
+export type PatcherDesktopBrowserSetZoomRequest = z.infer<
+  typeof patcherDesktopBrowserSetZoomRequestSchema
 >;
 
 /** What a tab's zoom became, whoever changed it. */
-export const bbDesktopBrowserZoomSchema = z
+export const patcherDesktopBrowserZoomSchema = z
   .object({
     tabId: z.string().min(1),
-    factor: bbDesktopBrowserZoomFactorSchema,
+    factor: patcherDesktopBrowserZoomFactorSchema,
   })
   .strict();
-export type BbDesktopBrowserZoom = z.infer<typeof bbDesktopBrowserZoomSchema>;
+export type PatcherDesktopBrowserZoom = z.infer<
+  typeof patcherDesktopBrowserZoomSchema
+>;
 
-export type BbDesktopBrowserZoomHandler = (zoom: BbDesktopBrowserZoom) => void;
+export type PatcherDesktopBrowserZoomHandler = (
+  zoom: PatcherDesktopBrowserZoom,
+) => void;
 
 /**
  * Silence a tab's page, or let it speak again.
@@ -189,14 +193,14 @@ export type BbDesktopBrowserZoomHandler = (zoom: BbDesktopBrowserZoom) => void;
  * does — see `browser-tab-mute.ts` in the app for what the renderer promises on
  * top of that.
  */
-export const bbDesktopBrowserSetMutedRequestSchema = z
+export const patcherDesktopBrowserSetMutedRequestSchema = z
   .object({
     tabId: z.string().min(1),
     muted: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserSetMutedRequest = z.infer<
-  typeof bbDesktopBrowserSetMutedRequestSchema
+export type PatcherDesktopBrowserSetMutedRequest = z.infer<
+  typeof patcherDesktopBrowserSetMutedRequestSchema
 >;
 
 /**
@@ -212,91 +216,98 @@ export type BbDesktopBrowserSetMutedRequest = z.infer<
  * protocol, and a tab may have only one protocol client: making the padlock
  * depend on it would break it whenever the developer panel is open.
  */
-export const bbDesktopBrowserPageSecuritySchema = z
+export const patcherDesktopBrowserPageSecuritySchema = z
   .object({
     tabId: z.string().min(1),
     certificateTrustedByUser: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserPageSecurity = z.infer<
-  typeof bbDesktopBrowserPageSecuritySchema
+export type PatcherDesktopBrowserPageSecurity = z.infer<
+  typeof patcherDesktopBrowserPageSecuritySchema
 >;
 
-export type BbDesktopBrowserPageSecurityHandler = (
-  security: BbDesktopBrowserPageSecurity,
+export type PatcherDesktopBrowserPageSecurityHandler = (
+  security: PatcherDesktopBrowserPageSecurity,
 ) => void;
 
 /** Ref for tab-scoped commands with no other payload (detach/back/forward/reload/stop). */
-export const bbDesktopBrowserTabRefSchema = z
+export const patcherDesktopBrowserTabRefSchema = z
   .object({
     tabId: z.string().min(1),
   })
   .strict();
-export type BbDesktopBrowserTabRef = z.infer<
-  typeof bbDesktopBrowserTabRefSchema
+export type PatcherDesktopBrowserTabRef = z.infer<
+  typeof patcherDesktopBrowserTabRefSchema
 >;
 
 /**
  * Current navigation state of a browser view, pushed main → renderer on every
  * relevant `webContents` event. A snapshot of live state — never a queue ladder.
  */
-export const bbDesktopBrowserStateSchema = z
+export const patcherDesktopBrowserStateSchema = z
   .object({
     tabId: z.string().min(1),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    title: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    title: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
     isLoading: z.boolean(),
     canGoBack: z.boolean(),
     canGoForward: z.boolean(),
-    errorText: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+    errorText: z
+      .string()
+      .max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH)
+      .nullable(),
   })
   .strict();
-export type BbDesktopBrowserState = z.infer<typeof bbDesktopBrowserStateSchema>;
+export type PatcherDesktopBrowserState = z.infer<
+  typeof patcherDesktopBrowserStateSchema
+>;
 
 /**
  * Request from main → renderer to open a popup (`window.open`/`target=_blank`)
  * as a new in-panel browser tab. The native OS popup window is always denied.
  */
-export const bbDesktopBrowserOpenTabRequestSchema = z
+export const patcherDesktopBrowserOpenTabRequestSchema = z
   .object({
-    url: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    url: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserOpenTabRequest = z.infer<
-  typeof bbDesktopBrowserOpenTabRequestSchema
+export type PatcherDesktopBrowserOpenTabRequest = z.infer<
+  typeof patcherDesktopBrowserOpenTabRequestSchema
 >;
 
 /**
- * Source-attributed variant of {@link bbDesktopBrowserOpenTabRequestSchema}.
+ * Source-attributed variant of {@link patcherDesktopBrowserOpenTabRequestSchema}.
  * Emitted on a new channel so the legacy wire-frozen popup event can remain
  * unchanged for desktop/SPA version skew.
  */
-export const bbDesktopBrowserScopedOpenTabRequestSchema = z
+export const patcherDesktopBrowserScopedOpenTabRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    url: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    url: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserScopedOpenTabRequest = z.infer<
-  typeof bbDesktopBrowserScopedOpenTabRequestSchema
+export type PatcherDesktopBrowserScopedOpenTabRequest = z.infer<
+  typeof patcherDesktopBrowserScopedOpenTabRequestSchema
 >;
 
 /**
- * The links macOS handed the shell because bb is the user's default browser,
+ * The links macOS handed the shell because Patcher is the user's default browser,
  * answered to the surface that asked for them and emptied in the asking.
  *
  * An answer rather than a push: `open-url` fires before there is a renderer at
- * all when the click is what launched bb, so the shell queues and the surface
+ * all when the click is what launched Patcher, so the shell queues and the surface
  * pulls when it mounts. Same URL bound as a popup request, for the same reason
  * — the address comes from outside this app either way.
  */
-export const bbDesktopBrowserExternalUrlsSchema = z
+export const patcherDesktopBrowserExternalUrlsSchema = z
   .object({
-    urls: z.array(z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH)),
+    urls: z.array(
+      z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    ),
   })
   .strict();
-export type BbDesktopBrowserExternalUrls = z.infer<
-  typeof bbDesktopBrowserExternalUrlsSchema
+export type PatcherDesktopBrowserExternalUrls = z.infer<
+  typeof patcherDesktopBrowserExternalUrlsSchema
 >;
 
 /**
@@ -304,7 +315,7 @@ export type BbDesktopBrowserExternalUrls = z.infer<
  * display lands well under this; the cap exists so a misbehaving push can
  * never balloon renderer memory.
  */
-export const BB_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH = 8_388_608;
+export const PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH = 8_388_608;
 
 /**
  * A transient bitmap of a browser view, pushed main → renderer at the start
@@ -314,26 +325,26 @@ export const BB_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH = 8_388_608;
  * chrome. `dataUrl: null` clears the placeholder once the resize settles and
  * the live view is shown again.
  */
-export const bbDesktopBrowserSnapshotSchema = z
+export const patcherDesktopBrowserSnapshotSchema = z
   .object({
     tabId: z.string().min(1),
     dataUrl: z
       .string()
-      .max(BB_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_DATA_URL_LENGTH)
       .nullable(),
   })
   .strict();
-export type BbDesktopBrowserSnapshot = z.infer<
-  typeof bbDesktopBrowserSnapshotSchema
+export type PatcherDesktopBrowserSnapshot = z.infer<
+  typeof patcherDesktopBrowserSnapshotSchema
 >;
 
 /**
  * Cap on a favicon data URL. Favicons cross the wire as the page's own image
  * bytes, so this is the wire-side twin of the shell's byte cap
- * (`BB_DESKTOP_BROWSER_MAX_FAVICON_BYTES`): base64 expands by 4/3, and the value
+ * (`PATCHER_DESKTOP_BROWSER_MAX_FAVICON_BYTES`): base64 expands by 4/3, and the value
  * leaves room for the `data:<mime>;base64,` prefix on top of that.
  */
-export const BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH = 196_608;
+export const PATCHER_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH = 196_608;
 
 /**
  * The icon a browser tab shows, pushed main → renderer when a page declares one
@@ -341,23 +352,23 @@ export const BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH = 196_608;
  *
  * `dataUrl` is built by the shell from bytes **it** fetched inside the browsing
  * session, and its media type comes from the shell's allowlist rather than from
- * the response. The page-controlled favicon URL never reaches the trusted bb app,
+ * the response. The page-controlled favicon URL never reaches the trusted Patcher app,
  * which is what keeps a tab icon from becoming a beacon on the app's own origin,
  * a loopback/LAN probe carrying app credentials, or a `javascript:`/`data:`
  * payload of the page's choosing. See `resolveBrowserFaviconDataUrl` in
  * apps/desktop.
  */
-export const bbDesktopBrowserFaviconSchema = z
+export const patcherDesktopBrowserFaviconSchema = z
   .object({
     tabId: z.string().min(1),
     dataUrl: z
       .string()
-      .max(BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH)
       .nullable(),
   })
   .strict();
-export type BbDesktopBrowserFavicon = z.infer<
-  typeof bbDesktopBrowserFaviconSchema
+export type PatcherDesktopBrowserFavicon = z.infer<
+  typeof patcherDesktopBrowserFaviconSchema
 >;
 
 /**
@@ -365,10 +376,10 @@ export type BbDesktopBrowserFavicon = z.infer<
  * `Content-Disposition` (or its URL) and a path is built from it, so both are
  * attacker-influenced and bounded here as well as sanitized in the shell.
  */
-export const BB_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH = 4096;
+export const PATCHER_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH = 4096;
 
 /** A media type is short; anything longer is not one, so it is cut. */
-export const BB_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH = 255;
+export const PATCHER_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH = 255;
 
 /**
  * What a download did, pushed main → renderer. `started` fires when the shell
@@ -380,15 +391,15 @@ export const BB_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH = 255;
  * written. It is a distinct state because a caller must be able to tell "the
  * network failed" from "we said no", and only one of those is worth retrying.
  */
-export const bbDesktopBrowserDownloadStateSchema = z.enum([
+export const patcherDesktopBrowserDownloadStateSchema = z.enum([
   "started",
   "completed",
   "cancelled",
   "interrupted",
   "refused",
 ]);
-export type BbDesktopBrowserDownloadState = z.infer<
-  typeof bbDesktopBrowserDownloadStateSchema
+export type PatcherDesktopBrowserDownloadState = z.infer<
+  typeof patcherDesktopBrowserDownloadStateSchema
 >;
 
 /**
@@ -403,7 +414,7 @@ export type BbDesktopBrowserDownloadState = z.infer<
  * this wire, because a browser download is the shell's business once the user's
  * page has started it.
  */
-export const bbDesktopBrowserDownloadSchema = z
+export const patcherDesktopBrowserDownloadSchema = z
   .object({
     /** Stable across this download's `started` and terminal events. */
     id: z.string().min(1),
@@ -411,11 +422,11 @@ export const bbDesktopBrowserDownloadSchema = z
     filename: z
       .string()
       .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH),
+      .max(PATCHER_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH),
     savePath: z
       .string()
       .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH)
       .nullable(),
     /**
      * Where the file came from and what the server said it was. Neither is used
@@ -423,13 +434,13 @@ export const bbDesktopBrowserDownloadSchema = z
      * to do with a download needs more than a filename, and the shell is the
      * only place that knows them.
      */
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    mimeType: z.string().max(BB_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH),
-    state: bbDesktopBrowserDownloadStateSchema,
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    mimeType: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH),
+    state: patcherDesktopBrowserDownloadStateSchema,
   })
   .strict();
-export type BbDesktopBrowserDownload = z.infer<
-  typeof bbDesktopBrowserDownloadSchema
+export type PatcherDesktopBrowserDownload = z.infer<
+  typeof patcherDesktopBrowserDownloadSchema
 >;
 
 /**
@@ -447,14 +458,14 @@ export type BbDesktopBrowserDownload = z.infer<
  * page is a still image while the overlay is open. Fine for something the user
  * opens and closes in seconds; not something to leave on.
  */
-export const bbDesktopBrowserSetOverlayRequestSchema = z
+export const patcherDesktopBrowserSetOverlayRequestSchema = z
   .object({
     tabId: z.string().min(1),
     active: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserSetOverlayRequest = z.infer<
-  typeof bbDesktopBrowserSetOverlayRequestSchema
+export type PatcherDesktopBrowserSetOverlayRequest = z.infer<
+  typeof patcherDesktopBrowserSetOverlayRequestSchema
 >;
 
 /**
@@ -470,14 +481,14 @@ export type BbDesktopBrowserSetOverlayRequest = z.infer<
  * state where covering the app chrome is something a user asked for rather than
  * something that traps them.
  */
-export const bbDesktopBrowserSetFullscreenRequestSchema = z
+export const patcherDesktopBrowserSetFullscreenRequestSchema = z
   .object({
     tabId: z.string().min(1),
     fullscreen: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserSetFullscreenRequest = z.infer<
-  typeof bbDesktopBrowserSetFullscreenRequestSchema
+export type PatcherDesktopBrowserSetFullscreenRequest = z.infer<
+  typeof patcherDesktopBrowserSetFullscreenRequestSchema
 >;
 
 /**
@@ -489,17 +500,17 @@ export type BbDesktopBrowserSetFullscreenRequest = z.infer<
  * file on this machine", reachable from the renderer, with a path a page had a
  * hand in naming.
  */
-export const bbDesktopBrowserDownloadActionRequestSchema = z
+export const patcherDesktopBrowserDownloadActionRequestSchema = z
   .object({
     action: z.enum(["open", "reveal"]),
     savePath: z
       .string()
       .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH),
+      .max(PATCHER_DESKTOP_BROWSER_MAX_DOWNLOAD_PATH_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserDownloadActionRequest = z.infer<
-  typeof bbDesktopBrowserDownloadActionRequestSchema
+export type PatcherDesktopBrowserDownloadActionRequest = z.infer<
+  typeof patcherDesktopBrowserDownloadActionRequestSchema
 >;
 
 /**
@@ -508,21 +519,19 @@ export type BbDesktopBrowserDownloadActionRequest = z.infer<
  * are separate because only the second is worth showing to a user — the first
  * is a bug on our side.
  */
-export const bbDesktopBrowserDownloadActionResultSchema = z.discriminatedUnion(
-  "ok",
-  [
+export const patcherDesktopBrowserDownloadActionResultSchema =
+  z.discriminatedUnion("ok", [
     z.object({ ok: z.literal(true) }).strict(),
     z
       .object({
         ok: z.literal(false),
         reason: z.enum(["unknown-path", "failed"]),
-        message: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+        message: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
       })
       .strict(),
-  ],
-);
-export type BbDesktopBrowserDownloadActionResult = z.infer<
-  typeof bbDesktopBrowserDownloadActionResultSchema
+  ]);
+export type PatcherDesktopBrowserDownloadActionResult = z.infer<
+  typeof patcherDesktopBrowserDownloadActionResultSchema
 >;
 
 /**
@@ -535,8 +544,8 @@ export type BbDesktopBrowserDownloadActionResult = z.infer<
  * schema below rejects anything longer. A caller wanting less is expected to
  * trim further for its own budget.
  */
-export const BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH = 65_536;
-export const BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH = 16_384;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH = 65_536;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH = 16_384;
 
 /**
  * What a page read answers with.
@@ -564,16 +573,18 @@ export const BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH = 16_384;
  * page or at a scan with no text layer. An older shell sends nothing and the
  * default answers "html", which is what every read was before.
  */
-export const bbDesktopBrowserPageReadResultSchema = z.union([
+export const patcherDesktopBrowserPageReadResultSchema = z.union([
   z.object({
     ok: z.literal(true),
     tabId: z.string().min(1),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    title: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    title: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
     isLoading: z.boolean(),
-    text: z.string().max(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    text: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
     textTruncated: z.boolean(),
-    selection: z.string().max(BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
+    selection: z
+      .string()
+      .max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
     selectionTruncated: z.boolean(),
     /** Where `text` came from. A PDF has no selection, so it always reads "". */
     contentKind: z.enum(["html", "pdf"]).catch("html").default("html"),
@@ -602,8 +613,8 @@ export const bbDesktopBrowserPageReadResultSchema = z.union([
       .catch("unreadable"),
   }),
 ]);
-export type BbDesktopBrowserPageReadResult = z.infer<
-  typeof bbDesktopBrowserPageReadResultSchema
+export type PatcherDesktopBrowserPageReadResult = z.infer<
+  typeof patcherDesktopBrowserPageReadResultSchema
 >;
 
 /**
@@ -612,24 +623,24 @@ export type BbDesktopBrowserPageReadResult = z.infer<
  * costs it a round trip — but still bounded: this is attacker-shaped content
  * (roles and labels a page chooses) on its way into a model's context.
  */
-export const BB_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH = 65_536;
+export const PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH = 65_536;
 
 /**
  * Ask for a snapshot. `maxDepth` trades completeness for size on deep pages;
  * both bounds stay the shell's own constants otherwise, so nothing a caller
  * supplies reaches the page.
  */
-export const bbDesktopBrowserSnapshotRequestSchema = z
+export const patcherDesktopBrowserSnapshotRequestSchema = z
   .object({
     tabId: z.string().min(1),
     maxDepth: z.number().int().positive().max(100).optional(),
   })
   .strict();
-export type BbDesktopBrowserSnapshotRequest = z.infer<
-  typeof bbDesktopBrowserSnapshotRequestSchema
+export type PatcherDesktopBrowserSnapshotRequest = z.infer<
+  typeof patcherDesktopBrowserSnapshotRequestSchema
 >;
 
-export const BB_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH = 1024;
+export const PATCHER_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH = 1024;
 
 /**
  * The same snapshot, narrowed to what a CSS selector matches.
@@ -638,18 +649,21 @@ export const BB_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH = 1024;
  * one above, because that one is `.strict()` and wire-frozen: an older shell
  * would refuse the whole payload, and the caller would be told its tab has no
  * view when the tab is fine. Feature-detecting
- * {@link BbDesktopBrowserApi.snapshotIn} is the negotiation, as it is for every
+ * {@link PatcherDesktopBrowserApi.snapshotIn} is the negotiation, as it is for every
  * other capability added since the shell froze.
  */
-export const bbDesktopBrowserSnapshotInRequestSchema = z
+export const patcherDesktopBrowserSnapshotInRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    selector: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH),
+    selector: z
+      .string()
+      .min(1)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH),
     maxDepth: z.number().int().positive().max(100).optional(),
   })
   .strict();
-export type BbDesktopBrowserSnapshotInRequest = z.infer<
-  typeof bbDesktopBrowserSnapshotInRequestSchema
+export type PatcherDesktopBrowserSnapshotInRequest = z.infer<
+  typeof patcherDesktopBrowserSnapshotInRequestSchema
 >;
 
 /**
@@ -661,13 +675,13 @@ export type BbDesktopBrowserSnapshotInRequest = z.infer<
  * command if it has moved on. Resolving a stale ref against whatever holds that
  * node id now would click the wrong thing silently, which is worse than failing.
  */
-export const bbDesktopBrowserSnapshotResultSchema = z.union([
+export const patcherDesktopBrowserSnapshotResultSchema = z.union([
   z.object({
     ok: z.literal(true),
     tabId: z.string().min(1),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    title: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
-    snapshot: z.string().max(BB_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH),
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    title: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+    snapshot: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH),
     generation: z.number().int().nonnegative(),
     refCount: z.number().int().nonnegative(),
     truncated: z.boolean(),
@@ -695,12 +709,12 @@ export const bbDesktopBrowserSnapshotResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserSnapshotResult = z.infer<
-  typeof bbDesktopBrowserSnapshotResultSchema
+export type PatcherDesktopBrowserSnapshotResult = z.infer<
+  typeof patcherDesktopBrowserSnapshotResultSchema
 >;
 
 /** A page's `alert()` message is page-controlled text; bound it like a title. */
-export const BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH = 4096;
+export const PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH = 4096;
 
 /**
  * A JavaScript dialog the page has opened and is now blocked on.
@@ -714,44 +728,46 @@ export const BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH = 4096;
  * `message` and `defaultPrompt` are written by the page. They are shown to a
  * human and handed to agents; nothing about them is trustworthy.
  */
-export const bbDesktopBrowserDialogSchema = z
+export const patcherDesktopBrowserDialogSchema = z
   .object({
     tabId: z.string().min(1),
     dialog: z
       .object({
         type: z.enum(["alert", "confirm", "prompt", "beforeunload"]),
-        message: z.string().max(BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH),
+        message: z
+          .string()
+          .max(PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH),
         defaultPrompt: z
           .string()
-          .max(BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH),
+          .max(PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH),
       })
       .nullable(),
   })
   .strict();
-export type BbDesktopBrowserDialog = z.infer<
-  typeof bbDesktopBrowserDialogSchema
+export type PatcherDesktopBrowserDialog = z.infer<
+  typeof patcherDesktopBrowserDialogSchema
 >;
 
 /**
  * Answer the dialog a tab is blocked on. `promptText` is only meaningful for a
  * `prompt`, and only when accepting.
  */
-export const bbDesktopBrowserDialogRespondRequestSchema = z
+export const patcherDesktopBrowserDialogRespondRequestSchema = z
   .object({
     tabId: z.string().min(1),
     accept: z.boolean(),
     promptText: z
       .string()
-      .max(BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH)
       .optional(),
   })
   .strict();
-export type BbDesktopBrowserDialogRespondRequest = z.infer<
-  typeof bbDesktopBrowserDialogRespondRequestSchema
+export type PatcherDesktopBrowserDialogRespondRequest = z.infer<
+  typeof patcherDesktopBrowserDialogRespondRequestSchema
 >;
 
-export type BbDesktopBrowserDialogHandler = (
-  dialog: BbDesktopBrowserDialog,
+export type PatcherDesktopBrowserDialogHandler = (
+  dialog: PatcherDesktopBrowserDialog,
 ) => void;
 
 /**
@@ -759,10 +775,10 @@ export type BbDesktopBrowserDialogHandler = (
  * reached — a host, a certificate's own fields — so each is bounded rather than
  * trusted, and a credential is bounded because it crosses a process boundary.
  */
-export const BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH = 1024;
-export const BB_DESKTOP_BROWSER_MAX_CREDENTIAL_LENGTH = 1024;
+export const PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH = 1024;
+export const PATCHER_DESKTOP_BROWSER_MAX_CREDENTIAL_LENGTH = 1024;
 /** A certificate store with more than this is not a list a human picks from. */
-export const BB_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES = 20;
+export const PATCHER_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES = 20;
 
 /**
  * A question the network asked that only a human can answer.
@@ -781,15 +797,17 @@ export const BB_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES = 20;
  * surface; Chrome stopped showing it for that reason and so does this. The
  * shell keeps it only as the key that decides which requests one answer covers.
  */
-export const bbDesktopBrowserPagePromptDetailsSchema = z.discriminatedUnion(
-  "kind",
-  [
+export const patcherDesktopBrowserPagePromptDetailsSchema =
+  z.discriminatedUnion("kind", [
     z
       .object({
         kind: z.literal("auth"),
         id: z.string().min(1),
         /** `host` or `host:port` — who is asking, which is the whole question. */
-        host: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        host: z
+          .string()
+          .min(1)
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
         /** The credentials would travel in the clear; worth saying out loud. */
         insecure: z.boolean(),
       })
@@ -798,22 +816,36 @@ export const bbDesktopBrowserPagePromptDetailsSchema = z.discriminatedUnion(
       .object({
         kind: z.literal("certificate"),
         id: z.string().min(1),
-        host: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        host: z
+          .string()
+          .min(1)
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
         /** Chromium's own error code, e.g. `net::ERR_CERT_DATE_INVALID`. */
-        errorCode: z.string().max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
-        subjectName: z.string().max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
-        issuerName: z.string().max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        errorCode: z
+          .string()
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        subjectName: z
+          .string()
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        issuerName: z
+          .string()
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
         /** Unix seconds, as Chromium reports them; formatting is the app's. */
         validFrom: z.number().int(),
         validTo: z.number().int(),
-        fingerprint: z.string().max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        fingerprint: z
+          .string()
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
       })
       .strict(),
     z
       .object({
         kind: z.literal("client-certificate"),
         id: z.string().min(1),
-        host: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+        host: z
+          .string()
+          .min(1)
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
         certificates: z
           .array(
             z
@@ -822,21 +854,20 @@ export const bbDesktopBrowserPagePromptDetailsSchema = z.discriminatedUnion(
                 index: z.number().int().min(0),
                 subjectName: z
                   .string()
-                  .max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+                  .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
                 issuerName: z
                   .string()
-                  .max(BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+                  .max(PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
                 validTo: z.number().int(),
               })
               .strict(),
           )
-          .max(BB_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES),
+          .max(PATCHER_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES),
       })
       .strict(),
-  ],
-);
-export type BbDesktopBrowserPagePromptDetails = z.infer<
-  typeof bbDesktopBrowserPagePromptDetailsSchema
+  ]);
+export type PatcherDesktopBrowserPagePromptDetails = z.infer<
+  typeof patcherDesktopBrowserPagePromptDetailsSchema
 >;
 
 /**
@@ -844,17 +875,17 @@ export type BbDesktopBrowserPagePromptDetails = z.infer<
  * channel reports both, as the dialog channel does, so a listener cannot miss
  * the close.
  */
-export const bbDesktopBrowserPagePromptSchema = z
+export const patcherDesktopBrowserPagePromptSchema = z
   .object({
     tabId: z.string().min(1),
-    prompt: bbDesktopBrowserPagePromptDetailsSchema.nullable(),
+    prompt: patcherDesktopBrowserPagePromptDetailsSchema.nullable(),
   })
   .strict();
-export type BbDesktopBrowserPagePrompt = z.infer<
-  typeof bbDesktopBrowserPagePromptSchema
+export type PatcherDesktopBrowserPagePrompt = z.infer<
+  typeof patcherDesktopBrowserPagePromptSchema
 >;
-export type BbDesktopBrowserPagePromptHandler = (
-  prompt: BbDesktopBrowserPagePrompt,
+export type PatcherDesktopBrowserPagePromptHandler = (
+  prompt: PatcherDesktopBrowserPagePrompt,
 ) => void;
 
 /**
@@ -862,7 +893,7 @@ export type BbDesktopBrowserPagePromptHandler = (
  * belong to one, and an answer that does not match the open prompt is treated
  * as a cancel rather than guessed at.
  */
-export const bbDesktopBrowserPagePromptAnswerSchema = z
+export const patcherDesktopBrowserPagePromptAnswerSchema = z
   .object({
     tabId: z.string().min(1),
     /** The prompt being answered; an answer to a closed one is dropped. */
@@ -872,8 +903,12 @@ export const bbDesktopBrowserPagePromptAnswerSchema = z
       z
         .object({
           kind: z.literal("credentials"),
-          username: z.string().max(BB_DESKTOP_BROWSER_MAX_CREDENTIAL_LENGTH),
-          password: z.string().max(BB_DESKTOP_BROWSER_MAX_CREDENTIAL_LENGTH),
+          username: z
+            .string()
+            .max(PATCHER_DESKTOP_BROWSER_MAX_CREDENTIAL_LENGTH),
+          password: z
+            .string()
+            .max(PATCHER_DESKTOP_BROWSER_MAX_CREDENTIAL_LENGTH),
         })
         .strict(),
       /** Proceed to a site whose certificate does not verify. */
@@ -887,8 +922,8 @@ export const bbDesktopBrowserPagePromptAnswerSchema = z
     ]),
   })
   .strict();
-export type BbDesktopBrowserPagePromptAnswer = z.infer<
-  typeof bbDesktopBrowserPagePromptAnswerSchema
+export type PatcherDesktopBrowserPagePromptAnswer = z.infer<
+  typeof patcherDesktopBrowserPagePromptAnswerSchema
 >;
 
 /**
@@ -900,20 +935,20 @@ export type BbDesktopBrowserPagePromptAnswer = z.infer<
  * are counted rather than sized: the interesting limit there is how many, not
  * how long.
  */
-export const BB_DESKTOP_BROWSER_MAX_FILL_TEXT_LENGTH = 8_192;
-export const BB_DESKTOP_BROWSER_MAX_TYPE_TEXT_LENGTH = 1_024;
-export const BB_DESKTOP_BROWSER_MAX_UPLOAD_FILES = 10;
-export const BB_DESKTOP_BROWSER_MAX_SELECT_VALUES = 20;
+export const PATCHER_DESKTOP_BROWSER_MAX_FILL_TEXT_LENGTH = 8_192;
+export const PATCHER_DESKTOP_BROWSER_MAX_TYPE_TEXT_LENGTH = 1_024;
+export const PATCHER_DESKTOP_BROWSER_MAX_UPLOAD_FILES = 10;
+export const PATCHER_DESKTOP_BROWSER_MAX_SELECT_VALUES = 20;
 /** Widest viewport an emulated resize may ask for; beyond this is not a page. */
-export const BB_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE = 10_000;
+export const PATCHER_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE = 10_000;
 
 /**
  * A `[ref=eN]` handed out by a snapshot. Shaped, not free-form, so a ref that
  * was never a ref is refused here rather than looked up.
  */
-const bbDesktopBrowserRefSchema = z.string().regex(/^e[1-9][0-9]{0,5}$/u);
+const patcherDesktopBrowserRefSchema = z.string().regex(/^e[1-9][0-9]{0,5}$/u);
 
-const bbDesktopBrowserKeyModifierSchema = z.enum([
+const patcherDesktopBrowserKeyModifierSchema = z.enum([
   "Alt",
   "Control",
   "Meta",
@@ -933,65 +968,68 @@ const bbDesktopBrowserKeyModifierSchema = z.enum([
  * reaches, and "click the checkbox" is a toggle, which is the wrong primitive
  * for an agent that wants a known end state.
  */
-export const bbDesktopBrowserInteractionSchema = z.discriminatedUnion(
+export const patcherDesktopBrowserInteractionSchema = z.discriminatedUnion(
   "action",
   [
     z.object({
       action: z.literal("click"),
-      ref: bbDesktopBrowserRefSchema,
+      ref: patcherDesktopBrowserRefSchema,
       button: z.enum(["left", "middle", "right"]),
       /** 2 is a double click; Chromium wants the count on the event itself. */
       clickCount: z.union([z.literal(1), z.literal(2)]),
-      modifiers: z.array(bbDesktopBrowserKeyModifierSchema).max(4),
+      modifiers: z.array(patcherDesktopBrowserKeyModifierSchema).max(4),
     }),
-    z.object({ action: z.literal("hover"), ref: bbDesktopBrowserRefSchema }),
+    z.object({
+      action: z.literal("hover"),
+      ref: patcherDesktopBrowserRefSchema,
+    }),
     z.object({
       action: z.literal("drag"),
-      ref: bbDesktopBrowserRefSchema,
-      targetRef: bbDesktopBrowserRefSchema,
+      ref: patcherDesktopBrowserRefSchema,
+      targetRef: patcherDesktopBrowserRefSchema,
     }),
     z.object({
       action: z.literal("fill"),
-      ref: bbDesktopBrowserRefSchema,
-      text: z.string().max(BB_DESKTOP_BROWSER_MAX_FILL_TEXT_LENGTH),
+      ref: patcherDesktopBrowserRefSchema,
+      text: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_FILL_TEXT_LENGTH),
     }),
     z.object({
       action: z.literal("type"),
-      ref: bbDesktopBrowserRefSchema,
-      text: z.string().max(BB_DESKTOP_BROWSER_MAX_TYPE_TEXT_LENGTH),
+      ref: patcherDesktopBrowserRefSchema,
+      text: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TYPE_TEXT_LENGTH),
     }),
     z.object({
       action: z.literal("press"),
       /** Null presses the key at whatever the page has focused. */
-      ref: bbDesktopBrowserRefSchema.nullable(),
+      ref: patcherDesktopBrowserRefSchema.nullable(),
       key: z.string().min(1).max(64),
     }),
     z.object({
       action: z.literal("select"),
-      ref: bbDesktopBrowserRefSchema,
+      ref: patcherDesktopBrowserRefSchema,
       values: z
-        .array(z.string().max(BB_DESKTOP_BROWSER_MAX_TYPE_TEXT_LENGTH))
+        .array(z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TYPE_TEXT_LENGTH))
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_SELECT_VALUES),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_SELECT_VALUES),
     }),
     z.object({
       action: z.literal("check"),
-      ref: bbDesktopBrowserRefSchema,
+      ref: patcherDesktopBrowserRefSchema,
       /** The end state, not a toggle, so repeating the command is harmless. */
       checked: z.boolean(),
     }),
     z.object({
       action: z.literal("upload"),
-      ref: bbDesktopBrowserRefSchema,
+      ref: patcherDesktopBrowserRefSchema,
       /**
        * Absolute paths on the machine running the shell. This hands a web page
        * the contents of local files; see docs/architecture/browser-automation.md
-       * for what that does and does not add to bb's threat model.
+       * for what that does and does not add to Patcher's threat model.
        */
       paths: z
         .array(z.string().min(1).max(1024))
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_UPLOAD_FILES),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_UPLOAD_FILES),
     }),
     z.object({
       action: z.literal("resize"),
@@ -1000,17 +1038,17 @@ export const bbDesktopBrowserInteractionSchema = z.discriminatedUnion(
         .number()
         .int()
         .nonnegative()
-        .max(BB_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
       height: z
         .number()
         .int()
         .nonnegative()
-        .max(BB_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
     }),
   ],
 );
-export type BbDesktopBrowserInteraction = z.infer<
-  typeof bbDesktopBrowserInteractionSchema
+export type PatcherDesktopBrowserInteraction = z.infer<
+  typeof patcherDesktopBrowserInteractionSchema
 >;
 
 /**
@@ -1024,15 +1062,15 @@ export type BbDesktopBrowserInteraction = z.infer<
  * and acting on it. A caller that passes it gets that check; one that omits it
  * accepts the race in exchange for not having to thread the value through.
  */
-export const bbDesktopBrowserInteractRequestSchema = z
+export const patcherDesktopBrowserInteractRequestSchema = z
   .object({
     tabId: z.string().min(1),
     generation: z.number().int().nonnegative().optional(),
-    interaction: bbDesktopBrowserInteractionSchema,
+    interaction: patcherDesktopBrowserInteractionSchema,
   })
   .strict();
-export type BbDesktopBrowserInteractRequest = z.infer<
-  typeof bbDesktopBrowserInteractRequestSchema
+export type PatcherDesktopBrowserInteractRequest = z.infer<
+  typeof patcherDesktopBrowserInteractRequestSchema
 >;
 
 /**
@@ -1041,12 +1079,12 @@ export type BbDesktopBrowserInteractRequest = z.infer<
  * changes it, and a caller that had to ask separately would race the next
  * navigation.
  */
-export const bbDesktopBrowserInteractResultSchema = z.union([
+export const patcherDesktopBrowserInteractResultSchema = z.union([
   z.object({
     ok: z.literal(true),
     tabId: z.string().min(1),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    title: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    title: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
   }),
   z.object({
     ok: z.literal(false),
@@ -1073,8 +1111,8 @@ export const bbDesktopBrowserInteractResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserInteractResult = z.infer<
-  typeof bbDesktopBrowserInteractResultSchema
+export type PatcherDesktopBrowserInteractResult = z.infer<
+  typeof patcherDesktopBrowserInteractResultSchema
 >;
 
 /**
@@ -1089,10 +1127,10 @@ export type BbDesktopBrowserInteractResult = z.infer<
  * contents are page-authored: a page in a `console.log` loop must cost a fixed
  * amount of shell memory, not a growing one.
  */
-export const BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH = 8_388_608;
-export const BB_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH = 16_777_216;
-export const BB_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES = 500;
-export const BB_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH = 4096;
+export const PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH = 8_388_608;
+export const PATCHER_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH = 16_777_216;
+export const PATCHER_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES = 500;
+export const PATCHER_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH = 4096;
 
 /**
  * What to observe about a tab.
@@ -1108,45 +1146,48 @@ export const BB_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH = 4096;
  * agent look at a tab the user is merely browsing without moving its dialogs off
  * Chromium's native path.
  */
-export const bbDesktopBrowserObservationSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("screenshot"),
-    /** JPEG for looking at a page, PNG when exact pixels matter. */
-    format: z.enum(["png", "jpeg"]),
-    /** JPEG quality; ignored for PNG, which is lossless. */
-    quality: z.number().int().min(1).max(100),
-  }),
-  z.object({ kind: z.literal("pdf") }),
-  z.object({
-    kind: z.literal("console"),
-    /** Newest entries first cut from the tail, so a limit keeps what is recent. */
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
-  }),
-  z.object({
-    kind: z.literal("network"),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
-  }),
-]);
-export type BbDesktopBrowserObservation = z.infer<
-  typeof bbDesktopBrowserObservationSchema
+export const patcherDesktopBrowserObservationSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z.object({
+      kind: z.literal("screenshot"),
+      /** JPEG for looking at a page, PNG when exact pixels matter. */
+      format: z.enum(["png", "jpeg"]),
+      /** JPEG quality; ignored for PNG, which is lossless. */
+      quality: z.number().int().min(1).max(100),
+    }),
+    z.object({ kind: z.literal("pdf") }),
+    z.object({
+      kind: z.literal("console"),
+      /** Newest entries first cut from the tail, so a limit keeps what is recent. */
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
+    }),
+    z.object({
+      kind: z.literal("network"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
+    }),
+  ],
+);
+export type PatcherDesktopBrowserObservation = z.infer<
+  typeof patcherDesktopBrowserObservationSchema
 >;
 
-export const bbDesktopBrowserObserveRequestSchema = z
+export const patcherDesktopBrowserObserveRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    observation: bbDesktopBrowserObservationSchema,
+    observation: patcherDesktopBrowserObservationSchema,
   })
   .strict();
-export type BbDesktopBrowserObserveRequest = z.infer<
-  typeof bbDesktopBrowserObserveRequestSchema
+export type PatcherDesktopBrowserObserveRequest = z.infer<
+  typeof patcherDesktopBrowserObserveRequestSchema
 >;
 
 /**
@@ -1154,15 +1195,15 @@ export type BbDesktopBrowserObserveRequest = z.infer<
  * `console.*`, already flattened to a string by Chromium, and `source` is the
  * script URL it came from — both page-authored and neither trustworthy.
  */
-const bbDesktopBrowserConsoleEntrySchema = z.object({
+const patcherDesktopBrowserConsoleEntrySchema = z.object({
   level: z.enum(["debug", "info", "warning", "error"]).catch("info"),
-  text: z.string().max(BB_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH),
-  source: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+  text: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH),
+  source: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   line: z.number().int().nonnegative(),
   timestamp: z.number().int().nonnegative(),
 });
-export type BbDesktopBrowserConsoleEntry = z.infer<
-  typeof bbDesktopBrowserConsoleEntrySchema
+export type PatcherDesktopBrowserConsoleEntry = z.infer<
+  typeof patcherDesktopBrowserConsoleEntrySchema
 >;
 
 /**
@@ -1173,23 +1214,23 @@ export type BbDesktopBrowserConsoleEntry = z.infer<
  * `resourceType` stays a free string rather than an enum: Chromium adds to that
  * list, and a new value must not fail the whole parse.
  */
-const bbDesktopBrowserNetworkEntrySchema = z.object({
+const patcherDesktopBrowserNetworkEntrySchema = z.object({
   method: z.string().max(16),
-  url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+  url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   resourceType: z.string().max(32),
   status: z.number().int().nullable(),
   fromCache: z.boolean(),
-  error: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+  error: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
   timestamp: z.number().int().nonnegative(),
 });
-export type BbDesktopBrowserNetworkEntry = z.infer<
-  typeof bbDesktopBrowserNetworkEntrySchema
+export type PatcherDesktopBrowserNetworkEntry = z.infer<
+  typeof patcherDesktopBrowserNetworkEntrySchema
 >;
 
-const bbDesktopBrowserObservedPageSchema = {
+const patcherDesktopBrowserObservedPageSchema = {
   tabId: z.string().min(1),
-  url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-  title: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+  url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+  title: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
 };
 
 /**
@@ -1203,40 +1244,42 @@ const bbDesktopBrowserObservedPageSchema = {
  * Not `.strict()`, for the same reason the page-read result is not: this is
  * parsed by the SPA, which routinely runs against a newer shell.
  */
-export const bbDesktopBrowserObserveResultSchema = z.union([
+export const patcherDesktopBrowserObserveResultSchema = z.union([
   z.discriminatedUnion("kind", [
     z.object({
       ok: z.literal(true),
       kind: z.literal("screenshot"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       mimeType: z.enum(["image/png", "image/jpeg"]),
-      base64: z.string().max(BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH),
+      base64: z
+        .string()
+        .max(PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH),
       width: z.number().int().nonnegative(),
       height: z.number().int().nonnegative(),
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("pdf"),
-      ...bbDesktopBrowserObservedPageSchema,
-      base64: z.string().max(BB_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH),
+      ...patcherDesktopBrowserObservedPageSchema,
+      base64: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH),
       byteLength: z.number().int().nonnegative(),
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("console"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       entries: z
-        .array(bbDesktopBrowserConsoleEntrySchema)
-        .max(BB_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
+        .array(patcherDesktopBrowserConsoleEntrySchema)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
       droppedCount: z.number().int().nonnegative(),
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("network"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       entries: z
-        .array(bbDesktopBrowserNetworkEntrySchema)
-        .max(BB_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
+        .array(patcherDesktopBrowserNetworkEntrySchema)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_OBSERVATION_ENTRIES),
       droppedCount: z.number().int().nonnegative(),
     }),
   ]),
@@ -1253,8 +1296,8 @@ export const bbDesktopBrowserObserveResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserObserveResult = z.infer<
-  typeof bbDesktopBrowserObserveResultSchema
+export type PatcherDesktopBrowserObserveResult = z.infer<
+  typeof patcherDesktopBrowserObserveResultSchema
 >;
 
 /**
@@ -1265,13 +1308,13 @@ export type BbDesktopBrowserObserveResult = z.infer<
  * 16384 CSS pixels is the conservative floor across the GPUs Chromium runs on;
  * a document longer than that is captured down to this height and says so.
  */
-export const BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION = 16_384;
+export const PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION = 16_384;
 
 /**
  * Capture the whole document rather than the visible viewport.
  *
  * Its own channel rather than a fifth observation, for two reasons that point
- * the same way. The wire one is the usual: {@link bbDesktopBrowserObservationSchema}
+ * the same way. The wire one is the usual: {@link patcherDesktopBrowserObservationSchema}
  * is frozen, and a `fullPage` flag added to its screenshot member would be
  * *silently dropped* by every older shell — a caller would get a viewport
  * picture reported as a success and have no way to tell. The other is that this
@@ -1279,15 +1322,15 @@ export const BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION = 16_384;
  * browser debugger, and the whole point of that channel is that nothing on it
  * does.
  */
-export const bbDesktopBrowserCaptureFullPageRequestSchema = z
+export const patcherDesktopBrowserCaptureFullPageRequestSchema = z
   .object({
     tabId: z.string().min(1),
     format: z.enum(["png", "jpeg"]),
     quality: z.number().int().min(1).max(100),
   })
   .strict();
-export type BbDesktopBrowserCaptureFullPageRequest = z.infer<
-  typeof bbDesktopBrowserCaptureFullPageRequestSchema
+export type PatcherDesktopBrowserCaptureFullPageRequest = z.infer<
+  typeof patcherDesktopBrowserCaptureFullPageRequestSchema
 >;
 
 /**
@@ -1300,18 +1343,20 @@ export type BbDesktopBrowserCaptureFullPageRequest = z.infer<
  * measured in different units.
  *
  * `truncated` means the document was longer than
- * {@link BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION} and this is its top. A
+ * {@link PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION} and this is its top. A
  * clipped picture is still a useful picture — which is why this truncates where
  * an over-large PDF refuses — but only if it admits it.
  */
-export const bbDesktopBrowserCaptureFullPageResultSchema = z.union([
+export const patcherDesktopBrowserCaptureFullPageResultSchema = z.union([
   z.object({
     ok: z.literal(true),
     tabId: z.string().min(1),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    title: z.string().max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    title: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH).nullable(),
     mimeType: z.enum(["image/png", "image/jpeg"]),
-    base64: z.string().max(BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH),
+    base64: z
+      .string()
+      .max(PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH),
     width: z.number().int().nonnegative(),
     height: z.number().int().nonnegative(),
     truncated: z.boolean(),
@@ -1336,8 +1381,8 @@ export const bbDesktopBrowserCaptureFullPageResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserCaptureFullPageResult = z.infer<
-  typeof bbDesktopBrowserCaptureFullPageResultSchema
+export type PatcherDesktopBrowserCaptureFullPageResult = z.infer<
+  typeof patcherDesktopBrowserCaptureFullPageResultSchema
 >;
 
 /**
@@ -1348,12 +1393,12 @@ export type BbDesktopBrowserCaptureFullPageResult = z.infer<
  * origin may legitimately hold megabytes of serialized application state, and
  * all three of those must not become the size of one IPC message.
  */
-export const BB_DESKTOP_BROWSER_MAX_COOKIES = 200;
-export const BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH = 256;
-export const BB_DESKTOP_BROWSER_MAX_COOKIE_VALUE_LENGTH = 4096;
-export const BB_DESKTOP_BROWSER_MAX_STORAGE_ITEMS = 500;
-export const BB_DESKTOP_BROWSER_MAX_STORAGE_VALUE_LENGTH = 65_536;
-export const BB_DESKTOP_BROWSER_MAX_STORAGE_TOTAL_LENGTH = 1_048_576;
+export const PATCHER_DESKTOP_BROWSER_MAX_COOKIES = 200;
+export const PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH = 256;
+export const PATCHER_DESKTOP_BROWSER_MAX_COOKIE_VALUE_LENGTH = 4096;
+export const PATCHER_DESKTOP_BROWSER_MAX_STORAGE_ITEMS = 500;
+export const PATCHER_DESKTOP_BROWSER_MAX_STORAGE_VALUE_LENGTH = 65_536;
+export const PATCHER_DESKTOP_BROWSER_MAX_STORAGE_TOTAL_LENGTH = 1_048_576;
 
 /**
  * One cookie, in **Playwright's `storageState` shape** rather than Electron's.
@@ -1366,36 +1411,39 @@ export const BB_DESKTOP_BROWSER_MAX_STORAGE_TOTAL_LENGTH = 1_048_576;
  *
  * `value` is the session itself for a logged-in site. It is carried in the
  * clear, because a redacted cookie is not a cookie — see the note on
- * {@link bbDesktopBrowserStorageOperationSchema}.
+ * {@link patcherDesktopBrowserStorageOperationSchema}.
  */
-const bbDesktopBrowserCookieSchema = z.object({
-  name: z.string().max(BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
-  value: z.string().max(BB_DESKTOP_BROWSER_MAX_COOKIE_VALUE_LENGTH),
+const patcherDesktopBrowserCookieSchema = z.object({
+  name: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
+  value: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_VALUE_LENGTH),
   /** A leading dot means a domain cookie; without one it is host-only. */
-  domain: z.string().max(BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
-  path: z.string().max(BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
+  domain: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
+  path: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
   /** Seconds since the epoch, or -1 for a cookie that dies with the session. */
   expires: z.number(),
   httpOnly: z.boolean(),
   secure: z.boolean(),
   sameSite: z.enum(["Strict", "Lax", "None"]),
 });
-export type BbDesktopBrowserCookie = z.infer<
-  typeof bbDesktopBrowserCookieSchema
+export type PatcherDesktopBrowserCookie = z.infer<
+  typeof patcherDesktopBrowserCookieSchema
 >;
 
-const bbDesktopBrowserStorageItemSchema = z.object({
-  name: z.string().max(BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
-  value: z.string().max(BB_DESKTOP_BROWSER_MAX_STORAGE_VALUE_LENGTH),
+const patcherDesktopBrowserStorageItemSchema = z.object({
+  name: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH),
+  value: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_STORAGE_VALUE_LENGTH),
 });
-export type BbDesktopBrowserStorageItem = z.infer<
-  typeof bbDesktopBrowserStorageItemSchema
+export type PatcherDesktopBrowserStorageItem = z.infer<
+  typeof patcherDesktopBrowserStorageItemSchema
 >;
 
 /** `sessionStorage` is per-tab; `localStorage` is per-origin and outlives it. */
-export const bbDesktopBrowserStorageAreaSchema = z.enum(["local", "session"]);
-export type BbDesktopBrowserStorageArea = z.infer<
-  typeof bbDesktopBrowserStorageAreaSchema
+export const patcherDesktopBrowserStorageAreaSchema = z.enum([
+  "local",
+  "session",
+]);
+export type PatcherDesktopBrowserStorageArea = z.infer<
+  typeof patcherDesktopBrowserStorageAreaSchema
 >;
 
 /**
@@ -1416,16 +1464,16 @@ export type BbDesktopBrowserStorageArea = z.infer<
  * browser debugger.** Cookies are Electron's `session.cookies`; web storage is
  * a fixed script in the same privileged isolated world the page read uses.
  */
-export const bbDesktopBrowserStorageOperationSchema = z.discriminatedUnion(
+export const patcherDesktopBrowserStorageOperationSchema = z.discriminatedUnion(
   "kind",
   [
     z.object({ kind: z.literal("cookies-get") }),
     z.object({
       kind: z.literal("cookies-set"),
       cookies: z
-        .array(bbDesktopBrowserCookieSchema)
+        .array(patcherDesktopBrowserCookieSchema)
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_COOKIES),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_COOKIES),
     }),
     /** A null name clears every cookie the tab's URL carries. */
     z.object({
@@ -1433,44 +1481,44 @@ export const bbDesktopBrowserStorageOperationSchema = z.discriminatedUnion(
       name: z
         .string()
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH)
         .nullable(),
     }),
     z.object({
       kind: z.literal("items-get"),
-      area: bbDesktopBrowserStorageAreaSchema,
+      area: patcherDesktopBrowserStorageAreaSchema,
     }),
     z.object({
       kind: z.literal("items-set"),
-      area: bbDesktopBrowserStorageAreaSchema,
+      area: patcherDesktopBrowserStorageAreaSchema,
       items: z
-        .array(bbDesktopBrowserStorageItemSchema)
+        .array(patcherDesktopBrowserStorageItemSchema)
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_STORAGE_ITEMS),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_STORAGE_ITEMS),
     }),
     z.object({
       kind: z.literal("items-clear"),
-      area: bbDesktopBrowserStorageAreaSchema,
+      area: patcherDesktopBrowserStorageAreaSchema,
       name: z
         .string()
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_COOKIE_NAME_LENGTH)
         .nullable(),
     }),
   ],
 );
-export type BbDesktopBrowserStorageOperation = z.infer<
-  typeof bbDesktopBrowserStorageOperationSchema
+export type PatcherDesktopBrowserStorageOperation = z.infer<
+  typeof patcherDesktopBrowserStorageOperationSchema
 >;
 
-export const bbDesktopBrowserStorageRequestSchema = z
+export const patcherDesktopBrowserStorageRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    operation: bbDesktopBrowserStorageOperationSchema,
+    operation: patcherDesktopBrowserStorageOperationSchema,
   })
   .strict();
-export type BbDesktopBrowserStorageRequest = z.infer<
-  typeof bbDesktopBrowserStorageRequestSchema
+export type PatcherDesktopBrowserStorageRequest = z.infer<
+  typeof patcherDesktopBrowserStorageRequestSchema
 >;
 
 /**
@@ -1485,24 +1533,24 @@ export type BbDesktopBrowserStorageRequest = z.infer<
  * Not `.strict()`, like the results above: the SPA parses this against a shell
  * that may be newer than it is.
  */
-export const bbDesktopBrowserStorageResultSchema = z.union([
+export const patcherDesktopBrowserStorageResultSchema = z.union([
   z.discriminatedUnion("kind", [
     z.object({
       ok: z.literal(true),
       kind: z.literal("cookies"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       cookies: z
-        .array(bbDesktopBrowserCookieSchema)
-        .max(BB_DESKTOP_BROWSER_MAX_COOKIES),
+        .array(patcherDesktopBrowserCookieSchema)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_COOKIES),
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("items"),
-      ...bbDesktopBrowserObservedPageSchema,
-      area: bbDesktopBrowserStorageAreaSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
+      area: patcherDesktopBrowserStorageAreaSchema,
       items: z
-        .array(bbDesktopBrowserStorageItemSchema)
-        .max(BB_DESKTOP_BROWSER_MAX_STORAGE_ITEMS),
+        .array(patcherDesktopBrowserStorageItemSchema)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_STORAGE_ITEMS),
       /** The origin held more than the caps allow, so this is not all of it. */
       truncated: z.boolean(),
     }),
@@ -1529,8 +1577,8 @@ export const bbDesktopBrowserStorageResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserStorageResult = z.infer<
-  typeof bbDesktopBrowserStorageResultSchema
+export type PatcherDesktopBrowserStorageResult = z.infer<
+  typeof patcherDesktopBrowserStorageResultSchema
 >;
 
 /**
@@ -1542,13 +1590,13 @@ export type BbDesktopBrowserStorageResult = z.infer<
  * like a PDF — it is text, so a caller can still use the part that arrived, and
  * the flag says there was more.
  */
-export const BB_DESKTOP_BROWSER_MAX_ROUTES = 20;
-export const BB_DESKTOP_BROWSER_MAX_ROUTE_PATTERN_LENGTH = 1024;
-export const BB_DESKTOP_BROWSER_MAX_ROUTE_BODY_LENGTH = 262_144;
-export const BB_DESKTOP_BROWSER_MAX_ROUTE_HEADERS = 20;
-export const BB_DESKTOP_BROWSER_MAX_EVAL_EXPRESSION_LENGTH = 8_192;
-export const BB_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH = 65_536;
-export const BB_DESKTOP_BROWSER_MAX_WHEEL_DELTA = 100_000;
+export const PATCHER_DESKTOP_BROWSER_MAX_ROUTES = 20;
+export const PATCHER_DESKTOP_BROWSER_MAX_ROUTE_PATTERN_LENGTH = 1024;
+export const PATCHER_DESKTOP_BROWSER_MAX_ROUTE_BODY_LENGTH = 262_144;
+export const PATCHER_DESKTOP_BROWSER_MAX_ROUTE_HEADERS = 20;
+export const PATCHER_DESKTOP_BROWSER_MAX_EVAL_EXPRESSION_LENGTH = 8_192;
+export const PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH = 65_536;
+export const PATCHER_DESKTOP_BROWSER_MAX_WHEEL_DELTA = 100_000;
 
 /**
  * A request the tab should be answered with instead of the network's answer.
@@ -1558,11 +1606,14 @@ export const BB_DESKTOP_BROWSER_MAX_WHEEL_DELTA = 100_000;
  * because a route written from Playwright's documentation should mean here what
  * it means there.
  */
-export const bbDesktopBrowserRouteSchema = z.object({
-  pattern: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_ROUTE_PATTERN_LENGTH),
+export const patcherDesktopBrowserRouteSchema = z.object({
+  pattern: z
+    .string()
+    .min(1)
+    .max(PATCHER_DESKTOP_BROWSER_MAX_ROUTE_PATTERN_LENGTH),
   status: z.number().int().min(100).max(599),
   contentType: z.string().max(256),
-  body: z.string().max(BB_DESKTOP_BROWSER_MAX_ROUTE_BODY_LENGTH),
+  body: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_ROUTE_BODY_LENGTH),
   headers: z
     .array(
       z.object({
@@ -1570,17 +1621,19 @@ export const bbDesktopBrowserRouteSchema = z.object({
         value: z.string().max(4096),
       }),
     )
-    .max(BB_DESKTOP_BROWSER_MAX_ROUTE_HEADERS),
+    .max(PATCHER_DESKTOP_BROWSER_MAX_ROUTE_HEADERS),
 });
-export type BbDesktopBrowserRoute = z.infer<typeof bbDesktopBrowserRouteSchema>;
+export type PatcherDesktopBrowserRoute = z.infer<
+  typeof patcherDesktopBrowserRouteSchema
+>;
 
 /** A route as it stands, with how many requests it has answered. */
-export const bbDesktopBrowserRouteStateSchema =
-  bbDesktopBrowserRouteSchema.extend({
+export const patcherDesktopBrowserRouteStateSchema =
+  patcherDesktopBrowserRouteSchema.extend({
     matched: z.number().int().nonnegative(),
   });
-export type BbDesktopBrowserRouteState = z.infer<
-  typeof bbDesktopBrowserRouteStateSchema
+export type PatcherDesktopBrowserRouteState = z.infer<
+  typeof patcherDesktopBrowserRouteStateSchema
 >;
 
 /**
@@ -1597,7 +1650,7 @@ export type BbDesktopBrowserRouteState = z.infer<
  * All of them attach the browser debugger; none of them is reachable without
  * the plugin being enabled.
  */
-export const bbDesktopBrowserControlOperationSchema = z.discriminatedUnion(
+export const patcherDesktopBrowserControlOperationSchema = z.discriminatedUnion(
   "kind",
   [
     z.object({
@@ -1607,12 +1660,12 @@ export const bbDesktopBrowserControlOperationSchema = z.discriminatedUnion(
         .number()
         .int()
         .nonnegative()
-        .max(BB_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
       y: z
         .number()
         .int()
         .nonnegative()
-        .max(BB_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_VIEWPORT_SIZE),
     }),
     z.object({
       kind: z.literal("mouse-button"),
@@ -1625,13 +1678,13 @@ export const bbDesktopBrowserControlOperationSchema = z.discriminatedUnion(
       deltaX: z
         .number()
         .int()
-        .min(-BB_DESKTOP_BROWSER_MAX_WHEEL_DELTA)
-        .max(BB_DESKTOP_BROWSER_MAX_WHEEL_DELTA),
+        .min(-PATCHER_DESKTOP_BROWSER_MAX_WHEEL_DELTA)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_WHEEL_DELTA),
       deltaY: z
         .number()
         .int()
-        .min(-BB_DESKTOP_BROWSER_MAX_WHEEL_DELTA)
-        .max(BB_DESKTOP_BROWSER_MAX_WHEEL_DELTA),
+        .min(-PATCHER_DESKTOP_BROWSER_MAX_WHEEL_DELTA)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_WHEEL_DELTA),
     }),
     z.object({
       kind: z.literal("evaluate"),
@@ -1645,13 +1698,13 @@ export const bbDesktopBrowserControlOperationSchema = z.discriminatedUnion(
       expression: z
         .string()
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_EVAL_EXPRESSION_LENGTH),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_EVAL_EXPRESSION_LENGTH),
       /** The element to pass in, or null to evaluate against the page. */
-      ref: bbDesktopBrowserRefSchema.nullable(),
+      ref: patcherDesktopBrowserRefSchema.nullable(),
     }),
     z.object({
       kind: z.literal("route-set"),
-      route: bbDesktopBrowserRouteSchema,
+      route: patcherDesktopBrowserRouteSchema,
     }),
     z.object({ kind: z.literal("route-list") }),
     z.object({
@@ -1660,14 +1713,14 @@ export const bbDesktopBrowserControlOperationSchema = z.discriminatedUnion(
       pattern: z
         .string()
         .min(1)
-        .max(BB_DESKTOP_BROWSER_MAX_ROUTE_PATTERN_LENGTH)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_ROUTE_PATTERN_LENGTH)
         .nullable(),
     }),
     z.object({ kind: z.literal("offline"), offline: z.boolean() }),
   ],
 );
-export type BbDesktopBrowserControlOperation = z.infer<
-  typeof bbDesktopBrowserControlOperationSchema
+export type PatcherDesktopBrowserControlOperation = z.infer<
+  typeof patcherDesktopBrowserControlOperationSchema
 >;
 
 /**
@@ -1675,15 +1728,15 @@ export type BbDesktopBrowserControlOperation = z.infer<
  * and matters for the same narrow case: an `evaluate` naming a ref that a newer
  * snapshot has since reassigned.
  */
-export const bbDesktopBrowserControlRequestSchema = z
+export const patcherDesktopBrowserControlRequestSchema = z
   .object({
     tabId: z.string().min(1),
     generation: z.number().int().nonnegative().optional(),
-    operation: bbDesktopBrowserControlOperationSchema,
+    operation: patcherDesktopBrowserControlOperationSchema,
   })
   .strict();
-export type BbDesktopBrowserControlRequest = z.infer<
-  typeof bbDesktopBrowserControlRequestSchema
+export type PatcherDesktopBrowserControlRequest = z.infer<
+  typeof patcherDesktopBrowserControlRequestSchema
 >;
 
 /**
@@ -1696,28 +1749,28 @@ export type BbDesktopBrowserControlRequest = z.infer<
  *
  * Not `.strict()`, like the results above.
  */
-export const bbDesktopBrowserControlResultSchema = z.union([
+export const patcherDesktopBrowserControlResultSchema = z.union([
   z.discriminatedUnion("kind", [
     z.object({
       ok: z.literal(true),
       kind: z.literal("acted"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("evaluated"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       /** `JSON.stringify` of what the expression returned, or `undefined`. */
-      value: z.string().max(BB_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH),
+      value: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH),
       truncated: z.boolean(),
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("routes"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       routes: z
-        .array(bbDesktopBrowserRouteStateSchema)
-        .max(BB_DESKTOP_BROWSER_MAX_ROUTES),
+        .array(patcherDesktopBrowserRouteStateSchema)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_ROUTES),
       /**
        * Reported alongside the routes because it answers the same question a
        * caller is usually asking by then: why is this page not loading.
@@ -1749,8 +1802,8 @@ export const bbDesktopBrowserControlResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserControlResult = z.infer<
-  typeof bbDesktopBrowserControlResultSchema
+export type PatcherDesktopBrowserControlResult = z.infer<
+  typeof patcherDesktopBrowserControlResultSchema
 >;
 
 /**
@@ -1758,12 +1811,12 @@ export type BbDesktopBrowserControlResult = z.infer<
  * is what the shell stops filming at, and the frame count and per-frame cap are
  * only there so no single number can be missed.
  */
-export const BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES = 300;
-export const BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH = 262_144;
-export const BB_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH = 16_777_216;
-export const BB_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS = 50;
-export const BB_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH = 200;
-export const BB_DESKTOP_BROWSER_MAX_VIDEO_FPS = 30;
+export const PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES = 300;
+export const PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH = 262_144;
+export const PATCHER_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH = 16_777_216;
+export const PATCHER_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS = 50;
+export const PATCHER_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH = 200;
+export const PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FPS = 30;
 
 /**
  * Filming a tab.
@@ -1774,7 +1827,7 @@ export const BB_DESKTOP_BROWSER_MAX_VIDEO_FPS = 30;
  * it if it wanted to — a `navigate` arriving here looks the same whether an
  * agent or the user's omnibox sent it.
  */
-export const bbDesktopBrowserRecordOperationSchema = z.discriminatedUnion(
+export const patcherDesktopBrowserRecordOperationSchema = z.discriminatedUnion(
   "kind",
   [
     z.object({
@@ -1784,36 +1837,39 @@ export const bbDesktopBrowserRecordOperationSchema = z.discriminatedUnion(
        * acknowledged and dropped, because an unacknowledged frame stops the
        * screencast dead.
        */
-      fps: z.number().int().min(1).max(BB_DESKTOP_BROWSER_MAX_VIDEO_FPS),
+      fps: z.number().int().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FPS),
     }),
     z.object({
       kind: z.literal("video-chapter"),
-      title: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH),
+      title: z
+        .string()
+        .min(1)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH),
     }),
     z.object({ kind: z.literal("video-stop") }),
   ],
 );
-export type BbDesktopBrowserRecordOperation = z.infer<
-  typeof bbDesktopBrowserRecordOperationSchema
+export type PatcherDesktopBrowserRecordOperation = z.infer<
+  typeof patcherDesktopBrowserRecordOperationSchema
 >;
 
-export const bbDesktopBrowserRecordRequestSchema = z
+export const patcherDesktopBrowserRecordRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    operation: bbDesktopBrowserRecordOperationSchema,
+    operation: patcherDesktopBrowserRecordOperationSchema,
   })
   .strict();
-export type BbDesktopBrowserRecordRequest = z.infer<
-  typeof bbDesktopBrowserRecordRequestSchema
+export type PatcherDesktopBrowserRecordRequest = z.infer<
+  typeof patcherDesktopBrowserRecordRequestSchema
 >;
 
-const bbDesktopBrowserVideoFrameSchema = z.object({
+const patcherDesktopBrowserVideoFrameSchema = z.object({
   /** Milliseconds since the recording started. */
   at: z.number().int().nonnegative(),
-  base64: z.string().max(BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH),
+  base64: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH),
 });
-export type BbDesktopBrowserVideoFrame = z.infer<
-  typeof bbDesktopBrowserVideoFrameSchema
+export type PatcherDesktopBrowserVideoFrame = z.infer<
+  typeof patcherDesktopBrowserVideoFrameSchema
 >;
 
 /**
@@ -1821,29 +1877,31 @@ export type BbDesktopBrowserVideoFrame = z.infer<
  * where it belongs in time — everything an encoder needs and nothing that
  * pretends to be a video file. Not `.strict()`, like the results above.
  */
-export const bbDesktopBrowserRecordResultSchema = z.union([
+export const patcherDesktopBrowserRecordResultSchema = z.union([
   z.discriminatedUnion("kind", [
     z.object({
       ok: z.literal(true),
       kind: z.literal("recording"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       active: z.boolean(),
     }),
     z.object({
       ok: z.literal(true),
       kind: z.literal("video"),
-      ...bbDesktopBrowserObservedPageSchema,
+      ...patcherDesktopBrowserObservedPageSchema,
       frames: z
-        .array(bbDesktopBrowserVideoFrameSchema)
-        .max(BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES),
+        .array(patcherDesktopBrowserVideoFrameSchema)
+        .max(PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES),
       chapters: z
         .array(
           z.object({
             at: z.number().int().nonnegative(),
-            title: z.string().max(BB_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH),
+            title: z
+              .string()
+              .max(PATCHER_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH),
           }),
         )
-        .max(BB_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS),
+        .max(PATCHER_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS),
       /**
        * Frames Chromium sent that this did not keep — the pacing threw most of
        * them away, and the caps may have ended the recording early. Without the
@@ -1873,32 +1931,32 @@ export const bbDesktopBrowserRecordResultSchema = z.union([
     message: z.string().max(1024).optional(),
   }),
 ]);
-export type BbDesktopBrowserRecordResult = z.infer<
-  typeof bbDesktopBrowserRecordResultSchema
+export type PatcherDesktopBrowserRecordResult = z.infer<
+  typeof patcherDesktopBrowserRecordResultSchema
 >;
 
-export type BbDesktopBrowserStateHandler = (
-  state: BbDesktopBrowserState,
+export type PatcherDesktopBrowserStateHandler = (
+  state: PatcherDesktopBrowserState,
 ) => void;
-export type BbDesktopBrowserFaviconHandler = (
-  favicon: BbDesktopBrowserFavicon,
+export type PatcherDesktopBrowserFaviconHandler = (
+  favicon: PatcherDesktopBrowserFavicon,
 ) => void;
 /**
  * A search the page's context menu asked for. The query is the raw selection,
  * capped: the renderer turns it into a URL with the same search engine the
  * omnibox uses, which is the only place that knows what it is.
  */
-export const bbDesktopBrowserSearchSelectionSchema = z
+export const patcherDesktopBrowserSearchSelectionSchema = z
   .object({
     tabId: z.string().min(1),
-    query: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+    query: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserSearchSelection = z.infer<
-  typeof bbDesktopBrowserSearchSelectionSchema
+export type PatcherDesktopBrowserSearchSelection = z.infer<
+  typeof patcherDesktopBrowserSearchSelectionSchema
 >;
-export type BbDesktopBrowserSearchSelectionHandler = (
-  request: BbDesktopBrowserSearchSelection,
+export type PatcherDesktopBrowserSearchSelectionHandler = (
+  request: PatcherDesktopBrowserSearchSelection,
 ) => void;
 
 /**
@@ -1915,33 +1973,36 @@ export type BbDesktopBrowserSearchSelectionHandler = (
  * which the shell can do the moment the page commits, while a renderer round trip
  * could not.
  */
-export const BB_DESKTOP_BROWSER_MAX_PAGE_STYLES = 64;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES = 64;
 
 /** Longest stylesheet one style may carry; mirrors the plugin API's cap. */
-export const BB_DESKTOP_BROWSER_MAX_PAGE_STYLE_CSS_LENGTH = 64_000;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLE_CSS_LENGTH = 64_000;
 
-export const bbDesktopBrowserPageStyleSchema = z
+export const patcherDesktopBrowserPageStyleSchema = z
   .object({
     pluginId: z.string().min(1).max(128),
     styleId: z.string().min(1).max(128),
     /** URL globs; the same dialect route patterns are written in. */
     matches: z.array(z.string().min(1).max(2_048)).min(1).max(16),
-    css: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_PAGE_STYLE_CSS_LENGTH),
+    css: z
+      .string()
+      .min(1)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLE_CSS_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserPageStyle = z.infer<
-  typeof bbDesktopBrowserPageStyleSchema
+export type PatcherDesktopBrowserPageStyle = z.infer<
+  typeof patcherDesktopBrowserPageStyleSchema
 >;
 
-export const bbDesktopBrowserPageStylesSchema = z
+export const patcherDesktopBrowserPageStylesSchema = z
   .object({
     styles: z
-      .array(bbDesktopBrowserPageStyleSchema)
-      .max(BB_DESKTOP_BROWSER_MAX_PAGE_STYLES),
+      .array(patcherDesktopBrowserPageStyleSchema)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES),
   })
   .strict();
-export type BbDesktopBrowserPageStyles = z.infer<
-  typeof bbDesktopBrowserPageStylesSchema
+export type PatcherDesktopBrowserPageStyles = z.infer<
+  typeof patcherDesktopBrowserPageStylesSchema
 >;
 
 /**
@@ -1957,50 +2018,53 @@ export type BbDesktopBrowserPageStyles = z.infer<
  * The scripts are handed to a *browsed* renderer, which is untrusted, so what
  * crosses is source text and a plugin id — never a token, never a handle. What
  * the script can ask for comes back through
- * {@link bbDesktopBrowserPageScriptCallSchema}, one method at a time.
+ * {@link patcherDesktopBrowserPageScriptCallSchema}, one method at a time.
  */
-export const BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS = 64;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS = 64;
 
 /** Longest script one registration may carry; mirrors the plugin API's cap. */
-export const BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_CODE_LENGTH = 64_000;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_CODE_LENGTH = 64_000;
 
-export const bbDesktopBrowserPageScriptSchema = z
+export const patcherDesktopBrowserPageScriptSchema = z
   .object({
     pluginId: z.string().min(1).max(128),
     scriptId: z.string().min(1).max(128),
     /** URL globs; the same dialect route patterns are written in. */
     matches: z.array(z.string().min(1).max(2_048)).min(1).max(16),
-    code: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_CODE_LENGTH),
+    code: z
+      .string()
+      .min(1)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_CODE_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserPageScript = z.infer<
-  typeof bbDesktopBrowserPageScriptSchema
+export type PatcherDesktopBrowserPageScript = z.infer<
+  typeof patcherDesktopBrowserPageScriptSchema
 >;
 
-export const bbDesktopBrowserPageScriptsSchema = z
+export const patcherDesktopBrowserPageScriptsSchema = z
   .object({
     scripts: z
-      .array(bbDesktopBrowserPageScriptSchema)
-      .max(BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS),
+      .array(patcherDesktopBrowserPageScriptSchema)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS),
   })
   .strict();
-export type BbDesktopBrowserPageScripts = z.infer<
-  typeof bbDesktopBrowserPageScriptsSchema
+export type PatcherDesktopBrowserPageScripts = z.infer<
+  typeof patcherDesktopBrowserPageScriptsSchema
 >;
 
 /**
  * Longest rpc input or result a page script may pass. Both directions cross two
  * process boundaries as text, so this is a size the wire can carry rather than a
  * size a database row can hold: a page script asks its plugin questions, and a
- * plugin with a large answer has `bb.http.route` for it.
+ * plugin with a large answer has `patcher.http.route` for it.
  */
-export const BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH = 128_000;
+export const PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH = 128_000;
 
 /**
  * A page script asking its own plugin something, forwarded main → renderer.
  *
  * The shell cannot answer this itself: reaching a plugin means an authenticated
- * call to the bb server, and the shell deliberately holds no credentials for it.
+ * call to the Patcher server, and the shell deliberately holds no credentials for it.
  * So the trusted renderer performs the call, which also puts a second check in
  * the path — it re-derives from its own contribution list that this plugin really
  * does claim this page.
@@ -2009,40 +2073,42 @@ export const BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH = 128_000;
  * claimed it. That is what makes the check meaningful: a browsed renderer that
  * lied about where it was would be answering for a page it is not on.
  */
-export const bbDesktopBrowserPageScriptCallSchema = z
+export const patcherDesktopBrowserPageScriptCallSchema = z
   .object({
     callId: z.string().min(1).max(64),
     tabId: z.string().min(1),
     pluginId: z.string().min(1).max(128),
     method: z.string().min(1).max(128),
     /** The rpc input, already JSON text — the shell never inspects it. */
-    input: z.string().max(BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH),
-    url: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    input: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH),
+    url: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserPageScriptCall = z.infer<
-  typeof bbDesktopBrowserPageScriptCallSchema
+export type PatcherDesktopBrowserPageScriptCall = z.infer<
+  typeof patcherDesktopBrowserPageScriptCallSchema
 >;
-export type BbDesktopBrowserPageScriptCallHandler = (
-  call: BbDesktopBrowserPageScriptCall,
+export type PatcherDesktopBrowserPageScriptCallHandler = (
+  call: PatcherDesktopBrowserPageScriptCall,
 ) => void;
 
 /**
- * The answer to one {@link bbDesktopBrowserPageScriptCallSchema}, renderer →
+ * The answer to one {@link patcherDesktopBrowserPageScriptCallSchema}, renderer →
  * main, on its way to the page that asked.
  *
  * `message` is shown to nobody: it becomes the rejection reason of the promise
  * the page script is awaiting, which is the only place it can be acted on. It
- * therefore says what the *script author* did wrong, and nothing about bb.
+ * therefore says what the *script author* did wrong, and nothing about Patcher.
  */
-export const bbDesktopBrowserPageScriptResultSchema = z.discriminatedUnion(
+export const patcherDesktopBrowserPageScriptResultSchema = z.discriminatedUnion(
   "ok",
   [
     z
       .object({
         callId: z.string().min(1).max(64),
         ok: z.literal(true),
-        result: z.string().max(BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH),
+        result: z
+          .string()
+          .max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH),
       })
       .strict(),
     z
@@ -2054,8 +2120,8 @@ export const bbDesktopBrowserPageScriptResultSchema = z.discriminatedUnion(
       .strict(),
   ],
 );
-export type BbDesktopBrowserPageScriptResult = z.infer<
-  typeof bbDesktopBrowserPageScriptResultSchema
+export type PatcherDesktopBrowserPageScriptResult = z.infer<
+  typeof patcherDesktopBrowserPageScriptResultSchema
 >;
 
 /**
@@ -2064,33 +2130,33 @@ export type BbDesktopBrowserPageScriptResult = z.infer<
  *
  * Types only, no schema: this direction is the shell answering, and the shell is
  * the one process in the path that is trusted. The reverse direction —
- * {@link bbDesktopPageScriptRpcRequestSchema} — is parsed, because it comes from
+ * {@link patcherDesktopPageScriptRpcRequestSchema} — is parsed, because it comes from
  * a renderer that is sharing an address space with a website.
  *
  * `worldId` is assigned by the shell and is stable per plugin, so two scripts of
  * one plugin share globals and two plugins never do.
  */
-export interface BbDesktopPageScriptWorld {
+export interface PatcherDesktopPageScriptWorld {
   pluginId: string;
   worldId: number;
   scripts: { scriptId: string; code: string }[];
 }
 
-export interface BbDesktopPageScriptBootstrap {
-  worlds: BbDesktopPageScriptWorld[];
+export interface PatcherDesktopPageScriptBootstrap {
+  worlds: PatcherDesktopPageScriptWorld[];
 }
 
-/** One `bb.rpc(...)` from a page script, page → main. */
-export const bbDesktopPageScriptRpcRequestSchema = z
+/** One `patcher.rpc(...)` from a page script, page → main. */
+export const patcherDesktopPageScriptRpcRequestSchema = z
   .object({
     pluginId: z.string().min(1).max(128),
     method: z.string().min(1).max(128),
     /** The input, already JSON text; the preload serialised it. */
-    input: z.string().max(BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH),
+    input: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH),
   })
   .strict();
-export type BbDesktopPageScriptRpcRequest = z.infer<
-  typeof bbDesktopPageScriptRpcRequestSchema
+export type PatcherDesktopPageScriptRpcRequest = z.infer<
+  typeof patcherDesktopPageScriptRpcRequestSchema
 >;
 
 /**
@@ -2098,7 +2164,7 @@ export type BbDesktopPageScriptRpcRequest = z.infer<
  * for the script's author, never a rejected invoke, because an invoke rejection
  * reaches a page as an opaque Electron string.
  */
-export type BbDesktopPageScriptRpcAnswer =
+export type PatcherDesktopPageScriptRpcAnswer =
   | { ok: true; result: string }
   | { ok: false; message: string };
 
@@ -2111,13 +2177,13 @@ export type BbDesktopPageScriptRpcAnswer =
  * right-click by a round trip. The shell composes what it already has, and the
  * *click* is what travels back.
  */
-export const BB_DESKTOP_BROWSER_MAX_CONTEXT_MENU_ITEMS = 20;
+export const PATCHER_DESKTOP_BROWSER_MAX_CONTEXT_MENU_ITEMS = 20;
 
-export const bbDesktopBrowserContextMenuItemSchema = z
+export const patcherDesktopBrowserContextMenuItemSchema = z
   .object({
     pluginId: z.string().min(1).max(128),
     itemId: z.string().min(1).max(128),
-    title: z.string().min(1).max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+    title: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
     /** Any match shows the item; empty means every context. */
     when: z
       .object({
@@ -2129,41 +2195,41 @@ export const bbDesktopBrowserContextMenuItemSchema = z
       .strict(),
   })
   .strict();
-export type BbDesktopBrowserContextMenuItem = z.infer<
-  typeof bbDesktopBrowserContextMenuItemSchema
+export type PatcherDesktopBrowserContextMenuItem = z.infer<
+  typeof patcherDesktopBrowserContextMenuItemSchema
 >;
 
-export const bbDesktopBrowserContextMenuItemsSchema = z
+export const patcherDesktopBrowserContextMenuItemsSchema = z
   .object({
     items: z
-      .array(bbDesktopBrowserContextMenuItemSchema)
-      .max(BB_DESKTOP_BROWSER_MAX_CONTEXT_MENU_ITEMS),
+      .array(patcherDesktopBrowserContextMenuItemSchema)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_CONTEXT_MENU_ITEMS),
   })
   .strict();
-export type BbDesktopBrowserContextMenuItems = z.infer<
-  typeof bbDesktopBrowserContextMenuItemsSchema
+export type PatcherDesktopBrowserContextMenuItems = z.infer<
+  typeof patcherDesktopBrowserContextMenuItemsSchema
 >;
 
 /** A plugin entry the user picked, with what it was picked on. */
-export const bbDesktopBrowserContextMenuInvokeSchema = z
+export const patcherDesktopBrowserContextMenuInvokeSchema = z
   .object({
     pluginId: z.string().min(1).max(128),
     itemId: z.string().min(1).max(128),
     tabId: z.string().min(1),
-    pageUrl: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-    linkUrl: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH).nullable(),
-    imageUrl: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH).nullable(),
+    pageUrl: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    linkUrl: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH).nullable(),
+    imageUrl: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH).nullable(),
     selectionText: z
       .string()
-      .max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH)
       .nullable(),
   })
   .strict();
-export type BbDesktopBrowserContextMenuInvoke = z.infer<
-  typeof bbDesktopBrowserContextMenuInvokeSchema
+export type PatcherDesktopBrowserContextMenuInvoke = z.infer<
+  typeof patcherDesktopBrowserContextMenuInvokeSchema
 >;
-export type BbDesktopBrowserContextMenuInvokeHandler = (
-  invoke: BbDesktopBrowserContextMenuInvoke,
+export type PatcherDesktopBrowserContextMenuInvokeHandler = (
+  invoke: PatcherDesktopBrowserContextMenuInvoke,
 ) => void;
 
 /**
@@ -2171,7 +2237,7 @@ export type BbDesktopBrowserContextMenuInvokeHandler = (
  * stops being useful long before this, and the string crosses a process
  * boundary on every keystroke.
  */
-export const BB_DESKTOP_BROWSER_MAX_FIND_QUERY_LENGTH = 256;
+export const PATCHER_DESKTOP_BROWSER_MAX_FIND_QUERY_LENGTH = 256;
 
 /**
  * What to do with a tab's find session.
@@ -2181,14 +2247,14 @@ export const BB_DESKTOP_BROWSER_MAX_FIND_QUERY_LENGTH = 256;
  * the matches of the session already running. `stop` ends it and drops the
  * highlights.
  */
-export const bbDesktopBrowserFindActionSchema = z.enum([
+export const patcherDesktopBrowserFindActionSchema = z.enum([
   "start",
   "next",
   "previous",
   "stop",
 ]);
-export type BbDesktopBrowserFindAction = z.infer<
-  typeof bbDesktopBrowserFindActionSchema
+export type PatcherDesktopBrowserFindAction = z.infer<
+  typeof patcherDesktopBrowserFindActionSchema
 >;
 
 /**
@@ -2199,15 +2265,15 @@ export type BbDesktopBrowserFindAction = z.infer<
  * carried no text would have nothing to search for. An empty query ends the
  * session whatever the action says: searching for nothing is not a search.
  */
-export const bbDesktopBrowserFindRequestSchema = z
+export const patcherDesktopBrowserFindRequestSchema = z
   .object({
     tabId: z.string().min(1),
-    action: bbDesktopBrowserFindActionSchema,
-    query: z.string().max(BB_DESKTOP_BROWSER_MAX_FIND_QUERY_LENGTH),
+    action: patcherDesktopBrowserFindActionSchema,
+    query: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_FIND_QUERY_LENGTH),
   })
   .strict();
-export type BbDesktopBrowserFindRequest = z.infer<
-  typeof bbDesktopBrowserFindRequestSchema
+export type PatcherDesktopBrowserFindRequest = z.infer<
+  typeof patcherDesktopBrowserFindRequestSchema
 >;
 
 /**
@@ -2219,7 +2285,7 @@ export type BbDesktopBrowserFindRequest = z.infer<
  * on a long page — and the shell drops results belonging to a superseded
  * request, so a stale count never lands on a newer query.
  */
-export const bbDesktopBrowserFindResultSchema = z
+export const patcherDesktopBrowserFindResultSchema = z
   .object({
     tabId: z.string().min(1),
     /** 1-based position of the highlighted match; 0 when there are none. */
@@ -2228,18 +2294,18 @@ export const bbDesktopBrowserFindResultSchema = z
     finalUpdate: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserFindResult = z.infer<
-  typeof bbDesktopBrowserFindResultSchema
+export type PatcherDesktopBrowserFindResult = z.infer<
+  typeof patcherDesktopBrowserFindResultSchema
 >;
-export type BbDesktopBrowserFindResultHandler = (
-  result: BbDesktopBrowserFindResult,
+export type PatcherDesktopBrowserFindResultHandler = (
+  result: PatcherDesktopBrowserFindResult,
 ) => void;
 
 /**
  * How many tabs may claim real popups at once. A surface declares its whole tab
  * list, so this is the same cap the tab list itself lives under.
  */
-export const BB_DESKTOP_BROWSER_MAX_POPUP_TABS = 200;
+export const PATCHER_DESKTOP_BROWSER_MAX_POPUP_TABS = 200;
 
 /**
  * The tabs whose pages get **real** popups — windows Chromium creates, with a
@@ -2254,13 +2320,15 @@ export const BB_DESKTOP_BROWSER_MAX_POPUP_TABS = 200;
  *
  * Replaces the previous set, so the caller owns the whole list.
  */
-export const bbDesktopBrowserPopupTabsSchema = z
+export const patcherDesktopBrowserPopupTabsSchema = z
   .object({
-    tabIds: z.array(z.string().min(1)).max(BB_DESKTOP_BROWSER_MAX_POPUP_TABS),
+    tabIds: z
+      .array(z.string().min(1))
+      .max(PATCHER_DESKTOP_BROWSER_MAX_POPUP_TABS),
   })
   .strict();
-export type BbDesktopBrowserPopupTabs = z.infer<
-  typeof bbDesktopBrowserPopupTabsSchema
+export type PatcherDesktopBrowserPopupTabs = z.infer<
+  typeof patcherDesktopBrowserPopupTabsSchema
 >;
 
 /**
@@ -2276,7 +2344,7 @@ export type BbDesktopBrowserPopupTabs = z.infer<
  * which is how every OAuth flow ends) has to remove the tab, and only the shell
  * sees it happen.
  */
-export const bbDesktopBrowserPopupSchema = z.discriminatedUnion("kind", [
+export const patcherDesktopBrowserPopupSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("opened"),
@@ -2285,7 +2353,7 @@ export const bbDesktopBrowserPopupSchema = z.discriminatedUnion("kind", [
       /** The shell's id for the new tab; the renderer must use this one. */
       tabId: z.string().min(1),
       /** Where it is going, for the tab the renderer creates. */
-      url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+      url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
     })
     .strict(),
   z
@@ -2295,9 +2363,11 @@ export const bbDesktopBrowserPopupSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
-export type BbDesktopBrowserPopup = z.infer<typeof bbDesktopBrowserPopupSchema>;
-export type BbDesktopBrowserPopupHandler = (
-  popup: BbDesktopBrowserPopup,
+export type PatcherDesktopBrowserPopup = z.infer<
+  typeof patcherDesktopBrowserPopupSchema
+>;
+export type PatcherDesktopBrowserPopupHandler = (
+  popup: PatcherDesktopBrowserPopup,
 ) => void;
 
 /**
@@ -2307,28 +2377,28 @@ export type BbDesktopBrowserPopupHandler = (
  * in a second native view the shell owns, rather than a re-implementation of
  * them. So the renderer's whole job is to reserve the space and report the rect,
  * exactly as it does for the page itself; `bounds` is in the same coordinate
- * space as {@link bbDesktopBrowserSetBoundsRequestSchema}, and re-sending with
+ * space as {@link patcherDesktopBrowserSetBoundsRequestSchema}, and re-sending with
  * `open: true` is how a resize is reported.
  *
  * The cost is stated where it is paid: DevTools holds Chromium's only protocol
  * client, so while this is open the automation commands on that tab answer
  * `debugger-unavailable`.
  */
-export const bbDesktopBrowserDevToolsRequestSchema = z
+export const patcherDesktopBrowserDevToolsRequestSchema = z
   .object({
     tabId: z.string().min(1),
     open: z.boolean(),
-    bounds: bbDesktopBrowserViewBoundsSchema,
+    bounds: patcherDesktopBrowserViewBoundsSchema,
   })
   .strict();
-export type BbDesktopBrowserDevToolsRequest = z.infer<
-  typeof bbDesktopBrowserDevToolsRequestSchema
+export type PatcherDesktopBrowserDevToolsRequest = z.infer<
+  typeof patcherDesktopBrowserDevToolsRequestSchema
 >;
 
 /**
  * Whether the app's DevTools panel is on screen for a tab, renderer → main.
  *
- * A separate statement from {@link bbDesktopBrowserDevToolsRequestSchema}, which
+ * A separate statement from {@link patcherDesktopBrowserDevToolsRequestSchema}, which
  * says whether the tools are *open*. Open and on screen part company whenever
  * the app draws something where the page was: it hides the page view to draw a
  * load-error screen in the page's rect, and the shell — seeing only that the
@@ -2338,16 +2408,16 @@ export type BbDesktopBrowserDevToolsRequest = z.infer<
  * A shell that predates this channel never hears it and keeps tying the panel to
  * the page, which is the behaviour it already had; an app that never sends it
  * gets the same. That is the whole of the negotiation — see
- * {@link BbDesktopBrowserApi.setDevToolsVisible}.
+ * {@link PatcherDesktopBrowserApi.setDevToolsVisible}.
  */
-export const bbDesktopBrowserDevToolsVisibleRequestSchema = z
+export const patcherDesktopBrowserDevToolsVisibleRequestSchema = z
   .object({
     tabId: z.string().min(1),
     visible: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserDevToolsVisibleRequest = z.infer<
-  typeof bbDesktopBrowserDevToolsVisibleRequestSchema
+export type PatcherDesktopBrowserDevToolsVisibleRequest = z.infer<
+  typeof patcherDesktopBrowserDevToolsVisibleRequestSchema
 >;
 
 /**
@@ -2357,284 +2427,292 @@ export type BbDesktopBrowserDevToolsVisibleRequest = z.infer<
  * the page's context menu — and can close from its own toolbar. Either way the
  * renderer has to find out, because it owns the space the panel occupies.
  */
-export const bbDesktopBrowserDevToolsStateSchema = z
+export const patcherDesktopBrowserDevToolsStateSchema = z
   .object({
     tabId: z.string().min(1),
     open: z.boolean(),
   })
   .strict();
-export type BbDesktopBrowserDevToolsState = z.infer<
-  typeof bbDesktopBrowserDevToolsStateSchema
+export type PatcherDesktopBrowserDevToolsState = z.infer<
+  typeof patcherDesktopBrowserDevToolsStateSchema
 >;
-export type BbDesktopBrowserDevToolsStateHandler = (
-  state: BbDesktopBrowserDevToolsState,
+export type PatcherDesktopBrowserDevToolsStateHandler = (
+  state: PatcherDesktopBrowserDevToolsState,
 ) => void;
 
-export type BbDesktopBrowserDownloadHandler = (
-  download: BbDesktopBrowserDownload,
+export type PatcherDesktopBrowserDownloadHandler = (
+  download: PatcherDesktopBrowserDownload,
 ) => void;
-export type BbDesktopBrowserOpenTabHandler = (
-  request: BbDesktopBrowserOpenTabRequest,
+export type PatcherDesktopBrowserOpenTabHandler = (
+  request: PatcherDesktopBrowserOpenTabRequest,
 ) => void;
-export type BbDesktopBrowserScopedOpenTabHandler = (
-  request: BbDesktopBrowserScopedOpenTabRequest,
+export type PatcherDesktopBrowserScopedOpenTabHandler = (
+  request: PatcherDesktopBrowserScopedOpenTabRequest,
 ) => void;
-export type BbDesktopBrowserExternalUrlsPendingHandler = () => void;
-export type BbDesktopBrowserSnapshotHandler = (
-  snapshot: BbDesktopBrowserSnapshot,
+export type PatcherDesktopBrowserExternalUrlsPendingHandler = () => void;
+export type PatcherDesktopBrowserSnapshotHandler = (
+  snapshot: PatcherDesktopBrowserSnapshot,
 ) => void;
-export type BbDesktopBrowserUnsubscribe = () => void;
+export type PatcherDesktopBrowserUnsubscribe = () => void;
 
-export interface BbDesktopBrowserApi {
+export interface PatcherDesktopBrowserApi {
   /** Create (or reuse) and show the view for `tabId`, loading `url` if non-empty. */
-  attach(request: BbDesktopBrowserAttachRequest): void;
+  attach(request: PatcherDesktopBrowserAttachRequest): void;
   /** Destroy the view for `tabId` (tears down its `webContents`). */
   detach(tabId: string): void;
-  navigate(request: BbDesktopBrowserNavigateRequest): void;
+  navigate(request: PatcherDesktopBrowserNavigateRequest): void;
   goBack(tabId: string): void;
   goForward(tabId: string): void;
   reload(tabId: string): void;
   stop(tabId: string): void;
-  setBounds(request: BbDesktopBrowserSetBoundsRequest): void;
-  setVisible(request: BbDesktopBrowserSetVisibleRequest): void;
+  setBounds(request: PatcherDesktopBrowserSetBoundsRequest): void;
+  setVisible(request: PatcherDesktopBrowserSetVisibleRequest): void;
   /** Subscribe to navigation-state pushes for every view in this window. */
-  onState(listener: BbDesktopBrowserStateHandler): BbDesktopBrowserUnsubscribe;
+  onState(
+    listener: PatcherDesktopBrowserStateHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /** Subscribe to popup requests that should open as a new in-panel browser tab. */
   onOpenTab(
-    listener: BbDesktopBrowserOpenTabHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserOpenTabHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Subscribe to popup requests with the originating browser tab id. Optional
    * for version skew with desktop shells that predate source-attributed popups.
    */
   onScopedOpenTab?(
-    listener: BbDesktopBrowserScopedOpenTabHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserScopedOpenTabHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
-   * Take the links macOS handed the shell because bb is the user's default
+   * Take the links macOS handed the shell because Patcher is the user's default
    * browser, emptying the queue as they are taken.
    *
    * Optional for the same version skew as
-   * {@link BbDesktopBrowserApi.onScopedOpenTab}: an older shell has no queue and
+   * {@link PatcherDesktopBrowserApi.onScopedOpenTab}: an older shell has no queue and
    * feature-detection is the negotiation. Call it once when a surface mounts —
-   * that is the cold-start path, where the click that launched bb arrived before
+   * that is the cold-start path, where the click that launched Patcher arrived before
    * this renderer existed — and again on
-   * {@link BbDesktopBrowserApi.onExternalUrlsPending}.
+   * {@link PatcherDesktopBrowserApi.onExternalUrlsPending}.
    */
   takeExternalUrls?(): Promise<string[]>;
   /**
-   * Subscribe to "there are links waiting" nudges, for the case where bb was
+   * Subscribe to "there are links waiting" nudges, for the case where Patcher was
    * already running when the user clicked one. Carries no payload on purpose:
    * the queue is the single source, so a nudge that raced a mount cannot open
    * the same link twice.
    */
   onExternalUrlsPending?(
-    listener: BbDesktopBrowserExternalUrlsPendingHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserExternalUrlsPendingHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Subscribe to resize-burst snapshot pushes. Optional purely for version
    * skew: the SPA routinely attaches to an older desktop shell whose preload
    * predates snapshots (see the wire-freeze note on
-   * {@link bbDesktopBrowserAttachRequestSchema}); callers feature-detect and
+   * {@link patcherDesktopBrowserAttachRequestSchema}); callers feature-detect and
    * fall back to the bare panel background during resizes.
    */
   onSnapshot?(
-    listener: BbDesktopBrowserSnapshotHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserSnapshotHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Subscribe to tab favicon pushes. Optional for the same version skew as
-   * {@link BbDesktopBrowserApi.onSnapshot} — an older shell's preload has no
+   * {@link PatcherDesktopBrowserApi.onSnapshot} — an older shell's preload has no
    * favicon channel — and feature-detection here is the negotiation that lets
    * the icon ride a new channel instead of a new field on the wire-frozen state.
    * Callers fall back to a generic icon.
    */
   onFavicon?(
-    listener: BbDesktopBrowserFaviconHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserFaviconHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Print a tab's page, which opens the OS print dialog.
    *
-   * Optional for the same version skew as {@link BbDesktopBrowserApi.onFavicon}.
+   * Optional for the same version skew as {@link PatcherDesktopBrowserApi.onFavicon}.
    * Nothing comes back: whether the user printed, saved to PDF or cancelled is
    * between them and the dialog, and none of the three is this browser's
    * business. For a document a *program* wants, `page.observe` with a `pdf`
    * observation renders one without a dialog at all.
    */
-  print?(request: BbDesktopBrowserTabRef): void;
+  print?(request: PatcherDesktopBrowserTabRef): void;
   /**
    * Scale a tab's page. Optional for the same version skew as
-   * {@link BbDesktopBrowserApi.onFavicon}; a caller that finds it missing has
+   * {@link PatcherDesktopBrowserApi.onFavicon}; a caller that finds it missing has
    * an older shell and leaves zoom alone rather than pretending to change it.
    */
-  setZoom?(request: BbDesktopBrowserSetZoomRequest): void;
+  setZoom?(request: PatcherDesktopBrowserSetZoomRequest): void;
   /**
    * Silence a tab's page. Optional for the same version skew as
-   * {@link BbDesktopBrowserApi.onFavicon}.
+   * {@link PatcherDesktopBrowserApi.onFavicon}.
    *
    * No push back, unlike zoom: this renderer is the only one who mutes, and
    * Chromium never decides on its own that a page should be silent. What it does
    * decide on its own is whether a page is *playing*, and that is a different
    * question this channel deliberately does not answer.
    */
-  setMuted?(request: BbDesktopBrowserSetMutedRequest): void;
+  setMuted?(request: PatcherDesktopBrowserSetMutedRequest): void;
   /**
    * Replace the page styles this window's plugins have declared. The shell holds
    * them and re-applies whatever matches on every committed navigation.
    *
-   * Optional for the same version skew as {@link BbDesktopBrowserApi.onFavicon}:
+   * Optional for the same version skew as {@link PatcherDesktopBrowserApi.onFavicon}:
    * a renderer that finds it missing has an older shell, and the honest
    * consequence is that page styles do nothing — there is no second path to
    * them, which is why this is feature-detected rather than assumed.
    */
-  setPageStyles?(request: BbDesktopBrowserPageStyles): void;
+  setPageStyles?(request: PatcherDesktopBrowserPageStyles): void;
   /**
    * Replace the page scripts this window's plugins have declared. The shell
    * hands whatever matches to each document as it is created.
    *
-   * Feature-detected like {@link BbDesktopBrowserApi.setPageStyles}, and with a
+   * Feature-detected like {@link PatcherDesktopBrowserApi.setPageStyles}, and with a
    * consequence worth stating: while this list is empty the shell installs no
    * preload in the browsing session at all, so a user with no page-script plugin
    * runs exactly the browser they ran before the feature existed.
    */
-  setPageScripts?(request: BbDesktopBrowserPageScripts): void;
+  setPageScripts?(request: PatcherDesktopBrowserPageScripts): void;
   /**
    * Subscribe to page scripts calling their own plugin's rpc. Every call must be
-   * answered with {@link BbDesktopBrowserApi.respondToPageScriptCall} — the page
+   * answered with {@link PatcherDesktopBrowserApi.respondToPageScriptCall} — the page
    * script is awaiting a promise that nothing else will settle.
    */
   onPageScriptCall?(
-    listener: BbDesktopBrowserPageScriptCallHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserPageScriptCallHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /** Answer one page-script call. A late answer is dropped, not delivered. */
-  respondToPageScriptCall?(result: BbDesktopBrowserPageScriptResult): void;
+  respondToPageScriptCall?(result: PatcherDesktopBrowserPageScriptResult): void;
   /**
    * Subscribe to what the shell knows about a tab's connection — see
-   * {@link bbDesktopBrowserPageSecuritySchema}. Pushed on every committed
+   * {@link patcherDesktopBrowserPageSecuritySchema}. Pushed on every committed
    * navigation, so the omnibox never describes the previous page.
    *
-   * Optional for the same version skew as {@link BbDesktopBrowserApi.onFavicon}:
+   * Optional for the same version skew as {@link PatcherDesktopBrowserApi.onFavicon}:
    * a renderer that finds it missing knows only what the URL says, which is what
    * every build knew before.
    */
   onPageSecurity?(
-    listener: BbDesktopBrowserPageSecurityHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserPageSecurityHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Subscribe to what a tab's zoom became.
    *
-   * Needed as well as {@link BbDesktopBrowserApi.setZoom} because the renderer
+   * Needed as well as {@link PatcherDesktopBrowserApi.setZoom} because the renderer
    * is not the only one who changes it: Chromium remembers zoom per site and
    * restores it when a tab navigates there, so a page can arrive already
    * scaled by a decision the user made on a different tab.
    */
-  onZoom?(listener: BbDesktopBrowserZoomHandler): BbDesktopBrowserUnsubscribe;
+  onZoom?(
+    listener: PatcherDesktopBrowserZoomHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Subscribe to downloads a browsed page started. Optional for the same
-   * version skew as {@link BbDesktopBrowserApi.onFavicon}: a shell that
+   * version skew as {@link PatcherDesktopBrowserApi.onFavicon}: a shell that
    * predates downloads has no such channel, and — because that shell also
    * *denied* every download — a caller that finds no `onDownload` is correctly
    * told there is nothing to report rather than being left waiting for events
    * that will never come.
    */
   onDownload?(
-    listener: BbDesktopBrowserDownloadHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserDownloadHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Open a download, or reveal it in the OS file manager. Optional for the same
-   * version skew as {@link BbDesktopBrowserApi.onDownload}, and paired with it:
+   * version skew as {@link PatcherDesktopBrowserApi.onDownload}, and paired with it:
    * a shell with no downloads has nothing to open, so a caller that finds no
    * `onDownload` will never have a path to pass here either.
    *
    * Never rejects — an unopenable file comes back as `ok: false`.
    */
   downloadAction?(
-    request: BbDesktopBrowserDownloadActionRequest,
-  ): Promise<BbDesktopBrowserDownloadActionResult>;
+    request: PatcherDesktopBrowserDownloadActionRequest,
+  ): Promise<PatcherDesktopBrowserDownloadActionResult>;
   /**
    * Freeze and hide the page so the app can draw over it — see
-   * {@link bbDesktopBrowserSetOverlayRequestSchema}. Optional for version skew:
+   * {@link patcherDesktopBrowserSetOverlayRequestSchema}. Optional for version skew:
    * against a shell that predates it the caller simply gets no overlay, so a
    * floating panel would be invisible and must fall back to taking layout
    * space.
    */
-  setOverlay?(request: BbDesktopBrowserSetOverlayRequest): void;
+  setOverlay?(request: PatcherDesktopBrowserSetOverlayRequest): void;
   /**
    * Give the page the whole window, or give the chrome back — see
-   * {@link bbDesktopBrowserSetFullscreenRequestSchema}. Optional for version
+   * {@link patcherDesktopBrowserSetFullscreenRequestSchema}. Optional for version
    * skew: against a shell that predates it the page simply stays where it is.
    */
-  setFullscreen?(request: BbDesktopBrowserSetFullscreenRequest): void;
+  setFullscreen?(request: PatcherDesktopBrowserSetFullscreenRequest): void;
   /**
    * Subscribe to "Search for …" from a browsed page's context menu. Optional
    * for version skew, like the rest: an older shell simply never offers the
    * menu item.
    */
   onSearchSelection?(
-    listener: BbDesktopBrowserSearchSelectionHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserSearchSelectionHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Hand the shell the plugin context-menu entries it should offer. Replaces
    * the previous set, so the caller owns the whole list.
    */
-  setContextMenuItems?(request: BbDesktopBrowserContextMenuItems): void;
+  setContextMenuItems?(request: PatcherDesktopBrowserContextMenuItems): void;
   /** Subscribe to a plugin entry being picked. */
   onContextMenuInvoke?(
-    listener: BbDesktopBrowserContextMenuInvokeHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserContextMenuInvokeHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Declare which tabs get real popups — see
-   * {@link bbDesktopBrowserPopupTabsSchema}. A caller that never calls this
+   * {@link patcherDesktopBrowserPopupTabsSchema}. A caller that never calls this
    * keeps the older behaviour for every tab, which is why it is safe for a
    * surface that is not a browser to ignore it entirely.
    */
-  setPopupTabs?(request: BbDesktopBrowserPopupTabs): void;
+  setPopupTabs?(request: PatcherDesktopBrowserPopupTabs): void;
   /**
    * Subscribe to popups the shell created for those tabs, and to their
    * closing. Optional for version skew: a shell that predates it denies every
    * popup and pushes the URL instead, which is what the open-tab channels are.
    */
-  onPopup?(listener: BbDesktopBrowserPopupHandler): BbDesktopBrowserUnsubscribe;
+  onPopup?(
+    listener: PatcherDesktopBrowserPopupHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Open or close Chromium's own DevTools for a tab, and place them — see
-   * {@link bbDesktopBrowserDevToolsRequestSchema}. Optional for version skew: a
+   * {@link patcherDesktopBrowserDevToolsRequestSchema}. Optional for version skew: a
    * shell that predates it has no DevTools to place, so a caller that finds no
    * `setDevTools` must not reserve space for a panel that will never appear.
    */
-  setDevTools?(request: BbDesktopBrowserDevToolsRequest): void;
+  setDevTools?(request: PatcherDesktopBrowserDevToolsRequest): void;
   /**
    * Report whether the DevTools panel is on screen for a tab — see
-   * {@link bbDesktopBrowserDevToolsVisibleRequestSchema}. Optional for version
+   * {@link patcherDesktopBrowserDevToolsVisibleRequestSchema}. Optional for version
    * skew, and the feature detection is the negotiation: an app that finds no
    * `setDevToolsVisible` says nothing, and the shell keeps tying the panel to
    * the page exactly as it did before this existed.
    */
-  setDevToolsVisible?(request: BbDesktopBrowserDevToolsVisibleRequest): void;
+  setDevToolsVisible?(
+    request: PatcherDesktopBrowserDevToolsVisibleRequest,
+  ): void;
   /**
    * Subscribe to a tab's DevTools opening or closing, including when something
    * other than this app did it.
    */
   onDevToolsState?(
-    listener: BbDesktopBrowserDevToolsStateHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserDevToolsStateHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Drive a tab's find bar — see
-   * {@link bbDesktopBrowserFindRequestSchema}. Fire-and-forget, like the
+   * {@link patcherDesktopBrowserFindRequestSchema}. Fire-and-forget, like the
    * navigation commands: the count comes back on
-   * {@link BbDesktopBrowserApi.onFindResult} rather than as an answer, because
+   * {@link PatcherDesktopBrowserApi.onFindResult} rather than as an answer, because
    * one query produces several as Chromium scans.
    *
    * Optional for the same version skew as the pushes above: a shell that
    * predates find has no such channel, and a caller that finds no `find` must
    * not offer a find bar that would do nothing.
    */
-  find?(request: BbDesktopBrowserFindRequest): void;
+  find?(request: PatcherDesktopBrowserFindRequest): void;
   /**
-   * Subscribe to find counts. Paired with {@link BbDesktopBrowserApi.find}: a
+   * Subscribe to find counts. Paired with {@link PatcherDesktopBrowserApi.find}: a
    * shell that has one has the other.
    */
   onFindResult?(
-    listener: BbDesktopBrowserFindResultHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserFindResultHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Read what a tab is currently showing — url, title, rendered text and the
    * user's selection.
@@ -2649,36 +2727,36 @@ export interface BbDesktopBrowserApi {
    * privileged snippet. Limits are compile-time constants; a caller wanting less
    * trims what it gets back.
    *
-   * Optional for the same version skew as {@link BbDesktopBrowserApi.onSnapshot}
-   * and {@link BbDesktopBrowserApi.onFavicon}: an older shell's preload has no
+   * Optional for the same version skew as {@link PatcherDesktopBrowserApi.onSnapshot}
+   * and {@link PatcherDesktopBrowserApi.onFavicon}: an older shell's preload has no
    * read-page channel, and feature-detecting this method is the negotiation that
    * lets page reads ride a new channel instead of widening a wire-frozen request.
    * This is that pattern's first request/response instance.
    */
-  readPage?(tabId: string): Promise<BbDesktopBrowserPageReadResult>;
+  readPage?(tabId: string): Promise<PatcherDesktopBrowserPageReadResult>;
   /**
    * Accessibility snapshot of the tab, with a ref on every interactive element,
    * for agents that need to act on the page rather than only read it.
    *
-   * Optional for the same version skew as {@link BbDesktopBrowserApi.readPage}:
+   * Optional for the same version skew as {@link PatcherDesktopBrowserApi.readPage}:
    * a shell that predates the browser debugger has no such channel, and callers
    * feature-detect rather than assume.
    */
   snapshot?(
-    request: BbDesktopBrowserSnapshotRequest,
-  ): Promise<BbDesktopBrowserSnapshotResult>;
+    request: PatcherDesktopBrowserSnapshotRequest,
+  ): Promise<PatcherDesktopBrowserSnapshotResult>;
   /**
    * The same snapshot, of the element a CSS selector matches and its subtree.
    *
    * Its own method for the reason given on
-   * {@link bbDesktopBrowserSnapshotInRequestSchema}: the unscoped request is
+   * {@link patcherDesktopBrowserSnapshotInRequestSchema}: the unscoped request is
    * frozen and strict, so the selector could not be added to it. Answers with
    * the same result — including replacing the tab's ref table, since a snapshot
    * of part of a page hands out refs exactly as one of the whole page does.
    */
   snapshotIn?(
-    request: BbDesktopBrowserSnapshotInRequest,
-  ): Promise<BbDesktopBrowserSnapshotResult>;
+    request: PatcherDesktopBrowserSnapshotInRequest,
+  ): Promise<PatcherDesktopBrowserSnapshotResult>;
   /**
    * Subscribe to JavaScript dialogs the shell has taken over, and to their
    * closing (`dialog: null`). Optional for version skew, like the pushes above.
@@ -2688,46 +2766,46 @@ export interface BbDesktopBrowserApi {
    * unchanged until an agent touches the tab.
    */
   onDialog?(
-    listener: BbDesktopBrowserDialogHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserDialogHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Answer the dialog a tab is blocked on. Resolves false when the tab has no
    * dialog open — including when another answer won the race.
    */
   respondToDialog?(
-    request: BbDesktopBrowserDialogRespondRequest,
+    request: PatcherDesktopBrowserDialogRespondRequest,
   ): Promise<boolean>;
   /**
    * Subscribe to the questions the network asks and only a human can answer —
    * an authentication challenge, an untrusted certificate, a request for a
    * client certificate. See
-   * {@link bbDesktopBrowserPagePromptDetailsSchema}.
+   * {@link patcherDesktopBrowserPagePromptDetailsSchema}.
    *
    * Optional for the same version skew as the pushes above. A shell that
    * predates it does not merely fail to ask: it cancels every one of these,
    * which is what made them silent dead ends.
    */
   onPagePrompt?(
-    listener: BbDesktopBrowserPagePromptHandler,
-  ): BbDesktopBrowserUnsubscribe;
+    listener: PatcherDesktopBrowserPagePromptHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Answer the prompt a tab is waiting on. Resolves false when there was
    * nothing to answer — including when the prompt had already been replaced.
    */
   respondToPagePrompt?(
-    answer: BbDesktopBrowserPagePromptAnswer,
+    answer: PatcherDesktopBrowserPagePromptAnswer,
   ): Promise<boolean>;
   /**
    * Act on the page — click, fill, press, and the rest — addressing elements by
-   * the refs a {@link BbDesktopBrowserApi.snapshot} handed out.
+   * the refs a {@link PatcherDesktopBrowserApi.snapshot} handed out.
    *
    * Waits for the element to be actionable before acting, so a caller does not
    * have to poll or sleep; the wait is what turns an action from a race into a
    * command. Optional for the same version skew as the methods above.
    */
   interact?(
-    request: BbDesktopBrowserInteractRequest,
-  ): Promise<BbDesktopBrowserInteractResult>;
+    request: PatcherDesktopBrowserInteractRequest,
+  ): Promise<PatcherDesktopBrowserInteractResult>;
   /**
    * Look at a tab without touching it — screenshot, PDF, console log, network
    * log.
@@ -2738,8 +2816,8 @@ export interface BbDesktopBrowserApi {
    * the methods above.
    */
   observe?(
-    request: BbDesktopBrowserObserveRequest,
-  ): Promise<BbDesktopBrowserObserveResult>;
+    request: PatcherDesktopBrowserObserveRequest,
+  ): Promise<PatcherDesktopBrowserObserveResult>;
   /**
    * Capture the whole document, however far it scrolls.
    *
@@ -2750,36 +2828,36 @@ export interface BbDesktopBrowserApi {
    * tab filmed this way keeps its dialogs on Chromium's native path.
    *
    * Its own method for the reason given on
-   * {@link bbDesktopBrowserCaptureFullPageRequestSchema}. Optional for the same
+   * {@link patcherDesktopBrowserCaptureFullPageRequestSchema}. Optional for the same
    * version skew as the methods above.
    */
   captureFullPage?(
-    request: BbDesktopBrowserCaptureFullPageRequest,
-  ): Promise<BbDesktopBrowserCaptureFullPageResult>;
+    request: PatcherDesktopBrowserCaptureFullPageRequest,
+  ): Promise<PatcherDesktopBrowserCaptureFullPageResult>;
   /**
    * Read or write what a tab has stored — its cookies, its `localStorage` and
    * its `sessionStorage`.
    *
    * Attaches no debugger either, for the same reason `observe` does not. It is
    * the one method whose *results* are credentials rather than page content;
-   * see {@link bbDesktopBrowserStorageOperationSchema}. Optional for the same
+   * see {@link patcherDesktopBrowserStorageOperationSchema}. Optional for the same
    * version skew as the methods above.
    */
   storage?(
-    request: BbDesktopBrowserStorageRequest,
-  ): Promise<BbDesktopBrowserStorageResult>;
+    request: PatcherDesktopBrowserStorageRequest,
+  ): Promise<PatcherDesktopBrowserStorageResult>;
   /**
    * Drive a tab directly — evaluate JavaScript in it, move and click by
    * coordinate, mock what it receives from the network, take it offline.
    *
    * The one method on this API whose members are grouped by how much they hand
    * over rather than by what they do; see
-   * {@link bbDesktopBrowserControlOperationSchema}. Optional for the same
+   * {@link patcherDesktopBrowserControlOperationSchema}. Optional for the same
    * version skew as the methods above.
    */
   control?(
-    request: BbDesktopBrowserControlRequest,
-  ): Promise<BbDesktopBrowserControlResult>;
+    request: PatcherDesktopBrowserControlRequest,
+  ): Promise<PatcherDesktopBrowserControlResult>;
   /**
    * Film a tab — start a screencast, mark a chapter in it, stop and collect the
    * frames.
@@ -2789,6 +2867,6 @@ export interface BbDesktopBrowserApi {
    * held. Optional for the same version skew as the methods above.
    */
   record?(
-    request: BbDesktopBrowserRecordRequest,
-  ): Promise<BbDesktopBrowserRecordResult>;
+    request: PatcherDesktopBrowserRecordRequest,
+  ): Promise<PatcherDesktopBrowserRecordResult>;
 }

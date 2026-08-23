@@ -247,10 +247,10 @@ describe("spawnLoggedProcess", () => {
     expect(spawnMockState.invocations[0]?.options.detached).toBe(true);
   });
 
-  it("keeps standalone server runtime env isolated from inherited bb and ambient OpenAI env", async () => {
-    vi.stubEnv("BB_APP_URL", "https://inherited-app.example.test");
-    vi.stubEnv("BB_DATA_DIR", "/Users/example/.bb-dev");
-    vi.stubEnv("BB_SERVER_PORT", "3334");
+  it("keeps standalone server runtime env isolated from inherited Patcher and ambient OpenAI env", async () => {
+    vi.stubEnv("PATCHER_APP_URL", "https://inherited-app.example.test");
+    vi.stubEnv("PATCHER_DATA_DIR", "/Users/example/.patcher-dev");
+    vi.stubEnv("PATCHER_SERVER_PORT", "3334");
     vi.stubEnv("OPENAI_API_KEY", "ambient-openai-key");
     vi.stubGlobal(
       "fetch",
@@ -262,8 +262,8 @@ describe("spawnLoggedProcess", () => {
       env: buildStandaloneRuntimeEnv({
         baseEnv: process.env,
         overrides: {
-          BB_DATA_DIR: "/tmp/leaked-data-dir",
-          BB_SERVER_PORT: "9999",
+          PATCHER_DATA_DIR: "/tmp/leaked-data-dir",
+          PATCHER_SERVER_PORT: "9999",
         },
       }),
       logPath: "/tmp/standalone-server.log",
@@ -271,17 +271,17 @@ describe("spawnLoggedProcess", () => {
     });
 
     expect(spawnMockState.invocations[0]?.options.env).toMatchObject({
-      BB_DATA_DIR: "/tmp/standalone-server-data",
-      BB_SERVER_PORT: "4567",
+      PATCHER_DATA_DIR: "/tmp/standalone-server-data",
+      PATCHER_SERVER_PORT: "4567",
     });
     expect(
       spawnMockState.invocations[0]?.options.env?.OPENAI_API_KEY,
     ).toBeUndefined();
     expect(
-      spawnMockState.invocations[0]?.options.env?.BB_APP_URL,
+      spawnMockState.invocations[0]?.options.env?.PATCHER_APP_URL,
     ).toBeUndefined();
     expect(
-      spawnMockState.invocations[0]?.options.env?.BB_EXTERNAL_URL,
+      spawnMockState.invocations[0]?.options.env?.PATCHER_EXTERNAL_URL,
     ).toBeUndefined();
   });
 
@@ -299,8 +299,8 @@ describe("spawnLoggedProcess", () => {
     });
 
     expect(spawnMockState.invocations[0]?.options.env).toMatchObject({
-      BB_APP_URL: "https://standalone-public.example.test",
-      BB_EXTERNAL_URL: "https://standalone-public.example.test",
+      PATCHER_APP_URL: "https://standalone-public.example.test",
+      PATCHER_EXTERNAL_URL: "https://standalone-public.example.test",
     });
   });
 
@@ -312,7 +312,7 @@ describe("spawnLoggedProcess", () => {
         capturedBody = typeof init?.body === "string" ? init.body : null;
         return new Response(
           JSON.stringify({
-            enrollKey: "bbde_standalone",
+            enrollKey: "patcherde_standalone",
             expiresAt: Date.now() + 60_000,
             hostId: "host_standalone",
           }),
@@ -329,7 +329,7 @@ describe("spawnLoggedProcess", () => {
     await expect(
       createStandaloneHostEnrollKey("http://127.0.0.1:4567"),
     ).resolves.toMatchObject({
-      enrollKey: "bbde_standalone",
+      enrollKey: "patcherde_standalone",
       hostId: "host_standalone",
     });
     expect(capturedBody).toBe(JSON.stringify({}));
@@ -371,7 +371,7 @@ describe("cleanupStandaloneOrphans", () => {
   it("skips a standalone root whose parent process exists but is not signalable", async () => {
     const tmpDir = useIsolatedStandaloneTmpDir();
     const tmpRoot = createStandaloneRoot({
-      name: "bb-standalone-unowned",
+      name: "patcher-standalone-unowned",
       state: {
         daemon: { pid: 1111 },
         parentPid: 1,
@@ -403,7 +403,7 @@ describe("cleanupStandaloneOrphans", () => {
   it("removes stale standalone roots whose parent process is gone", async () => {
     const tmpDir = useIsolatedStandaloneTmpDir();
     const tmpRoot = createStandaloneRoot({
-      name: "bb-standalone-owned-stale",
+      name: "patcher-standalone-owned-stale",
       state: {
         daemon: { pid: 1111 },
         parentPid: 4242,

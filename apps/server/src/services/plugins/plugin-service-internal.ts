@@ -1,13 +1,12 @@
-import type { DbConnection } from "@bb/db";
-import type { DynamicTool, Thread } from "@bb/domain";
-import type { HostDaemonConnectTunnelIdentity } from "@bb/host-daemon-contract";
+import type { DbConnection } from "@patcher/db";
+import type { DynamicTool, Thread } from "@patcher/domain";
 import {
   pluginUpdateCheckEntrySchema,
   type InstalledPlugin,
   type PluginApplyUpdateResult,
   type PluginRuntimeStatus,
   type PluginSourceDetail,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { ServerLogger } from "../../types.js";
 import type { NotificationHub } from "../../ws/hub.js";
 import type { BundledPluginRegistration } from "./builtin-registry.js";
@@ -18,14 +17,13 @@ import type {
   PluginBackgroundServiceRecord,
   PluginMentionTrigger,
 } from "./plugin-api.js";
-import type { HostSharedPortCoordinator } from "../../ws/host-shared-ports.js";
 export type {
   PluginApplyUpdateResult,
   PluginHandlerStats,
   PluginRuntimeStatus,
   PluginServiceEntry,
   PluginUpdateCheckEntry,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 /** Live state of one registered background service. */
 export type PluginServiceState = "running" | "backoff" | "stopped";
@@ -100,17 +98,6 @@ export interface PluginServiceDeps {
    * needs a crashloop to run out.
    */
   pluginProcessRestart?: import("./plugin-supervisor.js").PluginSupervisorOptions["restart"];
-  /** Omitted only by isolated plugin-runtime tests without a daemon plane. */
-  sharedPorts?: Pick<
-    HostSharedPortCoordinator,
-    | "declareSharedPorts"
-    | "validateSharedPortDeclaration"
-    | "replaceDeclarationsForOwner"
-    | "clearDeclarationsForOwner"
-  >;
-  ensureSharedPortTunnel?: (
-    hostId: string,
-  ) => Promise<HostDaemonConnectTunnelIdentity>;
   /** Thread DTO assembly for lifecycle events + plugin-signal broadcast +
    * the `plugins-changed` system broadcast on lifecycle completion. */
   hub: Pick<
@@ -123,14 +110,14 @@ export interface PluginServiceDeps {
     "requestPluginInteraction" | "interruptPluginInteractions"
   >;
   /**
-   * Agent browser control (`bb.browser.tabs` / `page` / `navigation`). Optional
+   * Agent browser control (`patcher.browser.tabs` / `page` / `navigation`). Optional
    * like `pendingInteractions`: isolated plugin-runtime tests build these deps by
    * hand, and a host without it simply refuses browser calls.
    */
   browserBridge?: import("../browser/browser-bridge.js").BrowserBridge;
-  /** BB data dir: plugin database files and secrets live under <dataDir>/plugins/<id>/. */
+  /** Patcher data dir: plugin database files and secrets live under <dataDir>/plugins/<id>/. */
   dataDir: string;
-  /** BB app version, checked against manifests' engines.bb range. */
+  /** Patcher app version, checked against manifests' engines.patcher range. */
   appVersion: string;
   /** Declared first-party plugins bundled with the app; test-only override. */
   bundledPlugins?: readonly BundledPluginRegistration[];
@@ -267,7 +254,7 @@ export interface PluginSiteInfoSection {
 
 /**
  * A search engine a plugin offered (`browser.searchEngines`), for the app to put
- * in the setting's list beside bb's own.
+ * in the setting's list beside Patcher's own.
  */
 export interface PluginSearchEngineContribution {
   pluginId: string;
@@ -362,9 +349,9 @@ export interface PluginNewTabSection {
 /**
  * A command a plugin added, with the chord that runs it (`app.commands`).
  *
- * Not part of bb's keybinding config, deliberately: bb's command ids are a closed
+ * Not part of Patcher's keybinding config, deliberately: Patcher's command ids are a closed
  * enum that the settings UI, the palette metadata and the override store all key
- * on, and widening it for ids bb has never seen would trade a compile-time
+ * on, and widening it for ids Patcher has never seen would trade a compile-time
  * guarantee for a string. The app matches these after every one of its own.
  */
 export interface PluginCommandContribution {

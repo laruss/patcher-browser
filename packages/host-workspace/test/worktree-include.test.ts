@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { WORKTREE_INCLUDE_FILE_NAME } from "@bb/domain";
+import { WORKTREE_INCLUDE_FILE_NAME } from "@patcher/domain";
 import { createWorktree } from "../src/provisioning.js";
 import { runGit } from "../src/git.js";
 import { copyWorktreeIncludeFiles } from "../src/worktree-include.js";
@@ -22,10 +22,12 @@ async function writeFile(filePath: string, contents: string): Promise<void> {
 
 /** Repo with a committed `.gitignore` plus the given tracked extra files. */
 async function initRepo(gitignore: string): Promise<string> {
-  const repoPath = await makeTempDir("bb-worktree-include-repo-");
+  const repoPath = await makeTempDir("patcher-worktree-include-repo-");
   await runGit(["init", "-b", "main"], { cwd: repoPath });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
-  await runGit(["config", "user.email", "bb@example.com"], { cwd: repoPath });
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
+    cwd: repoPath,
+  });
   await writeFile(path.join(repoPath, "README.md"), "hello\n");
   await writeFile(path.join(repoPath, ".gitignore"), gitignore);
   await runGit(["add", "."], { cwd: repoPath });
@@ -52,7 +54,7 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       "# local credentials\n\n.env*\nsecrets/\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
 
     const result = await copyWorktreeIncludeFiles({ sourcePath, targetPath });
 
@@ -78,7 +80,7 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       "secrets/*.pem\n!secrets/skip.pem\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
 
     const result = await copyWorktreeIncludeFiles({ sourcePath, targetPath });
 
@@ -87,7 +89,7 @@ describe("copyWorktreeIncludeFiles", () => {
 
   it("skips symlinks instead of copying what they point at", async () => {
     const sourcePath = await initRepo(".env\n");
-    const outsideDir = await makeTempDir("bb-worktree-include-outside-");
+    const outsideDir = await makeTempDir("patcher-worktree-include-outside-");
     await writeFile(path.join(outsideDir, "real.env"), "OUTSIDE=1\n");
     await fs.symlink(
       path.join(outsideDir, "real.env"),
@@ -97,7 +99,7 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       ".env\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
 
     const result = await copyWorktreeIncludeFiles({ sourcePath, targetPath });
 
@@ -113,10 +115,10 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       ".env\n",
     );
-    const outsideDir = await makeTempDir("bb-worktree-include-outside-");
+    const outsideDir = await makeTempDir("patcher-worktree-include-outside-");
     const hostFile = path.join(outsideDir, "host-file");
     await writeFile(hostFile, "untouched\n");
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
     // The base branch can track a symlink where the source has a real file.
     await fs.symlink(hostFile, path.join(targetPath, ".env"));
 
@@ -137,7 +139,7 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       "config.json\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
     await writeFile(
       path.join(targetPath, "config.json"),
       '{"from":"branch"}\n',
@@ -152,12 +154,12 @@ describe("copyWorktreeIncludeFiles", () => {
   });
 
   it("reports a git listing failure instead of claiming zero matches", async () => {
-    const sourcePath = await makeTempDir("bb-worktree-include-nonrepo-");
+    const sourcePath = await makeTempDir("patcher-worktree-include-nonrepo-");
     await writeFile(
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       ".env\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
 
     await expect(
       copyWorktreeIncludeFiles({ sourcePath, targetPath }),
@@ -172,7 +174,7 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       "secrets/\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
     const controller = new AbortController();
     // Abort after git has listed the matches, before the copy loop runs.
     const listed = copyWorktreeIncludeFiles({
@@ -192,7 +194,7 @@ describe("copyWorktreeIncludeFiles", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       "# nothing here\n\n",
     );
-    const targetPath = await makeTempDir("bb-worktree-include-target-");
+    const targetPath = await makeTempDir("patcher-worktree-include-target-");
 
     const result = await copyWorktreeIncludeFiles({ sourcePath, targetPath });
 
@@ -205,7 +207,7 @@ describe("createWorktree with .worktreeinclude", () => {
   it("copies the files before the setup script reads them", async () => {
     const sourcePath = await initRepo(".env\n");
     await writeFile(
-      path.join(sourcePath, ".bb-env-setup.sh"),
+      path.join(sourcePath, ".patcher-env-setup.sh"),
       "set -eu\ncp .env copied-by-setup\n",
     );
     await writeFile(
@@ -215,7 +217,7 @@ describe("createWorktree with .worktreeinclude", () => {
     await runGit(["add", "."], { cwd: sourcePath });
     await runGit(["commit", "-m", "Add setup script"], { cwd: sourcePath });
     await writeFile(path.join(sourcePath, ".env"), "TOKEN=1\n");
-    const parentDir = await makeTempDir("bb-worktree-include-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-include-parent-");
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
@@ -237,7 +239,7 @@ describe("createWorktree with .worktreeinclude", () => {
       path.join(sourcePath, WORKTREE_INCLUDE_FILE_NAME),
       ".env\n",
     );
-    const parentDir = await makeTempDir("bb-worktree-include-parent-");
+    const parentDir = await makeTempDir("patcher-worktree-include-parent-");
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({

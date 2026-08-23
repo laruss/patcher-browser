@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createThreadProvisioningId } from "@bb/db";
+import { createThreadProvisioningId } from "@patcher/db";
 import {
   promptInputSchema,
   resolvedThreadExecutionOptionsSchema,
@@ -7,11 +7,11 @@ import {
   type ClientTurnRequestId,
   type PromptInput,
   type ResolvedThreadExecutionOptions,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   baseBranchSpecSchema,
   unmanagedBranchSpecSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 const directUnmanagedIntentSchema = z.object({
   type: z.literal("direct-unmanaged"),

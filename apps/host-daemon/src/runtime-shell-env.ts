@@ -3,21 +3,21 @@ import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import { basename, delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentRuntimeOptions } from "@bb/agent-runtime";
-import { assignIfDefined } from "@bb/config/objects";
+import type { AgentRuntimeOptions } from "@patcher/agent-runtime";
+import { assignIfDefined } from "@patcher/config/objects";
 
-interface ResolveLocalBbExecutableDirectoryOptions {
+interface ResolveLocalPatcherExecutableDirectoryOptions {
   cliExecutablePath?: string;
 }
 
 export interface PrepareRuntimeShellEnvOptions {
-  bbExecutableDirectory: string;
+  patcherExecutableDirectory: string;
   /**
-   * Absolute path to the daemon-managed `bb` executable. Defaults to
-   * `<bbExecutableDirectory>/bb`. Injected as `BB_CLI` so agent shells can
+   * Absolute path to the daemon-managed `patcher` executable. Defaults to
+   * `<patcherExecutableDirectory>/patcher`. Injected as `PATCHER_CLI` so agent shells can
    * invoke it even when PATH is rewritten (ACP providers).
    */
-  bbExecutablePath?: string;
+  patcherExecutablePath?: string;
   hostDaemonPort?: number;
   serverUrl: string;
   inheritedPath?: string;
@@ -49,8 +49,8 @@ export type SpawnUserShellEnv = (
   args: SpawnUserShellEnvArgs,
 ) => Promise<UserShellEnvSpawnResult>;
 
-const SHELL_ENV_START_MARKER = "__BB_SHELL_ENV_START__";
-const SHELL_ENV_END_MARKER = "__BB_SHELL_ENV_END__";
+const SHELL_ENV_START_MARKER = "__PATCHER_SHELL_ENV_START__";
+const SHELL_ENV_END_MARKER = "__PATCHER_SHELL_ENV_END__";
 const SHELL_ENV_COMMAND = [
   `printf '%s\\n' ${SHELL_ENV_START_MARKER}`,
   "env",
@@ -60,7 +60,7 @@ const USER_SHELL_ENV_TIMEOUT_MS = 3_000;
 const USER_SHELL_ENV_FORCE_KILL_AFTER_MS = 1_000;
 
 function getDefaultCliExecutablePath(): string {
-  return fileURLToPath(new URL("../../cli/bin/bb", import.meta.url));
+  return fileURLToPath(new URL("../../cli/bin/patcher", import.meta.url));
 }
 
 function getErrorCode(error: unknown): string | undefined {
@@ -81,7 +81,9 @@ async function resolveCliEntryPath(cliExecutablePath: string): Promise<string> {
   try {
     const stats = await fs.stat(cliEntryPath);
     if (!stats.isFile()) {
-      throw new Error(`Resolved bb CLI entry is not a file: ${cliEntryPath}`);
+      throw new Error(
+        `Resolved Patcher CLI entry is not a file: ${cliEntryPath}`,
+      );
     }
     if (process.platform !== "win32") {
       try {
@@ -89,7 +91,7 @@ async function resolveCliEntryPath(cliExecutablePath: string): Promise<string> {
       } catch (error) {
         if (getErrorCode(error) === "EACCES") {
           throw new Error(
-            `Resolved bb CLI entry is not executable: ${cliEntryPath}. Build @bb/cli before starting the host daemon.`,
+            `Resolved Patcher CLI entry is not executable: ${cliEntryPath}. Build @patcher/cli before starting the host daemon.`,
           );
         }
         throw error;
@@ -98,7 +100,7 @@ async function resolveCliEntryPath(cliExecutablePath: string): Promise<string> {
   } catch (error) {
     if (getErrorCode(error) === "ENOENT") {
       throw new Error(
-        `Missing built bb CLI entry at ${cliEntryPath}. Build @bb/cli before starting the host daemon.`,
+        `Missing built Patcher CLI entry at ${cliEntryPath}. Build @patcher/cli before starting the host daemon.`,
       );
     }
     throw error;
@@ -336,68 +338,68 @@ export async function resolveUserShellPath(
   return null;
 }
 
-export async function resolveLocalBbExecutableDirectory(
-  options: ResolveLocalBbExecutableDirectoryOptions = {},
+export async function resolveLocalPatcherExecutableDirectory(
+  options: ResolveLocalPatcherExecutableDirectoryOptions = {},
 ): Promise<string> {
-  const cliEntryPath = await resolveLocalBbExecutablePath(options);
+  const cliEntryPath = await resolveLocalPatcherExecutablePath(options);
   return dirname(cliEntryPath);
 }
 
 /**
- * Absolute path to the local bb CLI entry used for agent shell injection.
- * Prefer this over directory-only resolution when setting `BB_CLI`.
+ * Absolute path to the local Patcher CLI entry used for agent shell injection.
+ * Prefer this over directory-only resolution when setting `PATCHER_CLI`.
  */
-export async function resolveLocalBbExecutablePath(
-  options: ResolveLocalBbExecutableDirectoryOptions = {},
+export async function resolveLocalPatcherExecutablePath(
+  options: ResolveLocalPatcherExecutableDirectoryOptions = {},
 ): Promise<string> {
   const resolvedCliExecutablePath =
     options.cliExecutablePath ?? getDefaultCliExecutablePath();
   return resolveCliEntryPath(resolvedCliExecutablePath);
 }
 
-/** Platform-stable name of the bb CLI file inside `BB_CLI_DIR` / daemon dist. */
-export function bbExecutableFileName(): string {
-  return "bb";
+/** Platform-stable name of the Patcher CLI file inside `PATCHER_CLI_DIR` / daemon dist. */
+export function patcherExecutableFileName(): string {
+  return "patcher";
 }
 
-export function resolveBbExecutablePathInDirectory(
-  bbExecutableDirectory: string,
+export function resolvePatcherExecutablePathInDirectory(
+  patcherExecutableDirectory: string,
 ): string {
-  return resolve(bbExecutableDirectory, bbExecutableFileName());
+  return resolve(patcherExecutableDirectory, patcherExecutableFileName());
 }
 
 export function prepareRuntimeShellEnv(
   options: PrepareRuntimeShellEnvOptions,
 ): NonNullable<AgentRuntimeOptions["shellEnv"]> {
-  const bbExecutablePath =
-    options.bbExecutablePath ??
-    resolveBbExecutablePathInDirectory(options.bbExecutableDirectory);
+  const patcherExecutablePath =
+    options.patcherExecutablePath ??
+    resolvePatcherExecutablePathInDirectory(options.patcherExecutableDirectory);
   const shellEnv: NonNullable<AgentRuntimeOptions["shellEnv"]> = {
     PATH: prependPath(
-      options.bbExecutableDirectory,
+      options.patcherExecutableDirectory,
       options.inheritedPath ?? process.env.PATH,
     ),
     // Absolute path survives PATH rewrites in ACP agent tool shells. Official
     // CLI entrypoints re-exec to this target when it differs from the current
-    // binary (see apps/cli `maybeReexecViaBbCli`).
-    BB_CLI: bbExecutablePath,
-    BB_SERVER_URL: options.serverUrl,
+    // binary (see apps/cli `maybeReexecViaPatcherCli`).
+    PATCHER_CLI: patcherExecutablePath,
+    PATCHER_SERVER_URL: options.serverUrl,
   };
   assignIfDefined({
-    key: "BB_HOST_DAEMON_PORT",
+    key: "PATCHER_HOST_DAEMON_PORT",
     target: shellEnv,
     value:
       options.hostDaemonPort === undefined
         ? undefined
         : String(options.hostDaemonPort),
   });
-  // Provider process spawning strips inherited BB_* variables, so the
+  // Provider process spawning strips inherited PATCHER_* variables, so the
   // documented Claude CLI override must be forwarded explicitly for the
   // bridge to see it.
   assignIfDefined({
-    key: "BB_CLAUDE_CODE_EXECUTABLE",
+    key: "PATCHER_CLAUDE_CODE_EXECUTABLE",
     target: shellEnv,
-    value: process.env.BB_CLAUDE_CODE_EXECUTABLE,
+    value: process.env.PATCHER_CLAUDE_CODE_EXECUTABLE,
   });
 
   return shellEnv;

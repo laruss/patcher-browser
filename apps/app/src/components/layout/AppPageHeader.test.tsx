@@ -8,7 +8,7 @@ vi.mock("@/components/ui/sidebar.js", () => ({
   useIsSidebarShowing: () => true,
 }));
 
-vi.mock("@bb/shared-ui/hooks/use-compact-viewport", () => ({
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
   useIsCompactViewport: () => false,
 }));
 

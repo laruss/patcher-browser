@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import { Button } from "@bb/shared-ui/button";
-import type { JsonValue, PluginPendingInteraction } from "@bb/domain";
+import { Button } from "@patcher/shared-ui/button";
+import type { JsonValue, PluginPendingInteraction } from "@patcher/domain";
 import { PluginSlotMount } from "./PluginSlotMount";
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { sdk } from "@/lib/sdk";

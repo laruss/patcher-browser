@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from "react";
-import type { ThreadQueuedMessage } from "@bb/domain";
+import type { ThreadQueuedMessage } from "@patcher/domain";
 import {
   applyQueuedMessageReorder,
   type QueuedMessageReorderRequest,
@@ -44,7 +44,7 @@ function ResponsivePromptStage({ children }: { children: ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// Realistic bb-flavored fixtures
+// Realistic Patcher-flavored fixtures
 // ---------------------------------------------------------------------------
 
 function makeQueuedMessage({
@@ -94,7 +94,7 @@ const multipleMessages: readonly ThreadQueuedMessage[] = [
   }),
   makeQueuedMessage({
     id: "q_c",
-    text: "And run the tests for @bb/thread-view.",
+    text: "And run the tests for @patcher/thread-view.",
   }),
 ];
 
@@ -186,7 +186,7 @@ const mixedMessages: readonly ThreadQueuedMessage[] = [
   }),
   makeQueuedMessage({
     id: "mix_plain_2",
-    text: "And run the tests for @bb/thread-view.",
+    text: "And run the tests for @patcher/thread-view.",
   }),
   makeQueuedMessage({
     id: "mix_quote_2",

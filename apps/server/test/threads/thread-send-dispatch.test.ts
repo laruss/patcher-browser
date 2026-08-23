@@ -4,8 +4,8 @@ import {
   getThread,
   listQueuedThreadMessages,
   markThreadDeleted,
-} from "@bb/db";
-import { turnScope, type Environment, type Thread } from "@bb/domain";
+} from "@patcher/db";
+import { turnScope, type Environment, type Thread } from "@patcher/domain";
 import { describe, expect, it, vi } from "vitest";
 import type { TelemetryService } from "../../src/services/system/telemetry.js";
 import { sendQueuedMessage } from "../../src/services/threads/queued-messages.js";

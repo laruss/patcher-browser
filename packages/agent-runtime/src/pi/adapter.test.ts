@@ -7,7 +7,7 @@ import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
   threadScope,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
   createPiModelContextWindowResolverFrom,
@@ -273,7 +273,7 @@ describe("pi provider adapter", () => {
           message: "No API key found for openai.",
         },
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toEqual([
@@ -365,9 +365,9 @@ describe("pi provider adapter", () => {
         ...fullProviderExecutionContext,
         skillRoots: [
           {
-            id: "bb-cli",
+            id: "patcher-cli",
             providerId: "pi",
-            skillDirectoryRootPath: "/tmp/bb-skills",
+            skillDirectoryRootPath: "/tmp/patcher-skills",
           },
           {
             id: "repo-tools",
@@ -381,7 +381,7 @@ describe("pi provider adapter", () => {
     expect(cmd).toMatchObject({
       method: "thread/start",
       params: {
-        additionalSkillPaths: ["/tmp/bb-skills", "/tmp/repo-skills"],
+        additionalSkillPaths: ["/tmp/patcher-skills", "/tmp/repo-skills"],
       },
     });
   });
@@ -391,7 +391,7 @@ describe("pi provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -406,7 +406,7 @@ describe("pi provider adapter", () => {
       },
       dynamicTools: [
         {
-          name: "bb_test_ping",
+          name: "patcher_test_ping",
           description: "Ping the host",
           inputSchema: {
             type: "object",
@@ -422,13 +422,13 @@ describe("pi provider adapter", () => {
     expect(cmd).toMatchObject({
       method: "thread/start",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         model: "anthropic/claude-sonnet-4-20250514",
         reasoningLevel: "high",
         appendSystemPrompt: "Focus on the failing tests first.",
         dynamicTools: [
           {
-            name: "bb_test_ping",
+            name: "patcher_test_ping",
             description: "Ping the host",
             inputSchema: {
               type: "object",
@@ -449,7 +449,7 @@ describe("pi provider adapter", () => {
     expect(
       (cmd as { params: { config?: Record<string, unknown> } }).params.config,
     ).toMatchObject({
-      "shell_environment_policy.set.BB_THREAD_ID": "bb-thread-1",
+      "shell_environment_policy.set.PATCHER_THREAD_ID": "patcher-thread-1",
       "shell_environment_policy.set.TEST_VAR": "123",
     });
     expect(cmd).not.toMatchObject({
@@ -466,7 +466,7 @@ describe("pi provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-replace",
+      threadId: "patcher-thread-replace",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "replace",
       options: {
@@ -478,7 +478,7 @@ describe("pi provider adapter", () => {
     expect(cmd).toMatchObject({
       method: "thread/start",
       params: {
-        threadId: "bb-thread-replace",
+        threadId: "patcher-thread-replace",
         baseInstructions: "Replace the provider prompt.",
       },
     });
@@ -494,7 +494,7 @@ describe("pi provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "pi-session-1",
       instructionMode: "append",
       options: fullProviderExecutionContext,
@@ -513,7 +513,7 @@ describe("pi provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "pi-session-1",
       instructionMode: "append",
       options: {
@@ -539,7 +539,7 @@ describe("pi provider adapter", () => {
     const adapter = createPiProviderAdapter();
     const cmd = adapter.buildCommandPlan({
       type: "thread/stop",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "pi-session-1",
       activeTurnId: "turn-1",
     });
@@ -558,7 +558,7 @@ describe("pi provider adapter", () => {
       adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228c",
-        threadId: "bb-t1",
+        threadId: "patcher-t1",
         providerThreadId: "pi-session-1",
         input: createStandaloneBuiltinCompactCommandInput(),
         options: fullProviderExecutionContext,
@@ -575,7 +575,7 @@ describe("pi provider adapter", () => {
     expect(
       adapter.buildCommandPlan({
         type: "thread/discard",
-        threadId: "bb-staging",
+        threadId: "patcher-staging",
         providerThreadId: "pi-staging",
       }),
     ).toEqual({
@@ -647,7 +647,7 @@ describe("pi provider adapter", () => {
           providerThreadId: "t1",
           turnId: "turn-1",
           callId: "call-1",
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: { ping: true },
         },
       }),
@@ -657,7 +657,7 @@ describe("pi provider adapter", () => {
       providerThreadId: "t1",
       turnId: "turn-1",
       callId: "call-1",
-      tool: "bb_test_ping",
+      tool: "patcher_test_ping",
       arguments: { ping: true },
     });
   });
@@ -665,7 +665,7 @@ describe("pi provider adapter", () => {
   it("decodeToolCallRequest rejects non-string, non-number request ids", () => {
     const adapter = createPiProviderAdapter();
     const malformedRequest = JSON.parse(
-      '{"jsonrpc":"2.0","id":true,"method":"item/tool/call","params":{"threadId":"t1","turnId":"turn-1","callId":"call-1","tool":"bb_test_ping","arguments":{"ping":true}}}',
+      '{"jsonrpc":"2.0","id":true,"method":"item/tool/call","params":{"threadId":"t1","turnId":"turn-1","callId":"call-1","tool":"patcher_test_ping","arguments":{"ping":true}}}',
     );
 
     expect(adapter.decodeToolCallRequest(malformedRequest)).toBeNull();
@@ -685,7 +685,7 @@ describe("pi provider adapter", () => {
     );
   });
 
-  it("translateEvent keeps turn_start as internal noise while agent_start owns the bb turn", () => {
+  it("translateEvent keeps turn_start as internal noise while agent_start owns the Patcher turn", () => {
     const adapter = createPiProviderAdapter();
     adapter.translateEvent(loadFixture("agent-start.json"));
 
@@ -728,7 +728,7 @@ describe("pi provider adapter", () => {
 
   it("translateEvent agent_end surfaces Pi assistant stop errors as failed turns", () => {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
     const quotaMessage =
       '400 {"type":"error","error":{"type":"invalid_request_error","message":"You\'re out of extra usage. Add more at claude.ai/settings/usage and keep going."},"request_id":"req_011CajgGfxCAhmznZJw7t6Br"}';
 
@@ -761,7 +761,7 @@ describe("pi provider adapter", () => {
 
   it("keeps the Pi turn active while the SDK retries an assistant error", () => {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
     adapter.translateEvent(loadFixture("agent-start.json"), context);
 
     const retryEvents = adapter.translateEvent(
@@ -891,7 +891,7 @@ describe("pi provider adapter", () => {
     errorMessage?: string;
   }) {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
     const started = adapter.translateEvent(
       {
         type: "compaction_start",
@@ -1682,7 +1682,7 @@ describe("pi provider adapter", () => {
 
   it("translateEvent clears bash output snapshots when a turn completes", () => {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     seedPiBashOutputSnapshot({
       adapter,
@@ -1705,7 +1705,7 @@ describe("pi provider adapter", () => {
 
   it("buildCommand thread/start clears stale bash output snapshots", () => {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     seedPiBashOutputSnapshot({
       adapter,
@@ -1721,7 +1721,7 @@ describe("pi provider adapter", () => {
         adapter.buildCommandPlan({
           type: "thread/start",
           cwd: "/tmp/worktree",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           input: [promptTextInput({ text: "hello" })],
           instructionMode: "append",
           options: fullProviderExecutionContext,
@@ -1732,7 +1732,7 @@ describe("pi provider adapter", () => {
 
   it("buildCommand thread/resume clears stale bash output snapshots", () => {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     seedPiBashOutputSnapshot({
       adapter,
@@ -1748,7 +1748,7 @@ describe("pi provider adapter", () => {
         adapter.buildCommandPlan({
           type: "thread/resume",
           cwd: "/tmp/worktree",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "pi-thread-1",
           instructionMode: "append",
           options: fullProviderExecutionContext,
@@ -1759,7 +1759,7 @@ describe("pi provider adapter", () => {
 
   it("buildCommand thread/stop clears stale bash output snapshots", () => {
     const adapter = createPiProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     seedPiBashOutputSnapshot({
       adapter,
@@ -1774,7 +1774,7 @@ describe("pi provider adapter", () => {
       reset: () => {
         adapter.buildCommandPlan({
           type: "thread/stop",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "pi-thread-1",
           activeTurnId: "turn-1",
         });
@@ -2058,17 +2058,17 @@ describe("pi provider adapter", () => {
     const adapter = createPiProviderAdapter();
 
     adapter.translateEvent(loadFixture("agent-start.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
     adapter.translateEvent(loadFixture("agent-end-with-message.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
 
     const events = adapter.translateEvent({
       jsonrpc: "2.0",
       method: "thread/contextWindowUsage/updated",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         contextWindowUsage: {
           usedTokens: 54321,
           modelContextWindow: 123456,
@@ -2080,8 +2080,8 @@ describe("pi provider adapter", () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         type: "thread/contextWindowUsage/updated",
-        threadId: "bb-thread-1",
-        providerThreadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
+        providerThreadId: "patcher-thread-1",
         scope: turnScope("turn-1"),
         contextWindowUsage: {
           usedTokens: 54321,

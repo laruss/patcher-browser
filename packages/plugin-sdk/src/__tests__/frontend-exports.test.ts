@@ -11,7 +11,10 @@ function declarationValueExports(declarations: string): string[] {
 describe("frontend plugin SDK export parity", () => {
   it("matches every public runtime value to the bundled declarations exactly", async () => {
     const declarations = await readFile(
-      new URL("../../bundled-types/bb-plugin-sdk-app.d.ts", import.meta.url),
+      new URL(
+        "../../bundled-types/patcher-plugin-sdk-app.d.ts",
+        import.meta.url,
+      ),
       "utf8",
     );
 

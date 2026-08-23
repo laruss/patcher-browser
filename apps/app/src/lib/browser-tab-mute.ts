@@ -13,11 +13,11 @@ import { createSessionStorageSyncStorage } from "./browser-storage";
  * reload and the strip would stop marking a page that is still silent.
  *
  * The consequence worth stating: a restart brings every restored tab back
- * audible. Chromium remembers mute per site; bb does not, because a mute stored
+ * audible. Chromium remembers mute per site; Patcher does not, because a mute stored
  * against a page that has not loaded yet is a promise about a `webContents` that
  * does not exist.
  */
-const BROWSER_MUTED_TABS_STORAGE_KEY = "bb.browserSurface.mutedTabs-1";
+const BROWSER_MUTED_TABS_STORAGE_KEY = "patcher.browserSurface.mutedTabs-1";
 
 export const EMPTY_BROWSER_MUTED_TABS: ReadonlySet<string> = new Set();
 

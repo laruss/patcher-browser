@@ -3,18 +3,18 @@
   "name": "responsive-overlay",
   "type": "registry:ui",
   "title": "responsive-overlay",
-  "description": "BB ui \"responsive-overlay\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"responsive-overlay\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-slot"
   ],
   "registryDependencies": [
-    "@bb/drawer",
-    "@bb/overlay-trigger",
-    "@bb/portal-scope",
-    "@bb/use-browser-dimming-modal",
-    "@bb/use-compact-viewport",
-    "@bb/use-pointer-coarse",
-    "@bb/utils"
+    "@patcher/drawer",
+    "@patcher/overlay-trigger",
+    "@patcher/portal-scope",
+    "@patcher/use-browser-dimming-modal",
+    "@patcher/use-compact-viewport",
+    "@patcher/use-pointer-coarse",
+    "@patcher/utils"
   ],
   "files": [
     {

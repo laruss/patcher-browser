@@ -9,7 +9,7 @@
  * inventing a second dialect for the same job.
  *
  * Zod-free on purpose: this is reached from the plugin API, which the
- * out-of-process plugin host loads, and importing `@bb/domain`'s index there
+ * out-of-process plugin host loads, and importing `@patcher/domain`'s index there
  * costs ~38MB of RSS against a 90MB budget (see plugin-transport.md).
  *
  * Two properties this module is responsible for:
@@ -19,7 +19,7 @@
  *   that is not a wildcard is escaped, so a pattern containing `(`, `.` or `+`
  *   matches those characters rather than meaning something to the regex engine.
  * - **A site pattern says where, and the answer is checkable.** What a plugin
- *   declares in `bb.sites` is the boundary the user consents to, so it is
+ *   declares in `patcher.sites` is the boundary the user consents to, so it is
  *   normalised once, here, rather than interpreted differently by each surface
  *   that honours it.
  */
@@ -84,11 +84,11 @@ export function matchesBrowserUrlPattern(
 }
 
 /**
- * A site pattern a plugin may declare in `bb.sites` — normalised — or null when
+ * A site pattern a plugin may declare in `patcher.sites` — normalised — or null when
  * it may not declare it at all.
  *
  * `https` only, with one exception: loopback over plain `http`, which is how a
- * developer's own service and bb's own pages are reached. Everything else is
+ * developer's own service and Patcher's own pages are reached. Everything else is
  * refused for the reason a registered search engine's template is, except that
  * here the stake is higher: what a site pattern buys is standing access to a site
  * the user is signed in to, and plain http to another machine is a site anyone on

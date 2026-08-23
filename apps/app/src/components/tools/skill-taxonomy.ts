@@ -2,12 +2,12 @@ import type {
   EditableSkillScope,
   SkillScope,
   SkillSummary,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 export const SKILL_SCOPE_LABELS: Record<SkillScope, string> = {
-  "bb-builtin": "Built-in",
-  "bb-user": "bb · user",
-  "bb-project": "bb · project",
+  "patcher-builtin": "Built-in",
+  "patcher-user": "Patcher · user",
+  "patcher-project": "Patcher · project",
   "claude-user": "Claude · user",
   "claude-project": "Claude · project",
   "codex-user": "Codex · user",
@@ -29,8 +29,8 @@ export function isSkillEditable(
   skill: SkillSummary,
 ): skill is SkillSummary & { scope: EditableSkillScope } {
   switch (skill.scope) {
-    case "bb-user":
-    case "bb-project":
+    case "patcher-user":
+    case "patcher-project":
       return true;
     case "claude-user":
     case "claude-project":
@@ -41,7 +41,7 @@ export function isSkillEditable(
       return skill.manageable;
     case "shared-user":
     case "shared-project":
-    case "bb-builtin":
+    case "patcher-builtin":
     case "plugin":
       return false;
   }

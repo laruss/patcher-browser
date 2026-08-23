@@ -1,5 +1,5 @@
 {
-  "name": "@bb/server-contract",
+  "name": "@patcher/server-contract",
   "version": "0.0.1",
   "type": "module",
   "exports": {
@@ -16,15 +16,15 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/domain": "workspace:*",
-    "@bb/host-daemon-contract": "workspace:*",
-    "@bb/hono-typed-routes": "workspace:*",
+    "@patcher/domain": "workspace:*",
+    "@patcher/host-daemon-contract": "workspace:*",
+    "@patcher/hono-typed-routes": "workspace:*",
     "hono": "^4.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/test-helpers": "workspace:*",
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/test-helpers": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.2",
     "typescript-7": "npm:typescript@^7.0.2"

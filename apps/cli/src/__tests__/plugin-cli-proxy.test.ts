@@ -21,10 +21,10 @@ import {
   type PluginCliContributionEntry,
 } from "../plugin-cli-proxy.js";
 
-// Mirror of RESERVED_BB_CLI_COMMANDS in
+// Mirror of RESERVED_PATCHER_CLI_COMMANDS in
 // apps/server/src/services/plugins/plugin-api.ts — the server rejects plugin
-// CLI commands shadowing core bb commands. Update both together.
-const RESERVED_BB_CLI_COMMANDS = [
+// CLI commands shadowing core Patcher commands. Update both together.
+const RESERVED_PATCHER_CLI_COMMANDS = [
   "environment",
   "guide",
   "help",
@@ -61,14 +61,14 @@ function topLevelCommandNames(program: Command): string[] {
   ]);
 }
 
-describe("reserved bb CLI command names", () => {
+describe("reserved Patcher CLI command names", () => {
   it("every core top-level command is on the server's reserved list", () => {
     const names = topLevelCommandNames(buildProgram());
-    const reserved = new Set(RESERVED_BB_CLI_COMMANDS);
+    const reserved = new Set(RESERVED_PATCHER_CLI_COMMANDS);
     for (const name of names) {
       expect(
         reserved,
-        `"${name}" is missing from RESERVED_BB_CLI_COMMANDS`,
+        `"${name}" is missing from RESERVED_PATCHER_CLI_COMMANDS`,
       ).toContain(name);
     }
   });
@@ -76,7 +76,7 @@ describe("reserved bb CLI command names", () => {
   it("the reserved list carries no stale entries", () => {
     const names = new Set(topLevelCommandNames(buildProgram()));
     names.add("help"); // commander built-in
-    for (const reserved of RESERVED_BB_CLI_COMMANDS) {
+    for (const reserved of RESERVED_PATCHER_CLI_COMMANDS) {
       expect(
         names,
         `"${reserved}" is reserved but not a core command`,
@@ -93,13 +93,14 @@ describe("pluginProxyCandidate", () => {
   });
 
   it("proxies the builtin plugin commands the kernel no longer owns", () => {
-    // `automation` and `connect` moved into builtin plugins: they must not
-    // be reserved, and the real program must not register them, so the
-    // proxy resolves them against the running server.
+    // `automation` moved into a builtin plugin: it must not be reserved, and
+    // the real program must not register it, so the proxy resolves it against
+    // the running server. (`connect` was here too until its plugin was
+    // removed with the cloud.)
     const names = new Set(topLevelCommandNames(buildProgram()));
     names.add("help");
-    for (const moved of ["automation", "connect"]) {
-      expect(RESERVED_BB_CLI_COMMANDS).not.toContain(moved);
+    for (const moved of ["automation"]) {
+      expect(RESERVED_PATCHER_CLI_COMMANDS).not.toContain(moved);
       expect(pluginProxyCandidate(moved, names)).toBe(moved);
     }
   });
@@ -180,11 +181,11 @@ describe("fetchPluginCliContributions", () => {
 });
 
 describe("describeUnreachableServer", () => {
-  const url = "http://127.0.0.1:38886";
+  const url = "http://127.0.0.1:38986";
 
   function fetchFailed(code: string): Error {
     return new TypeError("fetch failed", {
-      cause: Object.assign(new Error(`connect ${code} 127.0.0.1:38886`), {
+      cause: Object.assign(new Error(`connect ${code} 127.0.0.1:38986`), {
         code,
       }),
     });
@@ -192,7 +193,7 @@ describe("describeUnreachableServer", () => {
 
   function aggregateFetchFailed(codes: string[]): Error {
     const errors = codes.map((code, index) =>
-      Object.assign(new Error(`connect ${code} address-${index + 1}:38886`), {
+      Object.assign(new Error(`connect ${code} address-${index + 1}:38986`), {
         code,
       }),
     );
@@ -205,9 +206,9 @@ describe("describeUnreachableServer", () => {
     });
   }
 
-  it("says bb is not running only on ECONNREFUSED", () => {
+  it("says Patcher is not running only on ECONNREFUSED", () => {
     expect(describeUnreachableServer(url, fetchFailed("ECONNREFUSED"))).toBe(
-      `bb is not running at ${url} — open the bb app, then re-run this command.`,
+      `Patcher is not running at ${url} — open the Patcher app, then re-run this command.`,
     );
   });
 
@@ -218,23 +219,23 @@ describe("describeUnreachableServer", () => {
         aggregateFetchFailed(["ECONNREFUSED", "ECONNREFUSED"]),
       ),
     ).toBe(
-      `bb is not running at ${url} — open the bb app, then re-run this command.`,
+      `Patcher is not running at ${url} — open the Patcher app, then re-run this command.`,
     );
 
     const mixedMessage = describeUnreachableServer(
       url,
       aggregateFetchFailed(["ECONNREFUSED", "EPERM"]),
     );
-    expect(mixedMessage).toContain(`Cannot reach bb at ${url}: EPERM`);
-    expect(mixedMessage).toContain("bb may still be running");
+    expect(mixedMessage).toContain(`Cannot reach Patcher at ${url}: EPERM`);
+    expect(mixedMessage).toContain("Patcher may still be running");
     expect(mixedMessage).not.toContain("not running at");
   });
 
-  it("reports a blocked connection without declaring bb down", () => {
+  it("reports a blocked connection without declaring Patcher down", () => {
     for (const code of ["EPERM", "EACCES"]) {
       const message = describeUnreachableServer(url, fetchFailed(code));
-      expect(message).toContain(`Cannot reach bb at ${url}: ${code}`);
-      expect(message).toContain("bb may still be running");
+      expect(message).toContain(`Cannot reach Patcher at ${url}: ${code}`);
+      expect(message).toContain("Patcher may still be running");
       expect(message).not.toContain("not running at");
     }
   });
@@ -244,7 +245,7 @@ describe("describeUnreachableServer", () => {
       name: "TimeoutError",
     });
     expect(describeUnreachableServer(url, timeout, 2000)).toBe(
-      `bb did not respond at ${url} within 2000ms — it may be busy or unreachable.`,
+      `Patcher did not respond at ${url} within 2000ms — it may be busy or unreachable.`,
     );
   });
 
@@ -253,7 +254,7 @@ describe("describeUnreachableServer", () => {
       cause: new Error("getaddrinfo ENOTFOUND example.invalid"),
     });
     expect(describeUnreachableServer(url, err)).toBe(
-      `Cannot reach bb at ${url}: fetch failed: getaddrinfo ENOTFOUND example.invalid`,
+      `Cannot reach Patcher at ${url}: fetch failed: getaddrinfo ENOTFOUND example.invalid`,
     );
   });
 });

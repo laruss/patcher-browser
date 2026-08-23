@@ -1,4 +1,4 @@
-import type { ThreadContextWindowUsage } from "@bb/server-contract";
+import type { ThreadContextWindowUsage } from "@patcher/server-contract";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import { ThreadContextWindowIndicator } from "./ThreadContextWindowIndicator";
 

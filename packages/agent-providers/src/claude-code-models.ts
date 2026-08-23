@@ -8,7 +8,7 @@ import {
   XHIGH_REASONING_EFFORT,
   type AvailableModel,
   type ModelReasoningEffort,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export interface ClaudeCodeCatalogEntry {
   id: string;
@@ -34,7 +34,7 @@ export const CLAUDE_XHIGH_CAPABLE_REASONING_EFFORTS: readonly ModelReasoningEffo
 export const DEFAULT_CLAUDE_CODE_MODEL = "claude-opus-5[1m]";
 
 /**
- * BB's curated, version-pinned Claude Code models. Lives here rather than in the
+ * Patcher's curated, version-pinned Claude Code models. Lives here rather than in the
  * daemon because two consumers need the same rows:
  *
  * - the daemon filters this list against an account-scoped probe, so only models

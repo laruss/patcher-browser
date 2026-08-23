@@ -1,4 +1,4 @@
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 import {
   ThreadTimelineRows,
   type ThreadTimelineRowsProps,

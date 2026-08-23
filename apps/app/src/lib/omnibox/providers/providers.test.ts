@@ -14,7 +14,7 @@ import {
   type OmniboxOpenTab,
 } from "./open-tabs";
 import { createOmniboxSearchProvider } from "./search";
-import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@bb/domain/browser-search-engine";
+import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@patcher/domain/browser-search-engine";
 
 /** Named rather than assumed: the provider has no default engine any more. */
 const GOOGLE_TEMPLATE = `https://www.google.com/search?q=${BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER}`;
@@ -244,11 +244,17 @@ describe("built-in provider ordering", () => {
     createOmniboxSearchProvider({ searchUrlTemplate: GOOGLE_TEMPLATE }),
     createOmniboxOpenTabsProvider({
       activeTabId: null,
-      tabs: [tab("tab-gh", "https://github.com/get-bb/bb", "get-bb/bb")],
+      tabs: [
+        tab(
+          "tab-gh",
+          "https://github.com/laruss/patcher-browser",
+          "laruss/patcher-browser",
+        ),
+      ],
     }),
     createOmniboxHistoryProvider({
       search: historyStore([
-        visit("https://github.com/get-bb/bb/issues", "Issues"),
+        visit("https://github.com/laruss/patcher-browser/issues", "Issues"),
       ]),
     }),
   ];
@@ -271,7 +277,7 @@ describe("built-in provider ordering", () => {
 
   // What the plan's vertical slice asks for: sources mixed in one list.
   it("mixes an open tab and a history entry under the default row", async () => {
-    const ranked = await rankAcross(builtIns, "get-bb");
+    const ranked = await rankAcross(builtIns, "laruss");
 
     expect(ranked.map((row) => row.providerId)).toEqual([
       "search",
@@ -281,7 +287,7 @@ describe("built-in provider ordering", () => {
   });
 });
 
-// bb's own screens are reachable from the address bar the way Chromium's
+// Patcher's own screens are reachable from the address bar the way Chromium's
 // chrome:// pages are — by name, not by knowing the path they live at.
 describe("app routes provider", () => {
   const provider = createOmniboxAppRouteProvider({
@@ -303,9 +309,9 @@ describe("app routes provider", () => {
       type: "open-app-tab",
       path: "/tools/plugins",
     });
-    // Attributed to bb rather than left as a plain "Go": the row leads out of
+    // Attributed to Patcher rather than left as a plain "Go": the row leads out of
     // the web and into the app, and that is worth seeing before Enter.
-    expect(suggestion?.sourceLabel).toBe("bb");
+    expect(suggestion?.sourceLabel).toBe("Patcher");
   });
 
   it("stays out of the way of a real address", async () => {

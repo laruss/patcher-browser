@@ -1,20 +1,20 @@
-import { loadCliConfig, type CliConfig } from "@bb/config/cli";
+import { loadCliConfig, type CliConfig } from "@patcher/config/cli";
 import {
   createHostDaemonLocalClient,
   DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST,
-} from "@bb/host-daemon-contract";
-import { createBbSdk, type BbSdk } from "./core.js";
+} from "@patcher/host-daemon-contract";
+import { createPatcherSdk, type PatcherSdk } from "./core.js";
 import { createNodeWebsocketFactory } from "./node-websocket.js";
 import {
   createRequestTimeoutFetch,
-  DEFAULT_BB_REQUEST_TIMEOUT_MS,
+  DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
   type FetchImplementation,
 } from "./response.js";
 import { createHttpTransport } from "./transport-http.js";
 import type {
-  BbRealtimeSocketFactory,
-  BbSdkContext,
-  BbSdkTransport,
+  PatcherRealtimeSocketFactory,
+  PatcherSdkContext,
+  PatcherSdkTransport,
 } from "./transport.js";
 
 export interface CreateNodeTransportArgs {
@@ -23,11 +23,11 @@ export interface CreateNodeTransportArgs {
   fetch?: FetchImplementation;
   realtimeUrl?: string;
   timeoutMs?: number;
-  websocket?: BbRealtimeSocketFactory;
+  websocket?: PatcherRealtimeSocketFactory;
 }
 
-export interface CreateNodeBbSdkArgs extends CreateNodeTransportArgs {
-  context?: BbSdkContext;
+export interface CreateNodePatcherSdkArgs extends CreateNodeTransportArgs {
+  context?: PatcherSdkContext;
 }
 
 export interface FetchLocalHostIdArgs {
@@ -41,20 +41,21 @@ function resolveCliConfig(cliConfig?: CliConfig): CliConfig {
 
 function resolveHostDaemonUrl(cliConfig?: CliConfig): string {
   const config = resolveCliConfig(cliConfig);
-  return `http://${DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST}:${config.BB_HOST_DAEMON_PORT}`;
+  return `http://${DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST}:${config.PATCHER_HOST_DAEMON_PORT}`;
 }
 
 export function createNodeTransport(
   args: CreateNodeTransportArgs = {},
-): BbSdkTransport {
+): PatcherSdkTransport {
   return createHttpTransport({
     // Only fall back to CLI config when no base URL is given, so explicitly
-    // configured SDKs work in environments without BB_SERVER_URL.
-    baseUrl: args.baseUrl ?? resolveCliConfig(args.cliConfig).BB_SERVER_URL,
+    // configured SDKs work in environments without PATCHER_SERVER_URL.
+    baseUrl:
+      args.baseUrl ?? resolveCliConfig(args.cliConfig).PATCHER_SERVER_URL,
     fetch:
       args.fetch ??
       createRequestTimeoutFetch({
-        timeoutMs: args.timeoutMs ?? DEFAULT_BB_REQUEST_TIMEOUT_MS,
+        timeoutMs: args.timeoutMs ?? DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
       }),
     realtimeUrl: args.realtimeUrl,
     runtime: "node",
@@ -62,8 +63,10 @@ export function createNodeTransport(
   });
 }
 
-export function createNodeBbSdk(args: CreateNodeBbSdkArgs = {}): BbSdk {
-  return createBbSdk({
+export function createNodePatcherSdk(
+  args: CreateNodePatcherSdkArgs = {},
+): PatcherSdk {
+  return createPatcherSdk({
     context: args.context,
     transport: createNodeTransport(args),
   });
@@ -88,13 +91,13 @@ export async function fetchLocalHostId(
 }
 
 export {
-  createBbSdk,
+  createPatcherSdk,
   createHttpTransport,
   createNodeWebsocketFactory,
   createRequestTimeoutFetch,
-  DEFAULT_BB_REQUEST_TIMEOUT_MS,
+  DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
 };
-export { BbHttpError, BbRequestTimeoutError } from "./response.js";
+export { PatcherHttpError, PatcherRequestTimeoutError } from "./response.js";
 export { createGuideArea } from "./areas/guide.js";
 export {
   DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS,
@@ -102,12 +105,17 @@ export {
   ThreadWaitTimeoutError,
   ThreadWaitUnreachableError,
 } from "./areas/threads.js";
-export type { BbSdk, BbSdkContext, BbSdkTransport, FetchImplementation };
+export type {
+  PatcherSdk,
+  PatcherSdkContext,
+  PatcherSdkTransport,
+  FetchImplementation,
+};
 export type * from "./areas/skills.js";
 export type {
-  BbRealtimeSocket,
-  BbRealtimeSocketFactory,
-  BbRealtimeSocketMessageEvent,
+  PatcherRealtimeSocket,
+  PatcherRealtimeSocketFactory,
+  PatcherRealtimeSocketMessageEvent,
 } from "./transport.js";
-export type { BbHttpErrorArgs } from "./response.js";
+export type { PatcherHttpErrorArgs } from "./response.js";
 export type * from "./public-types.js";

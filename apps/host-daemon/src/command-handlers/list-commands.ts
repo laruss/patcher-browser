@@ -2,10 +2,10 @@ import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolveCodexHome } from "@bb/config/codex-home";
-import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
-import type { ProviderNativeSkillRoots } from "@bb/domain";
-import { createConfiguredPiSettingsManager } from "@bb/agent-runtime";
+import { resolveCodexHome } from "@patcher/config/codex-home";
+import type { HostDaemonOnlineRpcResult } from "@patcher/host-daemon-contract";
+import type { ProviderNativeSkillRoots } from "@patcher/domain";
+import { createConfiguredPiSettingsManager } from "@patcher/agent-runtime";
 import { DefaultPackageManager } from "@earendil-works/pi-coding-agent";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
@@ -2055,7 +2055,7 @@ export async function resolveProviderCommandScanRoots(
  * Build the ordered set of roots to scan for a provider. Project (cwd-dependent)
  * roots are skipped when `cwd` is null; user-home roots are always included.
  * The daemon owns provider-native discovery only. The server adds its canonical
- * bb skill catalog to the final composer response.
+ * patcher skill catalog to the final composer response.
  * Unknown provider ids yield an empty root set.
  */
 export function resolveCommandScanRoots(

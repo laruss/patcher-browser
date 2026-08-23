@@ -3,10 +3,10 @@
 //
 // Which search engine an input becomes is **not** decided here: the template is
 // passed in, because it is the user's choice and a plugin may have declared it
-// (`@bb/domain/browser-search-engine`). A default here would be a call site that
+// (`@patcher/domain/browser-search-engine`). A default here would be a call site that
 // silently keeps searching with Google, which is the bug this parameter exists to
 // make impossible.
-import { buildBrowserSearchUrl } from "@bb/domain/browser-search-engine";
+import { buildBrowserSearchUrl } from "@patcher/domain/browser-search-engine";
 
 const HTTP_SCHEME_PATTERN = /^https?:\/\//i;
 const WHITESPACE_PATTERN = /\s/u;
@@ -211,7 +211,7 @@ export function resolveBrowserAddressInput(
  *
  * `local` is plain http that never leaves this machine — loopback. Calling that
  * "insecure" was a lie in the other direction: there is no network for anyone to
- * listen on, and bb's own pages are served exactly this way.
+ * listen on, and Patcher's own pages are served exactly this way.
  */
 export type BrowserUrlSecurity = "secure" | "insecure" | "local" | "none";
 

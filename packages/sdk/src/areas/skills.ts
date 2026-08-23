@@ -14,7 +14,7 @@ import {
   type SkillContentResponse,
   type SkillFilesResponse,
   type SkillListResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 export interface SkillWorkspaceArgs {

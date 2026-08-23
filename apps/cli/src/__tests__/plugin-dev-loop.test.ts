@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPluginDevLoop, isIgnoredPluginDevPath } from "@bb/plugin-build";
+import {
+  createPluginDevLoop,
+  isIgnoredPluginDevPath,
+} from "@patcher/plugin-build";
 describe("createPluginDevLoop", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -52,7 +55,7 @@ describe("createPluginDevLoop", () => {
     expect(lines[0]).toContain("reloaded hello");
   });
 
-  it("skips the rebuild for a headless plugin (no bb.app) and still reloads", async () => {
+  it("skips the rebuild for a headless plugin (no patcher.app) and still reloads", async () => {
     const { calls, lines, deps } = makeDeps({ hasApp: false });
     const loop = createPluginDevLoop(deps);
 

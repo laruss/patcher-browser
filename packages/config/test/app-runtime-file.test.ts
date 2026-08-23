@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  claimBbAppRuntimeFile,
-  clearOwnBbAppRuntimeFile,
-  readBbAppRuntimeFile,
+  claimPatcherAppRuntimeFile,
+  clearOwnPatcherAppRuntimeFile,
+  readPatcherAppRuntimeFile,
 } from "../src/app-runtime-file.js";
 import {
   parseElapsedSeconds,
@@ -16,7 +16,7 @@ import {
 const tempDirs: string[] = [];
 
 async function createDataDir(): Promise<string> {
-  const dataDir = await mkdtemp(join(tmpdir(), "bb-runtime-file-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "patcher-runtime-file-"));
   tempDirs.push(dataDir);
   return dataDir;
 }
@@ -24,9 +24,9 @@ async function createDataDir(): Promise<string> {
 function recordFor(dataDir: string, pid: number) {
   return {
     dataDir,
-    entryPath: "/opt/bb/bb-app.js",
+    entryPath: "/opt/patcher/patcher-app.js",
     pid,
-    serverUrl: "http://127.0.0.1:38886",
+    serverUrl: "http://127.0.0.1:38986",
     startedAt: "2026-08-03T10:00:00.000Z",
     surface: "web",
     version: "0.34.0",
@@ -42,70 +42,70 @@ afterEach(async () => {
   }
 });
 
-describe("claimBbAppRuntimeFile", () => {
+describe("claimPatcherAppRuntimeFile", () => {
   it("refuses to overwrite a record whose launcher still runs", async () => {
     const dataDir = await createDataDir();
-    await claimBbAppRuntimeFile({
+    await claimPatcherAppRuntimeFile({
       ...recordFor(dataDir, 1_111),
       isRunning: () => true,
     });
 
     await expect(
-      claimBbAppRuntimeFile({
+      claimPatcherAppRuntimeFile({
         ...recordFor(dataDir, 2_222),
         isRunning: () => true,
       }),
     ).resolves.toBe(false);
-    // The live launcher keeps the record, so `bb-app stop` can still find it.
-    await expect(readBbAppRuntimeFile(dataDir)).resolves.toMatchObject({
+    // The live launcher keeps the record, so `patcher-app stop` can still find it.
+    await expect(readPatcherAppRuntimeFile(dataDir)).resolves.toMatchObject({
       pid: 1_111,
     });
   });
 
   it("replaces a record whose launcher is gone", async () => {
     const dataDir = await createDataDir();
-    await claimBbAppRuntimeFile({
+    await claimPatcherAppRuntimeFile({
       ...recordFor(dataDir, 1_111),
       isRunning: () => true,
     });
 
     await expect(
-      claimBbAppRuntimeFile({
+      claimPatcherAppRuntimeFile({
         ...recordFor(dataDir, 2_222),
         isRunning: () => false,
       }),
     ).resolves.toBe(true);
-    await expect(readBbAppRuntimeFile(dataDir)).resolves.toMatchObject({
+    await expect(readPatcherAppRuntimeFile(dataDir)).resolves.toMatchObject({
       pid: 2_222,
     });
   });
 });
 
-describe("clearOwnBbAppRuntimeFile", () => {
+describe("clearOwnPatcherAppRuntimeFile", () => {
   it("leaves a record that belongs to another launcher", async () => {
     const dataDir = await createDataDir();
-    await claimBbAppRuntimeFile({
+    await claimPatcherAppRuntimeFile({
       ...recordFor(dataDir, 1_111),
       isRunning: () => true,
     });
 
     await expect(
-      clearOwnBbAppRuntimeFile({ dataDir, pid: 2_222 }),
+      clearOwnPatcherAppRuntimeFile({ dataDir, pid: 2_222 }),
     ).resolves.toBe(false);
-    await expect(readBbAppRuntimeFile(dataDir)).resolves.not.toBeNull();
+    await expect(readPatcherAppRuntimeFile(dataDir)).resolves.not.toBeNull();
   });
 
   it("removes its own record", async () => {
     const dataDir = await createDataDir();
-    await claimBbAppRuntimeFile({
+    await claimPatcherAppRuntimeFile({
       ...recordFor(dataDir, 1_111),
       isRunning: () => true,
     });
 
     await expect(
-      clearOwnBbAppRuntimeFile({ dataDir, pid: 1_111 }),
+      clearOwnPatcherAppRuntimeFile({ dataDir, pid: 1_111 }),
     ).resolves.toBe(true);
-    await expect(readBbAppRuntimeFile(dataDir)).resolves.toBeNull();
+    await expect(readPatcherAppRuntimeFile(dataDir)).resolves.toBeNull();
   });
 });
 
@@ -128,7 +128,7 @@ describe("stopVerifiedProcess", () => {
     return {
       isRunning: () => true,
       kill: () => undefined,
-      readCommand: async () => "node /opt/bb/bb-app.js start",
+      readCommand: async () => "node /opt/patcher/patcher-app.js start",
       readElapsedSeconds: async () => 60,
       waitForExit: async () => true,
       ...overrides,
@@ -146,7 +146,7 @@ describe("stopVerifiedProcess", () => {
         signal: "SIGTERM",
         startedAt,
         timeoutMs: 10,
-        verifyTokens: ["bb-app.js"],
+        verifyTokens: ["patcher-app.js"],
       }),
     ).resolves.toEqual({ kind: "still-running" });
   });
@@ -160,7 +160,7 @@ describe("stopVerifiedProcess", () => {
       signal: "SIGTERM",
       startedAt,
       timeoutMs: 10,
-      verifyTokens: ["bb-app.js"],
+      verifyTokens: ["patcher-app.js"],
     });
 
     expect(result).toMatchObject({ kind: "unverified", reason: "start-time" });
@@ -174,7 +174,7 @@ describe("stopVerifiedProcess", () => {
       signal: "SIGTERM",
       startedAt,
       timeoutMs: 10,
-      verifyTokens: ["bb-app.js"],
+      verifyTokens: ["patcher-app.js"],
     });
 
     expect(result).toMatchObject({ kind: "unverified", reason: "start-time" });

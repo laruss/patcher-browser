@@ -5,11 +5,11 @@ description: Use when asked to work on or track a task in the Tasks plugin, when
 
 # Tasks
 
-Use the `bb tasks` CLI to understand the assigned task, keep its record useful,
+Use the `patcher tasks` CLI to understand the assigned task, keep its record useful,
 and report the outcome where the work is tracked.
 
 Delegation presets are user-defined; Tasks ships with none. Before dispatching
-work, use `bb tasks preset list` and create a preset if the required one does
+work, use `patcher tasks preset list` and create a preset if the required one does
 not already exist. Dispatch requires an existing preset.
 
 ## Work a task
@@ -17,16 +17,16 @@ not already exist. Dispatch requires an existing preset.
 1. Find and read the task before acting:
 
    ```sh
-   bb tasks show ABC-12
+   patcher tasks show ABC-12
    ```
 
    The detail includes the description, status, priority, labels, subtasks,
    comments, attachments, attached worker threads, and the GitHub pull
    requests those threads produced (from environment metadata, with state
    open/draft/merged/closed). Use
-   `bb tasks show ABC-12 --json` when the result will drive commands or code.
+   `patcher tasks show ABC-12 --json` when the result will drive commands or code.
 
-   For project-wide discovery, `bb tasks list` returns at most 100 rows by
+   For project-wide discovery, `patcher tasks list` returns at most 100 rows by
    default. Pass `--limit 1-500`; in JSON, continue with `nextCursor` via the
    same filters/sort and `--cursor <value>`. A task-list mutation makes an old
    cursor stale, so restart without it.
@@ -34,7 +34,7 @@ not already exist. Dispatch requires an existing preset.
 2. Fetch every relevant attachment before making assumptions about it:
 
    ```sh
-   bb tasks attachment get <attachment-id> --out <path>
+   patcher tasks attachment get <attachment-id> --out <path>
    ```
 
 3. Do the work. Post one substantive comment at each meaningful milestone,
@@ -42,7 +42,7 @@ not already exist. Dispatch requires an existing preset.
    or a concrete blocker:
 
    ```sh
-   bb tasks comment ABC-12 --body "Implemented the change; focused validation now passes."
+   patcher tasks comment ABC-12 --body "Implemented the change; focused validation now passes."
    ```
 
    Add `--notify` only when the new comment should be delivered to the thread
@@ -61,8 +61,8 @@ not already exist. Dispatch requires an existing preset.
    task itself:
 
    ```sh
-   bb tasks attachment add ABC-12 --file ./report.md
-   bb tasks attachment add ABC-12 --file ./screenshot.png
+   patcher tasks attachment add ABC-12 --file ./report.md
+   patcher tasks attachment add ABC-12 --file ./screenshot.png
    ```
 
    **Comment-level attachment** — pass a comment ID so the file sits on that
@@ -72,21 +72,21 @@ not already exist. Dispatch requires an existing preset.
 
    ```sh
    comment_id=$(
-     bb tasks comment ABC-12 \
+     patcher tasks comment ABC-12 \
        --body "Screenshot of the failing step." \
        --json | jq -r '.comment.id'
    )
-   bb tasks attachment add "$comment_id" --file ./screenshot.png
-   bb tasks attachment add "$comment_id" --file ./trace.log
+   patcher tasks attachment add "$comment_id" --file ./screenshot.png
+   patcher tasks attachment add "$comment_id" --file ./trace.log
    ```
 
    A task key attaches at task level; a comment ID attaches to that comment.
    Do not pass a task key when the file should hang off a comment. Use
    `--json` when capturing the returned attachment metadata. When creating a
    task that should start with files, pass repeatable `--attach <path>` to
-   `bb tasks create` instead of attaching afterwards. Remove an attachment by
-   id with `bb tasks attachment remove <attachment-id>` (row and blob are
-   deleted together); reuse the ids from `bb tasks attachment list <key>`.
+   `patcher tasks create` instead of attaching afterwards. Remove an attachment by
+   id with `patcher tasks attachment remove <attachment-id>` (row and blob are
+   deleted together); reuse the ids from `patcher tasks attachment list <key>`.
    Referenced attachments are rejected unless the caller explicitly confirms
    content cleanup with `--remove-references`; that flag removes the saved
    description image reference together with the row and blob.
@@ -100,12 +100,12 @@ not already exist. Dispatch requires an existing preset.
 5. When the work is ready for review, update the task:
 
    ```sh
-   bb tasks update ABC-12 --status in_review
+   patcher tasks update ABC-12 --status in_review
    ```
 
-   Change task hierarchy with `bb tasks update ABC-12 --parent ABC-10`, using
+   Change task hierarchy with `patcher tasks update ABC-12 --parent ABC-10`, using
    either a task key or ID for the parent. Promote a subtask to the top level
-   with `bb tasks update ABC-12 --no-parent`; the two parent flags cannot be
+   with `patcher tasks update ABC-12 --no-parent`; the two parent flags cannot be
    combined.
 
    If the work cannot proceed, leave the status accurate and comment with the
@@ -116,7 +116,7 @@ not already exist. Dispatch requires an existing preset.
    delegated from Tasks, attach it yourself so the task shows the active work:
 
    ```sh
-   bb tasks attach ABC-12
+   patcher tasks attach ABC-12
    ```
 
 ## Link tasks in responses

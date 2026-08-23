@@ -3,7 +3,7 @@ import type {
   PluginHomepageSectionProps,
   PluginMessageDirectiveProps,
   PluginNavPanelProps,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import {
   getPluginSlotSnapshot,
   removePluginSlotRegistrations,

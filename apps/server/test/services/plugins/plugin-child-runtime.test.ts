@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { PLUGIN_PERMISSIONS } from "@bb/domain";
-import type { JsonValue } from "@bb/domain";
+import { PLUGIN_PERMISSIONS } from "@patcher/domain";
+import type { JsonValue } from "@patcher/domain";
 import {
   createPluginChannel,
   type PluginChannel,
@@ -26,8 +26,8 @@ import {
 /**
  * A plugin running in a plugin process, asked to do the things a plugin does.
  *
- * The "host" here is a test double for the *server*, not a second `bb` — the
- * `bb` under test is the real `createPluginApi`, which is the whole point of
+ * The "host" here is a test double for the *server*, not a second `patcher` — the
+ * `patcher` under test is the real `createPluginApi`, which is the whole point of
  * the design: there is one implementation of it and this exercises that one.
  */
 
@@ -107,7 +107,7 @@ describe("a plugin in its own process", () => {
   const children: ChildProcess[] = [];
 
   async function dataDir(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), "bb-plugin-child-"));
+    const dir = await mkdtemp(join(tmpdir(), "patcher-plugin-child-"));
     tempDirs.push(dir);
     return dir;
   }
@@ -139,7 +139,7 @@ describe("a plugin in its own process", () => {
     expect(snapshot.httpRoutes).toEqual([]);
   });
 
-  // The factory's `bb.log.info` and `bb.storage.kv.set` are the two directions
+  // The factory's `patcher.log.info` and `patcher.storage.kv.set` are the two directions
   // of the plugin→host half: one that expects nothing back and one that does.
   it("runs the plugin's host calls over the channel", async () => {
     const { host, bootstrap } = startPluginProcess({
@@ -292,8 +292,8 @@ describe("a plugin in its own process", () => {
     let rows = -1;
     const { host, bootstrap } = startPluginProcess({
       dataDir: dir,
-      loadFactory: async () => (bb) => {
-        const storage = bb.storage as unknown as { database(): unknown };
+      loadFactory: async () => (patcher) => {
+        const storage = patcher.storage as unknown as { database(): unknown };
         const db = storage.database() as {
           exec(sql: string): void;
           prepare(sql: string): { get(): { n: number } };
@@ -322,7 +322,7 @@ describe("a plugin in its own process", () => {
       {
         // `--conditions=source` is the repo idiom for running a workspace TS
         // entry (see agent-runtime's bridge-path.ts): without it the child
-        // resolves @bb/sdk's *published* entry, which lacks the Node-only
+        // resolves @patcher/sdk's *published* entry, which lacks the Node-only
         // exports this file needs. A packaged server forks a built entry and
         // needs neither flag.
         execArgv: [
@@ -392,7 +392,7 @@ describe("a plugin in its own process", () => {
     ).resolves.toBe("ДАЛЕКО");
   }, 30_000);
 
-  // `@bb/sdk` is not imported until a plugin asks for `bb.sdk`: it builds the
+  // `@patcher/sdk` is not imported until a plugin asks for `patcher.sdk`: it builds the
   // whole public API surface at import time and costs the process ~100MB,
   // which most plugins never use. Deferring it is only safe if the deferred
   // load still produces a working SDK, and only a real process can say —

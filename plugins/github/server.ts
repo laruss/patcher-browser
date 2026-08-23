@@ -1,14 +1,14 @@
-// bb-plugin-github — GitHub issues & pull requests inside BB.
+// patcher-plugin-github — GitHub issues & pull requests inside Patcher.
 //
 // Auth rides on the GitHub CLI: if `gh auth status` passes, the plugin
-// works. Repos are discovered from BB project sources (each local checkout's
+// works. Repos are discovered from Patcher project sources (each local checkout's
 // `origin` remote) plus an optional extraRepos setting. A background service
 // syncs open + recently-closed issues/PRs into the plugin's SQLite cache;
 // the frontend panel and mention providers read that cache, while
 // mutations (comment, create, close/reopen, assign, label) and detail views go
 // straight through `gh`.
 import { execFile } from "node:child_process";
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 const SYNC_INTERVAL_MS = 5 * 60_000;
@@ -19,7 +19,7 @@ const CLOSED_PR_PAGE = 30;
 
 const GH_HINT =
   "Install the GitHub CLI (https://cli.github.com) and run `gh auth login`, " +
-  "then `bb plugin reload github`.";
+  "then `patcher plugin reload github`.";
 
 const repoNameSchema = z.string().regex(/^[\w.-]+\/[\w.-]+$/);
 const itemNumberSchema = z.number().int().positive();
@@ -295,7 +295,7 @@ interface ThreadLink {
   createdAt: string;
 }
 
-interface BbProjectSummary {
+interface PatcherProjectSummary {
   id: string;
   sources?: Array<{ type: string; path: string }>;
 }
@@ -390,7 +390,11 @@ export function validateGithubCliArgs(argv: string[]): string | null {
   return null;
 }
 
-function toItems(raw: string, repo: string, kind: "issue" | "pr"): CachedItem[] {
+function toItems(
+  raw: string,
+  repo: string,
+  kind: "issue" | "pr",
+): CachedItem[] {
   const entries = JSON.parse(raw) as GhListEntry[];
   return entries
     .filter(
@@ -405,7 +409,9 @@ function toItems(raw: string, repo: string, kind: "issue" | "pr"): CachedItem[] 
       state: String(entry.state ?? "OPEN"),
       author: String(entry.author?.login ?? ""),
       labels: (entry.labels ?? []).map((label) => String(label?.name ?? "")),
-      assignees: (entry.assignees ?? []).map((user) => String(user?.login ?? "")),
+      assignees: (entry.assignees ?? []).map((user) =>
+        String(user?.login ?? ""),
+      ),
       url: String(entry.url ?? ""),
       body: typeof entry.body === "string" ? entry.body : "",
       updatedAt: String(entry.updatedAt ?? ""),
@@ -418,7 +424,8 @@ export async function fetchRepoItems(
   gh: GhRunner,
   repo: string,
 ): Promise<CachedItem[]> {
-  const fields = "number,title,state,author,labels,assignees,url,body,updatedAt";
+  const fields =
+    "number,title,state,author,labels,assignees,url,body,updatedAt";
   // A repo with GitHub Issues disabled must not abort the whole sync —
   // PRs still exist and should be cached.
   const ghIssuesTolerant = (args: string[]) =>
@@ -428,20 +435,52 @@ export async function fetchRepoItems(
     });
   const [openIssues, closedIssues, openPrs, closedPrs] = await Promise.all([
     ghIssuesTolerant([
-      "issue", "list", "-R", repo, "--state", "open",
-      "--limit", String(ISSUE_PAGE), "--json", fields,
+      "issue",
+      "list",
+      "-R",
+      repo,
+      "--state",
+      "open",
+      "--limit",
+      String(ISSUE_PAGE),
+      "--json",
+      fields,
     ]),
     ghIssuesTolerant([
-      "issue", "list", "-R", repo, "--state", "closed",
-      "--limit", String(CLOSED_ISSUE_PAGE), "--json", fields,
+      "issue",
+      "list",
+      "-R",
+      repo,
+      "--state",
+      "closed",
+      "--limit",
+      String(CLOSED_ISSUE_PAGE),
+      "--json",
+      fields,
     ]),
     gh([
-      "pr", "list", "-R", repo, "--state", "open",
-      "--limit", String(PR_PAGE), "--json", fields,
+      "pr",
+      "list",
+      "-R",
+      repo,
+      "--state",
+      "open",
+      "--limit",
+      String(PR_PAGE),
+      "--json",
+      fields,
     ]),
     gh([
-      "pr", "list", "-R", repo, "--state", "closed",
-      "--limit", String(CLOSED_PR_PAGE), "--json", fields,
+      "pr",
+      "list",
+      "-R",
+      repo,
+      "--state",
+      "closed",
+      "--limit",
+      String(CLOSED_PR_PAGE),
+      "--json",
+      fields,
     ]),
   ]);
   return [
@@ -452,20 +491,20 @@ export async function fetchRepoItems(
   ];
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  const settings = bb.settings.define({
+export default async function plugin(patcher: PatcherPluginApi) {
+  const settings = patcher.settings.define({
     extraRepos: {
       type: "string",
       label: "Extra repositories",
       description:
-        'Comma-separated "owner/repo" list to track in addition to repos discovered from BB projects.',
+        'Comma-separated "owner/repo" list to track in addition to repos discovered from Patcher projects.',
       default: "",
     },
     defaultProject: {
       type: "project",
-      label: "Default BB project",
+      label: "Default Patcher project",
       description:
-        "Where agent threads spawn for repos that are not attached to a BB project.",
+        "Where agent threads spawn for repos that are not attached to a Patcher project.",
     },
   });
 
@@ -508,17 +547,22 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   // ------------------------------------------------------------------
-  // Repo discovery: BB project sources → git origin → owner/repo.
+  // Repo discovery: Patcher project sources → git origin → owner/repo.
   // ------------------------------------------------------------------
   let repoCache: { repos: RepoInfo[]; fetchedAt: number } | null = null;
 
   async function discoverRepos(force = false): Promise<RepoInfo[]> {
-    if (!force && repoCache !== null && Date.now() - repoCache.fetchedAt < 60_000) {
+    if (
+      !force &&
+      repoCache !== null &&
+      Date.now() - repoCache.fetchedAt < 60_000
+    ) {
       return repoCache.repos;
     }
     const byRepo = new Map<string, RepoInfo>();
     try {
-      const projects = (await bb.sdk.projects.list()) as unknown as BbProjectSummary[];
+      const projects =
+        (await patcher.sdk.projects.list()) as unknown as PatcherProjectSummary[];
       for (const project of projects) {
         for (const source of project.sources ?? []) {
           if (source.type !== "local_path") continue;
@@ -538,7 +582,7 @@ export default async function plugin(bb: BbPluginApi) {
         }
       }
     } catch (error) {
-      bb.log.warn(
+      patcher.log.warn(
         `project discovery failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -556,8 +600,8 @@ export default async function plugin(bb: BbPluginApi) {
   // ------------------------------------------------------------------
   // SQLite cache of open issues + PRs across tracked repos.
   // ------------------------------------------------------------------
-  const db = bb.storage.database();
-  bb.storage.migrate(db, [
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, [
     `CREATE TABLE IF NOT EXISTS items (
        repo TEXT NOT NULL,
        number INTEGER NOT NULL,
@@ -630,7 +674,9 @@ export default async function plugin(bb: BbPluginApi) {
     }
     const query = options.query?.trim() ?? "";
     if (query.length > 0) {
-      clauses.push("(title LIKE ? OR CAST(number AS TEXT) LIKE ? OR repo LIKE ?)");
+      clauses.push(
+        "(title LIKE ? OR CAST(number AS TEXT) LIKE ? OR repo LIKE ?)",
+      );
       const like = `%${query.replace(/^#/, "")}%`;
       params.push(like, like, like);
     }
@@ -661,9 +707,17 @@ export default async function plugin(bb: BbPluginApi) {
       db.prepare("DELETE FROM items WHERE repo = ?").run(repo);
       for (const item of items) {
         insert.run(
-          item.repo, item.number, item.kind, item.title, item.state,
-          item.author, JSON.stringify(item.labels), JSON.stringify(item.assignees),
-          item.url, item.body, item.updatedAt,
+          item.repo,
+          item.number,
+          item.kind,
+          item.title,
+          item.state,
+          item.author,
+          JSON.stringify(item.labels),
+          JSON.stringify(item.assignees),
+          item.url,
+          item.body,
+          item.updatedAt,
         );
       }
     })();
@@ -678,25 +732,34 @@ export default async function plugin(bb: BbPluginApi) {
     patch: { state?: string; assignees?: string[]; labels?: string[] },
   ): void {
     if (patch.state !== undefined) {
-      db.prepare("UPDATE items SET state = ? WHERE repo = ? AND kind = ? AND number = ?")
-        .run(patch.state, repo, kind, number);
+      db.prepare(
+        "UPDATE items SET state = ? WHERE repo = ? AND kind = ? AND number = ?",
+      ).run(patch.state, repo, kind, number);
     }
     if (patch.assignees !== undefined) {
-      db.prepare("UPDATE items SET assignees = ? WHERE repo = ? AND kind = ? AND number = ?")
-        .run(JSON.stringify(patch.assignees), repo, kind, number);
+      db.prepare(
+        "UPDATE items SET assignees = ? WHERE repo = ? AND kind = ? AND number = ?",
+      ).run(JSON.stringify(patch.assignees), repo, kind, number);
     }
     if (patch.labels !== undefined) {
-      db.prepare("UPDATE items SET labels = ? WHERE repo = ? AND kind = ? AND number = ?")
-        .run(JSON.stringify(patch.labels), repo, kind, number);
+      db.prepare(
+        "UPDATE items SET labels = ? WHERE repo = ? AND kind = ? AND number = ?",
+      ).run(JSON.stringify(patch.labels), repo, kind, number);
     }
-    bb.realtime.publish("data-changed", {});
+    patcher.realtime.publish("data-changed", {});
   }
 
-  async function syncAll(force = false): Promise<{ repos: number; items: number }> {
+  async function syncAll(
+    force = false,
+  ): Promise<{ repos: number; items: number }> {
     await checkAuth();
     const repos = await discoverRepos(force);
     const before = JSON.stringify(
-      db.prepare("SELECT repo, kind, number, updated_at FROM items ORDER BY repo, kind, number").all(),
+      db
+        .prepare(
+          "SELECT repo, kind, number, updated_at FROM items ORDER BY repo, kind, number",
+        )
+        .all(),
     );
     let total = 0;
     for (const { repo } of repos) {
@@ -705,30 +768,34 @@ export default async function plugin(bb: BbPluginApi) {
         replaceRepoRows(repo, items);
         total += items.length;
       } catch (error) {
-        bb.log.warn(
+        patcher.log.warn(
           `sync failed for ${repo}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
     const after = JSON.stringify(
-      db.prepare("SELECT repo, kind, number, updated_at FROM items ORDER BY repo, kind, number").all(),
+      db
+        .prepare(
+          "SELECT repo, kind, number, updated_at FROM items ORDER BY repo, kind, number",
+        )
+        .all(),
     );
-    await bb.storage.kv.set("sync-cursor", {
+    await patcher.storage.kv.set("sync-cursor", {
       lastSyncedAt: new Date().toISOString(),
       repos: repos.length,
       items: total,
     });
     if (before !== after) {
-      bb.realtime.publish("data-changed", { items: total });
+      patcher.realtime.publish("data-changed", { items: total });
     }
-    bb.log.info(`synced ${total} item(s) across ${repos.length} repo(s)`);
+    patcher.log.info(`synced ${total} item(s) across ${repos.length} repo(s)`);
     return { repos: repos.length, items: total };
   }
 
   // Initial sync + 5-minute refresh loop. NeedsConfigurationError from a
   // missing/unauthenticated gh flips the plugin to needs-configuration
   // instead of crash-looping.
-  bb.background.service("sync", {
+  patcher.background.service("sync", {
     async start(signal) {
       while (!signal.aborted) {
         await syncAll();
@@ -752,7 +819,7 @@ export default async function plugin(bb: BbPluginApi) {
   try {
     await checkAuth();
   } catch (error) {
-    bb.status.needsConfiguration(
+    patcher.status.needsConfiguration(
       error instanceof Error ? error.message : String(error),
     );
   }
@@ -767,16 +834,16 @@ export default async function plugin(bb: BbPluginApi) {
 
   async function addLink(link: ThreadLink): Promise<void> {
     const key = linkKey(link.kind, link.repo, link.number);
-    const existing = (await bb.storage.kv.get<ThreadLink[]>(key)) ?? [];
-    await bb.storage.kv.set(key, [...existing, link]);
-    bb.realtime.publish("links-changed", { key });
+    const existing = (await patcher.storage.kv.get<ThreadLink[]>(key)) ?? [];
+    await patcher.storage.kv.set(key, [...existing, link]);
+    patcher.realtime.publish("links-changed", { key });
   }
 
   async function listAllLinks(): Promise<Record<string, ThreadLink[]>> {
-    const keys = await bb.storage.kv.list("link:");
+    const keys = await patcher.storage.kv.list("link:");
     const result: Record<string, ThreadLink[]> = {};
     for (const key of keys) {
-      const links = await bb.storage.kv.get<ThreadLink[]>(key);
+      const links = await patcher.storage.kv.get<ThreadLink[]>(key);
       if (links !== undefined && links.length > 0) {
         result[key.slice("link:".length)] = links;
       }
@@ -794,7 +861,7 @@ export default async function plugin(bb: BbPluginApi) {
     const { defaultProject } = await settings.get();
     if (defaultProject) return defaultProject;
     throw new Error(
-      `No BB project is attached to ${repo}. Create a project whose checkout has ` +
+      `No Patcher project is attached to ${repo}. Create a project whose checkout has ` +
         "that origin remote, or set the defaultProject plugin setting.",
     );
   }
@@ -834,7 +901,7 @@ export default async function plugin(bb: BbPluginApi) {
               "Summarize your findings with file/line references. Do not push " +
               "changes or post to GitHub unless asked.",
           ].join("\n");
-    const thread = (await bb.sdk.threads.spawn({
+    const thread = (await patcher.sdk.threads.spawn({
       projectId,
       environment: { type: "project-default" },
       title: `${ref}: ${title}`.slice(0, 120),
@@ -847,7 +914,7 @@ export default async function plugin(bb: BbPluginApi) {
       threadId: thread.id,
       createdAt: new Date().toISOString(),
     });
-    bb.log.info(`spawned thread ${thread.id} for ${kind} ${ref}`);
+    patcher.log.info(`spawned thread ${thread.id} for ${kind} ${ref}`);
     return { threadId: thread.id };
   }
 
@@ -858,25 +925,38 @@ export default async function plugin(bb: BbPluginApi) {
   let viewerCache: { login: string; fetchedAt: number } | null = null;
 
   async function getViewer(): Promise<string> {
-    if (viewerCache !== null && Date.now() - viewerCache.fetchedAt < 60 * 60_000) {
+    if (
+      viewerCache !== null &&
+      Date.now() - viewerCache.fetchedAt < 60 * 60_000
+    ) {
       return viewerCache.login;
     }
     const raw = await gh(["api", "user"], 15_000);
     const login = String((JSON.parse(raw) as { login?: unknown })?.login ?? "");
-    if (login.length === 0) throw new Error("could not resolve the gh viewer login");
+    if (login.length === 0)
+      throw new Error("could not resolve the gh viewer login");
     viewerCache = { login, fetchedAt: Date.now() };
     return login;
   }
 
-  const assignableCache = new Map<string, { users: string[]; fetchedAt: number }>();
-  const labelsCache = new Map<string, { labels: string[]; fetchedAt: number }>();
+  const assignableCache = new Map<
+    string,
+    { users: string[]; fetchedAt: number }
+  >();
+  const labelsCache = new Map<
+    string,
+    { labels: string[]; fetchedAt: number }
+  >();
 
   async function getAssignableUsers(repo: string): Promise<string[]> {
     const cached = assignableCache.get(repo);
     if (cached !== undefined && Date.now() - cached.fetchedAt < 10 * 60_000) {
       return cached.users;
     }
-    const raw = await gh(["api", `repos/${repo}/assignees?per_page=100`], 15_000);
+    const raw = await gh(
+      ["api", `repos/${repo}/assignees?per_page=100`],
+      15_000,
+    );
     const entries = JSON.parse(raw) as Array<{ login?: unknown }>;
     const users = entries
       .map((entry) => String(entry?.login ?? ""))
@@ -904,10 +984,10 @@ export default async function plugin(bb: BbPluginApi) {
   // ------------------------------------------------------------------
   // rpc — the frontend data plane.
   // ------------------------------------------------------------------
-  bb.rpc.register(githubRpcContract, {
+  patcher.rpc.register(githubRpcContract, {
     /** () → auth/sync status for the panel banner. */
     async status() {
-      const cursor = await bb.storage.kv.get<{
+      const cursor = await patcher.storage.kv.get<{
         lastSyncedAt: string;
         repos: number;
         items: number;
@@ -957,7 +1037,11 @@ export default async function plugin(bb: BbPluginApi) {
     /** { repo, number, state: "open"|"closed" } → close or reopen an issue. */
     async setIssueState({ repo, number, state }): Promise<{ ok: true }> {
       await gh([
-        "issue", state === "closed" ? "close" : "reopen", String(number), "-R", repo,
+        "issue",
+        state === "closed" ? "close" : "reopen",
+        String(number),
+        "-R",
+        repo,
       ]);
       patchCachedItem("issue", repo, number, {
         state: state === "closed" ? "CLOSED" : "OPEN",
@@ -975,7 +1059,8 @@ export default async function plugin(bb: BbPluginApi) {
       const current = getCachedItem("issue", repo, number)?.assignees ?? [];
       const add = next.filter((login) => !current.includes(login));
       const remove = current.filter((login) => !next.includes(login));
-      if (add.length === 0 && remove.length === 0) return { ok: true, assignees: next };
+      if (add.length === 0 && remove.length === 0)
+        return { ok: true, assignees: next };
       const args = ["issue", "edit", String(number), "-R", repo];
       if (add.length > 0) args.push("--add-assignee", add.join(","));
       if (remove.length > 0) args.push("--remove-assignee", remove.join(","));
@@ -993,9 +1078,10 @@ export default async function plugin(bb: BbPluginApi) {
       const next = [
         ...new Set(labels.map((label) => label.trim()).filter(Boolean)),
       ];
-      const currentRaw = await gh([
-        "issue", "view", String(number), "-R", repo, "--json", "labels",
-      ], 15_000);
+      const currentRaw = await gh(
+        ["issue", "view", String(number), "-R", repo, "--json", "labels"],
+        15_000,
+      );
       const currentDetail = JSON.parse(currentRaw) as {
         labels?: Array<{ name?: unknown }>;
       };
@@ -1004,7 +1090,8 @@ export default async function plugin(bb: BbPluginApi) {
         .filter((label) => label.length > 0);
       const add = next.filter((label) => !current.includes(label));
       const remove = current.filter((label) => !next.includes(label));
-      if (add.length === 0 && remove.length === 0) return { ok: true, labels: next };
+      if (add.length === 0 && remove.length === 0)
+        return { ok: true, labels: next };
       const args = ["issue", "edit", String(number), "-R", repo];
       for (const label of add) args.push("--add-label", label);
       for (const label of remove) args.push("--remove-label", label);
@@ -1016,8 +1103,13 @@ export default async function plugin(bb: BbPluginApi) {
     /** { repo, number } → live issue detail incl. comments. */
     async getIssue({ repo, number }) {
       const raw = await gh([
-        "issue", "view", String(number), "-R", repo,
-        "--json", "number,title,body,state,author,createdAt,updatedAt,labels,assignees,url,comments",
+        "issue",
+        "view",
+        String(number),
+        "-R",
+        repo,
+        "--json",
+        "number,title,body,state,author,createdAt,updatedAt,labels,assignees,url,comments",
       ]);
       const detail = JSON.parse(raw) as {
         comments?: Array<{
@@ -1034,8 +1126,12 @@ export default async function plugin(bb: BbPluginApi) {
           state: String(detail.state ?? ""),
           author: String(detail.author?.login ?? ""),
           body: typeof detail.body === "string" ? detail.body : "",
-          labels: (detail.labels ?? []).map((label) => String(label?.name ?? "")),
-          assignees: (detail.assignees ?? []).map((user) => String(user?.login ?? "")),
+          labels: (detail.labels ?? []).map((label) =>
+            String(label?.name ?? ""),
+          ),
+          assignees: (detail.assignees ?? []).map((user) =>
+            String(user?.login ?? ""),
+          ),
           url: String(detail.url ?? ""),
           updatedAt: String(detail.updatedAt ?? ""),
           comments: (detail.comments ?? []).map((comment) => ({
@@ -1059,13 +1155,26 @@ export default async function plugin(bb: BbPluginApi) {
         "changedFiles,reviewDecision,mergeStateStatus,statusCheckRollup," +
         "comments,reviews,reviewRequests";
       const [viewRaw, reviewCommentsRaw, filesRaw] = await Promise.all([
-        gh(["pr", "view", String(number), "-R", repo, "--json", prFields], 30_000),
         gh(
-          ["api", "--paginate", "--slurp", `repos/${repo}/pulls/${number}/comments?per_page=100`],
+          ["pr", "view", String(number), "-R", repo, "--json", prFields],
           30_000,
         ),
         gh(
-          ["api", "--paginate", "--slurp", `repos/${repo}/pulls/${number}/files?per_page=100`],
+          [
+            "api",
+            "--paginate",
+            "--slurp",
+            `repos/${repo}/pulls/${number}/comments?per_page=100`,
+          ],
+          30_000,
+        ),
+        gh(
+          [
+            "api",
+            "--paginate",
+            "--slurp",
+            `repos/${repo}/pulls/${number}/files?per_page=100`,
+          ],
           30_000,
         ),
       ]);
@@ -1101,14 +1210,20 @@ export default async function plugin(bb: BbPluginApi) {
           body?: unknown;
           submittedAt?: unknown;
         }>;
-        reviewRequests?: Array<{ login?: unknown; name?: unknown; slug?: unknown }>;
+        reviewRequests?: Array<{
+          login?: unknown;
+          name?: unknown;
+          slug?: unknown;
+        }>;
       }
       const view = JSON.parse(viewRaw) as GhPullView;
 
       // CheckRun rows carry status/conclusion; classic StatusContext rows a
       // single state. Normalize both to one traffic-light value.
       const checks = (view.statusCheckRollup ?? []).map((entry) => {
-        const conclusion = String(entry.conclusion ?? entry.state ?? "").toUpperCase();
+        const conclusion = String(
+          entry.conclusion ?? entry.state ?? "",
+        ).toUpperCase();
         const running =
           entry.conclusion === "" ||
           ["IN_PROGRESS", "QUEUED", "PENDING", "EXPECTED", "WAITING"].includes(
@@ -1117,7 +1232,9 @@ export default async function plugin(bb: BbPluginApi) {
         const status: "success" | "failure" | "pending" | "neutral" =
           conclusion === "SUCCESS"
             ? "success"
-            : conclusion === "FAILURE" || conclusion === "ERROR" || conclusion === "TIMED_OUT"
+            : conclusion === "FAILURE" ||
+                conclusion === "ERROR" ||
+                conclusion === "TIMED_OUT"
               ? "failure"
               : running
                 ? "pending"
@@ -1140,7 +1257,9 @@ export default async function plugin(bb: BbPluginApi) {
         created_at?: unknown;
         user?: { login?: unknown };
       }
-      const reviewComments = parsePaginatedGhApi(reviewCommentsRaw) as GhReviewComment[];
+      const reviewComments = parsePaginatedGhApi(
+        reviewCommentsRaw,
+      ) as GhReviewComment[];
       interface ReviewThread {
         path: string;
         line: number | null;
@@ -1158,7 +1277,9 @@ export default async function plugin(bb: BbPluginApi) {
           body: typeof comment.body === "string" ? comment.body : "",
           createdAt: String(comment.created_at ?? ""),
         };
-        const rootThread = Number.isFinite(replyTo) ? threadByRootId.get(replyTo) : undefined;
+        const rootThread = Number.isFinite(replyTo)
+          ? threadByRootId.get(replyTo)
+          : undefined;
         if (rootThread !== undefined) {
           rootThread.comments.push(entry);
           if (Number.isFinite(id)) threadByRootId.set(id, rootThread);
@@ -1168,7 +1289,8 @@ export default async function plugin(bb: BbPluginApi) {
         const thread: ReviewThread = {
           path: String(comment.path ?? ""),
           line: Number.isFinite(line) ? line : null,
-          diffHunk: typeof comment.diff_hunk === "string" ? comment.diff_hunk : "",
+          diffHunk:
+            typeof comment.diff_hunk === "string" ? comment.diff_hunk : "",
           comments: [entry],
         };
         if (Number.isFinite(id)) threadByRootId.set(id, thread);
@@ -1182,26 +1304,29 @@ export default async function plugin(bb: BbPluginApi) {
         deletions?: unknown;
         patch?: unknown;
       }
-      const files = (parsePaginatedGhApi(filesRaw) as GhPullFile[]).map((file) => {
-        const patch = typeof file.patch === "string" ? file.patch : null;
-        return {
-          path: String(file.filename ?? ""),
-          status: String(file.status ?? "modified"),
-          additions: Number(file.additions ?? 0),
-          deletions: Number(file.deletions ?? 0),
-          // Very large patches stay on GitHub — the panel shows a link.
-          patch: patch !== null && patch.length <= 20_000 ? patch : null,
-        };
-      });
+      const files = (parsePaginatedGhApi(filesRaw) as GhPullFile[]).map(
+        (file) => {
+          const patch = typeof file.patch === "string" ? file.patch : null;
+          return {
+            path: String(file.filename ?? ""),
+            status: String(file.status ?? "modified"),
+            additions: Number(file.additions ?? 0),
+            deletions: Number(file.deletions ?? 0),
+            // Very large patches stay on GitHub — the panel shows a link.
+            patch: patch !== null && patch.length <= 20_000 ? patch : null,
+          };
+        },
+      );
 
       return {
         pull: {
           repo,
           number,
           title: String(view.title ?? ""),
-          state: view.isDraft === true && String(view.state ?? "") === "OPEN"
-            ? "DRAFT"
-            : String(view.state ?? ""),
+          state:
+            view.isDraft === true && String(view.state ?? "") === "OPEN"
+              ? "DRAFT"
+              : String(view.state ?? ""),
           author: String(view.author?.login ?? ""),
           body: typeof view.body === "string" ? view.body : "",
           url: String(view.url ?? ""),
@@ -1213,11 +1338,15 @@ export default async function plugin(bb: BbPluginApi) {
           deletions: Number(view.deletions ?? 0),
           changedFiles: Number(view.changedFiles ?? files.length),
           labels: (view.labels ?? []).map((label) => String(label?.name ?? "")),
-          assignees: (view.assignees ?? []).map((user) => String(user?.login ?? "")),
+          assignees: (view.assignees ?? []).map((user) =>
+            String(user?.login ?? ""),
+          ),
           reviewDecision: String(view.reviewDecision ?? ""),
           mergeStateStatus: String(view.mergeStateStatus ?? ""),
           reviewRequests: (view.reviewRequests ?? [])
-            .map((entry) => String(entry.login ?? entry.name ?? entry.slug ?? ""))
+            .map((entry) =>
+              String(entry.login ?? entry.name ?? entry.slug ?? ""),
+            )
             .filter((name) => name.length > 0),
           checks,
           comments: (view.comments ?? []).map((comment) => ({
@@ -1243,16 +1372,18 @@ export default async function plugin(bb: BbPluginApi) {
       return { ok: true };
     },
 
-    /** { threadId } → the PR most relevant to a BB thread: the thread's own
+    /** { threadId } → the PR most relevant to a Patcher thread: the thread's own
         environment PR (the branch the agent pushed) first, else a PR this
         thread was spawned to review. Null when neither exists. */
     async pullForThread({ threadId }) {
       try {
-        const thread = (await bb.sdk.threads.get({ threadId })) as unknown as {
+        const thread = (await patcher.sdk.threads.get({
+          threadId,
+        })) as unknown as {
           environmentId?: string | null;
         };
         if (thread?.environmentId) {
-          const result = await bb.sdk.environments.pullRequest({
+          const result = await patcher.sdk.environments.pullRequest({
             environmentId: thread.environmentId,
           });
           const url =
@@ -1281,7 +1412,15 @@ export default async function plugin(bb: BbPluginApi) {
 
     /** { repo, number, body } → add an issue comment. */
     async commentIssue({ repo, number, body }): Promise<{ ok: true }> {
-      await gh(["issue", "comment", String(number), "-R", repo, "--body", body]);
+      await gh([
+        "issue",
+        "comment",
+        String(number),
+        "-R",
+        repo,
+        "--body",
+        body,
+      ]);
       return { ok: true };
     },
 
@@ -1289,14 +1428,20 @@ export default async function plugin(bb: BbPluginApi) {
     async createIssue(input) {
       const body = input.body ?? "";
       const stdout = await gh([
-        "issue", "create", "-R", input.repo,
-        "--title", input.title, "--body", body,
+        "issue",
+        "create",
+        "-R",
+        input.repo,
+        "--title",
+        input.title,
+        "--body",
+        body,
       ]);
       const match = stdout.trim().match(/\/issues\/(\d+)\s*$/);
       const number = match !== null ? Number(match[1]) : null;
       try {
         replaceRepoRows(input.repo, await fetchRepoItems(gh, input.repo));
-        bb.realtime.publish("data-changed", {});
+        patcher.realtime.publish("data-changed", {});
       } catch {
         // creation succeeded; the next scheduled sync will pick it up
       }
@@ -1349,8 +1494,24 @@ export default async function plugin(bb: BbPluginApi) {
     try {
       const raw = await gh(
         kind === "pr"
-          ? ["pr", "view", String(number), "-R", repo, "--json", "number,title,body,state,author,url"]
-          : ["issue", "view", String(number), "-R", repo, "--json", "number,title,body,state,author,url"],
+          ? [
+              "pr",
+              "view",
+              String(number),
+              "-R",
+              repo,
+              "--json",
+              "number,title,body,state,author,url",
+            ]
+          : [
+              "issue",
+              "view",
+              String(number),
+              "-R",
+              repo,
+              "--json",
+              "number,title,body,state,author,url",
+            ],
         15_000,
       );
       const detail = JSON.parse(raw) as GhListEntry;
@@ -1370,7 +1531,8 @@ export default async function plugin(bb: BbPluginApi) {
       };
     } catch (error) {
       const cached = getCachedItem(kind, repo, number);
-      if (cached === null) throw error instanceof Error ? error : new Error(String(error));
+      if (cached === null)
+        throw error instanceof Error ? error : new Error(String(error));
       return {
         context: [
           `# GitHub ${noun} ${repo}#${number}: ${cached.title}`,
@@ -1384,7 +1546,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
-  bb.ui.registerMentionProvider({
+  patcher.ui.registerMentionProvider({
     id: "issue",
     label: "GitHub issues",
     triggers: ["@", "#"],
@@ -1396,7 +1558,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.ui.registerMentionProvider({
+  patcher.ui.registerMentionProvider({
     id: "pr",
     label: "GitHub pull requests",
     triggers: ["@", "#"],
@@ -1409,24 +1571,40 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   // ------------------------------------------------------------------
-  // CLI: `bb github …` for agents and terminals.
+  // CLI: `patcher github …` for agents and terminals.
   // ------------------------------------------------------------------
   const USAGE = [
     "Usage:",
-    "  bb github repos              List tracked repositories",
-    "  bb github issues [repo]      List cached open issues",
-    "  bb github prs [repo]         List cached open pull requests",
-    "  bb github sync               Refresh the cache from GitHub now",
+    "  patcher github repos              List tracked repositories",
+    "  patcher github issues [repo]      List cached open issues",
+    "  patcher github prs [repo]         List cached open pull requests",
+    "  patcher github sync               Refresh the cache from GitHub now",
   ].join("\n");
 
-  bb.cli.register({
+  patcher.cli.register({
     name: "github",
     summary: "Browse tracked GitHub repos, issues, and PRs",
     commands: [
-      { name: "repos", summary: "List tracked repositories", usage: "bb github repos" },
-      { name: "issues", summary: "List cached open issues", usage: "bb github issues [owner/repo]" },
-      { name: "prs", summary: "List cached open pull requests", usage: "bb github prs [owner/repo]" },
-      { name: "sync", summary: "Refresh the cache from GitHub now", usage: "bb github sync" },
+      {
+        name: "repos",
+        summary: "List tracked repositories",
+        usage: "patcher github repos",
+      },
+      {
+        name: "issues",
+        summary: "List cached open issues",
+        usage: "patcher github issues [owner/repo]",
+      },
+      {
+        name: "prs",
+        summary: "List cached open pull requests",
+        usage: "patcher github prs [owner/repo]",
+      },
+      {
+        name: "sync",
+        summary: "Refresh the cache from GitHub now",
+        usage: "patcher github sync",
+      },
     ],
     async run(argv) {
       const [sub, arg] = argv;
@@ -1441,12 +1619,19 @@ export default async function plugin(bb: BbPluginApi) {
         if (sub === "repos") {
           const repos = await discoverRepos(true);
           if (repos.length === 0) {
-            return { exitCode: 0, stdout: "No tracked repos. Attach a project with a GitHub remote or set extraRepos." };
+            return {
+              exitCode: 0,
+              stdout:
+                "No tracked repos. Attach a project with a GitHub remote or set extraRepos.",
+            };
           }
           return {
             exitCode: 0,
             stdout: repos
-              .map((entry) => `${entry.repo}${entry.projectId !== null ? `\t(${entry.projectId})` : ""}`)
+              .map(
+                (entry) =>
+                  `${entry.repo}${entry.projectId !== null ? `\t(${entry.projectId})` : ""}`,
+              )
               .join("\n"),
           };
         }
@@ -1457,20 +1642,32 @@ export default async function plugin(bb: BbPluginApi) {
             state: "open",
           });
           if (items.length === 0) {
-            return { exitCode: 0, stdout: "Nothing cached. Run `bb github sync` first." };
+            return {
+              exitCode: 0,
+              stdout: "Nothing cached. Run `patcher github sync` first.",
+            };
           }
           return {
             exitCode: 0,
             stdout: items
-              .map((item) => `${item.repo}#${item.number}\t[${item.state}]\t${item.title}`)
+              .map(
+                (item) =>
+                  `${item.repo}#${item.number}\t[${item.state}]\t${item.title}`,
+              )
               .join("\n"),
           };
         }
         if (sub === "sync") {
           const { repos, items } = await syncAll(true);
-          return { exitCode: 0, stdout: `Synced ${items} item(s) across ${repos} repo(s).` };
+          return {
+            exitCode: 0,
+            stdout: `Synced ${items} item(s) across ${repos} repo(s).`,
+          };
         }
-        return { exitCode: 1, stderr: `Unknown subcommand "${sub}".\n${USAGE}` };
+        return {
+          exitCode: 1,
+          stderr: `Unknown subcommand "${sub}".\n${USAGE}`,
+        };
       } catch (error) {
         return {
           exitCode: 1,

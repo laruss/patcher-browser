@@ -90,7 +90,7 @@ function createSupervisorOptions(
   return {
     childArgs: ["child.js"],
     childCommand: "node",
-    childCwd: "/tmp/bb-supervisor-test",
+    childCwd: "/tmp/patcher-supervisor-test",
     serviceName: SERVICE_NAME,
     unexpectedRestartBackoff: args,
   };

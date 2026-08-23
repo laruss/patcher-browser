@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { Workspace } from "../src/workspace.js";
 import { runGit } from "../src/git.js";
-import type { RawDiffFileStat, WorkspaceDiffTarget } from "@bb/domain";
+import type { RawDiffFileStat, WorkspaceDiffTarget } from "@patcher/domain";
 
 const tempDirs: string[] = [];
 
@@ -15,10 +15,12 @@ async function makeTempDir(prefix: string): Promise<string> {
 }
 
 async function initRepo(): Promise<string> {
-  const repoPath = await makeTempDir("bb-diff-repo-");
+  const repoPath = await makeTempDir("patcher-diff-repo-");
   await runGit(["init", "-b", "main"], { cwd: repoPath });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
-  await runGit(["config", "user.email", "bb@example.com"], { cwd: repoPath });
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
+    cwd: repoPath,
+  });
   await runGit(["config", "core.autocrlf", "false"], { cwd: repoPath });
   return repoPath;
 }
@@ -563,7 +565,9 @@ describe("Workspace.diffPatch", () => {
     for (const entry of patches) {
       expect(entry.truncated).toBe(true);
       expect(entry.patch.length).toBeGreaterThan(0);
-      expect(Buffer.byteLength(entry.patch, "utf8")).toBeLessThanOrEqual(budget);
+      expect(Buffer.byteLength(entry.patch, "utf8")).toBeLessThanOrEqual(
+        budget,
+      );
     }
   });
 
@@ -621,7 +625,9 @@ describe("Workspace.diffPatch", () => {
     ]);
     expect(patches.find((p) => p.path === "real.txt")?.patch).toContain("+b");
     // A path with no changes yields an empty patch rather than an error.
-    expect(patches.find((p) => p.path === "does-not-exist.txt")?.patch).toBe("");
+    expect(patches.find((p) => p.path === "does-not-exist.txt")?.patch).toBe(
+      "",
+    );
   });
 
   it("returns a non-empty patch for a tracked path containing a space", async () => {
@@ -656,7 +662,11 @@ describe("Workspace.diffPatch", () => {
 
   it("preserves rename framing when a renamed side's path contains a space", async () => {
     const repoPath = await initRepo();
-    await write(repoPath, "old name.txt", "alpha\nbeta\ngamma\ndelta\nepsilon\n");
+    await write(
+      repoPath,
+      "old name.txt",
+      "alpha\nbeta\ngamma\ndelta\nepsilon\n",
+    );
     await commitAll(repoPath, "base");
 
     await runGit(["mv", "old name.txt", "new name.txt"], { cwd: repoPath });
@@ -764,7 +774,11 @@ describe("Workspace.diffPatch", () => {
       target,
       "after.txt",
     );
-    const expectedEdit = await fullDiffSectionFor(workspace, target, "edit.txt");
+    const expectedEdit = await fullDiffSectionFor(
+      workspace,
+      target,
+      "edit.txt",
+    );
 
     const patches = await workspace.diffPatch({
       target,
@@ -852,9 +866,9 @@ describe("Workspace.diffPatch", () => {
       // No replacement character: a naive byte slice would corrupt the straddled
       // 中 into U+FFFD (which would also overshoot the budget).
       expect(entry?.patch).not.toContain("�");
-      expect(
-        Buffer.byteLength(entry?.patch ?? "", "utf8"),
-      ).toBeLessThanOrEqual(maxBytes);
+      expect(Buffer.byteLength(entry?.patch ?? "", "utf8")).toBeLessThanOrEqual(
+        maxBytes,
+      );
       // The kept prefix must be a byte-exact prefix of the full patch — i.e. we
       // only dropped a tail, never mutated bytes.
       expect(

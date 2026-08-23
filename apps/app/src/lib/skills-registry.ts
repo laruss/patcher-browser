@@ -1,13 +1,13 @@
-import type { SkillSummary } from "@bb/server-contract";
+import type { SkillSummary } from "@patcher/server-contract";
 import type {
   RegistryPagination,
   RegistrySkill,
   RegistrySkillDetail,
   RegistrySkillFile,
   RegistrySkillsPage,
-} from "@bb/server-contract";
-import { RESOURCE_GRID_PAGE_SIZE } from "@bb/shared-ui/resource-pagination";
-import { BbHttpError, sdk } from "@/lib/sdk";
+} from "@patcher/server-contract";
+import { RESOURCE_GRID_PAGE_SIZE } from "@patcher/shared-ui/resource-pagination";
+import { PatcherHttpError, sdk } from "@/lib/sdk";
 
 export type {
   RegistryPagination,
@@ -69,7 +69,7 @@ export async function installRegistrySkill(args: { skill: RegistrySkill }) {
       registrySkillId: args.skill.id,
     });
   } catch (error) {
-    if (error instanceof BbHttpError) {
+    if (error instanceof PatcherHttpError) {
       throw new Error(
         isRecord(error.body) && typeof error.body.message === "string"
           ? error.body.message
@@ -97,7 +97,7 @@ export function resolveInstalledRegistrySkill(
   return (
     installedSkills.find((installedSkill) => {
       return (
-        installedSkill.scope === "bb-user" &&
+        installedSkill.scope === "patcher-user" &&
         installedSkill.provider === null &&
         installedSkill.manageable &&
         installedSkill.registrySkillId === registrySkill.id
@@ -115,7 +115,7 @@ export function buildRegistrySkillReferencePrompt(
   skill: RegistrySkill,
 ): string {
   return [
-    "Create a new, distinct bb skill using the skills.sh entry below as a reference.",
+    "Create a new, distinct Patcher skill using the skills.sh entry below as a reference.",
     "",
     `Reference name: ${JSON.stringify(skill.name)}`,
     `Reference skill ID: ${JSON.stringify(skill.id)}`,

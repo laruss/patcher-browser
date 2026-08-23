@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
 
 // jsdom lacks matchMedia; the vendored Dialog's responsive root needs it.
 if (!window.matchMedia) {
@@ -41,13 +41,13 @@ const project = {
   nextTaskNumber: 5,
   color: "blue",
   folderId: FOLDER_ID,
-  linkedBbProjectId: null,
+  linkedPatcherProjectId: null,
   createdAt: "2026-07-15T00:00:00.000Z",
 };
 
 const folder = {
   id: FOLDER_ID,
-  name: "bb",
+  name: "Patcher",
   parentFolderId: null,
   createdAt: "2026-07-15T00:00:00.000Z",
 };

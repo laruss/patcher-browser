@@ -6,14 +6,14 @@ import {
   getEnvironment,
   getThread,
   updateThread,
-} from "@bb/db";
-import { turnScope } from "@bb/domain";
+} from "@patcher/db";
+import { turnScope } from "@patcher/domain";
 import type {
   DynamicTool,
   Environment,
   Thread,
   ToolCallResponse,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { AppDeps } from "../../types.js";
 import { runLiveHostCommand } from "../hosts/live-command.js";
 import { appendThreadEventInTransaction } from "./thread-events.js";
@@ -35,7 +35,7 @@ const updateEnvironmentDirectoryInputSchema = z
 export const UPDATE_ENVIRONMENT_DIRECTORY_TOOL: DynamicTool = {
   name: UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME,
   description:
-    "Move this bb thread to a different working directory for subsequent turns. Use this when the user asks to switch to a new checkout, worktree, or local directory. The path must be an absolute existing directory on the current host. The tool reuses this project's existing bb environment for that host/path, otherwise it creates an unmanaged environment after validating the path. Another project may hold its own environment for the same directory; that is allowed, except for a bb-managed worktree owned by another project, which this tool refuses. After a successful switch, stop the current turn because the running provider cwd will not change until the next turn.",
+    "Move this Patcher thread to a different working directory for subsequent turns. Use this when the user asks to switch to a new checkout, worktree, or local directory. The path must be an absolute existing directory on the current host. The tool reuses this project's existing patcher environment for that host/path, otherwise it creates an unmanaged environment after validating the path. Another project may hold its own environment for the same directory; that is allowed, except for a Patcher-managed worktree owned by another project, which this tool refuses. After a successful switch, stop the current turn because the running provider cwd will not change until the next turn.",
   inputSchema: {
     type: "object",
     properties: {
@@ -289,7 +289,7 @@ export async function handleUpdateEnvironmentDirectoryToolCall(
   }
 
   // The claim is project-scoped, but attaching in place to another project's
-  // bb-managed worktree is unsafe: its cleanup deletes the directory.
+  // Patcher-managed worktree is unsafe: its cleanup deletes the directory.
   const refusal = unmanagedAttachRefusal(deps.db, {
     checksOutBranch: false,
     dataDir: findHostDataDir(deps, args.currentEnvironment.hostId),

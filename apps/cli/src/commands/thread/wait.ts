@@ -1,8 +1,11 @@
 import { Command } from "commander";
-import { threadStatusSchema, threadStatusValues } from "@bb/domain";
-import { ThreadWaitTimeoutError, ThreadWaitUnreachableError } from "@bb/sdk";
+import { threadStatusSchema, threadStatusValues } from "@patcher/domain";
+import {
+  ThreadWaitTimeoutError,
+  ThreadWaitUnreachableError,
+} from "@patcher/sdk";
 import { action, CliExitError } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import { outputJson, requireThreadId } from "../helpers.js";
 import {
   DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS,
@@ -48,7 +51,7 @@ export function registerWaitCommand(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadWaitCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const threadId = requireThreadId(id);
         const target = parseThreadWaitTarget(opts);
         const timeoutSeconds = parseThreadWaitTimeoutSeconds(opts.timeout);

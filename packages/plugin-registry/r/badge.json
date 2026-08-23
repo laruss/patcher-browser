@@ -3,12 +3,12 @@
   "name": "badge",
   "type": "registry:ui",
   "title": "badge",
-  "description": "BB ui \"badge\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"badge\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "class-variance-authority"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

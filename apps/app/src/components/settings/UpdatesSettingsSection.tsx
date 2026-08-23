@@ -6,11 +6,11 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { BbDesktopInfo } from "@bb/desktop-contract";
-import type { SystemVersionResponse } from "@bb/server-contract";
-import { Button, type ButtonProps } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import type { PatcherDesktopInfo } from "@patcher/desktop-contract";
+import type { SystemVersionResponse } from "@patcher/server-contract";
+import { Button, type ButtonProps } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   hasProviderCliAction,
   useProviderCliInstallRunner,
@@ -39,7 +39,8 @@ import { formatRelativeTime } from "@/lib/relative-time";
 import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
 import { sdk } from "@/lib/sdk";
 
-const CHANGELOG_URL = "https://github.com/get-bb/bb/blob/main/CHANGELOG.md";
+const CHANGELOG_URL =
+  "https://github.com/laruss/patcher-browser/blob/main/CHANGELOG.md";
 
 /**
  * The rows and the machine bands above them share one text edge: names start
@@ -222,30 +223,30 @@ function RowActions({ children }: { children: ReactNode }) {
   );
 }
 
-export interface BbAppUpdateRowsProps {
+export interface PatcherAppUpdateRowsProps {
   systemVersion: SystemVersionResponse | undefined;
-  desktopInfo: BbDesktopInfo | null;
+  desktopInfo: PatcherDesktopInfo | null;
   isDesktop: boolean;
   onRelaunchDesktop: (() => void) | null;
   onRetryDesktop: (() => void) | null;
 }
 
 /**
- * The bb app's own row: on desktop the shell auto-downloads and applies on
+ * The Patcher app's own row: on desktop the shell auto-downloads and applies on
  * relaunch; on web/npm installs the server can't replace itself, so the row
  * surfaces the upgrade command instead of a fake update button.
  */
-export function BbAppUpdateRows({
+export function PatcherAppUpdateRows({
   systemVersion,
   desktopInfo,
   isDesktop,
   onRelaunchDesktop,
   onRetryDesktop,
-}: BbAppUpdateRowsProps) {
+}: PatcherAppUpdateRowsProps) {
   if (isDesktop && desktopInfo === null) {
     return (
       <UpdatesRow>
-        <RowName name="bb desktop" current={null} latest={null} />
+        <RowName name="Patcher desktop" current={null} latest={null} />
         <RowActions>
           <RowStatus live>Checking…</RowStatus>
         </RowActions>
@@ -259,7 +260,7 @@ export function BbAppUpdateRows({
     const latest = desktopInfo.updateAvailable ? pendingVersion : null;
     const name = (
       <RowName
-        name="bb desktop"
+        name="Patcher desktop"
         current={desktopInfo.version}
         latest={latest}
       />
@@ -317,7 +318,7 @@ export function BbAppUpdateRows({
   if (systemVersion === undefined) {
     return (
       <UpdatesRow>
-        <RowName name="bb-app" current={null} latest={null} />
+        <RowName name="patcher-app" current={null} latest={null} />
         <RowActions>
           <RowStatus>Checking…</RowStatus>
         </RowActions>
@@ -327,7 +328,7 @@ export function BbAppUpdateRows({
 
   const name = (
     <RowName
-      name="bb-app"
+      name="patcher-app"
       current={systemVersion.currentVersion}
       latest={
         systemVersion.updateAvailable ? systemVersion.latestVersion : null
@@ -531,7 +532,7 @@ export function MachineUpdatesRows({
           }
         >
           <span className="text-xs text-destructive-text">
-            Can't connect — its bb agent is out of date
+            Can't connect — its Patcher agent is out of date
           </span>
           <span className="text-2xs text-subtle-foreground">
             Usually it updates itself.
@@ -642,7 +643,7 @@ function useNow(intervalMs: number): number {
 }
 
 /**
- * Settings → Updates: one consolidated, per-machine view of bb and provider
+ * Settings → Updates: one consolidated, per-machine view of Patcher and provider
  * CLI updates. Replaces the stacked update/provider-health toasts (BB-48).
  */
 export function UpdatesSettingsSection() {
@@ -748,7 +749,7 @@ export function UpdatesSettingsSection() {
   return (
     <>
       <UpdatesSection
-        title="bb"
+        title="Patcher"
         footnote="Connected machines follow the server version automatically."
         action={
           <>
@@ -787,7 +788,7 @@ export function UpdatesSettingsSection() {
         }
       >
         <UpdatesRowList>
-          <BbAppUpdateRows
+          <PatcherAppUpdateRows
             systemVersion={inventory.systemVersion}
             desktopInfo={desktopInfo}
             isDesktop={isDesktop}

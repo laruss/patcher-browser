@@ -2,7 +2,7 @@ import { and, desc, eq, like, lt, sql } from "drizzle-orm";
 import {
   BROWSER_HISTORY_MAX_ENTRIES,
   BROWSER_HISTORY_TITLE_MAX_LENGTH,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { DbQueryConnection } from "../connection.js";
 import { browserHistoryEntries } from "../schema.js";
 import { createBrowserHistoryEntryId } from "../ids.js";

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { getPluginKvValue } from "@bb/db";
+import { getPluginKvValue } from "@patcher/db";
 import { createMockHubSocket } from "../../helpers/mock-hub-socket.js";
 import {
   createTestAppHarness,
@@ -11,7 +11,7 @@ import {
 /**
  * What a plugin process is told about this side after it has loaded.
  *
- * In the server a plugin reads `bb.browser.getStatus()` and gets the truth,
+ * In the server a plugin reads `patcher.browser.getStatus()` and gets the truth,
  * because the hub is a function call away. One process out it holds a copy that
  * arrived with its bootstrap — so a window connecting or disconnecting later was
  * invisible to it, and a plugin that waited for the browser waited forever while
@@ -19,26 +19,26 @@ import {
  */
 
 const STATUS_PLUGIN = `
-  export default function plugin(bb: any) {
-    bb.browser.registerContextMenuItem({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerContextMenuItem({
       id: "probe",
       title: "Probe",
       // Answers into the server's own store, so the test reads what the plugin
       // saw rather than what the server would have said.
-      run: () => bb.storage.kv.set("seen", bb.browser.getStatus()),
+      run: () => patcher.storage.kv.set("seen", patcher.browser.getStatus()),
     });
   }
 `;
 
 async function writeStatusPlugin(dir: string): Promise<string> {
-  const rootDir = join(dir, "bb-plugin-facts");
+  const rootDir = join(dir, "patcher-plugin-facts");
   await mkdir(rootDir, { recursive: true });
   await writeFile(
     join(rootDir, "package.json"),
     JSON.stringify({
-      name: "bb-plugin-facts",
+      name: "patcher-plugin-facts",
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Host facts fixture",
         description: "Fixture.",
         branding: { icon: "Zap" },

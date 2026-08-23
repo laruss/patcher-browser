@@ -1,5 +1,5 @@
-import type { ThreadChatMessageReference } from "@bb/plugin-sdk";
-import type { PromptInput } from "@bb/domain";
+import type { ThreadChatMessageReference } from "@patcher/plugin-sdk";
+import type { PromptInput } from "@patcher/domain";
 import type {
   MarkdownPreviewLocalFileLink,
   MarkdownPreviewLocalFileLinkHandler,
@@ -95,7 +95,7 @@ export interface ThreadTimelinePluginMessageAction {
   key: string;
   /** Plugin whose branding icon labels the action; null renders `icon` alone. */
   pluginId: string | null;
-  /** Icon hint (BB icon name) or null for the plugin's generic icon. */
+  /** Icon hint (Patcher icon name) or null for the plugin's generic icon. */
   icon: string | null;
   label: string;
   onSelect: () => void;
@@ -112,7 +112,7 @@ export interface ThreadTimelineConsumerMessageAction {
   id: string;
   /** Plugin whose branding icon labels the action, when known. */
   pluginId: string | null;
-  /** Icon hint (BB icon name) or null for a generic icon. */
+  /** Icon hint (Patcher icon name) or null for a generic icon. */
   icon: string | null;
   label: string;
   /** Message roles the action applies to. Omitted = both roles. */

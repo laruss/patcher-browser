@@ -3,8 +3,8 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   type FakePluginHost,
-} from "@bb/plugin-sdk/testing";
-import type { PluginAgentConfigurationContext } from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk/testing";
+import type { PluginAgentConfigurationContext } from "@patcher/plugin-sdk";
 import plugin, { RENDERER_ID, TOOL_NAME } from "./server.js";
 import { TOOL_INPUT_JSON_SCHEMA } from "./tool-definition.js";
 import type { InteractionPayload, ToolResult } from "./contracts.js";
@@ -14,7 +14,7 @@ function createHost(): FakePluginHost {
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "ask-user-question",
   });
-  plugin(host.bb as unknown as Parameters<typeof plugin>[0]);
+  plugin(host.patcher as unknown as Parameters<typeof plugin>[0]);
   return host;
 }
 
@@ -31,7 +31,7 @@ function configurationContext(
     project: {
       id: "proj-test",
       kind: "standard",
-      name: "bb",
+      name: "Patcher",
       gitRemoteUrl: null,
     },
     environment: {
@@ -192,11 +192,11 @@ describe("asking a question", () => {
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "ask-user-question",
     });
-    host.bb.ui.requestInput = () =>
+    host.patcher.ui.requestInput = () =>
       Promise.reject(
         new Error("Thread thr-test is already awaiting user interaction"),
       );
-    plugin(host.bb as unknown as Parameters<typeof plugin>[0]);
+    plugin(host.patcher as unknown as Parameters<typeof plugin>[0]);
 
     const result = await host.harness.callAgentTool(TOOL_NAME, { questions });
 

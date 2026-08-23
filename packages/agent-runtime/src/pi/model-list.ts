@@ -1,4 +1,4 @@
-import { resolvePiDefaultModelId } from "@bb/agent-providers";
+import { resolvePiDefaultModelId } from "@patcher/agent-providers";
 import {
   HIGH_REASONING_EFFORT,
   LOW_REASONING_EFFORT,
@@ -7,7 +7,7 @@ import {
   XHIGH_REASONING_EFFORT,
   type AvailableModel,
   type ModelReasoningEffort,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export interface PiCatalogModel {
   id: string;
@@ -92,7 +92,7 @@ export function buildPiAvailableModels(
 }
 
 /**
- * bb identifies a Pi model by `<provider>/<model id>`.
+ * Patcher identifies a Pi model by `<provider>/<model id>`.
  *
  * Aggregator providers such as OpenRouter and the Vercel AI Gateway use model
  * ids that already contain a slash (`deepseek/deepseek-v4-flash`), so the

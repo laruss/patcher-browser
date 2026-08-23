@@ -7,7 +7,7 @@ import {
 } from "../../helpers/test-app.js";
 
 /**
- * `bb.permissions` on the real load path: a plugin installed the way a user
+ * `patcher.permissions` on the real load path: a plugin installed the way a user
  * installs one, reaching for surfaces it did and did not declare.
  *
  * The unit-level behaviour of the gate is in plugin-permission-gate.test.ts.
@@ -31,7 +31,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Permission fixture",
         description: "Permission fixture plugin.",
         branding: { icon: "Zap" },
@@ -65,10 +65,10 @@ describe("plugin permissions on the real load path", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-undeclared",
+        name: "patcher-plugin-undeclared",
         serverSource: `
-        export default function plugin(bb: any) {
-          bb.browser.registerContextMenuItem({
+        export default function plugin(patcher: any) {
+          patcher.browser.registerContextMenuItem({
             id: "x", title: "X", run() {},
           });
         }
@@ -86,11 +86,11 @@ describe("plugin permissions on the real load path", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-declared",
+        name: "patcher-plugin-declared",
         permissions: ["contextMenu.register"],
         serverSource: `
-        export default function plugin(bb: any) {
-          bb.browser.registerContextMenuItem({
+        export default function plugin(patcher: any) {
+          patcher.browser.registerContextMenuItem({
             id: "x", title: "X", run() {},
           });
         }
@@ -110,15 +110,15 @@ describe("plugin permissions on the real load path", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-partial",
+        name: "patcher-plugin-partial",
         permissions: ["contextMenu.register"],
         serverSource: `
-        export default function plugin(bb: any) {
-          bb.browser.registerContextMenuItem({
+        export default function plugin(patcher: any) {
+          patcher.browser.registerContextMenuItem({
             id: "x", title: "X", run() {},
           });
-          bb.http.route("GET", "/read", async () => {
-            await bb.sdk.files.read({ hostId: "h", path: "/etc/passwd" });
+          patcher.http.route("GET", "/read", async () => {
+            await patcher.sdk.files.read({ hostId: "h", path: "/etc/passwd" });
             return new Response("unreachable");
           });
         }
@@ -143,7 +143,7 @@ describe("plugin permissions on the real load path", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-listed",
+        name: "patcher-plugin-listed",
         permissions: ["threads", "tabs.read"],
         serverSource: `export default function plugin() {}`,
       },

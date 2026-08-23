@@ -1,4 +1,4 @@
-import type { BrowserHistoryEntry } from "@bb/server-contract";
+import type { BrowserHistoryEntry } from "@patcher/server-contract";
 import { getBrowserUrlHost } from "@/lib/browser-url";
 import { omniboxUrlMatchCandidates, scoreOmniboxTextMatch } from "../match";
 import type { OmniboxProvider, OmniboxProviderSuggestion } from "../types";

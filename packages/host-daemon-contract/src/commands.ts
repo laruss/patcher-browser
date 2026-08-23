@@ -25,7 +25,7 @@ import {
   BRANCH_LIST_QUERY_MAX_LENGTH,
   FILE_LIST_LIMIT_MAX,
   FILE_LIST_QUERY_MAX_LENGTH,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 import {
   pathsExistRequestSchema,
@@ -36,14 +36,34 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 106 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 109 as const;
+
+/**
+ * The first protocol version whose daemon can install this server's artifact.
+ *
+ * A daemon self-updates by fetching `/install/patcher-app.tgz`. Before the
+ * rename it fetched `/install/bb-app.tgz`, and that URL is baked into the
+ * installed binary — so a daemon older than this cannot be updated by this
+ * server at all: the old path 410s, and serving the tarball there would be
+ * worse, because the package is now named `patcher-app` and installing it
+ * leaves the `bb-app` global bin the service invokes untouched. Such a machine
+ * has to be enrolled again, and the UI has to say so instead of offering a
+ * retry that cannot succeed.
+ *
+ * 108 rather than 109 because the artifact rename landed *inside* 108 without a
+ * bump of its own: a 108 daemon may ask for either path and the version cannot
+ * tell which. 108 therefore gets the benefit of the doubt — a retry that fails
+ * costs a log line, while a wrong "re-enroll" costs the user a real machine
+ * setup. Anything below 108 certainly asks for the bb-era artifact.
+ */
+export const FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION = 108 as const;
 
 export {
   BRANCH_LIST_LIMIT_MAX,
   BRANCH_LIST_QUERY_MAX_LENGTH,
   FILE_LIST_LIMIT_MAX,
   FILE_LIST_QUERY_MAX_LENGTH,
-} from "@bb/domain";
+} from "@patcher/domain";
 const INJECTED_SKILL_NAME_PATTERN =
   /^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u;
 
@@ -52,38 +72,6 @@ export const workspaceContextSchema = z.object({
   workspaceProvisionType: workspaceProvisionTypeSchema,
 });
 export type WorkspaceContext = z.infer<typeof workspaceContextSchema>;
-
-function isConnectBaseDomain(value: string): boolean {
-  try {
-    const parsed = new URL(`https://${value}`);
-    return (
-      parsed.host === value &&
-      parsed.username === "" &&
-      parsed.password === "" &&
-      parsed.pathname === "/" &&
-      parsed.search === "" &&
-      parsed.hash === ""
-    );
-  } catch {
-    return false;
-  }
-}
-
-/** Gate identity derived and assigned by the enrolled host daemon. */
-export const hostDaemonConnectTunnelIdentitySchema = z
-  .object({
-    label: z
-      .string()
-      .min(1)
-      .max(63)
-      .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
-      .refine((label) => !label.includes("--")),
-    baseDomain: z.string().min(1).refine(isConnectBaseDomain),
-  })
-  .strict();
-export type HostDaemonConnectTunnelIdentity = z.infer<
-  typeof hostDaemonConnectTunnelIdentitySchema
->;
 
 export const workspaceResolutionFailureCodeSchema = z.enum([
   "path_not_found",
@@ -658,12 +646,6 @@ const hostCaffeinateCommandSchema = z
   })
   .strict();
 
-const connectTunnelEnsureIdentityCommandSchema = z
-  .object({
-    type: z.literal("connect-tunnel.ensure-identity"),
-  })
-  .strict();
-
 export const directoryEntrySchema = z.object({
   kind: hostPathEntryKindSchema,
   name: z.string(),
@@ -689,7 +671,7 @@ export type HostCommandOrigin = z.infer<typeof hostCommandOriginSchema>;
 /**
  * A discovered provider skill or legacy slash command. The daemon returns the
  * raw parsed records; server policy (merge/de-dup/sort) is applied on
- * top. Mirrors `@bb/server-contract`'s `ProviderCommand` shape (the contract
+ * top. Mirrors `@patcher/server-contract`'s `ProviderCommand` shape (the contract
  * packages intentionally define matching record shapes independently, like
  * `hostPathEntrySchema` / `workspacePathEntrySchema`).
  */
@@ -706,7 +688,7 @@ export type HostProviderCommand = z.infer<typeof hostProviderCommandSchema>;
  * List the provider's discoverable skills / legacy slash commands. The daemon
  * resolves provider-native user-home roots itself and scans provider-native
  * project roots under `cwd` when provided; `cwd: null` skips project roots.
- * bb-managed skills are resolved by the server's canonical skill catalog and
+ * Patcher-managed skills are resolved by the server's canonical skill catalog and
  * never cross this discovery boundary.
  */
 const hostListCommandsCommandSchema = z
@@ -726,9 +708,9 @@ const hostListCommandsCommandSchema = z
  * daemon, because only the server knows which provider it queried.
  */
 export const skillRootKindSchema = z.enum([
-  "bb-project",
-  "bb-data-dir",
-  "bb-builtin",
+  "patcher-project",
+  "patcher-data-dir",
+  "patcher-builtin",
   "provider-project",
   "provider-user",
   "shared-project",
@@ -757,7 +739,7 @@ export type DiscoveredSkill = z.infer<typeof discoveredSkillSchema>;
 /**
  * List discoverable skills (not legacy commands) for a provider, classified by
  * originating root. Same root-resolution rules as `host.list_commands`:
- * `cwd: null` skips the project roots and returns only user-home/bb scopes.
+ * `cwd: null` skips the project roots and returns only user-home/patcher scopes.
  */
 const hostListSkillsCommandSchema = z
   .object({
@@ -770,8 +752,8 @@ const hostListSkillsCommandSchema = z
 
 /** User-owned local skill scopes that can be deleted after path confinement. */
 export const deletableSkillScopeSchema = z.enum([
-  "bb-user",
-  "bb-project",
+  "patcher-user",
+  "patcher-project",
   "claude-user",
   "claude-project",
   "codex-user",
@@ -782,7 +764,7 @@ export const deletableSkillScopeSchema = z.enum([
 export type DeletableSkillScope = z.infer<typeof deletableSkillScopeSchema>;
 
 /**
- * Delete a local user-owned skill directory. bb roots are derived from scope;
+ * Delete a local user-owned skill directory. Patcher roots are derived from scope;
  * provider roots are resolved from authoritative discovery by the server and
  * supplied explicitly. The daemon realpath-confines the target to the named
  * direct child of that root and refuses symlink escapes.
@@ -797,23 +779,23 @@ const hostDeleteSkillCommandSchema = z
   })
   .strict()
   .superRefine((command, context) => {
-    if (command.scope === "bb-project" && command.cwd === null) {
+    if (command.scope === "patcher-project" && command.cwd === null) {
       context.addIssue({
         code: "custom",
         path: ["cwd"],
-        message: "cwd is required to delete a bb-project skill",
+        message: "cwd is required to delete a patcher-project skill",
       });
     }
-    const isBbScope =
-      command.scope === "bb-user" || command.scope === "bb-project";
-    if (isBbScope && command.rootPath !== null) {
+    const isPatcherScope =
+      command.scope === "patcher-user" || command.scope === "patcher-project";
+    if (isPatcherScope && command.rootPath !== null) {
       context.addIssue({
         code: "custom",
         path: ["rootPath"],
-        message: "rootPath must be null for a bb skill",
+        message: "rootPath must be null for a Patcher skill",
       });
     }
-    if (!isBbScope && command.rootPath === null) {
+    if (!isPatcherScope && command.rootPath === null) {
       context.addIssue({
         code: "custom",
         path: ["rootPath"],
@@ -823,18 +805,21 @@ const hostDeleteSkillCommandSchema = z
   });
 
 /**
- * Overwrite an existing bb skill's SKILL.md. Same confinement as delete: the
+ * Overwrite an existing patcher skill's SKILL.md. Same confinement as delete: the
  * path is built host-side from `(scope, name, cwd)` (never a client path), the
  * name must be a single safe segment, and the resolved target must be exactly
- * `<bb-root>/<name>/SKILL.md` of an already-existing skill. Edits only — it
+ * `<patcher-root>/<name>/SKILL.md` of an already-existing skill. Edits only — it
  * never creates new skills (creation is via prompt).
  */
-const writableBbSkillScopeSchema = z.enum(["bb-user", "bb-project"]);
+const writablePatcherSkillScopeSchema = z.enum([
+  "patcher-user",
+  "patcher-project",
+]);
 
 const hostWriteSkillCommandSchema = z
   .object({
     type: z.literal("host.write_skill"),
-    scope: writableBbSkillScopeSchema,
+    scope: writablePatcherSkillScopeSchema,
     name: z.string().min(1),
     cwd: z.string().min(1).nullable(),
     content: z.string().min(1).max(1_000_000),
@@ -842,18 +827,18 @@ const hostWriteSkillCommandSchema = z
   })
   .strict()
   .superRefine((command, context) => {
-    if (command.scope === "bb-project" && command.cwd === null) {
+    if (command.scope === "patcher-project" && command.cwd === null) {
       context.addIssue({
         code: "custom",
         path: ["cwd"],
-        message: "cwd is required to edit a bb-project skill",
+        message: "cwd is required to edit a patcher-project skill",
       });
     }
   });
 
 /**
  * Copy server-owned skill trees into the host's global agent skill roots
- * (`~/.agents/skills` and `~/.claude/skills`) so agents running outside bb can
+ * (`~/.agents/skills` and `~/.claude/skills`) so agents running outside Patcher can
  * load them. The server picks which skills to publish and supplies their tree
  * hashes; the daemon pulls each tree and owns the home-relative destinations.
  */
@@ -1854,15 +1839,6 @@ export const hostDaemonCommandRegistry = {
     flushEventsBeforeResult: false,
     envLane: null,
   }),
-  "connect-tunnel.ensure-identity": defineHostDaemonCommandDescriptor({
-    type: "connect-tunnel.ensure-identity",
-    schema: connectTunnelEnsureIdentityCommandSchema,
-    resultSchema: hostDaemonConnectTunnelIdentitySchema,
-    transport: "onlineRpc",
-    retryable: true,
-    flushEventsBeforeResult: false,
-    envLane: null,
-  }),
   "host.list_commands": defineHostDaemonCommandDescriptor({
     type: "host.list_commands",
     schema: hostListCommandsCommandSchema,
@@ -1893,7 +1869,7 @@ export const hostDaemonCommandRegistry = {
     flushEventsBeforeResult: false,
     envLane: null,
   }),
-  // Host-local FS write (edit an existing bb skill's SKILL.md). Not env-scoped;
+  // Host-local FS write (edit an existing patcher skill's SKILL.md). Not env-scoped;
   // non-retryable so a transient failure never silently re-issues the write.
   "host.write_skill": defineHostDaemonCommandDescriptor({
     type: "host.write_skill",

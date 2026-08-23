@@ -3,12 +3,12 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createConnection, migrate } from "@bb/db";
+import { createConnection, migrate } from "@patcher/db";
 import {
   resolveCurrentDevInstanceConfig,
   resolveDataDirDatabasePath,
   resolveProdDataDir,
-} from "@bb/config/runtime";
+} from "@patcher/config/runtime";
 import { seedPerfFixture } from "../lib/seed-perf-fixture.js";
 import { bold, cyan, dim, green, log, endStep } from "../lib/script-helpers.js";
 
@@ -28,9 +28,9 @@ interface SeedCommandArgs {
 
 function renderHelpText(): string {
   return `
-  ${bold("bb seed-perf-db")}
+  ${bold("Patcher seed-perf-db")}
 
-  Seed a large, realistic BB database for performance testing.
+  Seed a large, realistic Patcher database for performance testing.
 
   ${dim("Usage")}
     bun run seed:perf [options]
@@ -44,7 +44,7 @@ function renderHelpText(): string {
     --reset            Delete the existing database file before seeding
 
   ${dim("Notes")}
-    The command refuses to touch the production data dir (~/.bb).
+    The command refuses to touch the production data dir (~/.patcher).
     Without --reset the fixture is added to the existing database.
     Start the dev app once before seeding so the fixture attaches to
     the real local host; otherwise a synthetic offline host is used.
@@ -145,7 +145,7 @@ export async function main(
     );
   }
 
-  process.stdout.write(`\n  ${bold("bb seed-perf-db")}\n\n`);
+  process.stdout.write(`\n  ${bold("Patcher seed-perf-db")}\n\n`);
   log(dim("●"), `data dir ${cyan(dataDir)}`);
 
   mkdirSync(dataDir, { recursive: true });

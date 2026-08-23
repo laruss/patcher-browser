@@ -6,7 +6,7 @@ import {
   threadScope,
   turnScope,
   type PromptInput,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { createConnection } from "../../src/connection.js";
 import { migrate } from "../../src/migrate.js";
 import { noopNotifier } from "../../src/notifier.js";

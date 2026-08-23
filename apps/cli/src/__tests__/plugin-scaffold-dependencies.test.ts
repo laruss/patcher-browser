@@ -4,8 +4,8 @@ import { join, relative } from "node:path";
 import {
   PLUGIN_SERVER_EXTERNALS,
   RUNTIME_SLOT_BY_SPECIFIER,
-} from "@bb/plugin-build";
-import { scaffoldPlugin } from "@bb/templates/plugin-scaffold";
+} from "@patcher/plugin-build";
+import { scaffoldPlugin } from "@patcher/templates/plugin-scaffold";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 /**
@@ -18,9 +18,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
  *
  * The rule is derived from the build's own externals/shim lists rather than
  * restated here, so adding a shim or an external cannot leave this stale.
- * Lives in the CLI because `bb plugin new` writes the scaffold and
- * `bb plugin build` consumes it; @bb/templates cannot depend on
- * @bb/plugin-build without a workspace cycle.
+ * Lives in the CLI because `patcher plugin new` writes the scaffold and
+ * `patcher plugin build` consumes it; @patcher/templates cannot depend on
+ * @patcher/plugin-build without a workspace cycle.
  */
 
 const DIRS_WITHOUT_BUNDLED_SOURCE = new Set([
@@ -80,12 +80,12 @@ async function scaffoldWithDependencies(args: {
   workDir: string;
   app: boolean;
 }): Promise<{ targetDir: string; dependencies: string[] }> {
-  const packageName = `bb-plugin-${args.app ? "app" : "headless"}`;
+  const packageName = `patcher-plugin-${args.app ? "app" : "headless"}`;
   const targetDir = join(args.workDir, packageName);
   await scaffoldPlugin({
     targetDir,
     packageName,
-    bbVersion: "0.9.0",
+    patcherVersion: "0.9.0",
     app: args.app,
   });
   const manifest: { dependencies?: Record<string, string> } = JSON.parse(
@@ -98,7 +98,7 @@ describe("scaffold dependency classification", () => {
   let workDir: string;
 
   beforeEach(async () => {
-    workDir = await mkdtemp(join(tmpdir(), "bb-scaffold-deps-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-scaffold-deps-"));
   });
 
   afterEach(async () => {

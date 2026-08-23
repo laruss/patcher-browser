@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getExperiments } from "@bb/db";
-import { experimentsSchema } from "@bb/domain";
-import { systemConfigResponseSchema } from "@bb/server-contract";
+import { getExperiments } from "@patcher/db";
+import { experimentsSchema } from "@patcher/domain";
+import { systemConfigResponseSchema } from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
@@ -58,7 +58,7 @@ describe("experiments settings", () => {
     });
   });
 
-  it("does not expose legacy direct bb connect routes", async () => {
+  it("does not expose legacy direct connect routes", async () => {
     await withTestHarness(async (harness) => {
       const disabled = await harness.app.request("/api/v1/connect/status");
       expect(disabled.status).toBe(404);

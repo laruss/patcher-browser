@@ -5,8 +5,8 @@ import type {
   ThreadEvent,
   ThreadEventItem,
   ThreadEventTokenUsageBreakdown,
-} from "@bb/domain";
-import { threadScope, turnScope } from "@bb/domain";
+} from "@patcher/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import {
   toOptionalRecord,
   withParentToolCallId,
@@ -985,7 +985,7 @@ export function translateClaudeSdkMessage(
         }
         // Claude emits a successful result at the end of each SDK loop
         // segment. Background agents and workflows notify the CLI when they
-        // settle, which reinvokes the parent model. Keep the logical bb turn
+        // settle, which reinvokes the parent model. Keep the logical Patcher turn
         // open across those segments so idle status, waiters, queued messages,
         // pruning, and parent completion notifications only observe the final
         // result. Failures still close immediately.

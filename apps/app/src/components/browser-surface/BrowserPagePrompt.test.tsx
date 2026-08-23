@@ -2,17 +2,17 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BbDesktopBrowserPagePromptDetails } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserPagePromptDetails } from "@patcher/desktop-contract";
 import { BrowserPagePrompt } from "./BrowserPagePrompt";
 
-const AUTH: BbDesktopBrowserPagePromptDetails = {
+const AUTH: PatcherDesktopBrowserPagePromptDetails = {
   kind: "auth",
   id: "page-prompt-1",
   host: "example.com",
   insecure: false,
 };
 
-const CERTIFICATE: BbDesktopBrowserPagePromptDetails = {
+const CERTIFICATE: PatcherDesktopBrowserPagePromptDetails = {
   kind: "certificate",
   id: "page-prompt-2",
   host: "dev.example.com",
@@ -24,7 +24,7 @@ const CERTIFICATE: BbDesktopBrowserPagePromptDetails = {
   fingerprint: "sha256/AAAA",
 };
 
-const CLIENT_CERTIFICATE: BbDesktopBrowserPagePromptDetails = {
+const CLIENT_CERTIFICATE: PatcherDesktopBrowserPagePromptDetails = {
   kind: "client-certificate",
   id: "page-prompt-3",
   host: "vpn.example.com",
@@ -44,7 +44,7 @@ const CLIENT_CERTIFICATE: BbDesktopBrowserPagePromptDetails = {
   ],
 };
 
-function renderPrompt(prompt: BbDesktopBrowserPagePromptDetails) {
+function renderPrompt(prompt: PatcherDesktopBrowserPagePromptDetails) {
   const onRespond = vi.fn();
   render(<BrowserPagePrompt prompt={prompt} onRespond={onRespond} />);
   return { onRespond };

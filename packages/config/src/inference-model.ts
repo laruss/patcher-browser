@@ -37,16 +37,16 @@ export function validateProviderModelConfig(
 }
 
 export function validateInferenceModel(value: string): string {
-  return validateProviderModelConfig({ name: "BB_INFERENCE", value });
+  return validateProviderModelConfig({ name: "PATCHER_INFERENCE", value });
 }
 
 export function validateInferenceFallbackModel(value: string): string {
   return validateProviderModelConfig({
-    name: "BB_INFERENCE_FALLBACK",
+    name: "PATCHER_INFERENCE_FALLBACK",
     value,
   });
 }
 
 export function validateTranscriptionModel(value: string): string {
-  return validateProviderModelConfig({ name: "BB_TRANSCRIPTION", value });
+  return validateProviderModelConfig({ name: "PATCHER_TRANSCRIPTION", value });
 }

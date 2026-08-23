@@ -10,8 +10,8 @@ import {
   updateHost,
   upsertHost,
   type DbConnection,
-} from "@bb/db";
-import type { Host, Project } from "@bb/domain";
+} from "@patcher/db";
+import type { Host, Project } from "@patcher/domain";
 import { ApiError } from "../../src/errors.js";
 import { NotificationHub } from "../../src/ws/hub.js";
 import {

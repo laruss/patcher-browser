@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { JsonObject, JsonValue } from "@bb/domain";
+import type { JsonObject, JsonValue } from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetChatGptCloudflareCookiesForTests } from "./chatgpt-cloudflare-cookies.js";
 import {
@@ -32,7 +32,9 @@ interface CreateAccessTokenArgs {
 }
 
 async function makeTempHome(): Promise<string> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "bb-codex-auth-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "patcher-codex-auth-"),
+  );
   tempDirs.push(tempDir);
   vi.stubEnv("HOME", tempDir);
   return tempDir;
@@ -279,6 +281,11 @@ describe("Codex ChatGPT client", () => {
     expect(headers.get("authorization")).toBe(`Bearer ${accessToken}`);
     expect(headers.get("chatgpt-account-id")).toBe("account-123");
     expect(headers.get("openai-beta")).toBe("responses=experimental");
+    // `originator` is OpenAI's field and the value we send is unverifiable from
+    // here, so it is pinned: if this ever has to go back to the inherited `bb`
+    // because the backend allowlists values, the change lands in one place.
+    expect(headers.get("originator")).toBe("patcher");
+    expect(headers.get("User-Agent")).toBe("patcher-host-daemon");
     const requestBody = JSON.parse(textBodyFromInit(init));
     expect(requestBody).toMatchObject({
       model: "gpt-5.6-luna",

@@ -4,7 +4,7 @@ import type {
   ProjectWithThreadsResponse,
   ReorderProjectRequest,
   SidebarBootstrapResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { applyNeighborReorder } from "@/lib/neighbor-reorder";
 import {
   projectsQueryKey,

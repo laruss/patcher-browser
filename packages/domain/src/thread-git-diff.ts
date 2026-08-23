@@ -24,7 +24,7 @@ export type WorkspaceDiffTarget = z.infer<typeof workspaceDiffTargetSchema>;
  * `--name-status -M`, with no patch text. One entry per changed file; this is
  * the table-of-contents row the paginated diff tab fetches before any patch.
  *
- * Lives in @bb/domain (not host-workspace) because the host-daemon-contract RPC
+ * Lives in @patcher/domain (not host-workspace) because the host-daemon-contract RPC
  * result schema validates it and cannot import host-workspace.
  *
  * - `statusLetter` is git's raw `--name-status` letter; the server maps it to

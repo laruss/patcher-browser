@@ -229,7 +229,7 @@ describe("desktop context menu", () => {
       params: createContextMenuParams({
         isEditable: true,
         spellcheckEnabled: true,
-        misspelledWord: "bbapp",
+        misspelledWord: "pathcer",
       }),
     });
 
@@ -238,12 +238,12 @@ describe("desktop context menu", () => {
       enabled: false,
     });
     expect(template[1]).toMatchObject({
-      label: 'Add "bbapp" to Dictionary',
+      label: 'Add "pathcer" to Dictionary',
     });
 
     clickMenuItem(template[1]);
 
-    expect(webContents.addedDictionaryWords).toEqual(["bbapp"]);
+    expect(webContents.addedDictionaryWords).toEqual(["pathcer"]);
   });
 
   it("keeps standard edit actions in editable context menus", () => {

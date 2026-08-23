@@ -2,7 +2,7 @@ import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadServerConfig } from "@bb/config/server";
+import { loadServerConfig } from "@patcher/config/server";
 import { describe, expect, it } from "vitest";
 import { startHttpListener } from "../../src/start-server.js";
 
@@ -39,15 +39,15 @@ describe("server startup diagnostics", () => {
   it("binds the default server listener to IPv4 loopback", async () => {
     const serverConfig = loadServerConfig({
       env: {
-        BB_DATA_DIR: "/tmp/bb-server-listener-test",
-        BB_HOST_DAEMON_PORT: "49162",
-        BB_SERVER_PORT: "49161",
+        PATCHER_DATA_DIR: "/tmp/patcher-server-listener-test",
+        PATCHER_HOST_DAEMON_PORT: "49162",
+        PATCHER_SERVER_PORT: "49161",
         NODE_ENV: "development",
       },
     });
     const server = startHttpListener({
       fetch: () => new Response("ok"),
-      serverConfig: { ...serverConfig, BB_SERVER_PORT: 0 },
+      serverConfig: { ...serverConfig, PATCHER_SERVER_PORT: 0 },
     });
 
     try {

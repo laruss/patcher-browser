@@ -11,7 +11,7 @@ export type {
   ReasoningLevel,
   ServiceTier,
   ThreadStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 export type {
   BaseBranchSpec,
   CreateExecutionInputSources,
@@ -19,7 +19,7 @@ export type {
   ExistingThreadExecutionInputSources,
   UnmanagedBranchSpec,
   WorkspaceArgs,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 export type * from "./realtime.js";
 export type * from "./areas/browser-history.js";

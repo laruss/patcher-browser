@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeThreadExecutionOptions } from "@bb/domain";
+import type { RuntimeThreadExecutionOptions } from "@patcher/domain";
 import {
   classifyClaudeExecutionSettingsChange,
   classifySessionExecutionSettingsChange,

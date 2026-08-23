@@ -7,7 +7,7 @@ import {
   isBuiltInThemeId,
   type AppTheme,
   type FaviconColorPreference,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 const THEME_DIR_NAME = "theme";
 const THEME_CSS_FILE_NAME = "theme.css";

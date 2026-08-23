@@ -2,7 +2,7 @@
  * A plugin whose two surfaces are the ones that could not cross until now: an
  * HTTP route and a background service.
  */
-export default function plugin(bb: {
+export default function plugin(patcher: {
   log: { info(m: string): void };
   http: {
     route(
@@ -24,14 +24,14 @@ export default function plugin(bb: {
     ): void;
   };
 }): void {
-  bb.http.route("GET", "/echo", (c) =>
+  patcher.http.route("GET", "/echo", (c) =>
     Response.json({
       who: c.req.query("who") ?? null,
       via: c.req.header("x-probe") ?? null,
     }),
   );
 
-  bb.http.route("POST", "/upper", async (c) => {
+  patcher.http.route("POST", "/upper", async (c) => {
     const body = (await c.req.json()) as { text?: string };
     return new Response((body.text ?? "").toUpperCase(), {
       status: 201,
@@ -39,32 +39,32 @@ export default function plugin(bb: {
     });
   });
 
-  bb.http.route("GET", "/boom", () => {
+  patcher.http.route("GET", "/boom", () => {
     throw new Error("route exploded");
   });
 
-  bb.background.service("ticker", {
+  patcher.background.service("ticker", {
     start: (signal) =>
       new Promise<void>((resolve) => {
-        bb.log.info("ticker started");
+        patcher.log.info("ticker started");
         if (signal.aborted) {
           resolve();
           return;
         }
         signal.addEventListener("abort", () => {
-          bb.log.info("ticker stopping");
+          patcher.log.info("ticker stopping");
           resolve();
         });
       }),
   });
 
-  bb.background.service("faulty", {
+  patcher.background.service("faulty", {
     start: async () => {
       throw new Error("nothing to do");
     },
   });
 
-  bb.background.service("unconfigured", {
+  patcher.background.service("unconfigured", {
     start: async () => {
       throw Object.assign(new Error("set an API key"), {
         name: "NeedsConfigurationError",

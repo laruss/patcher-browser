@@ -2,7 +2,7 @@ import type {
   TimelineActivityIntent,
   TimelineCommandWorkRow,
   TimelineToolWorkRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { assertNever } from "./assert-never.js";
 import {
   formatTimelinePath,

@@ -1,5 +1,5 @@
-import type { ApplyThreadLifecycleEventOutcome } from "@bb/db";
-import type { Thread } from "@bb/domain";
+import type { ApplyThreadLifecycleEventOutcome } from "@patcher/db";
+import type { Thread } from "@patcher/domain";
 import type { PluginThreadEventEmitter } from "./plugin-service.js";
 
 /**

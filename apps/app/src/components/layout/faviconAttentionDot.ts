@@ -1,4 +1,4 @@
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import { isSidebarProjectThread } from "@/components/sidebar/projectThreadGroups";
 import {
   isThreadRead,

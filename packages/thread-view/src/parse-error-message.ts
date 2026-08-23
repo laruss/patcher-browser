@@ -1,5 +1,5 @@
-import { buildThreadEventRow } from "@bb/domain";
-import type { ThreadEvent, ThreadEventType } from "@bb/domain";
+import { buildThreadEventRow } from "@patcher/domain";
+import type { ThreadEvent, ThreadEventType } from "@patcher/domain";
 import type { EventMeta } from "./event-decode.js";
 import { messageId } from "./format-helpers.js";
 import type {

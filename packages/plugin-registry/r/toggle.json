@@ -3,13 +3,13 @@
   "name": "toggle",
   "type": "registry:ui",
   "title": "toggle",
-  "description": "BB ui \"toggle\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"toggle\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-toggle",
     "class-variance-authority"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

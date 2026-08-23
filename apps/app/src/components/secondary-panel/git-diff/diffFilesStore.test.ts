@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DiffFileEntry } from "@bb/server-contract";
+import type { DiffFileEntry } from "@patcher/server-contract";
 import {
   DIFF_CARD_HEADER_HEIGHT_PX,
   estimateCardHeight,

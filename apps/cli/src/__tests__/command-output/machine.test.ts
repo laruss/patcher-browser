@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Host } from "@bb/domain";
+import type { Host } from "@patcher/domain";
 import {
   collectLogPayloads,
   runCommand,
@@ -38,13 +38,13 @@ const hosts: Host[] = [
   },
 ];
 
-describe("bb machine command output", () => {
+describe("patcher machine command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerMachineCommands(program, () => "http://server");
 
-  it("bb machine list --json prints the raw host list", async () => {
+  it("patcher machine list --json prints the raw host list", async () => {
     stubServerApi({ "v1.hosts.$get": vi.fn(async () => hosts) });
 
     await runCommand(["machine", "list", "--json"], register);
@@ -54,7 +54,7 @@ describe("bb machine command output", () => {
     ).toEqual(hosts);
   });
 
-  it("bb machine list renders names, IDs, status, and relative last seen", async () => {
+  it("patcher machine list renders names, IDs, status, and relative last seen", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_120_000);
     stubServerApi({ "v1.hosts.$get": vi.fn(async () => hosts) });
 
@@ -67,7 +67,7 @@ describe("bb machine command output", () => {
     ]);
   });
 
-  it("bb machine retry-update resolves the machine and requests a retry", async () => {
+  it("patcher machine retry-update resolves the machine and requests a retry", async () => {
     const retryUpdate = vi.fn(async () => ({ ok: true as const }));
     stubServerApi({
       "v1.hosts.$get": vi.fn(async () => hosts),

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import * as domain from "@bb/domain";
+import * as domain from "@patcher/domain";
 import {
   setupCommandOutputTestEnvironment,
   collectLogLines,
@@ -11,13 +11,13 @@ import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import * as fixtures from "../helpers/command-output-fixtures.js";
 import { registerThreadCommands } from "../../commands/thread/index.js";
 
-describe("bb thread action command output", () => {
+describe("patcher thread action command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerThreadCommands(program, () => "http://server");
 
-  it("bb thread archive sends the thread id from args", async () => {
+  it("patcher thread archive sends the thread id from args", async () => {
     const archivePost = vi.fn(async () => ({
       ok: true,
       archivedThreadIds: ["thread-archive-1"],
@@ -34,7 +34,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread archive reports related threads when cascading", async () => {
+  it("patcher thread archive reports related threads when cascading", async () => {
     const archivePost = vi.fn(async () => ({
       ok: true,
       archivedThreadIds: ["thread-child-1", "thread-archive-1"],
@@ -51,8 +51,8 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread archive --self resolves from BB_THREAD_ID", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-archive-2");
+  it("patcher thread archive --self resolves from PATCHER_THREAD_ID", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-archive-2");
     const archivePost = vi.fn(async () => ({
       ok: true,
       archivedThreadIds: ["thread-archive-2"],
@@ -66,7 +66,7 @@ describe("bb thread action command output", () => {
     });
   });
 
-  it("bb thread archive prefixes failures with thread context", async () => {
+  it("patcher thread archive prefixes failures with thread context", async () => {
     const archivePost = vi.fn(async () => {
       throw new Error("HTTP 404: missing");
     });
@@ -84,8 +84,8 @@ describe("bb thread action command output", () => {
     });
   });
 
-  it("bb thread unarchive --self resolves from BB_THREAD_ID", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-unarchive-1");
+  it("patcher thread unarchive --self resolves from PATCHER_THREAD_ID", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-unarchive-1");
     const unarchivePost = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.unarchive.$post": unarchivePost });
 
@@ -99,7 +99,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread edit-message targets the latest editable message by default", async () => {
+  it("patcher thread edit-message targets the latest editable message by default", async () => {
     const submitEdit = vi.fn(async () => ({
       ok: true,
       operationId: "edit-op-server",
@@ -126,8 +126,8 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread edit-message preserves an agent caller when targeting another thread", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-agent-caller");
+  it("patcher thread edit-message preserves an agent caller when targeting another thread", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-agent-caller");
     const submitEdit = vi.fn(async () => ({
       ok: true,
       operationId: "edit-op-server",
@@ -158,8 +158,8 @@ describe("bb thread action command output", () => {
     });
   });
 
-  it("bb thread edit-message accepts an explicit stale-edit guard", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-edit-self");
+  it("patcher thread edit-message accepts an explicit stale-edit guard", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-edit-self");
     const submitEdit = vi.fn(async () => ({
       ok: true,
       operationId: "edit-op-server",
@@ -196,7 +196,7 @@ describe("bb thread action command output", () => {
     });
   });
 
-  it("bb thread edit-message rejects a partially numeric request sequence", async () => {
+  it("patcher thread edit-message rejects a partially numeric request sequence", async () => {
     const submitEdit = vi.fn();
     stubServerApi({ "v1.threads.:id.edit-message.$post": submitEdit });
 
@@ -221,7 +221,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread pin sends the thread id from args", async () => {
+  it("patcher thread pin sends the thread id from args", async () => {
     const pinnedThread = fixtures.makeThread({
       id: "thread-pin-1",
       projectId: "proj-1",
@@ -241,8 +241,8 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread unpin --self resolves from BB_THREAD_ID", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-unpin-1");
+  it("patcher thread unpin --self resolves from PATCHER_THREAD_ID", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-unpin-1");
     const unpinnedThread = fixtures.makeThread({
       id: "thread-unpin-1",
       projectId: "proj-1",
@@ -262,7 +262,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread delete prompts before deleting", async () => {
+  it("patcher thread delete prompts before deleting", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-delete-1",
       projectId: "proj-1",
@@ -295,7 +295,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread delete cancels when confirmation is declined", async () => {
+  it("patcher thread delete cancels when confirmation is declined", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-delete-2",
       projectId: "proj-1",
@@ -320,7 +320,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread delete --yes skips confirmation (requires explicit id)", async () => {
+  it("patcher thread delete --yes skips confirmation (requires explicit id)", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-delete-3",
       projectId: "proj-1",
@@ -348,7 +348,7 @@ describe("bb thread action command output", () => {
     });
   });
 
-  it("bb thread delete forwards explicit child-thread confirmation", async () => {
+  it("patcher thread delete forwards explicit child-thread confirmation", async () => {
     const thread: domain.Thread = fixtures.makeThread({
       id: "thread-delete-children",
       projectId: "proj-1",
@@ -381,7 +381,7 @@ describe("bb thread action command output", () => {
     });
   });
 
-  it("bb thread stop lets the server no-op when the thread is already idle", async () => {
+  it("patcher thread stop lets the server no-op when the thread is already idle", async () => {
     const get = vi.fn(async () =>
       fixtures.makeThread({
         id: "thread-stop-idle",
@@ -407,7 +407,7 @@ describe("bb thread action command output", () => {
     expect(stopPost).toHaveBeenCalledTimes(1);
   });
 
-  it("bb thread retry continues the current eligible failed request", async () => {
+  it("patcher thread retry continues the current eligible failed request", async () => {
     const statusGet = vi.fn(async () => ({
       reason: "eligible",
       scopeKey: "host-1:codex",
@@ -452,7 +452,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread retry fails when the server finds no eligible candidate", async () => {
+  it("patcher thread retry fails when the server finds no eligible candidate", async () => {
     stubServerApi({
       "v1.threads.:id.rate-limit-recovery.$get": vi.fn(async () => ({
         reason: "input-not-accepted",
@@ -471,7 +471,7 @@ describe("bb thread action command output", () => {
     );
   });
 
-  it("bb thread stop lets the server no-op when the thread is in error", async () => {
+  it("patcher thread stop lets the server no-op when the thread is in error", async () => {
     const get = vi.fn(async () =>
       fixtures.makeThread({
         id: "thread-stop-error",
@@ -497,7 +497,7 @@ describe("bb thread action command output", () => {
     expect(stopPost).toHaveBeenCalledTimes(1);
   });
 
-  it("bb thread stop still stops active threads", async () => {
+  it("patcher thread stop still stops active threads", async () => {
     const get = vi.fn(async () =>
       fixtures.makeThread({
         id: "thread-stop-active",
@@ -522,7 +522,7 @@ describe("bb thread action command output", () => {
     expect(stopPost).toHaveBeenCalledTimes(1);
   });
 
-  it("bb thread compact calls the manual compaction endpoint", async () => {
+  it("patcher thread compact calls the manual compaction endpoint", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.compact.$post": post });
 
@@ -538,7 +538,7 @@ describe("bb thread action command output", () => {
     ["cancel-plan", "plan.cancel", "exited Plan mode"],
     ["clear-goal", "goal.clear", "cleared its Goal"],
   ])(
-    "bb thread %s calls the authoritative banner action",
+    "patcher thread %s calls the authoritative banner action",
     async (command, route, output) => {
       const post = vi.fn(async () => ({ ok: true }));
       stubServerApi({ [`v1.threads.:id.${route}.$post`]: post });

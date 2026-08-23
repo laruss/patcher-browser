@@ -1,4 +1,4 @@
-import type { Environment, Host, Thread, ThreadStatus } from "@bb/domain";
+import type { Environment, Host, Thread, ThreadStatus } from "@patcher/domain";
 import type {
   EnvironmentNotReadyErrorDetails,
   HostUnavailableErrorDetails,
@@ -9,7 +9,7 @@ import type {
   ThreadEnvironmentUnavailableErrorDetails,
   ThreadNotWritableErrorDetails,
   ThreadNotWritableReason,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../../errors.js";
 
 export type EnvironmentReadinessFields = Pick<

@@ -1,4 +1,4 @@
-import type { ThreadTab } from "@bb/server-contract";
+import type { ThreadTab } from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import {
   createEmptyFixedPanelTabsState,

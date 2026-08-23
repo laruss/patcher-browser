@@ -2,15 +2,18 @@ import path from "node:path";
 import {
   getBuiltInAgentProviderInfo,
   isAgentProviderId,
-} from "@bb/agent-providers";
-import { formatCustomAcpAgentProviderId } from "@bb/config/bb-app-managed-config";
+} from "@patcher/agent-providers";
+import { formatCustomAcpAgentProviderId } from "@patcher/config/patcher-app-managed-config";
 import {
   getAppSettings,
   getLatestThreadSequence,
   listQueuedThreadMessages,
-} from "@bb/db";
+} from "@patcher/db";
 import type { Hono } from "hono";
-import { PROMPT_HISTORY_ENTRY_LIMIT, threadEventTypeSchema } from "@bb/domain";
+import {
+  PROMPT_HISTORY_ENTRY_LIMIT,
+  threadEventTypeSchema,
+} from "@patcher/domain";
 import {
   publicApiRoutes,
   typedRoutes,
@@ -18,7 +21,7 @@ import {
   type ThreadComposerBootstrapResponse,
   type ThreadConversationOutlineResponse,
   type ThreadTimelineQuery,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   AppDeps,
   LoggedWorkSessionDeps,
@@ -63,7 +66,7 @@ import {
   DEFAULT_MAX_INLINE_OUTPUT_CHARS,
   truncateTimelineResponseOutputs,
 } from "../../services/threads/timeline-output-truncation.js";
-import { computeTimelineRowDelta } from "@bb/server-contract";
+import { computeTimelineRowDelta } from "@patcher/server-contract";
 import {
   findThreadEvent,
   getLastThreadOutput,

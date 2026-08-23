@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DynamicTool, ReasoningLevel } from "@bb/domain";
+import type { DynamicTool, ReasoningLevel } from "@patcher/domain";
 import {
   captureBridgeJsonRpcOutput,
   type BridgeJsonRpcOutputMessage,
@@ -121,13 +121,13 @@ interface StartThreadArgs {
 }
 
 async function startThread(args?: StartThreadArgs): Promise<{
-  bbThreadId: string;
+  patcherThreadId: string;
   providerThreadId: string;
 }> {
   nextThreadSerial += 1;
-  const bbThreadId = `thread-${nextThreadSerial}`;
+  const patcherThreadId = `thread-${nextThreadSerial}`;
   const id = sendRequest("thread/start", {
-    threadId: bbThreadId,
+    threadId: patcherThreadId,
     cwd: workspaceDir,
     agent: args?.agent ?? {
       command: process.execPath,
@@ -170,7 +170,7 @@ async function startThread(args?: StartThreadArgs): Promise<{
     throw new Error("thread/start did not return a providerThreadId");
   }
   startedProviderThreadIds.push(result.providerThreadId);
-  return { bbThreadId, providerThreadId: result.providerThreadId };
+  return { patcherThreadId, providerThreadId: result.providerThreadId };
 }
 
 async function stopThread(providerThreadId: string): Promise<void> {
@@ -288,7 +288,7 @@ function callDynamicToolBridge(args: {
 }
 
 beforeEach(() => {
-  workspaceDir = mkdtempSync(join(tmpdir(), "bb-acp-bridge-test-"));
+  workspaceDir = mkdtempSync(join(tmpdir(), "patcher-acp-bridge-test-"));
   output = captureBridgeJsonRpcOutput();
 });
 
@@ -304,7 +304,7 @@ afterEach(async () => {
 describe("acp bridge", () => {
   it("answers initialize and lists grouped models without spawning an agent", async () => {
     const initializeId = sendRequest("initialize", {
-      clientInfo: { name: "bb", version: "1.0.0" },
+      clientInfo: { name: "Patcher", version: "1.0.0" },
     });
     expect((await waitForResponse(initializeId)).result).toEqual({ ok: true });
 
@@ -1104,9 +1104,8 @@ describe("acp bridge", () => {
       configText.slice(configPrefix.length),
     ) as { env: { name: string; value: string }[] }[];
     expect(
-      mcpServerConfig?.env.find(
-        ({ name }) => name === "ELECTRON_RUN_AS_NODE",
-      )?.value,
+      mcpServerConfig?.env.find(({ name }) => name === "ELECTRON_RUN_AS_NODE")
+        ?.value,
     ).toBe("1");
 
     sendRequest("turn/start", {
@@ -1158,12 +1157,12 @@ describe("acp bridge", () => {
   });
 
   it("starts a session and runs a prompt turn end to end", async () => {
-    const { bbThreadId, providerThreadId } = await startThread();
+    const { patcherThreadId, providerThreadId } = await startThread();
     expect(providerThreadId).toMatch(/^fake-sess-\d+$/);
 
     const identity = notifications("thread/identity").at(-1);
     expect(identity?.params).toEqual({
-      threadId: bbThreadId,
+      threadId: patcherThreadId,
       providerThreadId,
     });
 
@@ -1175,7 +1174,7 @@ describe("acp bridge", () => {
 
     const completed = await waitForTurnCompleted();
     expect(completed.params).toEqual({
-      threadId: bbThreadId,
+      threadId: patcherThreadId,
       stopReason: "end_turn",
     });
     expect(notifications("acp/turn/started")).toHaveLength(1);
@@ -1349,7 +1348,7 @@ describe("acp bridge", () => {
   });
 
   it("forwards ACP dynamic tool calls through the runtime tool-call contract", async () => {
-    const { bbThreadId, providerThreadId } = await startThread({
+    const { patcherThreadId, providerThreadId } = await startThread({
       dynamicTools: [
         {
           name: "update_environment_directory",
@@ -1387,10 +1386,10 @@ describe("acp bridge", () => {
     const env = new Map(
       mcpServerConfig.env.map(({ name, value }) => [name, value]),
     );
-    const host = env.get("BB_ACP_DYNAMIC_TOOL_HOST");
-    const port = Number(env.get("BB_ACP_DYNAMIC_TOOL_PORT"));
-    const threadId = env.get("BB_ACP_DYNAMIC_TOOL_THREAD_ID");
-    const token = env.get("BB_ACP_DYNAMIC_TOOL_TOKEN");
+    const host = env.get("PATCHER_ACP_DYNAMIC_TOOL_HOST");
+    const port = Number(env.get("PATCHER_ACP_DYNAMIC_TOOL_PORT"));
+    const threadId = env.get("PATCHER_ACP_DYNAMIC_TOOL_THREAD_ID");
+    const token = env.get("PATCHER_ACP_DYNAMIC_TOOL_TOKEN");
     if (!host || !Number.isInteger(port) || !threadId || !token) {
       throw new Error("MCP server config is missing dynamic tool bridge env");
     }
@@ -1415,7 +1414,7 @@ describe("acp bridge", () => {
     expect(forwarded.params).toMatchObject({
       arguments: { path: "/tmp/next-worktree" },
       providerThreadId,
-      threadId: bbThreadId,
+      threadId: patcherThreadId,
       tool: "update_environment_directory",
       turnId: null,
     });
@@ -1471,7 +1470,7 @@ describe("acp bridge", () => {
   });
 
   it("forwards permission requests to the runtime in ask mode", async () => {
-    const { bbThreadId, providerThreadId } = await startThread({
+    const { patcherThreadId, providerThreadId } = await startThread({
       permissionMode: "accept-edits",
       permissionEscalation: "ask",
     });
@@ -1491,7 +1490,7 @@ describe("acp bridge", () => {
       "forwarded permission request",
     );
     expect(forwarded.params).toMatchObject({
-      threadId: bbThreadId,
+      threadId: patcherThreadId,
       providerThreadId,
       turnId: null,
       toolCall: {
@@ -1545,7 +1544,7 @@ describe("acp bridge", () => {
 
   it("performs client fs writes inside the workspace and reports them", async () => {
     const targetPath = join(workspaceDir, "agent-output.txt");
-    const { bbThreadId, providerThreadId } = await startThread({
+    const { patcherThreadId, providerThreadId } = await startThread({
       permissionMode: "accept-edits",
       permissionEscalation: "ask",
       envVars: { FAKE_ACP_WRITE_PATH: targetPath },
@@ -1561,14 +1560,14 @@ describe("acp bridge", () => {
     expect(readFileSync(targetPath, "utf8")).toBe("hello from agent\n");
     const fsWrite = notifications("acp/fs/write").at(-1);
     expect(fsWrite?.params).toMatchObject({
-      threadId: bbThreadId,
+      threadId: patcherThreadId,
       path: targetPath,
       kind: "add",
     });
   });
 
   it("denies client fs writes outside the workspace in accept-edits mode", async () => {
-    const outsideDir = mkdtempSync(join(tmpdir(), "bb-acp-outside-"));
+    const outsideDir = mkdtempSync(join(tmpdir(), "patcher-acp-outside-"));
     const targetPath = join(outsideDir, "outside.txt");
     try {
       const { providerThreadId } = await startThread({
@@ -1612,7 +1611,7 @@ describe("acp bridge", () => {
 
     await waitForTurnCompleted();
     expect(agentMessageTexts()).toContain("echo:steered");
-    // One bb turn spans both prompts.
+    // One Patcher turn spans both prompts.
     expect(notifications("acp/turn/started")).toHaveLength(1);
     expect(notifications("acp/turn/completed")).toHaveLength(1);
   });
@@ -1629,7 +1628,7 @@ describe("acp bridge", () => {
   });
 
   it("cancels the active turn on thread/stop", async () => {
-    const { bbThreadId, providerThreadId } = await startThread();
+    const { patcherThreadId, providerThreadId } = await startThread();
     const turnId = sendRequest("turn/start", {
       threadId: providerThreadId,
       input: [{ type: "text", text: "hang", mentions: [] }],
@@ -1642,7 +1641,7 @@ describe("acp bridge", () => {
 
     const completed = await waitForTurnCompleted();
     expect(completed.params).toEqual({
-      threadId: bbThreadId,
+      threadId: patcherThreadId,
       stopReason: "cancelled",
     });
     startedProviderThreadIds.pop();
@@ -1656,7 +1655,7 @@ describe("acp bridge", () => {
     startedProviderThreadIds.pop();
 
     const resumeId = sendRequest("thread/resume", {
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
       providerThreadId: first.providerThreadId,
       cwd: workspaceDir,
       agent: { command: process.execPath, args: [FAKE_AGENT_PATH] },
@@ -1681,7 +1680,7 @@ describe("acp bridge", () => {
     startedProviderThreadIds.pop();
 
     const resumeId = sendRequest("thread/resume", {
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
       providerThreadId: first.providerThreadId,
       cwd: workspaceDir,
       agent: { command: process.execPath, args: [FAKE_AGENT_PATH] },
@@ -1698,7 +1697,7 @@ describe("acp bridge", () => {
       providerThreadId: first.providerThreadId,
     });
     expect(notifications("acp/update").at(-1)?.params).toEqual({
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
       update: {
         sessionUpdate: "usage_update",
         used: 24_000,
@@ -1716,7 +1715,7 @@ describe("acp bridge", () => {
     startedProviderThreadIds.pop();
 
     const resumeId = sendRequest("thread/resume", {
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
       providerThreadId: first.providerThreadId,
       cwd: workspaceDir,
       agent: { command: process.execPath, args: [FAKE_AGENT_PATH] },
@@ -1745,7 +1744,7 @@ describe("acp bridge", () => {
     startedProviderThreadIds.pop();
 
     const resumeId = sendRequest("thread/resume", {
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
       providerThreadId: first.providerThreadId,
       cwd: workspaceDir,
       agent: { command: process.execPath, args: [FAKE_AGENT_PATH] },
@@ -1770,7 +1769,7 @@ describe("acp bridge", () => {
     expect(result.providerThreadId).not.toBe(first.providerThreadId);
     expect(notifications("acp/update")).toEqual([]);
     expect(notifications("acp/warning").at(-1)?.params).toMatchObject({
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
     });
     startedProviderThreadIds.push(result.providerThreadId);
   });
@@ -1787,7 +1786,7 @@ describe("acp bridge", () => {
     startedProviderThreadIds.pop();
 
     const resumeId = sendRequest("thread/resume", {
-      threadId: first.bbThreadId,
+      threadId: first.patcherThreadId,
       providerThreadId: first.providerThreadId,
       cwd: workspaceDir,
       agent: { command: process.execPath, args: [FAKE_AGENT_PATH] },
@@ -1846,7 +1845,7 @@ describe("acp bridge", () => {
   });
 
   it("reports unexpected agent exits as a single provider error", async () => {
-    const { bbThreadId, providerThreadId } = await startThread();
+    const { patcherThreadId, providerThreadId } = await startThread();
     const turnId = sendRequest("turn/start", {
       threadId: providerThreadId,
       input: [{ type: "text", text: "die", mentions: [] }],
@@ -1858,7 +1857,7 @@ describe("acp bridge", () => {
       return errorNotifications.length > 0 ? errorNotifications : undefined;
     }, "agent exit error notification");
     expect(errors).toHaveLength(1);
-    expect(errors[0]?.params).toMatchObject({ threadId: bbThreadId });
+    expect(errors[0]?.params).toMatchObject({ threadId: patcherThreadId });
     // The session is gone; a stop for it settles without error.
     startedProviderThreadIds.pop();
   });
@@ -1867,12 +1866,14 @@ describe("acp bridge", () => {
     const id = sendRequest("thread/start", {
       threadId: "thread-missing-agent",
       cwd: workspaceDir,
-      agent: { command: "definitely-not-a-real-binary-bb", args: [] },
+      agent: { command: "definitely-not-a-real-binary-patcher", args: [] },
       permissionMode: "full",
       permissionEscalation: null,
       workspaceWriteRoots: [workspaceDir],
     });
     const response = await waitForResponse(id);
-    expect(response.error?.message).toMatch(/definitely-not-a-real-binary-bb/);
+    expect(response.error?.message).toMatch(
+      /definitely-not-a-real-binary-patcher/,
+    );
   });
 });

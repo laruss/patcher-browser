@@ -2,8 +2,8 @@ import type {
   ThreadEvent,
   SystemThreadProvisioningStatus,
   SystemThreadInterruptedReason,
-} from "@bb/domain";
-import { ownershipChangeOperationMetadataSchema } from "@bb/domain";
+} from "@patcher/domain";
+import { ownershipChangeOperationMetadataSchema } from "@patcher/domain";
 import { assertNever } from "./assert-never.js";
 import { getCompactionKey } from "./compaction-lifecycle.js";
 import { OWNERSHIP_CHANGE_VERBS } from "./family-a-verbs.js";

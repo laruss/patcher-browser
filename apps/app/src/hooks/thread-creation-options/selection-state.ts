@@ -1,10 +1,14 @@
-import type { PermissionMode, ReasoningLevel, ServiceTier } from "@bb/domain";
+import type {
+  PermissionMode,
+  ReasoningLevel,
+  ServiceTier,
+} from "@patcher/domain";
 import type {
   CreateExecutionInputSources,
   ExecutionInputFieldSource,
   ExistingThreadExecutionInputSources,
   SystemProvidersQuery,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   StoredPermissionMode,
   StoredReasoningLevel,

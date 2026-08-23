@@ -1,7 +1,7 @@
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_WORKFLOW_SETTINGS,
@@ -109,7 +109,7 @@ describe("workflow settings policy", () => {
   );
 
   it("registers descriptors and returns parsed fake-host values", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "workflows",
       settings: {
@@ -117,7 +117,7 @@ describe("workflow settings policy", () => {
         maxAgentCalls: "250",
       },
     });
-    const settings = registerWorkflowSettings(bb);
+    const settings = registerWorkflowSettings(patcher);
 
     expect(harness.registrations.settingsDescriptors).toEqual(
       WORKFLOW_SETTING_DESCRIPTORS,
@@ -141,24 +141,24 @@ describe("workflow settings policy", () => {
   });
 
   it("surfaces a field-specific error for an invalid fake-host value", async () => {
-    const { bb } = createFakePluginHost({
+    const { patcher } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "workflows",
       settings: { retentionDays: "forever" },
     });
 
-    await expect(registerWorkflowSettings(bb).get()).rejects.toThrow(
+    await expect(registerWorkflowSettings(patcher).get()).rejects.toThrow(
       /Retention days.*base-10 integer.*1 through 3650/,
     );
   });
 
   it("accepts a valid update after replacing invalid persisted settings", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "workflows",
       settings: { retentionDays: "forever" },
     });
-    const settings = registerWorkflowSettings(bb);
+    const settings = registerWorkflowSettings(patcher);
     await expect(settings.get()).rejects.toThrow("Retention days");
     const changes: WorkflowSettings[] = [];
     const errors: string[] = [];

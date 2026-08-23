@@ -1,10 +1,10 @@
 import { execFileSync, fork } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ChildProcess } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PLUGIN_PERMISSIONS } from "@bb/domain";
+import { PLUGIN_PERMISSIONS } from "@patcher/domain";
 // The repo's own build helper, so this bundles exactly the way `npm run build`
 // does rather than with a second set of esbuild settings to drift from it.
 // @ts-expect-error -- a plain .mjs build script with no declarations.
@@ -13,12 +13,12 @@ import { createPluginChannel } from "../../../src/services/plugins/plugin-channe
 import { BOOTSTRAP_METHOD } from "../../../src/services/plugins/plugin-child-runtime.js";
 import { createPortMultiplexer } from "../../../src/services/plugins/plugin-port-multiplexer.js";
 import { createChildProcessPort } from "../../../src/services/plugins/plugin-ports.js";
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 
 /**
  * The plugin host as it actually ships: bundled, not run from source.
  *
- * Two things only exist in this form. `@bb/sdk` is deferred behind a literal
+ * Two things only exist in this form. `@patcher/sdk` is deferred behind a literal
  * `require`, which under tsx resolves from the workspace and in a bundle is a
  * module the bundler folded in and initialises on first call — different
  * machinery, same contract, and only this test exercises the second. And the
@@ -42,7 +42,14 @@ describe("the plugin host, bundled", () => {
   beforeAll(async () => {
     // Into the package's own dist: natives stay external, so the process has
     // to sit somewhere `better-sqlite3` resolves — exactly as it ships.
-    outDir = await mkdtemp(join(PACKAGE_ROOT, "dist", "host-bundle-"));
+    //
+    // Created, not assumed: this suite builds its own bundle and so has no
+    // reason to need a prior `bun run build`, but `mkdtemp` fails with ENOENT
+    // when the parent is absent — which is every clean checkout, and every CI
+    // runner whose test shard does not build the server first.
+    const distDir = join(PACKAGE_ROOT, "dist");
+    await mkdir(distDir, { recursive: true });
+    outDir = await mkdtemp(join(distDir, "host-bundle-"));
     bundlePath = join(outDir, "plugin-host-entry.js");
     await buildNodeEsmEntry({
       entryPoint: HOST_ENTRY,
@@ -129,7 +136,7 @@ describe("the plugin host, bundled", () => {
   // The number the placement policy is argued from, asserted loosely: what
   // matters is that a host process is tens of megabytes rather than hundreds.
   // Measured at ~67MB, so the bound catches a regression that puts any of the
-  // deferred packages — `@bb/sdk`, zod, cron-parser, the browser-control
+  // deferred packages — `@patcher/sdk`, zod, cron-parser, the browser-control
   // schemas — back into the startup path, without failing on noise.
   //
   // See apps/server/scripts/measure-plugin-host.mjs for the breakdown.

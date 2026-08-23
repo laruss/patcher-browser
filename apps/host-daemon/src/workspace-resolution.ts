@@ -3,9 +3,12 @@ import type {
   WorkspaceContext,
   WorkspaceResolutionFailure,
   WorkspaceResolutionFailureCode,
-} from "@bb/host-daemon-contract";
-import { workspaceResolutionFailureCodeSchema } from "@bb/host-daemon-contract";
-import { getPersonalWorkspaceRoot, WorkspaceError } from "@bb/host-workspace";
+} from "@patcher/host-daemon-contract";
+import { workspaceResolutionFailureCodeSchema } from "@patcher/host-daemon-contract";
+import {
+  getPersonalWorkspaceRoot,
+  WorkspaceError,
+} from "@patcher/host-workspace";
 import type { RuntimeEntry, RuntimeManager } from "./runtime-manager.js";
 import {
   CommandDispatchError,

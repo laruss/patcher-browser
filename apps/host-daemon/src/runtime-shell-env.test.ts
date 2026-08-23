@@ -4,7 +4,7 @@ import path, { delimiter } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   prepareRuntimeShellEnv,
-  resolveLocalBbExecutableDirectory,
+  resolveLocalPatcherExecutableDirectory,
   resolveUserShellPath,
   type SpawnUserShellEnv,
   type SpawnUserShellEnvArgs,
@@ -73,15 +73,15 @@ async function withPlatform<T>(
 async function createFakeCliPackage(
   options: FakeCliPackageOptions = {},
 ): Promise<FakeCliPackage> {
-  const cliPackageRoot = await makeTempDir("bb-cli-package-");
-  const executablePath = options.executablePath ?? "./dist/bin/bb";
+  const cliPackageRoot = await makeTempDir("patcher-cli-package-");
+  const executablePath = options.executablePath ?? "./dist/bin/patcher";
   const cliEntryPath = path.resolve(cliPackageRoot, executablePath);
 
   if (options.writeEntry ?? true) {
     await fs.mkdir(path.dirname(cliEntryPath), { recursive: true });
     await fs.writeFile(
       cliEntryPath,
-      "#!/usr/bin/env node\nprocess.stdout.write('bb')\n",
+      "#!/usr/bin/env node\nprocess.stdout.write('patcher')\n",
       { mode: options.executable ? 0o755 : 0o644 },
     );
     await fs.chmod(cliEntryPath, options.executable ? 0o755 : 0o644);
@@ -107,10 +107,10 @@ function createShellEnvSpawnResult(
 function createMarkedShellEnvOutput(pathValue: string): string {
   return [
     "shell startup noise",
-    "__BB_SHELL_ENV_START__",
+    "__PATCHER_SHELL_ENV_START__",
     "USER=test-user",
     `PATH=${pathValue}`,
-    "__BB_SHELL_ENV_END__",
+    "__PATCHER_SHELL_ENV_END__",
     "shell shutdown noise",
   ].join("\n");
 }
@@ -144,14 +144,14 @@ afterEach(async () => {
   );
 });
 
-describe("resolveLocalBbExecutableDirectory", () => {
+describe("resolveLocalPatcherExecutableDirectory", () => {
   it("returns the built CLI executable directory", async () => {
     const { cliEntryPath } = await createFakeCliPackage({
       executable: true,
     });
 
     await expect(
-      resolveLocalBbExecutableDirectory({
+      resolveLocalPatcherExecutableDirectory({
         cliExecutablePath: cliEntryPath,
       }),
     ).resolves.toBe(path.dirname(cliEntryPath));
@@ -163,11 +163,11 @@ describe("resolveLocalBbExecutableDirectory", () => {
     });
 
     await expect(
-      resolveLocalBbExecutableDirectory({
+      resolveLocalPatcherExecutableDirectory({
         cliExecutablePath: cliEntryPath,
       }),
     ).rejects.toThrow(
-      `Missing built bb CLI entry at ${cliEntryPath}. Build @bb/cli before starting the host daemon.`,
+      `Missing built Patcher CLI entry at ${cliEntryPath}. Build @patcher/cli before starting the host daemon.`,
     );
   });
 
@@ -177,11 +177,11 @@ describe("resolveLocalBbExecutableDirectory", () => {
     });
 
     await expect(
-      resolveLocalBbExecutableDirectory({
+      resolveLocalPatcherExecutableDirectory({
         cliExecutablePath: cliEntryPath,
       }),
     ).rejects.toThrow(
-      `Resolved bb CLI entry is not executable: ${cliEntryPath}. Build @bb/cli before starting the host daemon.`,
+      `Resolved Patcher CLI entry is not executable: ${cliEntryPath}. Build @patcher/cli before starting the host daemon.`,
     );
   });
 
@@ -192,7 +192,7 @@ describe("resolveLocalBbExecutableDirectory", () => {
 
     await expect(
       withPlatform("win32", () =>
-        resolveLocalBbExecutableDirectory({
+        resolveLocalPatcherExecutableDirectory({
           cliExecutablePath: cliEntryPath,
         }),
       ),
@@ -202,7 +202,7 @@ describe("resolveLocalBbExecutableDirectory", () => {
 
 describe("resolveUserShellPath", () => {
   it("settles when the shell env probe times out even if the shell ignores SIGTERM", async () => {
-    const shellDir = await makeTempDir("bb-shell-timeout-");
+    const shellDir = await makeTempDir("patcher-shell-timeout-");
     const shellPath = path.join(shellDir, "ignore-term-shell");
     await fs.writeFile(
       shellPath,
@@ -252,7 +252,7 @@ describe("resolveUserShellPath", () => {
         command: "/usr/bin/bash",
         args: [
           "-ilc",
-          "printf '%s\\n' __BB_SHELL_ENV_START__; env; printf '%s\\n' __BB_SHELL_ENV_END__",
+          "printf '%s\\n' __PATCHER_SHELL_ENV_START__; env; printf '%s\\n' __PATCHER_SHELL_ENV_END__",
         ],
         env: { SHELL: "/usr/bin/bash", PATH: "/usr/bin" },
         timeoutMs: 1234,
@@ -352,46 +352,50 @@ describe("resolveUserShellPath", () => {
 });
 
 describe("prepareRuntimeShellEnv", () => {
-  it("uses the daemon proxy URL without exporting its machine credential", () => {
-    vi.stubEnv("BB_CONNECT_MACHINE_CREDENTIAL", "bbcm_durable_secret");
+  it("exports the server URL and nothing else it was not asked for", () => {
+    // The shell env is an allow-list, not a filtered copy of process.env: a
+    // secret in the daemon's own environment must not reach an agent shell.
+    // The credential this once named is gone with the cloud, so the guard is
+    // stated against an arbitrary secret instead of a dead variable name.
+    vi.stubEnv("PATCHER_SOME_DAEMON_SECRET", "durable_secret");
 
     const env = prepareRuntimeShellEnv({
-      bbExecutableDirectory: "/tmp/bb-bin",
+      patcherExecutableDirectory: "/tmp/patcher-bin",
       inheritedPath: "/usr/bin",
       serverUrl: "http://127.0.0.1:43123",
     });
 
-    expect(env.BB_SERVER_URL).toBe("http://127.0.0.1:43123");
-    expect(env).not.toHaveProperty("BB_CONNECT_MACHINE_CREDENTIAL");
+    expect(env.PATCHER_SERVER_URL).toBe("http://127.0.0.1:43123");
+    expect(env).not.toHaveProperty("PATCHER_SOME_DAEMON_SECRET");
   });
 
-  it("prepends the configured bb executable directory to PATH and sets BB_CLI", () => {
+  it("prepends the configured Patcher executable directory to PATH and sets PATCHER_CLI", () => {
     expect(
       prepareRuntimeShellEnv({
-        bbExecutableDirectory: "/tmp/bb-bin",
+        patcherExecutableDirectory: "/tmp/patcher-bin",
         hostDaemonPort: 3002,
         inheritedPath: "/usr/bin",
         serverUrl: "http://127.0.0.1:3334",
       }),
     ).toEqual({
-      PATH: `/tmp/bb-bin${delimiter}/usr/bin`,
-      BB_CLI: path.resolve("/tmp/bb-bin", "bb"),
-      BB_SERVER_URL: "http://127.0.0.1:3334",
-      BB_HOST_DAEMON_PORT: "3002",
+      PATH: `/tmp/patcher-bin${delimiter}/usr/bin`,
+      PATCHER_CLI: path.resolve("/tmp/patcher-bin", "patcher"),
+      PATCHER_SERVER_URL: "http://127.0.0.1:3334",
+      PATCHER_HOST_DAEMON_PORT: "3002",
     });
   });
 
-  it("uses an explicit bbExecutablePath for BB_CLI", () => {
+  it("uses an explicit patcherExecutablePath for PATCHER_CLI", () => {
     expect(
       prepareRuntimeShellEnv({
-        bbExecutableDirectory: "/tmp/bb-bin",
-        bbExecutablePath: "/opt/custom/bb",
+        patcherExecutableDirectory: "/tmp/patcher-bin",
+        patcherExecutablePath: "/opt/custom/patcher",
         inheritedPath: "/usr/bin",
         serverUrl: "http://127.0.0.1:3334",
       }),
     ).toMatchObject({
-      BB_CLI: "/opt/custom/bb",
-      PATH: `/tmp/bb-bin${delimiter}/usr/bin`,
+      PATCHER_CLI: "/opt/custom/patcher",
+      PATH: `/tmp/patcher-bin${delimiter}/usr/bin`,
     });
   });
 
@@ -400,29 +404,29 @@ describe("prepareRuntimeShellEnv", () => {
 
     expect(
       prepareRuntimeShellEnv({
-        bbExecutableDirectory: "/tmp/bb-bin",
+        patcherExecutableDirectory: "/tmp/patcher-bin",
         hostDaemonPort: 3002,
         serverUrl: "http://127.0.0.1:3334",
       }),
     ).toEqual({
-      PATH: `/tmp/bb-bin${delimiter}/usr/local/bin:/usr/bin`,
-      BB_CLI: path.resolve("/tmp/bb-bin", "bb"),
-      BB_SERVER_URL: "http://127.0.0.1:3334",
-      BB_HOST_DAEMON_PORT: "3002",
+      PATH: `/tmp/patcher-bin${delimiter}/usr/local/bin:/usr/bin`,
+      PATCHER_CLI: path.resolve("/tmp/patcher-bin", "patcher"),
+      PATCHER_SERVER_URL: "http://127.0.0.1:3334",
+      PATCHER_HOST_DAEMON_PORT: "3002",
     });
   });
 
   it("omits the host daemon port when the local API is disabled", () => {
     expect(
       prepareRuntimeShellEnv({
-        bbExecutableDirectory: "/tmp/bb-bin",
+        patcherExecutableDirectory: "/tmp/patcher-bin",
         inheritedPath: "/usr/bin",
         serverUrl: "http://127.0.0.1:3334",
       }),
     ).toEqual({
-      PATH: `/tmp/bb-bin${delimiter}/usr/bin`,
-      BB_CLI: path.resolve("/tmp/bb-bin", "bb"),
-      BB_SERVER_URL: "http://127.0.0.1:3334",
+      PATH: `/tmp/patcher-bin${delimiter}/usr/bin`,
+      PATCHER_CLI: path.resolve("/tmp/patcher-bin", "patcher"),
+      PATCHER_SERVER_URL: "http://127.0.0.1:3334",
     });
   });
 });

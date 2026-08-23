@@ -2,14 +2,13 @@ import ReconnectingWebSocket from "partysocket/ws";
 import {
   type HostDaemonActiveThread,
   type HostDaemonLoadedEnvironment,
-  type HostDaemonConnectSharesReplaceMessage,
   type HostDaemonOnlineRpcRequestMessage,
   type HostDaemonServerWsMessage,
   type HostDaemonSessionCloseReason,
   type HostDaemonSessionOpenRequest,
   type HostDaemonSessionOpenResponse,
   type HostDaemonWatchSetReplaceMessage,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { HostDaemonLogger } from "./logger.js";
 import type { ServerClient } from "./server-client.js";
 import type { ProtocolSelfUpdater } from "./protocol-self-update.js";
@@ -47,15 +46,12 @@ export type HostDaemonServerTerminalMessage = Exclude<
   | { type: "session-close" }
   | HostDaemonOnlineRpcRequestMessage
   | HostDaemonWatchSetReplaceMessage
-  | HostDaemonConnectSharesReplaceMessage
 >;
 
 export interface ServerConnectionOptions {
   serverUrl: string;
   hostKey: string;
   logger: HostDaemonLogger;
-  machineCredential?: string;
-  connectMachineId?: string;
   serverClient: ServerClient;
   protocolSelfUpdater?: ProtocolSelfUpdater;
   onSelfUpdateInstalled?: () => void | Promise<void>;
@@ -79,9 +75,6 @@ export interface ServerConnectionOptions {
   ) => void | Promise<void>;
   onWatchSetReplace?: (
     message: HostDaemonWatchSetReplaceMessage,
-  ) => void | Promise<void>;
-  onConnectSharesReplace?: (
-    message: HostDaemonConnectSharesReplaceMessage,
   ) => void | Promise<void>;
   onSessionClose?: (
     reason: HostDaemonSessionCloseReason,

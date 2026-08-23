@@ -8,18 +8,18 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { directoryFromPath } from "@bb/thread-view";
+import { directoryFromPath } from "@patcher/thread-view";
 import {
   COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
   COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
   COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { Input } from "@bb/shared-ui/input";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { EmptyStatePanel } from "@patcher/shared-ui/empty-state";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
+import { Input } from "@patcher/shared-ui/input";
 import { TruncateStart } from "@/components/ui/truncate-start.js";
 import {
   useFileSearchSuggestions,
@@ -38,8 +38,8 @@ import {
   getFileNameFromPath,
   resolveRightPanelFileVisual,
 } from "./rightPanelFileVisuals";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { isDesktopBrowserAvailable } from "@/lib/bb-desktop";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { isDesktopBrowserAvailable } from "@/lib/patcher-desktop";
 import { formatRelativeTime } from "@/lib/relative-time";
 import {
   LAUNCHER_ACTION_ROW_BASE_CLASS,

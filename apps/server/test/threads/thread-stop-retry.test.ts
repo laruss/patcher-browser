@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { getThread, listEvents } from "@bb/db";
-import type { Environment, Thread } from "@bb/domain";
+import { getThread, listEvents } from "@patcher/db";
+import type { Environment, Thread } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   finalizeStoppedThread,

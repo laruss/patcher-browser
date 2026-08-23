@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Host } from "@bb/domain";
-import type { HostProviderCliStatusResponse } from "@bb/server-contract";
+import type { Host } from "@patcher/domain";
+import type { HostProviderCliStatusResponse } from "@patcher/server-contract";
 import {
   collectLogPayloads,
   runCommand,
@@ -41,7 +41,7 @@ const version = {
   source: "npm" as const,
   updateAvailable: true,
   isDevelopment: false,
-  upgradeCommand: "npx bb-app@latest",
+  upgradeCommand: "npx patcher-app@latest",
 };
 
 function providerStatus(args: {
@@ -95,13 +95,13 @@ function providerStatus(args: {
   };
 }
 
-describe("bb updates command output", () => {
+describe("patcher updates command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerUpdatesCommands(program, () => "http://server");
 
-  it("bb updates renders bb-app and per-machine provider rows", async () => {
+  it("patcher updates renders patcher-app and per-machine provider rows", async () => {
     stubServerApi({
       "v1.system.version.$get": vi.fn(async () => version),
       "v1.hosts.$get": vi.fn(async () => hosts),
@@ -113,9 +113,9 @@ describe("bb updates command output", () => {
     await runCommand(["updates"], register);
 
     const output = collectLogPayloads(vi.mocked(console.log)).join("\n");
-    expect(output).toContain("bb-app");
+    expect(output).toContain("patcher-app");
     expect(output).toContain("0.0.32 -> 0.0.33");
-    expect(output).toContain("update available (run: npx bb-app@latest)");
+    expect(output).toContain("update available (run: npx patcher-app@latest)");
     expect(output).toContain("workstation · Codex");
     expect(output).toContain("0.140.0 -> 0.141.0");
     expect(output).toContain("workstation · Claude Code");
@@ -124,7 +124,7 @@ describe("bb updates command output", () => {
     expect(output).toContain("offline");
   });
 
-  it("bb updates --json prints the aggregate", async () => {
+  it("patcher updates --json prints the aggregate", async () => {
     const status = providerStatus({ codexNeedsUpdate: false });
     stubServerApi({
       "v1.system.version.$get": vi.fn(async () => version),
@@ -143,7 +143,7 @@ describe("bb updates command output", () => {
     expect(payload.machines[1].providerStatus).toBeNull();
   });
 
-  it("bb updates apply runs each available provider update", async () => {
+  it("patcher updates apply runs each available provider update", async () => {
     const install = vi.fn(
       async () =>
         new Response(
@@ -182,7 +182,7 @@ describe("bb updates command output", () => {
     ]);
   });
 
-  it("bb updates apply reports when everything is current", async () => {
+  it("patcher updates apply reports when everything is current", async () => {
     stubServerApi({
       "v1.hosts.$get": vi.fn(async () => hosts),
       "v1.hosts.:id.provider-clis.status.$get": vi.fn(async () =>
@@ -197,7 +197,7 @@ describe("bb updates command output", () => {
     ]);
   });
 
-  it("bb updates reports but does not apply manual provider updates", async () => {
+  it("patcher updates reports but does not apply manual provider updates", async () => {
     const status = providerStatus({ codexNeedsUpdate: true });
     status.codex.installAction = null;
     stubServerApi({
@@ -214,7 +214,7 @@ describe("bb updates command output", () => {
     vi.mocked(console.log).mockClear();
     await runCommand(["updates", "apply"], register);
     expect(collectLogPayloads(vi.mocked(console.log))).toEqual([
-      "No updates bb can apply. Run bb updates status for manual updates.",
+      "No updates Patcher can apply. Run patcher updates status for manual updates.",
     ]);
   });
 });

@@ -1,10 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { ThreadListEntry, ThreadWithRuntime } from "@bb/domain";
+import type { ThreadListEntry, ThreadWithRuntime } from "@patcher/domain";
 import type {
   ProjectResponse,
   ReorderPinnedThreadRequest,
   ThreadArchiveAllResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { applyNeighborReorder } from "@/lib/neighbor-reorder";
 import {
   projectsQueryKey,

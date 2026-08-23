@@ -1,5 +1,5 @@
 import type { QueryKey } from "@tanstack/react-query";
-import type { SystemExecutionOptionsResponse } from "@bb/server-contract";
+import type { SystemExecutionOptionsResponse } from "@patcher/server-contract";
 import {
   allEnvironmentDiffFilesQueryKeyPrefix,
   allEnvironmentDiffPatchQueryKeyPrefix,
@@ -74,7 +74,7 @@ export function invalidateRealtimeQueriesAfterServerReconnect({
     queryKeys: getServerReconnectInvalidationQueryKeys(),
   });
   // A reconnect is how the app learns the server restarted, which is exactly
-  // what a bb self-update does — so re-check the version rather than keep
+  // what a Patcher self-update does — so re-check the version rather than keep
   // advertising the update the user just applied.
   invalidateSystemVersion({ queryClient });
   // The per-file diff patch cache is observer-less: invalidation only marks it

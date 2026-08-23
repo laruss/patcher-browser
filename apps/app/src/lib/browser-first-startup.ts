@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import { getPatcherDesktopInfo } from "@/lib/patcher-desktop";
 import {
   APP_ROOT_ROUTE_PATH,
   BROWSER_SURFACE_ROUTE_PATH,
@@ -10,7 +10,7 @@ export interface BrowserFirstStartupArgs {
   /**
    * False on the web build, where the browser surface can render no page at all:
    * the native `WebContentsView` belongs to the desktop shell, so the web keeps
-   * landing on bb's home instead of a surface that would show only its
+   * landing on Patcher's home instead of a surface that would show only its
    * "needs the desktop app" screen.
    */
   isDesktop: boolean;
@@ -32,7 +32,7 @@ export function shouldStartOnBrowserSurface({
 }
 
 /**
- * Browser-first startup: bb opens in the browser rather than on its home screen.
+ * Browser-first startup: Patcher opens in the browser rather than on its home screen.
  *
  * It fires once per app load, which is what separates "the app starts in the
  * browser" from "the home screen is unreachable" — clicking home later in the
@@ -52,7 +52,7 @@ export function useBrowserFirstStartupRoute(): void {
     hasRunRef.current = true;
     if (
       !shouldStartOnBrowserSurface({
-        isDesktop: getBbDesktopInfo() !== null,
+        isDesktop: getPatcherDesktopInfo() !== null,
         pathname: location.pathname,
       })
     ) {

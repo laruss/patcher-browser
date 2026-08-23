@@ -30,11 +30,11 @@ const COMPLETED_DOWNLOAD = {
 function downloadSource(observedPath: string): string {
   return `
   import { appendFileSync } from "node:fs";
-  export default function plugin(bb: any) {
-    bb.browser.registerDownloadHandler((download: any) => {
+  export default function plugin(patcher: any) {
+    patcher.browser.registerDownloadHandler((download: any) => {
       appendFileSync(${JSON.stringify(observedPath)}, JSON.stringify(download) + "\\n");
     });
-    bb.browser.registerDownloadHandler(() => {
+    patcher.browser.registerDownloadHandler(() => {
       throw new Error("handler boom");
     });
   }
@@ -52,7 +52,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Download handler fixture",
         description: "Download handler plugin fixture.",
         branding: { icon: "Zap" },
@@ -65,7 +65,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin download handlers (bb.browser.registerDownloadHandler)", () => {
+describe("plugin download handlers (patcher.browser.registerDownloadHandler)", () => {
   let harness: TestAppHarness;
   let observedPath: string;
 
@@ -98,7 +98,7 @@ describe("plugin download handlers (bb.browser.registerDownloadHandler)", () => 
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-downloads",
+        name: "patcher-plugin-downloads",
         serverSource: downloadSource(observedPath),
       },
     );

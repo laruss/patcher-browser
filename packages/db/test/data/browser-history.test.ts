@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   BROWSER_HISTORY_MAX_ENTRIES,
   BROWSER_HISTORY_TITLE_MAX_LENGTH,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   clearBrowserHistory,
   createConnection,

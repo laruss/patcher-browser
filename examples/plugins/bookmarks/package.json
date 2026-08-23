@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-bookmarks",
+  "name": "patcher-plugin-bookmarks",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
-    "bb": ">=0.0",
-    "bbPluginSdk": "^0.4.1"
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Bookmarks",
     "description": "Save pages with the star, Cmd+D or the address bar, and find them again on a new tab.",
     "branding": {
@@ -22,14 +22,14 @@
     ]
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.2",

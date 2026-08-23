@@ -2,13 +2,13 @@ import { z } from "zod";
 
 const isoUtcDateTimeSchema = z.iso.datetime();
 
-export const bbDesktopVersionFeedFileSchema = z.object({
+export const patcherDesktopVersionFeedFileSchema = z.object({
   url: z.string().min(1),
   sha512: z.string().min(1),
   size: z.number().int().nonnegative(),
 });
 
-export const bbDesktopVersionFeedSchema = z.object({
+export const patcherDesktopVersionFeedSchema = z.object({
   schemaVersion: z.literal(1),
   channel: z.enum(["latest", "nightly"]),
   platform: z.literal("macos"),
@@ -17,9 +17,11 @@ export const bbDesktopVersionFeedSchema = z.object({
   releaseName: z.string().min(1),
   releaseNotes: z.string().nullable(),
   minimumSystemVersion: z.string().min(1).nullable(),
-  files: z.array(bbDesktopVersionFeedFileSchema).min(1),
+  files: z.array(patcherDesktopVersionFeedFileSchema).min(1),
   path: z.string().min(1),
   sha512: z.string().min(1),
   stagingPercentage: z.number().min(0).max(100).nullable(),
 });
-export type BbDesktopVersionFeed = z.infer<typeof bbDesktopVersionFeedSchema>;
+export type PatcherDesktopVersionFeed = z.infer<
+  typeof patcherDesktopVersionFeedSchema
+>;

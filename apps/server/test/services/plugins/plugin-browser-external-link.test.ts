@@ -19,8 +19,8 @@ const LINK = { url: "https://tracker.example.com/issue/7" };
  */
 function rewritingSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerExternalLinkHandler((link: any) =>
+  export default function plugin(patcher: any) {
+    patcher.browser.registerExternalLinkHandler((link: any) =>
       link.url.includes("tracker.example.com")
         ? { url: "https://work.example.com/issues/7" }
         : null,
@@ -31,27 +31,27 @@ function rewritingSource(): string {
 
 function takingOverSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerExternalLinkHandler(() => ({ handled: true }));
+  export default function plugin(patcher: any) {
+    patcher.browser.registerExternalLinkHandler(() => ({ handled: true }));
   }
 `;
 }
 
 function decliningSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerExternalLinkHandler(() => null);
-    bb.browser.registerExternalLinkHandler(() => undefined);
-    bb.browser.registerExternalLinkHandler(() => 42);
-    bb.browser.registerExternalLinkHandler(() => ({}));
+  export default function plugin(patcher: any) {
+    patcher.browser.registerExternalLinkHandler(() => null);
+    patcher.browser.registerExternalLinkHandler(() => undefined);
+    patcher.browser.registerExternalLinkHandler(() => 42);
+    patcher.browser.registerExternalLinkHandler(() => ({}));
   }
 `;
 }
 
 function throwingSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerExternalLinkHandler(() => {
+  export default function plugin(patcher: any) {
+    patcher.browser.registerExternalLinkHandler(() => {
       throw new Error("the router is down");
     });
   }
@@ -60,8 +60,8 @@ function throwingSource(): string {
 
 function unopenableSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerExternalLinkHandler(() => ({ url: "file:///etc/passwd" }));
+  export default function plugin(patcher: any) {
+    patcher.browser.registerExternalLinkHandler(() => ({ url: "file:///etc/passwd" }));
   }
 `;
 }
@@ -77,7 +77,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Link fixture",
         description: "External link handler fixture.",
         branding: { icon: "Zap" },
@@ -90,7 +90,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)", () => {
+describe("plugin external link handlers (patcher.browser.registerExternalLinkHandler)", () => {
   let harness: TestAppHarness;
 
   async function install(
@@ -131,7 +131,7 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
   });
 
   it("answers with the address a handler rewrote", async () => {
-    expect(await install("bb-plugin-router", rewritingSource())).toBe(
+    expect(await install("patcher-plugin-router", rewritingSource())).toBe(
       "running",
     );
 
@@ -145,7 +145,7 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
   });
 
   it("answers that a handler took the link over", async () => {
-    expect(await install("bb-plugin-filer", takingOverSource())).toBe(
+    expect(await install("patcher-plugin-filer", takingOverSource())).toBe(
       "running",
     );
 
@@ -163,7 +163,9 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
       body: { ok: true, decision: null },
     });
 
-    expect(await install("bb-plugin-aaa", decliningSource())).toBe("running");
+    expect(await install("patcher-plugin-aaa", decliningSource())).toBe(
+      "running",
+    );
 
     expect(await resolve(LINK)).toEqual({
       status: 200,
@@ -174,9 +176,15 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
   // Declining, answering with the wrong shape, and throwing all mean the same
   // thing: ask the next one, in plugin id order.
   it("walks past handlers that decline, malform or throw", async () => {
-    expect(await install("bb-plugin-aaa", decliningSource())).toBe("running");
-    expect(await install("bb-plugin-bbb", throwingSource())).toBe("running");
-    expect(await install("bb-plugin-ccc", rewritingSource())).toBe("running");
+    expect(await install("patcher-plugin-aaa", decliningSource())).toBe(
+      "running",
+    );
+    expect(await install("patcher-plugin-bbb", throwingSource())).toBe(
+      "running",
+    );
+    expect(await install("patcher-plugin-ccc", rewritingSource())).toBe(
+      "running",
+    );
 
     expect((await resolve(LINK)).body).toEqual({
       ok: true,
@@ -187,8 +195,12 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
   // A plugin may redirect a link but not change what a link is: the rewrite
   // opens in a browsed view, which refuses `file:` for the reason it always has.
   it("drops an address that is not a page and asks the next handler", async () => {
-    expect(await install("bb-plugin-aaa", unopenableSource())).toBe("running");
-    expect(await install("bb-plugin-bbb", rewritingSource())).toBe("running");
+    expect(await install("patcher-plugin-aaa", unopenableSource())).toBe(
+      "running",
+    );
+    expect(await install("patcher-plugin-bbb", rewritingSource())).toBe(
+      "running",
+    );
 
     expect((await resolve(LINK)).body).toEqual({
       ok: true,
@@ -199,7 +211,7 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
   // Registration is gated in the register call itself, so an undeclared plugin
   // never half-registers — it fails to load.
   it("refuses to register without the permission", async () => {
-    expect(await install("bb-plugin-ungated", rewritingSource(), [])).toBe(
+    expect(await install("patcher-plugin-ungated", rewritingSource(), [])).toBe(
       "error",
     );
 
@@ -214,7 +226,7 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
   // the shell's queue is `http(s)` only, but the shell is not the only caller
   // that can reach here.
   it("refuses an address a handler must never be handed", async () => {
-    expect(await install("bb-plugin-router", rewritingSource())).toBe(
+    expect(await install("patcher-plugin-router", rewritingSource())).toBe(
       "running",
     );
 
@@ -225,7 +237,7 @@ describe("plugin external link handlers (bb.browser.registerExternalLinkHandler)
 
   // This route runs plugin code, so it takes the same guard as the rest.
   it("refuses a cross-origin caller", async () => {
-    expect(await install("bb-plugin-router", rewritingSource())).toBe(
+    expect(await install("patcher-plugin-router", rewritingSource())).toBe(
       "running",
     );
 

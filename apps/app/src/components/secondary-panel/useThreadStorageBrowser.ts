@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { useFileTree, type UseFileTreeResult } from "@pierre/trees/react";
-import type { WorkspaceFile } from "@bb/server-contract";
+import type { WorkspaceFile } from "@patcher/server-contract";
 
 const EMPTY_STORAGE_FILES: readonly WorkspaceFile[] = [];
 

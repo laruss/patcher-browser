@@ -85,7 +85,7 @@ describe("resolveRestoreTarget", () => {
 
 describe("scroll store", () => {
   // Storage key contract: keep in sync with STORAGE_PREFIX in the module.
-  const PREFIX = "bb-tasks:list-scroll:";
+  const PREFIX = "patcher-tasks:list-scroll:";
   beforeEach(() => window.sessionStorage.clear());
   afterEach(() => window.sessionStorage.clear());
 

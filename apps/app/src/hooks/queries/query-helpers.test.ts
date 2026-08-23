@@ -3,19 +3,19 @@ import type {
   ThreadListEntry,
   ThreadWithRuntime,
   WorkspaceStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   makeWorkspaceMergeBase,
   makeWorkspaceStatus,
   makeWorkspaceWorkingTree,
-} from "@bb/test-helpers";
+} from "@patcher/test-helpers";
 import type {
   EnvironmentDiffBranchesResponse,
   EnvironmentStatusResponse,
   ProjectBranchesResponse,
   ThreadResponse,
   ThreadTimelineResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   getCachedEnvironmentRefWorkspaceStateInvalidationQueryKeys,
   getEnvironmentWorkspaceStateInvalidationQueryKeys,
@@ -37,7 +37,7 @@ import {
 } from "./query-placeholders";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { HttpError } from "@/lib/api";
-import { BbHttpError } from "@/lib/sdk";
+import { PatcherHttpError } from "@/lib/sdk";
 import { isTransientReadError, requireEnabledQueryArg } from "./query-helpers";
 
 describe("requireEnabledQueryArg", () => {
@@ -84,7 +84,7 @@ describe("isTransientReadError", () => {
     ).toBe(false);
     expect(
       isTransientReadError(
-        new BbHttpError({
+        new PatcherHttpError({
           status: 404,
           message: "Not found",
           body: { error: "Not found" },

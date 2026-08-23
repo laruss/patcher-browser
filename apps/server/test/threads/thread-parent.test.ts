@@ -5,7 +5,7 @@ import {
   migrate,
   noopNotifier,
   upsertHost,
-} from "@bb/db";
+} from "@patcher/db";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../../src/errors.js";
 import {

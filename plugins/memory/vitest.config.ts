@@ -9,7 +9,7 @@ export default defineWorkspaceTestConfig({
   },
   test: {
     silent: "passed-only",
-    name: "bb-plugin-memory",
+    name: "patcher-plugin-memory",
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["node_modules/**"],
   },

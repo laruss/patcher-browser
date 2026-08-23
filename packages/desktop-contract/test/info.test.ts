@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bbDesktopInfoSchema } from "../src/info.js";
+import { patcherDesktopInfoSchema } from "../src/info.js";
 
 const baseInfo = {
   lastCheckedAt: null,
@@ -11,20 +11,20 @@ const baseInfo = {
   version: "0.0.31",
 } as const;
 
-describe("bbDesktopInfoSchema", () => {
+describe("patcherDesktopInfoSchema", () => {
   it("accepts both explicit download state and legacy shell payloads", () => {
     expect(
-      bbDesktopInfoSchema.safeParse({
+      patcherDesktopInfoSchema.safeParse({
         ...baseInfo,
         downloadState: "downloading",
       }).success,
     ).toBe(true);
-    expect(bbDesktopInfoSchema.safeParse(baseInfo).success).toBe(true);
+    expect(patcherDesktopInfoSchema.safeParse(baseInfo).success).toBe(true);
   });
 
   it("rejects an unknown download state", () => {
     expect(
-      bbDesktopInfoSchema.safeParse({
+      patcherDesktopInfoSchema.safeParse({
         ...baseInfo,
         downloadState: "available",
       }).success,

@@ -2,28 +2,28 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION } from "@bb/domain";
+import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION } from "@patcher/domain";
 import {
   buildPluginServer,
   resolvePluginBuildToolchain,
-} from "@bb/plugin-build";
+} from "@patcher/plugin-build";
 /**
- * The monorepo's own toolchain: resolved from `@bb/plugin-build`'s
+ * The monorepo's own toolchain: resolved from `@patcher/plugin-build`'s
  * devDependencies, so tests never download one.
  */
 function testToolchain() {
-  return resolvePluginBuildToolchain(join(tmpdir(), "bb-toolchain-unused"));
+  return resolvePluginBuildToolchain(join(tmpdir(), "patcher-toolchain-unused"));
 }
 
 
-const TEST_BB_VERSION = "0.9.0-test";
+const TEST_PATCHER_VERSION = "0.9.0-test";
 
 const FIXTURE_PACKAGE_JSON = JSON.stringify(
   {
-    name: "bb-plugin-server-fixture",
+    name: "patcher-plugin-server-fixture",
     version: "0.1.0",
     type: "module",
-    bb: {
+    patcher: {
       name: "Server fixture",
       description: "Plugin server build fixture.",
       branding: { icon: "Zap" },
@@ -35,14 +35,14 @@ const FIXTURE_PACKAGE_JSON = JSON.stringify(
 );
 
 // A local import that must be inlined, and a type-only SDK import that must
-// be fully erased (no runtime `@bb/plugin-sdk` import in the bundle).
+// be fully erased (no runtime `@patcher/plugin-sdk` import in the bundle).
 const FIXTURE_LIB_TS = `export const greeting = "PREBUILT_LIB_MARKER";\n`;
 const FIXTURE_SERVER_TS = `
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { greeting } from "./lib.ts";
 
-export default function plugin(bb: BbPluginApi): void {
-  bb.log.info(greeting);
+export default function plugin(patcher: PatcherPluginApi): void {
+  patcher.log.info(greeting);
 }
 `;
 
@@ -50,7 +50,7 @@ describe("buildPluginServer", () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bb-plugin-server-build-"));
+    root = await mkdtemp(join(tmpdir(), "patcher-plugin-server-build-"));
   });
 
   afterEach(async () => {
@@ -65,7 +65,7 @@ describe("buildPluginServer", () => {
 
   it("bundles the server entry into a self-contained ESM dist/server.js with a meta sidecar", async () => {
     await writeFixture();
-    const result = await buildPluginServer(root, TEST_BB_VERSION, await testToolchain());
+    const result = await buildPluginServer(root, TEST_PATCHER_VERSION, await testToolchain());
 
     expect(result.jsPath).toBe(join(root, "dist", "server.js"));
     const js = await readFile(result.jsPath, "utf8");
@@ -73,7 +73,7 @@ describe("buildPluginServer", () => {
     expect(js).toMatch(/export\s*\{|export default/);
     expect(js).toContain("PREBUILT_LIB_MARKER");
     // The SDK import was type-only — nothing of it may survive at runtime.
-    expect(js).not.toContain("@bb/plugin-sdk");
+    expect(js).not.toContain("@patcher/plugin-sdk");
     // CJS-dep shim banner (createRequire) is present.
     expect(js).toContain("createRequire");
 
@@ -88,36 +88,36 @@ describe("buildPluginServer", () => {
       pluginId: "server-fixture",
       pluginVersion: "0.1.0",
       builtWith: {
-        bbVersion: TEST_BB_VERSION,
+        patcherVersion: TEST_PATCHER_VERSION,
         pluginSdkVersion: PLUGIN_SDK_VERSION,
       },
     });
   });
 
-  it("keeps a runtime @bb/plugin-sdk import external (bare specifier survives)", async () => {
+  it("keeps a runtime @patcher/plugin-sdk import external (bare specifier survives)", async () => {
     await writeFixture();
     await writeFile(
       join(root, "server.ts"),
       `
       import { greeting } from "./lib.ts";
-      import * as sdk from "@bb/plugin-sdk";
+      import * as sdk from "@patcher/plugin-sdk";
 
-      export default function plugin(bb: { log: { info(msg: string): void } }): void {
-        bb.log.info(greeting + Object.keys(sdk).length);
+      export default function plugin(patcher: { log: { info(msg: string): void } }): void {
+        patcher.log.info(greeting + Object.keys(sdk).length);
       }
       `,
     );
-    const result = await buildPluginServer(root, TEST_BB_VERSION, await testToolchain());
+    const result = await buildPluginServer(root, TEST_PATCHER_VERSION, await testToolchain());
     const js = await readFile(result.jsPath, "utf8");
-    expect(js).toMatch(/from\s*"@bb\/plugin-sdk"/);
+    expect(js).toMatch(/from\s*"@patcher\/plugin-sdk"/);
   });
 
-  it("errors clearly when package.json has no bb.server entry", async () => {
+  it("errors clearly when package.json has no patcher.server entry", async () => {
     await writeFile(
       join(root, "package.json"),
-      JSON.stringify({ name: "bb-plugin-headless", version: "0.1.0" }),
+      JSON.stringify({ name: "patcher-plugin-headless", version: "0.1.0" }),
     );
-    await expect(buildPluginServer(root, TEST_BB_VERSION, await testToolchain())).rejects.toThrowError(
+    await expect(buildPluginServer(root, TEST_PATCHER_VERSION, await testToolchain())).rejects.toThrowError(
       /no server entry/,
     );
   });
@@ -127,19 +127,19 @@ describe("buildPluginServer", () => {
     await writeFile(
       join(root, "package.json"),
       JSON.stringify({
-        name: "bb-plugin-legacy",
+        name: "patcher-plugin-legacy",
         version: "0.1.0",
-        bb: { server: "./server.ts" },
+        patcher: { server: "./server.ts" },
       }),
     );
-    await expect(buildPluginServer(root, TEST_BB_VERSION, await testToolchain())).rejects.toThrowError(
-      /bb\.name/,
+    await expect(buildPluginServer(root, TEST_PATCHER_VERSION, await testToolchain())).rejects.toThrowError(
+      /patcher\.name/,
     );
   });
 
   it("preserves the previous dist/server.js when a rebuild fails", async () => {
     await writeFixture();
-    const first = await buildPluginServer(root, TEST_BB_VERSION, await testToolchain());
+    const first = await buildPluginServer(root, TEST_PATCHER_VERSION, await testToolchain());
     const before = await readFile(first.jsPath, "utf8");
     const metaBefore = await readFile(first.metaPath, "utf8");
 
@@ -147,7 +147,7 @@ describe("buildPluginServer", () => {
     // artifacts (they are staged and only renamed into place on success).
     await writeFile(join(root, "server.ts"), "export default function ( {\n");
     await expect(
-      buildPluginServer(root, TEST_BB_VERSION, await testToolchain()),
+      buildPluginServer(root, TEST_PATCHER_VERSION, await testToolchain()),
     ).rejects.toThrowError();
 
     expect(await readFile(first.jsPath, "utf8")).toBe(before);

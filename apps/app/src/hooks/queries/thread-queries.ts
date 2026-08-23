@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { useDebounceValue } from "usehooks-ts";
-import type { PendingInteraction, ThreadListEntry } from "@bb/domain";
+import type { PendingInteraction, ThreadListEntry } from "@patcher/domain";
 import type {
   PromptHistoryResponse,
   ThreadQueuedMessageListResponse,
@@ -20,8 +20,8 @@ import type {
   ThreadStoragePathListResponse,
   ThreadTimelineResponse,
   TimelineTurnSummaryDetailsResponse,
-} from "@bb/server-contract";
-import { applyTimelineDelta } from "@bb/server-contract";
+} from "@patcher/server-contract";
+import { applyTimelineDelta } from "@patcher/server-contract";
 import type { ThreadListFilters } from "@/lib/api-types";
 import type { FilePreview } from "@/lib/file-preview";
 import type { PathListOptions } from "@/lib/path-list-options";
@@ -571,7 +571,7 @@ export function useThreadDetailBootstrap(
       // The thread shell and timeline are independent reads. Starting the
       // timeline only after the bootstrap completes adds a full network
       // round-trip to every cold thread open, which is especially visible
-      // through bb connect's edge + tunnel path.
+      // over a high-latency link.
       if (timelinePrefetch) {
         void queryClient.prefetchQuery({
           queryKey: threadTimelineQueryKey(threadId),

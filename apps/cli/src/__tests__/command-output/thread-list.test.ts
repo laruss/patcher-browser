@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import * as domain from "@bb/domain";
+import * as domain from "@patcher/domain";
 import {
   setupCommandOutputTestEnvironment,
   collectLogPayloads,
@@ -10,13 +10,13 @@ import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import * as fixtures from "../helpers/command-output-fixtures.js";
 import { registerThreadCommands } from "../../commands/thread/index.js";
 
-describe("bb thread list command output", () => {
+describe("patcher thread list command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerThreadCommands(program, () => "http://server");
 
-  it("bb thread list supports parent-thread filtering", async () => {
+  it("patcher thread list supports parent-thread filtering", async () => {
     const list = vi.fn(async () => []);
     stubServerApi({ "v1.threads.$get": list });
 
@@ -40,7 +40,7 @@ describe("bb thread list command output", () => {
     });
   });
 
-  it("bb thread list opts into hidden threads explicitly", async () => {
+  it("patcher thread list opts into hidden threads explicitly", async () => {
     const list = vi.fn(async () => []);
     stubServerApi({ "v1.threads.$get": list });
 
@@ -51,7 +51,7 @@ describe("bb thread list command output", () => {
     });
   });
 
-  it("bb thread list rejects invalid parent-thread values", async () => {
+  it("patcher thread list rejects invalid parent-thread values", async () => {
     const list = vi.fn(async () => []);
     stubServerApi({ "v1.threads.$get": list });
 
@@ -75,7 +75,7 @@ describe("bb thread list command output", () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it("bb thread list renders archived status in the shared borderless table", async () => {
+  it("patcher thread list renders archived status in the shared borderless table", async () => {
     const list = vi.fn(async () => [
       fixtures.makeThread({
         id: "thread-archived-1",
@@ -101,7 +101,7 @@ describe("bb thread list command output", () => {
     ]);
   });
 
-  it("bb thread list renders pinned status in the shared borderless table", async () => {
+  it("patcher thread list renders pinned status in the shared borderless table", async () => {
     const list = vi.fn(async () => [
       fixtures.makeThread({
         id: "thread-pinned-1",
@@ -122,7 +122,7 @@ describe("bb thread list command output", () => {
     );
   });
 
-  it("bb thread list hides the personal project label", async () => {
+  it("patcher thread list hides the personal project label", async () => {
     const list = vi.fn(async () => [
       fixtures.makeThread({
         id: "thread-personal-1",
@@ -135,7 +135,7 @@ describe("bb thread list command output", () => {
     ]);
     stubServerApi({ "v1.threads.$get": list });
 
-    vi.stubEnv("BB_PROJECT_ID", undefined);
+    vi.stubEnv("PATCHER_PROJECT_ID", undefined);
     await runCommand(["thread", "list"], register);
 
     expect(list).toHaveBeenCalledWith({
@@ -148,11 +148,11 @@ describe("bb thread list command output", () => {
     ]);
   });
 
-  it("bb thread list ignores BB_PROJECT_ID when --project is omitted", async () => {
+  it("patcher thread list ignores PATCHER_PROJECT_ID when --project is omitted", async () => {
     const list = vi.fn(async () => []);
     stubServerApi({ "v1.threads.$get": list });
 
-    vi.stubEnv("BB_PROJECT_ID", "proj-env");
+    vi.stubEnv("PATCHER_PROJECT_ID", "proj-env");
     await runCommand(["thread", "list"], register);
 
     expect(list).toHaveBeenCalledWith({
@@ -160,13 +160,13 @@ describe("bb thread list command output", () => {
     });
   });
 
-  it("bb thread list does not infer parent-thread from BB_THREAD_ID", async () => {
+  it("patcher thread list does not infer parent-thread from PATCHER_THREAD_ID", async () => {
     const list = vi.fn(async () => []);
 
     stubServerApi({ "v1.threads.$get": list });
 
-    vi.stubEnv("BB_PROJECT_ID", "proj-env");
-    vi.stubEnv("BB_THREAD_ID", "thread-current");
+    vi.stubEnv("PATCHER_PROJECT_ID", "proj-env");
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-current");
     await runCommand(["thread", "list"], register);
 
     expect(list).toHaveBeenCalledWith({

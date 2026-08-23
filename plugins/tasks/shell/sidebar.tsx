@@ -12,17 +12,17 @@ import {
   PresetDialog,
   savePresetDraft,
 } from "../views/manage/preset-dialog.js";
-import { Icon } from "@bb/shared-ui/icon";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/tooltip";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
-const SIDEBAR_WIDTH_KEY = "bb-tasks:sidebar-width";
+const SIDEBAR_WIDTH_KEY = "patcher-tasks:sidebar-width";
 const SIDEBAR_DEFAULT_WIDTH = 208; // matches the old fixed w-52
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 340;

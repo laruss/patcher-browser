@@ -5,8 +5,11 @@ import {
   buildPluginApp,
   buildPluginServer,
   resolvePluginBuildToolchain,
-} from "@bb/plugin-build";
-import { isPluginOwnedIconPath, pluginPackageJsonSchema } from "@bb/domain";
+} from "@patcher/plugin-build";
+import {
+  isPluginOwnedIconPath,
+  pluginPackageJsonSchema,
+} from "@patcher/domain";
 import { z } from "zod";
 import {
   BUILTIN_PLUGINS_DIRECTORY_NAME,
@@ -23,12 +26,12 @@ const targetRoot = path.resolve(
   "dist",
   BUILTIN_PLUGINS_DIRECTORY_NAME,
 );
-const bbAppPackageJsonPath = path.resolve(
+const patcherAppPackageJsonPath = path.resolve(
   serverRoot,
   "..",
   "..",
   "packages",
-  "bb-app",
+  "patcher-app",
   "package.json",
 );
 
@@ -43,20 +46,20 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readAuthoritativeBbVersion(): Promise<string> {
+async function readAuthoritativePatcherVersion(): Promise<string> {
   try {
     const json: unknown = JSON.parse(
-      await readFile(bbAppPackageJsonPath, "utf8"),
+      await readFile(patcherAppPackageJsonPath, "utf8"),
     );
     const parsed = z.object({ version: z.string().min(1) }).safeParse(json);
     if (parsed.success) return parsed.data.version;
   } catch (error) {
     throw new Error(
-      `cannot read authoritative bb version from ${bbAppPackageJsonPath}: ${error instanceof Error ? error.message : String(error)}`,
+      `cannot read authoritative patcher version from ${patcherAppPackageJsonPath}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   throw new Error(
-    `cannot read authoritative bb version from ${bbAppPackageJsonPath}`,
+    `cannot read authoritative patcher version from ${patcherAppPackageJsonPath}`,
   );
 }
 
@@ -80,10 +83,12 @@ async function writeRuntimePackageJson(args: {
     `${JSON.stringify(
       {
         ...packageJson,
-        bb: {
-          ...packageJson.bb,
+        patcher: {
+          ...packageJson.patcher,
           server: "./dist/server.js",
-          ...(packageJson.bb.app === undefined ? {} : { app: "./dist/app.js" }),
+          ...(packageJson.patcher.app === undefined
+            ? {}
+            : { app: "./dist/app.js" }),
         },
       },
       null,
@@ -93,7 +98,7 @@ async function writeRuntimePackageJson(args: {
 }
 
 async function copyBuiltinPlugin(args: {
-  bbVersion: string;
+  patcherVersion: string;
   build: boolean;
   name: string;
   sourceRoot: string;
@@ -102,16 +107,16 @@ async function copyBuiltinPlugin(args: {
   if (args.build) {
     // Resolves from this repo's own devDependencies; no download here.
     const toolchain = await resolvePluginBuildToolchain(
-      path.join(serverRoot, "node_modules", ".bb-toolchain"),
+      path.join(serverRoot, "node_modules", ".patcher-toolchain"),
     );
-    await buildPluginServer(args.sourceRoot, args.bbVersion, toolchain);
+    await buildPluginServer(args.sourceRoot, args.patcherVersion, toolchain);
     const raw = await readFile(
       path.join(args.sourceRoot, "package.json"),
       "utf8",
     );
     const packageJson = pluginPackageJsonSchema.parse(JSON.parse(raw));
-    if (packageJson.bb.app !== undefined) {
-      await buildPluginApp(args.sourceRoot, args.bbVersion, toolchain);
+    if (packageJson.patcher.app !== undefined) {
+      await buildPluginApp(args.sourceRoot, args.patcherVersion, toolchain);
     }
   }
 
@@ -133,9 +138,11 @@ async function copyBuiltinPlugin(args: {
       await readFile(path.join(args.sourceRoot, "package.json"), "utf8"),
     ),
   );
-  const logo = packageJson.bb.branding.logo;
-  const compactIcon = isPluginOwnedIconPath(packageJson.bb.branding.icon ?? "")
-    ? packageJson.bb.branding.icon
+  const logo = packageJson.patcher.branding.logo;
+  const compactIcon = isPluginOwnedIconPath(
+    packageJson.patcher.branding.icon ?? "",
+  )
+    ? packageJson.patcher.branding.icon
     : undefined;
   for (const asset of [compactIcon, logo?.light, logo?.dark]) {
     if (asset === undefined) continue;
@@ -156,7 +163,7 @@ async function copyBuiltinPlugin(args: {
 }
 
 export async function copyBuiltinPlugins(args: {
-  bbVersion: string;
+  patcherVersion: string;
   build?: boolean;
   plugins?: readonly Pick<BundledPluginDefinition, "name">[];
   sourceModuleDir?: string;
@@ -175,7 +182,7 @@ export async function copyBuiltinPlugins(args: {
 
   for (const plugin of plugins) {
     await copyBuiltinPlugin({
-      bbVersion: args.bbVersion,
+      patcherVersion: args.patcherVersion,
       build,
       name: plugin.name,
       sourceRoot: resolveBuiltinPluginRootPathForModuleDir({
@@ -192,7 +199,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const targetArg =
     targetFlagIndex !== -1 ? process.argv[targetFlagIndex + 1] : undefined;
   await copyBuiltinPlugins({
-    bbVersion: await readAuthoritativeBbVersion(),
+    patcherVersion: await readAuthoritativePatcherVersion(),
     ...(targetArg !== undefined ? { targetRoot: path.resolve(targetArg) } : {}),
   });
 }

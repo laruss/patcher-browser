@@ -4,7 +4,7 @@ import {
   defaultAppSettings,
   type AppKeybindingOverrides,
   type AppSettings,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { DbConnection } from "../connection.js";
 import { appSettings } from "../schema.js";
 

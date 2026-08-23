@@ -1,5 +1,5 @@
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
-import type { AvailableModel } from "@bb/domain";
+import type { AvailableModel } from "@patcher/domain";
 import { buildClaudeCodeModels } from "../model-list.js";
 import { translateMissingClaudeCliError } from "./missing-cli-error.js";
 import { resolveClaudeCodeExecutable } from "./session-options.js";
@@ -24,7 +24,7 @@ export async function listClaudeCodeBridgeModels(
   selectedOnlyModels: AvailableModel[];
 }> {
   // Claude's initialization response is account-scoped and is the provider's
-  // authoritative list of runnable models. Keep BB's curated labels and
+  // authoritative list of runnable models. Keep Patcher's curated labels and
   // reasoning policy, but only expose entries covered by a discovered value or
   // its canonical resolved model id. Probe failures intentionally propagate so
   // callers can distinguish temporary discovery failure from definite absence.

@@ -14,12 +14,12 @@ import {
   type AppKeybindings,
   type AppKeybindingOverrides,
   type AppShortcut,
-} from "@bb/domain";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { Input } from "@bb/shared-ui/input";
-import { Switch } from "@bb/shared-ui/switch";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
+import { Switch } from "@patcher/shared-ui/switch";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   APP_COMMAND_GROUPS,
   getAppCommandMetadata,
@@ -58,7 +58,7 @@ import {
   filterPluginCommands,
   PluginShortcutsGroup,
 } from "./PluginShortcutsGroup";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import { getPatcherDesktopInfo } from "@/lib/patcher-desktop";
 
 const EMPTY_KEYBINDINGS: AppDefaultKeybindings = [];
 const EMPTY_PLUGIN_COMMANDS: readonly PluginCommandContribution[] = [];
@@ -472,7 +472,7 @@ export function KeyboardSettingsSection() {
     isPending: isKeyboardSettingsPending,
     mutate: mutateKeyboardSettings,
   } = useUpdateKeyboardSettings();
-  const isDesktop = getBbDesktopInfo() !== null;
+  const isDesktop = getPatcherDesktopInfo() !== null;
   const platform = browserPlatform();
   const generalSettings =
     systemConfig.data?.generalSettings ?? defaultAppSettings;
@@ -529,7 +529,7 @@ export function KeyboardSettingsSection() {
   }, [search]);
 
   // A plugin row that matched is still a match, so "nothing matches" below has
-  // to account for the group that renders after bb's own. The same cached query
+  // to account for the group that renders after Patcher's own. The same cached query
   // the group itself reads, so this costs nothing extra.
   const pluginCommands =
     usePluginContributions().data?.commands ?? EMPTY_PLUGIN_COMMANDS;
@@ -627,7 +627,7 @@ export function KeyboardSettingsSection() {
           Reset all
         </Button>
       }
-      description="Click a shortcut, then press its new keys. Changes sync to every bb window."
+      description="Click a shortcut, then press its new keys. Changes sync to every Patcher window."
       title="Keyboard shortcuts"
     >
       <div className="space-y-5">
@@ -691,7 +691,7 @@ export function KeyboardSettingsSection() {
               </div>
             </section>
           ))}
-          {/* After bb's own: a plugin adds to the list rather than mixing into
+          {/* After Patcher's own: a plugin adds to the list rather than mixing into
               the groups the user knows. */}
           <PluginShortcutsGroup
             keybindings={

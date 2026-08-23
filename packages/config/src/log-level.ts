@@ -13,7 +13,7 @@ export function validateLogLevel(value: string): string {
   }
 
   throw new Error(
-    `BB_LOG_LEVEL must be one of ${LOG_LEVEL_VALUES.join(
+    `PATCHER_LOG_LEVEL must be one of ${LOG_LEVEL_VALUES.join(
       ", ",
     )}, received "${value}"`,
   );

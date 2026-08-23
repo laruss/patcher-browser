@@ -189,7 +189,7 @@ describe("PluginLeadingPanel scoped to a site", () => {
   it("draws the panel once the active tab is on a matching page", () => {
     slotState.panels = [scopedPanel(["https://github.com/**"])];
 
-    renderWithActivePage("https://github.com/bb/pulls");
+    renderWithActivePage("https://github.com/patcher/pulls");
 
     expect(screen.getByTestId("body-prs")).toBeTruthy();
   });
@@ -234,8 +234,10 @@ describe("PluginLeadingPanel scoped to a site", () => {
       },
     ];
 
-    renderWithActivePage("https://github.com/bb/pulls");
+    renderWithActivePage("https://github.com/patcher/pulls");
 
-    expect(screen.getByText("at https://github.com/bb/pulls")).toBeTruthy();
+    expect(
+      screen.getByText("at https://github.com/patcher/pulls"),
+    ).toBeTruthy();
   });
 });

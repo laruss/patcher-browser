@@ -4,14 +4,14 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type {
-  BbDesktopApi,
-  BbDesktopBrowserApi,
-  BbDesktopBrowserSetFullscreenRequest,
-  BbDesktopWindowState,
-  BbDesktopWindowStateChangeHandler,
-} from "@bb/desktop-contract";
+  PatcherDesktopApi,
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserSetFullscreenRequest,
+  PatcherDesktopWindowState,
+  PatcherDesktopWindowStateChangeHandler,
+} from "@patcher/desktop-contract";
 import { AppCommandProvider } from "@/components/commands/AppCommandProvider";
-import { createNoopDesktopBrowserApi } from "@/test/bb-desktop-test-utils";
+import { createNoopDesktopBrowserApi } from "@/test/patcher-desktop-test-utils";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { getBrowserSurfaceTabsStorageKey } from "@/lib/browser-surface-tabs";
 import { BrowserSurfaceView } from "./BrowserSurfaceView";
@@ -57,24 +57,25 @@ const desktopInfo = {
 };
 
 interface FullscreenHarness {
-  calls: BbDesktopBrowserSetFullscreenRequest[];
+  calls: PatcherDesktopBrowserSetFullscreenRequest[];
   /** Move the app window in or out of the OS's own full screen. */
   setWindowFullScreen: (isFullScreen: boolean) => void;
 }
 
 function renderSurface(initialWindowFullScreen: boolean): FullscreenHarness {
-  const calls: BbDesktopBrowserSetFullscreenRequest[] = [];
-  const windowStateListeners = new Set<BbDesktopWindowStateChangeHandler>();
-  let windowState: BbDesktopWindowState = {
+  const calls: PatcherDesktopBrowserSetFullscreenRequest[] = [];
+  const windowStateListeners =
+    new Set<PatcherDesktopWindowStateChangeHandler>();
+  let windowState: PatcherDesktopWindowState = {
     isFullScreen: initialWindowFullScreen,
   };
-  const browser: BbDesktopBrowserApi = {
+  const browser: PatcherDesktopBrowserApi = {
     ...createNoopDesktopBrowserApi(),
     setFullscreen(request) {
       calls.push(request);
     },
   };
-  window.bbDesktop = {
+  window.patcherDesktop = {
     ...desktopInfo,
     browser,
     async checkForUpdates() {
@@ -98,7 +99,7 @@ function renderSurface(initialWindowFullScreen: boolean): FullscreenHarness {
     },
     setTheme() {},
     openExternalUrl() {},
-  } as BbDesktopApi;
+  } as PatcherDesktopApi;
 
   const { wrapper: Wrapper } = createQueryClientTestHarness();
   render(
@@ -146,7 +147,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.removeItem(getBrowserSurfaceTabsStorageKey());
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
 });
 
 describe("BrowserSurfaceView: giving the page the whole window", () => {

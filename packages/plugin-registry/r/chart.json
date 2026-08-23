@@ -3,12 +3,12 @@
   "name": "chart",
   "type": "registry:ui",
   "title": "chart",
-  "description": "BB ui \"chart\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"chart\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "recharts"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

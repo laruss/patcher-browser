@@ -1,6 +1,6 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveCurrentDevInstanceConfig } from "@bb/config/runtime";
+import { resolveCurrentDevInstanceConfig } from "@patcher/config/runtime";
 
 interface TurboBuildCommand {
   args: string[];

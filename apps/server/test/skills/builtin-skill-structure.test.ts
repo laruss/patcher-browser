@@ -53,7 +53,7 @@ const skillNames = readSkillNames();
 
 describe("built-in skill structure", () => {
   it("ships at least the skills the server depends on", () => {
-    expect(skillNames).toContain("bb-cli");
+    expect(skillNames).toContain("patcher-cli");
   });
 
   describe.each(skillNames)("%s", (skillName) => {

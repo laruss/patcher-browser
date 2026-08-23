@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from "node:util";
-import { escapeHtmlText } from "@bb/domain";
+import { escapeHtmlText } from "@patcher/domain";
 
 export type LocalViewModel =
   | InfoViewModel
@@ -80,7 +80,7 @@ function renderLocalView(viewModel: LocalViewModel): string {
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>bb</title>
+  <title>Patcher</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -178,7 +178,7 @@ function renderLocalView(viewModel: LocalViewModel): string {
   </style>
 </head>
 <body>
-<div class="titlebar-drag-region" data-testid="bb-local-view-window-drag-region" aria-hidden="true"></div>
+<div class="titlebar-drag-region" data-testid="patcher-local-view-window-drag-region" aria-hidden="true"></div>
 ${body}
 </body>
 </html>`;

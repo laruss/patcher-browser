@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ThreadTimelineActivePromptMode } from "@bb/domain";
+import type { ThreadTimelineActivePromptMode } from "@patcher/domain";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import { ThreadPromptModeCard } from "./ThreadPromptModeCard";
 

@@ -3,27 +3,27 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-const BB_APP_VERSION_FALLBACK = "0.0.0-dev";
+const PATCHER_APP_VERSION_FALLBACK = "0.0.0-dev";
 const PARENT_LOOKUP_MAX_DEPTH = 8;
 
-const bbAppPackageJsonSchema = z
+const patcherAppPackageJsonSchema = z
   .object({
     name: z.string(),
     version: z.string().min(1),
   })
   .passthrough();
 
-interface ResolveBbAppVersionArgs {
+interface ResolvePatcherAppVersionArgs {
   env: NodeJS.ProcessEnv;
   fromDir: string;
 }
 
-function readBbAppVersionAt(packageJsonPath: string): string | null {
+function readPatcherAppVersionAt(packageJsonPath: string): string | null {
   try {
-    const result = bbAppPackageJsonSchema.safeParse(
+    const result = patcherAppPackageJsonSchema.safeParse(
       JSON.parse(readFileSync(packageJsonPath, "utf8")),
     );
-    if (!result.success || result.data.name !== "bb-app") {
+    if (!result.success || result.data.name !== "patcher-app") {
       return null;
     }
     return result.data.version;
@@ -40,8 +40,10 @@ function trimEnvValue(value: string | undefined): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function resolveBbAppVersion(args: ResolveBbAppVersionArgs): string {
-  const envValue = trimEnvValue(args.env.BB_APP_VERSION);
+export function resolvePatcherAppVersion(
+  args: ResolvePatcherAppVersionArgs,
+): string {
+  const envValue = trimEnvValue(args.env.PATCHER_APP_VERSION);
   if (envValue !== undefined) {
     return envValue;
   }
@@ -49,17 +51,19 @@ export function resolveBbAppVersion(args: ResolveBbAppVersionArgs): string {
   let currentDir = resolve(args.fromDir);
   for (let depth = 0; depth < PARENT_LOOKUP_MAX_DEPTH; depth += 1) {
     const candidatePath = join(currentDir, "package.json");
-    const candidateVersion = readBbAppVersionAt(candidatePath);
+    const candidateVersion = readPatcherAppVersionAt(candidatePath);
     if (candidateVersion !== null) {
       return candidateVersion;
     }
     const workspaceCandidatePath = join(
       currentDir,
       "packages",
-      "bb-app",
+      "patcher-app",
       "package.json",
     );
-    const workspaceCandidateVersion = readBbAppVersionAt(workspaceCandidatePath);
+    const workspaceCandidateVersion = readPatcherAppVersionAt(
+      workspaceCandidatePath,
+    );
     if (workspaceCandidateVersion !== null) {
       return workspaceCandidateVersion;
     }
@@ -70,11 +74,11 @@ export function resolveBbAppVersion(args: ResolveBbAppVersionArgs): string {
     currentDir = parentDir;
   }
 
-  return BB_APP_VERSION_FALLBACK;
+  return PATCHER_APP_VERSION_FALLBACK;
 }
 
-export function resolveBbCliVersion(): string {
-  return resolveBbAppVersion({
+export function resolvePatcherCliVersion(): string {
+  return resolvePatcherAppVersion({
     env: process.env,
     fromDir: dirname(fileURLToPath(import.meta.url)),
   });

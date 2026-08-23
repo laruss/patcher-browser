@@ -1,8 +1,8 @@
 /**
  * The settled / snoozed lifecycle, as pure functions over stored rows.
  *
- * This state lives in the PLUGIN's own database, never on bb's thread. That
- * keeps a plugin concept out of bb's schema and out of the host-daemon
+ * This state lives in the PLUGIN's own database, never on Patcher's thread. That
+ * keeps a plugin concept out of Patcher's schema and out of the host-daemon
  * protocol, and uninstalling the plugin takes its state with it.
  */
 
@@ -22,7 +22,7 @@ export interface ThreadActivitySignals {
   /** Any live work: runtime, workflows, background agents, plan, goals. */
   isWorking: boolean;
   isUnread: boolean;
-  /** Newest attention timestamp bb reports for the thread. */
+  /** Newest attention timestamp Patcher reports for the thread. */
   latestAttentionAt: number;
 }
 
@@ -31,7 +31,7 @@ export type ThreadShelf = "active" | "snoozed" | "settled";
 /**
  * Whether a thread may be parked at all.
  *
- * bb has more kinds of live work than a single session status — workflows,
+ * Patcher has more kinds of live work than a single session status — workflows,
  * background agents, background commands, plan mode, goals — and every one of
  * them must block parking. Hiding a thread that is still working is the one
  * failure this feature cannot afford.

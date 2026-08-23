@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { layoutAnimationInFlightCountAtom } from "./layoutAnimationAtoms.js";
-import { CONTROL_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+import { CONTROL_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 
 const EXPANDABLE_PANEL_TRANSITION_MS = 200;
 const useBrowserLayoutEffect =

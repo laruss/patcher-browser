@@ -1,4 +1,4 @@
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { buildPinnedSidebarState } from "./pinnedSidebarThreads";
 

@@ -38,7 +38,7 @@ function plugin(overrides: Partial<PluginListItem> = {}): PluginListItem {
     provenance: "direct",
     isOrphanedBuiltin: false,
     catalogEntryId: null,
-    sourceDisplay: "npm · @bb-plugins/linear · pinned",
+    sourceDisplay: "npm · @patcher-plugins/linear · pinned",
     updateState: EMPTY_PLUGIN_UPDATE_STATE,
     handlerStats: { count: 0, totalMs: 0, maxMs: 0, errorCount: 0 },
     services: [],
@@ -97,7 +97,7 @@ describe("PluginDetailReleaseControl", () => {
     expect(
       screen.getByRole("button", { name: "Update Linear to 1.9.0" }),
     ).toBeTruthy();
-    expect(screen.queryByText("Compatible with your bb.")).toBeNull();
+    expect(screen.queryByText("Compatible with your Patcher.")).toBeNull();
   });
 
   it("shows a blocked update inline without a modal or disabled action", () => {
@@ -108,7 +108,7 @@ describe("PluginDetailReleaseControl", () => {
           updateState: {
             ...EMPTY_PLUGIN_UPDATE_STATE,
             blockedVersion: "1.9.0",
-            blockedReasons: ["requires bb >= 0.15"],
+            blockedReasons: ["requires Patcher >= 0.15"],
           },
         })}
       />,
@@ -119,12 +119,12 @@ describe("PluginDetailReleaseControl", () => {
       name: "Update blocked",
     });
     expect(screen.queryByText("Update blocked")).toBeNull();
-    expect(blockedStatus.textContent).toContain("Requires bb >= 0.15.");
+    expect(blockedStatus.textContent).toContain("Requires Patcher >= 0.15.");
     expect(blockedStatus.textContent).toContain("1.6.2 remains installed");
     expect(blockedStatus.textContent).toContain(
       "check again when a compatible plugin version is available",
     );
-    expect(blockedStatus.textContent).not.toContain("Update bb");
+    expect(blockedStatus.textContent).not.toContain("Update Patcher");
     expect(
       blockedStatus
         .querySelector('[data-icon="AlertTriangle"]')
@@ -134,7 +134,7 @@ describe("PluginDetailReleaseControl", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("does not prescribe a bb upgrade for a candidate requiring an older bb", () => {
+  it("does not prescribe a Patcher upgrade for a candidate requiring an older Patcher", () => {
     const { wrapper } = createQueryClientTestHarness();
     render(
       <PluginDetailReleaseStatus
@@ -142,7 +142,9 @@ describe("PluginDetailReleaseControl", () => {
           updateState: {
             ...EMPTY_PLUGIN_UPDATE_STATE,
             blockedVersion: "1.9.0",
-            blockedReasons: ["requires bb < 0.20, running bb is 0.21.0"],
+            blockedReasons: [
+              "requires Patcher < 0.20, running Patcher is 0.21.0",
+            ],
           },
         })}
       />,
@@ -152,8 +154,8 @@ describe("PluginDetailReleaseControl", () => {
     const blockedStatus = screen.getByRole("status", {
       name: "Update blocked",
     });
-    expect(blockedStatus.textContent).toContain("Requires bb < 0.20");
-    expect(blockedStatus.textContent).not.toContain("Update bb");
+    expect(blockedStatus.textContent).toContain("Requires Patcher < 0.20");
+    expect(blockedStatus.textContent).not.toContain("Update Patcher");
   });
 
   it("retries a failed update from the release action without opening a modal", async () => {
@@ -215,7 +217,7 @@ describe("PluginDetailReleaseControl", () => {
     const failedStatus = screen.getByRole("status", { name: "Update failed" });
     expect(screen.queryByText("Update failed")).toBeNull();
     expect(failedStatus.textContent).toContain(
-      "bb couldn’t activate 1.9.0. It restored 1.6.2 and its data.",
+      "Patcher couldn’t activate 1.9.0. It restored 1.6.2 and its data.",
     );
     expect(
       failedStatus
@@ -237,7 +239,7 @@ describe("PluginDetailReleaseControl", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("renders nothing for builtins (their update channel is the bb release)", () => {
+  it("renders nothing for builtins (their update channel is the Patcher release)", () => {
     const { wrapper } = createQueryClientTestHarness();
     const { container } = render(
       <PluginDetailReleaseControl

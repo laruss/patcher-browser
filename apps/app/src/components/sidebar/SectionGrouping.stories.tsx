@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import {
   PROJECT_IDS,
   makeThreadListEntry,
@@ -23,7 +23,7 @@ export default {
 };
 
 const noop = () => {};
-const PROJECT_ID = PROJECT_IDS.bb;
+const PROJECT_ID = PROJECT_IDS.patcher;
 const STORY_SECTIONS: readonly SidebarSectionDefinition[] = [
   { id: "sec_work_q3", name: "Work/Q3" },
   { id: "sec_work_q4", name: "Work/Q4" },
@@ -89,7 +89,7 @@ const sectionThreads: ThreadListEntry[] = [
     sectionId: "sec_build",
     environmentId: "env_story_section",
     environmentName: "Section build",
-    environmentBranchName: "bb/sidebar-sections",
+    environmentBranchName: "patcher/sidebar-sections",
     environmentWorkspaceDisplayKind: "managed-worktree",
     latestAttentionAt: 40,
     createdAt: 40,
@@ -100,7 +100,7 @@ const sectionThreads: ThreadListEntry[] = [
     sectionId: "sec_build",
     environmentId: "env_story_section",
     environmentName: "Section build",
-    environmentBranchName: "bb/sidebar-sections",
+    environmentBranchName: "patcher/sidebar-sections",
     environmentWorkspaceDisplayKind: "managed-worktree",
     hasPendingInteraction: true,
     latestAttentionAt: 30,

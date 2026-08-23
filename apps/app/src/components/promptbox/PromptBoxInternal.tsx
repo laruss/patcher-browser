@@ -3,8 +3,8 @@ import { RESET, atomWithStorage } from "jotai/utils";
 import type {
   PromptMentionCommandTrigger,
   PromptTextMention,
-} from "@bb/domain";
-import type { ComposerView } from "@bb/plugin-sdk";
+} from "@patcher/domain";
+import type { ComposerView } from "@patcher/plugin-sdk";
 import type { Node as ProseMirrorNode, Slice } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
@@ -42,8 +42,8 @@ import {
 import { commandPillDismissedRangeEnd } from "@/components/promptbox/mentions/command-trigger";
 import { findActiveTrigger } from "@/components/promptbox/mentions/find-active-trigger";
 import { canLoadMoreCommandResults } from "@/components/promptbox/mentions/mention-menu-scroll";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   PluginComposerActions,
   usePluginComposerPlusMenuContributions,
@@ -61,9 +61,9 @@ import {
   COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS,
   COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
   COARSE_POINTER_TEXT_BASE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { blurActiveKeyboardInputWithin } from "@bb/shared-ui/overlay-trigger";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
+import { blurActiveKeyboardInputWithin } from "@patcher/shared-ui/overlay-trigger";
 import { createJsonLocalStorage } from "@/lib/browser-storage";
 import {
   DEFAULT_PLUGIN_MENTION_TRIGGER,
@@ -76,7 +76,7 @@ import {
   type PromptDraftAttachment,
   type PromptDraftState,
 } from "@/lib/prompt-draft";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { VoiceRecordingBar } from "./VoiceRecordingBar";
 import {
@@ -180,8 +180,8 @@ function hasWhitespaceAfterPosition(
 type ZenModeLayout = "thread" | "root-compose";
 
 const ZEN_MODE_STORAGE_KEY: Record<ZenModeLayout, string> = {
-  thread: "bb.promptbox.zen-mode.thread",
-  "root-compose": "bb.promptbox.zen-mode.root-compose",
+  thread: "patcher.promptbox.zen-mode.thread",
+  "root-compose": "patcher.promptbox.zen-mode.root-compose",
 };
 
 const ZEN_MODE_HEIGHT_CLASS: Record<ZenModeLayout, string> = {

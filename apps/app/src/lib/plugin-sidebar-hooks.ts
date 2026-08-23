@@ -1,15 +1,15 @@
 import { useCallback, useMemo } from "react";
 import { useStore } from "jotai";
 import { useNavigate } from "react-router-dom";
-import { PERSONAL_PROJECT_ID, type ThreadListEntry } from "@bb/domain";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { PERSONAL_PROJECT_ID, type ThreadListEntry } from "@patcher/domain";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import type {
   PluginSidebarProject,
   PluginSidebarThread,
   PluginSidebarThreadActions,
   PluginSidebarThreadPullRequestState,
   PluginSidebarThreadsState,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
 import {
   getEnvironmentPullRequestFromResponse,
@@ -106,7 +106,7 @@ export function useSidebarThreadEntry(
  *
  * Destructive and dialog-bearing actions route through `useThreadActions()` —
  * the host's own flow, with its confirmation dialogs, pane closing, and route
- * repair. A plugin cannot render bb's dialogs, so calling the raw mutations
+ * repair. A plugin cannot render Patcher's dialogs, so calling the raw mutations
  * here would delete a subtree with no confirmation and leave panes pointing at
  * dead threads.
  */
@@ -187,7 +187,7 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
         hostActions.archiveThreadAndChildren(requireEntry(threadId));
       },
       requestDelete(threadId) {
-        // Opens bb's delete dialog, which counts child threads and asks. The
+        // Opens Patcher's delete dialog, which counts child threads and asks. The
         // plugin requests; the user confirms.
         hostActions.requestDelete(requireEntry(threadId));
       },

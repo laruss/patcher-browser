@@ -11,7 +11,7 @@ import {
   isClaudeCodeMockCliTrafficEndpoint,
   type JsonObject,
   type JsonValue,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export interface ClaudeCodeMockCliTrafficProxy {
   baseUrl: string;

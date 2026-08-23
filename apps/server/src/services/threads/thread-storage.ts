@@ -22,7 +22,7 @@ export interface ThreadStorageContext {
   threadStoragePath: string;
 }
 
-const THREAD_STORAGE_ENV_VAR = "BB_THREAD_STORAGE";
+const THREAD_STORAGE_ENV_VAR = "PATCHER_THREAD_STORAGE";
 
 export function resolveThreadStorageRootPath(
   args: ResolveThreadStorageRootPathArgs,

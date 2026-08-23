@@ -4,7 +4,7 @@ import type { Nodes, Parent, PhrasingContent, Text } from "mdast";
 // plain `text` node can carry the custom element instructions below.
 import type {} from "mdast-util-to-hast";
 import { visit } from "unist-util-visit";
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import {
   normalizePromptTextMentions,
   PromptMentionPill,
@@ -40,7 +40,7 @@ const PROMPT_MENTION_PATTERN = new RegExp(
   "gu",
 );
 
-const PROMPT_MENTION_HAST_NAME = "bb-prompt-mention";
+const PROMPT_MENTION_HAST_NAME = "patcher-prompt-mention";
 // hast property key — `mdast-util-to-hast` lowercases it into the
 // `data-mention-index` DOM attribute the component reads back.
 const PROMPT_MENTION_INDEX_PROPERTY = "dataMentionIndex";
@@ -189,7 +189,7 @@ interface PromptMentionElementProps {
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "bb-prompt-mention": PromptMentionElementProps;
+      "patcher-prompt-mention": PromptMentionElementProps;
     }
   }
 }

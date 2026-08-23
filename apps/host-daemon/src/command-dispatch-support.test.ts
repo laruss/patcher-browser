@@ -1,14 +1,15 @@
-import type { AgentRuntime, AgentRuntimeOptions } from "@bb/agent-runtime";
-import type { AvailableModel } from "@bb/domain";
-import type { HostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+import type { AgentRuntime, AgentRuntimeOptions } from "@patcher/agent-runtime";
+import type { AvailableModel } from "@patcher/domain";
+import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createAgentRuntimeMock = vi.hoisted(() =>
   vi.fn<(options: AgentRuntimeOptions) => AgentRuntime>(),
 );
 
-vi.mock("@bb/agent-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@bb/agent-runtime")>();
+vi.mock("@patcher/agent-runtime", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@patcher/agent-runtime")>();
   return {
     ...actual,
     createAgentRuntime: createAgentRuntimeMock,

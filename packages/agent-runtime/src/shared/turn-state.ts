@@ -2,8 +2,8 @@ import type {
   ThreadEvent,
   ThreadEventItem,
   ThreadEventTokenUsageBreakdown,
-} from "@bb/domain";
-import { turnScope } from "@bb/domain";
+} from "@patcher/domain";
+import { turnScope } from "@patcher/domain";
 import {
   getOrCreateScopedItemId,
   resolveCompletedScopedItemId,

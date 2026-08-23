@@ -2,7 +2,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import { createTasksStore } from "../db";
 import { deliverCommentToLatestAgent } from ".";
@@ -22,7 +22,7 @@ function setup(
       },
     },
   });
-  const db = host.bb.storage.database();
+  const db = host.patcher.storage.database();
   const store = createTasksStore(db);
   const project = store.createProject({
     name: "Plugin",
@@ -41,7 +41,7 @@ const input = {
 
 describe("comment notification delivery", () => {
   it("notifies only the latest replying agent despite newer unrelated task activity", async () => {
-    const { bb, db, harness, store, task } = setup();
+    const { patcher, db, harness, store, task } = setup();
     const older = store.createComment({
       taskId: task.id,
       kind: "agent",
@@ -84,7 +84,10 @@ describe("comment notification delivery", () => {
     );
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({
       notifiedCount: 1,
       outcomes: [{ threadId: "thr_second", status: "delivered" }],
@@ -98,7 +101,7 @@ describe("comment notification delivery", () => {
               type: "text",
               text:
                 "New comment on task PLUG-1 from Sawyer: Please include the regression test.\n\n" +
-                "Treat this as updated context for your work on this task; reply via bb tasks comment PLUG-1 when relevant.",
+                "Treat this as updated context for your work on this task; reply via patcher tasks comment PLUG-1 when relevant.",
               mentions: [],
             },
           ],
@@ -109,7 +112,7 @@ describe("comment notification delivery", () => {
   });
 
   it("uses resume-capable delivery for an idle latest responder", async () => {
-    const { bb, harness, store, task } = setup((threadId) =>
+    const { patcher, harness, store, task } = setup((threadId) =>
       makeThreadResponse({ id: threadId, status: "idle" }),
     );
     store.createComment({
@@ -121,7 +124,10 @@ describe("comment notification delivery", () => {
     });
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({
       notifiedCount: 1,
       outcomes: [{ threadId: "thr_idle", status: "delivered" }],
@@ -137,17 +143,20 @@ describe("comment notification delivery", () => {
   });
 
   it("does nothing when no agent has replied", async () => {
-    const { bb, harness, store, task } = setup();
+    const { patcher, harness, store, task } = setup();
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({ notifiedCount: 0, outcomes: [] });
     expect(harness.sdk.callsTo("threads.get")).toEqual([]);
     expect(harness.sdk.callsTo("threads.send")).toEqual([]);
   });
 
   it("does not fall back when the latest agent reply has no thread", async () => {
-    const { bb, harness, store, task } = setup();
+    const { patcher, harness, store, task } = setup();
     store.createComment({
       taskId: task.id,
       kind: "agent",
@@ -163,7 +172,10 @@ describe("comment notification delivery", () => {
     });
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({
       notifiedCount: 0,
       outcomes: [
@@ -178,7 +190,7 @@ describe("comment notification delivery", () => {
   });
 
   it("preserves side-chat privacy and does not fall back", async () => {
-    const { bb, harness, store, task } = setup((threadId) =>
+    const { patcher, harness, store, task } = setup((threadId) =>
       makeThreadResponse({
         id: threadId,
         status: "idle",
@@ -194,7 +206,10 @@ describe("comment notification delivery", () => {
     });
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({
       notifiedCount: 0,
       outcomes: [
@@ -209,7 +224,7 @@ describe("comment notification delivery", () => {
   });
 
   it("preserves side-chat privacy for the plugin's hidden forks too", async () => {
-    const { bb, harness, store, task } = setup((threadId) =>
+    const { patcher, harness, store, task } = setup((threadId) =>
       makeThreadResponse({
         id: threadId,
         status: "idle",
@@ -227,7 +242,10 @@ describe("comment notification delivery", () => {
     });
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({
       notifiedCount: 0,
       outcomes: [
@@ -242,7 +260,7 @@ describe("comment notification delivery", () => {
   });
 
   it("records delivery failure without trying another agent", async () => {
-    const { bb, harness, store, task } = setup();
+    const { patcher, harness, store, task } = setup();
     store.createComment({
       taskId: task.id,
       kind: "agent",
@@ -257,7 +275,10 @@ describe("comment notification delivery", () => {
     });
 
     await expect(
-      deliverCommentToLatestAgent(bb, store, { taskId: task.id, ...input }),
+      deliverCommentToLatestAgent(patcher, store, {
+        taskId: task.id,
+        ...input,
+      }),
     ).resolves.toEqual({
       notifiedCount: 0,
       outcomes: [

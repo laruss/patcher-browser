@@ -1,8 +1,8 @@
 import type {
   PendingInteraction,
   PendingInteractionUserQuestionQuestion,
-} from "@bb/domain";
-import { isApprovalPendingInteractionPayload } from "@bb/domain";
+} from "@patcher/domain";
+import { isApprovalPendingInteractionPayload } from "@patcher/domain";
 import { assertNever } from "./assert-never.js";
 import { summarizePendingInteractionRequestedPermissions } from "./pending-interaction-formatting.js";
 

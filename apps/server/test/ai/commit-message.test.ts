@@ -368,19 +368,19 @@ describe("commit message generation", () => {
           command.environmentId === environment.id,
       );
       expect(commitCommand.command).toMatchObject({
-        message: "bb: automated commit",
+        message: "Patcher: automated commit",
       });
       expect(piAiMocks.complete).toHaveBeenCalledTimes(2);
       await reportQueuedCommandSuccess(harness, commitCommand, {
         commitSha: "abc123",
-        commitSubject: "bb: automated commit",
+        commitSubject: "Patcher: automated commit",
       });
 
       const response = await responsePromise;
       expect(response.status).toBe(200);
       await expect(readJson(response)).resolves.toMatchObject({
         action: "commit",
-        commitSubject: "bb: automated commit",
+        commitSubject: "Patcher: automated commit",
         ok: true,
       });
     });
@@ -474,18 +474,18 @@ describe("commit message generation", () => {
           command.environmentId === environment.id,
       );
       expect(commitCommand.command).toMatchObject({
-        message: "bb: automated commit",
+        message: "Patcher: automated commit",
       });
       await reportQueuedCommandSuccess(harness, commitCommand, {
         commitSha: "abc123",
-        commitSubject: "bb: automated commit",
+        commitSubject: "Patcher: automated commit",
       });
 
       const response = await responsePromise;
       expect(response.status).toBe(200);
       await expect(readJson(response)).resolves.toMatchObject({
         action: "commit",
-        commitSubject: "bb: automated commit",
+        commitSubject: "Patcher: automated commit",
         ok: true,
       });
     });

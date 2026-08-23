@@ -92,7 +92,7 @@ function createEnsureOptions(fakeRequire, execFileSync) {
 
 describe("refreshNativeBindings", () => {
   it("replaces each binding with an identical file on a new inode", () => {
-    const dir = mkdtempSync(join(tmpdir(), "bb-native-refresh-"));
+    const dir = mkdtempSync(join(tmpdir(), "patcher-native-refresh-"));
     const releaseDir = join(dir, "build", "Release");
     mkdirSync(releaseDir, { recursive: true });
     const binding = join(releaseDir, "better_sqlite3.node");
@@ -119,7 +119,7 @@ describe("refreshNativeBindings", () => {
   });
 
   it("does nothing when the package has no compiled output", () => {
-    const dir = mkdtempSync(join(tmpdir(), "bb-native-refresh-"));
+    const dir = mkdtempSync(join(tmpdir(), "patcher-native-refresh-"));
 
     expect(() => refreshNativeBindings(dir)).not.toThrow();
 

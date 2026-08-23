@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import type { ThreadDynamicContextFileStatus } from "@bb/domain";
+import type { ThreadDynamicContextFileStatus } from "@patcher/domain";
 import type { DbConnection, DbTransaction } from "../connection.js";
 import { threadDynamicContextFileStates } from "../schema.js";
 

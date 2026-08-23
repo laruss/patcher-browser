@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { PLUGIN_SDK_VERSION } from "@bb/domain";
+import { PLUGIN_SDK_VERSION } from "@patcher/domain";
 import {
   createNpmResolverRun,
   resolveGitRef,
@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 function packumentFetch(
-  versions: Record<string, { bb?: string; sdk?: string; integrity?: string }>,
+  versions: Record<string, { patcher?: string; sdk?: string; integrity?: string }>,
   tags: Record<string, string> = {},
 ): typeof fetch {
   return async () =>
@@ -34,8 +34,8 @@ function packumentFetch(
             {
               version,
               engines: {
-                ...(metadata.bb ? { bb: metadata.bb } : {}),
-                ...(metadata.sdk ? { bbPluginSdk: metadata.sdk } : {}),
+                ...(metadata.patcher ? { patcher: metadata.patcher } : {}),
+                ...(metadata.sdk ? { patcherPluginSdk: metadata.sdk } : {}),
               },
               dist: {
                 integrity: metadata.integrity ?? `sha512-${version}`,
@@ -54,7 +54,7 @@ function npmIntent(
   specKind: "default" | "exact" | "tag" | "range",
 ) {
   return {
-    packageName: "bb-plugin-matrix",
+    packageName: "patcher-plugin-matrix",
     registry: "http://registry.test",
     requestedSpec,
     specKind,
@@ -65,14 +65,14 @@ describe("npm update candidate selection", () => {
   it("selects an older compatible range candidate and reports the newer block", async () => {
     const resolution = await resolveNpmUpdate({
       intent: npmIntent("^1.0.0", "range"),
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
       appVersion: "1.5.0",
       run: createNpmResolverRun({
         fetch: packumentFetch({
-          "1.3.0": { bb: ">=2" },
-          "1.2.0": { bb: ">=1" },
-          "1.1.0-beta.1": { bb: ">=1" },
-          "1.0.0": { bb: ">=1" },
+          "1.3.0": { patcher: ">=2" },
+          "1.2.0": { patcher: ">=1" },
+          "1.1.0-beta.1": { patcher: ">=1" },
+          "1.0.0": { patcher: ">=1" },
         }),
       }),
     });
@@ -82,7 +82,7 @@ describe("npm update candidate selection", () => {
       candidate: { version: "1.2.0" },
       blocked: {
         version: { version: "1.3.0" },
-        reasons: [{ engine: "bb", required: ">=2" }],
+        reasons: [{ engine: "patcher", required: ">=2" }],
       },
     });
   });
@@ -90,7 +90,7 @@ describe("npm update candidate selection", () => {
   it("enforces SDK compatibility and returns incompatible when none match", async () => {
     const resolution = await resolveNpmUpdate({
       intent: npmIntent("", "default"),
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
       appVersion: "1.5.0",
       run: createNpmResolverRun({
         fetch: packumentFetch({
@@ -105,7 +105,7 @@ describe("npm update candidate selection", () => {
       newest: { version: "2.0.0" },
       reasons: [
         {
-          engine: "bbPluginSdk",
+          engine: "patcherPluginSdk",
           actual: PLUGIN_SDK_VERSION,
         },
       ],
@@ -120,7 +120,7 @@ describe("npm update candidate selection", () => {
     });
     const stable = await resolveNpmUpdate({
       intent: npmIntent("", "default"),
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
       appVersion: "1.0.0",
       run: createNpmResolverRun({ fetch }),
     });
@@ -128,7 +128,7 @@ describe("npm update candidate selection", () => {
       intent: npmIntent(">=1.0.0-beta.1 <1.0.0", "range"),
       current: {
         version: "1.0.0-alpha.1",
-        display: "bb-plugin-matrix@1.0.0-alpha.1",
+        display: "patcher-plugin-matrix@1.0.0-alpha.1",
       },
       appVersion: "1.0.0",
       run: createNpmResolverRun({ fetch }),
@@ -144,15 +144,15 @@ describe("npm update candidate selection", () => {
     });
   });
 
-  it("labels dev mode, ignores engines.bb for selection, and still enforces SDK", async () => {
+  it("labels dev mode, ignores engines.patcher for selection, and still enforces SDK", async () => {
     const resolution = await resolveNpmUpdate({
       intent: npmIntent("", "default"),
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
       appVersion: "0.0.0",
       run: createNpmResolverRun({
         fetch: packumentFetch({
-          "3.0.0": { bb: ">=99", sdk: ">=99" },
-          "2.0.0": { bb: ">=99", sdk: `^${PLUGIN_SDK_VERSION}` },
+          "3.0.0": { patcher: ">=99", sdk: ">=99" },
+          "2.0.0": { patcher: ">=99", sdk: `^${PLUGIN_SDK_VERSION}` },
           "1.0.0": {},
         }),
       }),
@@ -163,7 +163,7 @@ describe("npm update candidate selection", () => {
       devMode: true,
       candidate: { version: "2.0.0" },
       blocked: { version: { version: "3.0.0" } },
-      packagedBuildProblems: [{ engine: "bb", required: ">=99" }],
+      packagedBuildProblems: [{ engine: "patcher", required: ">=99" }],
     });
   });
 
@@ -173,13 +173,13 @@ describe("npm update candidate selection", () => {
     });
     const tagged = await resolveNpmUpdate({
       intent: npmIntent("next", "tag"),
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
       appVersion: "1.0.0",
       run,
     });
     const exact = await resolveNpmUpdate({
       intent: npmIntent("1.0.0", "exact"),
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
       appVersion: "1.0.0",
       run,
     });
@@ -189,7 +189,7 @@ describe("npm update candidate selection", () => {
     });
     expect(exact).toEqual({
       outcome: "pinned",
-      current: { version: "1.0.0", display: "bb-plugin-matrix@1.0.0" },
+      current: { version: "1.0.0", display: "patcher-plugin-matrix@1.0.0" },
     });
   });
 });
@@ -205,7 +205,7 @@ const GIT_TEST_TIMEOUT_MS = 30_000;
 
 describe("git update resolution", () => {
   it("classifies tags and branches, detects a moved branch, and reports current", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "bb-update-resolver-git-"));
+    const repo = await mkdtemp(join(tmpdir(), "patcher-update-resolver-git-"));
     cleanup.push(repo);
     await mkdir(repo, { recursive: true });
     await run("git", ["init", "-q", "-b", "main"], { cwd: repo });

@@ -1,5 +1,9 @@
-import { assertNever } from "@bb/core-ui";
-import type { Thread, ThreadListEntry, ThreadWithRuntime } from "@bb/domain";
+import { assertNever } from "@patcher/core-ui";
+import type {
+  Thread,
+  ThreadListEntry,
+  ThreadWithRuntime,
+} from "@patcher/domain";
 // Imported from the defining leaf module, not the timeline barrel: the sidebar
 // thread list reaches this helper before first paint, and the barrel would pull
 // the whole timeline (and @pierre/diffs, Shiki, KaTeX behind it) onto the boot

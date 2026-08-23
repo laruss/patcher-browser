@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { permissionsForApiPath } from "@bb/domain";
+import { permissionsForApiPath } from "@patcher/domain";
 import {
   createTestAppHarness,
   type TestAppHarness,

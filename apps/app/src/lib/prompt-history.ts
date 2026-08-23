@@ -2,7 +2,7 @@ import {
   PROMPT_HISTORY_ENTRY_LIMIT,
   takeVisiblePromptHistoryEntries,
   type PromptHistoryEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   arePromptDraftStatesEqual,
   isPromptDraftEmpty,

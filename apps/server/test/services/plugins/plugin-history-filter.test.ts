@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BROWSER_HISTORY_URL_MAX_LENGTH } from "@bb/domain";
+import { BROWSER_HISTORY_URL_MAX_LENGTH } from "@patcher/domain";
 import { applyBrowserHistoryRewrite } from "../../../src/services/plugins/plugin-history-filter.js";
 
 const VISIT = {

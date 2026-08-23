@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ThreadListEntry, ThreadWithRuntime } from "@bb/domain";
+import type { ThreadListEntry, ThreadWithRuntime } from "@patcher/domain";
 import {
   act,
   cleanup,
@@ -16,7 +16,7 @@ import type {
   ThreadConversationOutlineResponse,
   SidebarBootstrapResponse,
   TimelineRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 // The minimap now sources items from the conversation-outline query, so the
 // component needs a QueryClient unless we mock the hook. Mocking also lets us
@@ -674,7 +674,7 @@ describe("ThreadTableOfContents", () => {
         id: "u2",
         role: "user",
         preview:
-          "[bb message from thread:thr_worker] Release bug report: the calendar is stale.",
+          "[Patcher message from thread:thr_worker] Release bug report: the calendar is stale.",
         attachmentSummary: null,
       },
       {
@@ -693,7 +693,7 @@ describe("ThreadTableOfContents", () => {
       screen.getByText("Release bug report: the calendar is stale."),
     ).not.toBeNull();
     expect(
-      screen.queryByText(/\[bb message from thread:thr_worker\]/),
+      screen.queryByText(/\[Patcher message from thread:thr_worker\]/),
     ).toBeNull();
   });
 
@@ -727,7 +727,7 @@ describe("ThreadTableOfContents", () => {
         id: "u2",
         role: "user",
         preview:
-          "[bb message from thread:thr_worker] Release bug report: the calendar is stale.",
+          "[Patcher message from thread:thr_worker] Release bug report: the calendar is stale.",
         attachmentSummary: null,
       },
       {

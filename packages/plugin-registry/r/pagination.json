@@ -3,13 +3,13 @@
   "name": "pagination",
   "type": "registry:ui",
   "title": "pagination",
-  "description": "BB ui \"pagination\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"pagination\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "lucide-react"
   ],
   "registryDependencies": [
-    "@bb/button",
-    "@bb/utils"
+    "@patcher/button",
+    "@patcher/utils"
   ],
   "files": [
     {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PendingInteraction, PendingInteractionPayload } from "@bb/domain";
+import type {
+  PendingInteraction,
+  PendingInteractionPayload,
+} from "@patcher/domain";
 import { formatPendingInteractionSummary } from "../src/pending-interaction-presentation.js";
 
 function createInteraction(

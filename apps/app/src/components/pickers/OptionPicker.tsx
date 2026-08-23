@@ -1,23 +1,23 @@
 import type { ComponentType } from "react";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/dropdown-menu";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
   OPTION_MENU_CONTENT_CLASS_NAME,
   OPTION_MUTED_CLASS_NAME,
   OPTION_TRIGGER_CONTENT_CLASS_NAME,
-} from "@bb/shared-ui/option-display";
+} from "@patcher/shared-ui/option-display";
 export {
   OptionDisplay,
   OPTION_BASE_CLASS_NAME,
@@ -26,7 +26,7 @@ export {
   OPTION_MENU_CONTENT_CLASS_NAME,
   OPTION_MUTED_CLASS_NAME,
   OPTION_TRIGGER_CONTENT_CLASS_NAME,
-} from "@bb/shared-ui/option-display";
+} from "@patcher/shared-ui/option-display";
 
 // Inline picker triggers keep flat resting chrome (no border/background/shadow
 // so they sit inline with surrounding text) but use the ghost button variant's

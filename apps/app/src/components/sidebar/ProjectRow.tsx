@@ -14,8 +14,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { createPortal } from "react-dom";
-import { PERSONAL_PROJECT_ID, type ThreadListEntry } from "@bb/domain";
-import type { ProjectResponse } from "@bb/server-contract";
+import { PERSONAL_PROJECT_ID, type ThreadListEntry } from "@patcher/domain";
+import type { ProjectResponse } from "@patcher/server-contract";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useCreateThreadInWorktree } from "@/hooks/useCreateThreadInWorktree";
 import {
@@ -27,15 +27,15 @@ import {
   useUpdateEnvironment,
 } from "@/hooks/mutations/environment-mutations";
 import { useDialogState } from "@/hooks/useDialogState";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { EmptyState } from "@bb/shared-ui/empty-state";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+} from "@patcher/shared-ui/dropdown-menu";
+import { EmptyState } from "@patcher/shared-ui/empty-state";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import {
   SidebarMenuSkeleton,
   SidebarStickyGroup,
@@ -54,7 +54,7 @@ import {
   COARSE_POINTER_GLYPH_BOX_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
@@ -67,7 +67,7 @@ import {
   NO_COLLAPSED_CHILD_ACTIVITY,
   type CollapsedChildActivity,
 } from "@/lib/thread-activity";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { getProjectSettingsRoutePath } from "@/lib/route-paths";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
@@ -1564,7 +1564,7 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
       className={cn(
         "space-y-0.5 rounded-md transition-colors",
         isDropTargetActive &&
-          "[&_.bb-sidebar-hover-actions-row]:!bg-sidebar-accent [&_.bb-sidebar-hover-actions-row]:!text-sidebar-accent-foreground",
+          "[&_.patcher-sidebar-hover-actions-row]:!bg-sidebar-accent [&_.patcher-sidebar-hover-actions-row]:!text-sidebar-accent-foreground",
       )}
     >
       <SidebarSectionRow

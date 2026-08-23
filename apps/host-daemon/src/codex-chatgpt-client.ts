@@ -1,8 +1,12 @@
-import { jsonValueSchema, type JsonObject, type JsonValue } from "@bb/domain";
+import {
+  jsonValueSchema,
+  type JsonObject,
+  type JsonValue,
+} from "@patcher/domain";
 import type {
   HostDaemonCommand,
   HostDaemonCommandResult,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { ExpectedCommandDispatchError } from "./command-dispatch-support.js";
 import {
   getChatGptCloudflareCookieHeader,
@@ -184,8 +188,14 @@ function createChatGptHeaders(auth: CodexChatGptAuthCredentials): Headers {
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${auth.accessToken}`);
   headers.set("chatgpt-account-id", auth.accountId);
-  headers.set("originator", "bb");
-  headers.set("User-Agent", "bb-host-daemon");
+  // `originator` is OpenAI's field, not ours. Unfrozen with the rest of the
+  // rename (rename-to-patcher.md records the decision) on the reading that an
+  // unregistered value is accepted — which is the only reading under which the
+  // inherited `bb` worked here at all. Not verifiable from this repo: if the
+  // backend does allowlist values, every ChatGPT request 401s/403s and this one
+  // line is the revert.
+  headers.set("originator", "patcher");
+  headers.set("User-Agent", "patcher-host-daemon");
   if (auth.isFedrampAccount) {
     headers.set("X-OpenAI-Fedramp", "true");
   }
@@ -195,7 +205,7 @@ function createChatGptHeaders(auth: CodexChatGptAuthCredentials): Headers {
 function createOpenAiHeaders(auth: CodexOpenAiApiKeyCredentials): Headers {
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${auth.apiKey}`);
-  headers.set("User-Agent", "bb-host-daemon");
+  headers.set("User-Agent", "patcher-host-daemon");
   return headers;
 }
 

@@ -1,5 +1,5 @@
-import type { ThreadListEntry, ThreadWithRuntime } from "@bb/domain";
-import type { SidebarBootstrapResponse } from "@bb/server-contract";
+import type { ThreadListEntry, ThreadWithRuntime } from "@patcher/domain";
+import type { SidebarBootstrapResponse } from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import {

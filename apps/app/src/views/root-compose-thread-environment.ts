@@ -1,5 +1,8 @@
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import type { BaseBranchSpec, CreateThreadRequest } from "@bb/server-contract";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import type {
+  BaseBranchSpec,
+  CreateThreadRequest,
+} from "@patcher/server-contract";
 import { parseEnvironmentValue } from "@/components/pickers/environment-picker-value";
 
 export interface RootComposeSelectedBranch {

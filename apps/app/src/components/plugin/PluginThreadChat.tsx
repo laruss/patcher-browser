@@ -1,13 +1,16 @@
 import { useCallback, useContext, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ThreadChatMessageAction, ThreadChatProps } from "@bb/plugin-sdk";
+import type {
+  ThreadChatMessageAction,
+  ThreadChatProps,
+} from "@patcher/plugin-sdk";
 import {
   formatEnvironmentDisplay,
   type EnvironmentDisplayHostContext,
-} from "@bb/core-ui";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/core-ui";
+import { EmptyStatePanel } from "@patcher/shared-ui/empty-state";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironmentSummary";
 import { EmbeddedThreadChat } from "@/components/thread/embedded-chat";
@@ -22,7 +25,7 @@ import { useThread } from "@/hooks/queries/thread-queries";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
 import { getEnvironmentWorkspaceLabelIconName } from "@/lib/environment-workspace-display";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
-import { BbHttpError } from "@/lib/sdk";
+import { PatcherHttpError } from "@/lib/sdk";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
@@ -198,7 +201,7 @@ function PluginThreadChatBody({
   }, [environment, isLocalDaemonHost]);
 
   const isThreadMissing =
-    threadQuery.error instanceof BbHttpError &&
+    threadQuery.error instanceof PatcherHttpError &&
     threadQuery.error.status === 404;
   if (isThreadMissing) {
     return (

@@ -128,15 +128,15 @@ missing is part of why it ended up shaped the way it is.
 
 **Page**
 
-| Feature                               | State                                                                                                                                                                                                     |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Find in page (`Cmd+F`)                | **Done** — a find bar in the chrome, plus a plugin contribution point ([browser-surface.md](browser-surface.md))                                                                                          |
-| ~~Zoom (`Cmd +/-/0`), per-site zoom~~ | **Done.** The shell scales the browsed view and reports back what Chromium settled on; per-site is Chromium's own memory, which is why the report is needed. `bb.browser.page.zoom` costs `page.interact` |
-| Print (`Cmd+P`)                       | `printToPDF` exists for agents only; no user-facing print                                                                                                                                                 |
-| Page context menu                     | **Done** — link, image, selection and navigation entries, plus a plugin contribution point ([browser-surface.md](browser-surface.md))                                                                     |
-| View source                           | **Done** — Chromium's own DevTools, opened in the panel ([browser-surface.md](browser-surface.md))                                                                                                        |
-| Reading a PDF as text                 | **Done** — refetched through the browsing session and parsed out of process ([browser-surface.md](browser-surface.md))                                                                                    |
-| Spellcheck corrections                | Underlining is Chromium's default; the browsed view's menu offers no suggestions                                                                                                                          |
+| Feature                               | State                                                                                                                                                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Find in page (`Cmd+F`)                | **Done** — a find bar in the chrome, plus a plugin contribution point ([browser-surface.md](browser-surface.md))                                                                                               |
+| ~~Zoom (`Cmd +/-/0`), per-site zoom~~ | **Done.** The shell scales the browsed view and reports back what Chromium settled on; per-site is Chromium's own memory, which is why the report is needed. `patcher.browser.page.zoom` costs `page.interact` |
+| Print (`Cmd+P`)                       | `printToPDF` exists for agents only; no user-facing print                                                                                                                                                      |
+| Page context menu                     | **Done** — link, image, selection and navigation entries, plus a plugin contribution point ([browser-surface.md](browser-surface.md))                                                                          |
+| View source                           | **Done** — Chromium's own DevTools, opened in the panel ([browser-surface.md](browser-surface.md))                                                                                                             |
+| Reading a PDF as text                 | **Done** — refetched through the browsing session and parsed out of process ([browser-surface.md](browser-surface.md))                                                                                         |
+| Spellcheck corrections                | Underlining is Chromium's default; the browsed view's menu offers no suggestions                                                                                                                               |
 
 The context menu is now built (open link in new tab or the default browser,
 copy link address, copy/save image, search for the selection, back/forward/
@@ -183,13 +183,13 @@ rather than failing obscurely.
 ~~No tab context menu, no pin / duplicate / mute.~~ Done: right-clicking a tab
 offers Duplicate, Pin / Unpin, Mute / Unmute and Close, and both of Phase 8's tab
 surfaces arrived with it — plugin **actions** on the menu
-(`bb.browser.registerTabAction`, permission `tabMenu.register`) and plugin
+(`patcher.browser.registerTabAction`, permission `tabMenu.register`) and plugin
 **decorators** on the tabs themselves
 (`contentScript.experimental_setBrowserTabStatus`). All three are driveable too
 (`tabs.pin`, `tabs.mute`, `tabs.duplicate` under `tabs.modify`). See
 [browser-surface.md](browser-surface.md) for the rules that turned out to matter:
 pinned tabs are a block rather than a flag, mute lives exactly as long as the
-page's `webContents`, and duplicate and mute do not apply to a bb screen.
+page's `webContents`, and duplicate and mute do not apply to a Patcher screen.
 
 ~~Still open: no drag reorder~~ — done: tabs reorder by drag (`@dnd-kit`, as the
 thread panel's strip does), and `tabs.move` drives the same reducer for a plugin
@@ -213,7 +213,7 @@ on a timer.
 did `Cmd+Shift+F` with fullscreen and `Cmd+Alt+I` with the developer panel —
 see [browser-surface.md](browser-surface.md). The zoom trio is in too, and it
 arrived the same way — with the capability rather than as a binding, because a
-chord that scales bb's own chrome instead of the page is not the binding being
+chord that scales Patcher's own chrome instead of the page is not the binding being
 missing. `Cmd+P` is in too, and it needed the same thing — a
 user-facing print, not a chord.
 
@@ -222,7 +222,7 @@ user-facing print, not a chord.
 - **Bookmarks do not exist**, and after a design pass on 2026-08-19 they are
   **deliberately deferred** rather than pending. Not because they are expensive —
   because they are the best available proof of what this browser claims. A plugin
-  can already own the whole feature: its own SQLite (`bb.storage.database`), an
+  can already own the whole feature: its own SQLite (`patcher.storage.database`), an
   entry on the tab menu and the page menu to save a page, an omnibox provider to
   get it back, a site-info section for "this page is saved", and a panel for the
   list. Building that in the core would spend the demonstration on the one
@@ -231,7 +231,7 @@ user-facing print, not a chord.
   What a plugin cannot do yet is exactly two named Phase 8 surfaces plus one
   smaller thing: put a **star in the address bar** (toolbar items), put a section
   on the **new-tab screen** (new-tab widgets), and own a chord —
-  `bb.ui.registerKeybinding` rebinds bb's _existing_ commands and refuses an
+  `patcher.ui.registerKeybinding` rebinds Patcher's _existing_ commands and refuses an
   unknown id (`appCommandIdSchema`). So the order is: those surfaces first,
   bookmarks as an example plugin on top of them. This is only the right call if
   that example actually ships; a plugin nobody installs is not a feature.
@@ -250,7 +250,7 @@ user-facing print, not a chord.
   padlock is a button that opens what the browser can honestly say about the
   connection, and it stopped lying in both directions — a certificate the user
   waved through no longer gets a lock, and loopback no longer gets a warning.
-  Plugins add sections to the panel (`bb.browser.registerSiteInfoProvider`,
+  Plugins add sections to the panel (`patcher.browser.registerSiteInfoProvider`,
   permission `siteInfo.register`). See
   [browser-surface.md](browser-surface.md).
 
@@ -264,12 +264,12 @@ before the debounce elapses does the same thing as after — while every plugin
 provider is asynchronous. The most a plugin could offer was a row the user picks
 with an arrow key.
 
-So the engine is now a _declared_ choice: bb ships a few, plugins declare more
-(`bb.browser.registerSearchEngine`, permission `searchEngine.register`), and the
+So the engine is now a _declared_ choice: Patcher ships a few, plugins declare more
+(`patcher.browser.registerSearchEngine`, permission `searchEngine.register`), and the
 setting picks among them. Declared rather than asked, like context-menu items, is
 what keeps Enter synchronous. The payoff beyond the setting is that an engine need
 not be a search engine — a plugin route that spawns an agent thread is a legal
-one, which is the thing an agent-first browser wants from its address bar. No incognito or profiles: one fixed `persist:bb-browser` partition.
+one, which is the thing an agent-first browser wants from its address bar. No incognito or profiles: one fixed `persist:patcher-browser` partition.
 No autofill or password manager. ~~No per-tab mute~~ — done, from the tab's menu
 and over `tabs.mute`; still no audio _indicator_, no picture-in-picture and no
 media keys, and no Widevine in Electron, so DRM streaming will not play. Session restore carries URLs only — no scroll position, no form state.
@@ -299,10 +299,10 @@ plain `id` field that never threw, and a `close()` that set a flag without firin
 
 **Done**: each window gets its own tabs, the way a browser's windows do. The
 cost is not the storage key, it is that **the renderer has no window identity at
-all** — neither `desktop-contract` nor `bb-desktop.ts` carries one. Since browser
+all** — neither `desktop-contract` nor `patcher-desktop.ts` carries one. Since browser
 IPC schemas are wire-frozen ([bb-migration.md](bb-migration.md), Invariant 2),
 that identity arrives as a new channel plus an optional method on
-`BbDesktopBrowserApi`, feature-detected — the shape already used for scoped popup
+`PatcherDesktopBrowserApi`, feature-detected — the shape already used for scoped popup
 requests and tab favicons. Scoping the tab store then follows, and two things
 have to be decided rather than derived: which window the agent's `browser_tabs_*`
 addresses (the focused one), and what session restore does with more than one
@@ -321,8 +321,8 @@ it was reopens with what it had.
 The one new thing is how that key reaches the renderer. It cannot be a method,
 because the answer is needed while modules initialise — the tabs atom picks its
 storage key before anything can await — so it rides in as
-`--bb-window-key=<stateKey>` in the window's `additionalArguments` and lands as
-an optional `windowKey` on `BbDesktopApi`. Optional is the negotiation: a web
+`--patcher-window-key=<stateKey>` in the window's `additionalArguments` and lands as
+an optional `windowKey` on `PatcherDesktopApi`. Optional is the negotiation: a web
 build or an older shell has none, and per-window state falls back to the single
 shared store, which is exactly what every build did before. One migration comes
 with it: whichever window opens first adopts the pre-split list and deletes it,
@@ -343,13 +343,13 @@ Three things the first run of two real windows turned up, all fixed with it:
   rest, so a web build or an older shell keeps the empty new-tab screen.
 - **`window.new` moved from Mod+Shift+N to Mod+N**, and `thread.new` gave the
   chord up — it keeps its existing Mod+Shift+O. Mod+N opens a window in every
-  other browser, and bb is one. Mod+Shift+N is now deliberately unassigned: it
+  other browser, and Patcher is one. Mod+Shift+N is now deliberately unassigned: it
   is incognito everywhere else, and that window is still on this list.
 
 **Zoom** arrived with the same shape as the rest of this list's closed items:
 the capability was missing, not the chord. `setZoomFactor` existed only for the
 app window, and the View menu's Electron zoom roles act on that window's own
-`webContents` — so `Cmd+=` scaled bb's chrome while the page underneath stood
+`webContents` — so `Cmd+=` scaled Patcher's chrome while the page underneath stood
 still, and the window factory's `setZoomFactor(1)` on every load threw even that
 away. Now the shell scales the browsed view, and **reports back what Chromium
 settled on** rather than echoing the request: it clamps, and it also remembers
@@ -369,7 +369,7 @@ the DOM, so the plugin API is the surface that was owed, not a tool nobody
 asked for.
 
 **Print** is `Cmd+P` on the browser surface, and the interesting part is that the
-chord was already taken: `file.quickOpen` held Mod+P everywhere in bb while being
+chord was already taken: `file.quickOpen` held Mod+P everywhere in Patcher while being
 a second binding for what `panel.newTab` already did on Mod+T. So the command
 went rather than the chord being shared — see the note further down — and the
 test pins that Mod+P now resolves to `browser.print` alone.
@@ -377,13 +377,13 @@ test pins that Mod+P now resolves to `browser.print` alone.
 What the shell does is `webContents.print()` on the browsed view, and what it
 reports is nothing. Printed, saved-as-PDF and cancelled are one answer from
 here, and the dialog is the user's conversation, not this browser's. It is also
-**blocking** — owned by the app window, so bb is frozen while it is up, an agent
+**blocking** — owned by the app window, so Patcher is frozen while it is up, an agent
 waiting on a browser command included. That is the right trade for a chord the
 user just pressed and the wrong one for anything else, which is why nothing but
 `browser.print` can reach it: no plugin method, and no path from a page.
 
 Print therefore ships **without** a new plugin surface, deliberately. The
-programmatic half already exists and is better: `bb.browser.page.pdf()` renders
+programmatic half already exists and is better: `patcher.browser.page.pdf()` renders
 the document with no dialog at all, which is what a plugin that files invoices or
 drives a label printer actually wants. A plugin-triggered modal would be a
 footgun wearing a contribution point's clothes.
@@ -512,10 +512,10 @@ By value against cost, not by tier:
 
 10. ~~**Site-info popover**~~ — done, and the interesting part was not the
     panel. The padlock was a decoration derived from the address bar, which made
-    it wrong for the two cases bb can actually distinguish: a certificate a human
+    it wrong for the two cases Patcher can actually distinguish: a certificate a human
     accepted after Chromium refused it (encrypted, unidentified — and the
     exception applies to every later tab on that host) and loopback (no network to
-    listen on, which is how bb serves its own pages). The shell now reports the
+    listen on, which is how Patcher serves its own pages). The shell now reports the
     one fact only it knows, on its own channel, and the panel says what is _not_
     checked instead of implying it was.
 

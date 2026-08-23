@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bbDesktopBrowserControlOperationSchema } from "@bb/desktop-contract";
-import { browserControlOperationSchema } from "@bb/domain";
+import { patcherDesktopBrowserControlOperationSchema } from "@patcher/desktop-contract";
+import { browserControlOperationSchema } from "@patcher/domain";
 
 /**
  * The fourth union written twice, for the reason the other three are (see
@@ -61,7 +61,7 @@ describe("the control union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(true);
       expect(
-        bbDesktopBrowserControlOperationSchema.safeParse(value).success,
+        patcherDesktopBrowserControlOperationSchema.safeParse(value).success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(true);
     }
@@ -74,7 +74,7 @@ describe("the control union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(false);
       expect(
-        bbDesktopBrowserControlOperationSchema.safeParse(value).success,
+        patcherDesktopBrowserControlOperationSchema.safeParse(value).success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(false);
     }

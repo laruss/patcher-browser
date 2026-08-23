@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import {
-  BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+} from "@patcher/desktop-contract";
 import {
   areFilePreviewLineRangesEqual,
   areEnvironmentFilePreviewSourcesEqual,
@@ -16,7 +16,7 @@ import {
 } from "./file-preview";
 
 export const FIXED_PANEL_TABS_STATE_STORAGE_PREFIX =
-  "bb.thread.fixedPanelTabsState";
+  "patcher.thread.fixedPanelTabsState";
 export const FIXED_PANEL_TABS_STATE_STORAGE_VERSION = 1;
 export const FIXED_PANEL_TABS_IDLE_EXPIRY_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -106,9 +106,9 @@ const browserFixedPanelTabSchema = z
     title: z
       .string()
       .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH)
       .nullable(),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    url: z.string().max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
   })
   .strict();
 const newTabFixedPanelTabSchema = z

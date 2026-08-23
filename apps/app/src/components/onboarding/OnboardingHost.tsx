@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { DiscoveredRepo } from "@bb/host-daemon-contract";
+import type { DiscoveredRepo } from "@patcher/host-daemon-contract";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useUpdateGeneralSettings } from "@/hooks/mutations/settings-mutations";
 import { useCreateProject } from "@/hooks/mutations/project-mutations";
@@ -126,7 +126,7 @@ export function OnboardingHost() {
   const addProjects = useCallback(
     async (repos: readonly DiscoveredRepo[]) => {
       if (primaryHostId === null) return;
-      // Guard against re-adding a repo bb already tracks on replay. Projects
+      // Guard against re-adding a repo Patcher already tracks on replay. Projects
       // expose their remote, not their path, so the remote is the join key —
       // normalized, because `git@host:o/r.git` and `https://host/o/r` are the
       // same repository.

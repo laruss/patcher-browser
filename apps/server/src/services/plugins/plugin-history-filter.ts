@@ -10,11 +10,11 @@
  * filter, and both sides use the same function to do it.
  */
 
-// The leaf module rather than `@bb/domain`, deliberately: this file is reachable
+// The leaf module rather than `@patcher/domain`, deliberately: this file is reachable
 // from the out-of-process plugin host's startup path, and the barrel pulls the
 // browser-control schemas and zod behind it — ~38MB per host process for one
 // number. See docs/architecture/plugin-transport.md.
-import { BROWSER_HISTORY_URL_MAX_LENGTH } from "@bb/domain/browser-history";
+import { BROWSER_HISTORY_URL_MAX_LENGTH } from "@patcher/domain/browser-history";
 import type {
   PluginBrowserHistoryRewrite,
   PluginBrowserHistoryVisit,

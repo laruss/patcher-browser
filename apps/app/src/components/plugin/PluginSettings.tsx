@@ -2,18 +2,18 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { appToast } from "@/components/ui/app-toast.js";
 import { PluginSettingsSections } from "@/components/plugin/PluginSettingsSections";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
-import { Input } from "@bb/shared-ui/input";
+} from "@patcher/shared-ui/dropdown-menu";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
 import { SettingsWithControl } from "@/components/ui/settings-section.js";
-import { Switch } from "@bb/shared-ui/switch";
-import { ResourceDetailPanel } from "@bb/shared-ui/resource-list";
+import { Switch } from "@patcher/shared-ui/switch";
+import { ResourceDetailPanel } from "@patcher/shared-ui/resource-list";
 import { applyPluginSettingsView } from "@/hooks/cache-owners/plugin-cache-owner";
 import {
   updatePluginSettings,

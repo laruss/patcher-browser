@@ -5,7 +5,7 @@ import type {
   ProjectWithThreadsResponse,
   PromptHistoryResponse,
   WorkspacePathListResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   buildFilePreview,
   normalizeFilePreviewMimeType,

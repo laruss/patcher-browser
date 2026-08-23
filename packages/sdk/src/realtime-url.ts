@@ -1,7 +1,7 @@
-import type { BbSdkTransport } from "./transport.js";
+import type { PatcherSdkTransport } from "./transport.js";
 
 export interface ResolveRealtimeUrlArgs {
-  transport: BbSdkTransport;
+  transport: PatcherSdkTransport;
 }
 
 interface WebsocketUrlFromHttpUrlArgs {
@@ -79,6 +79,6 @@ export function resolveRealtimeUrl(args: ResolveRealtimeUrlArgs): string {
   }
 
   throw new Error(
-    "BB SDK realtime requires an absolute baseUrl or realtimeUrl in this runtime.",
+    "Patcher SDK realtime requires an absolute baseUrl or realtimeUrl in this runtime.",
   );
 }

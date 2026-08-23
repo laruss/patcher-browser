@@ -56,7 +56,7 @@ export interface Project {
   nextTaskNumber: number;
   color: string;
   folderId: string | null;
-  linkedBbProjectId: string | null;
+  linkedPatcherProjectId: string | null;
   createdAt: string;
 }
 
@@ -155,7 +155,7 @@ export interface CreateProjectInput {
   prefix: string;
   color: string;
   folderId?: string | null;
-  linkedBbProjectId?: string | null;
+  linkedPatcherProjectId?: string | null;
 }
 
 export interface UpdateProjectInput {
@@ -163,7 +163,7 @@ export interface UpdateProjectInput {
   prefix?: string;
   color?: string;
   folderId?: string | null;
-  linkedBbProjectId?: string | null;
+  linkedPatcherProjectId?: string | null;
 }
 
 export interface CreateTaskInput {

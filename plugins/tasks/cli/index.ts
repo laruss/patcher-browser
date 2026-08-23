@@ -1,9 +1,9 @@
 import { resolve } from "node:path";
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginCliContext,
   PluginCliResult,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 import {
@@ -56,7 +56,7 @@ const ACTIVE_THREAD_STATUSES = new Set(["starting", "working"]);
 const DEFAULT_PROJECT_COLOR = "blue";
 const DEFAULT_LABEL_COLOR = "gray";
 
-const ROOT_HELP = `Usage: bb tasks <command> [options]
+const ROOT_HELP = `Usage: patcher tasks <command> [options]
 
 Commands:
   status                         Show plugin status
@@ -75,51 +75,51 @@ Commands:
   threads                        List threads attached to a task
   seed-demo                      Create sample data (requires --yes)
 
-Run bb tasks <command> --help for command usage.`;
+Run patcher tasks <command> --help for command usage.`;
 
 const PROJECT_HELP = `Usage:
-  bb tasks project create --name <name> [--prefix X] [--folder <id-or-name>] [--link-bb-project <proj_id>] [--color <color>] [--json]
-  bb tasks project list [--json]
-  bb tasks project show <prefix-or-id> [--json]
-  bb tasks project update <prefix-or-id> [--name <name>] [--color <color>] [--folder <id-or-name> | --no-folder] [--link-bb-project <proj_id> | --unlink-bb-project] [--rename-prefix X] [--json]`;
+  patcher tasks project create --name <name> [--prefix X] [--folder <id-or-name>] [--link-patcher-project <proj_id>] [--color <color>] [--json]
+  patcher tasks project list [--json]
+  patcher tasks project show <prefix-or-id> [--json]
+  patcher tasks project update <prefix-or-id> [--name <name>] [--color <color>] [--folder <id-or-name> | --no-folder] [--link-patcher-project <proj_id> | --unlink-patcher-project] [--rename-prefix X] [--json]`;
 
 const FOLDER_HELP = `Usage:
-  bb tasks folder create --name <name> [--parent <id-or-name>] [--json]
-  bb tasks folder list [--json]
-  bb tasks folder update <id-or-name> [--name <name>] [--parent <id-or-name> | --no-parent] [--json]`;
+  patcher tasks folder create --name <name> [--parent <id-or-name>] [--json]
+  patcher tasks folder list [--json]
+  patcher tasks folder update <id-or-name> [--name <name>] [--parent <id-or-name> | --no-parent] [--json]`;
 
 const CREATE_HELP =
-  "Usage: bb tasks create [--project <prefix-or-id>] --title <title> [--description <markdown> | --description-file <path>] [--priority <priority>] [--label <name>]... [--due YYYY-MM-DD] [--parent <key-or-id>] [--attach <path>]... [--machine <id-or-name>] [--json]";
-const LIST_HELP = `Usage: bb tasks list [--project <prefix-or-id>] [--status <status>]... [--priority <priority>]... [--label <name>]... [--active] [--search <query>] [--sort manual|priority|due] [--limit <1-${TASKS_PAGE_MAX_LIMIT}>] [--cursor <opaque>] [--json]`;
-const SHOW_HELP = "Usage: bb tasks show <key-or-id> [--json]";
+  "Usage: patcher tasks create [--project <prefix-or-id>] --title <title> [--description <markdown> | --description-file <path>] [--priority <priority>] [--label <name>]... [--due YYYY-MM-DD] [--parent <key-or-id>] [--attach <path>]... [--machine <id-or-name>] [--json]";
+const LIST_HELP = `Usage: patcher tasks list [--project <prefix-or-id>] [--status <status>]... [--priority <priority>]... [--label <name>]... [--active] [--search <query>] [--sort manual|priority|due] [--limit <1-${TASKS_PAGE_MAX_LIMIT}>] [--cursor <opaque>] [--json]`;
+const SHOW_HELP = "Usage: patcher tasks show <key-or-id> [--json]";
 const UPDATE_HELP =
-  "Usage: bb tasks update <key-or-id> [--status <status>] [--priority <priority>] [--title <title>] [--description <markdown> | --description-file <path>] [--due YYYY-MM-DD | --no-due] [--parent <key-or-id> | --no-parent] [--add-label <name>]... [--remove-label <name>]... [--machine <id-or-name>] [--json]";
+  "Usage: patcher tasks update <key-or-id> [--status <status>] [--priority <priority>] [--title <title>] [--description <markdown> | --description-file <path>] [--due YYYY-MM-DD | --no-due] [--parent <key-or-id> | --no-parent] [--add-label <name>]... [--remove-label <name>]... [--machine <id-or-name>] [--json]";
 const COMMENT_HELP =
-  "Usage: bb tasks comment <key-or-id> (--body <markdown> | --body-file <path>) [--author <name>] [--machine <id-or-name>] [--notify] [--json]";
+  "Usage: patcher tasks comment <key-or-id> (--body <markdown> | --body-file <path>) [--author <name>] [--machine <id-or-name>] [--notify] [--json]";
 const LABEL_HELP = `Usage:
-  bb tasks label create --project <prefix-or-id> --name <name> [--color <color>] [--json]
-  bb tasks label list --project <prefix-or-id> [--json]
-  bb tasks label delete --project <prefix-or-id> <name-or-id> [--json]`;
+  patcher tasks label create --project <prefix-or-id> --name <name> [--color <color>] [--json]
+  patcher tasks label list --project <prefix-or-id> [--json]
+  patcher tasks label delete --project <prefix-or-id> <name-or-id> [--json]`;
 const ATTACHMENT_HELP = `Usage:
-  bb tasks attachment add <key-or-comment-id> --file <path> [--name <name>] [--machine <id-or-name>] [--json]
-  bb tasks attachment get <attachment-id> --out <path> [--machine <id-or-name>] [--json]
-  bb tasks attachment list <key> [--json]
-  bb tasks attachment remove <attachment-id> [--remove-references] [--json]
+  patcher tasks attachment add <key-or-comment-id> --file <path> [--name <name>] [--machine <id-or-name>] [--json]
+  patcher tasks attachment get <attachment-id> --out <path> [--machine <id-or-name>] [--json]
+  patcher tasks attachment list <key> [--json]
+  patcher tasks attachment remove <attachment-id> [--remove-references] [--json]
 
 File paths are read from and written to the invoking machine: the thread's
 machine when run inside an agent thread, otherwise the server's machine.
 Pass --machine to target another enrolled machine explicitly.`;
 const PRESET_HELP = `Usage:
-  bb tasks preset list [--json]
-  bb tasks preset show <name-or-id> [--json]
-  bb tasks preset create --name <name> --provider <id> --model <id> --reasoning <level> --permission <accept-edits|auto|full> [--environment project-default|worktree] [--base-branch <branch>] [--machine <id-or-name>] [--instructions <text>] [--json]
-  bb tasks preset update <name-or-id> [--name <name>] [--provider <id>] [--model <id>] [--reasoning <level>] [--permission <accept-edits|auto|full>] [--environment project-default|worktree] [--base-branch <branch>] [--machine <id-or-name>] [--instructions <text>] [--json]
-  bb tasks preset delete <name-or-id> [--json]`;
+  patcher tasks preset list [--json]
+  patcher tasks preset show <name-or-id> [--json]
+  patcher tasks preset create --name <name> --provider <id> --model <id> --reasoning <level> --permission <accept-edits|auto|full> [--environment project-default|worktree] [--base-branch <branch>] [--machine <id-or-name>] [--instructions <text>] [--json]
+  patcher tasks preset update <name-or-id> [--name <name>] [--provider <id>] [--model <id>] [--reasoning <level>] [--permission <accept-edits|auto|full>] [--environment project-default|worktree] [--base-branch <branch>] [--machine <id-or-name>] [--instructions <text>] [--json]
+  patcher tasks preset delete <name-or-id> [--json]`;
 const DISPATCH_HELP =
-  "Usage: bb tasks dispatch <key> --preset <name> [--instructions <extra>] [--json]";
+  "Usage: patcher tasks dispatch <key> --preset <name> [--instructions <extra>] [--json]";
 const ATTACH_HELP =
-  "Usage: bb tasks attach <key> [--thread <thread-id>] [--json]";
-const THREADS_HELP = "Usage: bb tasks threads <key> [--json]";
+  "Usage: patcher tasks attach <key> [--thread <thread-id>] [--json]";
+const THREADS_HELP = "Usage: patcher tasks threads <key> [--json]";
 
 interface PluginStatus {
   name: string;
@@ -140,11 +140,11 @@ function unwrapTask(result: TaskMutationResult): Task {
 
 // CLI handlers execute on the server, so a path argument names a file on the
 // INVOKING machine, not this process's filesystem. All client file access
-// goes through bb.sdk.files with the host resolved from the calling thread's
+// goes through patcher.sdk.files with the host resolved from the calling thread's
 // environment (or an explicit --machine override); node:fs would silently
 // read or write the server's disk in a multi-machine setup.
 async function resolveClientHostId(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   domain: TasksDomain,
   args: ParsedArgs,
   ctx: PluginCliContext,
@@ -152,9 +152,9 @@ async function resolveClientHostId(
   const machine = option(args, "machine");
   if (machine !== undefined) return resolveMachineId(domain, machine);
   if (!ctx.threadId) return undefined;
-  const thread = await bb.sdk.threads.get({ threadId: ctx.threadId });
+  const thread = await patcher.sdk.threads.get({ threadId: ctx.threadId });
   if (!thread.environmentId) return undefined;
-  const environment = await bb.sdk.environments.get({
+  const environment = await patcher.sdk.environments.get({
     environmentId: thread.environmentId,
   });
   return environment.hostId;
@@ -166,11 +166,11 @@ function isMissingClientFileError(error: unknown): boolean {
 }
 
 async function readClientFile(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   hostId: string | undefined,
   path: string,
 ): Promise<{ bytes: Buffer; text: string | null }> {
-  const file = await bb.sdk.files.read({
+  const file = await patcher.sdk.files.read({
     ...(hostId ? { hostId } : {}),
     path,
   });
@@ -184,12 +184,12 @@ async function readClientFile(
 }
 
 async function readAttachmentSource(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   hostId: string | undefined,
   path: string,
 ): Promise<Buffer> {
   try {
-    return (await readClientFile(bb, hostId, path)).bytes;
+    return (await readClientFile(patcher, hostId, path)).bytes;
   } catch (error) {
     if (isMissingClientFileError(error)) {
       throw new CliError(`attachment source is not a file: ${path}`);
@@ -199,12 +199,12 @@ async function readAttachmentSource(
 }
 
 async function writeClientFile(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   hostId: string | undefined,
   path: string,
   content: Buffer,
 ): Promise<void> {
-  await bb.sdk.files.write({
+  await patcher.sdk.files.write({
     ...(hostId ? { hostId } : {}),
     path,
     content: content.toString("base64"),
@@ -218,7 +218,7 @@ function attachmentFileName(path: string): string {
 }
 
 async function readFileOption(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   args: ParsedArgs,
   ctx: PluginCliContext,
   hostId: string | undefined,
@@ -233,7 +233,7 @@ async function readFileOption(
   if (file === undefined) return inline;
   const path = resolve(ctx.cwd ?? process.cwd(), file);
   try {
-    const { text } = await readClientFile(bb, hostId, path);
+    const { text } = await readClientFile(patcher, hostId, path);
     if (text === null) {
       throw new CliError(`could not read ${file}: file is not UTF-8 text`);
     }
@@ -298,22 +298,22 @@ async function defaultProject(
   if (!ctx.projectId) {
     if (required) {
       throw new CliError(
-        "missing --project and no BB project context is available",
+        "missing --project and no Patcher project context is available",
       );
     }
     return undefined;
   }
   const matches = (await listProjects(domain)).filter(
-    (project) => project.linkedBbProjectId === ctx.projectId,
+    (project) => project.linkedPatcherProjectId === ctx.projectId,
   );
   if (matches.length === 0) {
     throw new CliError(
-      `no tracker project is linked to BB project ${ctx.projectId}; pass --project or link one with bb tasks project update`,
+      `no tracker project is linked to Patcher project ${ctx.projectId}; pass --project or link one with patcher tasks project update`,
     );
   }
   if (matches.length > 1) {
     throw new CliError(
-      `multiple tracker projects are linked to BB project ${ctx.projectId}; pass --project explicitly`,
+      `multiple tracker projects are linked to Patcher project ${ctx.projectId}; pass --project explicitly`,
     );
   }
   return matches[0];
@@ -508,14 +508,14 @@ function projectTable(
     folders.map((folder) => [folder.id, folder.name]),
   );
   return table(
-    ["PREFIX", "NAME", "FOLDER", "BB PROJECT", "ID"],
+    ["PREFIX", "NAME", "FOLDER", "Patcher PROJECT", "ID"],
     projects.map((project) => [
       project.prefix,
       project.name,
       project.folderId
         ? (folderNames.get(project.folderId) ?? project.folderId)
         : "-",
-      project.linkedBbProjectId ?? "-",
+      project.linkedPatcherProjectId ?? "-",
       project.id,
     ]),
     "No projects.",
@@ -527,7 +527,7 @@ function taskAuthor(ctx: PluginCliContext): string {
 }
 
 async function runProject(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   argv: string[],
@@ -542,7 +542,7 @@ async function runProject(
       "name",
       "prefix",
       "folder",
-      "link-bb-project",
+      "link-patcher-project",
       "color",
     ]);
     requirePositionals(args, 0, PROJECT_HELP.split("\n")[1]!.trim());
@@ -561,7 +561,7 @@ async function runProject(
             : derivePrefix(name, projects),
           color: option(args, "color") ?? DEFAULT_PROJECT_COLOR,
           folderId: folder?.id ?? null,
-          linkedBbProjectId: option(args, "link-bb-project") ?? null,
+          linkedPatcherProjectId: option(args, "link-patcher-project") ?? null,
         }),
       ),
     );
@@ -572,7 +572,7 @@ async function runProject(
 
   if (action === "list") {
     assertAllowed(args, []);
-    requirePositionals(args, 0, "bb tasks project list [--json]");
+    requirePositionals(args, 0, "patcher tasks project list [--json]");
     const projects = await listProjects(domain);
     const folders = tasksRpcContract.listFolders.output.parse(
       await domain.listFolders(tasksRpcContract.listFolders.input.parse(null)),
@@ -587,7 +587,7 @@ async function runProject(
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks project show <prefix-or-id> [--json]",
+      "patcher tasks project show <prefix-or-id> [--json]",
     );
     const project = await resolveProject(domain, address!);
     const folder = project.folderId
@@ -599,7 +599,7 @@ async function runProject(
       ["ID", project.id],
       ["Color", project.color],
       ["Folder", folder?.name ?? "-"],
-      ["BB project", project.linkedBbProjectId ?? "-"],
+      ["Patcher project", project.linkedPatcherProjectId ?? "-"],
       ["Next task", `${project.prefix}-${project.nextTaskNumber}`],
       ["Created", project.createdAt],
     ]);
@@ -608,17 +608,17 @@ async function runProject(
   if (action === "update") {
     assertAllowed(
       args,
-      ["name", "color", "folder", "link-bb-project", "rename-prefix"],
-      ["no-folder", "unlink-bb-project"],
+      ["name", "color", "folder", "link-patcher-project", "rename-prefix"],
+      ["no-folder", "unlink-patcher-project"],
     );
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks project update <prefix-or-id> [options] [--json]",
+      "patcher tasks project update <prefix-or-id> [options] [--json]",
     );
     const project = await resolveProject(domain, address!);
     const folderAddress = option(args, "folder");
-    const linkedBbProjectId = option(args, "link-bb-project");
+    const linkedPatcherProjectId = option(args, "link-patcher-project");
     validateSingleFlagChoice(
       folderAddress,
       args.flags.has("no-folder"),
@@ -626,10 +626,10 @@ async function runProject(
       "no-folder",
     );
     validateSingleFlagChoice(
-      linkedBbProjectId,
-      args.flags.has("unlink-bb-project"),
-      "link-bb-project",
-      "unlink-bb-project",
+      linkedPatcherProjectId,
+      args.flags.has("unlink-patcher-project"),
+      "link-patcher-project",
+      "unlink-patcher-project",
     );
     const folder = folderAddress
       ? await resolveFolder(domain, folderAddress)
@@ -638,9 +638,9 @@ async function runProject(
       name: option(args, "name"),
       color: option(args, "color"),
       folderId: args.flags.has("no-folder") ? null : folder?.id,
-      linkedBbProjectId: args.flags.has("unlink-bb-project")
+      linkedPatcherProjectId: args.flags.has("unlink-patcher-project")
         ? null
-        : linkedBbProjectId,
+        : linkedPatcherProjectId,
     };
     const renamePrefix = option(args, "rename-prefix");
     if (
@@ -648,7 +648,7 @@ async function runProject(
       changes.name === undefined &&
       changes.color === undefined &&
       changes.folderId === undefined &&
-      changes.linkedBbProjectId === undefined
+      changes.linkedPatcherProjectId === undefined
     ) {
       throw new CliError("no project changes were provided");
     }
@@ -663,7 +663,7 @@ async function runProject(
       changes.name !== undefined ||
       changes.color !== undefined ||
       changes.folderId !== undefined ||
-      changes.linkedBbProjectId !== undefined;
+      changes.linkedPatcherProjectId !== undefined;
     const updateInput = hasFieldChanges
       ? tasksRpcContract.updateProject.input.parse({
           projectId: project.id,
@@ -684,10 +684,10 @@ async function runProject(
         name: updateInput?.name,
         color: updateInput?.color,
         folderId: updateInput?.folderId,
-        linkedBbProjectId: updateInput?.linkedBbProjectId,
+        linkedPatcherProjectId: updateInput?.linkedPatcherProjectId,
       }),
     );
-    publishProjectsChanged(bb, updated.id);
+    publishProjectsChanged(patcher, updated.id);
     return args.flags.has("json")
       ? json({ project: updated })
       : `Updated project ${updated.prefix}  ${updated.name}`;
@@ -697,7 +697,7 @@ async function runProject(
 }
 
 async function runFolder(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   argv: string[],
@@ -712,7 +712,7 @@ async function runFolder(
     requirePositionals(
       args,
       0,
-      "bb tasks folder create --name <name> [options]",
+      "patcher tasks folder create --name <name> [options]",
     );
     const parentAddress = option(args, "parent");
     const parent = parentAddress
@@ -733,7 +733,7 @@ async function runFolder(
 
   if (action === "list") {
     assertAllowed(args, []);
-    requirePositionals(args, 0, "bb tasks folder list [--json]");
+    requirePositionals(args, 0, "patcher tasks folder list [--json]");
     const result = tasksRpcContract.listFolders.output.parse(
       await domain.listFolders(tasksRpcContract.listFolders.input.parse(null)),
     );
@@ -760,7 +760,7 @@ async function runFolder(
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks folder update <id-or-name> [options] [--json]",
+      "patcher tasks folder update <id-or-name> [options] [--json]",
     );
     const folder = await resolveFolder(domain, address!);
     const parentAddress = option(args, "parent");
@@ -801,7 +801,7 @@ async function runFolder(
         parentFolderId: moveInput?.parentFolderId,
       }),
     );
-    publishProjectsChanged(bb, null);
+    publishProjectsChanged(patcher, null);
     return args.flags.has("json")
       ? json({ folder: updated })
       : `Updated folder ${updated.name}  ${updated.id}`;
@@ -811,7 +811,7 @@ async function runFolder(
 }
 
 async function runCreate(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   ctx: PluginCliContext,
@@ -843,13 +843,13 @@ async function runCreate(
     throw new CliError("--machine requires --attach or --description-file");
   }
   const clientHostId = usesClientFiles
-    ? await resolveClientHostId(bb, domain, args, ctx)
+    ? await resolveClientHostId(patcher, domain, args, ctx)
     : undefined;
   const attachSources: Array<{ path: string; bytes: Buffer }> = [];
   for (const path of attachPaths) {
     attachSources.push({
       path,
-      bytes: await readAttachmentSource(bb, clientHostId, path),
+      bytes: await readAttachmentSource(patcher, clientHostId, path),
     });
   }
   const project = await selectedProject(
@@ -872,7 +872,7 @@ async function runCreate(
     title: requireOption(args, "title"),
     description:
       (await readFileOption(
-        bb,
+        patcher,
         args,
         ctx,
         clientHostId,
@@ -901,7 +901,7 @@ async function runCreate(
           fileName: attachmentFileName(source.path),
         },
       );
-      publishAttachmentChanged(bb, store.tasks, attachment);
+      publishAttachmentChanged(patcher, store.tasks, attachment);
       attachments.push(attachment);
     } catch (error) {
       failedAttachments.push({
@@ -923,7 +923,7 @@ async function runCreate(
         ...(failedAttachments.length > 0
           ? failedAttachments.map(
               (failure) =>
-                `Retry with: bb tasks attachment add ${task.key} --file ${failure.path}`,
+                `Retry with: patcher tasks attachment add ${task.key} --file ${failure.path}`,
             )
           : []),
       ].join("\n");
@@ -1193,7 +1193,7 @@ async function runShow(domain: TasksDomain, argv: string[]): Promise<string> {
 }
 
 async function runUpdate(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   domain: TasksDomain,
   ctx: PluginCliContext,
   argv: string[],
@@ -1239,10 +1239,10 @@ async function runUpdate(
   }
   const clientHostId =
     option(args, "description-file") !== undefined
-      ? await resolveClientHostId(bb, domain, args, ctx)
+      ? await resolveClientHostId(patcher, domain, args, ctx)
       : undefined;
   const description = await readFileOption(
-    bb,
+    patcher,
     args,
     ctx,
     clientHostId,
@@ -1298,7 +1298,7 @@ async function runUpdate(
 }
 
 async function runComment(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   ctx: PluginCliContext,
@@ -1317,10 +1317,10 @@ async function runComment(
   }
   const clientHostId =
     option(args, "body-file") !== undefined
-      ? await resolveClientHostId(bb, domain, args, ctx)
+      ? await resolveClientHostId(patcher, domain, args, ctx)
       : undefined;
   const body = await readFileOption(
-    bb,
+    patcher,
     args,
     ctx,
     clientHostId,
@@ -1330,7 +1330,7 @@ async function runComment(
   if (body === undefined)
     throw new CliError("missing required --body or --body-file");
   if (!body.trim()) throw new CliError("comment body must not be blank");
-  const comment = await createComment(bb, store, {
+  const comment = await createComment(patcher, store, {
     taskId: task.id,
     kind: ctx.threadId ? "agent" : "user",
     authorName: option(args, "author") ?? taskAuthor(ctx),
@@ -1355,7 +1355,7 @@ async function runLabel(domain: TasksDomain, argv: string[]): Promise<string> {
     requirePositionals(
       args,
       0,
-      "bb tasks label create --project <project> --name <name>",
+      "patcher tasks label create --project <project> --name <name>",
     );
     const project = await resolveProject(
       domain,
@@ -1377,7 +1377,7 @@ async function runLabel(domain: TasksDomain, argv: string[]): Promise<string> {
 
   if (action === "list") {
     assertAllowed(args, ["project"]);
-    requirePositionals(args, 0, "bb tasks label list --project <project>");
+    requirePositionals(args, 0, "patcher tasks label list --project <project>");
     const project = await resolveProject(
       domain,
       requireOption(args, "project"),
@@ -1397,7 +1397,7 @@ async function runLabel(domain: TasksDomain, argv: string[]): Promise<string> {
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks label delete --project <project> <name-or-id>",
+      "patcher tasks label delete --project <project> <name-or-id>",
     );
     const project = await resolveProject(
       domain,
@@ -1421,7 +1421,7 @@ async function runLabel(domain: TasksDomain, argv: string[]): Promise<string> {
 }
 
 async function runAttachment(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   ctx: PluginCliContext,
@@ -1437,7 +1437,7 @@ async function runAttachment(
     const [ownerAddress] = requirePositionals(
       args,
       1,
-      "bb tasks attachment add <key-or-comment-id> --file <path> [--name <name>] [--machine <id-or-name>] [--json]",
+      "patcher tasks attachment add <key-or-comment-id> --file <path> [--name <name>] [--machine <id-or-name>] [--json]",
     );
     const sourceOption = requireOption(args, "file");
     const sourcePath = resolve(ctx.cwd ?? process.cwd(), sourceOption);
@@ -1451,13 +1451,13 @@ async function runAttachment(
     const owner = comment
       ? { commentId: comment.id }
       : { taskId: (await resolveTask(domain, ownerAddress!)).id };
-    const clientHostId = await resolveClientHostId(bb, domain, args, ctx);
-    const bytes = await readAttachmentSource(bb, clientHostId, sourcePath);
+    const clientHostId = await resolveClientHostId(patcher, domain, args, ctx);
+    const bytes = await readAttachmentSource(patcher, clientHostId, sourcePath);
     const attachment = await saveAttachmentFromBytes(store.tasks, bytes, {
       ...owner,
       fileName: option(args, "name") ?? attachmentFileName(sourcePath),
     });
-    publishAttachmentChanged(bb, store.tasks, attachment);
+    publishAttachmentChanged(patcher, store.tasks, attachment);
     const payload = {
       attachment,
       url: buildAttachmentUrl(attachment.id),
@@ -1472,16 +1472,16 @@ async function runAttachment(
     const [attachmentId] = requirePositionals(
       args,
       1,
-      "bb tasks attachment get <attachment-id> --out <path> [--machine <id-or-name>] [--json]",
+      "patcher tasks attachment get <attachment-id> --out <path> [--machine <id-or-name>] [--json]",
     );
     const outOption = requireOption(args, "out");
     const outPath = resolve(ctx.cwd ?? process.cwd(), outOption);
-    const clientHostId = await resolveClientHostId(bb, domain, args, ctx);
+    const clientHostId = await resolveClientHostId(patcher, domain, args, ctx);
     const { attachment, content } = await readAttachmentContent(
       store.tasks,
       attachmentId!,
     );
-    await writeClientFile(bb, clientHostId, outPath, content);
+    await writeClientFile(patcher, clientHostId, outPath, content);
     return args.flags.has("json")
       ? json({ attachment, out: outPath })
       : `Saved ${attachment.fileName}  ${outPath}`;
@@ -1492,7 +1492,7 @@ async function runAttachment(
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks attachment list <key> [--json]",
+      "patcher tasks attachment list <key> [--json]",
     );
     const task = await resolveTask(domain, address!);
     const directAttachments = tasksRpcContract.listAttachments.output.parse(
@@ -1537,7 +1537,7 @@ async function runAttachment(
     const [attachmentId] = requirePositionals(
       args,
       1,
-      "bb tasks attachment remove <attachment-id> [--remove-references] [--json]",
+      "patcher tasks attachment remove <attachment-id> [--remove-references] [--json]",
     );
     const result = tasksRpcContract.deleteAttachment.output.parse(
       await domain.deleteAttachment(
@@ -1567,7 +1567,7 @@ async function runPreset(domain: TasksDomain, argv: string[]): Promise<string> {
 
   if (action === "list") {
     assertAllowed(args, []);
-    requirePositionals(args, 0, "bb tasks preset list [--json]");
+    requirePositionals(args, 0, "patcher tasks preset list [--json]");
     const presets = await listPresets(domain);
     return args.flags.has("json")
       ? json({ presets })
@@ -1607,7 +1607,7 @@ async function runPreset(domain: TasksDomain, argv: string[]): Promise<string> {
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks preset show <name-or-id> [--json]",
+      "patcher tasks preset show <name-or-id> [--json]",
     );
     const preset = resolvePreset(await listPresets(domain), address!);
     return args.flags.has("json")
@@ -1690,7 +1690,7 @@ async function runPreset(domain: TasksDomain, argv: string[]): Promise<string> {
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks preset update <name-or-id> [options] [--json]",
+      "patcher tasks preset update <name-or-id> [options] [--json]",
     );
     const preset = resolvePreset(await listPresets(domain), address!);
     const environmentOption = option(args, "environment");
@@ -1738,7 +1738,7 @@ async function runPreset(domain: TasksDomain, argv: string[]): Promise<string> {
     const [address] = requirePositionals(
       args,
       1,
-      "bb tasks preset delete <name-or-id> [--json]",
+      "patcher tasks preset delete <name-or-id> [--json]",
     );
     const preset = resolvePreset(await listPresets(domain), address!);
     const result = tasksRpcContract.deletePreset.output.parse(
@@ -1755,7 +1755,7 @@ async function runPreset(domain: TasksDomain, argv: string[]): Promise<string> {
 }
 
 async function runDispatch(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   argv: string[],
@@ -1770,7 +1770,7 @@ async function runDispatch(
     requireOption(args, "preset"),
   );
   const result = delegationRpcContract.delegate.output.parse(
-    await delegationHandlers(bb, store).delegate(
+    await delegationHandlers(patcher, store).delegate(
       delegationRpcContract.delegate.input.parse({
         taskId: task.id,
         presetId: preset.id,
@@ -1784,7 +1784,7 @@ async function runDispatch(
 }
 
 async function runAttach(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   domain: TasksDomain,
   ctx: PluginCliContext,
@@ -1796,12 +1796,12 @@ async function runAttach(
   const [address] = requirePositionals(args, 1, ATTACH_HELP);
   const task = await resolveTask(domain, address!);
   const threadId =
-    option(args, "thread") ?? process.env.BB_THREAD_ID ?? ctx.threadId;
+    option(args, "thread") ?? process.env.PATCHER_THREAD_ID ?? ctx.threadId;
   if (!threadId) {
-    throw new CliError("missing --thread and BB_THREAD_ID is not set");
+    throw new CliError("missing --thread and PATCHER_THREAD_ID is not set");
   }
   const result = delegationRpcContract.taskThreadsAttach.output.parse(
-    await delegationHandlers(bb, store).taskThreadsAttach(
+    await delegationHandlers(patcher, store).taskThreadsAttach(
       delegationRpcContract.taskThreadsAttach.input.parse({
         taskId: task.id,
         threadId,
@@ -1868,12 +1868,12 @@ function singleLine(value: string): string {
 }
 
 export function registerTasksCli(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   status: PluginStatus,
 ): void {
-  const domain = registerHandlers(bb, store);
-  bb.cli.register({
+  const domain = registerHandlers(patcher, store);
+  patcher.cli.register({
     name: "tasks",
     summary:
       "Create and manage task-tracker projects, tasks, labels, and comments",
@@ -1881,7 +1881,7 @@ export function registerTasksCli(
       {
         name: "status",
         summary: "Show the Tasks plugin name and version",
-        usage: "bb tasks status [--json]",
+        usage: "patcher tasks status [--json]",
       },
       {
         name: "project",
@@ -1951,7 +1951,7 @@ export function registerTasksCli(
       {
         name: "seed-demo",
         summary: "Create sample folders, projects, labels, tasks, and comments",
-        usage: "bb tasks seed-demo --yes [--json]",
+        usage: "patcher tasks seed-demo --yes [--json]",
       },
     ],
     async run(argv, ctx): Promise<PluginCliResult> {
@@ -1965,20 +1965,20 @@ export function registerTasksCli(
           case "status": {
             const args = parseArgs(rest);
             assertAllowed(args, []);
-            requirePositionals(args, 0, "bb tasks status [--json]");
+            requirePositionals(args, 0, "patcher tasks status [--json]");
             stdout = args.flags.has("json")
               ? JSON.stringify(status)
               : `${status.name} ${status.version}`;
             break;
           }
           case "project":
-            stdout = await runProject(bb, store, domain, rest);
+            stdout = await runProject(patcher, store, domain, rest);
             break;
           case "folder":
-            stdout = await runFolder(bb, store, domain, rest);
+            stdout = await runFolder(patcher, store, domain, rest);
             break;
           case "create": {
-            const result = await runCreate(bb, store, domain, ctx, rest);
+            const result = await runCreate(patcher, store, domain, ctx, rest);
             // Partial attachment failure returns a full result: truthful
             // stdout (task + per-file outcomes) with a non-zero exit.
             if (typeof result !== "string") return result;
@@ -1992,16 +1992,16 @@ export function registerTasksCli(
             stdout = await runShow(domain, rest);
             break;
           case "update":
-            stdout = await runUpdate(bb, domain, ctx, rest);
+            stdout = await runUpdate(patcher, domain, ctx, rest);
             break;
           case "comment":
-            stdout = await runComment(bb, store, domain, ctx, rest);
+            stdout = await runComment(patcher, store, domain, ctx, rest);
             break;
           case "label":
             stdout = await runLabel(domain, rest);
             break;
           case "attachment":
-            stdout = await runAttachment(bb, store, domain, ctx, rest);
+            stdout = await runAttachment(patcher, store, domain, ctx, rest);
             break;
           case "preset":
             stdout = await runPreset(domain, rest);
@@ -2009,10 +2009,10 @@ export function registerTasksCli(
           case "dispatch":
           // Hidden alias kept for compatibility; help advertises "dispatch".
           case "delegate":
-            stdout = await runDispatch(bb, store, domain, rest);
+            stdout = await runDispatch(patcher, store, domain, rest);
             break;
           case "attach":
-            stdout = await runAttach(bb, store, domain, ctx, rest);
+            stdout = await runAttach(patcher, store, domain, ctx, rest);
             break;
           case "threads":
             stdout = await runThreads(domain, rest);
@@ -2020,7 +2020,11 @@ export function registerTasksCli(
           case "seed-demo": {
             const args = parseArgs(rest);
             assertAllowed(args, [], ["yes"]);
-            requirePositionals(args, 0, "bb tasks seed-demo --yes [--json]");
+            requirePositionals(
+              args,
+              0,
+              "patcher tasks seed-demo --yes [--json]",
+            );
             if (!args.flags.has("yes")) {
               throw new CliError(
                 "seed-demo creates sample data; re-run with --yes",
@@ -2035,13 +2039,13 @@ export function registerTasksCli(
                   ["Labels", result.labelsCreated],
                   ["Tasks", result.tasksCreated],
                   ["Comments", result.commentsCreated],
-                  ["BB project", result.linkedBbProjectId ?? "-"],
+                  ["Patcher project", result.linkedPatcherProjectId ?? "-"],
                 ]);
             break;
           }
           default:
             throw new CliError(
-              `unknown command: ${command}; run bb tasks --help`,
+              `unknown command: ${command}; run patcher tasks --help`,
             );
         }
         return { exitCode: 0, stdout };

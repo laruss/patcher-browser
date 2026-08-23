@@ -148,7 +148,7 @@ async function verifyProcessIdentity(
     return { command, reason: "command" };
   }
 
-  // The command line alone cannot tell two bb launchers apart, and a recycled
+  // The command line alone cannot tell two Patcher launchers apart, and a recycled
   // PID can carry a matching name. The start time is what proves identity.
   const recordedStart = Date.parse(args.startedAt);
   const elapsedSeconds = await args.processOps.readElapsedSeconds(args.pid);

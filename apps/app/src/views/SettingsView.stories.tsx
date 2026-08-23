@@ -1,17 +1,17 @@
 import { useState, type ReactNode } from "react";
-import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "@bb/domain/browser-search-engine";
+import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "@patcher/domain/browser-search-engine";
 import {
   defaultAppTheme,
   defaultExperiments,
   type AppTheme,
   type Experiments,
   type Host,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ProviderUsage,
   WorkspaceOpenTarget,
   WorkspaceOpenTargetId,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { UsageLimitsSettingsSectionContent } from "@/components/settings/UsageLimitsSettingsSection";
 import { VoiceInputSettingsSectionContent } from "@/components/settings/VoiceInputSettingsSection";
 import { PageShell } from "@/components/ui/page-shell";

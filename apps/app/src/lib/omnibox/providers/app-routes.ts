@@ -25,9 +25,9 @@ export interface CreateOmniboxAppRouteProviderArgs {
 }
 
 /**
- * bb's own screens, offered from the address bar the way Chromium offers its
+ * Patcher's own screens, offered from the address bar the way Chromium offers its
  * settings pages: typing "extensions" should reach Extensions without knowing
- * that bb spells it `/tools/plugins`.
+ * that Patcher spells it `/tools/plugins`.
  *
  * The list is passed in rather than hard-coded, which is what lets a plugin's
  * panel appear here on the same footing as Settings — a plugin registers a
@@ -54,9 +54,9 @@ export function createOmniboxAppRouteProvider({
           kind: "navigate",
           score: match * OMNIBOX_APP_ROUTES_SCORE_WEIGHT,
           // Named rather than left as the kind's generic "Go": the row leads
-          // out of the web and into bb, and the user should see that before
+          // out of the web and into Patcher, and the user should see that before
           // pressing Enter.
-          sourceLabel: "bb",
+          sourceLabel: "Patcher",
           subtitle: route.subtitle,
           title: route.title,
         });

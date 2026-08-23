@@ -4,11 +4,11 @@ import type {
   ReasoningLevel,
   ServiceTier,
   ThreadRuntimeDisplayStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CreateQueuedMessageRequest,
   ExistingThreadExecutionInputSources,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { FollowUpSubmitMode } from "@/components/promptbox/FollowUpPromptBox";
 import type { SendMessageMutationRequest } from "./threadDetailMutationTypes";
 

@@ -55,7 +55,7 @@ describe("FileOpenersSettingsSection", () => {
 
     expect(
       JSON.parse(
-        window.localStorage.getItem("bb.fileOpenerByExtension") ?? "{}",
+        window.localStorage.getItem("patcher.fileOpenerByExtension") ?? "{}",
       ),
     ).toEqual({ md: "notes:editor" });
 
@@ -69,7 +69,7 @@ describe("FileOpenersSettingsSection", () => {
     );
     expect(
       JSON.parse(
-        window.localStorage.getItem("bb.fileOpenerByExtension") ?? "{}",
+        window.localStorage.getItem("patcher.fileOpenerByExtension") ?? "{}",
       ),
     ).toEqual({});
   });

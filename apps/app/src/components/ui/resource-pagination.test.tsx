@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useResourcePagination } from "@bb/shared-ui/resource-pagination";
+import { useResourcePagination } from "@patcher/shared-ui/resource-pagination";
 import { afterEach, describe, expect, it } from "vitest";
 
 const ROWS = Array.from({ length: 30 }, (_, index) => index + 1);

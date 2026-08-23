@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ThreadListEntry, ThreadPullRequest } from "@bb/domain";
-import type { EnvironmentDisplayHostContext } from "@bb/core-ui";
+import type { ThreadListEntry, ThreadPullRequest } from "@patcher/domain";
+import type { EnvironmentDisplayHostContext } from "@patcher/core-ui";
 import {
   makeEnvironment,
   makeThread,
@@ -53,9 +53,9 @@ export function makePullRequest(
     number: 128,
     title: "Show the branch's GitHub pull request in the Info tab",
     state: "open",
-    url: "https://github.com/acme/bb/pull/128",
+    url: "https://github.com/acme/patcher/pull/128",
     baseRefName: "main",
-    headRefName: "bb/pr-info-panel",
+    headRefName: "patcher/pr-info-panel",
     updatedAt: "2026-06-16T12:30:00Z",
     checks: {
       state: "passing",
@@ -80,7 +80,7 @@ export function makePullRequest(
 
 export const baseProps: ThreadMetadataContentProps = {
   thread: makeThread(),
-  projectId: "proj_bb",
+  projectId: "proj_patcher",
   parentThreadDisplayName: null,
   parentThreads,
   canAssignToParent: true,

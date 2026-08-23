@@ -12,13 +12,13 @@ import type {
   PromptInput,
   Thread,
   WorkspaceStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CommitActionResponse,
   EnvironmentActionFailureDetails,
   SquashMergeActionResponse,
-} from "@bb/server-contract";
-import { environmentActionFailureDetailsSchema } from "@bb/server-contract";
+} from "@patcher/server-contract";
+import { environmentActionFailureDetailsSchema } from "@patcher/server-contract";
 import { useDialogState } from "@/hooks/useDialogState";
 import type { ThreadGitActionDialogTarget } from "@/components/dialogs/ThreadGitActionDialog";
 import {
@@ -26,7 +26,7 @@ import {
   buildSquashMergeCommitFailureFollowUpInstruction,
   buildSquashMergeConflictFollowUpInstruction,
 } from "@/lib/thread-operation-prompts";
-import { BbHttpError } from "@/lib/sdk";
+import { PatcherHttpError } from "@/lib/sdk";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import type {
   RequestEnvironmentActionMutationLike,
@@ -113,7 +113,7 @@ function toEnvironmentActionFailureDetails(
   error: unknown,
 ): EnvironmentActionFailureDetails | undefined {
   if (
-    !(error instanceof BbHttpError) ||
+    !(error instanceof PatcherHttpError) ||
     typeof error.body !== "object" ||
     error.body === null
   ) {

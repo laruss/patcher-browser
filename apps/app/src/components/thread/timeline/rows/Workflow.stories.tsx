@@ -1,5 +1,5 @@
-import type { TimelineRow } from "@bb/server-contract";
-import type { WorkflowProgressSnapshot } from "@bb/domain";
+import type { TimelineRow } from "@patcher/server-contract";
+import type { WorkflowProgressSnapshot } from "@patcher/domain";
 import { ThreadTimelineRows } from "@/components/thread/timeline";
 import { workflowRow } from "@/test/fixtures/thread-timeline-rows";
 import { StoryCard, StoryRow } from "../../../../../.ladle/story-card";
@@ -117,7 +117,7 @@ const workflowRowBaseArgs = {
   createdAt: 1780540131011,
   itemId: "task:wu7ol9ras",
   workflowName: "fixture-mini",
-  description: "Tiny fixture workflow for BB capture",
+  description: "Tiny fixture workflow for Patcher capture",
   summary: null,
   error: null,
 };
@@ -139,7 +139,8 @@ const completedWorkflow: TimelineRow = workflowRow({
   taskStatus: "completed",
   workflow: completedSnapshot,
   usage: { totalTokens: 26674, toolUses: 0, durationMs: 3277 },
-  summary: 'Dynamic workflow "Tiny fixture workflow for BB capture" completed',
+  summary:
+    'Dynamic workflow "Tiny fixture workflow for Patcher capture" completed',
   durationMs: 3_301,
 });
 
@@ -174,7 +175,8 @@ const degradedWorkflow: TimelineRow = workflowRow({
   // No workflow_progress reported (older CLI): usage-only rendering.
   workflow: null,
   usage: { totalTokens: 26674, toolUses: 0, durationMs: 3277 },
-  summary: 'Dynamic workflow "Tiny fixture workflow for BB capture" completed',
+  summary:
+    'Dynamic workflow "Tiny fixture workflow for Patcher capture" completed',
   durationMs: 3_301,
 });
 

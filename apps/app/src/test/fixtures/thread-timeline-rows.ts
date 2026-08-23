@@ -25,12 +25,12 @@ import type {
   TimelineWebFetchWorkRow,
   TimelineWebSearchWorkRow,
   TimelineWorkflowWorkRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   SystemMessageKind,
   SystemMessageSubject,
   ThreadTurnInitiator,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export interface RowBaseOverrideArgs {
   createdAt?: number;
@@ -499,7 +499,7 @@ export function commandRow({
   callId,
   command,
   createdAt,
-  cwd = "/workspace/bb",
+  cwd = "/workspace/patcher",
   durationMs = 2_300,
   exitCode,
   id = DEFAULT_COMMAND_ID,

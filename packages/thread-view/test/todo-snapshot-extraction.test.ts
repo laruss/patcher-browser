@@ -1,10 +1,10 @@
-import { jsonObjectSchema, turnScope } from "@bb/domain";
+import { jsonObjectSchema, turnScope } from "@patcher/domain";
 import type {
   ClaudeTaskToolName,
   Thread,
   ThreadEventItemStatus,
   ThreadEventPlanStep,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   extractThreadTimelinePendingTodos,

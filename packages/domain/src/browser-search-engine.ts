@@ -30,12 +30,12 @@ export interface BrowserSearchEngine {
 }
 
 /**
- * The engines bb ships. Google stays first because it is what every build
+ * The engines Patcher ships. Google stays first because it is what every build
  * searched with before there was a choice, so nobody's address bar changes
  * behaviour by upgrading.
  *
  * A short list on purpose: the point of `registerSearchEngine` is that the list
- * is not bb's to curate. These three are here so the setting is usable with no
+ * is not Patcher's to curate. These three are here so the setting is usable with no
  * plugin installed at all.
  */
 export const BUILT_IN_BROWSER_SEARCH_ENGINES: readonly BrowserSearchEngine[] = [
@@ -61,7 +61,7 @@ export const DEFAULT_BROWSER_SEARCH_ENGINE_ID = "google";
 /**
  * The template a plugin may register, or null when it may not.
  *
- * `https` only, with one exception: loopback, which is how bb serves its own
+ * `https` only, with one exception: loopback, which is how Patcher serves its own
  * pages and the only way a plugin's route can be an engine. Everything else is
  * refused — a search is every word the user types into the address bar, and
  * sending that over plain http to another machine is not a choice a plugin gets
@@ -117,13 +117,13 @@ export function resolveBrowserSearchEngine(args: {
       (engine) => engine.id === DEFAULT_BROWSER_SEARCH_ENGINE_ID,
     ) ?? BUILT_IN_BROWSER_SEARCH_ENGINES[0];
   if (fallback === undefined) {
-    throw new Error("bb ships at least one search engine");
+    throw new Error("Patcher ships at least one search engine");
   }
   if (args.engineId === null) {
     return fallback;
   }
   // A setting can name an engine a plugin has since been removed with, and the
-  // honest answer is to search with bb's own rather than to fail on Enter.
+  // honest answer is to search with Patcher's own rather than to fail on Enter.
   return args.engines.find((engine) => engine.id === args.engineId) ?? fallback;
 }
 

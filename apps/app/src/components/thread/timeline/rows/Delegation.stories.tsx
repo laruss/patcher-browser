@@ -1,4 +1,4 @@
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 import { ThreadTimelineRows } from "@/components/thread/timeline";
 import {
   conversationRow,
@@ -21,7 +21,7 @@ const baseProps = {
 };
 
 // ---------------------------------------------------------------------------
-// Real delegation rows pulled from `~/.bb-dev/bb.db`, thread
+// Real delegation rows pulled from `~/.patcher-dev/patcher.db`, thread
 // `thr_cfpiech9ui` ("Final review provider turn-id fixes"). The thread
 // dispatched three real Agent subagents (subagent_type = "Explore") in
 // parallel to review a commit range:
@@ -112,7 +112,7 @@ const correctnessChild03: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     limit: 150,
   },
   output:
@@ -124,7 +124,7 @@ const correctnessChild03: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -144,7 +144,7 @@ const correctnessChild04: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
   },
   output:
     '1\timport { z } from "zod";\n2\timport type { DecodedToolCallRequest } from "../provider-adapter.js";\n3\t\n4\tconst normalizedToolCallRequestSchema = z.object({\n5\t  providerThreadId: z.string().min(1),\n6\t  threadId: z.string().min(1).optional(),\n7\t  // Canonical bridge wire form: required string when know... [truncated]',
@@ -155,7 +155,7 @@ const correctnessChild04: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-tool-call-contract.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
     },
   ],
 };
@@ -175,7 +175,7 @@ const correctnessChild05: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/domain/src/provider-types.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/domain/src/provider-types.ts",
     limit: 100,
   },
   output:
@@ -187,7 +187,7 @@ const correctnessChild05: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-types.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/domain/src/provider-types.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/domain/src/provider-types.ts",
     },
   ],
 };
@@ -209,7 +209,7 @@ const correctnessChild06: TimelineRow = {
   cwd: null,
   source: null,
   output:
-    "bb readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
+    "Patcher readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
   exitCode: 1,
   completedAt: 1778174307811,
   approvalStatus: null,
@@ -239,7 +239,7 @@ const correctnessChild07: TimelineRow = {
   toolName: "Grep",
   toolArgs: {
     pattern: "getActiveTurnId",
-    path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+    path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
     output_mode: "content",
   },
   output:
@@ -251,7 +251,7 @@ const correctnessChild07: TimelineRow = {
       type: "search",
       command: "Grep",
       query: "getActiveTurnId",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
     },
   ],
 };
@@ -271,11 +271,11 @@ const correctnessChild08: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.ts",
     limit: 200,
   },
   output:
-    '1\timport type { DynamicTool, InstructionMode, ThreadEvent } from "@bb/domain";\n2\timport type {\n3\t  AdapterCommand,\n4\t  ProviderAdapterFactory,\n5\t  ProviderCommandPlan,\n6\t  ProviderRequestCommandPlan,\n7\t} from "./provider-adapter.j... [truncated]',
+    '1\timport type { DynamicTool, InstructionMode, ThreadEvent } from "@patcher/domain";\n2\timport type {\n3\t  AdapterCommand,\n4\t  ProviderAdapterFactory,\n5\t  ProviderCommandPlan,\n6\t  ProviderRequestCommandPlan,\n7\t} from "./provider-adapter.j... [truncated]',
   completedAt: 1778174307849,
   approvalStatus: null,
   activityIntents: [
@@ -283,7 +283,7 @@ const correctnessChild08: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.ts",
     },
   ],
 };
@@ -303,10 +303,10 @@ const correctnessChild09: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-turn-state.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-turn-state.ts",
   },
   output:
-    '1\timport type { ThreadEvent } from "@bb/domain";\n2\timport { requireThreadEventScopeTurnId } from "@bb/domain";\n3\t\n4\texport class RuntimeTurnState {\n5\t  private readonly activeTurnIdByThreadId = new Map<string, string>();\n6\t\n7\t  clear(): void {\n8\t    this.activeTurnIdByThreadId.clear();\n9\t  }\n10\t\n11\t... [truncated]',
+    '1\timport type { ThreadEvent } from "@patcher/domain";\n2\timport { requireThreadEventScopeTurnId } from "@patcher/domain";\n3\t\n4\texport class RuntimeTurnState {\n5\t  private readonly activeTurnIdByThreadId = new Map<string, string>();\n6\t\n7\t  clear(): void {\n8\t    this.activeTurnIdByThreadId.clear();\n9\t  }\n10\t\n11\t... [truncated]',
   completedAt: 1778174320113,
   approvalStatus: null,
   activityIntents: [
@@ -314,7 +314,7 @@ const correctnessChild09: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-turn-state.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-turn-state.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-turn-state.ts",
     },
   ],
 };
@@ -334,7 +334,7 @@ const correctnessChild10: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     offset: 195,
     limit: 100,
   },
@@ -347,7 +347,7 @@ const correctnessChild10: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.tool-calls.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     },
   ],
 };
@@ -369,7 +369,7 @@ const correctnessChild11: TimelineRow = {
   cwd: null,
   source: null,
   output:
-    "bb readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
+    "Patcher readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
   exitCode: 1,
   completedAt: 1778174320120,
   approvalStatus: null,
@@ -399,12 +399,12 @@ const correctnessChild12: TimelineRow = {
   toolName: "Grep",
   toolArgs: {
     pattern: "without a turn id",
-    path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+    path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
     output_mode: "content",
     context: 5,
   },
   output:
-    '/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts-223-      expect(parsed.parsed).toMatchObject({\npackages/agent-runtime/src/runtime.tool-calls.test.ts-224-        jsonrpc: "2.0",\npackages/agent-runtime/src/runtime.tool-calls.test.ts-225-       ... [truncated]',
+    '/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts-223-      expect(parsed.parsed).toMatchObject({\npackages/agent-runtime/src/runtime.tool-calls.test.ts-224-        jsonrpc: "2.0",\npackages/agent-runtime/src/runtime.tool-calls.test.ts-225-       ... [truncated]',
   completedAt: 1778174320120,
   approvalStatus: null,
   activityIntents: [
@@ -412,7 +412,7 @@ const correctnessChild12: TimelineRow = {
       type: "search",
       command: "Grep",
       query: "without a turn id",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
     },
   ],
 };
@@ -432,7 +432,7 @@ const correctnessChild13: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 147,
     limit: 80,
   },
@@ -445,7 +445,7 @@ const correctnessChild13: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -465,7 +465,7 @@ const correctnessChild14: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: "[88, 111]",
   },
   output:
@@ -477,7 +477,7 @@ const correctnessChild14: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -497,7 +497,7 @@ const correctnessChild15: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 88,
     limit: 25,
   },
@@ -510,7 +510,7 @@ const correctnessChild15: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -530,7 +530,7 @@ const correctnessChild16: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 260,
     limit: 60,
   },
@@ -543,7 +543,7 @@ const correctnessChild16: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -563,7 +563,7 @@ const correctnessChild17: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/CODE_REVIEW.md",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/CODE_REVIEW.md",
   },
   output:
     "1\t# Code Review Guide\n2\t\n3\tUse this guide to find defects without expanding scope. The best review usually asks: what will break, and what is the smallest correction?\n4\t\n5\t## Scope\n6\t\n7\t- Stay inside the changed behavior.\n8\t- Expand only to prove a concrete correctness... [truncated]",
@@ -574,7 +574,7 @@ const correctnessChild17: TimelineRow = {
       type: "read",
       command: "Read",
       name: "CODE_REVIEW.md",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/CODE_REVIEW.md",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/CODE_REVIEW.md",
     },
   ],
 };
@@ -594,10 +594,10 @@ const correctnessChild18: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
   },
   output:
-    '1\timport { describe, expect, it } from "vitest";\n2\timport {\n3\t  decodeNativeProviderToolCallRequest,\n4\t  decodeNormalizedProviderToolCallRequest,\n5\t} from "./provider-tool-call-contract.js";\n6\t\n7\tdescribe("provider-tool-call-contract", () => {\n8\t  it("preserves optional BB thread hints on normalized... [truncated]',
+    '1\timport { describe, expect, it } from "vitest";\n2\timport {\n3\t  decodeNativeProviderToolCallRequest,\n4\t  decodeNormalizedProviderToolCallRequest,\n5\t} from "./provider-tool-call-contract.js";\n6\t\n7\tdescribe("provider-tool-call-contract", () => {\n8\t  it("preserves optional Patcher thread hints on normalized... [truncated]',
   completedAt: 1778174326400,
   approvalStatus: null,
   activityIntents: [
@@ -605,7 +605,7 @@ const correctnessChild18: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-tool-call-contract.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
     },
   ],
 };
@@ -694,7 +694,7 @@ const maintainabilityChild02: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/domain/src/provider-types.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/domain/src/provider-types.ts",
   },
   output:
     '1\timport { z } from "zod";\n2\timport { permissionModeSchema, reasoningLevelSchema } from "./shared-types.js";\n3\t\n4\texport const modelReasoningEffortSchema = z.object({\n5\t  reasoningEffort: reasoningLevelSchema,\n6\t  description: z.string(),\n7\t});\n8\texport type ModelReasoningEffort = z.infer<typeof mod... [truncated]',
@@ -705,7 +705,7 @@ const maintainabilityChild02: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-types.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/domain/src/provider-types.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/domain/src/provider-types.ts",
     },
   ],
 };
@@ -866,11 +866,11 @@ const maintainabilityChild09: TimelineRow = {
   status: "error",
   callId: "toolu_01NJoEUxMguFeAjrnTZwj8GV",
   command:
-    'grep -r "getActiveTurnId\\|activeTurnId" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages --include="*.ts" --include="*.tsx" | grep -v test | grep -v node_modules | head -20',
+    'grep -r "getActiveTurnId\\|activeTurnId" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages --include="*.ts" --include="*.tsx" | grep -v test | grep -v node_modules | head -20',
   cwd: null,
   source: null,
   output:
-    "bb readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
+    "Patcher readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
   exitCode: 1,
   completedAt: 1778174329343,
   approvalStatus: null,
@@ -878,9 +878,9 @@ const maintainabilityChild09: TimelineRow = {
     {
       type: "search",
       command:
-        'grep -r "getActiveTurnId\\|activeTurnId" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages --include="*.ts" --include="*.tsx" | grep -v test | grep -v node_modules | head -20',
+        'grep -r "getActiveTurnId\\|activeTurnId" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages --include="*.ts" --include="*.tsx" | grep -v test | grep -v node_modules | head -20',
       query: "getActiveTurnId|activeTurnId",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages",
     },
   ],
 };
@@ -898,7 +898,7 @@ const maintainabilityChild10: TimelineRow = {
   status: "error",
   callId: "toolu_01Qh9ZSnXFXQz1Mcf9TVKpBP",
   command:
-    'grep -r "normalizeProviderRequestTurnId\\|resolveTurnId\\|turnId.*null\\|turnId.*undefined" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src --include="*.ts" | grep -v test | head -20',
+    'grep -r "normalizeProviderRequestTurnId\\|resolveTurnId\\|turnId.*null\\|turnId.*undefined" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src --include="*.ts" | grep -v test | head -20',
   cwd: null,
   source: null,
   output:
@@ -910,10 +910,10 @@ const maintainabilityChild10: TimelineRow = {
     {
       type: "search",
       command:
-        'grep -r "normalizeProviderRequestTurnId\\|resolveTurnId\\|turnId.*null\\|turnId.*undefined" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src --include="*.ts" | grep -v test | head -20',
+        'grep -r "normalizeProviderRequestTurnId\\|resolveTurnId\\|turnId.*null\\|turnId.*undefined" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src --include="*.ts" | grep -v test | head -20',
       query:
         "normalizeProviderRequestTurnId|resolveTurnId|turnId.*null|turnId.*undefined",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
     },
   ],
 };
@@ -933,7 +933,7 @@ const maintainabilityChild11: TimelineRow = {
   toolName: "Grep",
   toolArgs: {
     pattern: "getActiveTurnId|activeTurnId",
-    path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages",
+    path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages",
     type: "ts",
     output_mode: "files_with_matches",
   },
@@ -946,7 +946,7 @@ const maintainabilityChild11: TimelineRow = {
       type: "search",
       command: "Grep",
       query: "getActiveTurnId|activeTurnId",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages",
     },
   ],
 };
@@ -966,7 +966,7 @@ const maintainabilityChild12: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     limit: 120,
   },
   output:
@@ -978,7 +978,7 @@ const maintainabilityChild12: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -998,7 +998,7 @@ const maintainabilityChild13: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
   },
   output:
     '1\timport { z } from "zod";\n2\timport type { DecodedToolCallRequest } from "../provider-adapter.js";\n3\t\n4\tconst normalizedToolCallRequestSchema = z.object({\n5\t  providerThreadId: z.string().min(1),\n6\t  threadId: z.string().min(1).optional(),\n7\t  // Canonical bridge wire form: required string when know... [truncated]',
@@ -1009,7 +1009,7 @@ const maintainabilityChild13: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-tool-call-contract.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.ts",
     },
   ],
 };
@@ -1029,11 +1029,11 @@ const maintainabilityChild14: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-turn-state.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-turn-state.ts",
     limit: 80,
   },
   output:
-    '1\timport type { ThreadEvent } from "@bb/domain";\n2\timport { requireThreadEventScopeTurnId } from "@bb/domain";\n3\t\n4\texport class RuntimeTurnState {\n5\t  private readonly activeTurnIdByThreadId = new Map<string, string>();\n6\t\n7\t  clear(): void {\n8\t    this.activeTurnIdByThreadId.clear();\n9\t  }\n10\t\n11\t... [truncated]',
+    '1\timport type { ThreadEvent } from "@patcher/domain";\n2\timport { requireThreadEventScopeTurnId } from "@patcher/domain";\n3\t\n4\texport class RuntimeTurnState {\n5\t  private readonly activeTurnIdByThreadId = new Map<string, string>();\n6\t\n7\t  clear(): void {\n8\t    this.activeTurnIdByThreadId.clear();\n9\t  }\n10\t\n11\t... [truncated]',
   completedAt: 1778174334659,
   approvalStatus: null,
   activityIntents: [
@@ -1041,7 +1041,7 @@ const maintainabilityChild14: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-turn-state.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-turn-state.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-turn-state.ts",
     },
   ],
 };
@@ -1061,13 +1061,13 @@ const maintainabilityChild15: TimelineRow = {
   toolName: "Grep",
   toolArgs: {
     pattern: "normalizeProviderRequestTurnId|normalizeDecodedTurnId",
-    path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages",
+    path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages",
     type: "ts",
     output_mode: "content",
     context: 2,
   },
   output:
-    "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts-86-}\n/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts-87-\npackages/agent-runtime/src/runtime-provider-requests.ts:88:function normalize... [truncated]",
+    "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts-86-}\n/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts-87-\npackages/agent-runtime/src/runtime-provider-requests.ts:88:function normalize... [truncated]",
   completedAt: 1778174335009,
   approvalStatus: null,
   activityIntents: [
@@ -1075,7 +1075,7 @@ const maintainabilityChild15: TimelineRow = {
       type: "search",
       command: "Grep",
       query: "normalizeProviderRequestTurnId|normalizeDecodedTurnId",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages",
     },
   ],
 };
@@ -1095,7 +1095,7 @@ const maintainabilityChild16: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/CODE_REVIEW.md",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/CODE_REVIEW.md",
     limit: 200,
   },
   output:
@@ -1107,7 +1107,7 @@ const maintainabilityChild16: TimelineRow = {
       type: "read",
       command: "Read",
       name: "CODE_REVIEW.md",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/CODE_REVIEW.md",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/CODE_REVIEW.md",
     },
   ],
 };
@@ -1127,11 +1127,11 @@ const maintainabilityChild17: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/AGENTS.md",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/AGENTS.md",
     limit: 150,
   },
   output:
-    "File does not exist. Note: your current working directory is /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb.",
+    "File does not exist. Note: your current working directory is /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher.",
   completedAt: 1778174337304,
   approvalStatus: null,
   activityIntents: [
@@ -1139,7 +1139,7 @@ const maintainabilityChild17: TimelineRow = {
       type: "read",
       command: "Read",
       name: "AGENTS.md",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/AGENTS.md",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/AGENTS.md",
     },
   ],
 };
@@ -1187,7 +1187,7 @@ const maintainabilityChild19: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     limit: 100,
     offset: 0,
   },
@@ -1200,7 +1200,7 @@ const maintainabilityChild19: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.tool-calls.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     },
   ],
 };
@@ -1219,7 +1219,8 @@ const maintainabilityChild20: TimelineRow = {
   callId: "toolu_01LdKey3EgtP3UvJSKba7xZD",
   toolName: "Read",
   toolArgs: {
-    file_path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/AGENTS.md",
+    file_path:
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/AGENTS.md",
     limit: 250,
   },
   output:
@@ -1231,7 +1232,7 @@ const maintainabilityChild20: TimelineRow = {
       type: "read",
       command: "Read",
       name: "AGENTS.md",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/AGENTS.md",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/AGENTS.md",
     },
   ],
 };
@@ -1251,7 +1252,7 @@ const maintainabilityChild21: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/provider-adapter.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/provider-adapter.ts",
     limit: 100,
   },
   output:
@@ -1263,7 +1264,7 @@ const maintainabilityChild21: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-adapter.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/provider-adapter.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/provider-adapter.ts",
     },
   ],
 };
@@ -1281,11 +1282,11 @@ const maintainabilityChild22: TimelineRow = {
   status: "error",
   callId: "toolu_01VobbeuPdbWkxhbn1t6dS9V",
   command:
-    'grep -n "normalizeDecodedTurnId\\|normalizeProviderRequestTurnId" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.ts /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts',
+    'grep -n "normalizeDecodedTurnId\\|normalizeProviderRequestTurnId" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.ts /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts',
   cwd: null,
   source: null,
   output:
-    "bb readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
+    "Patcher readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
   exitCode: 1,
   completedAt: 1778174343811,
   approvalStatus: null,
@@ -1293,9 +1294,9 @@ const maintainabilityChild22: TimelineRow = {
     {
       type: "search",
       command:
-        'grep -n "normalizeDecodedTurnId\\|normalizeProviderRequestTurnId" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.ts /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts',
+        'grep -n "normalizeDecodedTurnId\\|normalizeProviderRequestTurnId" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.ts /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts',
       query: "normalizeDecodedTurnId|normalizeProviderRequestTurnId",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -1387,7 +1388,7 @@ const testQualityChild02: TimelineRow = {
   cwd: null,
   source: null,
   output:
-    "<persisted-output>\nOutput too large (35.1KB). Full output saved to: /Users/michael/.claude/projects/-Users-michael--bb-dev-worktrees-env-stt3jzymfp-bb/84f9bb6d-8a5e-4eba-af26-c530415265b1/tool-results/brm54bnvm.txt\n\nPreview (first 2KB):\ndiff --git a/apps/host-daemon/src/app.ts b/apps/host-daemon/src... [truncated]",
+    "<persisted-output>\nOutput too large (35.1KB). Full output saved to: /Users/michael/.claude/projects/-Users-michael--patcher-dev-worktrees-env-stt3jzymfp-patcher/84f9bb6d-8a5e-4eba-af26-c530415265b1/tool-results/brm54bnvm.txt\n\nPreview (first 2KB):\ndiff --git a/apps/host-daemon/src/app.ts b/apps/host-daemon/src... [truncated]",
   exitCode: 0,
   completedAt: 1778174320120,
   approvalStatus: null,
@@ -1409,7 +1410,7 @@ const testQualityChild03: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.claude/projects/-Users-michael--bb-dev-worktrees-env-stt3jzymfp-bb/84f9bb6d-8a5e-4eba-af26-c530415265b1/tool-results/brm54bnvm.txt",
+      "/Users/michael/.claude/projects/-Users-michael--patcher-dev-worktrees-env-stt3jzymfp-patcher/84f9bb6d-8a5e-4eba-af26-c530415265b1/tool-results/brm54bnvm.txt",
   },
   output:
     "1\tdiff --git a/apps/host-daemon/src/app.ts b/apps/host-daemon/src/app.ts\n2\tindex ce9f52897..76bae1dd6 100644\n3\t--- a/apps/host-daemon/src/app.ts\n4\t+++ b/apps/host-daemon/src/app.ts\n5\t@@ -325,6 +325,12 @@ export async function createHostDaemonApp(\n6\t     await eventBuffer.flushRequired();\n7\t   }\n8\t \n... [truncated]",
@@ -1420,7 +1421,7 @@ const testQualityChild03: TimelineRow = {
       type: "read",
       command: "Read",
       name: "brm54bnvm.txt",
-      path: "/Users/michael/.claude/projects/-Users-michael--bb-dev-worktrees-env-stt3jzymfp-bb/84f9bb6d-8a5e-4eba-af26-c530415265b1/tool-results/brm54bnvm.txt",
+      path: "/Users/michael/.claude/projects/-Users-michael--patcher-dev-worktrees-env-stt3jzymfp-patcher/84f9bb6d-8a5e-4eba-af26-c530415265b1/tool-results/brm54bnvm.txt",
     },
   ],
 };
@@ -1440,12 +1441,12 @@ const testQualityChild04: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 356,
     limit: 50,
   },
   output:
-    '356\t  void args\n357\t    .onInteractiveRequest(scopedInteractiveReq)\n358\t    .then((resolution) => {\n359\t      const result = buildInteractiveResponse({\n360\t        request: resolvedInteractiveReq,\n361\t        resolution,\n362\t      });\n363\t      sendJsonRpcResult({\n364\t        child: args.pro... [truncated]',
+    "356\t  void args\n357\t    .onInteractiveRequest(scopedInteractiveReq)\n358\t    .then((resolution) => {\n359\t      const result = buildInteractiveResponse({\n360\t        request: resolvedInteractiveReq,\n361\t        resolution,\n362\t      });\n363\t      sendJsonRpcResult({\n364\t        child: args.pro... [truncated]",
   completedAt: 1778174320120,
   approvalStatus: null,
   activityIntents: [
@@ -1453,7 +1454,7 @@ const testQualityChild04: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -1473,12 +1474,12 @@ const testQualityChild05: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 356,
     limit: 30,
   },
   output:
-    '356\t  void args\n357\t    .onInteractiveRequest(scopedInteractiveReq)\n358\t    .then((resolution) => {\n359\t      const result = buildInteractiveResponse({\n360\t        request: resolvedInteractiveReq,\n361\t        resolution,\n362\t      });\n363\t      sendJsonRpcResult({\n364\t        child: args.pro... [truncated]',
+    "356\t  void args\n357\t    .onInteractiveRequest(scopedInteractiveReq)\n358\t    .then((resolution) => {\n359\t      const result = buildInteractiveResponse({\n360\t        request: resolvedInteractiveReq,\n361\t        resolution,\n362\t      });\n363\t      sendJsonRpcResult({\n364\t        child: args.pro... [truncated]",
   completedAt: 1778174320120,
   approvalStatus: null,
   activityIntents: [
@@ -1486,7 +1487,7 @@ const testQualityChild05: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -1504,11 +1505,11 @@ const testQualityChild06: TimelineRow = {
   status: "error",
   callId: "toolu_01RsbcAF3JqweDSdRyYwAgLr",
   command:
-    'grep -n "function resolveRuntimeProviderRequestTurnId" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts -A 25',
+    'grep -n "function resolveRuntimeProviderRequestTurnId" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts -A 25',
   cwd: null,
   source: null,
   output:
-    "bb readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
+    "Patcher readonly mode allows reading and analysis only. Continue with a read-only answer; do not modify files, run mutating shell commands, use network, or use mutating tools.",
   exitCode: 1,
   completedAt: 1778174320120,
   approvalStatus: null,
@@ -1516,9 +1517,9 @@ const testQualityChild06: TimelineRow = {
     {
       type: "search",
       command:
-        'grep -n "function resolveRuntimeProviderRequestTurnId" /Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts -A 25',
+        'grep -n "function resolveRuntimeProviderRequestTurnId" /Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts -A 25',
       query: "function resolveRuntimeProviderRequestTurnId",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -1538,7 +1539,7 @@ const testQualityChild07: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 360,
     limit: 30,
   },
@@ -1551,7 +1552,7 @@ const testQualityChild07: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -1571,7 +1572,7 @@ const testQualityChild08: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     offset: 1,
     limit: 450,
   },
@@ -1584,7 +1585,7 @@ const testQualityChild08: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime-provider-requests.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -1604,7 +1605,7 @@ const testQualityChild09: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     offset: 546,
     limit: 100,
   },
@@ -1617,7 +1618,7 @@ const testQualityChild09: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.tool-calls.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     },
   ],
 };
@@ -1637,7 +1638,7 @@ const testQualityChild10: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
   },
   output:
     '1\timport { spawn, type ChildProcess } from "node:child_process";\n2\timport { mkdtempSync, rmSync } from "node:fs";\n3\timport { tmpdir } from "node:os";\n4\timport { join } from "node:path";\n5\timport { afterEach, beforeEach, describe, expect, it, vi } from "vitest";\n6\timport type { ThreadEvent, ToolCallR... [truncated]',
@@ -1648,7 +1649,7 @@ const testQualityChild10: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.tool-calls.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.tool-calls.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.tool-calls.test.ts",
     },
   ],
 };
@@ -1668,10 +1669,10 @@ const testQualityChild11: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
   },
   output:
-    '1\timport { describe, expect, it } from "vitest";\n2\timport {\n3\t  decodeNativeProviderToolCallRequest,\n4\t  decodeNormalizedProviderToolCallRequest,\n5\t} from "./provider-tool-call-contract.js";\n6\t\n7\tdescribe("provider-tool-call-contract", () => {\n8\t  it("preserves optional BB thread hints on normalized... [truncated]',
+    '1\timport { describe, expect, it } from "vitest";\n2\timport {\n3\t  decodeNativeProviderToolCallRequest,\n4\t  decodeNormalizedProviderToolCallRequest,\n5\t} from "./provider-tool-call-contract.js";\n6\t\n7\tdescribe("provider-tool-call-contract", () => {\n8\t  it("preserves optional Patcher thread hints on normalized... [truncated]',
   completedAt: 1778174330819,
   approvalStatus: null,
   activityIntents: [
@@ -1679,7 +1680,7 @@ const testQualityChild11: TimelineRow = {
       type: "read",
       command: "Read",
       name: "provider-tool-call-contract.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/shared/provider-tool-call-contract.test.ts",
     },
   ],
 };
@@ -1699,7 +1700,7 @@ const testQualityChild12: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/server/test/internal/internal-events-tool-calls.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/server/test/internal/internal-events-tool-calls.test.ts",
     offset: 534,
     limit: 100,
   },
@@ -1712,7 +1713,7 @@ const testQualityChild12: TimelineRow = {
       type: "read",
       command: "Read",
       name: "internal-events-tool-calls.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/server/test/internal/internal-events-tool-calls.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/server/test/internal/internal-events-tool-calls.test.ts",
     },
   ],
 };
@@ -1732,7 +1733,7 @@ const testQualityChild13: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/host-daemon/test/integration/daemon.integration.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/host-daemon/test/integration/daemon.integration.test.ts",
     offset: "[135, 210]",
     limit: 100,
   },
@@ -1745,7 +1746,7 @@ const testQualityChild13: TimelineRow = {
       type: "read",
       command: "Read",
       name: "daemon.integration.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/host-daemon/test/integration/daemon.integration.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/host-daemon/test/integration/daemon.integration.test.ts",
     },
   ],
 };
@@ -1765,7 +1766,7 @@ const testQualityChild14: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/host-daemon/test/integration/daemon.integration.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/host-daemon/test/integration/daemon.integration.test.ts",
     offset: 135,
     limit: 100,
   },
@@ -1778,7 +1779,7 @@ const testQualityChild14: TimelineRow = {
       type: "read",
       command: "Read",
       name: "daemon.integration.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/host-daemon/test/integration/daemon.integration.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/host-daemon/test/integration/daemon.integration.test.ts",
     },
   ],
 };
@@ -1798,7 +1799,7 @@ const testQualityChild15: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/host-daemon/test/integration/daemon.integration.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/host-daemon/test/integration/daemon.integration.test.ts",
     offset: 1000,
     limit: 150,
   },
@@ -1811,7 +1812,7 @@ const testQualityChild15: TimelineRow = {
       type: "read",
       command: "Read",
       name: "daemon.integration.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/apps/host-daemon/test/integration/daemon.integration.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/apps/host-daemon/test/integration/daemon.integration.test.ts",
     },
   ],
 };
@@ -1831,10 +1832,10 @@ const testQualityChild16: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/tests/integration/fake/smoke/tool-calls.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/tests/integration/fake/smoke/tool-calls.test.ts",
   },
   output:
-    '1\timport { getThreadEventScopeTurnId } from "@bb/domain";\n2\timport { describe, expect, it } from "vitest";\n3\timport { getThreadEvents, sendTextMessage } from "../../helpers/api.js";\n4\timport {\n5\t  waitForEventType,\n6\t  waitForThreadStatus,\n7\t} from "../../helpers/assertions.js";\n8\timport { withHarne... [truncated]',
+    '1\timport { getThreadEventScopeTurnId } from "@patcher/domain";\n2\timport { describe, expect, it } from "vitest";\n3\timport { getThreadEvents, sendTextMessage } from "../../helpers/api.js";\n4\timport {\n5\t  waitForEventType,\n6\t  waitForThreadStatus,\n7\t} from "../../helpers/assertions.js";\n8\timport { withHarne... [truncated]',
   completedAt: 1778174340950,
   approvalStatus: null,
   activityIntents: [
@@ -1842,7 +1843,7 @@ const testQualityChild16: TimelineRow = {
       type: "read",
       command: "Read",
       name: "tool-calls.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/tests/integration/fake/smoke/tool-calls.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/tests/integration/fake/smoke/tool-calls.test.ts",
     },
   ],
 };
@@ -1862,7 +1863,7 @@ const testQualityChild17: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
     offset: "[130, 210]",
     limit: 100,
   },
@@ -1875,7 +1876,7 @@ const testQualityChild17: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.interactive-requests.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
     },
   ],
 };
@@ -1895,7 +1896,7 @@ const testQualityChild18: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
     offset: 130,
     limit: 100,
   },
@@ -1908,7 +1909,7 @@ const testQualityChild18: TimelineRow = {
       type: "read",
       command: "Read",
       name: "runtime.interactive-requests.test.ts",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime.interactive-requests.test.ts",
     },
   ],
 };
@@ -1928,7 +1929,7 @@ const testQualityChild19: TimelineRow = {
   toolName: "Grep",
   toolArgs: {
     pattern: "resolveThreadId.*null|resolveThreadId.*return.*false",
-    path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+    path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
   },
   output: "No files found",
   completedAt: 1778174346469,
@@ -1938,7 +1939,7 @@ const testQualityChild19: TimelineRow = {
       type: "search",
       command: "Grep",
       query: "resolveThreadId.*null|resolveThreadId.*return.*false",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src",
     },
   ],
 };
@@ -1958,7 +1959,7 @@ const testQualityChild20: TimelineRow = {
   toolName: "Grep",
   toolArgs: {
     pattern: "normalizeProviderRequestTurnId|getActiveTurnId|sendJsonRpcError",
-    path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     output_mode: "content",
   },
   output:
@@ -1970,7 +1971,7 @@ const testQualityChild20: TimelineRow = {
       type: "search",
       command: "Grep",
       query: "normalizeProviderRequestTurnId|getActiveTurnId|sendJsonRpcError",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/packages/agent-runtime/src/runtime-provider-requests.ts",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/packages/agent-runtime/src/runtime-provider-requests.ts",
     },
   ],
 };
@@ -2018,7 +2019,7 @@ const testQualityChild22: TimelineRow = {
   toolName: "Read",
   toolArgs: {
     file_path:
-      "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/CODE_REVIEW.md",
+      "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/CODE_REVIEW.md",
     offset: 1,
     limit: 150,
   },
@@ -2031,7 +2032,7 @@ const testQualityChild22: TimelineRow = {
       type: "read",
       command: "Read",
       name: "CODE_REVIEW.md",
-      path: "/Users/michael/.bb-dev/worktrees/env_stt3jzymfp/bb/docs/CODE_REVIEW.md",
+      path: "/Users/michael/.patcher-dev/worktrees/env_stt3jzymfp/patcher/docs/CODE_REVIEW.md",
     },
   ],
 };

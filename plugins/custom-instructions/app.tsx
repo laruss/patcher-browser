@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { definePluginApp, useRpc } from "@bb/plugin-sdk/app";
+import { definePluginApp, useRpc } from "@patcher/plugin-sdk/app";
 import type { customInstructionsRpcContract } from "./server.js";
-import { Textarea } from "@bb/shared-ui/textarea";
+import { Textarea } from "@patcher/shared-ui/textarea";
 
 export const AUTOSAVE_DELAY_MS = 500;
 
@@ -137,7 +137,7 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "custom-instructions",
     description:
-      "Give agents extra instructions and context for tasks on this bb host.",
+      "Give agents extra instructions and context for tasks on this Patcher host.",
     component: CustomInstructionsSettings,
   });
 });

@@ -1,14 +1,14 @@
-// bb-plugin-inline-vis — reference messageDirective that previews a workspace
+// patcher-plugin-inline-vis — reference messageDirective that previews a workspace
 // HTML file inside an assistant message.
 //
 // The frontend directive mounts when the model emits:
 //   ::inline-vis{file="demo.html"}
 // and calls `prepareHtmlPreview` with the message's threadId plus the file
 // attribute. This backend preflights the file for a clean inline error; the
-// frontend then points its iframe at bb's path-shaped worktree preview route so
+// frontend then points its iframe at Patcher's path-shaped worktree preview route so
 // relative assets work exactly as they do in the sidebar HTML preview.
 import path from "node:path";
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 /** Match the generic sidebar HTML preview's 5 MiB document cap. */
@@ -75,7 +75,7 @@ export function requireWorkspaceHtmlFile(value: unknown): string {
 
 /**
  * Resolve `relativeFile` beneath `rootPath` and prove it stays contained.
- * Returns the absolute path suitable for `bb.sdk.files.read`.
+ * Returns the absolute path suitable for `patcher.sdk.files.read`.
  */
 export function resolveContainedHtmlPath(
   rootPath: string,
@@ -131,8 +131,8 @@ export const inlineVisRpcContract = defineRpcContract({
   },
 });
 
-export default async function plugin(bb: BbPluginApi) {
-  bb.rpc.register(inlineVisRpcContract, {
+export default async function plugin(patcher: PatcherPluginApi) {
+  patcher.rpc.register(inlineVisRpcContract, {
     /**
      * Preflight a workspace-relative HTML file for the inline-vis message
      * directive. Input is untyped on the wire — narrowed immediately. The
@@ -142,7 +142,7 @@ export default async function plugin(bb: BbPluginApi) {
       threadId,
       file,
     }): Promise<PrepareHtmlPreviewResult> {
-      const thread = await bb.sdk.threads.get({
+      const thread = await patcher.sdk.threads.get({
         threadId,
         include: "environment",
       });
@@ -173,7 +173,7 @@ export default async function plugin(bb: BbPluginApi) {
 
       let result;
       try {
-        result = await bb.sdk.files.read({
+        result = await patcher.sdk.files.read({
           path: absolutePath,
           rootPath,
           hostId,

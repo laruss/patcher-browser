@@ -6,14 +6,14 @@ import type {
   ProviderInfo,
   ReasoningLevel,
   ServiceTier,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CreateExecutionInputSources,
   ExecutionInputFieldSource,
   ExistingThreadExecutionInputSources,
   SystemExecutionOptionsModelLoadError,
   SystemProvidersQuery,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { PickerOption } from "@/components/pickers/OptionPicker";
 import type { ModelPickerOption } from "@/components/pickers/model-picker-option";
 import { parseEnvironmentValue } from "@/components/pickers/environment-picker-value";
@@ -21,7 +21,7 @@ import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { useRootComposeReuseEnvironment } from "@/lib/root-compose-selection";
 import { getProviderIconInfo } from "@/lib/provider-icon";
 import { REASONING_LABELS } from "@/lib/reasoning-labels";
-import { permissionModeRank, reconcileReasoningLevel } from "@bb/domain";
+import { permissionModeRank, reconcileReasoningLevel } from "@patcher/domain";
 import { selectPrimaryHost, useHosts } from "./queries/host-queries";
 import {
   useOnboardingAgents,
@@ -599,7 +599,7 @@ export function useThreadCreationOptions(
     }
     // Carry the user's previous reasoning level across model switches when
     // the new model supports it; otherwise pick the closest supported level
-    // (tie-break upward). See reconcileReasoningLevel in @bb/domain for the policy.
+    // (tie-break upward). See reconcileReasoningLevel in @patcher/domain for the policy.
     return reconcileReasoningLevel(
       preferredLevel,
       reasoningOptions.map((option) => option.value),

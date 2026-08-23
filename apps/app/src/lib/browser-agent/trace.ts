@@ -23,7 +23,7 @@ import {
   type BrowserCommandOutcome,
   type BrowserInteraction,
   type BrowserTraceStep,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 /**
  * Step images are JPEG at this quality, and there is no knob: a trace of 200

@@ -1,5 +1,5 @@
-import type { WorkspaceProvisionType } from "@bb/domain";
-import { threadScope } from "@bb/domain";
+import type { WorkspaceProvisionType } from "@patcher/domain";
+import { threadScope } from "@patcher/domain";
 import {
   countLiveThreadsInEnvironment,
   getEnvironment,
@@ -9,8 +9,8 @@ import {
   type DbNotifier,
   type DbQueryConnection,
   type DbTransaction,
-} from "@bb/db";
-import { listStaleDestroyingManagedEnvironments } from "@bb/db/internal-environment-lifecycle";
+} from "@patcher/db";
+import { listStaleDestroyingManagedEnvironments } from "@patcher/db/internal-environment-lifecycle";
 import {
   emptyCommandResultSideEffects,
   type CommandResultReportForType,

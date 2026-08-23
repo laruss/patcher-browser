@@ -8,7 +8,7 @@ import type {
   ProviderUsage,
   ProviderUsageResponse,
   ProviderUsageWindow,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { z } from "zod";
 import {
   getChatGptCloudflareCookieHeader,
@@ -210,8 +210,14 @@ async function fetchCodexUsage(): Promise<ProviderUsage> {
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${credentials.accessToken}`);
   headers.set("chatgpt-account-id", credentials.accountId);
-  headers.set("originator", "bb");
-  headers.set("User-Agent", "bb-host-daemon");
+  // `originator` is OpenAI's field, not ours. Unfrozen with the rest of the
+  // rename (rename-to-patcher.md records the decision) on the reading that an
+  // unregistered value is accepted — which is the only reading under which the
+  // inherited `bb` worked here at all. Not verifiable from this repo: if the
+  // backend does allowlist values, every ChatGPT request 401s/403s and this one
+  // line is the revert.
+  headers.set("originator", "patcher");
+  headers.set("User-Agent", "patcher-host-daemon");
   headers.set("Accept", "application/json");
   if (credentials.isFedrampAccount) {
     headers.set("X-OpenAI-Fedramp", "true");
@@ -487,7 +493,7 @@ async function fetchClaudeUsage(): Promise<ProviderUsage> {
     return { status: "expired" };
   }
   // Plan and account came from the local credential file, so a rate limit or
-  // outage should not blank them — bb still knows which plan pays for this.
+  // outage should not blank them — Patcher still knows which plan pays for this.
   const known = {
     planLabel: claudePlanLabel(credentials),
     accountEmail,
@@ -783,7 +789,7 @@ function fetchCursorDashboard(
       "Content-Type": "application/json",
       "Connect-Protocol-Version": "1",
       "x-cursor-client-type": "cli",
-      "x-cursor-client-version": "cli-bb-host-daemon",
+      "x-cursor-client-version": "cli-patcher-host-daemon",
     },
     body: "{}",
     signal: AbortSignal.timeout(USAGE_FETCH_TIMEOUT_MS),

@@ -49,7 +49,7 @@ describe("the plugin supervisor", () => {
   const supervisors: PluginSupervisor[] = [];
 
   async function dataDir(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), "bb-supervisor-"));
+    const dir = await mkdtemp(join(tmpdir(), "patcher-supervisor-"));
     dirs.push(dir);
     return dir;
   }
@@ -498,11 +498,6 @@ describe("the plugin supervisor", () => {
       requestInteraction: async () => ({ ok: true }),
       requestBrowserCommand: async () => null,
       getBrowserHostStatus: () => ({ connected: false, hostCount: 0 }),
-      ensureSharedPortTunnel: async () => ({ label: "l", baseDomain: "d" }),
-      validateSharedPortDeclaration: (_h: string, ports: readonly number[]) =>
-        ports,
-      declareSharedPorts: () => {},
-      replaceDeclaredSharedPorts: () => {},
     } as unknown as PluginHostCapabilities;
     const hostCalls = createPluginHostCallServer(capabilities);
     const sharedDataDir = await dataDir();
@@ -534,8 +529,8 @@ describe("the plugin supervisor", () => {
 
     await supervisor.start(plugin("alpha"));
 
-    // The factory's bb.log.info reached the server's logger, and its
-    // bb.storage.kv.set reached the server's kv — through a pipe, with no
+    // The factory's patcher.log.info reached the server's logger, and its
+    // patcher.storage.kv.set reached the server's kv — through a pipe, with no
     // test double anywhere in the path.
     expect(logs).toContain("[plugin:alpha] sample plugin loading");
     expect(kv.get("loaded")).toBe(JSON.stringify({ at: "factory" }));

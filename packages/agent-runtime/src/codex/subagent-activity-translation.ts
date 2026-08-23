@@ -2,8 +2,8 @@ import type {
   ThreadEvent,
   ThreadEventItem,
   ThreadEventItemStatus,
-} from "@bb/domain";
-import { turnScope } from "@bb/domain";
+} from "@patcher/domain";
+import { turnScope } from "@patcher/domain";
 import type { ProviderRuntimeEvent } from "../runtime-json-rpc.js";
 import {
   codexBridgeEnvelopeSchema,

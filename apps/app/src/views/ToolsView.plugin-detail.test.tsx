@@ -37,12 +37,12 @@ import type { PluginFrontendDiagnostic } from "@/lib/plugin-frontend";
 const GITHUB_PLUGIN = {
   id: "github",
   source: "builtin:github",
-  rootDir: "/Users/you/.bb/plugins/github",
+  rootDir: "/Users/you/.patcher/plugins/github",
   version: "0.1.0",
   enabled: true,
   status: "running",
   statusDetail: null,
-  description: "Browse GitHub issues and pull requests in BB.",
+  description: "Browse GitHub issues and pull requests in Patcher.",
   name: "GitHub",
   icon: "Github",
   compactIconUrl: null,
@@ -58,7 +58,7 @@ const GITHUB_PLUGIN = {
   provenance: "catalog" as const,
   isOrphanedBuiltin: false,
   catalogEntryId: "github",
-  sourceDisplay: "BB Official · GitHub",
+  sourceDisplay: "Patcher Official · GitHub",
   updateState: EMPTY_PLUGIN_UPDATE_STATE,
 } satisfies PluginListItem;
 
@@ -66,7 +66,7 @@ const GITHUB_CATALOG_ENTRY = {
   entryId: "github",
   pluginId: "github",
   displayName: "GitHub",
-  description: "Browse GitHub issues and pull requests in BB.",
+  description: "Browse GitHub issues and pull requests in Patcher.",
   icon: "Github",
   category: "Developer tools",
   source: "builtin:github",
@@ -112,7 +112,7 @@ describe("ToolsScrollPage layout", () => {
 });
 
 describe("PluginDetail official catalog lifecycle", () => {
-  it("offers Install from an unowned BB Official plugin detail page", () => {
+  it("offers Install from an unowned Patcher Official plugin detail page", () => {
     const onInstall = vi.fn();
     const { container } = render(
       <CatalogPluginDetail
@@ -122,10 +122,10 @@ describe("PluginDetail official catalog lifecycle", () => {
     );
 
     expect(screen.getByRole("heading", { name: "GitHub" })).toBeTruthy();
-    expect(screen.getByText("BB Official")).toBeTruthy();
+    expect(screen.getByText("Patcher Official")).toBeTruthy();
     expect(screen.getByText("Developer tools")).toBeTruthy();
     const description = screen.getByText(
-      "Browse GitHub issues and pull requests in BB.",
+      "Browse GitHub issues and pull requests in Patcher.",
     );
     expect(description.className).not.toContain("max-w-prose");
     expect(description.className).toContain("max-w-none");
@@ -143,7 +143,7 @@ describe("PluginDetail official catalog lifecycle", () => {
     const incompatibleEntry = {
       ...GITHUB_CATALOG_ENTRY,
       compatible: false,
-      incompatibleReason: "Requires bb 0.20 or newer.",
+      incompatibleReason: "Requires Patcher 0.20 or newer.",
     };
     render(
       <>
@@ -154,15 +154,15 @@ describe("PluginDetail official catalog lifecycle", () => {
 
     expect(screen.queryByRole("alert")).toBeNull();
     const compatibilityStatus = screen
-      .getByText("Update bb to install this plugin")
+      .getByText("Update Patcher to install this plugin")
       .closest("div[class*='bg-surface-recessed']");
     expect(compatibilityStatus).not.toBeNull();
     if (compatibilityStatus === null) return;
     expect(compatibilityStatus.textContent).toContain(
-      "Update bb to install this plugin",
+      "Update Patcher to install this plugin",
     );
     expect(compatibilityStatus.textContent).toContain(
-      "Requires bb 0.20 or newer.",
+      "Requires Patcher 0.20 or newer.",
     );
     expect(compatibilityStatus.className).toContain("bg-surface-recessed/55");
     expect(compatibilityStatus.className).toContain("border-b");
@@ -227,7 +227,7 @@ describe("PluginDetail official catalog lifecycle", () => {
     // Provenance is a passive label beside the name, not a control. It used to
     // be a button that swapped to a red Uninstall on hover — a status that
     // deleted on click.
-    expect(screen.getByText("BB Official")).toBeTruthy();
+    expect(screen.getByText("Patcher Official")).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Uninstall GitHub" }),
     ).toBeNull();
@@ -237,7 +237,7 @@ describe("PluginDetail official catalog lifecycle", () => {
     expect(screen.getByText("About")).toBeTruthy();
     expect(screen.getByText("Release")).toBeTruthy();
     expect(
-      screen.getByText("Browse GitHub issues and pull requests in BB."),
+      screen.getByText("Browse GitHub issues and pull requests in Patcher."),
     ).toBeTruthy();
     const meta = screen.getByText("0.1.0");
     expect(meta.className).toContain("font-mono");
@@ -246,7 +246,7 @@ describe("PluginDetail official catalog lifecycle", () => {
         .closest("[data-resource-detail-section]")
         ?.getAttribute("data-resource-detail-section"),
     ).toBe("release");
-    const rootPath = screen.getByText("~/.bb/plugins/github");
+    const rootPath = screen.getByText("~/.patcher/plugins/github");
     expect(rootPath.className).toContain("truncate");
     expect(rootPath.className).not.toContain("break-all");
     expect(rootPath.closest("button")?.className).toContain(
@@ -254,13 +254,15 @@ describe("PluginDetail official catalog lifecycle", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Copy plugin path: /Users/you/.bb/plugins/github",
+        name: "Copy plugin path: /Users/you/.patcher/plugins/github",
       }),
     );
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith("/Users/you/.bb/plugins/github");
+      expect(writeText).toHaveBeenCalledWith(
+        "/Users/you/.patcher/plugins/github",
+      );
     });
-    expect(screen.getByText("Updates with bb")).toBeTruthy();
+    expect(screen.getByText("Updates with Patcher")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Check now" })).toBeNull();
 
     expect(container.querySelector('[data-icon="Github"]')).not.toBeNull();
@@ -308,7 +310,7 @@ describe("PluginDetail official catalog lifecycle", () => {
       name: "Update GitHub to 1.5.0",
     });
     const activation = screen.getByRole("switch", { name: "Disable GitHub" });
-    const path = screen.getByText("~/.bb/plugins/github");
+    const path = screen.getByText("~/.patcher/plugins/github");
     const releaseSection = document.querySelector(
       '[data-resource-detail-section="release"]',
     );
@@ -380,7 +382,7 @@ describe("PluginDetail official catalog lifecycle", () => {
 
     expect(screen.getByRole("rowheader", { name: "Installed" })).toBeTruthy();
     expect(screen.getByText("Install date unavailable")).toBeTruthy();
-    expect(screen.queryByText("Updates with bb")).toBeNull();
+    expect(screen.queryByText("Updates with Patcher")).toBeNull();
   });
 
   it.each([
@@ -403,7 +405,7 @@ describe("PluginDetail official catalog lifecycle", () => {
       updateState: {
         ...EMPTY_PLUGIN_UPDATE_STATE,
         blockedVersion: "2.0.0",
-        blockedReasons: ["Requires bb 0.20 or newer."],
+        blockedReasons: ["Requires Patcher 0.20 or newer."],
       },
       expected: "Update blocked",
       actionName: null,
@@ -516,7 +518,7 @@ describe("PluginDetail official catalog lifecycle", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("BB Official")).toBeTruthy();
+    expect(screen.getByText("Patcher Official")).toBeTruthy();
     expect(
       screen.getByRole("switch", { name: "Disable Automations" }),
     ).toBeTruthy();
@@ -533,13 +535,13 @@ describe("PluginDetail official catalog lifecycle", () => {
     fireEvent.pointerMove(uninstall);
     expect(
       await screen.findAllByText(
-        "Included with BB; disable this plugin instead.",
+        "Included with Patcher; disable this plugin instead.",
       ),
     ).not.toHaveLength(0);
   });
 });
 
-describe("BB Official plugin detail routing", () => {
+describe("Patcher Official plugin detail routing", () => {
   it("resolves an uninstalled catalog plugin and opens its install confirmation", async () => {
     vi.stubGlobal(
       "fetch",
@@ -600,7 +602,7 @@ describe("PluginDetail banner precedence", () => {
       ...EMPTY_PLUGIN_UPDATE_STATE,
       availableVersion: "1.5.0",
       blockedVersion: "2.0.0",
-      blockedReasons: ["Requires a newer bb."],
+      blockedReasons: ["Requires a newer Patcher."],
       lastFailure: {
         version: "1.4.5",
         at: null,
@@ -834,7 +836,7 @@ describe("PluginDetail runtime health", () => {
       "Wait a moment, then reload the plugin.",
     );
     expect(alert.textContent).not.toContain("issue-sync");
-    expect(alert.textContent).not.toContain("Restart bb");
+    expect(alert.textContent).not.toContain("Restart Patcher");
     expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy();
   });
 
@@ -864,13 +866,13 @@ describe("PluginDetail runtime health", () => {
   it.each([
     [
       "incompatible",
-      "This plugin version isn't compatible with your version of bb.",
-      "Update bb to load a compatible bundled plugin.",
+      "This plugin version isn't compatible with your version of Patcher.",
+      "Update Patcher to load a compatible bundled plugin.",
     ],
     [
       "missing",
       "The plugin's files are missing.",
-      "Restart bb. If the files are still missing, reinstall bb.",
+      "Restart Patcher. If the files are still missing, reinstall Patcher.",
     ],
   ] as const)(
     "explains the %s condition and a supported recovery",
@@ -893,7 +895,7 @@ describe("PluginDetail runtime health", () => {
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toContain("An API token is required.");
     expect(alert.textContent).toContain(
-      "Complete the Settings section; bb reloads the plugin after you save.",
+      "Complete the Settings section; Patcher reloads the plugin after you save.",
     );
     expect(screen.queryByRole("button", { name: "Reload" })).toBeNull();
   });
@@ -1130,7 +1132,7 @@ describe("PluginDetail capability inventory", () => {
       "Adds a page to the app sidebar.",
       "enhance-prompt",
       "Adds an action beside the thread composer.",
-      "bb capability",
+      "patcher capability",
       "Inspect contributed capabilities.",
       "review",
       "Review repository changes.",

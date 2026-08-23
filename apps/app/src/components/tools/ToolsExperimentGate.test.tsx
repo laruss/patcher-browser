@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { defaultExperiments } from "@bb/domain";
+import { defaultExperiments } from "@patcher/domain";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ToolsExperimentGate } from "./ToolsExperimentGate";

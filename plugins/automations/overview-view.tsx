@@ -14,13 +14,13 @@ import {
   automationIconName,
   automationScheduleLabel,
 } from "./detail-view.js";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   ResourcePagination,
   useResourcePagination,
   useResourceViewportPageSize,
-} from "@bb/shared-ui/resource-pagination";
-import { COARSE_POINTER_ICON_SIZE_SHRINK_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+} from "@patcher/shared-ui/resource-pagination";
+import { COARSE_POINTER_ICON_SIZE_SHRINK_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
   ResourceBrowseGrid,
   ResourceCollectionPage,
@@ -35,8 +35,8 @@ import {
   ResourceSortMenu,
   ResourceTemplateBrowseCard,
   ResourceToolbar,
-} from "@bb/shared-ui/resource-list";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/resource-list";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   type AutomationStatusFilter,
   formatAutomationTrigger,
@@ -54,7 +54,7 @@ const AUTOMATION_STATUS_FILTER_OPTIONS = [
   { id: "paused", label: "Paused" },
 ] as const;
 
-export const CREATE_AUTOMATION_PROMPT = "Create a new bb automation to ";
+export const CREATE_AUTOMATION_PROMPT = "Create a new Patcher automation to ";
 export const AUTOMATION_CREATE_TEMPLATES = [
   {
     label: "CI failure triage",
@@ -169,9 +169,7 @@ function isAutomationProjectFilter(
 function isAutomationStatusFilter(
   value: string,
 ): value is AutomationStatusFilter {
-  return AUTOMATION_STATUS_FILTER_OPTIONS.some(
-    (option) => option.id === value,
-  );
+  return AUTOMATION_STATUS_FILTER_OPTIONS.some((option) => option.id === value);
 }
 
 function applyAutomationSortDirection(
@@ -462,7 +460,7 @@ export function AutomationOverviewView({
   return (
     <ResourceCollectionPage
       id="automations-collection"
-      description="Manage scheduled bb work across projects and folders. Automations run recurring or one-time tasks without manual prompting."
+      description="Manage scheduled Patcher work across projects and folders. Automations run recurring or one-time tasks without manual prompting."
       modes={[
         {
           id: "installed",

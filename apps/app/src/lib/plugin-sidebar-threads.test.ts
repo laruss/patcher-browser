@@ -1,4 +1,4 @@
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { toPluginSidebarThread } from "./plugin-sidebar-threads";
 
@@ -65,7 +65,7 @@ describe("toPluginSidebarThread", () => {
     });
   });
 
-  // The contract's whole promise: plugins inherit bb's precedence instead of
+  // The contract's whole promise: plugins inherit Patcher's precedence instead of
   // reimplementing it. Attention outranks the spinner even while running.
   it("resolves the indicator with the host's precedence", () => {
     expect(
@@ -151,7 +151,7 @@ describe("toPluginSidebarThread", () => {
         archivedAt: 13,
         environmentId: "env_1",
         environmentName: "Worktree",
-        environmentBranchName: "bb/feature",
+        environmentBranchName: "patcher/feature",
         environmentWorkspaceDisplayKind: "managed-worktree",
       }),
     );
@@ -160,7 +160,7 @@ describe("toPluginSidebarThread", () => {
     expect(mapped.environment).toEqual({
       id: "env_1",
       name: "Worktree",
-      branchName: "bb/feature",
+      branchName: "patcher/feature",
       workspaceDisplayKind: "managed-worktree",
     });
   });

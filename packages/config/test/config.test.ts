@@ -45,9 +45,9 @@ function createServerRuntimeEnv(
   overrides: NodeJS.ProcessEnv = {},
 ): NodeJS.ProcessEnv {
   return {
-    BB_DATA_DIR: "/tmp/bb-data",
-    BB_HOST_DAEMON_PORT: "5555",
-    BB_SERVER_PORT: "4444",
+    PATCHER_DATA_DIR: "/tmp/patcher-data",
+    PATCHER_HOST_DAEMON_PORT: "5555",
+    PATCHER_SERVER_PORT: "4444",
     NODE_ENV: "development",
     OPENAI_API_KEY: "test-openai-key",
     ...overrides,
@@ -58,8 +58,8 @@ function createHostDaemonRuntimeEnv(
   overrides: NodeJS.ProcessEnv = {},
 ): NodeJS.ProcessEnv {
   return {
-    BB_HOST_DAEMON_PORT: "5555",
-    BB_SERVER_URL: "http://localhost:4444",
+    PATCHER_HOST_DAEMON_PORT: "5555",
+    PATCHER_SERVER_URL: "http://localhost:4444",
     NODE_ENV: "development",
     ...overrides,
   };
@@ -79,11 +79,11 @@ describe("common config", () => {
           NODE_ENV: "production",
         },
         homeDir: "/Users/tester",
-      }).BB_DATA_DIR,
-    ).toBe("/Users/tester/.bb");
+      }).PATCHER_DATA_DIR,
+    ).toBe("/Users/tester/.patcher");
   });
 
-  it("requires repoRoot or BB_DATA_DIR for development data dir resolution", () => {
+  it("requires repoRoot or PATCHER_DATA_DIR for development data dir resolution", () => {
     expect(() =>
       loadCommonConfig({
         env: {
@@ -91,12 +91,12 @@ describe("common config", () => {
         },
         homeDir: "/Users/tester",
       }),
-    ).toThrow("repoRoot is required to resolve development BB_DATA_DIR");
+    ).toThrow("repoRoot is required to resolve development PATCHER_DATA_DIR");
   });
 
   it("resolves development defaults from the checkout instance", () => {
     const homeDir = "/Users/tester";
-    const repoRoot = "/Users/tester/src/bb";
+    const repoRoot = "/Users/tester/src/patcher";
 
     expect(
       loadCommonConfig({
@@ -105,41 +105,41 @@ describe("common config", () => {
         },
         homeDir,
         repoRoot,
-      }).BB_DATA_DIR,
-    ).toBe("/Users/tester/.bb-dev/src-bb-9039de53a76a");
+      }).PATCHER_DATA_DIR,
+    ).toBe("/Users/tester/.patcher-dev/src-patcher-94f81823a531");
   });
 
-  it("expands home-directory overrides for BB_DATA_DIR", () => {
+  it("expands home-directory overrides for PATCHER_DATA_DIR", () => {
     expect(
       loadCommonConfig({
         env: {
-          BB_DATA_DIR: "~/custom-bb",
+          PATCHER_DATA_DIR: "~/custom-patcher",
           NODE_ENV: "production",
         },
-      }).BB_DATA_DIR,
-    ).toBe(path.join(os.homedir(), "custom-bb"));
+      }).PATCHER_DATA_DIR,
+    ).toBe(path.join(os.homedir(), "custom-patcher"));
   });
 
-  it("rejects whitespace-only BB_DATA_DIR overrides", () => {
+  it("rejects whitespace-only PATCHER_DATA_DIR overrides", () => {
     expect(() =>
       loadCommonConfig({
         env: {
-          BB_DATA_DIR: "   ",
+          PATCHER_DATA_DIR: "   ",
           NODE_ENV: "production",
         },
       }),
-    ).toThrow("BB_DATA_DIR must not be empty");
+    ).toThrow("PATCHER_DATA_DIR must not be empty");
   });
 
-  it("rejects unsupported BB_LOG_LEVEL overrides", () => {
+  it("rejects unsupported PATCHER_LOG_LEVEL overrides", () => {
     expect(() =>
       loadCommonConfig({
         env: {
-          BB_LOG_LEVEL: "bogus",
+          PATCHER_LOG_LEVEL: "bogus",
           NODE_ENV: "production",
         },
       }),
-    ).toThrow(/BB_LOG_LEVEL/u);
+    ).toThrow(/PATCHER_LOG_LEVEL/u);
   });
 });
 
@@ -147,9 +147,9 @@ describe("data-dir helpers", () => {
   it("expands a bare home-directory override", () => {
     expect(
       resolveConfiguredDataDir({
-        defaultDataDir: path.join(os.homedir(), ".bb"),
+        defaultDataDir: path.join(os.homedir(), ".patcher"),
         env: {
-          BB_DATA_DIR: "~",
+          PATCHER_DATA_DIR: "~",
         },
         homeDir: os.homedir(),
       }),
@@ -159,18 +159,18 @@ describe("data-dir helpers", () => {
   it("rejects whitespace-only data dir overrides", () => {
     expect(() =>
       resolveConfiguredDataDir({
-        defaultDataDir: path.join(os.homedir(), ".bb"),
+        defaultDataDir: path.join(os.homedir(), ".patcher"),
         env: {
-          BB_DATA_DIR: " ",
+          PATCHER_DATA_DIR: " ",
         },
         homeDir: os.homedir(),
       }),
-    ).toThrow("BB_DATA_DIR must not be empty");
+    ).toThrow("PATCHER_DATA_DIR must not be empty");
   });
 
   it("resolves development defaults from the current checkout instance", () => {
     const homeDir = "/Users/tester";
-    const repoRoot = "/Users/tester/src/bb";
+    const repoRoot = "/Users/tester/src/patcher";
 
     expect(
       resolveRuntimeDataDir({
@@ -179,7 +179,7 @@ describe("data-dir helpers", () => {
         mode: "dev",
         repoRoot,
       }),
-    ).toBe("/Users/tester/.bb-dev/src-bb-9039de53a76a");
+    ).toBe("/Users/tester/.patcher-dev/src-patcher-94f81823a531");
   });
 
   it("keeps the legacy fallback label for degenerate checkout labels", () => {
@@ -190,7 +190,7 @@ describe("data-dir helpers", () => {
         mode: "dev",
         repoRoot: "/Users/tester/---",
       }),
-    ).toBe("/Users/tester/.bb-dev/worktree-41987f975862");
+    ).toBe("/Users/tester/.patcher-dev/worktree-41987f975862");
   });
 });
 
@@ -198,13 +198,13 @@ describe("port helpers", () => {
   it("accepts the TCP port boundary values", () => {
     expect(
       parsePortValue({
-        name: "BB_SERVER_PORT",
+        name: "PATCHER_SERVER_PORT",
         rawPort: "1",
       }),
     ).toBe(1);
     expect(
       parsePortValue({
-        name: "BB_SERVER_PORT",
+        name: "PATCHER_SERVER_PORT",
         rawPort: "65535",
       }),
     ).toBe(65_535);
@@ -226,10 +226,10 @@ describe("port helpers", () => {
     ]) {
       expect(() =>
         parsePortValue({
-          name: "BB_SERVER_PORT",
+          name: "PATCHER_SERVER_PORT",
           rawPort,
         }),
-      ).toThrow("BB_SERVER_PORT must be a valid TCP port");
+      ).toThrow("PATCHER_SERVER_PORT must be a valid TCP port");
     }
   });
 
@@ -238,7 +238,7 @@ describe("port helpers", () => {
       resolvePortFromEnv({
         defaultPort: 4444,
         env: {},
-        name: "BB_SERVER_PORT",
+        name: "PATCHER_SERVER_PORT",
       }),
     ).toBe(4444);
 
@@ -246,40 +246,40 @@ describe("port helpers", () => {
       resolvePortFromEnv({
         defaultPort: 4444,
         env: {
-          BB_SERVER_PORT: "",
+          PATCHER_SERVER_PORT: "",
         },
-        name: "BB_SERVER_PORT",
+        name: "PATCHER_SERVER_PORT",
       }),
-    ).toThrow("BB_SERVER_PORT must be a valid TCP port");
+    ).toThrow("PATCHER_SERVER_PORT must be a valid TCP port");
   });
 
   it("rejects whitespace-padded port env values through every port loader path", () => {
     expect(() =>
       loadServerPortConfig({
         env: {
-          BB_SERVER_PORT: " 4444",
+          PATCHER_SERVER_PORT: " 4444",
           NODE_ENV: "development",
         },
       }),
-    ).toThrow("BB_SERVER_PORT must be a valid TCP port");
+    ).toThrow("PATCHER_SERVER_PORT must be a valid TCP port");
 
     expect(() =>
       resolvePortFromEnv({
         defaultPort: 4444,
         env: {
-          BB_SERVER_PORT: " 4444",
+          PATCHER_SERVER_PORT: " 4444",
         },
-        name: "BB_SERVER_PORT",
+        name: "PATCHER_SERVER_PORT",
       }),
-    ).toThrow("BB_SERVER_PORT must be a valid TCP port");
+    ).toThrow("PATCHER_SERVER_PORT must be a valid TCP port");
 
     expect(() =>
       loadCliConfig({
         env: createHostDaemonRuntimeEnv({
-          BB_HOST_DAEMON_PORT: " 5555",
+          PATCHER_HOST_DAEMON_PORT: " 5555",
         }),
       }),
-    ).toThrow("BB_HOST_DAEMON_PORT must be a valid TCP port");
+    ).toThrow("PATCHER_HOST_DAEMON_PORT must be a valid TCP port");
   });
 });
 
@@ -287,26 +287,26 @@ describe("consumer-specific config", () => {
   it("builds server config from explicit runtime env", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_APP_URL: undefined,
-        BB_APP_VERSION: undefined,
-        BB_EXTERNAL_URL: undefined,
-        BB_FF_PLACEHOLDER: undefined,
-        BB_INFERENCE: undefined,
-        BB_INFERENCE_FALLBACK: undefined,
-        BB_TRANSCRIPTION: undefined,
+        PATCHER_APP_URL: undefined,
+        PATCHER_APP_VERSION: undefined,
+        PATCHER_EXTERNAL_URL: undefined,
+        PATCHER_FF_PLACEHOLDER: undefined,
+        PATCHER_INFERENCE: undefined,
+        PATCHER_INFERENCE_FALLBACK: undefined,
+        PATCHER_TRANSCRIPTION: undefined,
       }),
     });
 
-    expect(serverConfig.BB_SERVER_PORT).toBe(4444);
-    expect(serverConfig.BB_HOST_DAEMON_PORT).toBe(5555);
-    expect(serverConfig.databasePath).toBe("/tmp/bb-data/bb.db");
-    expect(serverConfig.BB_APP_URL).toBe("");
-    expect(serverConfig.BB_APP_SURFACE).toBe("web");
-    expect(serverConfig.BB_APP_VERSION).toBe("0.0.0-dev");
-    expect(serverConfig.BB_EXTERNAL_URL).toBe("");
-    expect(serverConfig.BB_INFERENCE).toBe("codex/gpt-5.6-luna");
-    expect(serverConfig.BB_INFERENCE_FALLBACK).toBe("codex/gpt-5.4-mini");
-    expect(serverConfig.BB_TRANSCRIPTION).toBe("codex/gpt-transcribe");
+    expect(serverConfig.PATCHER_SERVER_PORT).toBe(4444);
+    expect(serverConfig.PATCHER_HOST_DAEMON_PORT).toBe(5555);
+    expect(serverConfig.databasePath).toBe("/tmp/patcher-data/patcher.db");
+    expect(serverConfig.PATCHER_APP_URL).toBe("");
+    expect(serverConfig.PATCHER_APP_SURFACE).toBe("web");
+    expect(serverConfig.PATCHER_APP_VERSION).toBe("0.0.0-dev");
+    expect(serverConfig.PATCHER_EXTERNAL_URL).toBe("");
+    expect(serverConfig.PATCHER_INFERENCE).toBe("codex/gpt-5.6-luna");
+    expect(serverConfig.PATCHER_INFERENCE_FALLBACK).toBe("codex/gpt-5.4-mini");
+    expect(serverConfig.PATCHER_TRANSCRIPTION).toBe("codex/gpt-transcribe");
     expect(serverConfig.OPENAI_API_KEY).toBe("test-openai-key");
     expect(serverConfig.featureFlags).toEqual({
       placeholder: false,
@@ -316,49 +316,50 @@ describe("consumer-specific config", () => {
 
   it("runs plugins in their own process unless told otherwise", () => {
     expect(
-      loadServerConfig({ env: createServerRuntimeEnv() }).BB_PLUGIN_PROCESS,
+      loadServerConfig({ env: createServerRuntimeEnv() })
+        .PATCHER_PLUGIN_PROCESS,
     ).toBe(true);
     expect(
       loadServerConfig({
-        env: createServerRuntimeEnv({ BB_PLUGIN_PROCESS: "false" }),
-      }).BB_PLUGIN_PROCESS,
+        env: createServerRuntimeEnv({ PATCHER_PLUGIN_PROCESS: "false" }),
+      }).PATCHER_PLUGIN_PROCESS,
     ).toBe(false);
   });
 
   it("defaults the server bind host to loopback", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_SERVER_BIND_HOST: undefined,
+        PATCHER_SERVER_BIND_HOST: undefined,
       }),
     });
 
-    expect(serverConfig.BB_SERVER_BIND_HOST).toBe("127.0.0.1");
+    expect(serverConfig.PATCHER_SERVER_BIND_HOST).toBe("127.0.0.1");
   });
 
   it("honors an explicit wildcard server bind host", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_SERVER_BIND_HOST: "0.0.0.0",
+        PATCHER_SERVER_BIND_HOST: "0.0.0.0",
       }),
     });
 
-    expect(serverConfig.BB_SERVER_BIND_HOST).toBe("0.0.0.0");
+    expect(serverConfig.PATCHER_SERVER_BIND_HOST).toBe("0.0.0.0");
   });
 
   it("rejects an unsupported server bind host", () => {
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_SERVER_BIND_HOST: "localhost",
+          PATCHER_SERVER_BIND_HOST: "localhost",
         }),
       }),
-    ).toThrow(/BB_SERVER_BIND_HOST/u);
+    ).toThrow(/PATCHER_SERVER_BIND_HOST/u);
   });
 
   it("parses the placeholder feature flag from env", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_FF_PLACEHOLDER: "true",
+        PATCHER_FF_PLACEHOLDER: "true",
       }),
     });
 
@@ -368,7 +369,7 @@ describe("consumer-specific config", () => {
   it("parses the timeline window event budget from env", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_FF_TIMELINE_WINDOW_EVENT_BUDGET: "4000",
+        PATCHER_FF_TIMELINE_WINDOW_EVENT_BUDGET: "4000",
       }),
     });
 
@@ -379,7 +380,7 @@ describe("consumer-specific config", () => {
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_FF_TIMELINE_WINDOW_EVENT_BUDGET: "0",
+          PATCHER_FF_TIMELINE_WINDOW_EVENT_BUDGET: "0",
         }),
       }),
     ).toThrow(/positive integer/);
@@ -389,64 +390,64 @@ describe("consumer-specific config", () => {
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_FF_PLACEHOLDER: "not-bool",
+          PATCHER_FF_PLACEHOLDER: "not-bool",
         }),
       }),
-    ).toThrow(/BB_FF_PLACEHOLDER/u);
+    ).toThrow(/PATCHER_FF_PLACEHOLDER/u);
   });
 
-  it("uses 0.0.0-dev as the default BB_APP_VERSION in production", () => {
+  it("uses 0.0.0-dev as the default PATCHER_APP_VERSION in production", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_APP_VERSION: undefined,
+        PATCHER_APP_VERSION: undefined,
         NODE_ENV: "production",
       }),
     });
 
-    expect(serverConfig.BB_APP_VERSION).toBe("0.0.0-dev");
+    expect(serverConfig.PATCHER_APP_VERSION).toBe("0.0.0-dev");
   });
 
-  it("honors an explicit BB_APP_VERSION env override", () => {
+  it("honors an explicit PATCHER_APP_VERSION env override", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_APP_VERSION: "0.1.2",
+        PATCHER_APP_VERSION: "0.1.2",
         NODE_ENV: "production",
       }),
     });
 
-    expect(serverConfig.BB_APP_VERSION).toBe("0.1.2");
+    expect(serverConfig.PATCHER_APP_VERSION).toBe("0.1.2");
   });
 
   it("parses the internal app surface marker for server telemetry", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_APP_SURFACE: "desktop",
+        PATCHER_APP_SURFACE: "desktop",
         NODE_ENV: "production",
       }),
     });
 
-    expect(serverConfig.BB_APP_SURFACE).toBe("desktop");
+    expect(serverConfig.PATCHER_APP_SURFACE).toBe("desktop");
 
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_APP_SURFACE: "mobile",
+          PATCHER_APP_SURFACE: "mobile",
           NODE_ENV: "production",
         }),
       }),
-    ).toThrow("BB_APP_SURFACE must be one of desktop, web");
+    ).toThrow("PATCHER_APP_SURFACE must be one of desktop, web");
   });
 
   it("lets tooling read the server port without validating unrelated server env", () => {
     const serverPortConfig = loadServerPortConfig({
       env: {
-        BB_EXTERNAL_URL: "not-a-url",
-        BB_SERVER_PORT: "4444",
+        PATCHER_EXTERNAL_URL: "not-a-url",
+        PATCHER_SERVER_PORT: "4444",
         NODE_ENV: "development",
       },
     });
 
-    expect(serverPortConfig.BB_SERVER_PORT).toBe(4444);
+    expect(serverPortConfig.PATCHER_SERVER_PORT).toBe(4444);
   });
 
   it("validates server port env at loader call time", () => {
@@ -456,178 +457,178 @@ describe("consumer-specific config", () => {
           NODE_ENV: "development",
         },
       }),
-    ).toThrow(/BB_SERVER_PORT/u);
+    ).toThrow(/PATCHER_SERVER_PORT/u);
   });
 
   it("derives the database path from data dir without validating unrelated server env", () => {
     const databaseConfig = loadDatabaseConfig({
       env: {
-        BB_DATA_DIR: "/tmp/bb-data",
-        BB_EXTERNAL_URL: "not-a-url",
+        PATCHER_DATA_DIR: "/tmp/patcher-data",
+        PATCHER_EXTERNAL_URL: "not-a-url",
         NODE_ENV: "development",
       },
     });
 
-    expect(databaseConfig.databasePath).toBe("/tmp/bb-data/bb.db");
+    expect(databaseConfig.databasePath).toBe("/tmp/patcher-data/patcher.db");
   });
 
-  it("requires provider/model format for BB_INFERENCE", () => {
+  it("requires provider/model format for PATCHER_INFERENCE", () => {
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_INFERENCE: "gpt-4o-mini",
+          PATCHER_INFERENCE: "gpt-4o-mini",
         }),
       }),
-    ).toThrow(/BB_INFERENCE/u);
+    ).toThrow(/PATCHER_INFERENCE/u);
   });
 
-  it("requires provider/model format for BB_INFERENCE_FALLBACK", () => {
+  it("requires provider/model format for PATCHER_INFERENCE_FALLBACK", () => {
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_INFERENCE_FALLBACK: "gpt-5.4-mini",
+          PATCHER_INFERENCE_FALLBACK: "gpt-5.4-mini",
         }),
       }),
-    ).toThrow(/BB_INFERENCE_FALLBACK/u);
+    ).toThrow(/PATCHER_INFERENCE_FALLBACK/u);
   });
 
   it("loads an explicit inference fallback model", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_INFERENCE_FALLBACK: "anthropic/claude-haiku-4-5",
+        PATCHER_INFERENCE_FALLBACK: "anthropic/claude-haiku-4-5",
       }),
     });
 
-    expect(serverConfig.BB_INFERENCE_FALLBACK).toBe(
+    expect(serverConfig.PATCHER_INFERENCE_FALLBACK).toBe(
       "anthropic/claude-haiku-4-5",
     );
   });
 
-  it("requires provider/model format for BB_TRANSCRIPTION", () => {
+  it("requires provider/model format for PATCHER_TRANSCRIPTION", () => {
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_TRANSCRIPTION: "gpt-4o-mini-transcribe",
+          PATCHER_TRANSCRIPTION: "gpt-4o-mini-transcribe",
         }),
       }),
-    ).toThrow(/BB_TRANSCRIPTION/u);
+    ).toThrow(/PATCHER_TRANSCRIPTION/u);
   });
 
   it("requires a valid server URL for the daemon and CLI", () => {
     const env = createHostDaemonRuntimeEnv({
-      BB_SERVER_URL: "http://localhost:9999",
+      PATCHER_SERVER_URL: "http://localhost:9999",
     });
     const hostDaemonConfig = loadHostDaemonConnectionConfig({ env });
     const cliConfig = loadCliConfig({ env });
 
-    expect(hostDaemonConfig.BB_SERVER_URL).toBe("http://localhost:9999");
-    expect(cliConfig.BB_SERVER_URL).toBe("http://localhost:9999");
+    expect(hostDaemonConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
+    expect(cliConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
 
     expect(() =>
       loadCliConfig({
         env: createHostDaemonRuntimeEnv({
-          BB_SERVER_URL: "not-a-url",
+          PATCHER_SERVER_URL: "not-a-url",
         }),
       }),
-    ).toThrow(/BB_SERVER_URL/u);
+    ).toThrow(/PATCHER_SERVER_URL/u);
   });
 
   it("normalizes server URL whitespace consistently for the daemon and CLI", () => {
     const env = createHostDaemonRuntimeEnv({
-      BB_SERVER_URL: " http://localhost:9999 ",
+      PATCHER_SERVER_URL: " http://localhost:9999 ",
     });
     const hostDaemonConfig = loadHostDaemonConnectionConfig({ env });
     const cliConfig = loadCliConfig({ env });
 
-    expect(hostDaemonConfig.BB_SERVER_URL).toBe("http://localhost:9999");
-    expect(cliConfig.BB_SERVER_URL).toBe("http://localhost:9999");
+    expect(hostDaemonConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
+    expect(cliConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
 
     expect(() =>
       loadCliConfig({
         env: createHostDaemonRuntimeEnv({
-          BB_SERVER_URL: "   ",
+          PATCHER_SERVER_URL: "   ",
         }),
       }),
-    ).toThrow("BB_SERVER_URL must not be empty");
+    ).toThrow("PATCHER_SERVER_URL must not be empty");
   });
 
   it("validates host-daemon connection config without requiring data dir", () => {
     const hostDaemonConfig = loadHostDaemonConnectionConfig({
       env: {
-        BB_HOST_DAEMON_PORT: "3999",
-        BB_SERVER_URL: "http://localhost:9999",
+        PATCHER_HOST_DAEMON_PORT: "3999",
+        PATCHER_SERVER_URL: "http://localhost:9999",
         NODE_ENV: "development",
       },
     });
 
-    expect(hostDaemonConfig.BB_SERVER_URL).toBe("http://localhost:9999");
-    expect(hostDaemonConfig.BB_HOST_DAEMON_PORT).toBe(3999);
+    expect(hostDaemonConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
+    expect(hostDaemonConfig.PATCHER_HOST_DAEMON_PORT).toBe(3999);
   });
 
   it("validates explicit host-daemon ports with the shared port validator", () => {
     expect(() =>
       loadHostDaemonConnectionConfig({
         env: {
-          BB_SERVER_URL: "http://localhost:9999",
+          PATCHER_SERVER_URL: "http://localhost:9999",
           NODE_ENV: "development",
         },
         hostDaemonPort: 0,
       }),
-    ).toThrow("BB_HOST_DAEMON_PORT must be a valid TCP port");
+    ).toThrow("PATCHER_HOST_DAEMON_PORT must be a valid TCP port");
   });
 
   it("builds full host-daemon config when the daemon entrypoint owns data dir", () => {
     const hostDaemonConfig = loadHostDaemonConfig({
       env: {
-        BB_DATA_DIR: "/tmp/bb-data",
-        BB_HOST_DAEMON_PORT: "3999",
-        BB_SERVER_URL: "http://localhost:9999",
+        PATCHER_DATA_DIR: "/tmp/patcher-data",
+        PATCHER_HOST_DAEMON_PORT: "3999",
+        PATCHER_SERVER_URL: "http://localhost:9999",
         NODE_ENV: "development",
       },
     });
 
-    expect(hostDaemonConfig.BB_DATA_DIR).toBe("/tmp/bb-data");
-    expect(hostDaemonConfig.BB_SERVER_URL).toBe("http://localhost:9999");
-    expect(hostDaemonConfig.BB_HOST_DAEMON_PORT).toBe(3999);
+    expect(hostDaemonConfig.PATCHER_DATA_DIR).toBe("/tmp/patcher-data");
+    expect(hostDaemonConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
+    expect(hostDaemonConfig.PATCHER_HOST_DAEMON_PORT).toBe(3999);
   });
 
   it("builds host-daemon start config from full config when data dir is not provided", () => {
     const hostDaemonStartConfig = loadHostDaemonStartConfig({
       enableLocalApi: true,
       env: {
-        BB_DATA_DIR: "/tmp/bb-data",
-        BB_HOST_DAEMON_PORT: "3999",
-        BB_SERVER_URL: "http://localhost:9999",
+        PATCHER_DATA_DIR: "/tmp/patcher-data",
+        PATCHER_HOST_DAEMON_PORT: "3999",
+        PATCHER_SERVER_URL: "http://localhost:9999",
         NODE_ENV: "development",
       },
     });
 
-    expect(hostDaemonStartConfig.dataDir).toBe("/tmp/bb-data");
-    expect(hostDaemonStartConfig.connectionConfig?.BB_SERVER_URL).toBe(
+    expect(hostDaemonStartConfig.dataDir).toBe("/tmp/patcher-data");
+    expect(hostDaemonStartConfig.connectionConfig?.PATCHER_SERVER_URL).toBe(
       "http://localhost:9999",
     );
-    expect(hostDaemonStartConfig.connectionConfig?.BB_HOST_DAEMON_PORT).toBe(
-      3999,
-    );
+    expect(
+      hostDaemonStartConfig.connectionConfig?.PATCHER_HOST_DAEMON_PORT,
+    ).toBe(3999);
   });
 
   it("skips host-daemon env loading when explicit start options are complete", () => {
     const hostDaemonStartConfig = loadHostDaemonStartConfig({
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       enableLocalApi: false,
       env: {
-        BB_SERVER_URL: "not-a-url",
+        PATCHER_SERVER_URL: "not-a-url",
         NODE_ENV: "development",
       },
       serverUrl: "http://localhost:9999",
     });
 
     expect(hostDaemonStartConfig).toEqual({
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
     });
   });
 
-  it("builds logger config from an explicit data dir without resolving BB_DATA_DIR", () => {
+  it("builds logger config from an explicit data dir without resolving PATCHER_DATA_DIR", () => {
     const loggerConfig = loadLoggerConfig({
       dataDir: "/tmp/logger-data",
       env: {
@@ -635,8 +636,8 @@ describe("consumer-specific config", () => {
       },
     });
 
-    expect(loggerConfig.BB_DATA_DIR).toBe("/tmp/logger-data");
-    expect(loggerConfig.BB_LOG_LEVEL).toBe("debug");
+    expect(loggerConfig.PATCHER_DATA_DIR).toBe("/tmp/logger-data");
+    expect(loggerConfig.PATCHER_LOG_LEVEL).toBe("debug");
   });
 
   it("defaults CLI connection env to the local app instance", () => {
@@ -646,85 +647,87 @@ describe("consumer-specific config", () => {
       },
     });
 
-    expect(cliConfig.BB_SERVER_URL).toBe("http://127.0.0.1:38886");
-    expect(cliConfig.BB_HOST_DAEMON_PORT).toBe(38887);
+    expect(cliConfig.PATCHER_SERVER_URL).toBe("http://127.0.0.1:38986");
+    expect(cliConfig.PATCHER_HOST_DAEMON_PORT).toBe(38987);
   });
 
   it("lets explicit CLI env overrides win over NODE_ENV-selected defaults", () => {
     const cliConfig = loadCliConfig({
       env: {
-        BB_HOST_DAEMON_PORT: "3999",
-        BB_SERVER_URL: "http://localhost:9999",
+        PATCHER_HOST_DAEMON_PORT: "3999",
+        PATCHER_SERVER_URL: "http://localhost:9999",
         NODE_ENV: "development",
       },
     });
 
-    expect(cliConfig.BB_SERVER_URL).toBe("http://localhost:9999");
-    expect(cliConfig.BB_HOST_DAEMON_PORT).toBe(3999);
+    expect(cliConfig.PATCHER_SERVER_URL).toBe("http://localhost:9999");
+    expect(cliConfig.PATCHER_HOST_DAEMON_PORT).toBe(3999);
   });
 
   it("allows app and external URLs to be omitted in production server config", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_APP_URL: undefined,
-        BB_EXTERNAL_URL: undefined,
+        PATCHER_APP_URL: undefined,
+        PATCHER_EXTERNAL_URL: undefined,
         NODE_ENV: "production",
       }),
     });
 
-    expect(serverConfig.BB_APP_URL).toBe("");
-    expect(serverConfig.BB_EXTERNAL_URL).toBe("");
+    expect(serverConfig.PATCHER_APP_URL).toBe("");
+    expect(serverConfig.PATCHER_EXTERNAL_URL).toBe("");
   });
 
   it("validates app and external URLs independently", () => {
     const serverConfig = loadServerConfig({
       env: createServerRuntimeEnv({
-        BB_APP_URL: "https://app.example.test",
-        BB_EXTERNAL_URL: "https://external.example.test",
+        PATCHER_APP_URL: "https://app.example.test",
+        PATCHER_EXTERNAL_URL: "https://external.example.test",
         NODE_ENV: "production",
       }),
     });
 
-    expect(serverConfig.BB_APP_URL).toBe("https://app.example.test");
-    expect(serverConfig.BB_EXTERNAL_URL).toBe("https://external.example.test");
+    expect(serverConfig.PATCHER_APP_URL).toBe("https://app.example.test");
+    expect(serverConfig.PATCHER_EXTERNAL_URL).toBe(
+      "https://external.example.test",
+    );
 
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_APP_URL: "not-a-url",
+          PATCHER_APP_URL: "not-a-url",
           NODE_ENV: "production",
         }),
       }),
-    ).toThrow(/BB_APP_URL/u);
+    ).toThrow(/PATCHER_APP_URL/u);
 
     expect(() =>
       loadServerConfig({
         env: createServerRuntimeEnv({
-          BB_APP_URL: "https://app.example.test",
-          BB_EXTERNAL_URL: "not-a-url",
+          PATCHER_APP_URL: "https://app.example.test",
+          PATCHER_EXTERNAL_URL: "not-a-url",
           NODE_ENV: "production",
         }),
       }),
-    ).toThrow(/BB_EXTERNAL_URL/u);
+    ).toThrow(/PATCHER_EXTERNAL_URL/u);
   });
 
   it("reads dev app host from its dedicated config scope", () => {
     const devAppConfig = loadDevAppConfig({
       env: {
-        BB_DEV_APP_HOST: "0.0.0.0",
+        PATCHER_DEV_APP_HOST: "0.0.0.0",
         NODE_ENV: "development",
       },
     });
 
-    expect(devAppConfig.BB_DEV_APP_HOST).toBe("0.0.0.0");
-    expect(devAppConfig.BB_DEV_APP_PORT).toBeUndefined();
+    expect(devAppConfig.PATCHER_DEV_APP_HOST).toBe("0.0.0.0");
+    expect(devAppConfig.PATCHER_DEV_APP_PORT).toBeUndefined();
   });
 
   it("builds app Vite dev config from the app dev entrypoint scope", () => {
     const defaultViteDevConfig = loadViteDevConfig({
       env: {
-        BB_DEV_APP_PORT: "4173",
-        BB_SERVER_PORT: "4444",
+        PATCHER_DEV_APP_PORT: "4173",
+        PATCHER_SERVER_PORT: "4444",
         NODE_ENV: "development",
       },
     });
@@ -742,9 +745,9 @@ describe("consumer-specific config", () => {
 
     const explicitViteDevConfig = loadViteDevConfig({
       env: {
-        BB_DEV_APP_HOST: "0.0.0.0",
-        BB_DEV_APP_PORT: "4173",
-        BB_SERVER_PORT: "4444",
+        PATCHER_DEV_APP_HOST: "0.0.0.0",
+        PATCHER_DEV_APP_PORT: "4173",
+        PATCHER_SERVER_PORT: "4444",
         NODE_ENV: "development",
       },
     });
@@ -756,45 +759,45 @@ describe("consumer-specific config", () => {
     expect(() =>
       loadViteDevConfig({
         env: {
-          BB_SERVER_PORT: "4444",
+          PATCHER_SERVER_PORT: "4444",
           NODE_ENV: "development",
         },
       }),
-    ).toThrow("BB_DEV_APP_PORT is required to run the app dev server");
+    ).toThrow("PATCHER_DEV_APP_PORT is required to run the app dev server");
   });
 
   it("parses optional host-daemon entrypoint env vars in one place", () => {
     const hostDaemonEntrypointConfig = loadHostDaemonEntrypointConfig({
       env: {
-        BB_BRIDGE_DIR: " /tmp/bridges ",
-        BB_CLI_DIR: " /tmp/bb-bin ",
-        BB_HOST_ENROLL_KEY: " enroll-token ",
-        BB_HOST_DAEMON_AUTO_UPDATE: "true",
-        BB_HOST_ID: " host-123 ",
-        BB_HOST_NAME: " host-123 ",
-        BB_HOST_TYPE: "persistent",
+        PATCHER_BRIDGE_DIR: " /tmp/bridges ",
+        PATCHER_CLI_DIR: " /tmp/patcher-bin ",
+        PATCHER_HOST_ENROLL_KEY: " enroll-token ",
+        PATCHER_HOST_DAEMON_AUTO_UPDATE: "true",
+        PATCHER_HOST_ID: " host-123 ",
+        PATCHER_HOST_NAME: " host-123 ",
+        PATCHER_HOST_TYPE: "persistent",
       },
     });
 
     expect(hostDaemonEntrypointConfig).toEqual({
-      BB_BRIDGE_DIR: "/tmp/bridges",
-      BB_CLI_DIR: "/tmp/bb-bin",
-      BB_HOST_ENROLL_KEY: "enroll-token",
-      BB_HOST_DAEMON_AUTO_UPDATE: true,
-      BB_HOST_ID: "host-123",
-      BB_HOST_NAME: "host-123",
-      BB_HOST_TYPE: "persistent",
+      PATCHER_BRIDGE_DIR: "/tmp/bridges",
+      PATCHER_CLI_DIR: "/tmp/patcher-bin",
+      PATCHER_HOST_ENROLL_KEY: "enroll-token",
+      PATCHER_HOST_DAEMON_AUTO_UPDATE: true,
+      PATCHER_HOST_ID: "host-123",
+      PATCHER_HOST_NAME: "host-123",
+      PATCHER_HOST_TYPE: "persistent",
     });
   });
 
   it("drops empty optional host-daemon entrypoint env vars", () => {
     const hostDaemonEntrypointConfig = loadHostDaemonEntrypointConfig({
       env: {
-        BB_BRIDGE_DIR: "",
-        BB_CLI_DIR: "   ",
-        BB_HOST_ENROLL_KEY: " ",
-        BB_HOST_NAME: "",
-        BB_HOST_TYPE: "",
+        PATCHER_BRIDGE_DIR: "",
+        PATCHER_CLI_DIR: "   ",
+        PATCHER_HOST_ENROLL_KEY: " ",
+        PATCHER_HOST_NAME: "",
+        PATCHER_HOST_TYPE: "",
       },
     });
 
@@ -805,10 +808,10 @@ describe("consumer-specific config", () => {
     expect(() =>
       loadHostDaemonEntrypointConfig({
         env: {
-          BB_HOST_TYPE: "ephemeral",
+          PATCHER_HOST_TYPE: "ephemeral",
         },
       }),
-    ).toThrow('Invalid BB_HOST_TYPE "ephemeral"');
+    ).toThrow('Invalid PATCHER_HOST_TYPE "ephemeral"');
   });
 });
 
@@ -816,7 +819,7 @@ describe("provider model config", () => {
   it("parses provider/model values", () => {
     expect(
       parseProviderModelConfig({
-        name: "BB_INFERENCE",
+        name: "PATCHER_INFERENCE",
         value: "codex/gpt-5.4-mini",
       }),
     ).toEqual({
@@ -829,10 +832,10 @@ describe("provider model config", () => {
     for (const value of ["gpt-4o-mini", "/gpt-4o-mini", "openai/", "a/b/c"]) {
       expect(() =>
         parseProviderModelConfig({
-          name: "BB_INFERENCE",
+          name: "PATCHER_INFERENCE",
           value,
         }),
-      ).toThrow(/BB_INFERENCE/u);
+      ).toThrow(/PATCHER_INFERENCE/u);
     }
   });
 });

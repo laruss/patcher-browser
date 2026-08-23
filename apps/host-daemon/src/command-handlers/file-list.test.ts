@@ -201,7 +201,7 @@ describe("finalizeListedPaths", () => {
 
 describe("listPathsRecursively", () => {
   it("returns slash-separated relative paths for nested entries", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "bb-file-list-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "patcher-file-list-"));
     try {
       await fs.mkdir(path.join(root, "src", "components"), {
         recursive: true,
@@ -237,7 +237,7 @@ describe("listPathsRecursively", () => {
   });
 
   it("does not return symlinked files as regular path entries", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "bb-file-list-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "patcher-file-list-"));
     try {
       await fs.writeFile(path.join(root, "state.json"), "{}");
       await fs.symlink(path.join(root, "state.json"), path.join(root, "logo.svg"));

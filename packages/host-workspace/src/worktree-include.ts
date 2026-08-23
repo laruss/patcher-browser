@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { WORKTREE_INCLUDE_FILE_NAME } from "@bb/domain";
+import { WORKTREE_INCLUDE_FILE_NAME } from "@patcher/domain";
 import { runGit, WorkspaceError } from "./git.js";
 
 export interface CopyWorktreeIncludeFilesArgs {

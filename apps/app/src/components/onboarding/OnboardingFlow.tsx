@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { OnboardingAgent } from "@bb/server-contract";
-import type { DiscoveredRepo } from "@bb/host-daemon-contract";
-import { Badge } from "@bb/shared-ui/badge";
-import { Button } from "@bb/shared-ui/button";
-import { Checkbox } from "@bb/shared-ui/checkbox";
+import type { OnboardingAgent } from "@patcher/server-contract";
+import type { DiscoveredRepo } from "@patcher/host-daemon-contract";
+import { Badge } from "@patcher/shared-ui/badge";
+import { Button } from "@patcher/shared-ui/button";
+import { Checkbox } from "@patcher/shared-ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/dialog";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { getProviderIconInfo } from "@/lib/provider-icon";
 import { useLocalPathPicker } from "@/hooks/useLocalPathPicker";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
@@ -27,7 +27,7 @@ import {
  * First-run onboarding.
  *
  * Two steps in a modal over the real app shell. The first is a *confirmation*
- * whenever the machine already has a usable agent — bb runs the coding agent
+ * whenever the machine already has a usable agent — Patcher runs the coding agent
  * CLIs that are already installed and bills inference to those plans, so the
  * honest thing to do is state that rather than ask a question. Only a machine
  * with nothing installed is asked to install something.
@@ -225,9 +225,9 @@ function AgentRows({
               </div>
             </div>
             {expanded && agent.loginCommand !== null ? (
-              /* bb deliberately does not drive another tool's login: it shows
+              /* Patcher deliberately does not drive another tool's login: it shows
                  the agent's own command and re-checks, so credentials never
-                 pass through bb. */
+                 pass through Patcher. */
               <div className="space-y-2 border-b border-border-hairline bg-surface-recessed px-4 py-3">
                 <p className="text-xs text-subtle-foreground">
                   Run this in a terminal, then come back:
@@ -362,7 +362,7 @@ export function OnboardingFlow({
   });
 
   // Pre-check repos an agent has already worked in — that is the strongest
-  // signal the user wants them in bb — and fall back to the most recent.
+  // signal the user wants them in Patcher — and fall back to the most recent.
   useEffect(() => {
     if (reposQuery.data === undefined) return;
     setSelected((current) => {
@@ -415,15 +415,15 @@ export function OnboardingFlow({
     step === 0
       ? nothingInstalled
         ? "Install a coding agent"
-        : "bb uses your existing coding agents"
+        : "Patcher uses your existing coding agents"
       : "Add your projects";
 
   const description =
     step === 0
       ? nothingInstalled
-        ? "bb has no inference of its own. It runs coding agent CLIs on your computer and bills usage to their plans. Install one to get started."
+        ? "Patcher has no inference of its own. It runs coding agent CLIs on your computer and bills usage to their plans. Install one to get started."
         : "It runs the agents below locally, so inference is billed to their plans."
-      : "bb works inside your code. Add the folders you want it to work in. You can add more any time.";
+      : "Patcher works inside your code. Add the folders you want it to work in. You can add more any time.";
 
   return (
     <Dialog

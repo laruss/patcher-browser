@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import type { TimelineTitleLink } from "@bb/thread-view";
+import type { TimelineTitleLink } from "@patcher/thread-view";
 import { ConversationMessageContent } from "./ConversationMessageContent";
 import { RouteNavigationProvider } from "@/components/ui/app-route-anchor";
 import type { TimelineTitleActionResolver } from "./TimelineTitleView";

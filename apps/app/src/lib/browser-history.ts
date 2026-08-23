@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { BrowserHistoryEntry } from "@bb/server-contract";
+import type { BrowserHistoryEntry } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
 import { browserHistoryQueryKey } from "@/hooks/queries/query-keys";
 import { invalidateBrowserHistory } from "@/hooks/cache-owners/browser-history-cache-owner";

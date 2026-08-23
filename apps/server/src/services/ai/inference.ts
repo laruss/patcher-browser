@@ -1,9 +1,13 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { jsonObjectSchema, type JsonObject, type JsonValue } from "@bb/domain";
+import {
+  jsonObjectSchema,
+  type JsonObject,
+  type JsonValue,
+} from "@patcher/domain";
 import {
   parseProviderModelConfig,
   type ProviderModelInfo,
-} from "@bb/config/inference-model";
+} from "@patcher/config/inference-model";
 import { validateToolCall } from "@earendil-works/pi-ai";
 import type { Static, TSchema, Tool, ToolCall } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
@@ -311,7 +315,9 @@ export async function inferenceComplete<T extends TSchema>(
   const configuredModel = args.model ?? deps.config.inferenceModel;
   const modelInfo = parseProviderModelConfig({
     name:
-      args.model === undefined ? "BB_INFERENCE" : "inference model override",
+      args.model === undefined
+        ? "PATCHER_INFERENCE"
+        : "inference model override",
     value: configuredModel,
   });
   if (backsHostDaemonAiServices(modelInfo.provider)) {

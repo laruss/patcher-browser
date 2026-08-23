@@ -24,20 +24,20 @@ import {
 import { DispatchControl } from "./threads.js";
 import { DEFAULT_COLOR } from "../manage/shared.js";
 import {
-  BbProjectLinkPicker,
-  bbProjectLinkStateFor,
-  emptyBbProjectLinkState,
-  resolveBbProjectLink,
-  type BbProjectLinkState,
-} from "../manage/bb-project-link.js";
-import type { BbProjectOption } from "../../shared/contract.js";
-import { Button } from "@bb/shared-ui/button";
+  PatcherProjectLinkPicker,
+  patcherProjectLinkStateFor,
+  emptyPatcherProjectLinkState,
+  resolvePatcherProjectLink,
+  type PatcherProjectLinkState,
+} from "../manage/patcher-project-link.js";
+import type { PatcherProjectOption } from "../../shared/contract.js";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import {
   Command,
   CommandEmpty,
@@ -45,14 +45,14 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@bb/shared-ui/command";
+} from "@patcher/shared-ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@bb/shared-ui/popover";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/popover";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 export interface TaskPropertyUpdate {
   status?: TaskStatus;
@@ -343,33 +343,33 @@ function LabelsMenu({
 }
 
 /**
- * Editable "Dispatch target" row: shows the linked bb project (or an invite
+ * Editable "Dispatch target" row: shows the linked Patcher project (or an invite
  * to link one) and opens a picker that saves via updateProject. The rail's
  * project data is subscribed to projects:changed, so the row refreshes as
  * soon as the save publishes.
  */
 function DispatchTargetMenu({
   project,
-  bbProjects,
+  patcherProjects,
   onError,
   triggerClassName,
 }: {
   project: Project;
-  bbProjects: readonly BbProjectOption[];
+  patcherProjects: readonly PatcherProjectOption[];
   onError: (message: string) => void;
   triggerClassName: string;
 }) {
   const rpc = useTasksRpc();
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<BbProjectLinkState>(
-    emptyBbProjectLinkState,
+  const [state, setState] = useState<PatcherProjectLinkState>(
+    emptyPatcherProjectLinkState,
   );
   const [saving, setSaving] = useState(false);
-  const linkedBbProjectId = project.linkedBbProjectId;
-  const linkedName = bbProjects.find(
-    (candidate) => candidate.id === linkedBbProjectId,
+  const linkedPatcherProjectId = project.linkedPatcherProjectId;
+  const linkedName = patcherProjects.find(
+    (candidate) => candidate.id === linkedPatcherProjectId,
   )?.name;
-  const resolved = resolveBbProjectLink(state);
+  const resolved = resolvePatcherProjectLink(state);
 
   const save = async (linkedId: string | null) => {
     if (saving) return;
@@ -377,7 +377,7 @@ function DispatchTargetMenu({
     try {
       await rpc.call("updateProject", {
         projectId: project.id,
-        linkedBbProjectId: linkedId,
+        linkedPatcherProjectId: linkedId,
       });
       setOpen(false);
     } catch (saveError) {
@@ -393,7 +393,7 @@ function DispatchTargetMenu({
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next) setState(bbProjectLinkStateFor(linkedBbProjectId));
+        if (next) setState(patcherProjectLinkStateFor(linkedPatcherProjectId));
         setOpen(next);
       }}
     >
@@ -404,26 +404,26 @@ function DispatchTargetMenu({
           className={triggerClassName}
         >
           <Icon name="ArrowUpRight" className="size-3.5 shrink-0" />
-          {linkedBbProjectId !== null ? (
-            <span className="truncate" title={linkedBbProjectId}>
-              {linkedName ?? linkedBbProjectId}
+          {linkedPatcherProjectId !== null ? (
+            <span className="truncate" title={linkedPatcherProjectId}>
+              {linkedName ?? linkedPatcherProjectId}
             </span>
           ) : (
             <span className="truncate text-muted-foreground">
-              Link a bb project…
+              Link a Patcher project…
             </span>
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-3">
-        <BbProjectLinkPicker
+        <PatcherProjectLinkPicker
           state={state}
           onStateChange={setState}
-          bbProjects={bbProjects}
-          noneLabel={linkedBbProjectId !== null ? "Unlink" : "Not linked"}
+          patcherProjects={patcherProjects}
+          noneLabel={linkedPatcherProjectId !== null ? "Unlink" : "Not linked"}
         />
         <div className="mt-2.5 flex items-center justify-between gap-2">
-          {linkedBbProjectId !== null ? (
+          {linkedPatcherProjectId !== null ? (
             <Button
               variant="ghost"
               size="sm"
@@ -475,8 +475,8 @@ export function PropertiesRail({
   const active = threads.filter(isActiveThread);
   // Fetched unconditionally: the picker needs the workspace list even when
   // the project is not linked yet.
-  const bbProjects = useTasksQuery(
-    async (query) => (await query.call("listBbProjects")).bbProjects,
+  const patcherProjects = useTasksQuery(
+    async (query) => (await query.call("listPatcherProjects")).patcherProjects,
     ["projects:changed"],
   );
   return (
@@ -528,7 +528,7 @@ export function PropertiesRail({
       {project !== undefined ? (
         <DispatchTargetMenu
           project={project}
-          bbProjects={bbProjects.data ?? []}
+          patcherProjects={patcherProjects.data ?? []}
           onError={onError}
           triggerClassName={RAIL_ROW_CLASS}
         />

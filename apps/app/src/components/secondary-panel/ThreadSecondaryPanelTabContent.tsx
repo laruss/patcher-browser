@@ -1,8 +1,8 @@
 import { useEffect, type ReactNode } from "react";
-import type { WorkspaceDiffTarget } from "@bb/domain";
+import type { WorkspaceDiffTarget } from "@patcher/domain";
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
+import { EmptyStatePanel } from "@patcher/shared-ui/empty-state";
 import {
   useEnvironmentDiffFiles,
   useEnvironmentFilePreview,
@@ -21,7 +21,7 @@ import type {
   FilePreviewLineRange,
   WorkspaceFilePreviewStatusLabel,
 } from "@/lib/file-preview";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { DiffFilesPanel } from "./git-diff/DiffFilesPanel";
 import { clearDiffFileCardStates } from "./git-diff/diffFilesStore";
 import { buildGitDiffIdentity } from "./git-diff/gitDiffPanelHelpers";

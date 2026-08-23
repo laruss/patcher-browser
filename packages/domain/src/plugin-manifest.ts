@@ -8,7 +8,7 @@ import { pluginPermissionSchema } from "./plugin-permission-schema.js";
 const requiredManifestString = z.string().trim().min(1);
 
 /**
- * `bb.branding.icon` accepts either a host icon name or an explicit
+ * `patcher.branding.icon` accepts either a host icon name or an explicit
  * plugin-relative compact SVG path.
  */
 export function isPluginOwnedIconPath(icon: string): boolean {
@@ -48,7 +48,7 @@ export const pluginBrandingSchema = z
     },
   );
 
-export const pluginBbManifestSchema = z
+export const pluginPatcherManifestSchema = z
   .object({
     name: requiredManifestString,
     description: requiredManifestString,
@@ -70,8 +70,8 @@ export const pluginBbManifestSchema = z
      * *where*, not *what* — and because it is the line the user reads before
      * installing. `https` only, except loopback over plain http.
      *
-     * Not to be confused with `bb.hosts` in the plugin API, which is the
-     * enrolled machines a plugin can reach; these are websites.
+     * Not to be confused with `patcher.sdk.hosts`, which is the enrolled
+     * machines a plugin can reach; these are websites.
      */
     sites: z.array(z.string()).optional(),
     skills: z.array(requiredManifestString).optional(),
@@ -92,16 +92,16 @@ export const pluginBbManifestSchema = z
       .optional(),
   })
   .strict()
-  .superRefine((bb, context) => {
-    if (bb.sites === undefined) return;
-    if (bb.sites.length > PLUGIN_SITE_PATTERN_MAX_COUNT) {
+  .superRefine((patcher, context) => {
+    if (patcher.sites === undefined) return;
+    if (patcher.sites.length > PLUGIN_SITE_PATTERN_MAX_COUNT) {
       context.addIssue({
         code: "custom",
         path: ["sites"],
         message: `declares more than ${PLUGIN_SITE_PATTERN_MAX_COUNT} site patterns; a list this long is not something a user can consent to`,
       });
     }
-    bb.sites.forEach((pattern, index) => {
+    patcher.sites.forEach((pattern, index) => {
       const normalized = normalizePluginSitePattern(pattern);
       if (normalized === null) {
         context.addIssue({
@@ -132,11 +132,11 @@ export const pluginPackageJsonSchema = z
     version: requiredManifestString,
     engines: z
       .object({
-        bb: requiredManifestString.optional(),
-        bbPluginSdk: requiredManifestString.optional(),
+        patcher: requiredManifestString.optional(),
+        patcherPluginSdk: requiredManifestString.optional(),
       })
       .optional(),
-    bb: pluginBbManifestSchema,
+    patcher: pluginPatcherManifestSchema,
   })
   .passthrough();
 

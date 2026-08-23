@@ -8,9 +8,9 @@ import {
   createAgentRuntimeWithAdapters,
   createFakeAdapter,
   type ProviderAdapterFactory,
-} from "@bb/agent-runtime/test";
-import type { DbConnection } from "@bb/db";
-import { defaultFeatureFlags } from "@bb/domain";
+} from "@patcher/agent-runtime/test";
+import type { DbConnection } from "@patcher/db";
+import { defaultFeatureFlags } from "@patcher/domain";
 import {
   acquireDaemonLock,
   createHostDaemonApp,
@@ -18,8 +18,8 @@ import {
   persistHostId,
   type HostDaemon,
   type HostDaemonApp,
-} from "@bb/host-daemon/test";
-import { createHostDaemonClient } from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon/test";
+import { createHostDaemonClient } from "@patcher/host-daemon-contract";
 import { initDb } from "../../../apps/server/src/db.js";
 import { createLifecycleDedupers } from "../../../apps/server/src/lifecycle-dedupers.js";
 import { createApp } from "../../../apps/server/src/server.js";
@@ -31,17 +31,16 @@ import {
 } from "../../../apps/server/src/services/skills/builtin-skills-copy.js";
 import { SkillTreeRegistry } from "../../../apps/server/src/services/skills/injected-skills.js";
 import { createAppVersionService } from "../../../apps/server/src/services/system/app-version.js";
-import { createBbAppManagedConfigReloader } from "../../../apps/server/src/services/system/bb-app-managed-config.js";
+import { createPatcherAppManagedConfigReloader } from "../../../apps/server/src/services/system/patcher-app-managed-config.js";
 import { createNoopTelemetryService } from "../../../apps/server/src/services/system/telemetry.js";
 import { TerminalSessionLifecycle } from "../../../apps/server/src/services/terminals/terminal-session-lifecycle.js";
 import type {
   ServerLogger,
   ServerRuntimeConfig,
 } from "../../../apps/server/src/types.js";
-import { HostSharedPortCoordinator } from "../../../apps/server/src/ws/host-shared-ports.js";
 import { NotificationHub } from "../../../apps/server/src/ws/hub.js";
 import { WatchInterestCoordinator } from "../../../apps/server/src/ws/watch-interests.js";
-import { createPublicApiClient } from "@bb/server-contract";
+import { createPublicApiClient } from "@patcher/server-contract";
 import { waitForHostConnected } from "./assertions.js";
 import { createIntegrationFetch } from "./fetch.js";
 import { removePathWithRetry } from "./remove-path.js";
@@ -217,7 +216,6 @@ async function startIntegrationServer(
 
   const db = initDb(":memory:");
   const hub = new NotificationHub();
-  const sharedPorts = new HostSharedPortCoordinator({ db, hub });
   const watchInterests = new WatchInterestCoordinator({ db, hub });
   const config: ServerRuntimeConfig = {
     appSurface: "web",
@@ -232,7 +230,7 @@ async function startIntegrationServer(
     inferenceModel: "test/mock-model",
     inheritedSkillsRootPaths: [],
     openAiApiKey: process.env.OPENAI_API_KEY ?? "test-openai-key",
-    appUrl: "https://bb.example.test",
+    appUrl: "https://patcher.example.test",
     serverPort: 0,
     sharedSkillRoots: { user: [], project: [] },
     threadStorageRootPath,
@@ -259,7 +257,7 @@ async function startIntegrationServer(
   });
   await machineAuth.ensureReady();
   const lifecycleDedupers = createLifecycleDedupers();
-  const bbAppManagedConfig = await createBbAppManagedConfigReloader({
+  const patcherAppManagedConfig = await createPatcherAppManagedConfigReloader({
     config,
     hub,
     logger: testLogger,
@@ -284,7 +282,7 @@ async function startIntegrationServer(
   });
   const { app, injectWebSocket } = createApp({
     appVersion,
-    bbAppManagedConfig,
+    patcherAppManagedConfig,
     config,
     db,
     hub,
@@ -292,7 +290,6 @@ async function startIntegrationServer(
     logger: testLogger,
     machineAuth,
     pendingInteractions,
-    sharedPorts,
     skillTreeRegistry,
     telemetry,
     terminalSessions,
@@ -420,7 +417,7 @@ export async function createIntegrationHarness(
   options: CreateHarnessOptions = {},
 ): Promise<IntegrationHarness> {
   await loadProjectEnvFile();
-  const tmpRoot = await fs.mkdtemp(path.join(tmpdir(), "bb-integration-"));
+  const tmpRoot = await fs.mkdtemp(path.join(tmpdir(), "patcher-integration-"));
   await fs.writeFile(
     path.join(tmpRoot, "parent.pid"),
     `${process.pid}\n`,

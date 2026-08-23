@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
-  bbDesktopBrowserPageReadResultSchema,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+  patcherDesktopBrowserPageReadResultSchema,
+} from "@patcher/desktop-contract";
 import {
-  BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
-  BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
   parseBrowserPageReadContent,
 } from "../src/desktop-browser-page-read.js";
 
@@ -15,19 +15,19 @@ describe("browser page read script", () => {
     // 0 is the main world (where a page could redefine innerText, getSelection
     // or String to forge the result and to notice it was read); 999 is
     // Electron's own context-isolation world.
-    expect(BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID).not.toBe(0);
-    expect(BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID).not.toBe(999);
+    expect(PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID).not.toBe(0);
+    expect(PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID).not.toBe(999);
   });
 
   it("is a constant with no interpolation left in it", () => {
     // The script is injected into an untrusted page. Nothing a caller supplies
     // may ever reach it, so the only values baked in are this module's own caps.
-    expect(BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT).not.toMatch(/\$\{/);
-    expect(BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT).toContain(
-      String(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    expect(PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT).not.toMatch(/\$\{/);
+    expect(PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT).toContain(
+      String(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
     );
-    expect(BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT).toContain(
-      String(BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
+    expect(PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT).toContain(
+      String(PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
     );
   });
 });
@@ -95,23 +95,27 @@ describe("parseBrowserPageReadContent", () => {
     // The script slices already; this is the layer that guarantees the response
     // validates even if the two ever stop agreeing.
     const parsed = parseBrowserPageReadContent({
-      text: "a".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 10),
+      text: "a".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 10),
       textTruncated: false,
-      selection: "b".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH + 10),
+      selection: "b".repeat(
+        PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH + 10,
+      ),
       selectionTruncated: false,
     });
 
-    expect(parsed?.text).toHaveLength(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH);
+    expect(parsed?.text).toHaveLength(
+      PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+    );
     expect(parsed?.textTruncated).toBe(true);
     expect(parsed?.selection).toHaveLength(
-      BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
     );
     expect(parsed?.selectionTruncated).toBe(true);
   });
 
   it("keeps a truncation the script reported even when the value now fits", () => {
     const parsed = parseBrowserPageReadContent({
-      text: "a".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+      text: "a".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
       textTruncated: true,
       selection: "",
       selectionTruncated: false,
@@ -121,17 +125,19 @@ describe("parseBrowserPageReadContent", () => {
   });
 
   it("produces a payload the other package's schema accepts at full size", () => {
-    // The caps live in @bb/desktop-contract and the slicing lives here; this is
+    // The caps live in @patcher/desktop-contract and the slicing lives here; this is
     // what stops the two from drifting apart unnoticed.
     const parsed = parseBrowserPageReadContent({
-      text: "a".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 1),
+      text: "a".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 1),
       textTruncated: true,
-      selection: "b".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH + 1),
+      selection: "b".repeat(
+        PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH + 1,
+      ),
       selectionTruncated: true,
     });
 
     expect(
-      bbDesktopBrowserPageReadResultSchema.safeParse({
+      patcherDesktopBrowserPageReadResultSchema.safeParse({
         ok: true,
         tabId: "browser:a",
         url: "https://example.com/",

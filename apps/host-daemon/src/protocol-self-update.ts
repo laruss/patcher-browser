@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import type { HostDaemonLogger } from "./logger.js";
 import type { FetchFn } from "./server-client.js";
 import { usesSecureInternalFetchTransport } from "./server-client.js";
@@ -162,14 +162,14 @@ export function createProtocolSelfUpdater(
       if (!options.enabled) {
         options.logger.error(
           { daemonProtocolVersion: HOST_DAEMON_PROTOCOL_VERSION },
-          "Daemon auto-update is disabled; install the server's bb-app package manually.",
+          "Daemon auto-update is disabled; install the server's patcher-app package manually.",
         );
         return "skipped";
       }
       if (!usesSecureInternalFetchTransport(options.serverUrl)) {
         options.logger.error(
           { serverUrl: options.serverUrl },
-          "Refusing daemon auto-update over insecure transport; install the server's bb-app package manually. Keeping the current daemon running and retrying normally.",
+          "Refusing daemon auto-update over insecure transport; install the server's patcher-app package manually. Keeping the current daemon running and retrying normally.",
         );
         return "failed";
       }
@@ -235,10 +235,13 @@ export function createProtocolSelfUpdater(
 
         const tarballPath = join(
           options.dataDir,
-          `bb-app-update-${process.pid}.tgz`,
+          `patcher-app-update-${process.pid}.tgz`,
         );
         try {
-          const tarballUrl = new URL("/install/bb-app.tgz", options.serverUrl);
+          const tarballUrl = new URL(
+            "/install/patcher-app.tgz",
+            options.serverUrl,
+          );
           const response = await fetchFn(tarballUrl, { method: "GET" });
           if (!response.ok) {
             throw new Error(
@@ -261,7 +264,7 @@ export function createProtocolSelfUpdater(
             serverProtocolVersion: server.protocolVersion,
             serverVersion: server.version,
           },
-          "Installed the server-matched bb-app package; restarting the daemon.",
+          "Installed the server-matched patcher-app package; restarting the daemon.",
         );
         return "updated";
       } catch (error) {

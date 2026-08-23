@@ -37,7 +37,7 @@ describe("resolveThreadListProvider", () => {
   });
 
   // The whole point of the fallback: a disabled or still-loading plugin must
-  // leave the user with bb's list, not an empty sidebar.
+  // leave the user with Patcher's list, not an empty sidebar.
   it("falls back to the built-in list when the chosen plugin is gone", () => {
     expect(resolveThreadListProvider([], "t3sidebar/inbox")).toBeNull();
   });

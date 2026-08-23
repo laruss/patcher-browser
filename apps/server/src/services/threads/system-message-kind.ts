@@ -1,5 +1,5 @@
-import type { SystemMessageKind, ThreadEventTurnStatus } from "@bb/domain";
-import type { TemplateId } from "@bb/templates";
+import type { SystemMessageKind, ThreadEventTurnStatus } from "@patcher/domain";
+import type { TemplateId } from "@patcher/templates";
 
 // Canonical wiring from a system-message template to its Family-B taxonomy
 // `systemMessageKind`. This is the single source that keeps every emit site's

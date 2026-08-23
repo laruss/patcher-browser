@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -25,9 +25,9 @@ import {
   ContextMenuSubTrigger,
   ContextMenuShortcut,
   ContextMenuTrigger,
-} from "@bb/shared-ui/context-menu";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/context-menu";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import type { TaskEdit } from "./optimistic.js";
 import { PriorityIcon, StatusIcon } from "./icons.js";
 import { formatDueDate, PRIORITY_LABELS, STATUS_LABELS } from "./lib.js";

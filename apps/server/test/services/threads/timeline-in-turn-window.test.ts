@@ -3,8 +3,8 @@ import {
   encodeClientTurnRequestIdNumber,
   threadScope,
   turnScope,
-} from "@bb/domain";
-import type { ClientTurnRequestId, Thread } from "@bb/domain";
+} from "@patcher/domain";
+import type { ClientTurnRequestId, Thread } from "@patcher/domain";
 import {
   createConnection,
   createProject,
@@ -14,13 +14,13 @@ import {
   migrate,
   noopNotifier,
   upsertHost,
-} from "@bb/db";
-import { LOCAL_WORKFLOW_TASK_TYPE } from "@bb/domain";
-import type { DbConnection } from "@bb/db";
+} from "@patcher/db";
+import { LOCAL_WORKFLOW_TASK_TYPE } from "@patcher/domain";
+import type { DbConnection } from "@patcher/db";
 import type {
   TimelinePaginationCursor,
   TimelineRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   buildThreadTimeline,
   buildTimelineTurnSummaryDetails,

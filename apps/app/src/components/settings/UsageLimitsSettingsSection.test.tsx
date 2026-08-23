@@ -2,8 +2,8 @@
 
 import type { ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { Host } from "@bb/domain";
-import { TooltipProvider } from "@bb/shared-ui/tooltip";
+import type { Host } from "@patcher/domain";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UsageLimitsSettingsSectionContent } from "./UsageLimitsSettingsSection";
 

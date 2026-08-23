@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import {
   definePluginApp,
   type PluginPendingInteractionProps,
-} from "@bb/plugin-sdk/app";
-import { Button } from "@bb/shared-ui/button";
-import { Input } from "@bb/shared-ui/input";
-import { Label } from "@bb/shared-ui/label";
+} from "@patcher/plugin-sdk/app";
+import { Button } from "@patcher/shared-ui/button";
+import { Input } from "@patcher/shared-ui/input";
+import { Label } from "@patcher/shared-ui/label";
 import {
   DashedLineCircleIcon,
   ViewIcon,

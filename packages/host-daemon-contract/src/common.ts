@@ -1,1 +1,1 @@
-export type { EmptyInput, Endpoint, Untyped } from "@bb/hono-typed-routes";
+export type { EmptyInput, Endpoint, Untyped } from "@patcher/hono-typed-routes";

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createFakeAdapter } from "@bb/agent-runtime/test";
+import { createFakeAdapter } from "@patcher/agent-runtime/test";
 import { describe, expect, it } from "vitest";
 import {
   getThreadEvents,

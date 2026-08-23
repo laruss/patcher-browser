@@ -1,8 +1,8 @@
 import { createContext, type ReactNode, useContext } from "react";
-import type { BbNavigate } from "@bb/plugin-sdk";
+import type { PatcherNavigate } from "@patcher/plugin-sdk";
 
 export type PluginThreadPanelOpenHandler = (
-  options: Parameters<BbNavigate["openThreadPanel"]>[0] & {
+  options: Parameters<PatcherNavigate["openThreadPanel"]>[0] & {
     pluginId: string;
   },
 ) => boolean;

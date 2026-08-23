@@ -7,14 +7,14 @@ import {
   listStoredProjectPromptHistoryRows,
   listStoredThreadPromptHistoryRows,
   setExperiments,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   defaultExperiments,
   encodeClientTurnRequestIdNumber,
   threadScope,
   turnScope,
   type PromptInput,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it, vi } from "vitest";
 import { editThreadMessage } from "../../src/services/threads/thread-edit-message.js";
 import {

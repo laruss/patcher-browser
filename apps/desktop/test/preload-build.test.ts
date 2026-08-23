@@ -68,21 +68,26 @@ function writeNotFound(response: ServerResponse): void {
 function renderSmokePage(expectedDesktopVersion: string): string {
   return `<!doctype html>
 <meta charset="utf-8">
-<title>bb desktop smoke</title>
+<title>Patcher desktop smoke</title>
 <main>desktop smoke</main>
 <script>
 (async () => {
   let ok = false;
   let reason = "";
   try {
-    if (typeof window.bbDesktop !== "object" || window.bbDesktop === null) {
-      reason = "missing window.bbDesktop";
-    } else if (typeof window.bbDesktop.getInfo !== "function") {
-      reason = "missing window.bbDesktop.getInfo";
+    // One name, checked as behaviour rather than as a property: the renderer
+    // reads this global by name, and a packaged bundle is the only place that
+    // can prove the preload actually installed it.
+    if (typeof window.patcherDesktop !== "object" || window.patcherDesktop === null) {
+      reason = "missing window.patcherDesktop";
+    } else if (typeof window.patcherDesktop.getInfo !== "function") {
+      reason = "missing window.patcherDesktop.getInfo";
     } else {
-      const info = await window.bbDesktop.getInfo();
+      const info = await window.patcherDesktop.getInfo();
       const expectedVersion = ${JSON.stringify(expectedDesktopVersion)};
-      ok = window.bbDesktop.version === expectedVersion && info.version === expectedVersion;
+      ok =
+        window.patcherDesktop.version === expectedVersion &&
+        info.version === expectedVersion;
       reason = ok ? "" : "unexpected desktop version";
     }
   } catch (error) {
@@ -133,7 +138,7 @@ async function startDesktopSmokeServer(
           generalSettings: {
             caffeinate: false,
           },
-          hostDaemonPort: 38887,
+          hostDaemonPort: 38987,
           primaryHostPlatform: null,
           voiceTranscriptionEnabled: false,
         });
@@ -315,8 +320,8 @@ async function readDesktopPackageVersion(): Promise<string> {
 // rely on but the typechecker can't see: main must be CJS (electron-universal
 // builds the entry asar around it), the preload must have the desktop version
 // baked in at build time (not read from `process.env` at runtime, which is
-// empty in packaged builds), the bb-app bridge must be ESM (it imports
-// `bb-app/dist/bb-app.js`), every entry needs its source map alongside it
+// empty in packaged builds), the patcher-app bridge must be ESM (it imports
+// `patcher-app/dist/patcher-app.js`), every entry needs its source map alongside it
 // for crash-symbolication in shipped builds, and the compiled Electron entry
 // must launch far enough for the preload bridge to answer from a real window.
 // One smoke test asserts all of those artifact-level contracts.
@@ -337,7 +342,7 @@ describe("desktop build", () => {
       "utf8",
     );
     const bridgeSource = await readFile(
-      resolve(desktopPackageRoot, "dist", "bb-app-bridge.mjs"),
+      resolve(desktopPackageRoot, "dist", "patcher-app-bridge.mjs"),
       "utf8",
     );
 
@@ -347,14 +352,14 @@ describe("desktop build", () => {
     expect(mainSource).not.toMatch(/^import\s/mu);
 
     // The preload reads its version at *build* time. In a packaged build the
-    // env vars are empty, so any residual `process.env.BB_DESKTOP_VERSION`
+    // env vars are empty, so any residual `process.env.PATCHER_DESKTOP_VERSION`
     // lookup would surface as "undefined" in the title bar / about dialog.
     expect(preloadSource).toContain(desktopVersion);
-    expect(preloadSource).not.toContain("BB_DESKTOP_VERSION");
+    expect(preloadSource).not.toContain("PATCHER_DESKTOP_VERSION");
     expect(preloadSource).not.toContain("getDesktopVersion(process.env");
 
-    // The bridge must stay ESM — it pulls bb-app via the package's ESM entry.
-    expect(bridgeSource).toContain('import "bb-app/dist/bb-app.js"');
+    // The bridge must stay ESM — it pulls patcher-app via the package's ESM entry.
+    expect(bridgeSource).toContain('import "patcher-app/dist/patcher-app.js"');
 
     // Source maps must ship for every entry so crash reports symbolicate.
     for (const mapPath of [
@@ -362,7 +367,7 @@ describe("desktop build", () => {
       "preload.cjs.map",
       "log-viewer-preload.cjs.map",
       "page-script-preload.cjs.map",
-      "bb-app-bridge.mjs.map",
+      "patcher-app-bridge.mjs.map",
     ]) {
       await expect(
         access(resolve(desktopPackageRoot, "dist", mapPath)),
@@ -373,7 +378,7 @@ describe("desktop build", () => {
       return;
     }
 
-    const smokeRoot = await mkdtemp(join(tmpdir(), "bb-desktop-smoke-"));
+    const smokeRoot = await mkdtemp(join(tmpdir(), "patcher-desktop-smoke-"));
     const smokeServer = await startDesktopSmokeServer({
       dataDir: join(smokeRoot, "data"),
       expectedDesktopVersion: desktopVersion,
@@ -382,14 +387,14 @@ describe("desktop build", () => {
     const stderr: string[] = [];
     const childEnv: NodeJS.ProcessEnv = {
       ...process.env,
-      BB_DATA_DIR: join(smokeRoot, "data"),
-      BB_DESKTOP_AUTO_UPDATE: "0",
-      BB_DESKTOP_OPEN_DEVTOOLS: "0",
-      BB_DESKTOP_VERSION_CHECK: "0",
-      BB_SERVER_PORT: String(smokeServer.port),
+      PATCHER_DATA_DIR: join(smokeRoot, "data"),
+      PATCHER_DESKTOP_AUTO_UPDATE: "0",
+      PATCHER_DESKTOP_OPEN_DEVTOOLS: "0",
+      PATCHER_DESKTOP_VERSION_CHECK: "0",
+      PATCHER_SERVER_PORT: String(smokeServer.port),
     };
-    delete childEnv.BB_DESKTOP_APP_URL;
-    delete childEnv.BB_DESKTOP_NODE_EXEC_PATH;
+    delete childEnv.PATCHER_DESKTOP_APP_URL;
+    delete childEnv.PATCHER_DESKTOP_NODE_EXEC_PATH;
     delete childEnv.ELECTRON_RUN_AS_NODE;
 
     const child = spawn(

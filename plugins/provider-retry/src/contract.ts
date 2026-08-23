@@ -1,4 +1,4 @@
-import { defineRpcContract } from "@bb/plugin-sdk";
+import { defineRpcContract } from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 export const providerRetryViewSchema = z

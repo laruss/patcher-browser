@@ -23,7 +23,7 @@ const appBinaryRelativePath = join(
 function createElectronAppEnv(env) {
   const childEnv = {
     ...env,
-    BB_DESKTOP_OPEN_DEVTOOLS: env.BB_DESKTOP_OPEN_DEVTOOLS ?? "1",
+    PATCHER_DESKTOP_OPEN_DEVTOOLS: env.PATCHER_DESKTOP_OPEN_DEVTOOLS ?? "1",
   };
   delete childEnv.ELECTRON_RUN_AS_NODE;
   return childEnv;

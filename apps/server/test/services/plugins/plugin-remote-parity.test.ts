@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { PLUGIN_PERMISSIONS } from "@bb/domain";
+import { PLUGIN_PERMISSIONS } from "@patcher/domain";
 import {
   createPluginApi,
   type PluginApiHandle,
@@ -21,7 +21,7 @@ import {
   runRpcCall,
 } from "../../../src/services/plugins/plugin-rpc-call.js";
 import { runAgentToolCall } from "../../../src/services/plugins/plugin-agent-tool-call.js";
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 
 /**
  * The claim the remote handle makes is that the server cannot tell there is a
@@ -66,11 +66,6 @@ function noopCapabilities(dataDir: string) {
     requestInteraction: async () => ({ ok: true }),
     requestBrowserCommand: async () => null,
     getBrowserHostStatus: () => ({ connected: false, hostCount: 0 }),
-    ensureSharedPortTunnel: async () => ({ label: "l", baseDomain: "d" }),
-    validateSharedPortDeclaration: (_h: string, ports: readonly number[]) =>
-      ports,
-    declareSharedPorts: () => {},
-    replaceDeclaredSharedPorts: () => {},
   } as unknown as Parameters<typeof createPluginApi>[0];
 }
 
@@ -78,7 +73,7 @@ describe("a remote handle against the in-process one", () => {
   const dirs: string[] = [];
 
   async function dataDir(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), "bb-parity-"));
+    const dir = await mkdtemp(join(tmpdir(), "patcher-parity-"));
     dirs.push(dir);
     return dir;
   }
@@ -93,7 +88,7 @@ describe("a remote handle against the in-process one", () => {
   async function inProcess(): Promise<PluginApiHandle> {
     const handle = createPluginApi(noopCapabilities(await dataDir()));
     const module = (await import(FULL_ENTRY)) as {
-      default: (bb: unknown) => void;
+      default: (patcher: unknown) => void;
     };
     module.default(handle.api);
     handle.activate();
@@ -255,9 +250,9 @@ describe("a remote handle against the in-process one", () => {
     ]);
   });
 
-  // `bb` itself has no server-side counterpart, and saying so beats handing
+  // `patcher` itself has no server-side counterpart, and saying so beats handing
   // back something that looks usable and silently does nothing.
-  it("refuses to pretend it has the plugin's bb object", async () => {
+  it("refuses to pretend it has the plugin's Patcher object", async () => {
     const { handle: remote } = await outOfProcess();
 
     expect(() => remote.api).toThrow(/runs in its own process/);

@@ -14,8 +14,8 @@ import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
   threadScope,
   turnScope,
-} from "@bb/domain";
-import type { PromptInput, PromptMentionCommandOrigin } from "@bb/domain";
+} from "@patcher/domain";
+import type { PromptInput, PromptMentionCommandOrigin } from "@patcher/domain";
 
 import { createCodexProviderAdapter } from "./adapter.js";
 import type { CodexEvent } from "./adapter.js";
@@ -129,12 +129,12 @@ interface CodexTurnArgs {
 const optionalGitRootEscapeCases: readonly OptionalGitRootEscapeCase[] = [
   {
     label: "refs",
-    outsidePrefix: "bb-codex-refs-escape-",
+    outsidePrefix: "patcher-codex-refs-escape-",
     relativePath: "refs",
   },
   {
     label: "logs refs",
-    outsidePrefix: "bb-codex-logs-refs-escape-",
+    outsidePrefix: "patcher-codex-logs-refs-escape-",
     relativePath: path.join("logs", "refs"),
   },
 ];
@@ -146,7 +146,7 @@ const unsafeHeadRefCases: readonly UnsafeHeadRefCase[] = [
   },
   {
     label: "absolute path",
-    headContent: "ref: /tmp/bb-main\n",
+    headContent: "ref: /tmp/patcher-main\n",
   },
   {
     label: "empty path segment",
@@ -171,14 +171,20 @@ const invalidCommonDirCases: readonly InvalidCommonDirCase[] = [
 
 function createLinkedWorktreeFixture(): LinkedWorktreeFixture {
   const rootPath = realpathSync.native(
-    mkdtempSync(path.join(tmpdir(), "bb-codex-worktree-")),
+    mkdtempSync(path.join(tmpdir(), "patcher-codex-worktree-")),
   );
   const workspacePath = path.join(rootPath, "worktree");
   const commonDir = path.join(rootPath, "repo.git");
-  const gitDir = path.join(commonDir, "worktrees", "bb1");
-  const headRef = "refs/heads/bb/probe";
-  const headRefParent = path.join(commonDir, "refs", "heads", "bb");
-  const headLogParent = path.join(commonDir, "logs", "refs", "heads", "bb");
+  const gitDir = path.join(commonDir, "worktrees", "patcher1");
+  const headRef = "refs/heads/patcher/probe";
+  const headRefParent = path.join(commonDir, "refs", "heads", "patcher");
+  const headLogParent = path.join(
+    commonDir,
+    "logs",
+    "refs",
+    "heads",
+    "patcher",
+  );
 
   mkdirSync(workspacePath, { recursive: true });
   mkdirSync(gitDir, { recursive: true });
@@ -239,7 +245,7 @@ function buildLinkedWorktreeThreadStartCommand(
   return {
     type: "thread/start",
     cwd: args.fixture.workspacePath,
-    threadId: args.threadId ?? "bb-thread-1",
+    threadId: args.threadId ?? "patcher-thread-1",
     input: [promptTextInput({ text: "hello" })],
     instructionMode: "append",
     options: workspaceWriteAskProviderExecutionContext,
@@ -254,7 +260,7 @@ function buildLinkedWorktreeThreadResumeCommand(
   return {
     type: "thread/resume",
     cwd: args.fixture.workspacePath,
-    threadId: args.threadId ?? "bb-thread-1",
+    threadId: args.threadId ?? "patcher-thread-1",
     providerThreadId: args.providerThreadId ?? "codex-thread-1",
     instructionMode: "append",
     options: workspaceWriteAskProviderExecutionContext,
@@ -531,7 +537,7 @@ describe("codex provider adapter", () => {
     expect(cmd).toMatchObject({
       method: "initialize",
       params: {
-        clientInfo: { name: "bb", version: "1.0.0", title: null },
+        clientInfo: { name: "Patcher", version: "1.0.0", title: null },
         capabilities: { experimentalApi: true },
       },
     });
@@ -554,9 +560,9 @@ describe("codex provider adapter", () => {
       type: "skills/configure",
       skillRoots: [
         {
-          id: "bb-cli",
+          id: "patcher-cli",
           providerId: "codex",
-          skillDirectoryRootPath: "/tmp/bb-skills",
+          skillDirectoryRootPath: "/tmp/patcher-skills",
         },
         {
           id: "repo-tools",
@@ -570,7 +576,7 @@ describe("codex provider adapter", () => {
       kind: "request",
       method: "skills/extraRoots/set",
       params: {
-        extraRoots: ["/tmp/bb-skills", "/tmp/repo-skills"],
+        extraRoots: ["/tmp/patcher-skills", "/tmp/repo-skills"],
       },
     });
   });
@@ -628,14 +634,14 @@ describe("codex provider adapter", () => {
       adapter.buildCommandPlan({
         type: "thread/start",
         cwd: "/tmp/worktree",
-        threadId: "bb-start",
+        threadId: "patcher-start",
         instructionMode: "append",
         options: autoDenyProviderExecutionContext,
       }),
       adapter.buildCommandPlan({
         type: "thread/resume",
         cwd: "/tmp/worktree",
-        threadId: "bb-resume",
+        threadId: "patcher-resume",
         providerThreadId: "codex-resume",
         instructionMode: "append",
         options: autoDenyProviderExecutionContext,
@@ -643,7 +649,7 @@ describe("codex provider adapter", () => {
       adapter.buildCommandPlan({
         type: "thread/fork",
         cwd: "/tmp/worktree",
-        threadId: "bb-fork",
+        threadId: "patcher-fork",
         sourceProviderThreadId: "codex-source",
         instructionMode: "append",
         options: autoDenyProviderExecutionContext,
@@ -651,7 +657,7 @@ describe("codex provider adapter", () => {
       adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222229z",
-        threadId: "bb-turn",
+        threadId: "patcher-turn",
         providerThreadId: "codex-turn",
         input: [promptTextInput({ text: "continue" })],
         options: autoDenyProviderExecutionContext,
@@ -701,7 +707,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228f",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -737,7 +743,7 @@ describe("codex provider adapter", () => {
     try {
       const startCommand = buildLinkedWorktreeThreadStartCommand({
         fixture,
-        threadId: "bb-thread-start",
+        threadId: "patcher-thread-start",
       });
       const startCmd = adapter.buildCommandPlan(startCommand);
 
@@ -758,7 +764,7 @@ describe("codex provider adapter", () => {
       const resumeCommand = buildLinkedWorktreeThreadResumeCommand({
         fixture,
         providerThreadId: "codex-thread-resume",
-        threadId: "bb-thread-resume",
+        threadId: "patcher-thread-resume",
       });
       const resumeCmd = adapter.buildCommandPlan(resumeCommand);
 
@@ -781,7 +787,7 @@ describe("codex provider adapter", () => {
       const startTurnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228g",
-        threadId: "bb-thread-start",
+        threadId: "patcher-thread-start",
         providerThreadId: "codex-thread-start",
         input: [promptTextInput({ text: "commit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -789,7 +795,7 @@ describe("codex provider adapter", () => {
       const resumeTurnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228h",
-        threadId: "bb-thread-resume",
+        threadId: "patcher-thread-resume",
         providerThreadId: "codex-thread-resume",
         input: [promptTextInput({ text: "commit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -838,7 +844,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228i",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -865,11 +871,11 @@ describe("codex provider adapter", () => {
     try {
       const firstStartCommand = buildLinkedWorktreeThreadStartCommand({
         fixture: firstFixture,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
       });
       const secondStartCommand = buildLinkedWorktreeThreadStartCommand({
         fixture: secondFixture,
-        threadId: "bb-thread-2",
+        threadId: "patcher-thread-2",
       });
       adapter.buildCommandPlan(firstStartCommand);
       adapter.buildCommandPlan(secondStartCommand);
@@ -894,7 +900,7 @@ describe("codex provider adapter", () => {
       const firstTurnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228j",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -902,7 +908,7 @@ describe("codex provider adapter", () => {
       const secondTurnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228k",
-        threadId: "bb-thread-2",
+        threadId: "patcher-thread-2",
         providerThreadId: "codex-thread-2",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -941,7 +947,7 @@ describe("codex provider adapter", () => {
       const startCmd = adapter.buildCommandPlan({
         type: "thread/start",
         cwd: fixture.workspacePath,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         input: [promptTextInput({ text: "hello" })],
         instructionMode: "append",
         options: workspaceWriteAskProviderExecutionContext,
@@ -958,7 +964,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228m",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -991,7 +997,7 @@ describe("codex provider adapter", () => {
       const startCmd = adapter.buildCommandPlan({
         type: "thread/start",
         cwd: fixture.workspacePath,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         input: [promptTextInput({ text: "hello" })],
         instructionMode: "append",
         options: workspaceWriteAskProviderExecutionContext,
@@ -1008,7 +1014,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228n",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1053,7 +1059,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228p",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1094,7 +1100,7 @@ describe("codex provider adapter", () => {
       const startCmd = adapter.buildCommandPlan({
         type: "thread/start",
         cwd: fixture.workspacePath,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         input: [promptTextInput({ text: "hello" })],
         instructionMode: "append",
         options: workspaceWriteAskProviderExecutionContext,
@@ -1128,7 +1134,7 @@ describe("codex provider adapter", () => {
         const startCmd = adapter.buildCommandPlan({
           type: "thread/start",
           cwd: fixture.workspacePath,
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           input: [promptTextInput({ text: "hello" })],
           instructionMode: "append",
           options: workspaceWriteAskProviderExecutionContext,
@@ -1183,7 +1189,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228q",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1214,7 +1220,7 @@ describe("codex provider adapter", () => {
         const startCmd = adapter.buildCommandPlan({
           type: "thread/start",
           cwd: fixture.workspacePath,
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           input: [promptTextInput({ text: "hello" })],
           instructionMode: "append",
           options: workspaceWriteAskProviderExecutionContext,
@@ -1225,7 +1231,7 @@ describe("codex provider adapter", () => {
         const turnCmd = adapter.buildCommandPlan({
           type: "turn/start",
           clientRequestId: "creq_222222228r",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "codex-thread-1",
           input: [promptTextInput({ text: "edit it" })],
           options: workspaceWriteAskProviderExecutionContext,
@@ -1249,7 +1255,7 @@ describe("codex provider adapter", () => {
   it("buildCommand thread/start rejects linked worktree git roots when objects symlink escapes common dir", () => {
     const fixture = createLinkedWorktreeFixture();
     const outsideObjectsPath = realpathSync.native(
-      mkdtempSync(path.join(tmpdir(), "bb-codex-objects-escape-")),
+      mkdtempSync(path.join(tmpdir(), "patcher-codex-objects-escape-")),
     );
     const adapter = createCodexProviderAdapter();
     try {
@@ -1266,7 +1272,7 @@ describe("codex provider adapter", () => {
       const startCmd = adapter.buildCommandPlan({
         type: "thread/start",
         cwd: fixture.workspacePath,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         input: [promptTextInput({ text: "hello" })],
         instructionMode: "append",
         options: workspaceWriteAskProviderExecutionContext,
@@ -1279,7 +1285,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228s",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1303,7 +1309,7 @@ describe("codex provider adapter", () => {
   it("buildCommand thread/start rejects linked worktree git roots when worktrees symlink escapes common dir", () => {
     const fixture = createLinkedWorktreeFixture();
     const outsideWorktreesPath = realpathSync.native(
-      mkdtempSync(path.join(tmpdir(), "bb-codex-worktrees-escape-")),
+      mkdtempSync(path.join(tmpdir(), "patcher-codex-worktrees-escape-")),
     );
     const adapter = createCodexProviderAdapter();
     try {
@@ -1312,7 +1318,7 @@ describe("codex provider adapter", () => {
         force: true,
       });
 
-      const escapedGitDir = path.join(outsideWorktreesPath, "bb1");
+      const escapedGitDir = path.join(outsideWorktreesPath, "patcher1");
       mkdirSync(escapedGitDir, { recursive: true });
       writeFileSync(
         path.join(escapedGitDir, "gitdir"),
@@ -1324,7 +1330,7 @@ describe("codex provider adapter", () => {
       );
       writeFileSync(
         path.join(escapedGitDir, "HEAD"),
-        "ref: refs/heads/bb/probe\n",
+        "ref: refs/heads/patcher/probe\n",
       );
       symlinkSync(
         outsideWorktreesPath,
@@ -1335,7 +1341,7 @@ describe("codex provider adapter", () => {
       const startCmd = adapter.buildCommandPlan({
         type: "thread/start",
         cwd: fixture.workspacePath,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         input: [promptTextInput({ text: "hello" })],
         instructionMode: "append",
         options: workspaceWriteAskProviderExecutionContext,
@@ -1348,7 +1354,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228t",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1391,7 +1397,7 @@ describe("codex provider adapter", () => {
         const startCmd = adapter.buildCommandPlan({
           type: "thread/start",
           cwd: fixture.workspacePath,
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           input: [promptTextInput({ text: "hello" })],
           instructionMode: "append",
           options: workspaceWriteAskProviderExecutionContext,
@@ -1404,7 +1410,7 @@ describe("codex provider adapter", () => {
         const turnCmd = adapter.buildCommandPlan({
           type: "turn/start",
           clientRequestId: "creq_222222228u",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "codex-thread-1",
           input: [promptTextInput({ text: "edit it" })],
           options: workspaceWriteAskProviderExecutionContext,
@@ -1433,7 +1439,7 @@ describe("codex provider adapter", () => {
       const resumeCommand: ThreadResumeAdapterCommand = {
         type: "thread/resume",
         cwd: fixture.workspacePath,
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         instructionMode: "append",
         options: workspaceWriteAskProviderExecutionContext,
@@ -1454,7 +1460,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228v",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1494,7 +1500,7 @@ describe("codex provider adapter", () => {
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
         clientRequestId: "creq_222222228w",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "codex-thread-1",
         input: [promptTextInput({ text: "edit it" })],
         options: workspaceWriteAskProviderExecutionContext,
@@ -1573,7 +1579,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: fullProviderExecutionContext,
@@ -1595,7 +1601,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: { ...fullProviderExecutionContext, memoryEnabled: false },
@@ -1617,7 +1623,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -1642,7 +1648,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -1658,7 +1664,7 @@ describe("codex provider adapter", () => {
       },
       dynamicTools: [
         {
-          name: "bb_test_ping",
+          name: "patcher_test_ping",
           description: "Ping the host",
           inputSchema: {
             type: "object",
@@ -1681,7 +1687,7 @@ describe("codex provider adapter", () => {
         ),
         dynamicTools: [
           {
-            name: "bb_test_ping",
+            name: "patcher_test_ping",
             description: "Ping the host",
             inputSchema: {
               type: "object",
@@ -1696,7 +1702,7 @@ describe("codex provider adapter", () => {
     });
     expect(cmd?.params).toMatchObject({
       config: {
-        "shell_environment_policy.set.BB_THREAD_ID": "bb-thread-1",
+        "shell_environment_policy.set.PATCHER_THREAD_ID": "patcher-thread-1",
         "shell_environment_policy.set.TEST_VAR": "123",
         model_reasoning_effort: "high",
       },
@@ -1720,13 +1726,13 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/fork",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-child",
+      threadId: "patcher-thread-child",
       sourceProviderThreadId: "codex-parent-thread",
       instructionMode: "append",
       options: fullProviderExecutionContext,
       dynamicTools: [
         {
-          name: "bb_side_chat_context",
+          name: "patcher_side_chat_context",
           description: "Read side chat context",
           inputSchema: {
             type: "object",
@@ -1745,7 +1751,7 @@ describe("codex provider adapter", () => {
         threadId: "codex-parent-thread",
         dynamicTools: [
           {
-            name: "bb_side_chat_context",
+            name: "patcher_side_chat_context",
             description: "Read side chat context",
             inputSchema: {
               type: "object",
@@ -1766,7 +1772,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/fork",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-edited",
+      threadId: "patcher-thread-edited",
       sourceProviderThreadId: "codex-source-thread",
       sourceProviderCheckpointId: "turn-before-edited-message",
       instructionMode: "append",
@@ -1787,7 +1793,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -1812,7 +1818,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -1839,7 +1845,7 @@ describe("codex provider adapter", () => {
       adapter.buildCommandPlan({
         type: "thread/start",
         cwd: "/tmp/worktree",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         input: [promptTextInput({ text: "hello" })],
         instructionMode: "append",
         options: {
@@ -1856,7 +1862,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "replace",
       options: {
@@ -1883,7 +1889,7 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "codex-uuid-1",
       instructionMode: "append",
       options: fullProviderExecutionContext,
@@ -1905,12 +1911,12 @@ describe("codex provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "codex-uuid-1",
       instructionMode: "append",
       options: {
         ...fullProviderExecutionContext,
-        instructions: "Continue inside bb.",
+        instructions: "Continue inside Patcher.",
       },
     });
 
@@ -1918,7 +1924,7 @@ describe("codex provider adapter", () => {
       method: "thread/resume",
       params: {
         threadId: "codex-uuid-1",
-        developerInstructions: "Continue inside bb.",
+        developerInstructions: "Continue inside Patcher.",
       },
     });
     expect(cmd).not.toMatchObject({
@@ -1932,7 +1938,7 @@ describe("codex provider adapter", () => {
     const adapter = createCodexProviderAdapter();
     const cmd = adapter.buildCommandPlan({
       type: "thread/stop",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "codex-thread-1",
       activeTurnId: "turn-1",
     });
@@ -1950,7 +1956,7 @@ describe("codex provider adapter", () => {
     const adapter = createCodexProviderAdapter();
     const cmd = adapter.buildCommandPlan({
       type: "thread/stop",
-      threadId: "bb-t1",
+      threadId: "patcher-t1",
       providerThreadId: "codex-thread-1",
       activeTurnId: null,
     });
@@ -1965,7 +1971,7 @@ describe("codex provider adapter", () => {
     expect(
       adapter.buildCommandPlan({
         type: "thread/goal/clear",
-        threadId: "bb-t1",
+        threadId: "patcher-t1",
         providerThreadId: "codex-thread-1",
       }),
     ).toEqual({
@@ -2118,7 +2124,7 @@ describe("codex provider adapter", () => {
   it("buildCommand turn/start includes additional workspace-write roots", () => {
     const adapter = createCodexProviderAdapter({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
         "/repo/.git/refs",
         "/repo/.git/logs",
@@ -2138,7 +2144,7 @@ describe("codex provider adapter", () => {
         sandboxPolicy: {
           type: "workspaceWrite",
           writableRoots: [
-            "/repo/.git/worktrees/bb13",
+            "/repo/.git/worktrees/patcher13",
             "/repo/.git/objects",
             "/repo/.git/refs",
             "/repo/.git/logs",
@@ -2246,7 +2252,7 @@ describe("codex provider adapter", () => {
     const adapter = createCodexProviderAdapter();
     const cmd = adapter.buildCommandPlan({
       type: "thread/archive",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "codex-thread-1",
     });
     expect(cmd).toEqual({
@@ -2261,7 +2267,7 @@ describe("codex provider adapter", () => {
     expect(
       adapter.buildCommandPlan({
         type: "thread/discard",
-        threadId: "bb-staging",
+        threadId: "patcher-staging",
         providerThreadId: "codex-staging",
       }),
     ).toEqual({
@@ -2275,7 +2281,7 @@ describe("codex provider adapter", () => {
     const adapter = createCodexProviderAdapter();
     const cmd = adapter.buildCommandPlan({
       type: "thread/unarchive",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "codex-thread-1",
     });
     expect(cmd).toEqual({
@@ -2698,9 +2704,9 @@ describe("codex provider adapter", () => {
     });
 
     // Thread scope, not turnScope("turn-1"): this notification failed schema
-    // parsing, so nothing here vouches for that turn id being one bb started.
+    // parsing, so nothing here vouches for that turn id being one Patcher started.
     // Turn-scoping an event whose turn/started the server never stored gets the
-    // event dropped; thread scope keeps it. Codex notifications bb *does* parse
+    // event dropped; thread scope keeps it. Codex notifications Patcher *does* parse
     // still carry turn scope — see the handled item/started cases above.
     expect(events).toContainEqual(
       expect.objectContaining({
@@ -3663,7 +3669,7 @@ describe("codex provider adapter", () => {
           type: "dynamicToolCall",
           id: "dyn-1",
           namespace: null,
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: {},
           status: "completed",
           contentItems: [{ type: "inputText", text: "PONG_FROM_TOOL" }],
@@ -3681,7 +3687,7 @@ describe("codex provider adapter", () => {
         item: expect.objectContaining({
           type: "toolCall",
           id: "dyn-1",
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           status: "completed",
           result: "PONG_FROM_TOOL",
           durationMs: 3,
@@ -3702,7 +3708,7 @@ describe("codex provider adapter", () => {
           type: "dynamicToolCall",
           id: "dyn-err-1",
           namespace: null,
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: {},
           status: "failed",
           contentItems: [{ type: "inputText", text: "permission denied" }],
@@ -3740,7 +3746,7 @@ describe("codex provider adapter", () => {
           type: "dynamicToolCall",
           id: "dyn-img-1",
           namespace: null,
-          tool: "bb_test_image",
+          tool: "patcher_test_image",
           arguments: {},
           status: "failed",
           contentItems: [
@@ -5330,7 +5336,7 @@ describe("codex provider adapter", () => {
           threadId: "t1",
           turnId: "turn-1",
           callId: "call-1",
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: { ping: true },
         },
       }),
@@ -5339,7 +5345,7 @@ describe("codex provider adapter", () => {
       providerThreadId: "t1",
       turnId: "turn-1",
       callId: "call-1",
-      tool: "bb_test_ping",
+      tool: "patcher_test_ping",
       arguments: { ping: true },
     });
   });
@@ -5353,7 +5359,7 @@ describe("codex provider adapter", () => {
           threadId: "t1",
           turnId: "turn-1",
           callId: "call-1",
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: { ping: true },
         },
       }),
@@ -5831,7 +5837,7 @@ describe("codex provider adapter", () => {
     });
   });
 
-  it("buildInteractiveResponse maps bb command approvals back to Codex responses", () => {
+  it("buildInteractiveResponse maps Patcher command approvals back to Codex responses", () => {
     const adapter = createCodexProviderAdapter();
     expect(
       adapter.buildInteractiveResponse?.({

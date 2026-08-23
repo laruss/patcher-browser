@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 
 const [, , command, ...args] = process.argv;
 
-const STANDALONE_PARENT_PID_ENV = "BB_STANDALONE_PARENT_PID";
+const STANDALONE_PARENT_PID_ENV = "PATCHER_STANDALONE_PARENT_PID";
 
 const commandConfig = {
   "standalone:start": {
@@ -11,20 +11,20 @@ const commandConfig = {
     turboChecks: [
       [
         "build",
-        "--filter=@bb/server",
-        "--filter=@bb/host-daemon",
-        "--filter=@bb/cli",
+        "--filter=@patcher/server",
+        "--filter=@patcher/host-daemon",
+        "--filter=@patcher/cli",
       ],
-      ["typecheck", "--filter=@bb/qa"],
+      ["typecheck", "--filter=@patcher/qa"],
     ],
   },
   "standalone:stop": {
     packageScript: "standalone:stop",
-    turboChecks: [["typecheck", "--filter=@bb/qa"]],
+    turboChecks: [["typecheck", "--filter=@patcher/qa"]],
   },
   "standalone:cleanup": {
     packageScript: "standalone:cleanup",
-    turboChecks: [["typecheck", "--filter=@bb/qa"]],
+    turboChecks: [["typecheck", "--filter=@patcher/qa"]],
   },
 };
 
@@ -102,7 +102,7 @@ function main() {
       "run",
       "--silent",
       "--filter",
-      "@bb/qa",
+      "@patcher/qa",
       "--elide-lines=0",
       config.packageScript,
       ...args,

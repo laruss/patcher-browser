@@ -1,4 +1,4 @@
-# @bb/agent-runtime
+# @patcher/agent-runtime
 
 Manages agent provider processes (codex, claude-code, pi) and exposes a clean session interface. Handles process spawning, stdio framing, JSON-RPC dispatch, event translation, tool call routing, crash detection, and shutdown.
 
@@ -7,7 +7,7 @@ Consumers say "start a thread, run a turn, give me events" — they never touch 
 ## Public API
 
 ```typescript
-import { createAgentRuntime, listAvailableProviders } from "@bb/agent-runtime";
+import { createAgentRuntime, listAvailableProviders } from "@patcher/agent-runtime";
 
 // Discovery
 const providers = listAvailableProviders();   // [{ id: "codex", ... }, { id: "claude-code", ... }, { id: "pi", ... }]
@@ -18,8 +18,8 @@ const runtime = createAgentRuntime({
   env: { OPENAI_API_KEY: "..." },       // passed to all provider processes
   bridgeBundleDir: "/path/to/bundled-bridges", // optional; used when bridges are packaged outside src/dist
   onEvent: (event) => {
-    // Every event has event.threadId (bb ID) and event.providerThreadId (provider's internal ID)
-    // See ProviderThreadEvent in @bb/domain for the full type
+    // Every event has event.threadId (Patcher ID) and event.providerThreadId (provider's internal ID)
+    // See ProviderThreadEvent in @patcher/domain for the full type
   },
   onToolCall: async (req) => { /* ToolCallRequest → ToolCallResponse */ },
   onStderr: (line) => { /* provider stderr */ },
@@ -62,7 +62,7 @@ await runtime.shutdown();
 
 ### Event types
 
-Events from provider processes are `ProviderThreadEvent` — they carry both `threadId` (bb ID) and `providerThreadId` (provider's internal ID). Events from the server/system layer are `SystemThreadEvent` — they only have `threadId`. Both are part of the `ThreadEvent` union from `@bb/domain`.
+Events from provider processes are `ProviderThreadEvent` — they carry both `threadId` (Patcher ID) and `providerThreadId` (provider's internal ID). Events from the server/system layer are `SystemThreadEvent` — they only have `threadId`. Both are part of the `ThreadEvent` union from `@patcher/domain`.
 
 ### Fail-fast behavior
 
@@ -76,19 +76,19 @@ The runtime fails fast when providers crash or are unavailable:
 
 ### Multi-thread / multi-provider
 
-A single runtime can manage multiple threads across multiple providers simultaneously. Each provider process is spawned once and shared across threads. The runtime stamps every event with the correct bb `threadId` and `providerThreadId` regardless of how the provider internally identifies threads.
+A single runtime can manage multiple threads across multiple providers simultaneously. Each provider process is spawned once and shared across threads. The runtime stamps every event with the correct Patcher `threadId` and `providerThreadId` regardless of how the provider internally identifies threads.
 
 ## Running Tests
 
 ```bash
 # Unit tests (no credentials needed, uses fake provider process)
-bun run --filter @bb/agent-runtime test:unit
+bun run --filter @patcher/agent-runtime test:unit
 
 # Integration tests (requires real provider credentials)
-bun run --filter @bb/agent-runtime test:integration
+bun run --filter @patcher/agent-runtime test:integration
 
 # All tests
-bun run --filter @bb/agent-runtime test
+bun run --filter @patcher/agent-runtime test
 ```
 
 ### Integration test requirements
@@ -104,14 +104,14 @@ Integration tests hit real provider APIs and take 30-60 seconds. Some lessons le
 **Save output to a file, then read it.** Tests are slow — if you pipe output through `grep` and it doesn't match, you've wasted a full test run. Instead:
 
 ```bash
-bun run --filter @bb/agent-runtime test:integration -- --reporter=verbose > /tmp/integ-out.txt 2>&1
+bun run --filter @patcher/agent-runtime test:integration -- --reporter=verbose > /tmp/integ-out.txt 2>&1
 # Then inspect:
 grep -E "(✓|×|Test Files|Tests )" /tmp/integ-out.txt
 ```
 
 **Tests run concurrently within each scenario file.** All 3 provider variants in a file run in parallel via `describe.concurrent`. Scenario files run serially because Pi and other real providers share local auth state and external provider limits; running every scenario file at once has caused real-provider flakes where a turn completes without the expected tool execution.
 
-The root `test:integration --force` run also schedules `@bb/integration-tests#test:integration` after `@bb/agent-runtime#test:integration`. Those two package-level suites both exercise real providers and can share local subscription auth/session state, so only the cross-package real-provider suites are ordered. Concurrency inside each suite remains covered, including multi-provider runtime tests and `real/provider-concurrency.test.ts`.
+The root `test:integration --force` run also schedules `@patcher/integration-tests#test:integration` after `@patcher/agent-runtime#test:integration`. Those two package-level suites both exercise real providers and can share local subscription auth/session state, so only the cross-package real-provider suites are ordered. Concurrency inside each suite remains covered, including multi-provider runtime tests and `real/provider-concurrency.test.ts`.
 
 **When a test hangs**, the provider is likely not responding to a JSON-RPC request. Common causes:
 
@@ -130,7 +130,7 @@ The root `test:integration --force` run also schedules `@bb/integration-tests#te
 
 ### Building
 
-`@bb/agent-runtime` is source-only inside this workspace. The host daemon build
+`@patcher/agent-runtime` is source-only inside this workspace. The host daemon build
 creates the bridge bundles it needs for runtime startup.
 
 ## Architecture
@@ -184,8 +184,8 @@ mapping, unhandled-event envelopes, command-output normalization) live in
 
 ## Dependencies
 
-- `@bb/domain` — shared types (ThreadEvent, ProviderThreadEvent, PromptInput, ToolCallRequest, etc.)
-- `@bb/templates` — markdown templates for provider instructions
+- `@patcher/domain` — shared types (ThreadEvent, ProviderThreadEvent, PromptInput, ToolCallRequest, etc.)
+- `@patcher/templates` — markdown templates for provider instructions
 - `@anthropic-ai/claude-agent-sdk` — Claude Code
 - `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent` — Pi
 - `zod` — schema validation at provider boundaries

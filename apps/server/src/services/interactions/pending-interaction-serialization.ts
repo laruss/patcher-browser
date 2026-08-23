@@ -1,5 +1,8 @@
-import { pendingInteractionSchema, type PendingInteraction } from "@bb/domain";
-import type { PendingInteractionRow } from "@bb/db";
+import {
+  pendingInteractionSchema,
+  type PendingInteraction,
+} from "@patcher/domain";
+import type { PendingInteractionRow } from "@patcher/db";
 import { ApiError } from "../../errors.js";
 
 export class PendingInteractionSerializationError extends ApiError {

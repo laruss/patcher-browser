@@ -1,20 +1,15 @@
-import { getHost, upsertHost } from "@bb/db";
-import { isLoopbackAddress } from "@bb/config/loopback";
+import { getHost, upsertHost } from "@patcher/db";
+import { isLoopbackAddress } from "@patcher/config/loopback";
 import {
   hostDaemonEnrollKeyRequestSchema,
   hostDaemonEnrollRequestSchema,
   typedRoutes,
   type HostDaemonInternalSchema,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { Hono } from "hono";
 import type { AppDeps } from "../types.js";
 import { ApiError } from "../errors.js";
-import {
-  getGateAuthKind,
-  getGateMachineId,
-  getTrustedRemoteAddress,
-  type GateAuthHeaderReader,
-} from "../request-context.js";
+import { getTrustedRemoteAddress } from "../request-context.js";
 import { assertMatchingExistingHostType } from "../services/hosts/host-type-guard.js";
 import { issuePersistentHostEnrollKey } from "../services/hosts/host-enrollment.js";
 import { requireBearerToken } from "./auth.js";
@@ -30,22 +25,6 @@ function assertLoopbackRequest(remoteAddress: string | undefined): void {
   );
 }
 
-export function resolveReportedConnectMachineId(
-  context: GateAuthHeaderReader,
-  reportedMachineId: string | undefined,
-): string | undefined {
-  if (getGateAuthKind(context) !== "machine") return reportedMachineId;
-  const gateMachineId = getGateMachineId(context);
-  if (gateMachineId === null || reportedMachineId !== gateMachineId) {
-    throw new ApiError(
-      403,
-      "connect_machine_id_mismatch",
-      "Connect machine identity does not match the authenticated credential",
-    );
-  }
-  return gateMachineId;
-}
-
 export function registerInternalHostRoutes(app: Hono, deps: AppDeps): void {
   const { post } = typedRoutes<HostDaemonInternalSchema>(app, {
     onValidationError: (message) =>
@@ -56,13 +35,6 @@ export function registerInternalHostRoutes(app: Hono, deps: AppDeps): void {
     "/hosts/enroll-key",
     hostDaemonEnrollKeyRequestSchema,
     async (context, payload) => {
-      if (getGateAuthKind(context) === "machine") {
-        throw new ApiError(
-          403,
-          "machine_host_management_forbidden",
-          "Machine credentials cannot mint host enrollment keys",
-        );
-      }
       assertLoopbackRequest(getTrustedRemoteAddress(context));
       const issued = await issuePersistentHostEnrollKey(deps, {
         enrollSource: "loopback",
@@ -84,10 +56,6 @@ export function registerInternalHostRoutes(app: Hono, deps: AppDeps): void {
     "/hosts/enroll",
     hostDaemonEnrollRequestSchema,
     async (context, payload) => {
-      const connectMachineId = resolveReportedConnectMachineId(
-        context,
-        payload.connectMachineId,
-      );
       const token = requireBearerToken(context.req.header("authorization"));
       const enrollment = await deps.machineAuth.enrollHost({
         allowPublicEnrollment: true,
@@ -105,7 +73,6 @@ export function registerInternalHostRoutes(app: Hono, deps: AppDeps): void {
       });
 
       upsertHost(deps.db, deps.hub, {
-        ...(connectMachineId !== undefined ? { connectMachineId } : {}),
         id: enrollment.metadata.hostId,
         name: payload.hostName,
         type: enrollment.metadata.hostType,

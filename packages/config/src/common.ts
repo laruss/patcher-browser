@@ -4,24 +4,24 @@ import {
   resolveEnvLoader,
   type EnvLoaderArgs,
 } from "./env.js";
-import { BB_LOG_LEVEL_ENV } from "./env-vars.js";
-import { resolveRuntimeDataDir, type BbRuntimeMode } from "./runtime.js";
+import { PATCHER_LOG_LEVEL_ENV } from "./env-vars.js";
+import { resolveRuntimeDataDir, type PatcherRuntimeMode } from "./runtime.js";
 
 export interface LogLevelConfig {
-  BB_LOG_LEVEL: string;
+  PATCHER_LOG_LEVEL: string;
 }
 
 export type LoadLogLevelConfigArgs = EnvLoaderArgs;
 
 export interface CommonConfig extends LogLevelConfig {
-  BB_DATA_DIR: string;
+  PATCHER_DATA_DIR: string;
 }
 
 export interface LoadCommonConfigArgs extends EnvLoaderArgs {
   repoRoot?: string;
 }
 
-function resolveDefaultLogLevel(mode: BbRuntimeMode): string {
+function resolveDefaultLogLevel(mode: PatcherRuntimeMode): string {
   return mode === "prod" ? DEFAULTS.logLevel.prod : DEFAULTS.logLevel.dev;
 }
 
@@ -30,10 +30,10 @@ export function loadLogLevelConfig(
 ): LogLevelConfig {
   const loader = resolveEnvLoader(args);
   return {
-    BB_LOG_LEVEL: readEnvVarWithDefault({
+    PATCHER_LOG_LEVEL: readEnvVarWithDefault({
       context: loader.context,
       defaultValue: resolveDefaultLogLevel(loader.mode),
-      definition: BB_LOG_LEVEL_ENV,
+      definition: PATCHER_LOG_LEVEL_ENV,
       env: loader.env,
     }),
   };
@@ -51,7 +51,7 @@ export function loadCommonConfig(
 
   return {
     ...logLevelConfig,
-    BB_DATA_DIR: resolveRuntimeDataDir({
+    PATCHER_DATA_DIR: resolveRuntimeDataDir({
       env: loader.env,
       homeDir: loader.context.homeDir,
       mode: loader.mode,

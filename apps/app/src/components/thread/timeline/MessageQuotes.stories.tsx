@@ -1,6 +1,6 @@
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import { MarkdownPreview } from "@/components/ui/markdown-preview.js";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   messageBodyHasQuote,
   renderMessageBodyWithQuotes,

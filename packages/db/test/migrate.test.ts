@@ -4326,7 +4326,7 @@ describe("migrate", () => {
           updated_at integer NOT NULL
         );
         INSERT INTO marketplaces VALUES
-          ('bb-official', 'git', 'https://github.com/ymichael/bb.git', 'main', '{"schemaVersion":1,"name":"bb-official","displayName":"BB Official","plugins":[]}', 10, 20, NULL, 1, 20),
+          ('bb-official', 'git', 'https://github.com/ymichael/bb.git', 'main', '{"schemaVersion":1,"name":"bb-official","displayName":"bb Official","plugins":[]}', 10, 20, NULL, 1, 20),
           ('other', 'git', 'https://example.test/catalog.git', 'main', '{"schemaVersion":1}', 30, 40, NULL, 2, 40);
         INSERT INTO plugins VALUES
           ('official', 'marketplace', 'bb-official', 'notes', 'npm:notes@^1'),
@@ -4386,6 +4386,10 @@ describe("migrate", () => {
     }
   });
 
+  // The fixtures below carry `bb-official` and the upstream git URL on purpose:
+  // migration 0072 matches on the values *upstream builds wrote into user
+  // databases*, so a fixture using this fork's names would exercise a WHERE
+  // clause that can never match a real row.
   it("does not grant catalog provenance to a custom marketplace named bb-official", () => {
     const db = createConnection(":memory:");
     try {
@@ -4426,7 +4430,7 @@ describe("migrate", () => {
           'marketplace',
           'bb-official',
           'custom-entry',
-          'npm:bb-plugin-custom@^1'
+          'npm:patcher-plugin-custom@^1'
         );
       `);
 

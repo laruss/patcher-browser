@@ -16,7 +16,7 @@ import {
   type PendingInteractionApprovalDecision,
   type PendingInteractionApprovalSubject,
   type PendingInteractionCreate,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { listAvailableProviderInfos } from "./provider-registry.js";
 import {
   cleanup,
@@ -122,7 +122,7 @@ describe("interactive request scenarios", () => {
   it.concurrent(
     "routes Claude Read prompts as semantic permission-grant approvals",
     async () => {
-      const outsideDir = mkdtempSync(join(tmpdir(), "bb-claude-read-"));
+      const outsideDir = mkdtempSync(join(tmpdir(), "patcher-claude-read-"));
       const filePath = join(
         outsideDir,
         createTempFileName("claude-read-approval"),
@@ -326,7 +326,7 @@ describe("interactive request scenarios", () => {
     "blocks Claude workspace-write outside-workspace Bash without interactive requests when escalation is deny",
     async () => {
       const ctx = createTestRuntime("claude-code");
-      const outsideDir = mkdtempSync(join(tmpdir(), "bb-claude-outside-"));
+      const outsideDir = mkdtempSync(join(tmpdir(), "patcher-claude-outside-"));
       const filePath = join(
         outsideDir,
         createTempFileName("claude-outside-bash-denied"),
@@ -442,7 +442,7 @@ describe("interactive request scenarios", () => {
       const ctx = createTestRuntime("codex", {
         onInteractiveRequest: createApprovalResolution,
       });
-      const outsideDir = mkdtempSync(join(process.cwd(), ".bb-codex-outside-"));
+      const outsideDir = mkdtempSync(join(process.cwd(), ".patcher-codex-outside-"));
       const filePath = join(
         outsideDir,
         createTempFileName("codex-outside-write"),

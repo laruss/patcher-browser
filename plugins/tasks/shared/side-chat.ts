@@ -6,7 +6,7 @@
  * suppression must treat both the same.
  */
 
-/** pluginId of the builtin side-chat plugin (bb's builtin registry). */
+/** pluginId of the builtin side-chat plugin (Patcher's builtin registry). */
 const SIDE_CHAT_PLUGIN_ID = "side-chat";
 
 export interface SideChatShapeThread {

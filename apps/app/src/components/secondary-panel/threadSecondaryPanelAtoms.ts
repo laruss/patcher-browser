@@ -40,7 +40,7 @@ const secondaryPanelWidthStorage = createLocalStorageSyncStorage<number>({
   serialize: (value) => String(value),
 });
 export const secondaryPanelWidthPercentAtom = atomWithStorage<number>(
-  "bb.thread.secondaryPanel.widthPercent",
+  "patcher.thread.secondaryPanel.widthPercent",
   DEFAULT_SECONDARY_PANEL_WIDTH_PERCENT,
   secondaryPanelWidthStorage,
   { getOnInit: true },
@@ -63,7 +63,7 @@ function hasThreadId(
 }
 
 const THREAD_CONVERSATION_COLLAPSED_STORAGE_PREFIX =
-  "bb.thread.conversation.collapsed";
+  "patcher.thread.conversation.collapsed";
 
 /**
  * Whether a given thread's conversation/timeline pane is collapsed so the

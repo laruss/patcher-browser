@@ -1,4 +1,4 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import {
   claimAutomationScheduledRun,
@@ -20,14 +20,14 @@ export const SWEEP_INTERVAL_MS = 10_000;
 const hostListSchema = z.array(
   z.object({ status: z.enum(["connected", "disconnected"]) }).passthrough(),
 );
-type SweepApi = Pick<BbPluginApi, "realtime" | "log"> & {
+type SweepApi = Pick<PatcherPluginApi, "realtime" | "log"> & {
   sdk: {
     hosts: { list(): Promise<unknown> };
     threads: {
-      get(args: Parameters<BbPluginApi["sdk"]["threads"]["get"]>[0]): Promise<unknown>;
-      send(args: Parameters<BbPluginApi["sdk"]["threads"]["send"]>[0]): Promise<unknown>;
+      get(args: Parameters<PatcherPluginApi["sdk"]["threads"]["get"]>[0]): Promise<unknown>;
+      send(args: Parameters<PatcherPluginApi["sdk"]["threads"]["send"]>[0]): Promise<unknown>;
       spawn(
-        args: Parameters<BbPluginApi["sdk"]["threads"]["spawn"]>[0],
+        args: Parameters<PatcherPluginApi["sdk"]["threads"]["spawn"]>[0],
       ): Promise<unknown>;
     };
   };
@@ -57,7 +57,7 @@ function buildScheduleRollback(
 }
 
 async function processDueAutomation(
-  bb: SweepApi,
+  patcher: SweepApi,
   db: Db,
   args: {
     pluginDataDir: string;
@@ -83,7 +83,7 @@ async function processDueAutomation(
             timezone: trigger.timezone,
           });
   } catch (error) {
-    bb.log.error(
+    patcher.log.error(
       `Skipping due automation ${args.automation.id} with invalid stored configuration: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -102,7 +102,7 @@ async function processDueAutomation(
     now: args.now,
   });
   if (!claim.advanced) return;
-  publishAutomationChange(bb, args.automation.projectId, [
+  publishAutomationChange(patcher, args.automation.projectId, [
     "automations-changed",
     "automation-runs-changed",
   ]);
@@ -113,14 +113,14 @@ async function processDueAutomation(
     now: args.now,
   });
   if (execution.mode === "agent") {
-    await executeAgentRun(bb, db, {
+    await executeAgentRun(patcher, db, {
       automation: args.automation,
       run: claim.run,
       execution,
       onFailure,
     });
   } else {
-    void executeScriptRun(bb, db, {
+    void executeScriptRun(patcher, db, {
       pluginDataDir: args.pluginDataDir,
       automation: args.automation,
       run: claim.run,
@@ -128,7 +128,7 @@ async function processDueAutomation(
       onFailure,
       serverUrl: args.serverUrl,
     }).catch((error: unknown) => {
-      bb.log.error(
+      patcher.log.error(
         `Detached script automation ${args.automation.id} failed unexpectedly: ${
           error instanceof Error ? error.message : String(error)
         }`,
@@ -138,16 +138,16 @@ async function processDueAutomation(
 }
 
 async function hasConnectedHost(
-  bb: Pick<BbPluginApi, "log"> & {
+  patcher: Pick<PatcherPluginApi, "log"> & {
     sdk: { hosts: { list(): Promise<unknown> } };
   },
 ): Promise<boolean> {
   try {
     return hostListSchema
-      .parse(await bb.sdk.hosts.list())
+      .parse(await patcher.sdk.hosts.list())
       .some((host) => host.status === "connected");
   } catch (error) {
-    bb.log.warn(
+    patcher.log.warn(
       `Failed to list hosts for automation sweep: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -157,7 +157,7 @@ async function hasConnectedHost(
 }
 
 export async function sweepDueAutomations(
-  bb: SweepApi,
+  patcher: SweepApi,
   db: Db,
   args: {
     pluginDataDir: string;
@@ -167,10 +167,10 @@ export async function sweepDueAutomations(
 ): Promise<void> {
   const now = args.now ?? Date.now();
   const due = listDueAutomations(db, { now, limit: DUE_AUTOMATION_BATCH_SIZE });
-  const agentHostsAvailable = await hasConnectedHost(bb);
+  const agentHostsAvailable = await hasConnectedHost(patcher);
   for (const automation of due) {
     try {
-      await processDueAutomation(bb, db, {
+      await processDueAutomation(patcher, db, {
         pluginDataDir: args.pluginDataDir,
         automation,
         now,
@@ -178,7 +178,7 @@ export async function sweepDueAutomations(
         serverUrl: args.serverUrl,
       });
     } catch (error) {
-      bb.log.error(
+      patcher.log.error(
         `Failed to process due automation ${automation.id}: ${
           error instanceof Error ? error.message : String(error)
         }`,

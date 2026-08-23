@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-ask-user-question",
+  "name": "patcher-plugin-ask-user-question",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Let any provider ask the user a multiple-choice question, the way Claude Code's AskUserQuestion does natively.",
   "engines": {
-    "bb": ">=0.0"
+    "patcher": ">=0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Ask User Question",
     "description": "Let any provider ask the user a multiple-choice question, the way Claude Code's AskUserQuestion does natively.",
     "branding": {
@@ -17,18 +17,18 @@
     "app": "./app.tsx"
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/shared-ui": "workspace:*",
+    "@patcher/shared-ui": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

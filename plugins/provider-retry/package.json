@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-provider-retry",
+  "name": "patcher-plugin-provider-retry",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Continue turns after Codex and Claude Code subscription limits reset.",
   "engines": {
-    "bb": ">=0.0"
+    "patcher": ">=0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Provider retry",
     "description": "Continue turns after Codex and Claude Code subscription limits reset.",
     "branding": {
@@ -21,18 +21,18 @@
     ]
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bb/shared-ui": "workspace:*",
+    "@patcher/shared-ui": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

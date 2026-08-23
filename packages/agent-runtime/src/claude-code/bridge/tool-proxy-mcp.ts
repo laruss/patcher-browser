@@ -1,12 +1,12 @@
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
-import type { DynamicTool } from "@bb/domain";
+import type { DynamicTool } from "@patcher/domain";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-export const BRIDGE_MCP_SERVER_NAME = "bb-bridge";
+export const BRIDGE_MCP_SERVER_NAME = "patcher-bridge";
 
 export type DynamicToolDefinition = DynamicTool;
 

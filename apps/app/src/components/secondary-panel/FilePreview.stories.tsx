@@ -69,7 +69,7 @@ flowchart LR
 The Raw toggle still shows this markdown source unchanged.`;
 
 const SAMPLE_BUTTON_TSX = `import { forwardRef, type ButtonHTMLAttributes } from "react";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "default" | "ghost" | "outline";
@@ -119,7 +119,7 @@ const BUTTON_PATH = "apps/app/src/components/ui/button.tsx";
 const DELETED_BUTTON_PATH = "apps/app/src/components/ui/legacy-button.tsx";
 const METRICS_PATH = "reports/customers.csv";
 const SCREENSHOT_PATH = "docs/screenshots/right-panel.svg";
-const STORY_WORKSPACE_ROOT = "/Users/alex/Code/bb";
+const STORY_WORKSPACE_ROOT = "/Users/alex/Code/patcher";
 
 function copyPathFor(path: string) {
   return `${STORY_WORKSPACE_ROOT}/${path}`;

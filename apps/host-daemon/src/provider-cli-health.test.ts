@@ -21,7 +21,7 @@ import {
 import {
   providerCliInstallEventSchema,
   type ProviderCliInstallEvent,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 const CLAUDE_INSTALL_SCRIPT_URL = "https://claude.ai/install.sh";
 const CLAUDE_INSTALL_COMMAND = [

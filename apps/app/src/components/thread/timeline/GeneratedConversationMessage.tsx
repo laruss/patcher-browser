@@ -1,16 +1,16 @@
 import { memo, useCallback, useMemo, useRef } from "react";
-import type { TimelineUserConversationRow } from "@bb/server-contract";
+import type { TimelineUserConversationRow } from "@patcher/server-contract";
 import type {
   PromptTextMention,
   SystemMessageKind,
   SystemMessageSubject,
   ThreadChildOrigin,
-} from "@bb/domain";
-import type { TimelineTitle, TimelineTitleSegment } from "@bb/thread-view";
-import { type IconName } from "@bb/shared-ui/icon";
+} from "@patcher/domain";
+import type { TimelineTitle, TimelineTitleSegment } from "@patcher/thread-view";
+import { type IconName } from "@patcher/shared-ui/icon";
 import { MarkdownPreview } from "@/components/ui/markdown-preview.js";
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import {
   ConversationAttachments,
@@ -281,7 +281,7 @@ function generatedConversationEmptyText(
     case "agent":
       return "Sent an agent message";
     case "system":
-      return "Sent a BB system message";
+      return "Sent a Patcher system message";
   }
 }
 

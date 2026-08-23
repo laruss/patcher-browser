@@ -3,7 +3,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   type FakePluginHost,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import memoryPlugin from "./server";
 
 async function loadPlugin(): Promise<FakePluginHost> {
@@ -11,7 +11,7 @@ async function loadPlugin(): Promise<FakePluginHost> {
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "memory",
   });
-  await memoryPlugin(host.bb);
+  await memoryPlugin(host.patcher);
   return host;
 }
 
@@ -60,7 +60,7 @@ async function addMemory(
   };
 }
 
-describe("bb-plugin-memory", () => {
+describe("patcher-plugin-memory", () => {
   it("registers a CLI and instruction catalog without native agent tools", async () => {
     const host = await loadPlugin();
     expect(host.harness.registrations.cli?.name).toBe("memory");
@@ -126,7 +126,7 @@ describe("bb-plugin-memory", () => {
     });
     expect(instructions?.length).toBeLessThanOrEqual(3_900);
     expect(instructions).toContain("Showing");
-    expect(instructions).toContain("bb memory catalog --scope all --json");
+    expect(instructions).toContain("patcher memory catalog --scope all --json");
     expect(instructions).not.toContain("Private details");
   });
 
@@ -204,7 +204,9 @@ describe("bb-plugin-memory", () => {
       "reason",
     ]);
     expect(missingProject.exitCode).toBe(1);
-    expect(missingProject.stderr).toContain("requires a BB project context");
+    expect(missingProject.stderr).toContain(
+      "requires a Patcher project context",
+    );
   });
 
   it("uses optimistic versions for updates and forgetting", async () => {

@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   events as eventTable,
   pendingInteractions as pendingInteractionTable,
-} from "@bb/db";
-import type { PendingInteractionCreate } from "@bb/domain";
+} from "@patcher/db";
+import type { PendingInteractionCreate } from "@patcher/domain";
 import { handleHostSessionOpened } from "../../src/internal/session-owner-side-effects.js";
 import { PendingInteractionLifecycle } from "../../src/services/interactions/pending-interactions.js";
 import type { AppDeps } from "../../src/types.js";
@@ -1109,7 +1109,7 @@ describe("pending interaction lifecycle", () => {
     });
   });
 
-  it("allows command session approvals when no BB session grant was requested", async () => {
+  it("allows command session approvals when no Patcher session grant was requested", async () => {
     await withTestHarness(async (harness) => {
       const { host } = seedHostSession(harness.deps, {
         id: "host-pending-interaction-command-opaque-session",

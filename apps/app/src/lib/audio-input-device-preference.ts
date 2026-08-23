@@ -3,7 +3,7 @@ import { atomWithStorage } from "jotai/utils";
 import { createLocalStorageSyncStorage } from "./browser-storage";
 
 export const AUDIO_INPUT_DEVICE_STORAGE_KEY =
-  "bb.voiceInput.audioInputDeviceId";
+  "patcher.voiceInput.audioInputDeviceId";
 
 export type PreferredAudioInputDeviceId = string | null;
 

@@ -1,4 +1,4 @@
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 export const MAX_CUSTOM_INSTRUCTIONS_LENGTH = 4096;
@@ -45,10 +45,11 @@ function parseInstructionsInput(input: unknown): string {
   return instructions;
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  let customInstructions = (await bb.storage.kv.get<string>(STORAGE_KEY)) ?? "";
+export default async function plugin(patcher: PatcherPluginApi) {
+  let customInstructions =
+    (await patcher.storage.kv.get<string>(STORAGE_KEY)) ?? "";
 
-  bb.rpc.register(customInstructionsRpcContract, {
+  patcher.rpc.register(customInstructionsRpcContract, {
     getInstructions() {
       return {
         instructions: customInstructions,
@@ -56,7 +57,7 @@ export default async function plugin(bb: BbPluginApi) {
       };
     },
     async saveInstructions({ instructions }) {
-      await bb.storage.kv.set(STORAGE_KEY, instructions);
+      await patcher.storage.kv.set(STORAGE_KEY, instructions);
       customInstructions = instructions;
       return {
         instructions: customInstructions,
@@ -65,28 +66,28 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.agents.contributeInstructions(() =>
+  patcher.agents.contributeInstructions(() =>
     customInstructions.trim().length > 0 ? customInstructions : null,
   );
 
-  bb.cli.register({
+  patcher.cli.register({
     name: "instructions",
     summary: "Read and update the custom instructions injected into agents",
     commands: [
       {
         name: "get",
         summary: "Print the current custom instructions",
-        usage: "bb instructions get [--json]",
+        usage: "patcher instructions get [--json]",
       },
       {
         name: "set",
         summary: "Replace the custom instructions",
-        usage: "bb instructions set <text...> [--json]",
+        usage: "patcher instructions set <text...> [--json]",
       },
       {
         name: "clear",
         summary: "Clear the custom instructions",
-        usage: "bb instructions clear [--json]",
+        usage: "patcher instructions clear [--json]",
       },
     ],
     async run(argv) {
@@ -105,7 +106,7 @@ export default async function plugin(bb: BbPluginApi) {
         const instructions = parseInstructionsInput({
           instructions: rest.join(" "),
         });
-        await bb.storage.kv.set(STORAGE_KEY, instructions);
+        await patcher.storage.kv.set(STORAGE_KEY, instructions);
         customInstructions = instructions;
         return {
           exitCode: 0,
@@ -115,7 +116,7 @@ export default async function plugin(bb: BbPluginApi) {
         };
       }
       if (command === "clear") {
-        await bb.storage.kv.set(STORAGE_KEY, "");
+        await patcher.storage.kv.set(STORAGE_KEY, "");
         customInstructions = "";
         return {
           exitCode: 0,
@@ -126,7 +127,7 @@ export default async function plugin(bb: BbPluginApi) {
       }
       return {
         exitCode: 1,
-        stderr: "Usage: bb instructions get|set <text...>|clear [--json]",
+        stderr: "Usage: patcher instructions get|set <text...>|clear [--json]",
       };
     },
   });

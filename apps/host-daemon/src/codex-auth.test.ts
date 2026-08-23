@@ -31,7 +31,9 @@ afterEach(async () => {
 });
 
 it("reads auth.json from CODEX_HOME when configured", async () => {
-  const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "bb-codex-home-"));
+  const homeDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "patcher-codex-home-"),
+  );
   tempDirs.push(homeDir);
   const configuredCodexHome = path.join(homeDir, "custom-codex-home");
   await writeApiKeyAuth(path.join(homeDir, ".codex"), "default-api-key");

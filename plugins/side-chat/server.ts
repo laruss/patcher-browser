@@ -1,13 +1,13 @@
-// bb-plugin-side-chat — the plugin-owned side chat (BB-70 phase 5). Side chats
+// patcher-plugin-side-chat — the plugin-owned side chat (BB-70 phase 5). Side chats
 // are plain hidden thread forks
 // (`originKind: "fork"`, `originPluginId: "side-chat"`, `visibility:
 // "hidden"`) created idle at panel-open time; the frontend renders them with
 // the host-owned `ThreadChat` component.
 //
 // Server-owned policy lives here: the reply-anchor seed rule and the
-// empty-fork cleanup sweep. The archive cascade is BB's own: a hidden fork
+// empty-fork cleanup sweep. The archive cascade is Patcher's own: a hidden fork
 // retires with its source thread whether or not this plugin is enabled.
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 export const REPLY_SEED_PREFIX =
@@ -173,10 +173,10 @@ export const sideChatRpcContract = defineRpcContract({
   },
 });
 
-export default async function plugin(bb: BbPluginApi) {
-  bb.rpc.register(sideChatRpcContract, {
+export default async function plugin(patcher: PatcherPluginApi) {
+  patcher.rpc.register(sideChatRpcContract, {
     async createSideChat({ sourceThreadId, sourceSeqEnd, anchorText }) {
-      const timeline = await bb.sdk.threads.timeline({
+      const timeline = await patcher.sdk.threads.timeline({
         threadId: sourceThreadId,
         includeNestedRows: "true",
       });
@@ -207,7 +207,7 @@ export default async function plugin(bb: BbPluginApi) {
           : {}),
       };
       try {
-        const fork = await bb.sdk.threads.fork({
+        const fork = await patcher.sdk.threads.fork({
           ...forkArgs,
           ...(sourceSeqEnd !== undefined ? { sourceSeqEnd } : {}),
         });
@@ -220,12 +220,12 @@ export default async function plugin(bb: BbPluginApi) {
         if (sourceSeqEnd === undefined || !isSessionUnavailableError(error)) {
           throw error;
         }
-        const fork = await bb.sdk.threads.fork(forkArgs);
+        const fork = await patcher.sdk.threads.fork(forkArgs);
         return { threadId: fork.id };
       }
     },
     async sendToMain({ sourceThreadId, senderThreadId, text }) {
-      await bb.sdk.threads.queuedMessages.create({
+      await patcher.sdk.threads.queuedMessages.create({
         threadId: sourceThreadId,
         input: [{ type: "text", text, mentions: [] }],
         senderThreadId,
@@ -239,16 +239,18 @@ export default async function plugin(bb: BbPluginApi) {
   // unsent input is user work too and never appears in timeline rows, so a
   // fork with pending queued messages is not empty. Both reads fail closed:
   // when either fails the fork is skipped rather than risked.
-  bb.background.schedule("empty-fork-cleanup", "13 * * * *", async () => {
+  patcher.background.schedule("empty-fork-cleanup", "13 * * * *", async () => {
     const now = Date.now();
-    const keptKeys = new Set(await bb.storage.kv.list(KEPT_FORK_KEY_PREFIX));
+    const keptKeys = new Set(
+      await patcher.storage.kv.list(KEPT_FORK_KEY_PREFIX),
+    );
     const stillLive = new Set<string>();
     let offset = 0;
     for (;;) {
-      const page = await bb.sdk.threads.list({
+      const page = await patcher.sdk.threads.list({
         includeHidden: true,
         originKind: "fork",
-        originPluginId: bb.pluginId,
+        originPluginId: patcher.pluginId,
         archived: false,
         limit: EMPTY_FORK_SWEEP_PAGE_SIZE,
         offset,
@@ -259,7 +261,7 @@ export default async function plugin(bb: BbPluginApi) {
       // full page instead would skip that many unswept forks.
       let retained = 0;
       for (const thread of page) {
-        if (!isOwnLiveHiddenFork(thread, bb.pluginId)) {
+        if (!isOwnLiveHiddenFork(thread, patcher.pluginId)) {
           retained += 1;
           continue;
         }
@@ -277,7 +279,7 @@ export default async function plugin(bb: BbPluginApi) {
         const outcome = await sweepEmptyFork(thread.id, thread.createdAt);
         if (outcome === "archived") continue;
         if (outcome === "kept") {
-          await bb.storage.kv.set(keptKey, true);
+          await patcher.storage.kv.set(keptKey, true);
           stillLive.add(keptKey);
         }
         // A skipped fork (a read failed) records nothing, so the next sweep
@@ -291,7 +293,7 @@ export default async function plugin(bb: BbPluginApi) {
     // key nothing matched belongs to a thread that has since been archived or
     // deleted. Drop it rather than grow the store forever.
     for (const key of keptKeys) {
-      if (!stillLive.has(key)) await bb.storage.kv.delete(key);
+      if (!stillLive.has(key)) await patcher.storage.kv.delete(key);
     }
   });
 
@@ -306,13 +308,13 @@ export default async function plugin(bb: BbPluginApi) {
     createdAt: number,
   ): Promise<"archived" | "kept" | "skipped"> {
     try {
-      const timeline = await bb.sdk.threads.timeline({
+      const timeline = await patcher.sdk.threads.timeline({
         threadId,
         includeNestedRows: "true",
       });
       if (timelineRowsContainUserMessage(timeline.rows)) return "kept";
     } catch (error) {
-      bb.log.warn(
+      patcher.log.warn(
         `empty-fork sweep skipped ${threadId} (timeline read failed: ${
           error instanceof Error ? error.message : String(error)
         })`,
@@ -320,10 +322,12 @@ export default async function plugin(bb: BbPluginApi) {
       return "skipped";
     }
     try {
-      const queued = await bb.sdk.threads.queuedMessages.list({ threadId });
+      const queued = await patcher.sdk.threads.queuedMessages.list({
+        threadId,
+      });
       if (queued.length > 0) return "kept";
     } catch (error) {
-      bb.log.warn(
+      patcher.log.warn(
         `empty-fork sweep skipped ${threadId} (queued-message read failed: ${
           error instanceof Error ? error.message : String(error)
         })`,
@@ -331,14 +335,14 @@ export default async function plugin(bb: BbPluginApi) {
       return "skipped";
     }
     try {
-      await bb.sdk.threads.archive({ threadId });
-      bb.log.info(
+      await patcher.sdk.threads.archive({ threadId });
+      patcher.log.info(
         `empty-fork sweep archived ${threadId} (no user messages, ` +
           `created ${new Date(createdAt).toISOString()})`,
       );
       return "archived";
     } catch (error) {
-      bb.log.warn(
+      patcher.log.warn(
         `empty-fork sweep failed to archive ${threadId}: ${
           error instanceof Error ? error.message : String(error)
         }`,

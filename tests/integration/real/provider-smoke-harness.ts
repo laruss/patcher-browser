@@ -9,9 +9,9 @@ import {
   type ClientTurnRequestId,
   type ThreadEventRow,
   type ThreadExecutionOptions,
-} from "@bb/domain";
-import type { ThreadTimelineResponse } from "@bb/server-contract";
-import { resolvePreferredTestModel } from "@bb/test-helpers";
+} from "@patcher/domain";
+import type { ThreadTimelineResponse } from "@patcher/server-contract";
+import { resolvePreferredTestModel } from "@patcher/test-helpers";
 import {
   getAvailableModels,
   getThread,

@@ -1,5 +1,5 @@
-import { buildThreadEvent, getThreadEventScopeTurnId } from "@bb/domain";
-import type { ThreadEvent, ThreadEventRow } from "@bb/domain";
+import { buildThreadEvent, getThreadEventScopeTurnId } from "@patcher/domain";
+import type { ThreadEvent, ThreadEventRow } from "@patcher/domain";
 import { assertNever } from "./assert-never.js";
 
 /** Extract the optional turnId from any decoded ThreadEvent. */

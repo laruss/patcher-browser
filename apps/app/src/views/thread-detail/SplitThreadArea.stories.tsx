@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import type {
   ThreadResponse,
   ThreadTimelineResponse,
-} from "@bb/server-contract";
-import type { ThreadTimelineGoal } from "@bb/domain";
+} from "@patcher/server-contract";
+import type { ThreadTimelineGoal } from "@patcher/domain";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import { makeThread } from "../../../.ladle/story-fixtures";
@@ -18,7 +18,7 @@ import type { SplitLayout } from "@/lib/split-layout";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ThreadActionsProvider } from "@/components/thread/ThreadActionsProvider";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
-import { TooltipProvider } from "@bb/shared-ui/tooltip";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 import { PaneContext, type PaneContextValue } from "./PaneContext";
 import { PaneMaximizeButton } from "./PaneMaximizeButton";
 import { SplitThreadArea } from "./SplitThreadArea";
@@ -27,7 +27,7 @@ export default {
   title: "thread/splits/Split Workspace",
 };
 
-const PROJECT_ID = "proj_bb";
+const PROJECT_ID = "proj_patcher";
 const IDLE_THREAD_ID = "thr_split_idle";
 const ACTIVE_THREAD_ID = "thr_split_active";
 

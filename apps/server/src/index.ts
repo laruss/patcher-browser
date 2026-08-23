@@ -1,12 +1,12 @@
 import { join } from "node:path";
-import { loadServerConfig } from "@bb/config/server";
+import { loadServerConfig } from "@patcher/config/server";
 import {
   installSafeProcessDiagnostics,
   writeSafeProcessDiagnosticReport,
-} from "@bb/process-utils";
+} from "@patcher/process-utils";
 
 const serverConfig = loadServerConfig();
-const diagnosticsLogsDir = join(serverConfig.BB_DATA_DIR, "logs");
+const diagnosticsLogsDir = join(serverConfig.PATCHER_DATA_DIR, "logs");
 
 installSafeProcessDiagnostics({
   logsDir: diagnosticsLogsDir,

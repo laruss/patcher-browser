@@ -1,11 +1,11 @@
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
-import type { HostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 import {
   sanitizeInheritedChildProcessEnv,
   spawnPortablePipedProcess,
-} from "@bb/process-utils";
+} from "@patcher/process-utils";
 import type {
   ProviderAdapter,
   ProviderAdapterFactory,

@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { LocalPathProjectSource } from "@bb/domain";
+import type { LocalPathProjectSource } from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectSourceRow } from "./ProjectSourceRow";
 

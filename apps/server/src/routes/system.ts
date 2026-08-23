@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
-import { formatCustomAcpAgentProviderId } from "@bb/config/bb-app-managed-config";
+import { formatCustomAcpAgentProviderId } from "@patcher/config/patcher-app-managed-config";
 import {
   getAppSettings,
   getAppKeybindingOverrides,
@@ -12,7 +12,7 @@ import {
   setAppKeybindingOverrides,
   setExperiments,
   setStoredAppearance,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   applyAppKeybindingOverrides,
   applyPluginAppKeybindings,
@@ -20,12 +20,12 @@ import {
   isBuiltInThemeId,
   type AppKeybindingOverrides,
   type AppTheme,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   publicApiRoutes,
   typedRoutes,
   type PublicApiSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
 import type { ServerAppDeps, ServerRuntimeConfig } from "../types.js";
 import type { PluginService } from "../services/plugins/plugin-service.js";
@@ -259,7 +259,7 @@ export function registerSystemRoutes(
 
   post(routes.reloadConfig, async (context) => {
     try {
-      await deps.bbAppManagedConfig.reload({ notify: true });
+      await deps.patcherAppManagedConfig.reload({ notify: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new ApiError(422, "invalid_config", message);

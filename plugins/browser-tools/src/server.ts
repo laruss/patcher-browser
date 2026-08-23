@@ -1,13 +1,16 @@
-// bb-plugin-browser-tools — browser tools for BB agents (PROJECT_PLAN §18 Phase 5).
+// patcher-plugin-browser-tools — browser tools for Patcher agents (PROJECT_PLAN §18 Phase 5).
 //
-// Exposes the browser surface to agents through `bb.browser`, the same API a
+// Exposes the browser surface to agents through `patcher.browser`, the same API a
 // plugin uses, rather than through a private agent-only path: plan §20 asks for
 // exactly that, and it means anything an agent can do here a plugin can do too.
 //
 // Ships disabled. An agent driving this browser acts inside the user's real
-// logged-in session, and BB has no plugin permission model yet, so turning it on
-// is the user's decision (`bb plugin enable browser-tools`).
-import type { BbPluginApi, PluginAgentToolResult } from "@bb/plugin-sdk";
+// logged-in session, and Patcher has no plugin permission model yet, so turning it on
+// is the user's decision (`patcher plugin enable browser-tools`).
+import type {
+  PatcherPluginApi,
+  PluginAgentToolResult,
+} from "@patcher/plugin-sdk";
 import { registerBrowserToolsCli } from "./cli.js";
 import {
   BROWSER_TOOLS_INSTRUCTIONS,
@@ -40,18 +43,18 @@ async function run(
   }
 }
 
-export default function plugin(bb: BbPluginApi) {
-  // `bb browser …` drives the same API the tools below do, without an agent.
+export default function plugin(patcher: PatcherPluginApi) {
+  // `patcher browser …` drives the same API the tools below do, without an agent.
   // It is the fast way to tell a broken bridge from a broken tool.
-  registerBrowserToolsCli(bb);
+  registerBrowserToolsCli(patcher);
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_snapshot",
     description: toolDescriptions.browser_snapshot,
     parameters: toolParameters.browser_snapshot,
     execute: (input, ctx) =>
       run(async () => {
-        const result = await bb.browser.page.snapshot(
+        const result = await patcher.browser.page.snapshot(
           { tabId: input.tabId, maxDepth: input.maxDepth },
           { signal: ctx.signal },
         );
@@ -73,14 +76,14 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_click",
     description: toolDescriptions.browser_click,
     parameters: toolParameters.browser_click,
     execute: (input, ctx) =>
       run(async () =>
         formatPageState(
-          await bb.browser.page.act(
+          await patcher.browser.page.act(
             {
               action: {
                 action: "click",
@@ -98,14 +101,14 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_fill",
     description: toolDescriptions.browser_fill,
     parameters: toolParameters.browser_fill,
     execute: (input, ctx) =>
       run(async () =>
         formatPageState(
-          await bb.browser.page.act(
+          await patcher.browser.page.act(
             {
               action: { action: "fill", ref: input.ref, text: input.text },
               tabId: input.tabId,
@@ -117,14 +120,14 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_press",
     description: toolDescriptions.browser_press,
     parameters: toolParameters.browser_press,
     execute: (input, ctx) =>
       run(async () =>
         formatPageState(
-          await bb.browser.page.act(
+          await patcher.browser.page.act(
             {
               action: {
                 action: "press",
@@ -140,13 +143,13 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_screenshot",
     description: toolDescriptions.browser_screenshot,
     parameters: toolParameters.browser_screenshot,
     execute: (input, ctx) =>
       run(async () => {
-        const shot = await bb.browser.page.screenshot(
+        const shot = await patcher.browser.page.screenshot(
           { tabId: input.tabId, fullPage: input.fullPage ?? false },
           { signal: ctx.signal },
         );
@@ -156,7 +159,7 @@ export default function plugin(bb: BbPluginApi) {
             : "Whole page"
           : "Viewport";
         // The image itself, not a path to it: a model that asked to see the page
-        // should see it in the same turn. `bb browser screenshot` is the path
+        // should see it in the same turn. `patcher browser screenshot` is the path
         // that writes a file, for when the picture is for a human.
         return {
           content: [
@@ -170,13 +173,13 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_handle_dialog",
     description: toolDescriptions.browser_handle_dialog,
     parameters: toolParameters.browser_handle_dialog,
     execute: (input, ctx) =>
       run(async () => {
-        const answered = await bb.browser.page.handleDialog(
+        const answered = await patcher.browser.page.handleDialog(
           {
             accept: input.accept,
             tabId: input.tabId,
@@ -190,22 +193,24 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_tabs_list",
     description: toolDescriptions.browser_tabs_list,
     parameters: toolParameters.browser_tabs_list,
     execute: (_input, ctx) =>
-      run(async () => formatTabs(await bb.browser.tabs.list({ signal: ctx.signal }))),
+      run(async () =>
+        formatTabs(await patcher.browser.tabs.list({ signal: ctx.signal })),
+      ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_tabs_open",
     description: toolDescriptions.browser_tabs_open,
     parameters: toolParameters.browser_tabs_open,
     execute: (input, ctx) =>
       run(async () =>
         formatTab(
-          await bb.browser.tabs.open(
+          await patcher.browser.tabs.open(
             { url: input.url, activate: input.activate },
             { signal: ctx.signal },
           ),
@@ -213,13 +218,13 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_tabs_close",
     description: toolDescriptions.browser_tabs_close,
     parameters: toolParameters.browser_tabs_close,
     execute: (input, ctx) =>
       run(async () => {
-        const result = await bb.browser.tabs.close(
+        const result = await patcher.browser.tabs.close(
           { tabId: input.tabId },
           { signal: ctx.signal },
         );
@@ -227,14 +232,14 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_tabs_activate",
     description: toolDescriptions.browser_tabs_activate,
     parameters: toolParameters.browser_tabs_activate,
     execute: (input, ctx) =>
       run(async () =>
         formatTab(
-          await bb.browser.tabs.activate(
+          await patcher.browser.tabs.activate(
             { tabId: input.tabId },
             { signal: ctx.signal },
           ),
@@ -242,13 +247,13 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_page_get_url",
     description: toolDescriptions.browser_page_get_url,
     parameters: toolParameters.browser_page_get_url,
     execute: (input, ctx) =>
       run(async () => {
-        const url = await bb.browser.page.getUrl(
+        const url = await patcher.browser.page.getUrl(
           { tabId: input.tabId },
           { signal: ctx.signal },
         );
@@ -256,13 +261,13 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_page_get_title",
     description: toolDescriptions.browser_page_get_title,
     parameters: toolParameters.browser_page_get_title,
     execute: (input, ctx) =>
       run(async () => {
-        const title = await bb.browser.page.getTitle(
+        const title = await patcher.browser.page.getTitle(
           { tabId: input.tabId },
           { signal: ctx.signal },
         );
@@ -270,13 +275,13 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_page_get_text",
     description: toolDescriptions.browser_page_get_text,
     parameters: toolParameters.browser_page_get_text,
     execute: (input, ctx) =>
       run(async () => {
-        const result = await bb.browser.page.getText(
+        const result = await patcher.browser.page.getText(
           {
             tabId: input.tabId,
             maxLength: input.maxLength ?? DEFAULT_PAGE_TEXT_MAX_LENGTH,
@@ -299,13 +304,13 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_page_get_selection",
     description: toolDescriptions.browser_page_get_selection,
     parameters: toolParameters.browser_page_get_selection,
     execute: (input, ctx) =>
       run(async () => {
-        const result = await bb.browser.page.getSelection(
+        const result = await patcher.browser.page.getSelection(
           { tabId: input.tabId },
           { signal: ctx.signal },
         );
@@ -320,14 +325,14 @@ export default function plugin(bb: BbPluginApi) {
       }),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_navigation_open",
     description: toolDescriptions.browser_navigation_open,
     parameters: toolParameters.browser_navigation_open,
     execute: (input, ctx) =>
       run(async () =>
         formatTab(
-          await bb.browser.navigation.open(
+          await patcher.browser.navigation.open(
             { url: input.url, tabId: input.tabId, newTab: input.newTab },
             { signal: ctx.signal },
           ),
@@ -335,14 +340,14 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_navigation_back",
     description: toolDescriptions.browser_navigation_back,
     parameters: toolParameters.browser_navigation_back,
     execute: (input, ctx) =>
       run(async () =>
         formatTab(
-          await bb.browser.navigation.back(
+          await patcher.browser.navigation.back(
             { tabId: input.tabId },
             { signal: ctx.signal },
           ),
@@ -350,14 +355,14 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_navigation_forward",
     description: toolDescriptions.browser_navigation_forward,
     parameters: toolParameters.browser_navigation_forward,
     execute: (input, ctx) =>
       run(async () =>
         formatTab(
-          await bb.browser.navigation.forward(
+          await patcher.browser.navigation.forward(
             { tabId: input.tabId },
             { signal: ctx.signal },
           ),
@@ -365,14 +370,14 @@ export default function plugin(bb: BbPluginApi) {
       ),
   });
 
-  bb.agents.registerTool({
+  patcher.agents.registerTool({
     name: "browser_navigation_reload",
     description: toolDescriptions.browser_navigation_reload,
     parameters: toolParameters.browser_navigation_reload,
     execute: (input, ctx) =>
       run(async () =>
         formatTab(
-          await bb.browser.navigation.reload(
+          await patcher.browser.navigation.reload(
             { tabId: input.tabId },
             { signal: ctx.signal },
           ),
@@ -385,7 +390,7 @@ export default function plugin(bb: BbPluginApi) {
   // browser connected right now" would leave a user who opens the browser
   // mid-thread with no tools until the next session. Failing at call time with
   // a sentence that says what to do is strictly better than that.
-  bb.agents.configure(() => ({
+  patcher.agents.configure(() => ({
     tools: [...BROWSER_TOOL_NAMES],
     skills: [],
     instructions: BROWSER_TOOLS_INSTRUCTIONS,

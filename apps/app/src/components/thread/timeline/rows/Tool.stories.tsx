@@ -1,4 +1,4 @@
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 import { ThreadTimelineRows } from "@/components/thread/timeline";
 import { toolRow } from "@/test/fixtures/thread-timeline-rows";
 import { StoryCard, StoryRow } from "../../../../../.ladle/story-card";
@@ -17,7 +17,7 @@ const baseProps = {
 };
 
 // ---------------------------------------------------------------------------
-// Real tool work rows pulled from live threads in ~/.bb-dev/bb.db. These are
+// Real tool work rows pulled from live threads in ~/.patcher-dev/patcher.db. These are
 // the catch-all "tool" rows — tools that aren't classified as activity intents
 // on a command row (Read/Grep/Glob/list_files/search go on commands instead).
 // Common tools that surface here: TodoWrite, ToolSearch, notify_user, Skill,
@@ -84,7 +84,7 @@ const notifyUserShort: TimelineRow = toolRow({
   callId: "call_MZFh9Lp2X4LkW9gQteoyDB2F",
   toolName: "notify_user",
   toolArgs: {
-    text: "Hi — I’m your bb parent thread for this project. I’ll coordinate work by delegating substantive coding, debugging, and investigation tasks to child threads in isolated worktrees, then review results and report back.\n\nA few quick preferences so I can work the way you like:\n1. What should I call you?\n2. Do you prefer heavy delegation with concise summaries, or more hands-on collaboration with more frequent check-ins?\n3. What kinds of tasks should I expect most often: implementation, debugging, planning/reviews, or something else?",
+    text: "Hi — I’m your Patcher parent thread for this project. I’ll coordinate work by delegating substantive coding, debugging, and investigation tasks to child threads in isolated worktrees, then review results and report back.\n\nA few quick preferences so I can work the way you like:\n1. What should I call you?\n2. Do you prefer heavy delegation with concise summaries, or more hands-on collaboration with more frequent check-ins?\n3. What kinds of tasks should I expect most often: implementation, debugging, planning/reviews, or something else?",
   },
   output: "Notification delivered",
   approvalStatus: null,
@@ -108,7 +108,7 @@ const notifyUserLong: TimelineRow = toolRow({
   callId: "call_llaogf7VfpS1YkeQ2iIPUuL7",
   toolName: "notify_user",
   toolArgs: {
-    text: "Here’s the merge-evaluation summary.\n\n## 1. `bb/daemon-protocol-phase6-cleanup`\n\n**Status:** code complete, validated by worker, Claude review active. **Not merging without your explicit go-ahead.**\n\n**Commits over `main` (`d75f390c`):**\n- `452df600` — remove daemon high-water response compatibility\n- `c1261311` — remove completed daemon cutover scaffolding\n\n**Diff:** 19 files, **+75 / -3502**, net **-3427 LOC**.\n\n| Area | Files | Diff | Responsibility |\n| --- | --- | ---: | --- |\n| One-off cutover tooling/docs | server migration script, runner, test, runbook | **-2945** | Delete post-live-migration executable scaffolding. Git history is the archive. |\n| Plans/docs cleanup | delete completed host cutover plan; update simplification/complexity plans | **-415** | Keep roadmap accurate; remove completed plan per AGENTS.md. |\n| Server runtime/tests/package | command-result route, session route, events comment, package dep/script, tests | **-62** | Remove response high-water computation and stale naming. |\n| Host daemon tests/helpers | test server/session result expectations | **-14** | Stop modeling high-water marks in daemon-facing tests. |\n| Contract package | session response schemas/tests | **+13** | Tighten contract to reject removed field. |\n| DB public surface | `packages/db/src/data/index.ts` | **-1** | Stop exporting internal `getHighWaterMarks`. |\n\n### Contract boundary changes\n- `/internal/session/open` response no longer includes `threadHighWaterMarks`.\n- `/internal/session/command-result` response is now strictly `{ ok: true }`.\n- Contract schemas are `.strict()`, so old response fields are rejected rather than silently tolerated.\n- Host daemon tests now assert the removed field is absent/rejected.\n\n### Main risk / decision\nThe big decision is whether we are comfortable deleting the one-off migration tooling now. It’s the right simplification move after successful live cutover, but it is a burn-the-bridge step; recovery would be via git history, not a current script.",
+    text: "Here’s the merge-evaluation summary.\n\n## 1. `patcher/daemon-protocol-phase6-cleanup`\n\n**Status:** code complete, validated by worker, Claude review active. **Not merging without your explicit go-ahead.**\n\n**Commits over `main` (`d75f390c`):**\n- `452df600` — remove daemon high-water response compatibility\n- `c1261311` — remove completed daemon cutover scaffolding\n\n**Diff:** 19 files, **+75 / -3502**, net **-3427 LOC**.\n\n| Area | Files | Diff | Responsibility |\n| --- | --- | ---: | --- |\n| One-off cutover tooling/docs | server migration script, runner, test, runbook | **-2945** | Delete post-live-migration executable scaffolding. Git history is the archive. |\n| Plans/docs cleanup | delete completed host cutover plan; update simplification/complexity plans | **-415** | Keep roadmap accurate; remove completed plan per AGENTS.md. |\n| Server runtime/tests/package | command-result route, session route, events comment, package dep/script, tests | **-62** | Remove response high-water computation and stale naming. |\n| Host daemon tests/helpers | test server/session result expectations | **-14** | Stop modeling high-water marks in daemon-facing tests. |\n| Contract package | session response schemas/tests | **+13** | Tighten contract to reject removed field. |\n| DB public surface | `packages/db/src/data/index.ts` | **-1** | Stop exporting internal `getHighWaterMarks`. |\n\n### Contract boundary changes\n- `/internal/session/open` response no longer includes `threadHighWaterMarks`.\n- `/internal/session/command-result` response is now strictly `{ ok: true }`.\n- Contract schemas are `.strict()`, so old response fields are rejected rather than silently tolerated.\n- Host daemon tests now assert the removed field is absent/rejected.\n\n### Main risk / decision\nThe big decision is whether we are comfortable deleting the one-off migration tooling now. It’s the right simplification move after successful live cutover, but it is a burn-the-bridge step; recovery would be via git history, not a current script.",
   },
   output: "Notification delivered",
   approvalStatus: null,
@@ -292,7 +292,7 @@ const projectClaudeSkillReadTool = createSkillReadTool({
   sequenceOffset: 0,
   skillName: "moss-hardening-review",
   skillPath:
-    "/Users/brsbl/Code/bb/.claude/skills/moss-hardening-review/SKILL.md",
+    "/Users/brsbl/Code/patcher/.claude/skills/moss-hardening-review/SKILL.md",
 });
 
 const userClaudeSymlinkSkillReadTool = createSkillReadTool({
@@ -306,7 +306,7 @@ const projectCodexSkillReadTool = createSkillReadTool({
   idSuffix: "project_codex",
   sequenceOffset: 4,
   skillName: "workspace-tools",
-  skillPath: "/Users/brsbl/Code/bb/.codex/skills/workspace-tools/SKILL.md",
+  skillPath: "/Users/brsbl/Code/patcher/.codex/skills/workspace-tools/SKILL.md",
 });
 
 const userCodexSkillReadTool = createSkillReadTool({

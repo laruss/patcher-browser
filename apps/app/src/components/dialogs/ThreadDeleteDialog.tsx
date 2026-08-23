@@ -1,4 +1,4 @@
-import type { Thread } from "@bb/domain";
+import type { Thread } from "@patcher/domain";
 import {
   ConfirmDeleteDialog,
   ConfirmDeleteDialogContent,

@@ -1,13 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import type { IconName } from "@bb/shared-ui/icon";
+import type { IconName } from "@patcher/shared-ui/icon";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import {
   getFollowUpPromptPlaceholder,
   getCompactFollowUpPromptPlaceholder,
 } from "@/components/promptbox/follow-up-placeholder";
-import { isPluginPendingInteraction, PERSONAL_PROJECT_ID } from "@bb/domain";
+import {
+  isPluginPendingInteraction,
+  PERSONAL_PROJECT_ID,
+} from "@patcher/domain";
 import type {
   EnvironmentStatus,
   PendingInteraction,
@@ -19,12 +22,12 @@ import type {
   ThreadTimelineModelFallback,
   ThreadTimelinePendingTodos,
   ThreadWithRuntime,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   PullRequestMergeMethod,
   ThreadTimelineResponse,
   TimelineWorkflowWorkRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ThreadPendingInteractionBanner } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
 import { PluginPendingInteractionComposer } from "@/components/plugin/PluginPendingInteractionComposer";
 import { PluginComposerBanners } from "@/components/plugin/PluginComposerBanners";

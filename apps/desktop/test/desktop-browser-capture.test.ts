@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@patcher/desktop-contract";
 import {
-  BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
+  PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
   parseBrowserCaptureRegion,
 } from "../src/desktop-browser-capture.js";
 
@@ -9,18 +9,18 @@ describe("the content-size script", () => {
   it("is a constant with no interpolation left in it", () => {
     // Injected into an untrusted page, like every other script this shell
     // runs: nothing a caller supplies may reach it.
-    expect(BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).not.toMatch(/\$\{/);
+    expect(PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).not.toMatch(/\$\{/);
   });
 
   it("measures both elements, because neither one is right everywhere", () => {
     // A standards-mode page grows `documentElement`; a quirks-mode one grows
     // `body`. Reading only one of them cuts half the web off at the viewport.
-    expect(BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain(
+    expect(PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain(
       "document.documentElement",
     );
-    expect(BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain("document.body");
-    expect(BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain("scrollHeight");
-    expect(BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain("offsetHeight");
+    expect(PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain("document.body");
+    expect(PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain("scrollHeight");
+    expect(PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT).toContain("offsetHeight");
   });
 });
 
@@ -46,12 +46,12 @@ describe("parseBrowserCaptureRegion", () => {
     // so a very long page is captured down to its top — reported, not hidden.
     const region = parseBrowserCaptureRegion({
       width: 1280,
-      height: BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION + 5_000,
+      height: PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION + 5_000,
     });
 
     expect(region).toEqual({
       width: 1280,
-      height: BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+      height: PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
       truncated: true,
     });
   });
@@ -59,11 +59,11 @@ describe("parseBrowserCaptureRegion", () => {
   it("clamps width the same way, since a wide page fails the same way", () => {
     expect(
       parseBrowserCaptureRegion({
-        width: BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION + 1,
+        width: PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION + 1,
         height: 600,
       }),
     ).toEqual({
-      width: BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+      width: PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
       height: 600,
       truncated: true,
     });

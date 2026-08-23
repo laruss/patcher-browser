@@ -1,4 +1,5 @@
-export const DESKTOP_RELEASE_CHANNEL_ENV_NAME = "BB_DESKTOP_RELEASE_CHANNEL";
+export const DESKTOP_RELEASE_CHANNEL_ENV_NAME =
+  "PATCHER_DESKTOP_RELEASE_CHANNEL";
 
 export function resolveDesktopReleaseChannel(env) {
   const rawChannel = env[DESKTOP_RELEASE_CHANNEL_ENV_NAME]?.trim();
@@ -17,9 +18,9 @@ export function resolveDesktopReleaseChannel(env) {
 export function createDesktopReleaseConfig(channel) {
   if (channel === "nightly") {
     return {
-      appId: "dev.bb.desktop.nightly",
-      applicationName: "bb Nightly",
-      artifactName: "bb-nightly-${version}-${arch}.${ext}",
+      appId: "app.patcher.desktop.nightly",
+      applicationName: "Patcher Nightly",
+      artifactName: "patcher-nightly-${version}-${arch}.${ext}",
       iconFileName: "icon-nightly.png",
       macIconPath: "assets/icon-nightly.icns",
       releaseTag: "desktop-nightly",
@@ -28,8 +29,8 @@ export function createDesktopReleaseConfig(channel) {
   }
 
   return {
-    appId: "dev.bb.desktop",
-    applicationName: "bb",
+    appId: "app.patcher.desktop",
+    applicationName: "Patcher",
     artifactName: "${productName}-${version}-${arch}.${ext}",
     iconFileName: "icon.png",
     macIconPath: "assets/icon.icns",
@@ -39,5 +40,5 @@ export function createDesktopReleaseConfig(channel) {
 }
 
 export function createDesktopUpdateReleaseBaseUrl(releaseTag) {
-  return `https://github.com/get-bb/bb/releases/download/${releaseTag}/`;
+  return `https://github.com/laruss/patcher-browser/releases/download/${releaseTag}/`;
 }

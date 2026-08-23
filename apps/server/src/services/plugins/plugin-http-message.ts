@@ -1,7 +1,7 @@
 /**
  * A plugin HTTP route as messages.
  *
- * `bb.http.route` is one of the two callbacks that cannot cross a boundary as
+ * `patcher.http.route` is one of the two callbacks that cannot cross a boundary as
  * it stands (see ./plugin-callbacks.ts): it takes a Hono `Context` and returns
  * a `Response`, and neither is data. This file is the shape they reduce to,
  * with the conversion written and tested both ways.

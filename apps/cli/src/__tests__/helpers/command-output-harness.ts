@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import { Command } from "commander";
-import { createApiClient, type ApiClient } from "@bb/server-contract";
-import type { BbSdkContext } from "@bb/sdk";
+import { createApiClient, type ApiClient } from "@patcher/server-contract";
+import type { PatcherSdkContext } from "@patcher/sdk";
 
 const readlineState = vi.hoisted(() => ({
   question: vi.fn(),
@@ -18,10 +18,14 @@ vi.mock("../../client.js", async () => {
   // cliFetch stays real — it delegates to global fetch, which tests stub.
   const { cliFetch } =
     await vi.importActual<typeof import("../../client.js")>("../../client.js");
-  const { createBbSdk } =
-    await vi.importActual<typeof import("@bb/sdk/core")>("@bb/sdk/core");
+  const { createPatcherSdk } =
+    await vi.importActual<typeof import("@patcher/sdk/core")>(
+      "@patcher/sdk/core",
+    );
   const { createHttpTransport } =
-    await vi.importActual<typeof import("@bb/sdk/node")>("@bb/sdk/node");
+    await vi.importActual<typeof import("@patcher/sdk/node")>(
+      "@patcher/sdk/node",
+    );
   const toResponse = (resolved: MockTransportResolved): Response =>
     resolved instanceof Response
       ? resolved
@@ -29,10 +33,10 @@ vi.mock("../../client.js", async () => {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
-  const createCliBbSdk = vi.fn(
-    (baseUrl: string, options: MockCliBbSdkOptions = {}) => {
+  const createCliPatcherSdk = vi.fn(
+    (baseUrl: string, options: MockCliPatcherSdkOptions = {}) => {
       const realTransport = createHttpTransport({ baseUrl, runtime: "node" });
-      return createBbSdk({
+      return createPatcherSdk({
         context: options.context,
         transport: {
           ...realTransport,
@@ -45,7 +49,7 @@ vi.mock("../../client.js", async () => {
       });
     },
   );
-  return { cliFetch, createCliBbSdk };
+  return { cliFetch, createCliPatcherSdk };
 });
 
 vi.mock("node:readline/promises", () => ({
@@ -78,8 +82,8 @@ interface ServerClientOverride {
   api: object;
 }
 
-interface MockCliBbSdkOptions {
-  context?: BbSdkContext;
+interface MockCliPatcherSdkOptions {
+  context?: PatcherSdkContext;
 }
 
 export const createClientMock = serverClientState.createClient;
@@ -115,8 +119,8 @@ export function setupCommandOutputTestEnvironment(): void {
     readlineState.question.mockReset();
     readlineState.close.mockReset();
 
-    vi.stubEnv("BB_PROJECT_ID", undefined);
-    vi.stubEnv("BB_THREAD_ID", undefined);
+    vi.stubEnv("PATCHER_PROJECT_ID", undefined);
+    vi.stubEnv("PATCHER_THREAD_ID", undefined);
   });
 
   afterEach(() => {
@@ -175,7 +179,7 @@ export async function runCommand(
 ): Promise<void> {
   const program = new Command();
   register(program);
-  await program.parseAsync(["node", "bb", ...args]);
+  await program.parseAsync(["node", "patcher", ...args]);
 }
 
 export async function getHelpOutput(
@@ -192,7 +196,7 @@ export async function getHelpOutput(
   register(program);
 
   await expect(
-    program.parseAsync(["node", "bb", ...args, "--help"]),
+    program.parseAsync(["node", "patcher", ...args, "--help"]),
   ).rejects.toMatchObject({
     code: "commander.helpDisplayed",
   });

@@ -1,9 +1,9 @@
-import type { WorkspaceStatus } from "@bb/domain";
+import type { WorkspaceStatus } from "@patcher/domain";
 import { DiffStatsTally } from "@/components/ui/diff-stats-tally.js";
-import { EmptyState } from "@bb/shared-ui/empty-state";
+import { EmptyState } from "@patcher/shared-ui/empty-state";
 import { FilePathLink } from "@/components/ui/file-path-link.js";
 import { TruncatedList } from "@/components/ui/truncated-list.js";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { formatWorkspaceFileStatus } from "@/components/workspace/workspace-change-summary";
 
 export type WorkspaceChangedFile =

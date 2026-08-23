@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { AppKeybinding } from "@bb/domain";
+import type { AppKeybinding } from "@patcher/domain";
 import {
   createTestAppHarness,
   type TestAppHarness,
@@ -14,13 +14,13 @@ const BASE = "http://127.0.0.1:3334";
  * that a second plugin also wants.
  */
 const KEYBINDING_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.ui.registerKeybinding({
+  export default function plugin(patcher: any) {
+    patcher.ui.registerKeybinding({
       command: "browser.newTab",
       shortcut: { key: "y", mod: true, shift: true },
     });
-    bb.ui.registerKeybinding({ command: "browser.reload", shortcut: null });
-    bb.ui.registerKeybinding({
+    patcher.ui.registerKeybinding({ command: "browser.reload", shortcut: null });
+    patcher.ui.registerKeybinding({
       command: "thread.search",
       shortcut: { key: "j", mod: true },
     });
@@ -29,8 +29,8 @@ const KEYBINDING_SOURCE = `
 
 /** Alphabetically after the first plugin, so it loses the contested command. */
 const RIVAL_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.ui.registerKeybinding({
+  export default function plugin(patcher: any) {
+    patcher.ui.registerKeybinding({
       command: "thread.search",
       shortcut: { key: "q", mod: true },
     });
@@ -48,7 +48,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Keybinding fixture",
         description: "Keybinding plugin fixture.",
         branding: { icon: "Zap" },
@@ -60,7 +60,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin keybindings (bb.ui.registerKeybinding)", () => {
+describe("plugin keybindings (patcher.ui.registerKeybinding)", () => {
   let harness: TestAppHarness;
 
   async function systemConfig(): Promise<{
@@ -86,8 +86,8 @@ describe("plugin keybindings (bb.ui.registerKeybinding)", () => {
     harness = await createTestAppHarness();
     const fixtures = join(harness.config.dataDir, "fixtures");
     for (const [name, serverSource] of [
-      ["bb-plugin-akeys", KEYBINDING_SOURCE],
-      ["bb-plugin-zkeys", RIVAL_SOURCE],
+      ["patcher-plugin-akeys", KEYBINDING_SOURCE],
+      ["patcher-plugin-zkeys", RIVAL_SOURCE],
     ] as const) {
       const rootDir = await writePlugin(fixtures, { name, serverSource });
       const entry = await harness.pluginService.installPath(rootDir);
@@ -187,14 +187,14 @@ describe("plugin keybindings (bb.ui.registerKeybinding)", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-badkeys",
+        name: "patcher-plugin-badkeys",
         serverSource: `
-          export default function plugin(bb: any) {
-            bb.ui.registerKeybinding({
+          export default function plugin(patcher: any) {
+            patcher.ui.registerKeybinding({
               command: "thread.rename",
               shortcut: { key: "0", mod: true },
             });
-            bb.ui.registerKeybinding({
+            patcher.ui.registerKeybinding({
               command: "browser.nope",
               shortcut: { key: "y", mod: true },
             });

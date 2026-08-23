@@ -31,7 +31,7 @@ const providers = ["codex", "claude-code", "pi"];
 function createCaptureCommand(fileName: string): string {
   return (
     `printf '%s\\n%s\\n%s\\n' ` +
-    `"$BB_THREAD_ID" "$BB_PROJECT_ID" "$BB_ENVIRONMENT_ID" > ${fileName}`
+    `"$PATCHER_THREAD_ID" "$PATCHER_PROJECT_ID" "$PATCHER_ENVIRONMENT_ID" > ${fileName}`
   );
 }
 

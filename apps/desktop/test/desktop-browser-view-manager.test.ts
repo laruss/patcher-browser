@@ -1,35 +1,35 @@
 import type { WebContentsView } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
-  BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
-  type BbDesktopBrowserDownload,
-  type BbDesktopBrowserPageScriptCall,
-  type BbDesktopBrowserViewBounds,
-} from "@bb/desktop-contract";
-import { BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT } from "../src/desktop-browser-capture.js";
+  PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+  PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+  type PatcherDesktopBrowserDownload,
+  type PatcherDesktopBrowserPageScriptCall,
+  type PatcherDesktopBrowserViewBounds,
+} from "@patcher/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT } from "../src/desktop-browser-capture.js";
 import {
-  BB_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
-  BB_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
-  BB_DESKTOP_BROWSER_FAVICON_CHANNEL,
-  BB_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
-  BB_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
-  BB_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
-  BB_DESKTOP_BROWSER_POPUP_CHANNEL,
-  BB_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
-  BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_FAVICON_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
 } from "../src/desktop-browser-ipc.js";
 import {
-  BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
-  BB_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
-  BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
 } from "../src/desktop-browser-page-read.js";
 import {
-  BB_BROWSER_ACTIONABILITY_SCRIPT,
-  BB_BROWSER_PREPARE_FILL_SCRIPT,
-  BB_BROWSER_READ_CHECKED_SCRIPT,
+  PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
+  PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
+  PATCHER_BROWSER_READ_CHECKED_SCRIPT,
 } from "../src/desktop-browser-actions.js";
 import {
   createDesktopBrowserViewManager as createProductionDesktopBrowserViewManager,
@@ -43,7 +43,7 @@ import {
   type DesktopBrowserHostWindow,
 } from "../src/desktop-browser-view.js";
 
-const TEST_DOWNLOAD_DIRECTORY = "/tmp/bb-test-downloads";
+const TEST_DOWNLOAD_DIRECTORY = "/tmp/patcher-test-downloads";
 const TEST_PAGE_SCRIPT_PRELOAD_PATH = "/app/dist/page-script-preload.cjs";
 
 function createDesktopBrowserViewManager(
@@ -1114,7 +1114,7 @@ const electronMock = vi.hoisted(() => {
   let nextWebContentsId = 1;
 
   class FakeWebContentsView {
-    public readonly boundsCalls: BbDesktopBrowserViewBounds[] = [];
+    public readonly boundsCalls: PatcherDesktopBrowserViewBounds[] = [];
     public readonly webContents: FakeWebContents;
     /** What the manager asked for when it created this view. */
     public readonly options: {
@@ -1137,7 +1137,7 @@ const electronMock = vi.hoisted(() => {
       }
     }
 
-    setBounds(bounds: BbDesktopBrowserViewBounds): void {
+    setBounds(bounds: PatcherDesktopBrowserViewBounds): void {
       this.boundsCalls.push(bounds);
     }
 
@@ -1489,12 +1489,12 @@ function startFakeDownload(args: StartFakeDownloadArgs): {
 
 function downloadPayloads(
   hostWindow: FakeHostWindow,
-): BbDesktopBrowserDownload[] {
+): PatcherDesktopBrowserDownload[] {
   return hostWindow.webContents.sentMessages
     .filter(
-      (message) => message.channel === BB_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
+      (message) => message.channel === PATCHER_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
     )
-    .map((message) => message.payload as BbDesktopBrowserDownload);
+    .map((message) => message.payload as PatcherDesktopBrowserDownload);
 }
 
 function requireOnBeforeRequestListener(): FakeOnBeforeRequestListener {
@@ -1564,7 +1564,7 @@ function faviconPushesOf(
   const pushes: Array<{ tabId: string; dataUrl: string | null }> = [];
   for (const message of hostWindow.webContents.sentMessages) {
     if (
-      message.channel === BB_DESKTOP_BROWSER_FAVICON_CHANNEL &&
+      message.channel === PATCHER_DESKTOP_BROWSER_FAVICON_CHANNEL &&
       "dataUrl" in message.payload
     ) {
       pushes.push(message.payload);
@@ -1617,7 +1617,7 @@ describe("DesktopBrowserViewManager favicons", () => {
     await settleFavicons();
 
     // Fetched by the shell, through the session that owns the page's cookies and
-    // the network firewall — never by the bb app origin.
+    // the network firewall — never by the Patcher app origin.
     expect(requireFakeSession().fetchedUrls).toEqual([
       "https://example.com/icon.png",
     ]);
@@ -1844,7 +1844,7 @@ describe("DesktopBrowserViewManager", () => {
 
     expect(
       browserRequestBlocked({
-        url: "http://localhost:38886/api/v1/threads/thr_1/archive",
+        url: "http://localhost:38986/api/v1/threads/thr_1/archive",
         method: "GET",
         resourceType: "mainFrame",
         webContentsId: view.webContents.id,
@@ -1852,7 +1852,7 @@ describe("DesktopBrowserViewManager", () => {
     ).toBe(false);
     expect(
       browserRequestBlocked({
-        url: "http://localhost:38886/api/v1/threads/thr_1/archive",
+        url: "http://localhost:38986/api/v1/threads/thr_1/archive",
         method: "POST",
         resourceType: "mainFrame",
         webContentsId: view.webContents.id,
@@ -2147,11 +2147,11 @@ describe("DesktopBrowserViewManager", () => {
     view.webContents.emitDidNavigate("https://example.com/");
 
     expect(
-      view.webContents.emitWillRedirect("http://localhost:38886/", true),
+      view.webContents.emitWillRedirect("http://localhost:38986/", true),
     ).toBe(false);
     expect(
       browserRequestBlocked({
-        url: "http://localhost:38886/",
+        url: "http://localhost:38986/",
         resourceType: "mainFrame",
         webContentsId: view.webContents.id,
       }),
@@ -2312,7 +2312,7 @@ describe("DesktopBrowserViewManager", () => {
     ).toBe(false);
     expect(
       browserRequestBlocked({
-        url: "http://localhost:38886/api",
+        url: "http://localhost:38986/api",
         resourceType: "xhr",
         webContentsId: view.webContents.id,
         frameOrigin: "http://localhost:5173",
@@ -2320,7 +2320,7 @@ describe("DesktopBrowserViewManager", () => {
     ).toBe(true);
     expect(
       view.webContents.emitWillFrameNavigate(
-        "http://localhost:38886/",
+        "http://localhost:38986/",
         true,
         "http://localhost:5173",
       ),
@@ -2403,7 +2403,7 @@ describe("DesktopBrowserViewManager", () => {
     });
     const view = requireFakeView(0);
 
-    expect(view.webContents.emitWindowOpen("http://localhost:38886/")).toEqual({
+    expect(view.webContents.emitWindowOpen("http://localhost:38986/")).toEqual({
       action: "deny",
     });
     expect(openTabPushesOf(hostWindow)).toEqual([]);
@@ -3099,10 +3099,10 @@ describe("DesktopBrowserViewManager page reads", () => {
     expect(webContents.mainWorldCalls).toBe(0);
     expect(webContents.isolatedWorldCalls).toHaveLength(1);
     expect(webContents.isolatedWorldCalls[0]?.worldId).toBe(
-      BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+      PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
     );
     expect(webContents.isolatedWorldCalls[0]?.scripts).toEqual([
-      { code: BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT },
+      { code: PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT },
     ]);
   });
 
@@ -3135,7 +3135,7 @@ describe("DesktopBrowserViewManager page reads", () => {
 
       const pending = manager.readPage({ hostWindow, tabId: "browser:a" });
       await vi.advanceTimersByTimeAsync(
-        BB_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS + 1,
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS + 1,
       );
 
       await expect(pending).resolves.toEqual({ ok: false, reason: "timeout" });
@@ -3160,7 +3160,9 @@ describe("DesktopBrowserViewManager page reads", () => {
 
   it("truncates a page-supplied title to the contract cap", async () => {
     const { hostWindow, manager, webContents } = attachTabForReads();
-    webContents.setTitle("t".repeat(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH + 50));
+    webContents.setTitle(
+      "t".repeat(PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH + 50),
+    );
     webContents.isolatedWorldResult = {
       contentType: "text/html",
       text: "",
@@ -3173,7 +3175,9 @@ describe("DesktopBrowserViewManager page reads", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.title).toHaveLength(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH);
+      expect(result.title).toHaveLength(
+        PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+      );
     }
   });
 });
@@ -3532,7 +3536,7 @@ describe("DesktopBrowserViewManager dialogs", () => {
   function dialogPushesOf(hostWindow: FakeHostWindow): unknown[] {
     const pushes: unknown[] = [];
     for (const message of hostWindow.webContents.sentMessages) {
-      if (message.channel === "bb-desktop:browser:dialog") {
+      if (message.channel === "patcher-desktop:browser:dialog") {
         pushes.push(message.payload);
       }
     }
@@ -3704,7 +3708,9 @@ describe("DesktopBrowserViewManager dialogs", () => {
 
     openDialog(webContents, {
       type: "alert",
-      message: "m".repeat(BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH + 100),
+      message: "m".repeat(
+        PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH + 100,
+      ),
       defaultPrompt: "",
     });
 
@@ -3712,7 +3718,7 @@ describe("DesktopBrowserViewManager dialogs", () => {
       dialog: { message: string };
     };
     expect(push.dialog.message).toHaveLength(
-      BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
     );
   });
 });
@@ -3771,7 +3777,7 @@ describe("DesktopBrowserViewManager interactions", () => {
     });
 
     const scriptResults = new Map<string, unknown>([
-      [BB_BROWSER_ACTIONABILITY_SCRIPT, { ready: true, ...READY_POINT }],
+      [PATCHER_BROWSER_ACTIONABILITY_SCRIPT, { ready: true, ...READY_POINT }],
     ]);
     webContents.debugger.results.set(
       "Runtime.callFunctionOn",
@@ -3911,7 +3917,7 @@ describe("DesktopBrowserViewManager interactions", () => {
   it("gives up with the reason when the element never becomes actionable", async () => {
     const { hostWindow, manager, webContents, scriptResults, generation } =
       await attachTabForInteractions();
-    scriptResults.set(BB_BROWSER_ACTIONABILITY_SCRIPT, {
+    scriptResults.set(PATCHER_BROWSER_ACTIONABILITY_SCRIPT, {
       ready: false,
       reason: "covered",
     });
@@ -3948,7 +3954,7 @@ describe("DesktopBrowserViewManager interactions", () => {
     const scripts = webContents.debugger.commands
       .filter((command) => command.method === "Runtime.callFunctionOn")
       .map((command) => command.params?.functionDeclaration);
-    expect(scripts).toContain(BB_BROWSER_PREPARE_FILL_SCRIPT);
+    expect(scripts).toContain(PATCHER_BROWSER_PREPARE_FILL_SCRIPT);
     expect(
       webContents.debugger.commands.find(
         (command) => command.method === "Input.insertText",
@@ -4033,7 +4039,7 @@ describe("DesktopBrowserViewManager interactions", () => {
   it("leaves an already-checked control alone", async () => {
     const { hostWindow, manager, webContents, scriptResults, generation } =
       await attachTabForInteractions();
-    scriptResults.set(BB_BROWSER_READ_CHECKED_SCRIPT, {
+    scriptResults.set(PATCHER_BROWSER_READ_CHECKED_SCRIPT, {
       ok: true,
       checked: true,
     });
@@ -5540,7 +5546,7 @@ describe("DesktopBrowserViewManager full-page captures", () => {
     // `Page.getLayoutMetrics`: that would want the `Page` domain, and enabling
     // it is what moves a tab's dialogs off Chromium's native modal.
     expect(webContents.isolatedWorldCalls.at(-1)?.scripts).toEqual([
-      { code: BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT },
+      { code: PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT },
     ]);
     expect(webContents.debugger.commands).toContainEqual({
       method: "Page.captureScreenshot",
@@ -5604,7 +5610,7 @@ describe("DesktopBrowserViewManager full-page captures", () => {
     const { hostWindow, manager, webContents } = attachTabForFullPage();
     webContents.isolatedWorldResult = {
       width: 1280,
-      height: BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION * 3,
+      height: PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION * 3,
     };
 
     const result = await manager.captureFullPage({
@@ -5614,7 +5620,7 @@ describe("DesktopBrowserViewManager full-page captures", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      height: BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+      height: PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
       truncated: true,
     });
   });
@@ -5622,7 +5628,9 @@ describe("DesktopBrowserViewManager full-page captures", () => {
   it("refuses a picture past what the bridge carries rather than cutting it", async () => {
     const { hostWindow, manager, webContents } = attachTabForFullPage();
     webContents.debugger.results.set("Page.captureScreenshot", {
-      data: "a".repeat(BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH + 1),
+      data: "a".repeat(
+        PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH + 1,
+      ),
     });
 
     await expect(
@@ -5935,9 +5943,9 @@ describe("browser download actions", () => {
     ).resolves.toEqual({
       ok: false,
       reason: "unknown-path",
-      message: "bb did not download that file.",
+      message: "Patcher did not download that file.",
     });
-    // Even a path inside the downloads folder is refused unless bb wrote it.
+    // Even a path inside the downloads folder is refused unless Patcher wrote it.
     await expect(
       manager.downloadAction({
         action: "reveal",
@@ -5994,7 +6002,8 @@ describe("browser chrome overlay", () => {
   function snapshotPayloads(hostWindow: FakeHostWindow): unknown[] {
     return hostWindow.webContents.sentMessages
       .filter(
-        (message) => message.channel === BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
+        (message) =>
+          message.channel === PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
       )
       .map((message) => message.payload);
   }
@@ -6089,7 +6098,8 @@ describe("find in page", () => {
   function findResults(hostWindow: FakeHostWindow): unknown[] {
     return hostWindow.webContents.sentMessages
       .filter(
-        (message) => message.channel === BB_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
+        (message) =>
+          message.channel === PATCHER_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
       )
       .map((message) => message.payload);
   }
@@ -6289,7 +6299,8 @@ describe("questions the network asks", () => {
   function promptPushes(hostWindow: FakeHostWindow): unknown[] {
     return hostWindow.webContents.sentMessages
       .filter(
-        (message) => message.channel === BB_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
+        (message) =>
+          message.channel === PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
       )
       .map((message) => message.payload);
   }
@@ -6298,7 +6309,7 @@ describe("questions the network asks", () => {
     return hostWindow.webContents.sentMessages
       .filter(
         (message) =>
-          message.channel === BB_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
+          message.channel === PATCHER_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
       )
       .map((message) => message.payload);
   }
@@ -6888,7 +6899,7 @@ describe("developer tools", () => {
     return hostWindow.webContents.sentMessages
       .filter(
         (message) =>
-          message.channel === BB_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
+          message.channel === PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
       )
       .map((message) => message.payload);
   }
@@ -7110,7 +7121,9 @@ describe("real popups", () => {
 
   function popupPushes(hostWindow: FakeHostWindow): unknown[] {
     return hostWindow.webContents.sentMessages
-      .filter((message) => message.channel === BB_DESKTOP_BROWSER_POPUP_CHANNEL)
+      .filter(
+        (message) => message.channel === PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
+      )
       .map((message) => message.payload);
   }
 
@@ -7178,7 +7191,7 @@ describe("real popups", () => {
     for (const url of [
       "javascript:alert(1)",
       "file:///etc/passwd",
-      "http://127.0.0.1:38886/",
+      "http://127.0.0.1:38986/",
     ]) {
       expect(view.webContents.emitWindowOpen(url).action).toBe("deny");
     }
@@ -7429,7 +7442,7 @@ describe("plugin page styles", () => {
     await Promise.resolve();
     view.webContents.insertedCss.length = 0;
 
-    view.webContents.emitDidNavigate("https://github.com/bb/pulls");
+    view.webContents.emitDidNavigate("https://github.com/patcher/pulls");
     await Promise.resolve();
 
     expect(view.webContents.insertedCss).toEqual([".feed { display: none }"]);
@@ -7446,8 +7459,8 @@ describe("plugin page styles", () => {
     expect(view.webContents.insertedCss).toEqual([]);
   });
 
-  // A pattern only names a website because `bb.sites` normalised it, and that
-  // happened two processes away — so the shell decides for itself that bb's own
+  // A pattern only names a website because `patcher.sites` normalised it, and that
+  // happened two processes away — so the shell decides for itself that Patcher's own
   // blank page is not a site. `**` is the pattern that shows it: a style for
   // "everything" must not restyle the app's own pages.
   it("treats a page that is not a site as no page at all", async () => {
@@ -7506,13 +7519,15 @@ describe("plugin page styles", () => {
   // but the address moved, and that is where one site's pattern stops matching.
   it("reconciles when a same-document navigation leaves the matching path", async () => {
     const { hostWindow, manager, view } = attachTab(
-      "https://github.com/bb/pulls",
+      "https://github.com/patcher/pulls",
     );
-    view.webContents.emitDidNavigate("https://github.com/bb/pulls");
+    view.webContents.emitDidNavigate("https://github.com/patcher/pulls");
     manager.setPageStyles({
       hostWindow,
       request: {
-        styles: [{ ...GITHUB_STYLE, matches: ["https://github.com/bb/**"] }],
+        styles: [
+          { ...GITHUB_STYLE, matches: ["https://github.com/patcher/**"] },
+        ],
       },
     });
     await Promise.resolve();
@@ -7539,7 +7554,7 @@ describe("plugin page styles", () => {
 
     // The page commits while the first insertion is still open, and the new
     // document's own insertion answers first.
-    view.webContents.emitDidNavigate("https://github.com/bb/pulls");
+    view.webContents.emitDidNavigate("https://github.com/patcher/pulls");
     await Promise.resolve();
     expect(view.webContents.deferredInsertions).toHaveLength(2);
     view.webContents.deferredInsertions[1]?.();
@@ -7568,7 +7583,7 @@ describe("plugin page styles", () => {
     manager.setPageStyles({ hostWindow, request: { styles: [GITHUB_STYLE] } });
     await Promise.resolve();
 
-    view.webContents.emitDidNavigate("https://github.com/bb/pulls");
+    view.webContents.emitDidNavigate("https://github.com/patcher/pulls");
     await Promise.resolve();
     expect(view.webContents.deferredInsertions).toHaveLength(2);
     // The old document's insertion fails first, while the new one is still open.
@@ -7655,7 +7670,7 @@ describe("plugin page scripts", () => {
     pluginId: "site-tweaks",
     scriptId: "toolbar",
     matches: ["https://github.com/**"],
-    code: "bb.ready(function(){})",
+    code: "patcher.ready(function(){})",
   };
 
   function attachTab(url: string): {
@@ -7676,17 +7691,17 @@ describe("plugin page scripts", () => {
 
   function pageScriptCalls(
     hostWindow: FakeHostWindow,
-  ): BbDesktopBrowserPageScriptCall[] {
+  ): PatcherDesktopBrowserPageScriptCall[] {
     return hostWindow.webContents.sentMessages
       .filter(
         (message) =>
-          message.channel === BB_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
+          message.channel === PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
       )
-      .map((message) => message.payload as BbDesktopBrowserPageScriptCall);
+      .map((message) => message.payload as PatcherDesktopBrowserPageScriptCall);
   }
 
   // The property the whole surface rests on: a user with no page-script plugin
-  // runs a browser whose pages hold no bb code at all.
+  // runs a browser whose pages hold no Patcher code at all.
   it("installs no preload until a script is declared, and removes it again", () => {
     const { hostWindow, manager } = attachTab("https://github.com/");
     const browserSession = requireFakeSession();
@@ -7724,7 +7739,7 @@ describe("plugin page scripts", () => {
 
     const bootstrap = manager.pageScriptBootstrap({
       webContentsId: view.webContents.id,
-      url: "https://github.com/bb/pulls",
+      url: "https://github.com/patcher/pulls",
     });
 
     expect(bootstrap.worlds).toEqual([
@@ -7732,7 +7747,7 @@ describe("plugin page scripts", () => {
         pluginId: "site-tweaks",
         worldId: 9001,
         scripts: [
-          { scriptId: "toolbar", code: "bb.ready(function(){})" },
+          { scriptId: "toolbar", code: "patcher.ready(function(){})" },
           { scriptId: "second", code: "/* second */" },
         ],
       },
@@ -7759,9 +7774,9 @@ describe("plugin page scripts", () => {
     ).toEqual([]);
   });
 
-  // A pattern is only known to name a website because `bb.sites` normalised it,
+  // A pattern is only known to name a website because `patcher.sites` normalised it,
   // and normalising happens two processes away. So the shell decides for itself
-  // that a blank page, a `file://` document and bb's own pages are not sites —
+  // that a blank page, a `file://` document and Patcher's own pages are not sites —
   // `**` reaching them would be a plugin on every page a tab can show.
   it("hands nothing to a page that is not a site", () => {
     const { hostWindow, manager, view } = attachTab("about:blank");
@@ -7804,7 +7819,7 @@ describe("plugin page scripts", () => {
 
     const answer = manager.pageScriptRpc({
       webContentsId: view.webContents.id,
-      url: "https://github.com/bb/pulls",
+      url: "https://github.com/patcher/pulls",
       request: {
         pluginId: "site-tweaks",
         method: "addNote",
@@ -7821,7 +7836,7 @@ describe("plugin page scripts", () => {
         pluginId: "site-tweaks",
         method: "addNote",
         input: '{"body":"hi"}',
-        url: "https://github.com/bb/pulls",
+        url: "https://github.com/patcher/pulls",
       },
     ]);
 
@@ -7853,7 +7868,7 @@ describe("plugin page scripts", () => {
     ).resolves.toEqual({
       ok: false,
       message:
-        'bb.rpc: plugin "site-tweaks" declares no page script for this address.',
+        'patcher.rpc: plugin "site-tweaks" declares no page script for this address.',
     });
     expect(pageScriptCalls(hostWindow)).toEqual([]);
   });
@@ -7874,7 +7889,7 @@ describe("plugin page scripts", () => {
     ).resolves.toEqual({
       ok: false,
       message:
-        'bb.rpc: plugin "somebody-else" declares no page script for this address.',
+        'patcher.rpc: plugin "somebody-else" declares no page script for this address.',
     });
   });
 
@@ -7899,7 +7914,7 @@ describe("plugin page scripts", () => {
 
     await expect(call()).resolves.toEqual({
       ok: false,
-      message: "bb.rpc: too many calls — at most 60 every 10 seconds.",
+      message: "patcher.rpc: too many calls — at most 60 every 10 seconds.",
     });
     expect(pageScriptCalls(hostWindow)).toHaveLength(60);
   });
@@ -7967,7 +7982,7 @@ describe("plugin page scripts", () => {
       request: { scripts: [GITHUB_SCRIPT] },
     });
     expect([...browserSession.preloadScripts.keys()]).toEqual([
-      "bb-page-scripts",
+      "patcher-page-scripts",
     ]);
   });
 });

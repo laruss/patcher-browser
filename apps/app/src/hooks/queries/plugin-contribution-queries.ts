@@ -1,6 +1,6 @@
 import { useQuery, type QueryKey } from "@tanstack/react-query";
-import { normalizeBrowserSearchEngineTemplate } from "@bb/domain/browser-search-engine";
-import { normalizePluginSitePattern } from "@bb/domain/browser-url-pattern";
+import { normalizeBrowserSearchEngineTemplate } from "@patcher/domain/browser-search-engine";
+import { normalizePluginSitePattern } from "@patcher/domain/browser-url-pattern";
 import {
   normalizePluginMentionTriggers,
   type PluginMentionTrigger,
@@ -80,9 +80,9 @@ export interface PluginBrowserNewTabWidgetContribution {
 /**
  * One command a plugin added, with the chord that runs it (`app.commands`).
  *
- * Not in bb's keybinding config: bb's command ids are a closed enum that the
+ * Not in Patcher's keybinding config: Patcher's command ids are a closed enum that the
  * settings UI and the override store key on. These are matched after every one of
- * bb's own bindings, so a chord bb uses keeps doing what the user expects.
+ * Patcher's own bindings, so a chord Patcher uses keeps doing what the user expects.
  */
 export interface PluginCommandContribution {
   pluginId: string;
@@ -537,7 +537,7 @@ export function pluginContributionsQueryKey(): QueryKey {
 
 /**
  * Prefix covering every contributions cache entry. The realtime
- * `plugins-changed` broadcast invalidates it so `bb plugin
+ * `plugins-changed` broadcast invalidates it so `patcher plugin
  * reload/enable/disable` reaches open pages without waiting out the stale
  * time.
  */
@@ -1054,7 +1054,7 @@ export interface RunPluginTabActionArgs {
   itemId: string;
   pluginId: string;
   tabId: string;
-  /** Null for a bb screen, which is a tab with no page. */
+  /** Null for a Patcher screen, which is a tab with no page. */
   url: string | null;
   title: string | null;
   pinned: boolean;
@@ -1131,12 +1131,12 @@ export interface PluginExternalLinkDecision {
 }
 
 /**
- * Ask plugins where a link the system handed bb should go
+ * Ask plugins where a link the system handed Patcher should go
  * (`browser.externalLink.handlers`), before it becomes a tab.
  *
  * Null means nobody decided — which is also what a server that is not listening
  * means, and what a slow handler becomes. Every one of those opens the link in a
- * tab, which is what bb does with no plugins at all.
+ * tab, which is what Patcher does with no plugins at all.
  */
 export async function resolvePluginExternalLink(
   url: string,

@@ -1,7 +1,7 @@
 import type {
   EnvironmentWorkspaceDisplayKind,
   ThreadListEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { compareCodepoint } from "@/lib/codepoint-compare";
 import {
   getCollapsedChildActivity,

@@ -12,7 +12,7 @@ describe("sidebar selected thread styling", () => {
 
   it("marks the row for an opaque backing surface when it becomes sticky", () => {
     expect(SIDEBAR_ROW_SELECTED_STATE_CLASS).toContain(
-      "bb-sidebar-selected-row",
+      "patcher-sidebar-selected-row",
     );
   });
 });

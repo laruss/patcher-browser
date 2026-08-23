@@ -8,7 +8,7 @@ import {
   HostDaemonOnlineRpcCommandType,
   HostDaemonOnlineRpcResult,
   HostDaemonSettledCommandType,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import semver from "semver";
 import {
   CommandDispatchError,
@@ -73,7 +73,7 @@ import {
   startThread,
   submitTurn,
 } from "./command-handlers/thread.js";
-import { WorkspaceError } from "@bb/host-workspace";
+import { WorkspaceError } from "@patcher/host-workspace";
 import { squashMerge } from "./command-handlers/workspace.js";
 import {
   cloneProject,
@@ -579,12 +579,6 @@ const commandHandlers: CommandHandlerMap = {
 };
 
 const onlineRpcHandlers: OnlineRpcHandlerMap = {
-  "connect-tunnel.ensure-identity": async (_command, options) => {
-    if (!options.ensureConnectTunnelIdentity) {
-      throw new Error("bb connect tunnel identity is unavailable");
-    }
-    return options.ensureConnectTunnelIdentity();
-  },
   "host.list_files": listHostFiles,
   "host.list_paths": listHostPaths,
   "host.mkdir": mkdirHostPath,

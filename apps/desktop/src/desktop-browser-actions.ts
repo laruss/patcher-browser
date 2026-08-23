@@ -21,7 +21,7 @@
  */
 
 /** Name of the isolated world these run in; visible only in a CDP trace. */
-export const BB_BROWSER_AUTOMATION_WORLD_NAME = "bb-automation";
+export const PATCHER_BROWSER_AUTOMATION_WORLD_NAME = "patcher-automation";
 
 /**
  * How long to keep waiting for an element to become actionable. Long enough for
@@ -29,9 +29,9 @@ export const BB_BROWSER_AUTOMATION_WORLD_NAME = "bb-automation";
  * browser bridge's own 10s command timeout so the caller gets our typed reason
  * rather than a generic timeout.
  */
-export const BB_BROWSER_ACTION_TIMEOUT_MS = 5_000;
+export const PATCHER_BROWSER_ACTION_TIMEOUT_MS = 5_000;
 /** Gap between probes. Each probe already spans two animation frames. */
-export const BB_BROWSER_ACTION_POLL_INTERVAL_MS = 50;
+export const PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS = 50;
 
 /**
  * Why an element could not be acted on. These are the sentence an agent gets, so
@@ -68,7 +68,7 @@ const BLOCKED_REASONS = new Set<string>([
  * would otherwise swallow the click silently, which is the failure mode hardest
  * to diagnose from the outside.
  */
-export const BB_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
+export const PATCHER_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
   const node = this;
   const element =
     node instanceof Element
@@ -138,7 +138,7 @@ export const BB_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
  * Focus an editable element and select everything in it, so the text that
  * follows replaces the old value rather than appending to it.
  */
-export const BB_BROWSER_PREPARE_FILL_SCRIPT = `function () {
+export const PATCHER_BROWSER_PREPARE_FILL_SCRIPT = `function () {
   const element = this instanceof Element ? this : null;
   if (element === null) {
     return { ok: false, reason: "not_editable" };
@@ -178,7 +178,7 @@ export const BB_BROWSER_PREPARE_FILL_SCRIPT = `function () {
  * Values match against the option's value, its label, or its text, because a
  * snapshot shows an agent the text and nothing else.
  */
-export const BB_BROWSER_SELECT_OPTION_SCRIPT = `function (values) {
+export const PATCHER_BROWSER_SELECT_OPTION_SCRIPT = `function (values) {
   const element = this instanceof HTMLSelectElement ? this : null;
   if (element === null) {
     return { ok: false, reason: "not_select" };
@@ -208,7 +208,7 @@ export const BB_BROWSER_SELECT_OPTION_SCRIPT = `function (values) {
  * idempotent — the action is "make it checked", not "toggle it", so it has to
  * know where it is starting from and confirm where it landed.
  */
-export const BB_BROWSER_READ_CHECKED_SCRIPT = `function () {
+export const PATCHER_BROWSER_READ_CHECKED_SCRIPT = `function () {
   const element = this instanceof Element ? this : null;
   if (element === null) {
     return { ok: false, reason: "not_checkable" };

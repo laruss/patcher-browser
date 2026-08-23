@@ -4,7 +4,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type {
   OnboardingAgentOverview,
   SystemExecutionOptionsResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sdk } from "@/lib/sdk";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
@@ -258,7 +258,10 @@ describe("useThreadCreationOptions", () => {
   });
 
   it("applies a fork provider, model, and reasoning seed atomically", async () => {
-    window.localStorage.setItem("bb.promptbox.provider", GLOBAL_PROVIDER_ID);
+    window.localStorage.setItem(
+      "patcher.promptbox.provider",
+      GLOBAL_PROVIDER_ID,
+    );
     vi.mocked(sdk.system.executionOptions).mockImplementation(async (args) =>
       providerExecutionOptionsResponse(args?.providerId),
     );
@@ -306,9 +309,12 @@ describe("useThreadCreationOptions", () => {
   });
 
   it("migrates legacy model preferences without leaking them to another provider", async () => {
-    window.localStorage.setItem("bb.promptbox.provider", GLOBAL_PROVIDER_ID);
-    window.localStorage.setItem("bb.promptbox.model", "global-remembered");
-    window.localStorage.setItem("bb.promptbox.reasoning", "medium");
+    window.localStorage.setItem(
+      "patcher.promptbox.provider",
+      GLOBAL_PROVIDER_ID,
+    );
+    window.localStorage.setItem("patcher.promptbox.model", "global-remembered");
+    window.localStorage.setItem("patcher.promptbox.reasoning", "medium");
     vi.mocked(sdk.system.executionOptions).mockImplementation(async (args) =>
       providerExecutionOptionsResponse(args?.providerId),
     );
@@ -327,7 +333,7 @@ describe("useThreadCreationOptions", () => {
       expect(result.current.selectedModel).toBe("project-default");
       expect(result.current.reasoningLevel).toBe("medium");
     });
-    expect(window.localStorage.getItem("bb.promptbox.model")).toBeNull();
+    expect(window.localStorage.getItem("patcher.promptbox.model")).toBeNull();
 
     act(() => {
       result.current.setSelectedProviderId(GLOBAL_PROVIDER_ID);
@@ -339,7 +345,10 @@ describe("useThreadCreationOptions", () => {
   });
 
   it("restores each provider's model and reasoning selection", async () => {
-    window.localStorage.setItem("bb.promptbox.provider", GLOBAL_PROVIDER_ID);
+    window.localStorage.setItem(
+      "patcher.promptbox.provider",
+      GLOBAL_PROVIDER_ID,
+    );
     vi.mocked(sdk.system.executionOptions).mockImplementation(async (args) =>
       providerExecutionOptionsResponse(args?.providerId),
     );
@@ -451,7 +460,7 @@ describe("useThreadCreationOptions", () => {
       expect(result.current.selectedModel).toBe("global-remembered");
       expect(result.current.reasoningLevel).toBe("medium");
     });
-    expect(window.localStorage.getItem("bb.promptbox.model")).toBeNull();
+    expect(window.localStorage.getItem("patcher.promptbox.model")).toBeNull();
   });
 
   it("preserves a model's nested provider route for the picker", async () => {
@@ -487,26 +496,29 @@ describe("useThreadCreationOptions", () => {
   });
 
   it("routes root-composer provider discovery through the selected project host", async () => {
-    window.localStorage.setItem("bb.promptbox.provider", GLOBAL_PROVIDER_ID);
-    window.localStorage.setItem("bb.promptbox.model", "global-model");
-    window.localStorage.setItem("bb.promptbox.service-tier", "default");
-    window.localStorage.setItem("bb.promptbox.reasoning", "high");
     window.localStorage.setItem(
-      "bb.promptbox.permission-mode",
+      "patcher.promptbox.provider",
+      GLOBAL_PROVIDER_ID,
+    );
+    window.localStorage.setItem("patcher.promptbox.model", "global-model");
+    window.localStorage.setItem("patcher.promptbox.service-tier", "default");
+    window.localStorage.setItem("patcher.promptbox.reasoning", "high");
+    window.localStorage.setItem(
+      "patcher.promptbox.permission-mode",
       "workspace-write",
     );
     window.localStorage.setItem(
-      "bb.promptbox.environment",
+      "patcher.promptbox.environment",
       "host:global-host:worktree",
     );
 
-    setProjectScopedValue("bb.promptbox.provider", PROJECT_PROVIDER_ID);
-    setProjectScopedValue("bb.promptbox.model", "project-model");
-    setProjectScopedValue("bb.promptbox.service-tier", "fast");
-    setProjectScopedValue("bb.promptbox.reasoning", "low");
-    setProjectScopedValue("bb.promptbox.permission-mode", "readonly");
+    setProjectScopedValue("patcher.promptbox.provider", PROJECT_PROVIDER_ID);
+    setProjectScopedValue("patcher.promptbox.model", "project-model");
+    setProjectScopedValue("patcher.promptbox.service-tier", "fast");
+    setProjectScopedValue("patcher.promptbox.reasoning", "low");
+    setProjectScopedValue("patcher.promptbox.permission-mode", "readonly");
     setProjectScopedValue(
-      "bb.promptbox.environment",
+      "patcher.promptbox.environment",
       "host:project-host:local",
     );
 
@@ -669,10 +681,12 @@ describe("useThreadCreationOptions", () => {
       result.current.setEnvironmentSelectionValue("host:project-host:worktree");
     });
 
-    expect(window.localStorage.getItem("bb.promptbox.environment")).toBeNull();
+    expect(
+      window.localStorage.getItem("patcher.promptbox.environment"),
+    ).toBeNull();
     expect(
       window.localStorage.getItem(
-        getProjectScopedStorageKey("bb.promptbox.environment", PROJECT_ID),
+        getProjectScopedStorageKey("patcher.promptbox.environment", PROJECT_ID),
       ),
     ).toBe("host:project-host:worktree");
   });
@@ -908,7 +922,7 @@ describe("useThreadCreationOptions", () => {
 
   it("uses the connected provider from the selected machine as create provenance", async () => {
     window.localStorage.setItem(
-      "bb.promptbox.environment",
+      "patcher.promptbox.environment",
       "host:remote-host:local",
     );
     vi.mocked(sdk.system.onboardingAgents).mockImplementation(async (args) =>

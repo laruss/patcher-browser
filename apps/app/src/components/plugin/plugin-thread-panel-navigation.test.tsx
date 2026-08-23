@@ -4,14 +4,14 @@ import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useBbNavigate } from "@/lib/plugin-sdk-hooks";
+import { usePatcherNavigate } from "@/lib/plugin-sdk-hooks";
 import { PluginSlotMount } from "./PluginSlotMount";
 import { PluginThreadPanelNavigationProvider } from "./plugin-thread-panel-navigation";
 
 afterEach(cleanup);
 
 function NavigationProbe() {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const [accepted, setAccepted] = useState<boolean | null>(null);
   return (
     <>

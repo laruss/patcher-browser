@@ -1,11 +1,11 @@
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { PluginSlotMount } from "./PluginSlotMount";
 import { usePluginSlots } from "@/lib/plugin-slots";
 
 /**
  * Plugin `experimental_threadHeaderAction` slots: components rendered in the
  * thread header's action row, beside the host-rendered buttons that
- * `bb.ui.registerThreadAction` contributes from a plugin backend.
+ * `patcher.ui.registerThreadAction` contributes from a plugin backend.
  *
  * One mount per pane, each with that pane's thread, so a split layout shows
  * the control once per visible thread.

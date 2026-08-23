@@ -16,8 +16,8 @@ export default {
 const noop = () => {};
 
 const target: ProjectDeleteDialogTarget = {
-  id: PROJECT_IDS.bb,
-  name: PROJECT_NAMES.bb,
+  id: PROJECT_IDS.patcher,
+  name: PROJECT_NAMES.patcher,
 };
 
 const longName: ProjectDeleteDialogTarget = {

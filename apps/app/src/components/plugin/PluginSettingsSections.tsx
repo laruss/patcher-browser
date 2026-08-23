@@ -6,7 +6,7 @@ import { PluginSlotMount } from "./PluginSlotMount";
 import {
   ResourceDetailPanel,
   ResourceDetailConfigurationSection,
-} from "@bb/shared-ui/resource-list";
+} from "@patcher/shared-ui/resource-list";
 
 /**
  * Plugin `settingsSection` slot mounts, rendered on that plugin's canonical

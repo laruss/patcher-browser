@@ -14,13 +14,13 @@
  */
 
 import {
-  BB_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS,
-  BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES,
-  BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH,
-  type BbDesktopBrowserVideoFrame,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS,
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES,
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH,
+  type PatcherDesktopBrowserVideoFrame,
+} from "@patcher/desktop-contract";
 
 /**
  * What the screencast is asked for. Not caller-settable, deliberately: a knob
@@ -28,19 +28,19 @@ import {
  * real opinion about — how many frames per second end up in the file — is
  * already the `fps` it passes.
  */
-export const BB_BROWSER_SCREENCAST_QUALITY = 50;
-export const BB_BROWSER_SCREENCAST_MAX_WIDTH = 960;
-export const BB_BROWSER_SCREENCAST_MAX_HEIGHT = 960;
+export const PATCHER_BROWSER_SCREENCAST_QUALITY = 50;
+export const PATCHER_BROWSER_SCREENCAST_MAX_WIDTH = 960;
+export const PATCHER_BROWSER_SCREENCAST_MAX_HEIGHT = 960;
 
 export interface BrowserVideoResult {
-  frames: BbDesktopBrowserVideoFrame[];
+  frames: PatcherDesktopBrowserVideoFrame[];
   chapters: { at: number; title: string }[];
   droppedFrames: number;
   durationMs: number;
 }
 
 export class BrowserVideoRecording {
-  private readonly frames: BbDesktopBrowserVideoFrame[] = [];
+  private readonly frames: PatcherDesktopBrowserVideoFrame[] = [];
   private readonly chapters: { at: number; title: string }[] = [];
   private readonly intervalMs: number;
   private totalBase64Length = 0;
@@ -62,10 +62,10 @@ export class BrowserVideoRecording {
     const since = this.lastKeptAt === null ? Infinity : now - this.lastKeptAt;
     if (
       since < this.intervalMs ||
-      base64.length > BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH ||
-      this.frames.length >= BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES ||
+      base64.length > PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH ||
+      this.frames.length >= PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES ||
       this.totalBase64Length + base64.length >
-        BB_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH
+        PATCHER_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH
     ) {
       this.droppedFrames += 1;
       return;
@@ -76,12 +76,12 @@ export class BrowserVideoRecording {
   }
 
   chapter(title: string, now: number): void {
-    if (this.chapters.length >= BB_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS) {
+    if (this.chapters.length >= PATCHER_DESKTOP_BROWSER_MAX_VIDEO_CHAPTERS) {
       return;
     }
     this.chapters.push({
       at: this.elapsed(now),
-      title: title.slice(0, BB_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH),
+      title: title.slice(0, PATCHER_DESKTOP_BROWSER_MAX_CHAPTER_TITLE_LENGTH),
     });
   }
 

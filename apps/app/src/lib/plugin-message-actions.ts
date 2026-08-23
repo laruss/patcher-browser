@@ -1,7 +1,7 @@
 import type {
   PluginMessageActionContext,
   ThreadChatMessageReference,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import type { MarkdownMessageDirectiveOpenThreadPanel } from "@/components/ui/markdown-message-directives";
 import type { PluginMessageActionSlot } from "./plugin-slots";
 

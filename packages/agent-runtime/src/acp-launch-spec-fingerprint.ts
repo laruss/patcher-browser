@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import {
   normalizeHostDaemonAcpLaunchSpec,
   type HostDaemonAcpLaunchSpec,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 type StableJsonValue =
   | string

@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AgentRuntime } from "@bb/agent-runtime";
+import type { AgentRuntime } from "@patcher/agent-runtime";
 import type {
   HostDaemonInjectedSkillSource,
   ProviderCliInstallEvent,
   ProviderCliStatus,
-} from "@bb/host-daemon-contract";
-import type { HostWorkspace } from "@bb/host-workspace";
+} from "@patcher/host-daemon-contract";
+import type { HostWorkspace } from "@patcher/host-workspace";
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   dispatchCommand,
@@ -16,7 +16,7 @@ import {
 import type { CommandOf } from "./command-dispatch-support.js";
 import { RuntimeManager } from "./runtime-manager.js";
 
-const WORKSPACE_PATH = "/tmp/bb-command-dispatch-test";
+const WORKSPACE_PATH = "/tmp/patcher-command-dispatch-test";
 
 interface Deferred<TValue> {
   promise: Promise<TValue>;
@@ -91,7 +91,7 @@ async function writeInjectedSkillSource(
 async function setupBusySkillCatalogEnvironment(args: {
   activeThreadId: string;
 }): Promise<BusySkillCatalogFixture> {
-  const dataDir = await makeTempDir("bb-command-dispatch-skills-");
+  const dataDir = await makeTempDir("patcher-command-dispatch-skills-");
   const source = await writeInjectedSkillSource({
     dataDir,
     token: "first-token",
@@ -268,7 +268,7 @@ async function runSuccessfulClaudeCodeUpdateVerification(args: {
   before: ProviderCliStatus;
   after: ProviderCliStatus;
 }) {
-  const dataDir = await makeTempDir("bb-command-dispatch-provider-cli-");
+  const dataDir = await makeTempDir("patcher-command-dispatch-provider-cli-");
   const manager = new RuntimeManager({
     dataDir,
     createRuntime,
@@ -311,7 +311,7 @@ async function runSuccessfulClaudeCodeUpdateVerification(args: {
       runtimeManager: manager,
       streamProviderCliInstall: () =>
         createProviderCliInstallEventStream(events),
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     },
   );
   return { events, getProviderCliStatusForProvider, result };
@@ -326,7 +326,7 @@ describe("dispatchCommand", () => {
     });
     await manager.ensureEnvironment({
       environmentId: "env-1",
-      workspacePath: "/tmp/bb-command-dispatch-test",
+      workspacePath: "/tmp/patcher-command-dispatch-test",
     });
     runtime.setActiveTurn("thread-1", "turn-1");
 
@@ -339,7 +339,7 @@ describe("dispatchCommand", () => {
     };
     let resolved = false;
     const dispatchPromise = dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: {
         emit: vi.fn(),
         flush,
@@ -348,7 +348,7 @@ describe("dispatchCommand", () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     }).then(() => {
       resolved = true;
     });
@@ -387,13 +387,13 @@ describe("dispatchCommand", () => {
         expectedTurnId: "turn-1",
       },
       {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: { emit: vi.fn(), flush },
         fetchProjectAttachment: async () => {
           throw new Error("Unexpected project attachment fetch");
         },
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       },
     );
 
@@ -423,13 +423,13 @@ describe("dispatchCommand", () => {
         expectedTurnId: "turn-plan-1",
       },
       {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: { emit: vi.fn(), flush },
         fetchProjectAttachment: async () => {
           throw new Error("Unexpected project attachment fetch");
         },
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       },
     );
 
@@ -459,13 +459,13 @@ describe("dispatchCommand", () => {
         expectedTurnId: "turn-plan-1",
       },
       {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: { emit: vi.fn(), flush },
         fetchProjectAttachment: async () => {
           throw new Error("Unexpected project attachment fetch");
         },
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       },
     );
 
@@ -512,13 +512,13 @@ describe("dispatchCommand", () => {
     };
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: { emit: vi.fn(), flush },
       fetchProjectAttachment: async () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ cleared: true });
@@ -549,7 +549,7 @@ describe("dispatchCommand", () => {
     });
     await manager.ensureEnvironment({
       environmentId: "env-old",
-      workspacePath: "/tmp/bb-command-dispatch-old",
+      workspacePath: "/tmp/patcher-command-dispatch-old",
     });
     oldRuntime.setIdle("thread-1");
 
@@ -571,7 +571,7 @@ describe("dispatchCommand", () => {
       },
       resumeContext: {
         workspaceContext: {
-          workspacePath: "/tmp/bb-command-dispatch-new",
+          workspacePath: "/tmp/patcher-command-dispatch-new",
           workspaceProvisionType: "unmanaged",
         },
         projectId: "proj_1",
@@ -586,7 +586,7 @@ describe("dispatchCommand", () => {
     };
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: {
         emit: vi.fn(),
         flush: vi.fn(async () => undefined),
@@ -595,7 +595,7 @@ describe("dispatchCommand", () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ appliedAs: "new-turn" });
@@ -605,7 +605,7 @@ describe("dispatchCommand", () => {
     expect(createRuntimeSpy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        workspacePath: "/tmp/bb-command-dispatch-new",
+        workspacePath: "/tmp/patcher-command-dispatch-new",
       }),
     );
     expect(newRuntime.resumeThread).toHaveBeenCalledWith(
@@ -625,11 +625,11 @@ describe("dispatchCommand", () => {
     const oldRuntime = createRuntime();
     const manager = new RuntimeManager({
       createRuntime: () => oldRuntime,
-      provisionWorkspace: async () => createWorkspace("/tmp/bb-stop-old"),
+      provisionWorkspace: async () => createWorkspace("/tmp/patcher-stop-old"),
     });
     await manager.ensureEnvironment({
       environmentId: "env-old",
-      workspacePath: "/tmp/bb-stop-old",
+      workspacePath: "/tmp/patcher-stop-old",
     });
     oldRuntime.setActiveTurn("thread-1", "turn-old");
 
@@ -643,13 +643,13 @@ describe("dispatchCommand", () => {
     const flush = vi.fn(async () => undefined);
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: { emit: vi.fn(), flush },
       fetchProjectAttachment: async () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({});
@@ -672,13 +672,13 @@ describe("dispatchCommand", () => {
 
     await expect(
       dispatchCommand(command, {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
         fetchProjectAttachment: async () => {
           throw new Error("Unexpected project attachment fetch");
         },
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       }),
     ).rejects.toMatchObject({ code: "unknown_environment" });
   });
@@ -687,11 +687,11 @@ describe("dispatchCommand", () => {
     const oldRuntime = createRuntime();
     const manager = new RuntimeManager({
       createRuntime: () => oldRuntime,
-      provisionWorkspace: async () => createWorkspace("/tmp/bb-plan-old"),
+      provisionWorkspace: async () => createWorkspace("/tmp/patcher-plan-old"),
     });
     await manager.ensureEnvironment({
       environmentId: "env-old",
-      workspacePath: "/tmp/bb-plan-old",
+      workspacePath: "/tmp/patcher-plan-old",
     });
     oldRuntime.setActiveTurn("thread-1", "turn-old");
 
@@ -703,13 +703,13 @@ describe("dispatchCommand", () => {
     };
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
       fetchProjectAttachment: async () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ cancelled: true });
@@ -722,11 +722,11 @@ describe("dispatchCommand", () => {
     const oldRuntime = createRuntime();
     const manager = new RuntimeManager({
       createRuntime: () => oldRuntime,
-      provisionWorkspace: async () => createWorkspace("/tmp/bb-plan-old"),
+      provisionWorkspace: async () => createWorkspace("/tmp/patcher-plan-old"),
     });
     await manager.ensureEnvironment({
       environmentId: "env-old",
-      workspacePath: "/tmp/bb-plan-old",
+      workspacePath: "/tmp/patcher-plan-old",
     });
     oldRuntime.setActiveTurn("thread-1", "turn-other");
 
@@ -738,13 +738,13 @@ describe("dispatchCommand", () => {
     };
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
       fetchProjectAttachment: async () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ cancelled: false });
@@ -765,11 +765,11 @@ describe("dispatchCommand", () => {
     });
     await manager.ensureEnvironment({
       environmentId: "env-old",
-      workspacePath: "/tmp/bb-rename-old",
+      workspacePath: "/tmp/patcher-rename-old",
     });
     await manager.ensureEnvironment({
       environmentId: "env-new",
-      workspacePath: "/tmp/bb-rename-new",
+      workspacePath: "/tmp/patcher-rename-new",
     });
     // The switch moves the thread mid-turn, so the old runtime still runs it
     // while the thread already points at the new environment.
@@ -783,13 +783,13 @@ describe("dispatchCommand", () => {
     };
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
       fetchProjectAttachment: async () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({});
@@ -815,7 +815,7 @@ describe("dispatchCommand", () => {
     });
     await manager.ensureEnvironment({
       environmentId: "env-old",
-      workspacePath: "/tmp/bb-goal-old",
+      workspacePath: "/tmp/patcher-goal-old",
     });
     oldRuntime.setActiveTurn("thread-1", "turn-old");
 
@@ -835,7 +835,7 @@ describe("dispatchCommand", () => {
       },
       resumeContext: {
         workspaceContext: {
-          workspacePath: "/tmp/bb-goal-new",
+          workspacePath: "/tmp/patcher-goal-new",
           workspaceProvisionType: "unmanaged",
         },
         projectId: "proj_1",
@@ -850,13 +850,13 @@ describe("dispatchCommand", () => {
 
     await expect(
       dispatchCommand(command, {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
         fetchProjectAttachment: async () => {
           throw new Error("Unexpected project attachment fetch");
         },
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       }),
     ).rejects.toMatchObject({ code: "thread_busy_in_other_environment" });
     expect(oldRuntime.stopThread).not.toHaveBeenCalled();
@@ -877,7 +877,7 @@ describe("dispatchCommand", () => {
     };
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: {
         emit: vi.fn(),
         flush: vi.fn(async () => undefined),
@@ -886,7 +886,7 @@ describe("dispatchCommand", () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({});
@@ -950,7 +950,7 @@ describe("dispatchCommand", () => {
 
     await expect(
       dispatchCommand(command, {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: {
           emit: vi.fn(),
           flush: vi.fn(async () => undefined),
@@ -960,7 +960,7 @@ describe("dispatchCommand", () => {
         },
         getProviderCliStatusForProvider: async () => unsupportedCodexStatus,
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       }),
     ).rejects.toMatchObject({
       code: "provider_cli_unsupported_version",
@@ -1007,7 +1007,7 @@ describe("dispatchCommand", () => {
     });
 
     const result = await dispatchCommand(command, {
-      dataDir: "/tmp/bb-data",
+      dataDir: "/tmp/patcher-data",
       eventSink: {
         emit: vi.fn(),
         flush: vi.fn(async () => undefined),
@@ -1017,7 +1017,7 @@ describe("dispatchCommand", () => {
       },
       getProviderCliStatusForProvider,
       runtimeManager: manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ providerThreadId: "provider-thread-1" });
@@ -1077,7 +1077,7 @@ describe("dispatchCommand", () => {
 
     await expect(
       dispatchCommand(command, {
-        dataDir: "/tmp/bb-data",
+        dataDir: "/tmp/patcher-data",
         eventSink: {
           emit: vi.fn(),
           flush: vi.fn(async () => undefined),
@@ -1087,7 +1087,7 @@ describe("dispatchCommand", () => {
         },
         getProviderCliStatusForProvider: async () => supportedCodexStatus,
         runtimeManager: manager,
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       }),
     ).resolves.toEqual({ providerThreadId: "provider-thread-rewind-1" });
     expect(runtime.prepareThreadRewind).toHaveBeenCalledWith(
@@ -1102,7 +1102,7 @@ describe("dispatchCommand", () => {
       dispatchCommand(
         { ...command, leaseId: "lease-old-codex" },
         {
-          dataDir: "/tmp/bb-data",
+          dataDir: "/tmp/patcher-data",
           eventSink: {
             emit: vi.fn(),
             flush: vi.fn(async () => undefined),
@@ -1116,7 +1116,7 @@ describe("dispatchCommand", () => {
             npmGlobalPackageVersion: "0.140.0",
           }),
           runtimeManager: manager,
-          threadStorageRootPath: "/tmp/bb-thread-storage",
+          threadStorageRootPath: "/tmp/patcher-thread-storage",
         },
       ),
     ).rejects.toMatchObject({ code: "provider_cli_unsupported_version" });
@@ -1131,7 +1131,7 @@ describe("dispatchCommand", () => {
           leaseId: "lease-1",
         },
         {
-          dataDir: "/tmp/bb-data",
+          dataDir: "/tmp/patcher-data",
           eventSink: {
             emit: vi.fn(),
             flush: vi.fn(async () => undefined),
@@ -1140,7 +1140,7 @@ describe("dispatchCommand", () => {
             throw new Error("Unexpected project attachment fetch");
           },
           runtimeManager: manager,
-          threadStorageRootPath: "/tmp/bb-thread-storage",
+          threadStorageRootPath: "/tmp/patcher-thread-storage",
         },
       ),
     ).resolves.toEqual({});
@@ -1150,7 +1150,7 @@ describe("dispatchCommand", () => {
   });
 
   it("invalidates the provider maintenance runtime after a successful Codex CLI update", async () => {
-    const dataDir = await makeTempDir("bb-command-dispatch-provider-cli-");
+    const dataDir = await makeTempDir("patcher-command-dispatch-provider-cli-");
     const staleRuntime = createRuntime();
     const freshRuntime = createRuntime();
     const createRuntimeSpy = vi.fn(() => staleRuntime);
@@ -1197,7 +1197,7 @@ describe("dispatchCommand", () => {
       },
       runtimeManager: manager,
       streamProviderCliInstall,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ events });
@@ -1249,7 +1249,9 @@ describe("dispatchCommand", () => {
     ];
 
     for (const testCase of cases) {
-      const dataDir = await makeTempDir("bb-command-dispatch-provider-cli-");
+      const dataDir = await makeTempDir(
+        "patcher-command-dispatch-provider-cli-",
+      );
       const runtime = createRuntime();
       const createRuntimeSpy = vi.fn(() => runtime);
       const manager = new RuntimeManager({
@@ -1299,7 +1301,7 @@ describe("dispatchCommand", () => {
             : { getProviderCliStatusForProvider }),
           runtimeManager: manager,
           streamProviderCliInstall,
-          threadStorageRootPath: "/tmp/bb-thread-storage",
+          threadStorageRootPath: "/tmp/patcher-thread-storage",
         },
       );
 
@@ -1313,7 +1315,7 @@ describe("dispatchCommand", () => {
   });
 
   it("reports a successful Claude update command as failed when the active executable stays old", async () => {
-    const dataDir = await makeTempDir("bb-command-dispatch-provider-cli-");
+    const dataDir = await makeTempDir("patcher-command-dispatch-provider-cli-");
     const runtime = createRuntime();
     const manager = new RuntimeManager({
       createRuntime: () => runtime,
@@ -1373,7 +1375,7 @@ describe("dispatchCommand", () => {
               success: true,
             },
           ]),
-        threadStorageRootPath: "/tmp/bb-thread-storage",
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
       },
     );
 
@@ -1494,7 +1496,7 @@ describe("dispatchCommand", () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: fixture.manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result.providerThreadId).toBe("provider-thread-1");
@@ -1557,7 +1559,7 @@ describe("dispatchCommand", () => {
         throw new Error("Unexpected project attachment fetch");
       },
       runtimeManager: fixture.manager,
-      threadStorageRootPath: "/tmp/bb-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
     });
 
     expect(result).toEqual({ appliedAs: "new-turn" });

@@ -10,10 +10,10 @@ function the plugin registered, and a function is exactly what cannot cross.
 
 ## What was already fine
 
-- **`bb.sdk`** is a loopback HTTP client that now identifies itself. In a
+- **`patcher.sdk`** is a loopback HTTP client that now identifies itself. In a
   plugin host it stays exactly that. Nothing to migrate.
-- **`bb.browser`** is already a serialisable command union on a message bus.
-- **`bb.storage.database()`** hands back a native better-sqlite3 handle, which
+- **`patcher.browser`** is already a serialisable command union on a message bus.
+- **`patcher.storage.database()`** hands back a native better-sqlite3 handle, which
   cannot cross — but does not have to: the file is per-plugin under
   `<dataDir>/plugins/<id>/`, so the host opens it locally. The consequence is
   worth stating early: a plugin host needs filesystem access to its own
@@ -165,7 +165,7 @@ a plugin reads exactly that name back.
 The first version made the log label the protocol kind, so a plugin's status
 detail started reading `threadEvent thread.deleted failed` where it had said
 `thread.deleted handler failed`. That is this file's vocabulary leaking into
-text a user reads in `bb plugin list`. The kind and the label are now separate
+text a user reads in `patcher plugin list`. The kind and the label are now separate
 fields, every prior string is restored, and `plugin-callbacks.test.ts` pins
 them so the next rename cannot leak either.
 

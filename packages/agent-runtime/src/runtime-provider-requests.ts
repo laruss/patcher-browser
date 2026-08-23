@@ -8,8 +8,8 @@ import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
   ToolCallRequest,
-} from "@bb/domain";
-import { isApprovalPendingInteractionPayload } from "@bb/domain";
+} from "@patcher/domain";
+import { isApprovalPendingInteractionPayload } from "@patcher/domain";
 import type { ProviderAdapter } from "./provider-adapter.js";
 import {
   type JsonRpcMessage,

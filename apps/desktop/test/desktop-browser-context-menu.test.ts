@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BbDesktopBrowserContextMenuItem } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserContextMenuItem } from "@patcher/desktop-contract";
 import {
   buildBrowserContextMenuTemplate,
   matchesContextMenuTarget,
@@ -53,8 +53,8 @@ function labels(
 }
 
 function pluginItem(
-  overrides: Partial<BbDesktopBrowserContextMenuItem> = {},
-): BbDesktopBrowserContextMenuItem {
+  overrides: Partial<PatcherDesktopBrowserContextMenuItem> = {},
+): PatcherDesktopBrowserContextMenuItem {
   return {
     pluginId: "notes",
     itemId: "save",
@@ -78,7 +78,7 @@ describe("buildBrowserContextMenuTemplate", () => {
     ]);
   });
 
-  it("drops the external entry when bb is itself the default browser", () => {
+  it("drops the external entry when Patcher is itself the default browser", () => {
     const template = buildBrowserContextMenuTemplate({
       actions: actions(),
       canOpenExternally: false,

@@ -1,7 +1,7 @@
 import {
   buildLocalAppOrigins,
   type BuildLocalAppOriginsArgs,
-} from "@bb/config/local-app-origins";
+} from "@patcher/config/local-app-origins";
 import type { ServerRuntimeConfig } from "./types.js";
 
 export interface BrowserRequestGuardDeps {
@@ -142,7 +142,7 @@ function isJsonContentType(contentType: string | undefined): boolean {
  * Guards privileged local-browser boundaries without imposing credentials on
  * non-browser clients. Browsers send Origin; Node SDK, CLI, and server-to-server
  * callers commonly do not. Dynamic LAN/dev origins must share the request host
- * and use a configured BB port, while configured app origins match exactly.
+ * and use a configured Patcher port, while configured app origins match exactly.
  */
 export function browserRequestProblem(
   context: BrowserRequestContext,
@@ -153,7 +153,7 @@ export function browserRequestProblem(
   if (origin !== undefined && !isTrustedOrigin(context, deps, origin)) {
     return {
       status: 403,
-      error: `origin "${origin}" is not a local BB app origin`,
+      error: `origin "${origin}" is not a local Patcher app origin`,
     };
   }
 

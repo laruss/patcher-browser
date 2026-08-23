@@ -1,6 +1,6 @@
 # Plugin permissions
 
-What a plugin declares in `bb.permissions`, what refuses it, and — the part
+What a plugin declares in `patcher.permissions`, what refuses it, and — the part
 worth reading before the rest — what this does not do.
 
 Plan §9 asks that generated plugins not run with everything the host has. This
@@ -10,14 +10,14 @@ and that it is worth having before it can be enforced against hostile code.
 
 ## This is not a security boundary, and cannot be one yet
 
-A plugin's `server.ts` is a Node module loaded into the bb server process
+A plugin's `server.ts` is a Node module loaded into the Patcher server process
 (`plugin-runtime.ts`, via `jiti.import`). Three exits are open to it today and
-no gate on the `bb` object closes any of them:
+no gate on the `patcher` object closes any of them:
 
 - `import("node:child_process")` and `node:fs` — the process's own capabilities;
-- `bb.server.loopbackBaseUrl` plus `fetch` — the whole server API, around any
-  wrapper on `bb.sdk`;
-- monkey-patching bb's own modules, which it shares a realm with.
+- `patcher.server.loopbackBaseUrl` plus `fetch` — the whole server API, around any
+  wrapper on `patcher.sdk`;
+- monkey-patching Patcher's own modules, which it shares a realm with.
 
 So a plugin that wants what it did not declare can still take it. Saying
 otherwise in a UI would be worse than saying nothing.
@@ -32,7 +32,7 @@ What the declaration is actually for, in the order the value arrives:
    that reaches for something it did not ask for throws with the permission
    named and the fix in the message. That is what makes plan Phase 6's loop
    converge rather than silently do more than the user asked.
-3. **It is something to show.** `bb plugin list` prints it, and install prints
+3. **It is something to show.** `patcher plugin list` prints it, and install prints
    it for a `path:` source. The app does not: `installedPluginSchema` carries
    the declared set — for a disabled plugin too, since the manifest is the
    record and that is exactly when someone wants to look — but nothing in the
@@ -58,11 +58,11 @@ correct and is now visible rather than implicit.
 Two chokepoints carry all of it, and they were chosen because they are the
 same two places the Phase 7 RPC will sit.
 
-**`callBrowser` in `plugin-api.ts`** — every `bb.browser` call that reaches a
+**`callBrowser` in `plugin-api.ts`** — every `patcher.browser` call that reaches a
 page funnels through one function, so one `permissionForBrowserCommand` call
 covers `tabs`, `page`, `navigation`, `storage`, `control` and `recording`.
 
-**`applySdkPermissions` in `plugin-permission-gate.ts`** — `bb.sdk` is handed
+**`applySdkPermissions` in `plugin-permission-gate.ts`** — `patcher.sdk` is handed
 out by one wrapper, so an undeclared area is replaced by a proxy that throws on
 the property read. Reaching it fails, not just calling it, which puts the
 plugin's own line at the top of the stack.
@@ -100,7 +100,7 @@ and seeing every visit before it is recorded — where the rest of the browser
 set splits reading from acting.
 
 A `history.read` / `history.modify` pair would read better and enforce nothing.
-Neither gate sees the HTTP method: one keys on the `bb.sdk` area, the other on
+Neither gate sees the HTTP method: one keys on the `patcher.sdk` area, the other on
 the URL prefix. A plugin holding a read-only variant would be refused
 `sdk.browserHistory.remove` and then reach `DELETE /browser-history/:id` with
 `fetch` and the same identity headers. A permission that names a boundary the
@@ -133,7 +133,7 @@ for every plugin that already had it.
 
 `newTab.register` is the same rule at the opposite end: a new tab has no page, so
 the section a plugin puts there is asked nothing about the user's browsing. It is
-still its own permission rather than none, because _placement in bb's chrome_ is
+still its own permission rather than none, because _placement in Patcher's chrome_ is
 what the user is agreeing to — but it is the cheapest of the browser's permissions
 to reason about, and the manifest should read that way.
 
@@ -152,7 +152,7 @@ So the declaration is two fields, and the second one is not a permission:
 { "permissions": ["pageStyle.register"], "sites": ["https://github.com/**"] }
 ```
 
-`bb.sites` is the _scope_ of the permission, not another one. Holding
+`patcher.sites` is the _scope_ of the permission, not another one. Holding
 `pageStyle.register` with no sites reaches no page at all, and declaring sites
 without the permission reaches nothing either — which is the property worth having,
 because it means neither field can be read as harmless on its own.
@@ -182,24 +182,24 @@ Three decisions inside that are worth keeping:
 
 `https://**/**` is allowed — a dark-mode or declutter plugin legitimately wants
 every site — so the honesty of this permission rests on the list being shown before
-anyone agrees to it. `bb plugin install` prints it above the confirmation ("It will
-restyle pages on: …") and `bb plugin info` lists it, both read from the manifest on
+anyone agrees to it. `patcher plugin install` prints it above the confirmation ("It will
+restyle pages on: …") and `patcher plugin info` lists it, both read from the manifest on
 disk, which is the path an agent-generated plugin takes.
 
 **The app does not show it, and does not show permissions either.** That gap
-predates this permission — nothing in the SPA renders `bb.permissions` today — but
+predates this permission — nothing in the SPA renders `patcher.permissions` today — but
 it matters more here than for the others, because this is the one whose scope is a
 list only the reader can judge. `sites` is on the wire (`InstalledPlugin.sites`)
 ready for that surface; until it exists, a plugin installed through the app's own
 dialog discloses its sites nowhere the user will look.
 
-Not to be confused with `bb.hosts` in the plugin API, which is enrolled machines.
+Not to be confused with `patcher.sdk.hosts`, which is enrolled machines.
 These are websites.
 
 #### Two permissions over one list
 
 `pageScript.register` — the plugin's own code running in those same pages — is
-scoped by the same `bb.sites`, checked by the same membership rule, and refused in
+scoped by the same `patcher.sites`, checked by the same membership rule, and refused in
 the same three places. It is deliberately **not** the same permission as the styling
 one.
 
@@ -209,7 +209,7 @@ signed-in user can see — and it has a channel to the plugin's backend. A plugi
 user let declutter GitHub has not thereby been let read what they do there, and one
 permission covering both would have made that distinction unsayable.
 
-The disclosure follows the split: `bb plugin install` prints "It will restyle pages
+The disclosure follows the split: `patcher plugin install` prints "It will restyle pages
 on: …" for one and "It will run its own code on pages of: …" for the other, each only
 if the permission that grants it was declared. A site list nothing is allowed to use
 grants nothing, and says nothing.
@@ -219,11 +219,11 @@ permission over the same list, never a wider reading of an existing one.
 
 ### And one that stayed ungated on purpose
 
-`bb.ui.registerCommand` — a command of the plugin's own, with a chord — costs
+`patcher.ui.registerCommand` — a command of the plugin's own, with a chord — costs
 nothing, next to `registerKeybinding`, which also costs nothing. The reason is that
 a chord which runs the plugin's own code discloses nothing that was not already the
 plugin's, and the design keeps it that way: `run` receives **no context**. A command
-that wants the page the user is on reads it through `bb.browser.page.*` and pays
+that wants the page the user is on reads it through `patcher.browser.page.*` and pays
 `tabs.read` there.
 
 That is the shape to copy when a surface looks like it needs a new permission:
@@ -236,23 +236,23 @@ needed.
 
 `log`, `settings`, `storage`, `http`, `rpc`, `realtime`, `background`, `cli`,
 `agents`, `ui`, `events`, `hosts` reach the plugin's own resources — its
-database, its routes, its logs. `bb.browser.getStatus()` reports only whether
+database, its routes, its logs. `patcher.browser.getStatus()` reports only whether
 a browser window is connected, which is not the user's data.
 
-`bb.agents.registerTool` is ungated too, and that one is a judgement rather
+`patcher.agents.registerTool` is ungated too, and that one is a judgement rather
 than an obvious call: a plugin's agent tool runs with the plugin's own grants,
 so the tool cannot exceed them. What it does add is reach into the agent's
 turn, which `threads` does not cover.
 
 ## The API gates plugin traffic, not just the SDK object
 
-`bb.sdk` is an HTTP client for bb's own API, and every plugin is handed the
-loopback base URL in `bb.server.loopbackBaseUrl` — a supported thing to use, as
+`patcher.sdk` is an HTTP client for Patcher's own API, and every plugin is handed the
+loopback base URL in `patcher.server.loopbackBaseUrl` — a supported thing to use, as
 the tunnel plugin does. So a gate on the JavaScript object gated the polite way
 in and nothing else: the same call, made with `fetch`, was never checked.
 
 Requests now say who they are. Each plugin gets a key minted at load and kept
-in memory, its SDK client sends `x-bb-plugin-id` / `x-bb-plugin-key`, and a
+in memory, its SDK client sends `x-patcher-plugin-id` / `x-patcher-plugin-key`, and a
 middleware on `/api/v1/*` looks up what that path costs and refuses with 403
 when the plugin did not declare it. A request with no identity — the app, the
 CLI, anything else local — is untouched.
@@ -264,7 +264,7 @@ plugs, by making identity the only way traffic arrives. What exists now is the
 mechanism, the header shape and the path→permission map — the parts a plugin
 host has to be built against, tested before the split rather than invented
 during it. And it is already load-bearing for the honest case: a plugin gets
-the same answer whether it asks through `bb.sdk` or through `fetch`.
+the same answer whether it asks through `patcher.sdk` or through `fetch`.
 
 Paths are classified by longest matching prefix, and an unmatched path is
 **refused**, not allowed — a route nobody classified is a route nobody thought
@@ -301,7 +301,7 @@ are two decisions waiting to disagree.
 ### Three leaks the path map exposed
 
 Classifying routes forced a comparison the area map never invited, and three
-`bb.sdk` members turned out to cost less than what they touch:
+`patcher.sdk` members turned out to cost less than what they touch:
 
 - **`environments.archiveThreads`** archives threads. Its path is a workspace
   route; its effect is a thread mutation. A `workspace` grant was archiving
@@ -322,7 +322,7 @@ plugin that passes one and is refused by the other is worse than either alone.
 
 ## Coarseness that was chosen, not overlooked
 
-- **`bb.sdk` is gated per area, not per method.** An area is the unit the SDK
+- **`patcher.sdk` is gated per area, not per method.** An area is the unit the SDK
   hands out; a permission naming methods would need re-checking against every
   SDK release. `workspace` therefore covers reads and writes alike, and covers
   nine areas at once.
@@ -362,15 +362,15 @@ plugin that passes one and is refused by the other is worse than either alone.
 
 ## The fake host enforces the same list
 
-`@bb/plugin-sdk/testing` refuses what the server refuses, because a harness
+`@patcher/plugin-sdk/testing` refuses what the server refuses, because a harness
 that grants everything turns every plugin suite into evidence for a claim it
 never checked.
 
 Three pieces make it one decision rather than two:
 
-- **The `bb.sdk` area map lives in `@bb/domain`**, read by both hosts. The
-  server keeps the compile-time check that its keys cover `keyof BbSdk`, which
-  `@bb/domain` cannot do without depending on `@bb/sdk`.
+- **The `patcher.sdk` area map lives in `@patcher/domain`**, read by both hosts. The
+  server keeps the compile-time check that its keys cover `keyof PatcherSdk`, which
+  `@patcher/domain` cannot do without depending on `@patcher/sdk`.
 - **The browser permission is named at each fake call site**, not in a table
   keyed by the fake's own labels. The fake speaks the SDK's vocabulary
   (`control.evaluate`) and the host charges the command it builds
@@ -395,8 +395,8 @@ drift that matters is the silent one, where the manifest drops an entry the
 code still uses and the suite keeps passing.
 
 **It found a real one immediately.** `plugins/connect` was declared as needing
-nothing: it reaches `bb.sdk` through `new ShareHostResolver(() => bb.sdk)`, so
-the grep that derived every other manifest never saw a `bb.sdk.` literal. The
+nothing: it reaches `patcher.sdk` through `new ShareHostResolver(() => patcher.sdk)`, so
+the grep that derived every other manifest never saw a `patcher.sdk.` literal. The
 plugin swallows resolver failures, so the refusal did not surface as an error
 either — its tests simply started reporting host ids where host names belong.
 It really does need `threads` and `workspace`, and would have failed on

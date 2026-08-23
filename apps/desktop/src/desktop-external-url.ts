@@ -1,8 +1,8 @@
-// URLs macOS hands this app because the user made bb their browser: a link
+// URLs macOS hands this app because the user made Patcher their browser: a link
 // clicked in Mail, a Slack message, `open https://…` from a terminal.
 //
 // They arrive on `open-url`, which fires before `app.whenReady()` when the click
-// is what launched bb — before there is a window, a renderer or a server to show
+// is what launched Patcher — before there is a window, a renderer or a server to show
 // them in. So the shell **queues** them and the renderer **pulls**: main holds
 // what arrived, the surface drains it when it mounts, and the push on the
 // pending channel is only a nudge for the case where the app was already

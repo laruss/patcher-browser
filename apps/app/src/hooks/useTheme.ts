@@ -3,7 +3,7 @@ import { getDefaultStore } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { createLocalStorageEnumStorage } from "@/lib/browser-storage";
 
-export const THEME_STORAGE_KEY = "bb.theme";
+export const THEME_STORAGE_KEY = "patcher.theme";
 
 export type Theme = "light" | "dark";
 export type ThemePreference = Theme | "system";

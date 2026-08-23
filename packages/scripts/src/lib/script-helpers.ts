@@ -5,7 +5,7 @@ import type { Readable } from "node:stream";
 import {
   spawnPortableOutputProcess,
   type PortableOutputChildProcess,
-} from "@bb/process-utils";
+} from "@patcher/process-utils";
 import pc from "picocolors";
 import { createTurboBuildCommand } from "./dev-restart-utils.js";
 import { toExitCode, waitForProcessExit } from "./process-helpers.js";

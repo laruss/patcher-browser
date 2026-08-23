@@ -19,14 +19,14 @@ import {
   type AppCommandId,
   type AppKeybindings,
   type AppShortcut,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   runPluginCommand,
   usePluginContributions,
   type PluginCommandContribution,
 } from "@/hooks/queries/plugin-contribution-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import { getPatcherDesktopInfo } from "@/lib/patcher-desktop";
 import {
   formatAppShortcut,
   formatAppShortcutAria,
@@ -103,7 +103,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
   const showKeyboardHints =
     systemConfig.data?.generalSettings?.showKeyboardHints ??
     defaultAppSettings.showKeyboardHints;
-  const isDesktop = getBbDesktopInfo() !== null;
+  const isDesktop = getPatcherDesktopInfo() !== null;
   const [isShortcutHintModifierHeld, setIsShortcutHintModifierHeld] =
     useState(false);
   const modifierHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -112,7 +112,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
   const shortcutHintModifierHeldRef = useRef(false);
   // Commands plugins added (`app.commands`). Read here rather than in a component
   // of their own because *precedence* is the point: they are matched only after
-  // every one of bb's own bindings has declined, and that ordering has to live in
+  // every one of Patcher's own bindings has declined, and that ordering has to live in
   // the same loop rather than in two listeners racing on the window.
   const pluginCommands =
     usePluginContributions().data?.commands ?? EMPTY_PLUGIN_COMMANDS;
@@ -330,7 +330,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       const plugins = pluginCommandsRef.current;
       if (plugins.length === 0) return false;
       context ??= currentContext(event.target);
-      // The one scope rule a plugin command gets, and it is bb's own: a chord that
+      // The one scope rule a plugin command gets, and it is Patcher's own: a chord that
       // fired while the user was typing or a dialog was open would be a plugin
       // taking a key away from the thing in front of the user.
       if (context.editableFocus || context.modalOpen) return false;
@@ -362,7 +362,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
   }, [handleKeyboardEvent]);
 
   useEffect(() => {
-    const desktop = getBbDesktopInfo();
+    const desktop = getPatcherDesktopInfo();
     if (!desktop?.onAppCommand) return;
     return desktop.onAppCommand((command) => {
       // Native menu actions intentionally execute as explicit commands. Their

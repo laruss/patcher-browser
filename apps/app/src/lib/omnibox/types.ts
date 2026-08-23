@@ -1,4 +1,4 @@
-// Omnibox provider contract. Kept free of React and of any bb service so
+// Omnibox provider contract. Kept free of React and of any Patcher service so
 // providers can be unit tested directly, and so the plugin-facing contribution
 // point can be bridged onto this same interface later.
 
@@ -7,7 +7,7 @@ export type OmniboxAction =
   | { type: "navigate"; url: string }
   | { type: "activate-tab"; tabId: string }
   /**
-   * Go to one of bb's own screens — Settings, Extensions, a plugin's panel.
+   * Go to one of Patcher's own screens — Settings, Extensions, a plugin's panel.
    * Distinct from `navigate` because the destination is a route, not a page:
    * it belongs to the window's router, and the surface opens or focuses its
    * tab rather than pointing a `WebContentsView` at it.

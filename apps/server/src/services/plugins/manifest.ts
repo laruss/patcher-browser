@@ -6,8 +6,8 @@ import {
   isPluginOwnedIconPath,
   pluginPackageJsonSchema,
   type PluginPermission,
-} from "@bb/domain";
-import { assertValidPluginCompactIconSvg } from "@bb/plugin-build";
+} from "@patcher/domain";
+import { assertValidPluginCompactIconSvg } from "@patcher/plugin-build";
 
 export interface PluginManifest {
   /** Sanitized plugin id derived from the package name. */
@@ -15,9 +15,9 @@ export interface PluginManifest {
   /** Full npm package name. */
   packageName: string;
   version: string;
-  /** `bb.name` — human name shown in host-rendered plugin surfaces. */
+  /** `patcher.name` — human name shown in host-rendered plugin surfaces. */
   name: string;
-  /** `bb.description` — human description shown in plugin management. */
+  /** `patcher.description` — human description shown in plugin management. */
   description: string;
   /** Explicit plugin branding, resolved to absolute asset paths. */
   branding: {
@@ -31,26 +31,26 @@ export interface PluginManifest {
     };
   };
   /**
-   * `bb.permissions` — what this plugin may reach through `bb.browser` and
-   * `bb.sdk`. Undeclared means denied; see `@bb/domain`'s plugin-permissions
+   * `patcher.permissions` — what this plugin may reach through `patcher.browser` and
+   * `patcher.sdk`. Undeclared means denied; see `@patcher/domain`'s plugin-permissions
    * for what that does and does not enforce.
    */
   permissions: readonly PluginPermission[] | undefined;
   /**
-   * `bb.sites` — which websites this plugin's page contributions may reach, as
+   * `patcher.sites` — which websites this plugin's page contributions may reach, as
    * URL globs. Undeclared means none; the schema has already refused anything
    * that is not https (or loopback http).
    */
   sites: readonly string[] | undefined;
-  /** semver range from engines.bb, when declared. */
-  bbEngineRange: string | undefined;
-  /** semver range from engines.bbPluginSdk; absent manifests are legacy. */
-  bbPluginSdkRange: string | undefined;
+  /** semver range from engines.patcher, when declared. */
+  patcherEngineRange: string | undefined;
+  /** semver range from engines.patcherPluginSdk; absent manifests are legacy. */
+  patcherPluginSdkRange: string | undefined;
   /** Absolute path of the backend entry file. */
   serverEntry: string;
   /** Absolute path of the frontend entry file, when declared. */
   appEntry: string | undefined;
-  /** CSS palettes declared by `bb.themes`, with manifest-relative paths resolved. */
+  /** CSS palettes declared by `patcher.themes`, with manifest-relative paths resolved. */
   themes: Array<{
     id: string;
     name: string;
@@ -59,7 +59,7 @@ export interface PluginManifest {
   }>;
   /**
    * Absolute skills-root directories auto-imported as the plugin skills
-   * tier (design §4.4). Defaults to `<rootDir>/skills`; `bb.skills` entries
+   * tier (design §4.4). Defaults to `<rootDir>/skills`; `patcher.skills` entries
    * relocate the roots (a trailing `/*` is accepted and ignored) and an
    * empty array opts out. Missing directories resolve to no skills.
    */
@@ -73,7 +73,7 @@ export interface PluginManifest {
   rootDir: string;
 }
 
-export { derivePluginId } from "@bb/domain";
+export { derivePluginId } from "@patcher/domain";
 
 /** Resolve a manifest-relative entry path, rejecting escapes out of rootDir. */
 function resolveEntry(rootDir: string, entry: string, label: string): string {
@@ -145,25 +145,25 @@ export async function readPluginManifest(
       `invalid plugin package.json${path ? ` (${path})` : ""}: ${issue?.message ?? "unknown error"}`,
     );
   }
-  const { name: packageName, version, engines, bb } = parsed.data;
+  const { name: packageName, version, engines, patcher } = parsed.data;
   if (
-    engines?.bbPluginSdk !== undefined &&
-    semver.validRange(engines.bbPluginSdk) === null
+    engines?.patcherPluginSdk !== undefined &&
+    semver.validRange(engines.patcherPluginSdk) === null
   ) {
     throw new Error(
-      "invalid plugin package.json (engines.bbPluginSdk): must be a valid semver range",
+      "invalid plugin package.json (engines.patcherPluginSdk): must be a valid semver range",
     );
   }
-  const serverEntry = resolveEntry(rootDir, bb.server, "bb.server");
+  const serverEntry = resolveEntry(rootDir, patcher.server, "patcher.server");
   try {
     await stat(serverEntry);
   } catch {
     throw new Error(
-      `manifest bb.server points at a missing file: ${bb.server}`,
+      `manifest patcher.server points at a missing file: ${patcher.server}`,
     );
   }
-  const skillsRootPaths = (bb.skills ?? ["skills"]).map((entry) =>
-    resolveEntry(rootDir, entry.replace(/\/\*$/, ""), "bb.skills"),
+  const skillsRootPaths = (patcher.skills ?? ["skills"]).map((entry) =>
+    resolveEntry(rootDir, entry.replace(/\/\*$/, ""), "patcher.skills"),
   );
   const resolveBrandingAsset = (entry: string, label: string): string => {
     if (!/\.(svg|png|webp)$/i.test(entry)) {
@@ -174,30 +174,31 @@ export async function readPluginManifest(
     return resolveEntry(rootDir, entry, label);
   };
   const brandingLogo =
-    bb.branding.logo === undefined
+    patcher.branding.logo === undefined
       ? undefined
       : {
           lightPath: resolveBrandingAsset(
-            bb.branding.logo.light,
-            "bb.branding.logo.light",
+            patcher.branding.logo.light,
+            "patcher.branding.logo.light",
           ),
-          ...(bb.branding.logo.dark === undefined
+          ...(patcher.branding.logo.dark === undefined
             ? {}
             : {
                 darkPath: resolveBrandingAsset(
-                  bb.branding.logo.dark,
-                  "bb.branding.logo.dark",
+                  patcher.branding.logo.dark,
+                  "patcher.branding.logo.dark",
                 ),
               }),
         };
   const brandingCompactIconPath =
-    bb.branding.icon !== undefined && isPluginOwnedIconPath(bb.branding.icon)
-      ? resolveBrandingAsset(bb.branding.icon, "bb.branding.icon")
+    patcher.branding.icon !== undefined &&
+    isPluginOwnedIconPath(patcher.branding.icon)
+      ? resolveBrandingAsset(patcher.branding.icon, "patcher.branding.icon")
       : undefined;
   for (const [label, assetPath] of [
-    ["bb.branding.icon", brandingCompactIconPath],
-    ["bb.branding.logo.light", brandingLogo?.lightPath],
-    ["bb.branding.logo.dark", brandingLogo?.darkPath],
+    ["patcher.branding.icon", brandingCompactIconPath],
+    ["patcher.branding.logo.light", brandingLogo?.lightPath],
+    ["patcher.branding.logo.dark", brandingLogo?.darkPath],
   ] as const) {
     if (assetPath === undefined) continue;
     let assetStat;
@@ -218,26 +219,32 @@ export async function readPluginManifest(
         `manifest ${label} escapes the plugin directory through a symlink`,
       );
     }
-    if (label === "bb.branding.icon") {
+    if (label === "patcher.branding.icon") {
       assertValidPluginCompactIconSvg(await readFile(realAsset), label);
     }
   }
   const themeIds = new Set<string>();
-  const themes = (bb.themes ?? []).map((theme) => {
+  const themes = (patcher.themes ?? []).map((theme) => {
     if (themeIds.has(theme.id)) {
-      throw new Error(`manifest bb.themes contains duplicate id "${theme.id}"`);
+      throw new Error(
+        `manifest patcher.themes contains duplicate id "${theme.id}"`,
+      );
     }
     themeIds.add(theme.id);
     if (!theme.css.toLowerCase().endsWith(".css")) {
       throw new Error(
-        `manifest bb.themes theme "${theme.id}" must point at a .css file`,
+        `manifest patcher.themes theme "${theme.id}" must point at a .css file`,
       );
     }
     return {
       id: theme.id,
       name: theme.name,
       description: theme.description ?? null,
-      cssPath: resolveEntry(rootDir, theme.css, `bb.themes.${theme.id}.css`),
+      cssPath: resolveEntry(
+        rootDir,
+        theme.css,
+        `patcher.themes.${theme.id}.css`,
+      ),
     };
   });
   for (const theme of themes) {
@@ -245,7 +252,7 @@ export async function readPluginManifest(
       await stat(theme.cssPath);
     } catch {
       throw new Error(
-        `manifest bb.themes theme "${theme.id}" points at a missing file`,
+        `manifest patcher.themes theme "${theme.id}" points at a missing file`,
       );
     }
   }
@@ -253,21 +260,25 @@ export async function readPluginManifest(
     id: derivePluginId(packageName),
     packageName,
     version,
-    name: bb.name,
-    description: bb.description,
+    name: patcher.name,
+    description: patcher.description,
     branding: {
-      ...(bb.branding.icon === undefined ? {} : { icon: bb.branding.icon }),
+      ...(patcher.branding.icon === undefined
+        ? {}
+        : { icon: patcher.branding.icon }),
       ...(brandingCompactIconPath === undefined
         ? {}
         : { compactIconPath: brandingCompactIconPath }),
       ...(brandingLogo === undefined ? {} : { logo: brandingLogo }),
     },
-    permissions: bb.permissions,
-    sites: bb.sites,
-    bbEngineRange: engines?.bb,
-    bbPluginSdkRange: engines?.bbPluginSdk,
+    permissions: patcher.permissions,
+    sites: patcher.sites,
+    patcherEngineRange: engines?.patcher,
+    patcherPluginSdkRange: engines?.patcherPluginSdk,
     serverEntry,
-    appEntry: bb.app ? resolveEntry(rootDir, bb.app, "bb.app") : undefined,
+    appEntry: patcher.app
+      ? resolveEntry(rootDir, patcher.app, "patcher.app")
+      : undefined,
     themes,
     skillsRootPaths,
     skillNames: await readSkillNames(skillsRootPaths),

@@ -3,16 +3,16 @@ import {
   getLatestThreadOutputEventRow,
   getLatestThreadSystemErrorEventRow,
   listStoredEventRows as listStoredEventRowRecords,
-} from "@bb/db";
-import type { DbConnection, StoredEventRow } from "@bb/db";
-import { buildThreadEventRow, parseStoredThreadEvent } from "@bb/domain";
-import { threadScope, turnScope } from "@bb/domain";
+} from "@patcher/db";
+import type { DbConnection, StoredEventRow } from "@patcher/db";
+import { buildThreadEventRow, parseStoredThreadEvent } from "@patcher/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import type {
   ThreadEvent,
   ThreadEventRow,
   ThreadEventScope,
   ThreadEventType,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { ApiError } from "../../errors.js";
 
 type StoredEventPayloadRow = Pick<

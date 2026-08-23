@@ -1,16 +1,19 @@
-import { resolveRuntimeMode, type BbRuntimeMode } from "@bb/config/runtime";
+import {
+  resolveRuntimeMode,
+  type PatcherRuntimeMode,
+} from "@patcher/config/runtime";
 
-// Matches @bb/config runtime mode resolution: anything other than "production"
+// Matches @patcher/config runtime mode resolution: anything other than "production"
 // is treated as dev. Keeping scripts and runtime config in sync is
 // load-bearing because they derive the same data dir, ports, and server URL.
 export function resolveScriptMode(
   nodeEnv: string | undefined = process.env.NODE_ENV,
-): BbRuntimeMode {
+): PatcherRuntimeMode {
   return resolveRuntimeMode(nodeEnv);
 }
 
 export function resolveNodeEnvironment(
-  mode: BbRuntimeMode,
+  mode: PatcherRuntimeMode,
 ): "development" | "production" {
   return mode === "dev" ? "development" : "production";
 }

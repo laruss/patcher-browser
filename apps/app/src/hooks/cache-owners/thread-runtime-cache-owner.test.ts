@@ -1,9 +1,9 @@
-import type { ThreadListEntry, ThreadQueuedMessage } from "@bb/domain";
+import type { ThreadListEntry, ThreadQueuedMessage } from "@patcher/domain";
 import type {
   SidebarBootstrapResponse,
   ThreadSearchResponse,
   ThreadTimelineResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import { createAppQueryClient } from "@/lib/query-client";
 import {

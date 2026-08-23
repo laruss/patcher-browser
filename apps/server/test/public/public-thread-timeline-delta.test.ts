@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { threadScope, turnScope } from "@bb/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import {
   applyTimelineDelta,
   threadTimelineResponseSchema,
   type ThreadTimelineResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import { seedEvent, seedThreadFixture } from "../helpers/seed.js";
 import { withTestHarness } from "../helpers/test-app.js";

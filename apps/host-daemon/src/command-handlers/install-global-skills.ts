@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
+import matter from "gray-matter";
+import type { HostDaemonOnlineRpcResult } from "@patcher/host-daemon-contract";
 import {
   CommandDispatchError,
   type CommandOf,
@@ -15,12 +16,33 @@ import {
 import type { FetchSkillTree } from "../skill-trees.js";
 
 /**
- * Global skill roots read by agents running outside bb. `~/.agents/skills` is
+ * Global skill roots read by agents running outside Patcher. `~/.agents/skills` is
  * the cross-agent convention; `~/.claude/skills` is Claude Code's user root.
  */
 const GLOBAL_SKILL_ROOT_SEGMENTS: readonly (readonly string[])[] = [
   [".agents", "skills"],
   [".claude", "skills"],
+];
+
+/**
+ * Global skill directories this product installed under its old name.
+ *
+ * These roots are outside the Patcher data directory, so the `~/.bb` → `~/.patcher`
+ * clean break never reached them: after the rename, `~/.claude/skills/bb-cli`
+ * survives beside the freshly installed `patcher-cli`, still declaring
+ * `description: Control bb itself from the command line…`. Claude Code loads
+ * both, triggers the old one on exactly the tasks the new one targets, and then
+ * tells the agent to run `bb status` — a binary this fork no longer ships. Two
+ * near-identical skills, one actively wrong.
+ *
+ * Names, not a pattern: this is the user's own skill root and holds skills from
+ * other sources. Each candidate also has to declare the legacy name in its own
+ * frontmatter before it is removed, so a directory that merely collides with
+ * one of these is left where it is.
+ */
+const RENAMED_GLOBAL_SKILL_NAMES: readonly string[] = [
+  "bb-cli",
+  "bb-plugin-authoring",
 ];
 
 export interface InstallGlobalSkillsOptions {
@@ -38,6 +60,51 @@ function globalSkillPaths(homeDir: string, name: string): string[] {
   return GLOBAL_SKILL_ROOT_SEGMENTS.map((segments) =>
     path.join(homeDir, ...segments, name),
   );
+}
+
+/** The name a skill directory claims for itself, or null if it claims none. */
+async function readDeclaredSkillName(
+  skillDirectoryPath: string,
+): Promise<string | null> {
+  let content: string;
+  try {
+    content = await fs.readFile(
+      path.join(skillDirectoryPath, "SKILL.md"),
+      "utf8",
+    );
+  } catch {
+    return null;
+  }
+  try {
+    const name: unknown = matter(content).data.name;
+    return typeof name === "string" && name.trim().length > 0
+      ? name.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove the copies this product installed under its old name. Runs on every
+ * install rather than once, because there is no uninstall RPC and no record of
+ * which machines still carry them — an install is the only moment the daemon is
+ * known to be reachable and the roots are known to be writable.
+ */
+export async function pruneRenamedGlobalSkills(args: {
+  homeDir: string;
+}): Promise<{ name: string; path: string }[]> {
+  const removed: { name: string; path: string }[] = [];
+  for (const name of RENAMED_GLOBAL_SKILL_NAMES) {
+    for (const skillDirectoryPath of globalSkillPaths(args.homeDir, name)) {
+      if ((await readDeclaredSkillName(skillDirectoryPath)) !== name) {
+        continue;
+      }
+      await fs.rm(skillDirectoryPath, { force: true, recursive: true });
+      removed.push({ name, path: skillDirectoryPath });
+    }
+  }
+  return removed;
 }
 
 /**
@@ -80,7 +147,7 @@ async function replaceSkillDirectory(args: {
   await fs.mkdir(parentPath, { recursive: true });
   const stagingPath = path.join(
     parentPath,
-    `.bb-tmp-${args.name}-${process.pid}-${randomUUID()}`,
+    `.patcher-tmp-${args.name}-${process.pid}-${randomUUID()}`,
   );
   try {
     await copyInjectedSkillSource({
@@ -141,6 +208,10 @@ export async function installGlobalSkills(
       installations.push({ name: skill.name, path: destinationPath });
     }
   }
+
+  // After the installs, so a machine that fails partway through still has the
+  // old copies to fall back on rather than neither.
+  await pruneRenamedGlobalSkills({ homeDir });
 
   return { installations };
 }

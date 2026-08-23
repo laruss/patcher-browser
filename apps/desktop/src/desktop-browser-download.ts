@@ -18,7 +18,7 @@ export const DOWNLOAD_RATE_WINDOW_MS = 10_000;
 export const DOWNLOAD_RATE_MAX_IN_WINDOW = 5;
 
 /**
- * Cap on the filename bb will write. Well under the 255 bytes a typical
+ * Cap on the filename Patcher will write. Well under the 255 bytes a typical
  * filesystem allows per component, leaving room for the ` (12)` a collision
  * appends and for multi-byte characters counting as more than one byte.
  */
@@ -94,7 +94,7 @@ function truncateFilename(filename: string, maxLength: number): string {
 }
 
 /**
- * The name bb is willing to write, from the name the page asked for.
+ * The name Patcher is willing to write, from the name the page asked for.
  *
  * What this refuses, and why each one matters:
  *

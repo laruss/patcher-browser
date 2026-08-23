@@ -3,15 +3,15 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type {
-  BbDesktopBrowserApi,
-  BbDesktopBrowserFindRequest,
-  BbDesktopBrowserFindResult,
-  BbDesktopBrowserFindResultHandler,
-} from "@bb/desktop-contract";
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserFindRequest,
+  PatcherDesktopBrowserFindResult,
+  PatcherDesktopBrowserFindResultHandler,
+} from "@patcher/desktop-contract";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import { describeBrowserFindMatches, useBrowserFind } from "./browser-find";
 
 const desktopInfo = {
@@ -26,17 +26,17 @@ const desktopInfo = {
 
 interface FindHarness {
   /** Every command the bar sent, in order. */
-  commands: BbDesktopBrowserFindRequest[];
+  commands: PatcherDesktopBrowserFindRequest[];
   /** Push a count the way the shell does. */
-  pushResult: (result: BbDesktopBrowserFindResult) => void;
+  pushResult: (result: PatcherDesktopBrowserFindResult) => void;
 }
 
 function installDesktopBrowser(
-  overrides: Partial<BbDesktopBrowserApi> = {},
+  overrides: Partial<PatcherDesktopBrowserApi> = {},
 ): FindHarness {
-  const commands: BbDesktopBrowserFindRequest[] = [];
-  const listeners = new Set<BbDesktopBrowserFindResultHandler>();
-  const browser: BbDesktopBrowserApi = {
+  const commands: PatcherDesktopBrowserFindRequest[] = [];
+  const listeners = new Set<PatcherDesktopBrowserFindResultHandler>();
+  const browser: PatcherDesktopBrowserApi = {
     ...createNoopDesktopBrowserApi(),
     find(request) {
       commands.push(request);
@@ -49,7 +49,7 @@ function installDesktopBrowser(
     },
     ...overrides,
   };
-  window.bbDesktop = createBbDesktopApi(desktopInfo, browser);
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, browser);
   return {
     commands,
     pushResult(result) {
@@ -75,7 +75,7 @@ function renderFind(
 
 afterEach(() => {
   cleanup();
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
 });
 
 describe("describeBrowserFindMatches", () => {

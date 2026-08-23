@@ -2,12 +2,12 @@
 
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
-import { Dialog, DialogContent, DialogTitle } from "@bb/shared-ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@patcher/shared-ui/dialog";
 import { useIsBrowserDimmingModalOpen } from "@/hooks/useBrowserDimmingModal";
 
 /**
  * Guards the shared-ui env seam (packages/shared-ui + apps/app/vite-shared-ui-seam.ts):
- * the direct @bb/shared-ui dialog import calls `useBrowserDimmingModal(open)`,
+ * the direct @patcher/shared-ui dialog import calls `useBrowserDimmingModal(open)`,
  * which must resolve to the app's real jotai-backed flavor — not shared-ui's
  * no-op leaf — so every app Dialog still dims the native browser WebContentsView.
  * The probe reads the same atom through the app hook: if the seam ever no-ops

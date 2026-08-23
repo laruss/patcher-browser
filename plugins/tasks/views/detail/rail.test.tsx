@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
 
 // jsdom lacks matchMedia; the vendored Dialog's responsive root needs it.
 if (!window.matchMedia) {
@@ -24,9 +24,9 @@ const app = await loadPluginApp(() => import("../../app"));
 afterEach(cleanup);
 
 const PROJECT_ID = "01HZZZZZZZZZZZZZZZZZZZZZP1";
-const BB_PROJECT_ID = "proj_bb0000000000000000000001";
+const PATCHER_PROJECT_ID = "proj_pa0000000000000000000001";
 
-function projectRow(linkedBbProjectId: string | null) {
+function projectRow(linkedPatcherProjectId: string | null) {
   return {
     id: PROJECT_ID,
     name: "Tasks Plugin",
@@ -34,7 +34,7 @@ function projectRow(linkedBbProjectId: string | null) {
     nextTaskNumber: 6,
     color: "blue",
     folderId: null,
-    linkedBbProjectId,
+    linkedPatcherProjectId,
     createdAt: "2026-07-15T00:00:00.000Z",
   };
 }
@@ -57,11 +57,11 @@ const task = {
 };
 
 function detailRpc(
-  linkedBbProjectId: string | null,
+  linkedPatcherProjectId: string | null,
   overrides: Record<string, unknown> = {},
 ) {
   return {
-    listProjects: () => ({ projects: [projectRow(linkedBbProjectId)] }),
+    listProjects: () => ({ projects: [projectRow(linkedPatcherProjectId)] }),
     listFolders: () => ({ folders: [] }),
     listPresets: () => ({ presets: [] }),
     sidebarSummary: () => ({ projects: [] }),
@@ -76,27 +76,29 @@ function detailRpc(
       unavailableThreadIds: [],
     }),
     listComments: () => ({ comments: [] }),
-    listBbProjects: () => ({ bbProjects: [] }),
+    listPatcherProjects: () => ({ patcherProjects: [] }),
     ...overrides,
   };
 }
 
 describe("dispatch target rail control", () => {
-  it("links a discovered bb project", async () => {
+  it("links a discovered patcher project", async () => {
     const updateCalls: Array<Record<string, unknown>> = [];
     const slot = renderSlot(
       app.navPanels[0]!,
       { subPath: "task/TSK-5" },
       {
         rpc: detailRpc(null, {
-          listBbProjects: () => ({
-            bbProjects: [{ id: BB_PROJECT_ID, name: "bb monorepo" }],
+          listPatcherProjects: () => ({
+            patcherProjects: [
+              { id: PATCHER_PROJECT_ID, name: "Patcher monorepo" },
+            ],
           }),
           updateProject: (input: Record<string, unknown>) => {
             updateCalls.push(input);
             return {
               project: {
-                ...projectRow(input.linkedBbProjectId as string | null),
+                ...projectRow(input.linkedPatcherProjectId as string | null),
               },
             };
           },
@@ -106,31 +108,35 @@ describe("dispatch target rail control", () => {
     fireEvent.click(
       await slot.findByRole("button", { name: "Edit dispatch target" }),
     );
-    fireEvent.click(await slot.findByLabelText("Linked bb project"));
-    fireEvent.click(await slot.findByRole("option", { name: "bb monorepo" }));
+    fireEvent.click(await slot.findByLabelText("Linked Patcher project"));
+    fireEvent.click(
+      await slot.findByRole("option", { name: "Patcher monorepo" }),
+    );
     fireEvent.click(slot.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(updateCalls).toHaveLength(1));
     expect(updateCalls[0]).toEqual({
       projectId: PROJECT_ID,
-      linkedBbProjectId: BB_PROJECT_ID,
+      linkedPatcherProjectId: PATCHER_PROJECT_ID,
     });
   });
 
-  it("shows the linked bb project's name and unlinks it", async () => {
+  it("shows the linked Patcher project's name and unlinks it", async () => {
     const updateCalls: Array<Record<string, unknown>> = [];
     const slot = renderSlot(
       app.navPanels[0]!,
       { subPath: "task/TSK-5" },
       {
-        rpc: detailRpc(BB_PROJECT_ID, {
-          listBbProjects: () => ({
-            bbProjects: [{ id: BB_PROJECT_ID, name: "bb monorepo" }],
+        rpc: detailRpc(PATCHER_PROJECT_ID, {
+          listPatcherProjects: () => ({
+            patcherProjects: [
+              { id: PATCHER_PROJECT_ID, name: "Patcher monorepo" },
+            ],
           }),
           updateProject: (input: Record<string, unknown>) => {
             updateCalls.push(input);
             return {
               project: {
-                ...projectRow(input.linkedBbProjectId as string | null),
+                ...projectRow(input.linkedPatcherProjectId as string | null),
               },
             };
           },
@@ -140,14 +146,14 @@ describe("dispatch target rail control", () => {
     const trigger = await slot.findByRole("button", {
       name: "Edit dispatch target",
     });
-    await slot.findByText("bb monorepo");
+    await slot.findByText("Patcher monorepo");
 
     fireEvent.click(trigger);
     fireEvent.click(await slot.findByRole("button", { name: "Unlink" }));
     await waitFor(() => expect(updateCalls).toHaveLength(1));
     expect(updateCalls[0]).toEqual({
       projectId: PROJECT_ID,
-      linkedBbProjectId: null,
+      linkedPatcherProjectId: null,
     });
   });
 });

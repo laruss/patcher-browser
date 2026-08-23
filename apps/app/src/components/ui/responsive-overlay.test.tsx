@@ -7,12 +7,12 @@ import type {
 } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { POINTER_COARSE_QUERY } from "@bb/shared-ui/hooks/use-pointer-coarse";
+import { POINTER_COARSE_QUERY } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import { useIsBrowserDimmingModalOpen } from "@/hooks/useBrowserDimmingModal";
 import {
   PersistentResponsiveDrawerShell,
   ResponsiveDrawerShell,
-} from "@bb/shared-ui/responsive-overlay";
+} from "@patcher/shared-ui/responsive-overlay";
 
 type CapturedAnimationEnd = (args: {
   currentTarget: HTMLElement;
@@ -28,10 +28,10 @@ const drawerContentState = vi.hoisted(() => ({
   firePointerDownOutside: undefined as CapturedPointerDownOutside | undefined,
 }));
 
-// ResponsiveDrawerShell now lives in @bb/shared-ui and imports its own
+// ResponsiveDrawerShell now lives in @patcher/shared-ui and imports its own
 // `./drawer.js`; mock that module (the same resolved file) so the shared-ui
 // import graph — not the app re-export shim — picks up the stub.
-vi.mock("@bb/shared-ui/drawer", async () => {
+vi.mock("@patcher/shared-ui/drawer", async () => {
   const React = await import("react");
 
   const Drawer = ({ children }: { children: ReactNode }) =>

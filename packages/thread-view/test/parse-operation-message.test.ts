@@ -4,7 +4,7 @@ import type {
   SystemThreadInterruptedReason,
   SystemThreadProvisioningStatus,
   ThreadEventRow,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { decodeThreadEventRow } from "../src/event-decode.js";
 import {
   finalizeOperationMessage,

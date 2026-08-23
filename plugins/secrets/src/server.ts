@@ -1,9 +1,9 @@
 import path from "node:path";
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginCliContext,
   PluginCliResult,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { z } from "zod";
 import { secretNameSchema, secretRequestResponseSchema } from "./contracts.js";
 import { assertNoDuplicateAssignments, reconcileDotenv } from "./dotenv.js";
@@ -58,7 +58,9 @@ function parseSecretName(value: string, label: string): string {
 
 function parseRequest(argv: string[]): ParsedRequest {
   if (argv[0] !== "request")
-    throw new Error("Usage: bb secret request <NAME...> --write-env <path>");
+    throw new Error(
+      "Usage: patcher secret request <NAME...> --write-env <path>",
+    );
   const names: string[] = [];
   const descriptions = new Map<string, string>();
   let purpose: string | null = null;
@@ -134,11 +136,13 @@ function httpStatus(error: unknown): number | null {
 }
 
 async function readSnapshot(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   args: { hostId: string; path: string },
 ): Promise<FileSnapshot> {
   try {
-    const result = fileReadResultSchema.parse(await bb.sdk.files.read(args));
+    const result = fileReadResultSchema.parse(
+      await patcher.sdk.files.read(args),
+    );
     if (result.contentEncoding !== "utf8")
       throw new Error("Dotenv file is not valid UTF-8 text.");
     return { content: result.content, sha256: result.sha256 };
@@ -149,19 +153,19 @@ async function readSnapshot(
 }
 
 async function runRequest(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   argv: string[],
   ctx: PluginCliContext,
 ): Promise<PluginCliResult> {
   const parsed = parseRequest(argv);
   if (!ctx.threadId)
-    throw new Error("bb secret request must run from a bb thread.");
+    throw new Error("patcher secret request must run from a Patcher thread.");
   if (!ctx.cwd)
     throw new Error(
-      "bb secret request requires the invoking working directory.",
+      "patcher secret request requires the invoking working directory.",
     );
   const thread = threadHostSchema.parse(
-    await bb.sdk.threads.get({
+    await patcher.sdk.threads.get({
       threadId: ctx.threadId,
       include: "host",
     }),
@@ -170,10 +174,10 @@ async function runRequest(
   if (!host?.id) throw new Error("The thread needs a live host.");
   const destinationPath = resolveHostPath(ctx.cwd, parsed.writeEnv);
   const fileArgs = { hostId: host.id, path: destinationPath };
-  let snapshot = await readSnapshot(bb, fileArgs);
+  let snapshot = await readSnapshot(patcher, fileArgs);
   assertNoDuplicateAssignments(snapshot.content, parsed.names);
 
-  const result = await bb.ui.requestInput(
+  const result = await patcher.ui.requestInput(
     {
       threadId: ctx.threadId,
       rendererId: "secret-request",
@@ -209,7 +213,7 @@ async function runRequest(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const reconciled = reconcileDotenv(snapshot.content, response.values);
     const write = fileWriteResultSchema.parse(
-      await bb.sdk.files.write({
+      await patcher.sdk.files.write({
         ...fileArgs,
         content: reconciled.content,
         contentEncoding: "utf8",
@@ -228,14 +232,14 @@ async function runRequest(
       throw new Error(
         "Dotenv file changed twice while secrets were being written; no write was applied.",
       );
-    snapshot = await readSnapshot(bb, fileArgs);
+    snapshot = await readSnapshot(patcher, fileArgs);
     assertNoDuplicateAssignments(snapshot.content, parsed.names);
   }
   throw new Error("Unreachable dotenv write state.");
 }
 
-export default function plugin(bb: BbPluginApi) {
-  bb.cli.register({
+export default function plugin(patcher: PatcherPluginApi) {
+  patcher.cli.register({
     name: "secret",
     summary: "Securely request credentials and write them to a dotenv file.",
     commands: [
@@ -243,12 +247,12 @@ export default function plugin(bb: BbPluginApi) {
         name: "request",
         summary: "Request one or more secrets in a secure user form.",
         usage:
-          "bb secret request <NAME...> --write-env <path> [--purpose <text>] [--describe <NAME> <text>]...",
+          "patcher secret request <NAME...> --write-env <path> [--purpose <text>] [--describe <NAME> <text>]...",
       },
     ],
     async run(argv, ctx) {
       try {
-        return await runRequest(bb, argv, ctx);
+        return await runRequest(patcher, argv, ctx);
       } catch (error) {
         return {
           exitCode: 1,

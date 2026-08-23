@@ -1,5 +1,5 @@
 // Hermes Agent brand mark from the provided SVG. Rendered in currentColor so
-// it follows bb's provider icon theming in light and dark modes.
+// it follows Patcher's provider icon theming in light and dark modes.
 export function HermesAgentIcon({ className }: { className?: string }) {
   return (
     <svg

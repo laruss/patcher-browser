@@ -1,7 +1,7 @@
 /**
  * Codex provider adapter.
  *
- * Maps between bb's ProviderAdapter contract and the OpenAI Codex app-server
+ * Maps between Patcher's ProviderAdapter contract and the OpenAI Codex app-server
  * JSON-RPC protocol. Validates the outer JSON-RPC envelope before translating
  * the provider-specific payloads.
  *
@@ -10,14 +10,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { getBuiltInAgentProviderInfo } from "@bb/agent-providers";
+import { getBuiltInAgentProviderInfo } from "@patcher/agent-providers";
 import {
   getThreadEventScopeTurnId,
   isStandaloneBuiltinCompactCommand,
   jsonValueSchema,
   requireThreadEventScopeTurnId,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ClientTurnRequestId,
   PermissionEscalation,
@@ -25,7 +25,7 @@ import type {
   ReasoningLevel,
   ServiceTier,
   ThreadEvent,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { ReasoningEffort as CodexReasoningEffort } from "./generated/codex-app-server/schema/ReasoningEffort.js";
 import type { JsonValue } from "./generated/codex-app-server/schema/serde_json/JsonValue.js";
 import type { ServerNotification as CodexServerNotification } from "./generated/codex-app-server/schema/ServerNotification.js";
@@ -38,7 +38,10 @@ import type { ThreadStartParams } from "./generated/codex-app-server/schema/v2/T
 import type { UserInput as CodexUserInput } from "./generated/codex-app-server/schema/v2/UserInput.js";
 import type { AskForApproval } from "./generated/codex-app-server/schema/v2/AskForApproval.js";
 import type { ApprovalsReviewer } from "./generated/codex-app-server/schema/v2/ApprovalsReviewer.js";
-import { mapBbReasoningLevelToCodex, parseModelsResponse } from "./models.js";
+import {
+  mapPatcherReasoningLevelToCodex,
+  parseModelsResponse,
+} from "./models.js";
 import {
   buildShellEnvironmentPolicyConfig,
   extractResultText,
@@ -98,11 +101,11 @@ interface CodexThreadPermissionSettings {
   sandbox: CodexSandboxMode;
 }
 
-type BbThreadStartParams = ThreadStartParams & {
+type PatcherThreadStartParams = ThreadStartParams & {
   experimentalRawEvents?: boolean;
 };
 
-type BbThreadForkParams = {
+type PatcherThreadForkParams = {
   threadId: string;
   lastTurnId?: string | null;
   model?: string | null;
@@ -179,7 +182,7 @@ interface ActivateThreadGitWritableRootsArgs {
   threadId: string;
 }
 
-interface ClearGitWritableRootsByBbThreadIdArgs {
+interface ClearGitWritableRootsByPatcherThreadIdArgs {
   threadId: string;
 }
 
@@ -667,7 +670,7 @@ function toCodexServiceTier(tier: ServiceTier | undefined): "fast" | undefined {
 function toCodexReasoningEffort(
   reasoningLevel: ReasoningLevel,
 ): CodexReasoningEffort {
-  const codexEffort = mapBbReasoningLevelToCodex(reasoningLevel);
+  const codexEffort = mapPatcherReasoningLevelToCodex(reasoningLevel);
   if (codexEffort == null) {
     // "none" is Cursor-only; "ultracode" is Claude-specific. Codex models
     // never expose either, so model-switch reconciliation maps them away
@@ -703,7 +706,7 @@ function buildCodexConfig(
 ): { [key in string]?: JsonValue } | undefined {
   const config: { [key in string]?: JsonValue } = {};
   if (args.threadId) {
-    config["shell_environment_policy.set.BB_THREAD_ID"] = args.threadId;
+    config["shell_environment_policy.set.PATCHER_THREAD_ID"] = args.threadId;
   }
   const shellEnvironmentConfig = buildShellEnvironmentPolicyConfig(
     args.options?.envVars,
@@ -1046,7 +1049,7 @@ export function createCodexProviderAdapter(
     string[]
   >();
   const workspaceWriteGitWritableRootsByThreadId = new Map<string, string[]>();
-  const bbThreadIdByProviderThreadId = new Map<string, string>();
+  const patcherThreadIdByProviderThreadId = new Map<string, string>();
   const rawCommandOutputStateByProviderThreadId = new Map<
     string,
     CodexRawCommandOutputState
@@ -1085,17 +1088,20 @@ export function createCodexProviderAdapter(
     workspaceWriteGitWritableRootsByThreadId.set(args.threadId, [
       ...writableRoots,
     ]);
-    bbThreadIdByProviderThreadId.set(args.providerThreadId, args.threadId);
+    patcherThreadIdByProviderThreadId.set(args.providerThreadId, args.threadId);
   }
 
-  function clearGitWritableRootsByBbThreadId(
-    args: ClearGitWritableRootsByBbThreadIdArgs,
+  function clearGitWritableRootsByPatcherThreadId(
+    args: ClearGitWritableRootsByPatcherThreadIdArgs,
   ): void {
     pendingWorkspaceWriteGitWritableRootsByThreadId.delete(args.threadId);
     workspaceWriteGitWritableRootsByThreadId.delete(args.threadId);
-    for (const [providerThreadId, threadId] of bbThreadIdByProviderThreadId) {
+    for (const [
+      providerThreadId,
+      threadId,
+    ] of patcherThreadIdByProviderThreadId) {
       if (threadId === args.threadId) {
-        bbThreadIdByProviderThreadId.delete(providerThreadId);
+        patcherThreadIdByProviderThreadId.delete(providerThreadId);
       }
     }
   }
@@ -1103,12 +1109,14 @@ export function createCodexProviderAdapter(
   function clearGitWritableRootsByProviderThreadId(
     args: ClearGitWritableRootsByProviderThreadIdArgs,
   ): void {
-    const threadId = bbThreadIdByProviderThreadId.get(args.providerThreadId);
-    bbThreadIdByProviderThreadId.delete(args.providerThreadId);
+    const threadId = patcherThreadIdByProviderThreadId.get(
+      args.providerThreadId,
+    );
+    patcherThreadIdByProviderThreadId.delete(args.providerThreadId);
     if (!threadId) {
       return;
     }
-    clearGitWritableRootsByBbThreadId({ threadId });
+    clearGitWritableRootsByPatcherThreadId({ threadId });
   }
 
   function prepareWorkspaceWriteGitRoots(
@@ -1127,7 +1135,7 @@ export function createCodexProviderAdapter(
         writableRoots,
       });
     } else {
-      clearGitWritableRootsByBbThreadId({ threadId: command.threadId });
+      clearGitWritableRootsByPatcherThreadId({ threadId: command.threadId });
     }
     return {
       config: buildCodexConfig({
@@ -1797,7 +1805,7 @@ export function createCodexProviderAdapter(
     approvalRequestPolicy: "runtime",
     classifyExecutionSettingsChange: classifySessionExecutionSettingsChange,
     // Codex app-server connections are owned by the runtime process manager.
-    // BB runs live Codex threads on thread-scoped app-server processes, while
+    // Patcher runs live Codex threads on thread-scoped app-server processes, while
     // provider-only probes can still use a provider-scoped maintenance process.
     process: {
       command: opts?.processCommand ?? "codex",
@@ -1830,7 +1838,7 @@ export function createCodexProviderAdapter(
             kind: "request",
             method: "initialize",
             params: {
-              clientInfo: { name: "bb", version: "1.0.0", title: null },
+              clientInfo: { name: "Patcher", version: "1.0.0", title: null },
               capabilities: { experimentalApi: true },
             },
           };
@@ -1855,7 +1863,7 @@ export function createCodexProviderAdapter(
         case "thread/start": {
           const dynamicTools = toCodexDynamicTools(command.dynamicTools);
           const preparedGitRoots = prepareWorkspaceWriteGitRoots({ command });
-          const params: BbThreadStartParams = {
+          const params: PatcherThreadStartParams = {
             approvalPolicy: preparedGitRoots.permissionSettings.approvalPolicy,
             approvalsReviewer:
               preparedGitRoots.permissionSettings.approvalsReviewer,
@@ -1864,7 +1872,7 @@ export function createCodexProviderAdapter(
             ...resolveCodexInstructionOverrides(command),
             model: command.options?.model ?? undefined,
             serviceTier: toCodexServiceTier(command.options?.serviceTier),
-            // bb reaps idle thread-scoped Codex processes and later resumes by
+            // Patcher reaps idle thread-scoped Codex processes and later resumes by
             // provider thread id, so the rollout must exist on disk. Codex
             // already defaults to non-ephemeral; pin the value so a future
             // default flip cannot silently break resume.
@@ -1909,7 +1917,7 @@ export function createCodexProviderAdapter(
         case "thread/fork": {
           const dynamicTools = toCodexDynamicTools(command.dynamicTools);
           const preparedGitRoots = prepareWorkspaceWriteGitRoots({ command });
-          const params: BbThreadForkParams = {
+          const params: PatcherThreadForkParams = {
             threadId: command.sourceProviderThreadId,
             ...(command.sourceProviderCheckpointId !== undefined
               ? { lastTurnId: command.sourceProviderCheckpointId }

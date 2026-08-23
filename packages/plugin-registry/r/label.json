@@ -3,12 +3,12 @@
   "name": "label",
   "type": "registry:ui",
   "title": "label",
-  "description": "BB ui \"label\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"label\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-label"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

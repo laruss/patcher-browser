@@ -3,7 +3,7 @@
   "name": "use-media-query",
   "type": "registry:hook",
   "title": "use-media-query",
-  "description": "BB hook \"use-media-query\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher hook \"use-media-query\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "files": [
     {
       "path": "registry/components/ui/hooks/use-media-query.ts",

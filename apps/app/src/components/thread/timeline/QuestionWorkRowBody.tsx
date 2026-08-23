@@ -1,9 +1,9 @@
 import type {
   PendingInteractionUserAnswer,
   PendingInteractionUserQuestionQuestion,
-} from "@bb/domain";
-import type { TimelineQuestionViewWorkRow } from "@bb/thread-view";
-import { formatPendingInteractionUserQuestionOptionLabel } from "@bb/core-ui";
+} from "@patcher/domain";
+import type { TimelineQuestionViewWorkRow } from "@patcher/thread-view";
+import { formatPendingInteractionUserQuestionOptionLabel } from "@patcher/core-ui";
 
 interface QuestionWorkRowBodyProps {
   row: TimelineQuestionViewWorkRow;
@@ -18,7 +18,7 @@ export function QuestionWorkRowBody({ row }: QuestionWorkRowBodyProps) {
   // `resolving` and `answered` both have a recorded answer set — the
   // projection wires `row.answers` from the resolution as soon as the user
   // submits. Pending and interrupted states are fully described by
-  // the row title (see `mapQuestionTitle` in @bb/thread-view), so their body
+  // the row title (see `mapQuestionTitle` in @patcher/thread-view), so their body
   // collapses out and the row renders title-only like web-search/web-fetch.
   if (row.lifecycle !== "answered" && row.lifecycle !== "resolving") {
     return null;
@@ -48,7 +48,7 @@ function AnsweredQuestionRow({ question, answer }: AnsweredQuestionRowProps) {
 
   return (
     <div>
-      {/* Differentiate by bb's foreground tiers (color), not weight: the prompt
+      {/* Differentiate by Patcher's foreground tiers (color), not weight: the prompt
           recedes to subtle-foreground while the answer is full foreground. The
           two-tier gap (vs muted) is what keeps them distinguishable in dark
           mode, where foreground and muted-foreground nearly coincide. */}

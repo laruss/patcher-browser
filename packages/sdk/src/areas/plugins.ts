@@ -1,4 +1,4 @@
-import { jsonValueSchema, type JsonValue } from "@bb/domain";
+import { jsonValueSchema, type JsonValue } from "@patcher/domain";
 import {
   pluginCatalogInstallRequestSchema,
   pluginCatalogSearchResponseSchema,
@@ -28,7 +28,7 @@ import {
   type PluginSourceDetail,
   type PluginTokenResponse,
   type PluginUpdateCheckEntry,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { z } from "zod";
 import type { CreateSdkAreaArgs } from "./common.js";
 
@@ -41,7 +41,7 @@ export interface PluginInstallArgs {
   source: string;
 }
 
-/** Install an entry from BB's official catalog. */
+/** Install an entry from Patcher's official catalog. */
 export interface PluginCatalogInstallArgs {
   entryId: string;
 }

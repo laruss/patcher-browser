@@ -1,5 +1,5 @@
 import { matchPath } from "react-router-dom";
-import type { IconName } from "@bb/shared-ui/icon";
+import type { IconName } from "@patcher/shared-ui/icon";
 import {
   activateBrowserSurfaceTab,
   addBrowserSurfaceTab,
@@ -115,14 +115,14 @@ export function resolveAppTabIconName(path: string): IconName {
 }
 
 /**
- * bb's own destinations, as the omnibox offers them. Kept here beside the route
+ * Patcher's own destinations, as the omnibox offers them. Kept here beside the route
  * rules rather than in the provider, so "what counts as a destination" has one
  * answer: the same list the strip turns into tabs.
  *
  * Plugin panels are appended by the caller from the slot registry — a plugin
  * registering a panel gets an omnibox entry without touching this list.
  */
-export const BB_APP_TAB_DESTINATIONS: readonly {
+export const PATCHER_APP_TAB_DESTINATIONS: readonly {
   id: string;
   keywords: readonly string[];
   path: string;
@@ -133,7 +133,7 @@ export const BB_APP_TAB_DESTINATIONS: readonly {
     id: "settings",
     keywords: ["settings", "preferences", "options"],
     path: SETTINGS_ROUTE_PATH,
-    subtitle: "bb settings",
+    subtitle: "Patcher settings",
     title: "Settings",
   },
   {

@@ -4,7 +4,7 @@ import {
   CLAUDE_XHIGH_CAPABLE_REASONING_EFFORTS,
   DEFAULT_CLAUDE_CODE_MODEL,
   type ClaudeCodeCatalogEntry,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import {
   cloneReasoningEfforts,
   HIGH_REASONING_EFFORT,
@@ -15,7 +15,7 @@ import {
   XHIGH_REASONING_EFFORT,
   type AvailableModel,
   type ModelReasoningEffort,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 const OPUS_4_7_REASONING_EFFORTS: readonly ModelReasoningEffort[] =
   CLAUDE_XHIGH_CAPABLE_REASONING_EFFORTS;
@@ -277,8 +277,8 @@ export function buildClaudeCodeModels(
   // Because absence from this list is therefore no longer evidence that a model
   // was retired, callers must not use it to retire a stored selection.
   const models = CLAUDE_CODE_ACTIVE_CATALOG.map(buildCatalogModel);
-  // Discovery can move faster than BB's curated labels, so an account-scoped row
-  // BB has no metadata for is appended rather than dropped. Prefer non-"default"
+  // Discovery can move faster than Patcher's curated labels, so an account-scoped row
+  // Patcher has no metadata for is appended rather than dropped. Prefer non-"default"
   // rows so aliases carrying the same resolved id provide the useful provider
   // label.
   for (const discovered of [

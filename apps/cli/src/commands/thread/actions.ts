@@ -6,9 +6,9 @@ import {
   type ReasoningLevel,
   type ServiceTier,
   type ThreadVisibility,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import {
   confirmDestructiveAction,
   outputJson,
@@ -126,7 +126,7 @@ export function registerActionsCommands(
   parent
     .command("update [id]")
     .description("Update a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .option("--title <title>", "Set the thread title")
     .option("--parent-thread <id>", "Set the parent thread id")
@@ -205,7 +205,7 @@ export function registerActionsCommands(
             body.visibility = visibility;
           }
 
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const thread = await sdk.threads.update({ threadId, ...body });
           if (outputJson(opts, thread)) return;
           console.log(`Thread ${thread.id} updated`);
@@ -240,13 +240,13 @@ export function registerActionsCommands(
   parent
     .command("archive [id]")
     .description("Archive a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(
         async (id: string | undefined, opts: ThreadArchiveCommandOptions) => {
           const threadId = requireThreadIdOrSelf(id, opts);
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           let archivedThreadIds: string[] = [threadId];
           try {
             const result = await sdk.threads.archive({ threadId });
@@ -283,13 +283,13 @@ export function registerActionsCommands(
   parent
     .command("unarchive [id]")
     .description("Unarchive a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(
         async (id: string | undefined, opts: ThreadUnarchiveCommandOptions) => {
           const threadId = requireThreadIdOrSelf(id, opts);
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           await sdk.threads.unarchive({ threadId });
           if (outputJson(opts, { ok: true, threadId })) return;
           console.log(`Thread ${threadId} unarchived`);
@@ -300,12 +300,12 @@ export function registerActionsCommands(
   parent
     .command("pin [id]")
     .description("Pin a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadPinCommandOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const thread = await sdk.threads.pin({ threadId });
         if (outputJson(opts, thread)) return;
         console.log(`Thread ${thread.id} pinned`);
@@ -315,12 +315,12 @@ export function registerActionsCommands(
   parent
     .command("unpin [id]")
     .description("Unpin a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadPinCommandOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const thread = await sdk.threads.unpin({ threadId });
         if (outputJson(opts, thread)) return;
         console.log(`Thread ${thread.id} unpinned`);
@@ -338,7 +338,7 @@ export function registerActionsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: ThreadDeleteCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         try {
           const thread = await sdk.threads.get({ threadId: id });
 
@@ -368,7 +368,7 @@ export function registerActionsCommands(
     .command("edit-message [id]")
     .description("Replace a completed user message and rerun from that point")
     .requiredOption("--message <text>", "Replacement message text")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option(
       "--expected-request-sequence <sequence>",
       "Edit the message at this event sequence (default: the latest editable message)",
@@ -381,7 +381,7 @@ export function registerActionsCommands(
           opts: ThreadEditMessageCommandOptions,
         ) => {
           const threadId = requireThreadIdOrSelf(id, opts);
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const expectedRequestSequence =
             opts.expectedRequestSequence === undefined
               ? undefined
@@ -468,7 +468,7 @@ export function registerActionsCommands(
   parent
     .command("retry [id]")
     .description("Continue a turn after a provider subscription limit")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option(
       "--request-id <id>",
       "Require this failed client request id before continuing",
@@ -478,7 +478,7 @@ export function registerActionsCommands(
       action(
         async (id: string | undefined, opts: ThreadRetryCommandOptions) => {
           const threadId = requireThreadIdOrSelf(id, opts);
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const status = await sdk.threads.rateLimitRecovery({ threadId });
           const failedRequestId =
             opts.requestId ?? status.candidate?.failedRequestId;
@@ -501,12 +501,12 @@ export function registerActionsCommands(
   parent
     .command("stop [id]")
     .description("Stop an active or starting thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadActionOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         await sdk.threads.stop({ threadId });
         if (outputJson(opts, { ok: true, threadId })) return;
         console.log(`Thread ${threadId} stopped`);
@@ -516,12 +516,12 @@ export function registerActionsCommands(
   parent
     .command("compact [id]")
     .description("Request compaction of an idle or errored thread's context")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadActionOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         await sdk.threads.compact({ threadId });
         if (outputJson(opts, { ok: true, threadId })) return;
         console.log(`Thread ${threadId} context compaction requested`);
@@ -531,12 +531,12 @@ export function registerActionsCommands(
   parent
     .command("cancel-plan [id]")
     .description("Ask the provider to exit the active Plan mode")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadActionOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         await sdk.threads.cancelPlan({ threadId });
         if (outputJson(opts, { ok: true, threadId })) return;
         console.log(`Thread ${threadId} exited Plan mode`);
@@ -546,12 +546,12 @@ export function registerActionsCommands(
   parent
     .command("clear-goal [id]")
     .description("Ask the provider to clear the active Goal")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadActionOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         await sdk.threads.clearGoal({ threadId });
         if (outputJson(opts, { ok: true, threadId })) return;
         console.log(`Thread ${threadId} cleared its Goal`);
@@ -562,7 +562,7 @@ export function registerActionsCommands(
 async function postThreadMessage(
   args: PostThreadMessageArgs,
 ): Promise<PostThreadMessageResult> {
-  const sdk = createCliBbSdk(args.getUrl());
+  const sdk = createCliPatcherSdk(args.getUrl());
   await sdk.threads.send({
     threadId: args.threadId,
     input: buildPromptInputs({

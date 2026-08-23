@@ -3,14 +3,14 @@
   "name": "toggle-group",
   "type": "registry:ui",
   "title": "toggle-group",
-  "description": "BB ui \"toggle-group\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"toggle-group\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-toggle-group",
     "class-variance-authority"
   ],
   "registryDependencies": [
-    "@bb/toggle",
-    "@bb/utils"
+    "@patcher/toggle",
+    "@patcher/utils"
   ],
   "files": [
     {

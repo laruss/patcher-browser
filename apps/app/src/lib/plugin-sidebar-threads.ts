@@ -1,8 +1,8 @@
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import type {
   PluginSidebarThread,
   PluginSidebarThreadIndicator,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import {
   getThreadListIndicatorLabel,
   hasActiveBackgroundAgentActivity,

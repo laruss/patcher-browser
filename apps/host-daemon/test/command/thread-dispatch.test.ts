@@ -1,15 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { AgentRuntimeOptions } from "@bb/agent-runtime";
+import type { AgentRuntimeOptions } from "@patcher/agent-runtime";
 import type {
   HostDaemonAcpLaunchSpec,
   HostDaemonCommand,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   encodeClientTurnRequestIdNumber,
   type ClientTurnRequestId,
   type PromptInput,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CommandDispatchError,
@@ -166,7 +166,7 @@ describe("thread command dispatch", () => {
 
   it("stages uploaded thread.start attachments before runtime input", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-thread-start-attachments-",
+      "patcher-thread-start-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -284,7 +284,7 @@ describe("thread command dispatch", () => {
 
   it("stages uploaded turn.submit attachments before runtime input", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-turn-submit-attachments-",
+      "patcher-turn-submit-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -359,7 +359,7 @@ describe("thread command dispatch", () => {
 
   it("resumes turn.submit again when attachment staging loses the hosted thread", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-turn-submit-reaped-during-staging-",
+      "patcher-turn-submit-reaped-during-staging-",
     );
     const harness = createHarness({
       workspacePath: "/tmp/env-reaped-during-staging",
@@ -434,7 +434,9 @@ describe("thread command dispatch", () => {
   });
 
   it("leaves runtime-readable attachment paths unstaged", async () => {
-    const threadStorageRootPath = await makeTempDir("bb-no-stage-attachments-");
+    const threadStorageRootPath = await makeTempDir(
+      "patcher-no-stage-attachments-",
+    );
     const harness = createHarness();
     const fetchProjectAttachment = vi.fn<FetchProjectAttachment>();
 
@@ -486,7 +488,9 @@ describe("thread command dispatch", () => {
   });
 
   it("stages prompt attachments in a readable flat attachments directory", async () => {
-    const threadStorageRootPath = await makeTempDir("bb-restage-attachments-");
+    const threadStorageRootPath = await makeTempDir(
+      "patcher-restage-attachments-",
+    );
     const harness = createHarness();
     const requestId = nextClientRequestId();
     const stagingDir = path.join(
@@ -547,7 +551,7 @@ describe("thread command dispatch", () => {
 
   it("stages grouped prompt attachments with shared filename uniqueness", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-grouped-stage-attachments-",
+      "patcher-grouped-stage-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -622,7 +626,7 @@ describe("thread command dispatch", () => {
 
   it("cleans up staged attachments when fetching a later attachment fails", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-failed-stage-attachments-",
+      "patcher-failed-stage-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -698,7 +702,7 @@ describe("thread command dispatch", () => {
 
   it("rejects attachment responses that do not match declared size", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-oversized-stage-attachments-",
+      "patcher-oversized-stage-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -762,7 +766,7 @@ describe("thread command dispatch", () => {
 
   it("cleans up staged thread.start attachments when runtime start fails", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-runtime-failed-start-attachments-",
+      "patcher-runtime-failed-start-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -822,7 +826,7 @@ describe("thread command dispatch", () => {
 
   it("cleans up staged turn.submit attachments when runtime turn fails", async () => {
     const threadStorageRootPath = await makeTempDir(
-      "bb-runtime-failed-turn-attachments-",
+      "patcher-runtime-failed-turn-attachments-",
     );
     const harness = createHarness();
     const requestId = nextClientRequestId();
@@ -1179,7 +1183,7 @@ describe("thread command dispatch", () => {
   });
 
   it("unarchives through provider maintenance runtime after managed workspace cleanup", async () => {
-    const dataDir = await makeTempDir("bb-daemon-data-");
+    const dataDir = await makeTempDir("patcher-daemon-data-");
     const oldManagedWorkspacePath = path.join(dataDir, "destroyed-worktree");
     const harness = createHarness({ workspacePath: oldManagedWorkspacePath });
 
@@ -1845,11 +1849,11 @@ describe("thread command dispatch", () => {
   });
 
   it("uses the server-provided thread runtime config", async () => {
-    const threadStorage = await makeTempDir("bb-thread-runtime-");
+    const threadStorage = await makeTempDir("patcher-thread-runtime-");
     const harness = createHarness({ workspacePath: threadStorage });
     const acpLaunchSpec = customAcpLaunchSpec();
     const threadInstructions = [
-      "You are a thread in a project inside bb.",
+      "You are a thread in a project inside Patcher.",
       "Prefer concise user updates.",
       "Delegate implementation quickly.",
       "Parent Project",
@@ -1912,7 +1916,7 @@ describe("thread command dispatch", () => {
   });
 
   it("creates threadStoragePath directory before starting the thread", async () => {
-    const tempDir = await makeTempDir("bb-thread-storage-start-");
+    const tempDir = await makeTempDir("patcher-thread-storage-start-");
     const storagePath = path.join(tempDir, "thr_abc123");
     const harness = createHarness();
 
@@ -1990,7 +1994,9 @@ describe("thread command dispatch", () => {
   });
 
   it("rejects thread.start when threadStoragePath escapes storage root", async () => {
-    const tempDir = await makeTempDir("bb-thread-storage-start-traversal-");
+    const tempDir = await makeTempDir(
+      "patcher-thread-storage-start-traversal-",
+    );
     const harness = createHarness();
 
     await expect(

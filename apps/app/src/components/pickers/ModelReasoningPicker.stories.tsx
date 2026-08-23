@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { ReasoningLevel } from "@bb/domain";
-import type { SystemExecutionOptionsModelLoadError } from "@bb/server-contract";
+import type { ReasoningLevel } from "@patcher/domain";
+import type { SystemExecutionOptionsModelLoadError } from "@patcher/server-contract";
 import { ModelReasoningPicker } from "./ModelReasoningPicker";
 import type { ModelPickerOption } from "./model-picker-option";
 import { StoryCard, StoryRow } from "../../../.ladle/story-card";

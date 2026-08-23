@@ -1,19 +1,19 @@
 import { Buffer } from "node:buffer";
 import { Command } from "commander";
-import { TERMINAL_DATA_MAX_BYTES } from "@bb/domain";
+import { TERMINAL_DATA_MAX_BYTES } from "@patcher/domain";
 import {
-  BbHttpError,
-  type BbSdk,
+  PatcherHttpError,
+  type PatcherSdk,
   type TerminalCreateScope,
   type TerminalListScope,
-} from "@bb/sdk";
-import { createNodeWebsocketFactory } from "@bb/sdk/node-websocket";
+} from "@patcher/sdk";
+import { createNodeWebsocketFactory } from "@patcher/sdk/node-websocket";
 import {
   terminalServerMessageSchema,
   type TerminalSession,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { action, CliExitError } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { renderBorderlessTable } from "../table.js";
 import { outputJson } from "./helpers.js";
 import { resolveMachineHostId, resolveMachineTargetOption } from "./machine.js";
@@ -99,7 +99,7 @@ export function registerTerminalCommands(
       .option("--json", "Print machine-readable JSON output"),
   ).action(
     action(async (opts: TerminalListOptions) => {
-      const sdk = createCliBbSdk(getUrl());
+      const sdk = createCliPatcherSdk(getUrl());
       const result = await sdk.terminals.list({
         scope: await resolveTerminalListScope(opts, getUrl()),
       });
@@ -124,7 +124,7 @@ export function registerTerminalCommands(
       .option("--json", "Print machine-readable JSON output"),
   ).action(
     action(async (commandParts: string[], opts: TerminalStartOptions) => {
-      const sdk = createCliBbSdk(getUrl());
+      const sdk = createCliPatcherSdk(getUrl());
       const resolvedStart = resolveTerminalStart({
         commandOption: opts.command,
         commandParts,
@@ -156,7 +156,7 @@ export function registerTerminalCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (terminalId: string, opts: TerminalJsonOptions) => {
-        const session = await createCliBbSdk(getUrl()).terminals.get({
+        const session = await createCliPatcherSdk(getUrl()).terminals.get({
           terminalId,
         });
         if (outputJson(opts, session)) return;
@@ -171,7 +171,7 @@ export function registerTerminalCommands(
     .action(
       action(async (terminalId: string, opts: TerminalAttachOptions) => {
         if (opts.json) {
-          const session = await createCliBbSdk(getUrl()).terminals.get({
+          const session = await createCliPatcherSdk(getUrl()).terminals.get({
             terminalId,
           });
           outputJson(opts, session);
@@ -194,7 +194,7 @@ export function registerTerminalCommands(
     .action(
       action(async (terminalId: string, opts: TerminalSendOptions) => {
         const data = await resolveSendData(opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         let session: TerminalSession | null = null;
         for (const chunk of chunkTerminalInput(data)) {
           session = await sdk.terminals.input({
@@ -218,7 +218,7 @@ export function registerTerminalCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (terminalId: string, opts: TerminalResizeOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const session = await sdk.terminals.resize({
           terminalId,
           cols: parseRequiredPositiveInteger(opts.cols, "--cols"),
@@ -240,7 +240,7 @@ export function registerTerminalCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (terminalId: string, opts: TerminalOutputOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const output = await sdk.terminals.output({
           terminalId,
           ...terminalOutputQuery(opts),
@@ -288,7 +288,7 @@ export function registerTerminalCommands(
           title: string,
           opts: TerminalJsonOptions,
         ) => {
-          const session = await createCliBbSdk(getUrl()).terminals.rename({
+          const session = await createCliPatcherSdk(getUrl()).terminals.rename({
             terminalId,
             title,
           });
@@ -304,7 +304,7 @@ export function registerTerminalCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (terminalId: string, opts: TerminalJsonOptions) => {
-        const session = await createCliBbSdk(getUrl()).terminals.restart({
+        const session = await createCliPatcherSdk(getUrl()).terminals.restart({
           terminalId,
         });
         if (outputJson(opts, session)) return;
@@ -320,7 +320,7 @@ export function registerTerminalCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (terminalId: string, opts: TerminalCloseOptions) => {
-        const session = await createCliBbSdk(getUrl()).terminals.close({
+        const session = await createCliPatcherSdk(getUrl()).terminals.close({
           terminalId,
           mode: opts.ifClean ? "if-clean" : "force",
         });
@@ -670,7 +670,7 @@ async function waitForTerminal(args: {
   if ([hasContains, hasRegex, hasExit].filter(Boolean).length !== 1) {
     throw new Error("Provide exactly one of --contains, --regex, or --exit");
   }
-  const sdk = createCliBbSdk(args.baseUrl);
+  const sdk = createCliPatcherSdk(args.baseUrl);
   const timeoutMs =
     parsePositiveInteger(args.opts.timeout, 30, "--timeout") * 1000;
   const pollIntervalMs = parsePositiveInteger(
@@ -742,7 +742,7 @@ async function waitForTerminal(args: {
 
 async function readTerminalOutputForWait(args: {
   query: ReturnType<typeof terminalOutputQuery>;
-  sdk: BbSdk;
+  sdk: PatcherSdk;
   terminalId: string;
 }) {
   return args.sdk.terminals
@@ -763,7 +763,7 @@ async function readTerminalOutputForWait(args: {
 
 function isTerminalOutputUnavailable(error: unknown): boolean {
   return (
-    error instanceof BbHttpError &&
+    error instanceof PatcherHttpError &&
     error.status === 409 &&
     error.code === "terminal_output_unavailable"
   );

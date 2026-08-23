@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Thread } from "@bb/domain";
+import type { Thread } from "@patcher/domain";
 import {
   isThreadRead,
   type ThreadReadState,

@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import type { AddressInfo } from "node:net";
-import type { DbConnection } from "@bb/db";
-import { defaultFeatureFlags, type HostType } from "@bb/domain";
+import type { DbConnection } from "@patcher/db";
+import { defaultFeatureFlags, type HostType } from "@patcher/domain";
 import { initDb } from "../../src/db.js";
 import { createApp } from "../../src/server.js";
 import { PendingInteractionLifecycle } from "../../src/services/interactions/pending-interactions.js";
@@ -15,7 +15,7 @@ import {
   createAppVersionService,
   type AppVersionService,
 } from "../../src/services/system/app-version.js";
-import { createBbAppManagedConfigReloader } from "../../src/services/system/bb-app-managed-config.js";
+import { createPatcherAppManagedConfigReloader } from "../../src/services/system/patcher-app-managed-config.js";
 import { createNoopTelemetryService } from "../../src/services/system/telemetry.js";
 import { TerminalSessionLifecycle } from "../../src/services/terminals/terminal-session-lifecycle.js";
 import { resolveThreadStorageRootPath } from "../../src/services/threads/thread-storage.js";
@@ -25,7 +25,6 @@ import { MANAGED_ENVIRONMENT_RETIRE_GRACE_MS } from "../../src/constants.js";
 import type { NotificationHub } from "../../src/ws/hub.js";
 import { NotificationHub as NotificationHubImpl } from "../../src/ws/hub.js";
 import { WatchInterestCoordinator } from "../../src/ws/watch-interests.js";
-import { HostSharedPortCoordinator } from "../../src/ws/host-shared-ports.js";
 
 const TEST_MACHINE_KEY_PREFIX = "test-daemon-key";
 const TEST_SERVER_HOST = "127.0.0.1";
@@ -104,11 +103,10 @@ export async function createTestAppHarness(
     terminalCloseTimeoutMs,
     ...configOverrides
   } = overrides;
-  const dataDir = await mkdtemp(join(tmpdir(), "bb-server-test-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "patcher-server-test-"));
   const db = initDb(":memory:");
   const hub = new NotificationHubImpl();
   const watchInterests = new WatchInterestCoordinator({ db, hub });
-  const sharedPorts = new HostSharedPortCoordinator({ db, hub });
   const lifecycleDedupers = createLifecycleDedupers();
   const machineAuth = await createMachineAuthService({
     dataDir,
@@ -151,7 +149,7 @@ export async function createTestAppHarness(
       env: {},
     }),
     transcriptionModel: "test/mock-transcription",
-    appUrl: "https://bb.example.test",
+    appUrl: "https://patcher.example.test",
     ...configOverrides,
   };
   const terminalSessions = new TerminalSessionLifecycle({
@@ -165,7 +163,7 @@ export async function createTestAppHarness(
     logger: testLogger,
     openTimeoutMs: 50,
   });
-  const bbAppManagedConfig = await createBbAppManagedConfigReloader({
+  const patcherAppManagedConfig = await createPatcherAppManagedConfigReloader({
     config,
     hub,
     logger: testLogger,
@@ -192,7 +190,7 @@ export async function createTestAppHarness(
     });
   const deps: ServerAppDeps = {
     appVersion,
-    bbAppManagedConfig,
+    patcherAppManagedConfig,
     config,
     db,
     hub,
@@ -204,7 +202,6 @@ export async function createTestAppHarness(
     telemetry,
     terminalSessions,
     watchInterests,
-    sharedPorts,
   };
   const { app, pluginCatalogService, pluginService } = createApp(
     deps,

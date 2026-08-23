@@ -7,8 +7,8 @@ import type {
   DefaultBranchRelation,
   GitCheckoutRef,
   WorkspaceGitOperation,
-} from "@bb/domain";
-import { sanitizeInheritedChildProcessEnv } from "@bb/process-utils";
+} from "@patcher/domain";
+import { sanitizeInheritedChildProcessEnv } from "@patcher/process-utils";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_BUFFER_BYTES = 16 * 1024 * 1024;

@@ -9,15 +9,15 @@ import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import * as fixtures from "../helpers/command-output-fixtures.js";
 import { registerStatusCommand } from "../../commands/status.js";
 
-describe("bb status command output", () => {
+describe("patcher status command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerStatusCommand(program, () => "http://server");
 
-  it("bb status prints project/thread context", async () => {
-    vi.stubEnv("BB_PROJECT_ID", "proj-1");
-    vi.stubEnv("BB_THREAD_ID", "thread-1");
+  it("patcher status prints project/thread context", async () => {
+    vi.stubEnv("PATCHER_PROJECT_ID", "proj-1");
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-1");
 
     await runCommand(["status"], register);
 
@@ -26,9 +26,9 @@ describe("bb status command output", () => {
     expect(lines).toContain("Thread: thread-1");
   });
 
-  it("bb status prints environment without fetching hosts", async () => {
-    vi.stubEnv("BB_PROJECT_ID", "proj-1");
-    vi.stubEnv("BB_THREAD_ID", "thread-1");
+  it("patcher status prints environment without fetching hosts", async () => {
+    vi.stubEnv("PATCHER_PROJECT_ID", "proj-1");
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-1");
 
     const getProject = vi.fn(async () => ({
       id: "proj-1",
@@ -62,9 +62,9 @@ describe("bb status command output", () => {
     );
   });
 
-  it("bb status prints pinned state for pinned thread context", async () => {
-    vi.stubEnv("BB_PROJECT_ID", "proj-1");
-    vi.stubEnv("BB_THREAD_ID", "thread-pinned-1");
+  it("patcher status prints pinned state for pinned thread context", async () => {
+    vi.stubEnv("PATCHER_PROJECT_ID", "proj-1");
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-pinned-1");
 
     const getProject = vi.fn(async () => ({
       id: "proj-1",

@@ -1,4 +1,4 @@
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import { compareCodepoint } from "@/lib/codepoint-compare";
 import {
   buildProjectThreadGroups,

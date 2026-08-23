@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HOST_AUTH_FILE_NAME,
   HOST_ID_FILE_NAME,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   expectedDevDataDir,
   expectedDevServerUrl,
@@ -36,15 +36,15 @@ function createTestRuntimeEnv({
   serverUrl = "http://127.0.0.1:3334",
 }: TestRuntimeEnvArgs): HostDaemonRuntimeEnvironment {
   return {
-    BB_BRIDGE_DIR: undefined,
-    BB_CLI_DIR: undefined,
-    BB_DATA_DIR: dataDir,
-    BB_HOST_ENROLL_KEY: undefined,
-    BB_HOST_DAEMON_PORT: "3002",
-    BB_HOST_ID: undefined,
-    BB_HOST_NAME: undefined,
-    BB_HOST_TYPE: undefined,
-    BB_SERVER_URL: serverUrl,
+    PATCHER_BRIDGE_DIR: undefined,
+    PATCHER_CLI_DIR: undefined,
+    PATCHER_DATA_DIR: dataDir,
+    PATCHER_HOST_ENROLL_KEY: undefined,
+    PATCHER_HOST_DAEMON_PORT: "3002",
+    PATCHER_HOST_ID: undefined,
+    PATCHER_HOST_NAME: undefined,
+    PATCHER_HOST_TYPE: undefined,
+    PATCHER_SERVER_URL: serverUrl,
     NODE_ENV: "development",
   };
 }
@@ -57,9 +57,9 @@ async function makeTempDir(prefix: string): Promise<string> {
 
 beforeEach(async () => {
   vi.resetModules();
-  vi.stubEnv("BB_DATA_DIR", "/tmp/bb-run-host-daemon-test");
-  vi.stubEnv("BB_SERVER_URL", "http://127.0.0.1:3334");
-  vi.stubEnv("BB_HOST_DAEMON_PORT", "3002");
+  vi.stubEnv("PATCHER_DATA_DIR", "/tmp/patcher-run-host-daemon-test");
+  vi.stubEnv("PATCHER_SERVER_URL", "http://127.0.0.1:3334");
+  vi.stubEnv("PATCHER_HOST_DAEMON_PORT", "3002");
   runHostDaemon = await import("../src/commands/run-host-daemon.js");
 });
 
@@ -75,11 +75,11 @@ afterEach(async () => {
 
 describe("run-host-daemon auto join", () => {
   it("uses the production data dir when production overrides are absent", () => {
-    vi.stubEnv("BB_DATA_DIR", undefined);
+    vi.stubEnv("PATCHER_DATA_DIR", undefined);
 
     const env = runHostDaemon.resolveHostDaemonRuntimeEnvironment("prod");
 
-    expect(env.BB_DATA_DIR).toBe(path.join(os.homedir(), ".bb"));
+    expect(env.PATCHER_DATA_DIR).toBe(path.join(os.homedir(), ".patcher"));
     expect(env.NODE_ENV).toBe("production");
   });
 
@@ -100,25 +100,25 @@ describe("run-host-daemon auto join", () => {
   });
 
   it("requires an explicit port when dev extra-host overrides are absent", () => {
-    vi.stubEnv("BB_DATA_DIR", undefined);
-    vi.stubEnv("BB_HOST_DAEMON_PORT", undefined);
-    vi.stubEnv("BB_SERVER_URL", undefined);
+    vi.stubEnv("PATCHER_DATA_DIR", undefined);
+    vi.stubEnv("PATCHER_HOST_DAEMON_PORT", undefined);
+    vi.stubEnv("PATCHER_SERVER_URL", undefined);
 
     expect(() =>
       runHostDaemon.resolveHostDaemonRuntimeEnvironment("dev"),
     ).toThrow(
-      "BB_HOST_DAEMON_PORT is required when running a dev extra-host daemon without BB_DATA_DIR. Set it to a port distinct from `bun run dev`'s host daemon port.",
+      "PATCHER_HOST_DAEMON_PORT is required when running a dev extra-host daemon without PATCHER_DATA_DIR. Set it to a port distinct from `bun run dev`'s host daemon port.",
     );
   });
 
   it("uses the current checkout instance when only the dev extra-host port is explicit", () => {
-    vi.stubEnv("BB_DATA_DIR", undefined);
-    vi.stubEnv("BB_HOST_DAEMON_PORT", "39999");
-    vi.stubEnv("BB_SERVER_URL", undefined);
+    vi.stubEnv("PATCHER_DATA_DIR", undefined);
+    vi.stubEnv("PATCHER_HOST_DAEMON_PORT", "39999");
+    vi.stubEnv("PATCHER_SERVER_URL", undefined);
 
     const env = runHostDaemon.resolveHostDaemonRuntimeEnvironment("dev");
 
-    expect(env.BB_DATA_DIR).toBe(
+    expect(env.PATCHER_DATA_DIR).toBe(
       path.join(
         expectedDevDataDir({
           homeDir: os.homedir(),
@@ -127,53 +127,53 @@ describe("run-host-daemon auto join", () => {
         "extra-host",
       ),
     );
-    expect(env.BB_HOST_DAEMON_PORT).toBe("39999");
-    expect(env.BB_SERVER_URL).toBe(expectedDevServerUrl(repoRoot));
+    expect(env.PATCHER_HOST_DAEMON_PORT).toBe("39999");
+    expect(env.PATCHER_SERVER_URL).toBe(expectedDevServerUrl(repoRoot));
     expect(env.NODE_ENV).toBe("development");
   });
 
   it("uses paired explicit dev overrides", () => {
-    vi.stubEnv("BB_DATA_DIR", "~/bb-host-daemon-test");
-    vi.stubEnv("BB_SERVER_URL", "http://127.0.0.1:19333");
+    vi.stubEnv("PATCHER_DATA_DIR", "~/patcher-host-daemon-test");
+    vi.stubEnv("PATCHER_SERVER_URL", "http://127.0.0.1:19333");
 
     const env = runHostDaemon.resolveHostDaemonRuntimeEnvironment("dev");
 
-    expect(env.BB_DATA_DIR).toBe(
-      path.join(os.homedir(), "bb-host-daemon-test"),
+    expect(env.PATCHER_DATA_DIR).toBe(
+      path.join(os.homedir(), "patcher-host-daemon-test"),
     );
-    expect(env.BB_SERVER_URL).toBe("http://127.0.0.1:19333");
+    expect(env.PATCHER_SERVER_URL).toBe("http://127.0.0.1:19333");
     expect(env.NODE_ENV).toBe("development");
   });
 
   it("rejects a dev data-dir override without a server URL override", () => {
-    vi.stubEnv("BB_DATA_DIR", "~/bb-host-daemon-test");
-    vi.stubEnv("BB_SERVER_URL", undefined);
+    vi.stubEnv("PATCHER_DATA_DIR", "~/patcher-host-daemon-test");
+    vi.stubEnv("PATCHER_SERVER_URL", undefined);
 
     expect(() =>
       runHostDaemon.resolveHostDaemonRuntimeEnvironment("dev"),
     ).toThrow(
-      "Dev host-daemon overrides must set both BB_DATA_DIR and BB_SERVER_URL, or neither.",
+      "Dev host-daemon overrides must set both PATCHER_DATA_DIR and PATCHER_SERVER_URL, or neither.",
     );
   });
 
   it("rejects a dev server URL override without a data-dir override", () => {
-    vi.stubEnv("BB_DATA_DIR", undefined);
-    vi.stubEnv("BB_SERVER_URL", "http://127.0.0.1:19333");
+    vi.stubEnv("PATCHER_DATA_DIR", undefined);
+    vi.stubEnv("PATCHER_SERVER_URL", "http://127.0.0.1:19333");
 
     expect(() =>
       runHostDaemon.resolveHostDaemonRuntimeEnvironment("dev"),
     ).toThrow(
-      "Dev host-daemon overrides must set both BB_DATA_DIR and BB_SERVER_URL, or neither.",
+      "Dev host-daemon overrides must set both PATCHER_DATA_DIR and PATCHER_SERVER_URL, or neither.",
     );
   });
 
   it("skips auto join when auth state already exists", async () => {
-    const dataDir = await makeTempDir("bb-run-host-daemon-");
+    const dataDir = await makeTempDir("patcher-run-host-daemon-");
     await fs.writeFile(
       path.join(dataDir, HOST_AUTH_FILE_NAME),
       JSON.stringify({
         hostId: "host_existing",
-        hostKey: "bbdh_existing",
+        hostKey: "patcherdh_existing",
         hostType: "persistent",
         serverUrl: "http://127.0.0.1:3334",
       }),
@@ -186,12 +186,12 @@ describe("run-host-daemon auto join", () => {
       true,
     );
 
-    expect(env.BB_HOST_ENROLL_KEY).toBeUndefined();
+    expect(env.PATCHER_HOST_ENROLL_KEY).toBeUndefined();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("reuses a persisted host ID when requesting an enroll key", async () => {
-    const dataDir = await makeTempDir("bb-run-host-daemon-");
+    const dataDir = await makeTempDir("patcher-run-host-daemon-");
     const persistedHostId = "host_persisted";
     await fs.writeFile(
       path.join(dataDir, HOST_ID_FILE_NAME),
@@ -219,7 +219,7 @@ describe("run-host-daemon auto join", () => {
 
         return new Response(
           JSON.stringify({
-            enrollKey: "bbde_test_enroll_key",
+            enrollKey: "patcherde_test_enroll_key",
             expiresAt: Date.now() + 60_000,
             hostId: persistedHostId,
           }),
@@ -238,9 +238,9 @@ describe("run-host-daemon auto join", () => {
       true,
     );
 
-    expect(env.BB_HOST_ID).toBe(persistedHostId);
-    expect(env.BB_HOST_ENROLL_KEY).toBe("bbde_test_enroll_key");
-    expect(env.BB_HOST_TYPE).toBeUndefined();
+    expect(env.PATCHER_HOST_ID).toBe(persistedHostId);
+    expect(env.PATCHER_HOST_ENROLL_KEY).toBe("patcherde_test_enroll_key");
+    expect(env.PATCHER_HOST_TYPE).toBeUndefined();
     expect(requests).toHaveLength(2);
     expect(requests[1]?.url).toBe(
       "http://127.0.0.1:3334/internal/hosts/enroll-key",
@@ -253,7 +253,7 @@ describe("run-host-daemon auto join", () => {
   });
 
   it("requests a fresh enroll key when no host ID is persisted", async () => {
-    const dataDir = await makeTempDir("bb-run-host-daemon-");
+    const dataDir = await makeTempDir("patcher-run-host-daemon-");
 
     const requests: RecordedFetchRequest[] = [];
     vi.stubGlobal(
@@ -276,7 +276,7 @@ describe("run-host-daemon auto join", () => {
 
         return new Response(
           JSON.stringify({
-            enrollKey: "bbde_generated_enroll_key",
+            enrollKey: "patcherde_generated_enroll_key",
             expiresAt: Date.now() + 60_000,
             hostId: "host_generated",
           }),
@@ -295,14 +295,14 @@ describe("run-host-daemon auto join", () => {
       true,
     );
 
-    expect(env.BB_HOST_ID).toBe("host_generated");
-    expect(env.BB_HOST_ENROLL_KEY).toBe("bbde_generated_enroll_key");
-    expect(env.BB_HOST_TYPE).toBeUndefined();
+    expect(env.PATCHER_HOST_ID).toBe("host_generated");
+    expect(env.PATCHER_HOST_ENROLL_KEY).toBe("patcherde_generated_enroll_key");
+    expect(env.PATCHER_HOST_TYPE).toBeUndefined();
     expect(requests[1]?.body).toBe(JSON.stringify({}));
   });
 
   it("surfaces enroll-key request failures", async () => {
-    const dataDir = await makeTempDir("bb-run-host-daemon-");
+    const dataDir = await makeTempDir("patcher-run-host-daemon-");
 
     vi.stubGlobal("fetch", async (input: TestFetchInput): Promise<Response> => {
       const url =

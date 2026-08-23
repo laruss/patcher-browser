@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { PromptInput, ThreadQueuedMessage } from "@bb/domain";
+import type { PromptInput, ThreadQueuedMessage } from "@patcher/domain";
 import type {
   QueuedMessageGroupBoundaryRequest,
   QueuedMessageProcessingAction,
@@ -14,7 +14,7 @@ import {
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import type { QueuedMessageReorderRequest } from "@/lib/queued-message-reorder";
 import { appToast } from "@/components/ui/app-toast";
-import { BbHttpError } from "@/lib/sdk";
+import { PatcherHttpError } from "@/lib/sdk";
 import type { InlineQueuedMessageEditState } from "./useInlineQueuedMessageEditing";
 
 export type QueuedMessageSendGuard = "current-head" | "exists" | "none";
@@ -198,7 +198,7 @@ export function useQueuedMessageActions({
       onSaveSuccess?.();
       dismissInlineQueuedMessageEditor();
     } catch (error) {
-      if (error instanceof BbHttpError && error.status === 404) {
+      if (error instanceof PatcherHttpError && error.status === 404) {
         dismissInlineQueuedMessageEditor();
       }
       appToast.error(

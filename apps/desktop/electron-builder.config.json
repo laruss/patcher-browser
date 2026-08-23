@@ -1,10 +1,10 @@
 {
-  "appId": "dev.bb.desktop",
-  "productName": "bb",
+  "appId": "app.patcher.desktop",
+  "productName": "Patcher",
   "artifactName": "${productName}-${version}-${arch}.${ext}",
   "afterPack": "scripts/prepare-native-modules.cjs",
   "asar": true,
-  "asarUnpack": ["dist/bb-app-bridge.mjs", "node_modules/**"],
+  "asarUnpack": ["dist/patcher-app-bridge.mjs", "node_modules/**"],
   "directories": {
     "buildResources": "assets",
     "output": "release"
@@ -14,8 +14,8 @@
     "dist/**",
     "node_modules/**",
     {
-      "from": "node_modules/bb-app/server/dist/app-scaffold-template",
-      "to": "node_modules/bb-app/server/dist/app-scaffold-template",
+      "from": "node_modules/patcher-app/server/dist/app-scaffold-template",
+      "to": "node_modules/patcher-app/server/dist/app-scaffold-template",
       "filter": ["**/*"]
     },
     "package.json",
@@ -25,7 +25,7 @@
     {
       "channel": "latest",
       "provider": "generic",
-      "url": "https://github.com/get-bb/bb/releases/download/desktop-latest/"
+      "url": "https://github.com/laruss/patcher-browser/releases/download/desktop-latest/"
     }
   ],
   "mac": {

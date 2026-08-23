@@ -1,4 +1,4 @@
-// bb-plugin-github — the frontend bundle.
+// patcher-plugin-github — the frontend bundle.
 //
 // A GitHub panel: Issues / Pull Requests as a filterable table (state chips,
 // "Assigned to me", text search), inline status + assignee editing, issue and
@@ -12,12 +12,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   definePluginApp,
-  useBbNavigate,
+  usePatcherNavigate,
   useRealtime,
   useRpc,
   type PluginNavPanelProps,
   type PluginThreadPanelProps,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import type { githubRpcContract } from "./server.js";
 // Shimmed to the host's copy at build time (shared worker-pool context +
 // shiki stays out of the plugin bundle) — diffs render with the same syntax
@@ -25,8 +25,8 @@ import type { githubRpcContract } from "./server.js";
 import { parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import { toast } from "sonner";
-import { Badge } from "@bb/shared-ui/badge";
-import { Button } from "@bb/shared-ui/button";
+import { Badge } from "@patcher/shared-ui/badge";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,18 +35,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Input } from "@bb/shared-ui/input";
+} from "@patcher/shared-ui/dropdown-menu";
+import { Input } from "@patcher/shared-ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@bb/shared-ui/select";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@bb/shared-ui/tabs";
-import { Textarea } from "@bb/shared-ui/textarea";
+} from "@patcher/shared-ui/select";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@patcher/shared-ui/tabs";
+import { Textarea } from "@patcher/shared-ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { Markdown } from "@/components/markdown-lite";
 import { PageBody } from "@/components/page-body";
@@ -214,13 +214,15 @@ function routeToSubPath(route: Route): string {
 }
 
 function useSubPathRoute(subPath: string): [Route, (route: Route) => void] {
-  const bbNavigate = useBbNavigate();
+  const patcherNavigate = usePatcherNavigate();
   const route = useMemo(() => parseSubPath(subPath), [subPath]);
   const navigate = useCallback(
     (next: Route) => {
-      bbNavigate.toPluginPanel(PANEL_PATH, { subPath: routeToSubPath(next) });
+      patcherNavigate.toPluginPanel(PANEL_PATH, {
+        subPath: routeToSubPath(next),
+      });
     },
-    [bbNavigate],
+    [patcherNavigate],
   );
   return [route, navigate];
 }
@@ -236,7 +238,10 @@ function useItems(kind: "issue" | "pr"): {
   error: string | null;
 } {
   const rpc = useRpc<typeof githubRpcContract>();
-  const [state, setState] = useState<{ items: Item[] | null; error: string | null }>({
+  const [state, setState] = useState<{
+    items: Item[] | null;
+    error: string | null;
+  }>({
     items: null,
     error: null,
   });
@@ -273,11 +278,15 @@ function useLinks(): LinksMap {
 }
 
 function useSpawn(): {
-  spawn: (method: "startWork" | "startReview", repo: string, number: number) => void;
+  spawn: (
+    method: "startWork" | "startReview",
+    repo: string,
+    number: number,
+  ) => void;
   spawningKey: string | null;
 } {
   const rpc = useRpc<typeof githubRpcContract>();
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const [spawningKey, setSpawningKey] = useState<string | null>(null);
   const spawn = useCallback(
     (method: "startWork" | "startReview", repo: string, number: number) => {
@@ -286,7 +295,8 @@ function useSpawn(): {
         .call(method, { repo, number })
         .then((result) => {
           const threadId = (result as { threadId?: unknown })?.threadId;
-          if (typeof threadId !== "string") throw new Error("malformed spawn result");
+          if (typeof threadId !== "string")
+            throw new Error("malformed spawn result");
           navigate.toThread(threadId);
         })
         .catch((error: unknown) => toast.error(errorText(error)))
@@ -392,7 +402,11 @@ function stateDotClass(kind: "issue" | "pr", state: string): string {
 }
 
 function StateDot({ kind, state }: { kind: "issue" | "pr"; state: string }) {
-  return <span className={`size-2 shrink-0 rounded-full ${stateDotClass(kind, state)}`} />;
+  return (
+    <span
+      className={`size-2 shrink-0 rounded-full ${stateDotClass(kind, state)}`}
+    />
+  );
 }
 
 function StateBadge({ kind, state }: { kind: "issue" | "pr"; state: string }) {
@@ -405,14 +419,14 @@ function StateBadge({ kind, state }: { kind: "issue" | "pr"; state: string }) {
 }
 
 function ThreadPills({ links }: { links: ThreadLink[] | undefined }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   if (links === undefined || links.length === 0) return null;
   return (
     <span className="flex shrink-0 items-center gap-1">
       {links.map((link, index) => (
         <Badge
           key={link.threadId}
-          title={`Open BB thread ${link.threadId}`}
+          title={`Open Patcher thread ${link.threadId}`}
           onClick={(event) => {
             event.stopPropagation();
             navigate.toThread(link.threadId);
@@ -427,12 +441,22 @@ function ThreadPills({ links }: { links: ThreadLink[] | undefined }) {
   );
 }
 
-function LabelChips({ labels, className }: { labels: string[]; className?: string }) {
+function LabelChips({
+  labels,
+  className,
+}: {
+  labels: string[];
+  className?: string;
+}) {
   if (labels.length === 0) return null;
   return (
     <span className={`items-center gap-1 ${className ?? "flex shrink-0"}`}>
       {labels.slice(0, 3).map((label) => (
-        <Badge key={label} variant="secondary" className="font-normal text-muted-foreground">
+        <Badge
+          key={label}
+          variant="secondary"
+          className="font-normal text-muted-foreground"
+        >
           {label}
         </Badge>
       ))}
@@ -450,7 +474,11 @@ function useIssueMutations() {
     (repo: string, number: number, state: "open" | "closed") =>
       rpc
         .call("setIssueState", { repo, number, state })
-        .then(() => toast.success(state === "closed" ? `#${number} closed` : `#${number} reopened`)),
+        .then(() =>
+          toast.success(
+            state === "closed" ? `#${number} closed` : `#${number} reopened`,
+          ),
+        ),
     [rpc],
   );
   const setAssignees = useCallback(
@@ -516,7 +544,9 @@ function parseQuery(query: string): ParsedQuery {
     // A dangling "key:" (still being typed) filters nothing.
     if (idx > 0 && value.length === 0) continue;
     if (key === "is" || key === "state") {
-      parsed.states.push(STATE_VALUES[value.toLowerCase()] ?? value.toUpperCase());
+      parsed.states.push(
+        STATE_VALUES[value.toLowerCase()] ?? value.toUpperCase(),
+      );
     } else if (key === "assignee") {
       parsed.assignees.push(value.toLowerCase());
     } else if (key === "author") {
@@ -535,13 +565,19 @@ function parseQuery(query: string): ParsedQuery {
   return parsed;
 }
 
-function matchesQuery(item: Item, query: ParsedQuery, viewer: string | null): boolean {
-  if (query.states.length > 0 && !query.states.includes(item.state)) return false;
+function matchesQuery(
+  item: Item,
+  query: ParsedQuery,
+  viewer: string | null,
+): boolean {
+  if (query.states.length > 0 && !query.states.includes(item.state))
+    return false;
   if (query.assignees.length > 0) {
     const wanted = query.assignees.map((login) =>
       login === "@me" ? (viewer?.toLowerCase() ?? "\u0000") : login,
     );
-    if (!item.assignees.some((login) => wanted.includes(login.toLowerCase()))) return false;
+    if (!item.assignees.some((login) => wanted.includes(login.toLowerCase())))
+      return false;
   }
   if (query.authors.length > 0) {
     const author = item.author.toLowerCase();
@@ -554,7 +590,8 @@ function matchesQuery(item: Item, query: ParsedQuery, viewer: string | null): bo
     const labels = item.labels.map((label) => label.toLowerCase());
     if (!query.labels.some((label) => labels.includes(label))) return false;
   }
-  if (query.repos.length > 0 && !query.repos.includes(item.repo.toLowerCase())) return false;
+  if (query.repos.length > 0 && !query.repos.includes(item.repo.toLowerCase()))
+    return false;
   if (query.noAssignee && item.assignees.length > 0) return false;
   if (query.noLabel && item.labels.length > 0) return false;
   if (query.text.length > 0) {
@@ -598,17 +635,20 @@ function buildSuggestions(
   const idx = token.indexOf(":");
   if (idx <= 0) {
     const prefix = token.toLowerCase();
-    return QUALIFIER_KEYS.filter((entry) => entry.key.startsWith(prefix)).map((entry) => ({
-      insert: entry.key,
-      label: entry.key,
-      hint: entry.hint,
-    }));
+    return QUALIFIER_KEYS.filter((entry) => entry.key.startsWith(prefix)).map(
+      (entry) => ({
+        insert: entry.key,
+        label: entry.key,
+        hint: entry.hint,
+      }),
+    );
   }
   const key = token.slice(0, idx).toLowerCase();
   const partial = unquote(token.slice(idx + 1)).toLowerCase();
   const matches = (value: string) => value.toLowerCase().includes(partial);
   if (key === "is" || key === "state") {
-    const states = kind === "pr" ? ["open", "closed", "merged"] : ["open", "closed"];
+    const states =
+      kind === "pr" ? ["open", "closed", "merged"] : ["open", "closed"];
     return states.filter(matches).map((state) => ({
       insert: `${key}:${state} `,
       label: state,
@@ -622,7 +662,9 @@ function buildSuggestions(
       label: login === "@me" && viewer !== null ? `@me (${viewer})` : login,
       icon:
         login === "@me" ? (
-          viewer !== null ? <Avatar login={viewer} size="size-4" /> : undefined
+          viewer !== null ? (
+            <Avatar login={viewer} size="size-4" />
+          ) : undefined
         ) : (
           <Avatar login={login} size="size-4" />
         ),
@@ -693,10 +735,12 @@ function FilterBar({
   );
   const active = Math.min(highlight, Math.max(0, suggestions.length - 1));
 
-  const syncCaret = () => setCaret(inputRef.current?.selectionStart ?? value.length);
+  const syncCaret = () =>
+    setCaret(inputRef.current?.selectionStart ?? value.length);
 
   const accept = (suggestion: Suggestion) => {
-    const next = value.slice(0, tokenStart) + suggestion.insert + value.slice(caret);
+    const next =
+      value.slice(0, tokenStart) + suggestion.insert + value.slice(caret);
     onChange(next);
     const position = tokenStart + suggestion.insert.length;
     setCaret(position);
@@ -781,7 +825,9 @@ function FilterBar({
               onMouseEnter={() => setHighlight(index)}
             >
               {suggestion.icon}
-              <span className="min-w-0 truncate font-medium">{suggestion.label}</span>
+              <span className="min-w-0 truncate font-medium">
+                {suggestion.label}
+              </span>
               {suggestion.hint !== undefined ? (
                 <span className="ml-auto shrink-0 pl-4 text-xs text-muted-foreground">
                   {suggestion.hint}
@@ -806,7 +852,8 @@ const COL = {
   assignee: "shrink-0 @[48rem]:w-20",
   status: "shrink-0 @[48rem]:w-24",
   updated: "hidden w-14 shrink-0 text-right @[48rem]:block",
-  actions: "ml-auto flex shrink-0 items-center justify-end gap-1 @[48rem]:ml-0 @[48rem]:w-24",
+  actions:
+    "ml-auto flex shrink-0 items-center justify-end gap-1 @[48rem]:ml-0 @[48rem]:w-24",
 } as const;
 
 function AssigneeCell({ assignees }: { assignees: string[] }) {
@@ -814,12 +861,17 @@ function AssigneeCell({ assignees }: { assignees: string[] }) {
     return <span className="text-muted-foreground/50">—</span>;
   }
   return (
-    <span className="flex items-center -space-x-1.5" title={assignees.join(", ")}>
+    <span
+      className="flex items-center -space-x-1.5"
+      title={assignees.join(", ")}
+    >
       {assignees.slice(0, 3).map((login) => (
         <Avatar key={login} login={login} className="ring-1 ring-card" />
       ))}
       {assignees.length > 3 ? (
-        <span className="pl-2.5 text-xs text-muted-foreground">+{assignees.length - 3}</span>
+        <span className="pl-2.5 text-xs text-muted-foreground">
+          +{assignees.length - 3}
+        </span>
       ) : null}
     </span>
   );
@@ -880,7 +932,13 @@ function RowMenu({ item }: { item: Item }) {
       ? item.assignees.filter((login) => login !== viewer)
       : [...item.assignees, viewer];
     setAssignees(item.repo, item.number, next)
-      .then(() => toast.success(assignedToMe ? `Unassigned from #${item.number}` : `Assigned to #${item.number}`))
+      .then(() =>
+        toast.success(
+          assignedToMe
+            ? `Unassigned from #${item.number}`
+            : `Assigned to #${item.number}`,
+        ),
+      )
       .catch((error: unknown) => toast.error(errorText(error)));
   };
 
@@ -905,9 +963,11 @@ function RowMenu({ item }: { item: Item }) {
         {item.kind === "issue" ? (
           <DropdownMenuItem
             onSelect={() =>
-              setIssueState(item.repo, item.number, item.state === "OPEN" ? "closed" : "open").catch(
-                (error: unknown) => toast.error(errorText(error)),
-              )
+              setIssueState(
+                item.repo,
+                item.number,
+                item.state === "OPEN" ? "closed" : "open",
+              ).catch((error: unknown) => toast.error(errorText(error)))
             }
           >
             {item.state === "OPEN" ? "Close issue" : "Reopen issue"}
@@ -952,11 +1012,16 @@ function ItemRow({
         <span className="min-w-0 flex-1 line-clamp-3 text-sm font-medium leading-snug text-foreground @[48rem]:line-clamp-1 @[48rem]:leading-normal">
           {item.title}
         </span>
-        <LabelChips labels={item.labels} className="hidden shrink-0 @[60rem]:flex" />
+        <LabelChips
+          labels={item.labels}
+          className="hidden shrink-0 @[60rem]:flex"
+        />
         <ThreadPills links={links} />
       </span>
       <span className="flex min-w-0 items-center gap-2 @[48rem]:contents">
-        <span className={`${COL.id} font-mono text-xs text-muted-foreground @[48rem]:order-1`}>
+        <span
+          className={`${COL.id} font-mono text-xs text-muted-foreground @[48rem]:order-1`}
+        >
           #{item.number}
         </span>
         <span
@@ -967,7 +1032,9 @@ function ItemRow({
         <span className={`${COL.status} @[48rem]:order-4`}>
           <StatusCell item={item} />
         </span>
-        <span className={`${COL.updated} text-xs text-muted-foreground @[48rem]:order-5`}>
+        <span
+          className={`${COL.updated} text-xs text-muted-foreground @[48rem]:order-5`}
+        >
           {relativeTime(item.updatedAt)}
         </span>
         <span className={`${COL.actions} @[48rem]:order-6`}>
@@ -978,7 +1045,11 @@ function ItemRow({
             disabled={spawningKey !== null}
             onClick={(event) => {
               event.stopPropagation();
-              spawn(item.kind === "issue" ? "startWork" : "startReview", item.repo, item.number);
+              spawn(
+                item.kind === "issue" ? "startWork" : "startReview",
+                item.repo,
+                item.number,
+              );
             }}
           >
             {busy ? "…" : item.kind === "issue" ? "Start" : "Review"}
@@ -1128,11 +1199,18 @@ function AssigneePicker({
   return (
     <DropdownMenu onOpenChange={(open) => open && load()}>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs text-muted-foreground"
+        >
           Edit
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+      <DropdownMenuContent
+        align="end"
+        className="max-h-72 w-56 overflow-y-auto"
+      >
         <DropdownMenuLabel>Assignees</DropdownMenuLabel>
         {loadError !== null ? (
           <DropdownMenuItem disabled>{loadError}</DropdownMenuItem>
@@ -1190,16 +1268,25 @@ function LabelPicker({
   const ordered =
     available === null
       ? null
-      : [...new Set([...labels, ...available])].sort((a, b) => a.localeCompare(b));
+      : [...new Set([...labels, ...available])].sort((a, b) =>
+          a.localeCompare(b),
+        );
 
   return (
     <DropdownMenu onOpenChange={(open) => open && load()}>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs text-muted-foreground"
+        >
           Edit
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+      <DropdownMenuContent
+        align="end"
+        className="max-h-72 w-56 overflow-y-auto"
+      >
         <DropdownMenuLabel>Labels</DropdownMenuLabel>
         {loadError !== null ? (
           <DropdownMenuItem disabled>{loadError}</DropdownMenuItem>
@@ -1261,7 +1348,9 @@ function IssueDetailView({
   const changeState = useCallback(
     (next: "open" | "closed") => {
       setDetail((prev) =>
-        prev === null ? prev : { ...prev, state: next === "closed" ? "CLOSED" : "OPEN" },
+        prev === null
+          ? prev
+          : { ...prev, state: next === "closed" ? "CLOSED" : "OPEN" },
       );
       setIssueState(repo, number, next).catch((err: unknown) => {
         toast.error(errorText(err));
@@ -1355,7 +1444,9 @@ function IssueDetailView({
       <div className="flex items-start gap-3">
         <h2 className="min-w-0 flex-1 text-xl font-semibold text-foreground">
           {detail.title}{" "}
-          <span className="font-normal text-muted-foreground">#{detail.number}</span>
+          <span className="font-normal text-muted-foreground">
+            #{detail.number}
+          </span>
         </h2>
         <Button
           size="sm"
@@ -1371,14 +1462,18 @@ function IssueDetailView({
           <div className="overflow-hidden rounded-lg border border-border bg-card">
             <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
               <Avatar login={detail.author} />
-              <span className="font-medium text-foreground">{detail.author}</span>
+              <span className="font-medium text-foreground">
+                {detail.author}
+              </span>
               opened this issue · updated {relativeTime(detail.updatedAt)}
             </div>
             <div className="p-4">
               {detail.body.length > 0 ? (
                 <Markdown content={detail.body} className="text-sm" />
               ) : (
-                <p className="text-sm text-muted-foreground">(no description)</p>
+                <p className="text-sm text-muted-foreground">
+                  (no description)
+                </p>
               )}
             </div>
           </div>
@@ -1389,11 +1484,16 @@ function IssueDetailView({
                 Activity · {detail.comments.length}
               </h3>
               {detail.comments.map((entry, index) => (
-                <div key={index} className="rounded-lg border border-border bg-card p-3">
+                <div
+                  key={index}
+                  className="rounded-lg border border-border bg-card p-3"
+                >
                   <p className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
                     <Avatar login={entry.author} />
-                    <span className="font-medium text-foreground">{entry.author}</span> ·{" "}
-                    {relativeTime(entry.createdAt)}
+                    <span className="font-medium text-foreground">
+                      {entry.author}
+                    </span>{" "}
+                    · {relativeTime(entry.createdAt)}
                   </p>
                   <Markdown content={entry.body} className="text-sm" />
                 </div>
@@ -1425,7 +1525,9 @@ function IssueDetailView({
             <SidebarHeading>Status</SidebarHeading>
             <Select
               value={detail.state === "OPEN" ? "open" : "closed"}
-              onValueChange={(value) => changeState(value === "closed" ? "closed" : "open")}
+              onValueChange={(value) =>
+                changeState(value === "closed" ? "closed" : "open")
+              }
             >
               <SelectTrigger className="h-8 w-full text-sm">
                 <SelectValue />
@@ -1448,13 +1550,20 @@ function IssueDetailView({
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <SidebarHeading>Assignees</SidebarHeading>
-              <AssigneePicker repo={repo} assignees={detail.assignees} onToggle={toggleAssignee} />
+              <AssigneePicker
+                repo={repo}
+                assignees={detail.assignees}
+                onToggle={toggleAssignee}
+              />
             </div>
             {detail.assignees.length === 0 ? (
               <p className="text-sm text-muted-foreground">No one assigned</p>
             ) : (
               detail.assignees.map((login) => (
-                <p key={login} className="flex items-center gap-2 text-sm text-foreground">
+                <p
+                  key={login}
+                  className="flex items-center gap-2 text-sm text-foreground"
+                >
                   <Avatar login={login} />
                   <span className="truncate">{login}</span>
                 </p>
@@ -1465,7 +1574,11 @@ function IssueDetailView({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <SidebarHeading>Labels</SidebarHeading>
-              <LabelPicker repo={repo} labels={detail.labels} onToggle={toggleLabel} />
+              <LabelPicker
+                repo={repo}
+                labels={detail.labels}
+                onToggle={toggleLabel}
+              />
             </div>
             {detail.labels.length === 0 ? (
               <p className="text-sm text-muted-foreground">None yet</p>
@@ -1493,7 +1606,8 @@ function IssueDetailView({
 // ---------------------------------------------------------------------------
 
 function pullStateBadgeParts(state: string): { dot: string; label: string } {
-  if (state === "DRAFT") return { dot: "bg-muted-foreground/60", label: "draft" };
+  if (state === "DRAFT")
+    return { dot: "bg-muted-foreground/60", label: "draft" };
   if (state === "OPEN") return { dot: "bg-green-500", label: "open" };
   if (state === "MERGED") return { dot: "bg-purple-500", label: "merged" };
   return { dot: "bg-red-500", label: "closed" };
@@ -1525,7 +1639,11 @@ function reviewStateClass(state: string): string {
 
 function ReviewDecisionBadge({ decision }: { decision: string }) {
   if (decision === "APPROVED") {
-    return <Badge className="bg-green-600 text-white hover:bg-green-600">approved</Badge>;
+    return (
+      <Badge className="bg-green-600 text-white hover:bg-green-600">
+        approved
+      </Badge>
+    );
   }
   if (decision === "CHANGES_REQUESTED") {
     return <Badge variant="destructive">changes requested</Badge>;
@@ -1544,7 +1662,9 @@ function checkDotClass(status: PullCheck["status"]): string {
 }
 
 function ChecksSection({ checks }: { checks: PullCheck[] }) {
-  const [open, setOpen] = useState(() => checks.some((check) => check.status === "failure"));
+  const [open, setOpen] = useState(() =>
+    checks.some((check) => check.status === "failure"),
+  );
   if (checks.length === 0) return null;
   const passing = checks.filter((check) => check.status === "success").length;
   const failing = checks.filter((check) => check.status === "failure").length;
@@ -1556,21 +1676,35 @@ function ChecksSection({ checks }: { checks: PullCheck[] }) {
       >
         <span
           className={`size-2 shrink-0 rounded-full ${
-            failing > 0 ? "bg-red-500" : passing === checks.length ? "bg-green-500" : "animate-pulse bg-yellow-500"
+            failing > 0
+              ? "bg-red-500"
+              : passing === checks.length
+                ? "bg-green-500"
+                : "animate-pulse bg-yellow-500"
           }`}
         />
         <span className="font-medium text-foreground">Checks</span>
         <span className="text-xs text-muted-foreground">
-          {passing}/{checks.length} passing{failing > 0 ? ` · ${failing} failing` : ""}
+          {passing}/{checks.length} passing
+          {failing > 0 ? ` · ${failing} failing` : ""}
         </span>
-        <span className="ml-auto text-xs text-muted-foreground">{open ? "▾" : "▸"}</span>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {open ? "▾" : "▸"}
+        </span>
       </button>
       {open ? (
         <div className="divide-y divide-border border-t border-border">
           {checks.map((check, index) => (
-            <div key={`${check.name}-${index}`} className="flex items-center gap-2 px-3 py-1.5 text-xs">
-              <span className={`size-2 shrink-0 rounded-full ${checkDotClass(check.status)}`} />
-              <span className="min-w-0 flex-1 truncate text-foreground">{check.name}</span>
+            <div
+              key={`${check.name}-${index}`}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs"
+            >
+              <span
+                className={`size-2 shrink-0 rounded-full ${checkDotClass(check.status)}`}
+              />
+              <span className="min-w-0 flex-1 truncate text-foreground">
+                {check.name}
+              </span>
               {check.url.length > 0 ? (
                 <a
                   href={check.url}
@@ -1656,12 +1790,17 @@ function FileDiffCard({ file, url }: { file: PullFile; url: string }) {
         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent/50"
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className="shrink-0 text-xs text-muted-foreground">{open ? "▾" : "▸"}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {open ? "▾" : "▸"}
+        </span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
           {file.path}
         </span>
         {file.status !== "modified" ? (
-          <Badge variant="secondary" className="shrink-0 font-normal text-muted-foreground">
+          <Badge
+            variant="secondary"
+            className="shrink-0 font-normal text-muted-foreground"
+          >
             {file.status}
           </Badge>
         ) : null}
@@ -1680,7 +1819,12 @@ function FileDiffCard({ file, url }: { file: PullFile; url: string }) {
         ) : (
           <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
             Diff too large to inline —{" "}
-            <a href={`${url}/files`} target="_blank" rel="noreferrer" className="underline">
+            <a
+              href={`${url}/files`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
               view on GitHub ↗
             </a>
           </p>
@@ -1697,7 +1841,9 @@ function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <p className="flex items-center gap-2 border-b border-border bg-muted/50 px-3 py-1.5 font-mono text-xs text-muted-foreground">
         <span className="min-w-0 truncate">{thread.path}</span>
-        {thread.line !== null ? <span className="shrink-0">:{thread.line}</span> : null}
+        {thread.line !== null ? (
+          <span className="shrink-0">:{thread.line}</span>
+        ) : null}
       </p>
       {thread.diffHunk.length > 0 ? (
         <div className="border-b border-border">
@@ -1709,8 +1855,10 @@ function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
           <div key={index}>
             <p className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
               <Avatar login={entry.author} size="size-4" />
-              <span className="font-medium text-foreground">{entry.author}</span> ·{" "}
-              {relativeTime(entry.createdAt)}
+              <span className="font-medium text-foreground">
+                {entry.author}
+              </span>{" "}
+              · {relativeTime(entry.createdAt)}
             </p>
             <Markdown content={entry.body} className="text-sm" />
           </div>
@@ -1722,16 +1870,27 @@ function ReviewThreadCard({ thread }: { thread: ReviewThread }) {
 
 type PullTimelineEntry =
   | { type: "comment"; author: string; body: string; createdAt: string }
-  | { type: "review"; author: string; state: string; body: string; createdAt: string };
+  | {
+      type: "review";
+      author: string;
+      state: string;
+      body: string;
+      createdAt: string;
+    };
 
 function PullTimeline({ pull }: { pull: PullDetail }) {
   const entries = useMemo<PullTimelineEntry[]>(() => {
     const merged: PullTimelineEntry[] = [
-      ...pull.comments.map((comment) => ({ type: "comment" as const, ...comment })),
+      ...pull.comments.map((comment) => ({
+        type: "comment" as const,
+        ...comment,
+      })),
       // Body-less COMMENTED reviews are the containers of inline threads
       // (rendered separately below); showing them here would be noise.
       ...pull.reviews
-        .filter((review) => review.body.length > 0 || review.state !== "COMMENTED")
+        .filter(
+          (review) => review.body.length > 0 || review.state !== "COMMENTED",
+        )
         .map((review) => ({ type: "review" as const, ...review })),
     ];
     return merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -1743,7 +1902,10 @@ function PullTimeline({ pull }: { pull: PullDetail }) {
         Activity · {entries.length + pull.reviewThreads.length}
       </h3>
       {entries.map((entry, index) => (
-        <div key={index} className="rounded-lg border border-border bg-card p-3">
+        <div
+          key={index}
+          className="rounded-lg border border-border bg-card p-3"
+        >
           <p className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
             <Avatar login={entry.author} />
             <span className="font-medium text-foreground">{entry.author}</span>
@@ -1754,7 +1916,9 @@ function PullTimeline({ pull }: { pull: PullDetail }) {
             ) : null}
             · {relativeTime(entry.createdAt)}
           </p>
-          {entry.body.length > 0 ? <Markdown content={entry.body} className="text-sm" /> : null}
+          {entry.body.length > 0 ? (
+            <Markdown content={entry.body} className="text-sm" />
+          ) : null}
         </div>
       ))}
       {pull.reviewThreads.map((thread, index) => (
@@ -1769,7 +1933,10 @@ function PullReviewersList({ pull }: { pull: PullDetail }) {
     const latest = new Map<string, { login: string; state: string }>();
     for (const review of pull.reviews) {
       if (review.author.length > 0) {
-        latest.set(review.author, { login: review.author, state: review.state });
+        latest.set(review.author, {
+          login: review.author,
+          state: review.state,
+        });
       }
     }
     for (const login of pull.reviewRequests) {
@@ -1777,14 +1944,20 @@ function PullReviewersList({ pull }: { pull: PullDetail }) {
     }
     return [...latest.values()];
   }, [pull]);
-  if (rows.length === 0) return <p className="text-sm text-muted-foreground">No reviewers</p>;
+  if (rows.length === 0)
+    return <p className="text-sm text-muted-foreground">No reviewers</p>;
   return (
     <>
       {rows.map((row) => (
-        <p key={row.login} className="flex items-center gap-2 text-sm text-foreground">
+        <p
+          key={row.login}
+          className="flex items-center gap-2 text-sm text-foreground"
+        >
           <Avatar login={row.login} />
           <span className="min-w-0 truncate">{row.login}</span>
-          <span className={`ml-auto shrink-0 text-xs ${reviewStateClass(row.state)}`}>
+          <span
+            className={`ml-auto shrink-0 text-xs ${reviewStateClass(row.state)}`}
+          >
             {REVIEW_STATE_LABELS[row.state] ?? row.state.toLowerCase()}
           </span>
         </p>
@@ -1826,7 +1999,11 @@ function PullCommentBox({
         rows={3}
       />
       <div className="flex justify-end">
-        <Button size="sm" disabled={posting || comment.trim().length === 0} onClick={post}>
+        <Button
+          size="sm"
+          disabled={posting || comment.trim().length === 0}
+          onClick={post}
+        >
           {posting ? "Posting…" : "Comment"}
         </Button>
       </div>
@@ -1907,8 +2084,12 @@ function PullDetailView({
           <h3 className="text-xs font-semibold text-muted-foreground">
             Files changed · {pull.files.length}
             <span className="ml-2 font-normal">
-              <span className="text-green-600 dark:text-green-400">+{pull.additions}</span>{" "}
-              <span className="text-red-600 dark:text-red-400">−{pull.deletions}</span>
+              <span className="text-green-600 dark:text-green-400">
+                +{pull.additions}
+              </span>{" "}
+              <span className="text-red-600 dark:text-red-400">
+                −{pull.deletions}
+              </span>
             </span>
           </h3>
           {pull.files.map((file) => (
@@ -1925,7 +2106,12 @@ function PullDetailView({
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         {onBack !== undefined ? (
-          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onBack}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2"
+            onClick={onBack}
+          >
             ← {backLabel}
           </Button>
         ) : null}
@@ -1947,7 +2133,10 @@ function PullDetailView({
         <h2
           className={`min-w-0 flex-1 font-semibold text-foreground ${compact ? "text-base" : "text-xl"}`}
         >
-          {pull.title} <span className="font-normal text-muted-foreground">#{pull.number}</span>
+          {pull.title}{" "}
+          <span className="font-normal text-muted-foreground">
+            #{pull.number}
+          </span>
         </h2>
         <Button
           size="sm"
@@ -1965,9 +2154,13 @@ function PullDetailView({
           {pull.baseRefName} ← {pull.headRefName}
         </span>
         <span>
-          <span className="text-green-600 dark:text-green-400">+{pull.additions}</span>{" "}
-          <span className="text-red-600 dark:text-red-400">−{pull.deletions}</span> ·{" "}
-          {pull.changedFiles} file{pull.changedFiles === 1 ? "" : "s"}
+          <span className="text-green-600 dark:text-green-400">
+            +{pull.additions}
+          </span>{" "}
+          <span className="text-red-600 dark:text-red-400">
+            −{pull.deletions}
+          </span>{" "}
+          · {pull.changedFiles} file{pull.changedFiles === 1 ? "" : "s"}
         </span>
         <LabelChips labels={pull.labels} className="flex flex-wrap" />
         <ThreadPills links={pullLinks} />
@@ -1989,7 +2182,10 @@ function PullDetailView({
                 <p className="text-sm text-muted-foreground">No one assigned</p>
               ) : (
                 pull.assignees.map((login) => (
-                  <p key={login} className="flex items-center gap-2 text-sm text-foreground">
+                  <p
+                    key={login}
+                    className="flex items-center gap-2 text-sm text-foreground"
+                  >
                     <Avatar login={login} />
                     <span className="truncate">{login}</span>
                   </p>
@@ -2023,7 +2219,11 @@ function PullDetailView({
 // show the compact PR view; fall back to a picker over cached open PRs.
 // ---------------------------------------------------------------------------
 
-function PullPickerList({ onPick }: { onPick: (repo: string, number: number) => void }) {
+function PullPickerList({
+  onPick,
+}: {
+  onPick: (repo: string, number: number) => void;
+}) {
   const { items, error } = useItems("pr");
   if (error !== null) return <EmptyState message={error} />;
   if (items === null) {
@@ -2052,7 +2252,9 @@ function PullPickerList({ onPick }: { onPick: (repo: string, number: number) => 
             <span className="shrink-0 font-mono text-xs text-muted-foreground">
               #{item.number}
             </span>
-            <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.title}</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+              {item.title}
+            </span>
             <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
               {item.repo}
             </span>
@@ -2066,15 +2268,24 @@ function PullPickerList({ onPick }: { onPick: (repo: string, number: number) => 
 function PullPanelTab({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof githubRpcContract>();
   const [resolved, setResolved] = useState(false);
-  const [selected, setSelected] = useState<{ repo: string; number: number } | null>(null);
+  const [selected, setSelected] = useState<{
+    repo: string;
+    number: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     rpc.call("pullForThread", { threadId }).then(
       (result) => {
         if (cancelled) return;
-        const pull = (result as { pull?: { repo?: unknown; number?: unknown } | null })?.pull;
-        if (pull && typeof pull.repo === "string" && typeof pull.number === "number") {
+        const pull = (
+          result as { pull?: { repo?: unknown; number?: unknown } | null }
+        )?.pull;
+        if (
+          pull &&
+          typeof pull.repo === "string" &&
+          typeof pull.number === "number"
+        ) {
           setSelected({ repo: pull.repo, number: pull.number });
         }
         setResolved(true);
@@ -2103,7 +2314,9 @@ function PullPanelTab({ threadId }: PluginThreadPanelProps) {
         <p className="text-xs text-muted-foreground">
           No pull request is linked to this thread yet — pick one:
         </p>
-        <PullPickerList onPick={(repo, number) => setSelected({ repo, number })} />
+        <PullPickerList
+          onPick={(repo, number) => setSelected({ repo, number })}
+        />
       </div>
     );
   }
@@ -2241,7 +2454,9 @@ function PanelHeader() {
             ? "Loading…"
             : status.ghOk
               ? `${status.repos.length} repo${status.repos.length === 1 ? "" : "s"} · synced ${
-                  status.lastSyncedAt !== null ? relativeTime(status.lastSyncedAt) : "never"
+                  status.lastSyncedAt !== null
+                    ? relativeTime(status.lastSyncedAt)
+                    : "never"
                 }`
               : "GitHub CLI not authenticated"}
       </span>
@@ -2254,13 +2469,15 @@ function PanelHeader() {
         aria-label={syncing ? "Syncing GitHub data" : "Refresh GitHub data"}
       >
         <RefreshIcon className={syncing ? "animate-spin" : undefined} />
-        <span className="hidden sm:inline">{syncing ? "Syncing…" : "Refresh"}</span>
+        <span className="hidden sm:inline">
+          {syncing ? "Syncing…" : "Refresh"}
+        </span>
       </Button>
     </>
   );
 }
 
-const QUERY_KEY = "bb-plugin-github:query";
+const QUERY_KEY = "patcher-plugin-github:query";
 const DEFAULT_QUERY = "is:open ";
 
 function GithubPanel({ subPath }: PluginNavPanelProps) {
@@ -2314,12 +2531,21 @@ function ListView({
   const viewer = useViewer();
   const parsed = useMemo(() => parseQuery(query), [query]);
   const filtered = useMemo(
-    () => (items === null ? null : items.filter((item) => matchesQuery(item, parsed, viewer))),
+    () =>
+      items === null
+        ? null
+        : items.filter((item) => matchesQuery(item, parsed, viewer)),
     [items, parsed, viewer],
   );
   return (
     <>
-      <FilterBar value={query} onChange={setQuery} items={items} repos={repos} kind={kind} />
+      <FilterBar
+        value={query}
+        onChange={setQuery}
+        items={items}
+        repos={repos}
+        kind={kind}
+      />
       <ItemsTable
         kind={kind}
         items={filtered}
@@ -2353,7 +2579,7 @@ function GithubPanelBody({
   }
   if (status !== null && status.repos.length === 0) {
     return (
-      <EmptyState message="No GitHub repos tracked yet. Create a BB project whose checkout has a GitHub origin remote, or add repos via the extraRepos plugin setting." />
+      <EmptyState message="No GitHub repos tracked yet. Create a Patcher project whose checkout has a GitHub origin remote, or add repos via the extraRepos plugin setting." />
     );
   }
 
@@ -2380,7 +2606,11 @@ function GithubPanelBody({
       <NewIssueForm
         repos={status?.repos ?? []}
         onCreated={(repo, number) =>
-          navigate(number !== null ? { view: "issue", repo, number } : { view: "issues" })
+          navigate(
+            number !== null
+              ? { view: "issue", repo, number }
+              : { view: "issues" },
+          )
         }
         onCancel={() => navigate({ view: "issues" })}
       />
@@ -2394,7 +2624,9 @@ function GithubPanelBody({
         <Tabs
           value={route.view}
           onValueChange={(value) => {
-            navigate(value === "pulls" ? { view: "pulls" } : { view: "issues" });
+            navigate(
+              value === "pulls" ? { view: "pulls" } : { view: "issues" },
+            );
           }}
         >
           <TabsList>
@@ -2416,7 +2648,11 @@ function GithubPanelBody({
         setQuery={setQuery}
         repos={status?.repos ?? []}
         onOpenItem={(repo, number) =>
-          navigate(kind === "pr" ? { view: "pull", repo, number } : { view: "issue", repo, number })
+          navigate(
+            kind === "pr"
+              ? { view: "pull", repo, number }
+              : { view: "issue", repo, number },
+          )
         }
       />
     </div>

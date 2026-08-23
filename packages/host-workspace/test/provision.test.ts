@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_ENV_SETUP_SCRIPT_NAME,
   type ProvisioningTranscriptEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { provisionWorkspace } from "../src/index.js";
 import { runGit } from "../src/git.js";
 import { withCheckoutMutationLock } from "../src/checkout-mutation-lock.js";
@@ -36,10 +36,12 @@ async function makeTempDir(prefix: string): Promise<string> {
 }
 
 async function initRepo(opts?: { setupScript?: string }): Promise<string> {
-  const repoPath = await makeTempDir("bb-provision-repo-");
+  const repoPath = await makeTempDir("patcher-provision-repo-");
   await runGit(["init", "-b", "main"], { cwd: repoPath });
-  await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
-  await runGit(["config", "user.email", "bb@example.com"], { cwd: repoPath });
+  await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+  await runGit(["config", "user.email", "patcher@example.com"], {
+    cwd: repoPath,
+  });
   await fs.writeFile(path.join(repoPath, "README.md"), "hello\n", "utf8");
   if (opts?.setupScript) {
     await fs.writeFile(
@@ -79,7 +81,7 @@ describe("provisionWorkspace", () => {
     });
 
     it("provisions an unmanaged non-git directory", async () => {
-      const dirPath = await makeTempDir("bb-provision-nongit-");
+      const dirPath = await makeTempDir("patcher-provision-nongit-");
 
       const ws = await provisionWorkspace({
         workspaceProvisionType: "unmanaged",
@@ -260,7 +262,7 @@ describe("provisionWorkspace", () => {
     });
 
     it("rejects unmanaged checkouts for non-git directories", async () => {
-      const dirPath = await makeTempDir("bb-provision-nongit-checkout-");
+      const dirPath = await makeTempDir("patcher-provision-nongit-checkout-");
 
       await expect(
         provisionWorkspace({
@@ -273,7 +275,7 @@ describe("provisionWorkspace", () => {
 
     it("detects a worktree as isWorktree=true", async () => {
       const repoPath = await initRepo();
-      const parentDir = await makeTempDir("bb-provision-wt-parent-");
+      const parentDir = await makeTempDir("patcher-provision-wt-parent-");
       const wtPath = path.join(parentDir, "wt");
       await runGit(["worktree", "add", "-B", "feature", wtPath], {
         cwd: repoPath,
@@ -290,7 +292,9 @@ describe("provisionWorkspace", () => {
 
     it("resolves external git metadata roots for unmanaged worktrees", async () => {
       const repoPath = await initRepo();
-      const parentDir = await makeTempDir("bb-provision-unmanaged-wt-roots-");
+      const parentDir = await makeTempDir(
+        "patcher-provision-unmanaged-wt-roots-",
+      );
       const wtPath = path.join(parentDir, "wt");
       await runGit(["worktree", "add", "-B", "feature", wtPath], {
         cwd: repoPath,
@@ -321,7 +325,7 @@ describe("provisionWorkspace", () => {
       await expect(
         provisionWorkspace({
           workspaceProvisionType: "unmanaged",
-          path: "/tmp/does-not-exist-bb",
+          path: "/tmp/does-not-exist-patcher",
         }),
       ).rejects.toThrow(/does not exist/u);
     });
@@ -468,14 +472,14 @@ describe("provisionWorkspace", () => {
   describe("managed-worktree", () => {
     it("provisions a worktree and returns HostWorkspace", async () => {
       const repoPath = await initRepo();
-      const parentDir = await makeTempDir("bb-provision-mwt-parent-");
+      const parentDir = await makeTempDir("patcher-provision-mwt-parent-");
       const targetPath = path.join(parentDir, "env");
 
       const ws = await provisionWorkspace({
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
-        branchName: "bb/env-test",
+        branchName: "patcher/env-test",
         baseBranch: "main",
         timeoutMs: 900000,
       });
@@ -484,19 +488,19 @@ describe("provisionWorkspace", () => {
       expect(ws.managed).toBe(true);
       expect(ws.isGitRepo).toBe(true);
       expect(ws.isWorktree).toBe(true);
-      expect(await ws.getCurrentBranch()).toBe("bb/env-test");
+      expect(await ws.getCurrentBranch()).toBe("patcher/env-test");
     });
 
     it("resolves external git metadata roots for workspace-write sandboxes", async () => {
       const repoPath = await initRepo();
-      const parentDir = await makeTempDir("bb-provision-mwt-roots-");
+      const parentDir = await makeTempDir("patcher-provision-mwt-roots-");
       const targetPath = path.join(parentDir, "env");
 
       const ws = await provisionWorkspace({
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
-        branchName: "bb/env-roots",
+        branchName: "patcher/env-roots",
         baseBranch: "main",
         timeoutMs: 900000,
       });
@@ -520,15 +524,15 @@ describe("provisionWorkspace", () => {
 
     it("destroy() removes the worktree", async () => {
       const repoPath = await initRepo();
-      const parentDir = await makeTempDir("bb-provision-mwt-destroy-");
+      const parentDir = await makeTempDir("patcher-provision-mwt-destroy-");
       const envDir = path.join(parentDir, "env");
-      const targetPath = path.join(envDir, "bb");
+      const targetPath = path.join(envDir, "patcher");
 
       const ws = await provisionWorkspace({
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
-        branchName: "bb/env-destroy",
+        branchName: "patcher/env-destroy",
         baseBranch: "main",
         timeoutMs: 900000,
       });
@@ -548,14 +552,14 @@ describe("provisionWorkspace", () => {
       const repoPath = await initRepo({
         setupScript: "echo worktree-setup-ran > setup-marker.txt\n",
       });
-      const parentDir = await makeTempDir("bb-provision-mwt-script-");
+      const parentDir = await makeTempDir("patcher-provision-mwt-script-");
       const targetPath = path.join(parentDir, "env");
 
       const ws = await provisionWorkspace({
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
-        branchName: "bb/env-script",
+        branchName: "patcher/env-script",
         baseBranch: "main",
         timeoutMs: 900000,
       });
@@ -571,16 +575,16 @@ describe("provisionWorkspace", () => {
       const repoPath = await initRepo({
         setupScript: "echo failing >&2\nexit 1\n",
       });
-      const parentDir = await makeTempDir("bb-provision-mwt-fail-");
+      const parentDir = await makeTempDir("patcher-provision-mwt-fail-");
       const envDir = path.join(parentDir, "env");
-      const targetPath = path.join(envDir, "bb");
+      const targetPath = path.join(envDir, "patcher");
 
       await expect(
         provisionWorkspace({
           workspaceProvisionType: "managed-worktree",
           sourcePath: repoPath,
           targetPath,
-          branchName: "bb/env-fail",
+          branchName: "patcher/env-fail",
           baseBranch: "main",
           timeoutMs: 900000,
         }),
@@ -629,7 +633,7 @@ describe("provisionWorkspace", () => {
 
   describe("personal", () => {
     it("creates and destroys a non-git managed workspace", async () => {
-      const parentDir = await makeTempDir("bb-personal-parent-");
+      const parentDir = await makeTempDir("patcher-personal-parent-");
       const environmentId = "env_personal";
       const personalWorkspaceRoot = path.join(parentDir, "personal-workspaces");
       const targetPath = path.join(personalWorkspaceRoot, environmentId);
@@ -652,7 +656,7 @@ describe("provisionWorkspace", () => {
     });
 
     it("rediscovers git metadata in an existing personal workspace", async () => {
-      const parentDir = await makeTempDir("bb-personal-git-parent-");
+      const parentDir = await makeTempDir("patcher-personal-git-parent-");
       const environmentId = "env_personal_git";
       const personalWorkspaceRoot = path.join(parentDir, "personal-workspaces");
       const targetPath = path.join(personalWorkspaceRoot, environmentId);
@@ -678,7 +682,9 @@ describe("provisionWorkspace", () => {
     });
 
     it("does not accept external git metadata in a personal workspace", async () => {
-      const parentDir = await makeTempDir("bb-personal-external-git-parent-");
+      const parentDir = await makeTempDir(
+        "patcher-personal-external-git-parent-",
+      );
       const environmentId = "env_personal_external_git";
       const personalWorkspaceRoot = path.join(parentDir, "personal-workspaces");
       const targetPath = path.join(personalWorkspaceRoot, environmentId);
@@ -706,7 +712,7 @@ describe("provisionWorkspace", () => {
     });
 
     it("rejects personal target paths outside the personal workspace root", async () => {
-      const parentDir = await makeTempDir("bb-personal-parent-");
+      const parentDir = await makeTempDir("patcher-personal-parent-");
       const environmentId = "env_personal";
       const personalWorkspaceRoot = path.join(parentDir, "personal-workspaces");
 
@@ -721,7 +727,7 @@ describe("provisionWorkspace", () => {
     });
 
     it("rejects personal target paths that do not match the environment id", async () => {
-      const parentDir = await makeTempDir("bb-personal-parent-");
+      const parentDir = await makeTempDir("patcher-personal-parent-");
       const personalWorkspaceRoot = path.join(parentDir, "personal-workspaces");
 
       await expect(
@@ -738,9 +744,9 @@ describe("provisionWorkspace", () => {
   describe("reconnect-managed-worktree", () => {
     it("reconnects to an existing worktree with managed=true", async () => {
       const repoPath = await initRepo();
-      const parentDir = await makeTempDir("bb-reconnect-wt-parent-");
+      const parentDir = await makeTempDir("patcher-reconnect-wt-parent-");
       const envDir = path.join(parentDir, "env");
-      const wtPath = path.join(envDir, "bb");
+      const wtPath = path.join(envDir, "patcher");
       await runGit(["worktree", "add", "-B", "feature", wtPath], {
         cwd: repoPath,
       });

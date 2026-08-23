@@ -1,8 +1,8 @@
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginSettingDescriptors,
   PluginSettingsValues,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 
 export const WORKFLOW_SETTING_DESCRIPTORS = {
   maxActiveRuns: {
@@ -210,9 +210,9 @@ export interface WorkflowSettingsHandle {
 
 /** Register the descriptors and expose only parsed settings to consumers. */
 export function registerWorkflowSettings(
-  bb: Pick<BbPluginApi, "settings">,
+  patcher: Pick<PatcherPluginApi, "settings">,
 ): WorkflowSettingsHandle {
-  const handle = bb.settings.define(WORKFLOW_SETTING_DESCRIPTORS);
+  const handle = patcher.settings.define(WORKFLOW_SETTING_DESCRIPTORS);
   let lastValid = DEFAULT_WORKFLOW_SETTINGS;
   return {
     async get() {

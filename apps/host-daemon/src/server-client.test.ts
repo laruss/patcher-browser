@@ -1,6 +1,6 @@
 import { AbortError } from "p-retry";
 import { describe, expect, it, vi } from "vitest";
-import type { PendingInteractionCreate } from "@bb/domain";
+import type { PendingInteractionCreate } from "@patcher/domain";
 import {
   createServerClient,
   ServerResponseError,
@@ -56,14 +56,14 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger: createLogger(),
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     const result = client.openSession({
       hostId: "host-1",
       hostName: "Host",
       hostType: "persistent",
-      dataDir: "/tmp/bb",
+      dataDir: "/tmp/patcher",
       instanceId: "instance-1",
       activeThreads: [],
       loadedEnvironments: [],
@@ -75,47 +75,6 @@ describe("createServerClient", () => {
     });
   });
 
-  it.each([
-    { machineCredential: "bbcm_machine", hasMachineCredential: true },
-    { machineCredential: undefined, hasMachineCredential: false },
-  ])(
-    "reports live machine-credential capability as $hasMachineCredential",
-    async ({ machineCredential, hasMachineCredential }) => {
-      const fetchFn = vi.fn<FetchFn>(async (_input, init) => {
-        expect(JSON.parse(String(init?.body))).toMatchObject({
-          hasMachineCredential,
-        });
-        return Response.json(
-          {
-            sessionId: "session-1",
-            heartbeatIntervalMs: 5_000,
-            leaseTimeoutMs: 30_000,
-          },
-          { status: 201 },
-        );
-      });
-      const client = createServerClient({
-        fetchFn,
-        getSessionId: () => "session-1",
-        hostKey: "host-key",
-        logger: createLogger(),
-        ...(machineCredential !== undefined ? { machineCredential } : {}),
-        serverUrl: "https://bb.example.test",
-      });
-
-      await client.openSession({
-        hostId: "host-1",
-        hostName: "Host",
-        hostType: "persistent",
-        dataDir: "/tmp/bb",
-        instanceId: "instance-1",
-        activeThreads: [],
-        loadedEnvironments: [],
-      });
-      expect(fetchFn).toHaveBeenCalledOnce();
-    },
-  );
-
   it("refuses to fetch project attachments over insecure non-loopback HTTP", async () => {
     const fetchFn = vi.fn<FetchFn>();
     const client = createServerClient({
@@ -123,7 +82,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger: createLogger(),
-      serverUrl: "http://bb.example.test",
+      serverUrl: "http://patcher.example.test",
     });
 
     await expect(
@@ -178,7 +137,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger: createLogger(),
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     const attachment = await client.fetchProjectAttachment({
@@ -203,7 +162,9 @@ describe("createServerClient", () => {
       expect(new Headers(init?.headers).get("authorization")).toBe(
         "Bearer host-key",
       );
-      expect(new Headers(init?.headers).get("x-bb-connect-machine")).toBeNull();
+      expect(
+        new Headers(init?.headers).get("x-patcher-connect-machine"),
+      ).toBeNull();
       return new Response(
         JSON.stringify({
           treeHash,
@@ -228,12 +189,11 @@ describe("createServerClient", () => {
     });
   });
 
-  it("adds the connect machine credential to internal HTTP requests", async () => {
+  it("authorizes internal HTTP requests with the host key", async () => {
     const treeHash = "b".repeat(64);
     const fetchFn = vi.fn<FetchFn>(async (_input, init) => {
       const headers = new Headers(init?.headers);
       expect(headers.get("authorization")).toBe("Bearer host-key");
-      expect(headers.get("x-bb-connect-machine")).toBe("bbcm_machine");
       return new Response(JSON.stringify({ treeHash, entries: [] }), {
         status: 200,
       });
@@ -243,8 +203,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger: createLogger(),
-      machineCredential: "bbcm_machine",
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     await client.fetchSkillTree(treeHash);
@@ -263,7 +222,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger: createLogger(),
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     await expect(
@@ -349,7 +308,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger: createLogger(),
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     await expect(
@@ -420,7 +379,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger,
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     await expect(
@@ -464,7 +423,7 @@ describe("createServerClient", () => {
       getSessionId: () => "session-1",
       hostKey: "host-key",
       logger,
-      serverUrl: "https://bb.example.test",
+      serverUrl: "https://patcher.example.test",
     });
 
     const result = client.registerInteractiveRequest(

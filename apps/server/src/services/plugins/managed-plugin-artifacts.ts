@@ -10,8 +10,8 @@ import {
   type PluginExactResolution,
   type PluginProvenance,
   type PluginSourceIntent,
-} from "@bb/db";
-import { buildPluginApp, buildPluginServer } from "@bb/plugin-build";
+} from "@patcher/db";
+import { buildPluginApp, buildPluginServer } from "@patcher/plugin-build";
 import { getPluginBuildToolchain } from "./build-toolchain.js";
 import { validatePluginArtifactMeta } from "./app-bundle.js";
 import {
@@ -188,7 +188,7 @@ export function createManagedPluginArtifacts(
    * This is what an update *check* runs. Checks are read-only by contract, so
    * they must not resolve a dependency tree: a `file:` or `git:` dependency an
    * author declared would otherwise reach local paths or new hosts every time
-   * bb polled for updates.
+   * Patcher polled for updates.
    */
   async function validateManifestOnly(args: {
     rootDir: string;
@@ -223,7 +223,7 @@ export function createManagedPluginArtifacts(
     const kind = sourceKind(args.source);
     const managed = kind === "git" || kind === "npm";
     // Dependency + bundle policy (design §5.1):
-    // - git: bb installs declared runtime deps (scripts disabled — nothing
+    // - git: Patcher installs declared runtime deps (scripts disabled — nothing
     //   executes) and builds BOTH bundles so those deps are inlined.
     //   node_modules is kept: esbuild only bundles statically reachable code,
     //   so a dependency that reads a data file or .wasm at runtime still needs
@@ -242,7 +242,7 @@ export function createManagedPluginArtifacts(
           .catch(() => false);
         if (!jsPresent) {
           throw new Error(
-            `install refused: npm plugins with a frontend (bb.app) must publish a prebuilt bundle — "${manifest.id}" is missing dist/app.js + dist/app.meta.json`,
+            `install refused: npm plugins with a frontend (patcher.app) must publish a prebuilt bundle — "${manifest.id}" is missing dist/app.js + dist/app.meta.json`,
           );
         }
       } else if (
@@ -845,8 +845,8 @@ export function createManagedPluginArtifacts(
       );
       const manifest = await readPluginManifest(targetRealRoot);
       const compatibility = evaluateCompatibility({
-        bbRange: manifest.bbEngineRange,
-        sdkRange: manifest.bbPluginSdkRange,
+        patcherRange: manifest.patcherEngineRange,
+        sdkRange: manifest.patcherPluginSdkRange,
         appVersion: deps.appVersion,
       });
       if (args.activationRefKind === undefined) {
@@ -942,8 +942,8 @@ export function createManagedPluginArtifacts(
         };
       }
       const compatibility = evaluateCompatibility({
-        bbRange: manifest.bbEngineRange,
-        sdkRange: manifest.bbPluginSdkRange,
+        patcherRange: manifest.patcherEngineRange,
+        sdkRange: manifest.patcherPluginSdkRange,
         appVersion: deps.appVersion,
       });
       if (compatibility.effective.length > 0) {

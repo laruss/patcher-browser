@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { formatHomePathForDisplay } from "@bb/shared-ui/lib/utils";
-import { ResourcePagination } from "@bb/shared-ui/resource-pagination";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { formatHomePathForDisplay } from "@patcher/shared-ui/lib/utils";
+import { ResourcePagination } from "@patcher/shared-ui/resource-pagination";
 import {
   ResourceDefinitionSection,
   ResourceDetailCollection,
@@ -10,13 +10,13 @@ import {
   ResourceDetailPage,
   ResourceDetailPanel,
   ResourceDetailStack,
-} from "@bb/shared-ui/resource-list";
+} from "@patcher/shared-ui/resource-list";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/tooltip";
 import { FilePreview } from "@/components/secondary-panel/FilePreview.js";
 import { appToast } from "@/components/ui/app-toast";
 import { ProvenancePill } from "@/components/tools/ProvenancePill";

@@ -1,4 +1,7 @@
-import { templateDefinitions, type TemplateId } from "@bb/templates/generated";
+import {
+  templateDefinitions,
+  type TemplateId,
+} from "@patcher/templates/generated";
 
 export interface GuideRenderArgs {
   chapter?: string;
@@ -14,16 +17,16 @@ export interface GuideArea {
 }
 
 const guideChapters: Record<string, TemplateId> = {
-  threads: "bbGuideThreads",
-  environments: "bbGuideEnvironments",
-  "agent-configuration": "bbGuideAgentConfiguration",
-  providers: "bbGuideProviders",
-  projects: "bbGuideProjects",
-  machines: "bbGuideMachines",
-  terminals: "bbGuideTerminals",
-  customization: "bbGuideCustomization",
-  plugins: "bbGuidePlugins",
-  automations: "bbGuideAutomations",
+  threads: "patcherGuideThreads",
+  environments: "patcherGuideEnvironments",
+  "agent-configuration": "patcherGuideAgentConfiguration",
+  providers: "patcherGuideProviders",
+  projects: "patcherGuideProjects",
+  machines: "patcherGuideMachines",
+  terminals: "patcherGuideTerminals",
+  customization: "patcherGuideCustomization",
+  plugins: "patcherGuidePlugins",
+  automations: "patcherGuideAutomations",
 };
 
 const templateBodyById = new Map(
@@ -42,7 +45,7 @@ export function createGuideArea(): GuideArea {
   return {
     render(input = {}) {
       if (!input.chapter) {
-        return { content: renderStaticTemplate("bbGuideOverview") };
+        return { content: renderStaticTemplate("patcherGuideOverview") };
       }
       const templateId = guideChapters[input.chapter];
       if (!templateId) {

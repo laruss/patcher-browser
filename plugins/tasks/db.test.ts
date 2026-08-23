@@ -2,16 +2,16 @@ import { createHash } from "node:crypto";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import { createTasksStore, TasksPageCursorError } from "./db";
 
 function setup() {
-  const { bb, harness } = createFakePluginHost({
+  const { patcher, harness } = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "tasks-db-test",
   });
-  const db = bb.storage.database();
+  const db = patcher.storage.database();
   return { db, harness, store: createTasksStore(db) };
 }
 

@@ -4,14 +4,14 @@ import { createRequire } from "node:module";
 import type Database from "better-sqlite3";
 import type { z } from "zod";
 /**
- * The two host-owned stores `bb` reads through, injected rather than reached.
+ * The two host-owned stores `patcher` reads through, injected rather than reached.
  *
  * They were `db: DbConnection` until the plugin boundary needed this object to
- * build in a plugin's own process too, where there is no bb.db to open — and
+ * build in a plugin's own process too, where there is no patcher.db to open — and
  * where opening one would be the wrong answer anyway. Everything else about
  * these members stays here: the JSON round-trip, the 256KB limit, the error
  * text. Only the last inch is swapped, so the two sides of the boundary cannot
- * disagree about what `bb.storage.kv` means.
+ * disagree about what `patcher.storage.kv` means.
  *
  * Values are raw JSON strings on purpose. Parsing them here keeps
  * `JSON.parse`'s exact failure mode on the plugin's side of any transport.
@@ -26,7 +26,7 @@ export interface PluginKvStore {
 export type PluginSettingsReader = (
   descriptors: PluginSettingDescriptors,
 ) => Promise<Record<string, unknown>>;
-// By subpath, not through `@bb/domain`'s index, and the reason is measured:
+// By subpath, not through `@patcher/domain`'s index, and the reason is measured:
 // this module is the one every plugin process loads, and the index runs every
 // schema in the package at import time — ~57MB resident, against ~25MB for the
 // three files anything here actually uses.
@@ -39,20 +39,20 @@ import type {
   BrowserCookie,
   BrowserInteraction,
   BrowserStorageItem,
-} from "@bb/domain/browser-control";
-import { PLUGIN_INTERACTION_MAX_TITLE_LENGTH } from "@bb/domain/plugin-interaction-limits";
+} from "@patcher/domain/browser-control";
+import { PLUGIN_INTERACTION_MAX_TITLE_LENGTH } from "@patcher/domain/plugin-interaction-limits";
 import {
   BROWSER_PAGE_STYLE_ID_PATTERN,
   BROWSER_PAGE_STYLE_MAX_CSS_LENGTH,
   BROWSER_PAGE_STYLE_MAX_ID_LENGTH,
   BROWSER_PAGE_STYLE_MAX_MATCHES,
-} from "@bb/domain/browser-page-style";
+} from "@patcher/domain/browser-page-style";
 import {
   BROWSER_PAGE_SCRIPT_ID_PATTERN,
   BROWSER_PAGE_SCRIPT_MAX_CODE_LENGTH,
   BROWSER_PAGE_SCRIPT_MAX_ID_LENGTH,
   BROWSER_PAGE_SCRIPT_MAX_MATCHES,
-} from "@bb/domain/browser-page-script";
+} from "@patcher/domain/browser-page-script";
 import {
   BROWSER_SEARCH_ENGINE_ID_PATTERN,
   BROWSER_SEARCH_ENGINE_MAX_ID_LENGTH,
@@ -60,18 +60,18 @@ import {
   BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER,
   normalizeBrowserSearchEngineTemplate,
   type BrowserSearchEngine,
-} from "@bb/domain/browser-search-engine";
+} from "@patcher/domain/browser-search-engine";
 import type {
   AppKeybindingOverride,
   AppKeybindingOverrides,
-} from "@bb/domain/app-keybindings";
+} from "@patcher/domain/app-keybindings";
 import {
   permissionForBrowserCommand,
   type PluginPermission,
-} from "@bb/domain/plugin-permissions";
-import type { JsonValue } from "@bb/domain/json-value";
+} from "@patcher/domain/plugin-permissions";
+import type { JsonValue } from "@patcher/domain/json-value";
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginAgentConfiguration,
   PluginAgentConfigurationContext,
   PluginAgentToolContext,
@@ -87,7 +87,6 @@ import type {
   PluginHttp,
   PluginHttpAuthMode,
   PluginHttpHandler,
-  PluginHosts,
   PluginKvStorage,
   PluginLogger,
   PluginBrowser,
@@ -129,8 +128,8 @@ import type {
   PluginThreadEventName,
   PluginUi,
   StandardSchemaV1,
-} from "@bb/plugin-sdk";
-import type { BbSdk, ThreadForkArgs, ThreadSpawnArgs } from "@bb/sdk";
+} from "@patcher/plugin-sdk";
+import type { PatcherSdk, ThreadForkArgs, ThreadSpawnArgs } from "@patcher/sdk";
 import type { ServerLogger } from "../../types.js";
 import type { PluginInteractionResult } from "../interactions/pending-interactions.js";
 import { appendPluginLogLine } from "./plugin-log.js";
@@ -144,11 +143,11 @@ import {
 // process, where that would be ~60MB of native machinery for a validator.
 import { registerSettingDescriptors } from "./plugin-setting-descriptors.js";
 
-// The backend plugin API contract lives in @bb/plugin-sdk (plugin authors
+// The backend plugin API contract lives in @patcher/plugin-sdk (plugin authors
 // compile against it); this module implements it. Re-exported so server code
 // keeps one import site for plugin API types.
 export type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginAgentConfiguration,
   PluginAgentConfigurationContext,
   PluginAgentToolContentPart,
@@ -167,7 +166,6 @@ export type {
   PluginHttp,
   PluginHttpAuthMode,
   PluginHttpHandler,
-  PluginHosts,
   PluginKvStorage,
   PluginLogger,
   PluginMentionItem,
@@ -205,11 +203,11 @@ export type {
   PluginThreadEventPayloads,
   PluginUi,
   StandardSchemaV1,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 
 /**
  * Thrown when a plugin calls into an API handle that has been invalidated by
- * reload/disable (pi's stale-context discipline): captured `bb` references
+ * reload/disable (pi's stale-context discipline): captured `patcher` references
  * from a previous load fail loudly instead of acting on dead state.
  */
 export class PluginContextStaleError extends Error {
@@ -289,7 +287,7 @@ function readRpcMethodContract(
   return { input, output };
 }
 
-/** Per-event handler lists recorded by `bb.events.on`; dropped with the handle. */
+/** Per-event handler lists recorded by `patcher.events.on`; dropped with the handle. */
 export type PluginThreadEventHandlers = {
   [E in PluginThreadEventName]: Array<PluginThreadEventHandler<E>>;
 };
@@ -320,7 +318,7 @@ export interface PluginRpcHandler {
 export interface PluginAgentToolRecord {
   name: string;
   description: string;
-  /** Native timeline labels, null when the standard BB title should render. */
+  /** Native timeline labels, null when the standard Patcher title should render. */
   experimentalStatusLabels: PluginAgentToolExperimentalStatusLabels | null;
   /** Instructions snippet for the thread-instructions assembly; null when
    * the registration carried none (description-only). */
@@ -339,12 +337,12 @@ export interface PluginAgentToolRecord {
 }
 
 /**
- * Core `bb` CLI top-level command names (plus commander's built-in help).
+ * Core `patcher` CLI top-level command names (plus commander's built-in help).
  * Plugin CLI commands may not shadow these. Maintained by hand — kept in
  * sync with apps/cli/src/index.ts by
  * apps/cli/src/__tests__/plugin-cli-proxy.test.ts.
  */
-export const RESERVED_BB_CLI_COMMANDS: readonly string[] = [
+export const RESERVED_PATCHER_CLI_COMMANDS: readonly string[] = [
   // "automation" is intentionally absent: the builtin automations plugin owns it.
   "environment",
   "guide",
@@ -414,7 +412,7 @@ export interface PluginScheduleRecord {
   fn: () => void | Promise<void>;
 }
 
-/** Validated record of the plugin's `bb.cli.register` call. */
+/** Validated record of the plugin's `patcher.cli.register` call. */
 export interface PluginCliRegistrationRecord {
   name: string;
   summary: string;
@@ -441,7 +439,7 @@ const RPC_METHOD_PATTERN = /^[a-zA-Z0-9_-]+$/;
 // Service/schedule names appear in status text and plugin_schedules rows.
 const BACKGROUND_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-// CLI command names become `bb <name>` invocations.
+// CLI command names become `patcher <name>` invocations.
 const CLI_COMMAND_NAME_PATTERN = /^[a-z0-9-]+$/;
 
 // Agent tool names are shown to (and called by) the model.
@@ -516,7 +514,7 @@ export type PluginSettingsListener = (
 ) => void;
 
 export interface PluginApiHandle {
-  api: BbPluginApi;
+  api: PatcherPluginApi;
   /** Dispose hooks in registration order (runner executes them LIFO). */
   disposeHooks: Array<() => void | Promise<void>>;
   /** Settings schema + change listeners recorded by `settings.define`. */
@@ -526,65 +524,65 @@ export interface PluginApiHandle {
   };
   /** Every database handle vended by `storage.database()`; closed on dispose. */
   databaseHandles: Database.Database[];
-  /** Thread lifecycle handlers recorded by `bb.events.on`. */
+  /** Thread lifecycle handlers recorded by `patcher.events.on`. */
   threadEventHandlers: PluginThreadEventHandlers;
-  /** HTTP routes recorded by `bb.http.route`; dropped with the handle. */
+  /** HTTP routes recorded by `patcher.http.route`; dropped with the handle. */
   httpRoutes: PluginHttpRouteRecord[];
-  /** RPC handlers recorded by `bb.rpc.register`; dropped with the handle. */
+  /** RPC handlers recorded by `patcher.rpc.register`; dropped with the handle. */
   rpcHandlers: Map<string, PluginRpcHandler>;
-  /** Background services recorded by `bb.background.service`. */
+  /** Background services recorded by `patcher.background.service`. */
   backgroundServices: PluginBackgroundServiceRecord[];
-  /** Schedules recorded by `bb.background.schedule`. */
+  /** Schedules recorded by `patcher.background.schedule`. */
   schedules: PluginScheduleRecord[];
-  /** The plugin's CLI command (`bb.cli.register`); null when none. */
+  /** The plugin's CLI command (`patcher.cli.register`); null when none. */
   cli: { registration: PluginCliRegistrationRecord | null };
-  /** Native tools recorded by `bb.agents.registerTool`. */
+  /** Native tools recorded by `patcher.agents.registerTool`. */
   agentTools: PluginAgentToolRecord[];
-  /** Per-resolution selector from `bb.agents.configure` (at most one). */
+  /** Per-resolution selector from `patcher.agents.configure` (at most one). */
   agentConfigurationProvider: PluginAgentConfigurationProvider | null;
   /**
    * Dynamic thread-instructions provider from
-   * `bb.agents.contributeInstructions` (at most one; null when none).
+   * `patcher.agents.contributeInstructions` (at most one; null when none).
    */
   instructionProvider: PluginInstructionProvider | null;
-  /** Mention providers recorded by `bb.ui.registerMentionProvider`. */
+  /** Mention providers recorded by `patcher.ui.registerMentionProvider`. */
   mentionProviders: PluginMentionProviderRecord[];
-  /** Omnibox providers recorded by `bb.browser.registerOmniboxProvider`. */
+  /** Omnibox providers recorded by `patcher.browser.registerOmniboxProvider`. */
   omniboxProviders: PluginOmniboxProviderRecord[];
-  /** Download handlers recorded by `bb.browser.registerDownloadHandler`. */
+  /** Download handlers recorded by `patcher.browser.registerDownloadHandler`. */
   downloadHandlers: PluginBrowserDownloadHandler[];
-  /** Keybindings recorded by `bb.ui.registerKeybinding`. */
+  /** Keybindings recorded by `patcher.ui.registerKeybinding`. */
   keybindings: AppKeybindingOverrides;
-  /** Context-menu items recorded by `bb.browser.registerContextMenuItem`. */
+  /** Context-menu items recorded by `patcher.browser.registerContextMenuItem`. */
   contextMenuItems: PluginBrowserContextMenuItemRecord[];
-  /** Find-bar buttons recorded by `bb.browser.registerFindAction`. */
+  /** Find-bar buttons recorded by `patcher.browser.registerFindAction`. */
   findActions: PluginBrowserFindActionRecord[];
-  /** Tab-menu entries recorded by `bb.browser.registerTabAction`. */
+  /** Tab-menu entries recorded by `patcher.browser.registerTabAction`. */
   tabActions: PluginBrowserTabActionRecord[];
-  /** Site-info sections recorded by `bb.browser.registerSiteInfoProvider`. */
+  /** Site-info sections recorded by `patcher.browser.registerSiteInfoProvider`. */
   siteInfoProviders: PluginBrowserSiteInfoProviderRecord[];
-  /** Toolbar controls recorded by `bb.browser.registerToolbarItem`. */
+  /** Toolbar controls recorded by `patcher.browser.registerToolbarItem`. */
   toolbarItems: PluginBrowserToolbarItemRecord[];
-  /** New-tab sections recorded by `bb.browser.registerNewTabWidget`. */
+  /** New-tab sections recorded by `patcher.browser.registerNewTabWidget`. */
   newTabWidgets: PluginBrowserNewTabWidgetRecord[];
-  /** Commands recorded by `bb.ui.registerCommand`. */
+  /** Commands recorded by `patcher.ui.registerCommand`. */
   commands: PluginCommandRecord[];
-  /** Search engines recorded by `bb.browser.registerSearchEngine`. */
+  /** Search engines recorded by `patcher.browser.registerSearchEngine`. */
   searchEngines: BrowserSearchEngine[];
-  /** Page styles recorded by `bb.browser.registerPageStyle`. */
+  /** Page styles recorded by `patcher.browser.registerPageStyle`. */
   pageStyles: PluginBrowserPageStyleRecord[];
-  /** Page scripts recorded by `bb.browser.registerPageScript`. */
+  /** Page scripts recorded by `patcher.browser.registerPageScript`. */
   pageScripts: PluginBrowserPageScriptRecord[];
-  /** Auth providers recorded by `bb.browser.registerAuthProvider`. */
+  /** Auth providers recorded by `patcher.browser.registerAuthProvider`. */
   authProviders: PluginBrowserAuthProvider[];
-  /** PDF text providers recorded by `bb.browser.registerPdfTextProvider`. */
+  /** PDF text providers recorded by `patcher.browser.registerPdfTextProvider`. */
   pdfTextProviders: PluginBrowserPdfTextProvider[];
   /**
    * External-link handlers recorded by
-   * `bb.browser.registerExternalLinkHandler`.
+   * `patcher.browser.registerExternalLinkHandler`.
    */
   externalLinkHandlers: PluginBrowserExternalLinkHandler[];
-  /** History filters recorded by `bb.browser.registerHistoryFilter`. */
+  /** History filters recorded by `patcher.browser.registerHistoryFilter`. */
   historyFilters: PluginBrowserHistoryFilter[];
   /** Publish factory-time host declarations and status only after commit. */
   activate(): void;
@@ -592,7 +590,7 @@ export interface PluginApiHandle {
   invalidate(): void;
 }
 
-/** Runtime shape of a `bb.browser.registerContextMenuItem` registration. */
+/** Runtime shape of a `patcher.browser.registerContextMenuItem` registration. */
 export interface PluginBrowserContextMenuItemRecord {
   id: string;
   title: string;
@@ -600,14 +598,14 @@ export interface PluginBrowserContextMenuItemRecord {
   run: (context: PluginBrowserContextMenuContext) => void | Promise<void>;
 }
 
-/** Runtime shape of a `bb.browser.registerFindAction` registration. */
+/** Runtime shape of a `patcher.browser.registerFindAction` registration. */
 export interface PluginBrowserFindActionRecord {
   id: string;
   title: string;
   run: (context: PluginBrowserFindContext) => void | Promise<void>;
 }
 
-/** Runtime shape of a `bb.browser.registerTabAction` registration. */
+/** Runtime shape of a `patcher.browser.registerTabAction` registration. */
 export interface PluginBrowserTabActionRecord {
   id: string;
   title: string;
@@ -615,7 +613,7 @@ export interface PluginBrowserTabActionRecord {
 }
 
 /**
- * Runtime shape of a `bb.browser.registerToolbarItem` registration. `state` is
+ * Runtime shape of a `patcher.browser.registerToolbarItem` registration. `state` is
  * null when the plugin did not offer one — the host then asks nothing as the user
  * browses, which is the difference worth keeping visible on the wire.
  */
@@ -635,8 +633,8 @@ export interface PluginBrowserToolbarItemRecord {
 }
 
 /**
- * Runtime shape of a `bb.browser.registerPageStyle` registration. `matches` is
- * already checked against the plugin's declared `bb.sites`, so everything
+ * Runtime shape of a `patcher.browser.registerPageStyle` registration. `matches` is
+ * already checked against the plugin's declared `patcher.sites`, so everything
  * downstream can apply it without re-deciding what the plugin may reach.
  */
 export interface PluginBrowserPageStyleRecord {
@@ -646,8 +644,8 @@ export interface PluginBrowserPageStyleRecord {
 }
 
 /**
- * Runtime shape of a `bb.browser.registerPageScript` registration. `matches` is
- * checked against `bb.sites` by the same rule as a page style's, so nothing
+ * Runtime shape of a `patcher.browser.registerPageScript` registration. `matches` is
+ * checked against `patcher.sites` by the same rule as a page style's, so nothing
  * downstream re-decides where this code may run — and `code` is text all the way
  * to the page, never evaluated in this process.
  */
@@ -657,7 +655,7 @@ export interface PluginBrowserPageScriptRecord {
   code: string;
 }
 
-/** Runtime shape of a `bb.browser.registerNewTabWidget` registration. */
+/** Runtime shape of a `patcher.browser.registerNewTabWidget` registration. */
 export interface PluginBrowserNewTabWidgetRecord {
   id: string;
   label: string;
@@ -670,7 +668,7 @@ export interface PluginBrowserNewTabWidgetRecord {
 }
 
 /**
- * Runtime shape of a `bb.ui.registerCommand` registration. The shortcut is
+ * Runtime shape of a `patcher.ui.registerCommand` registration. The shortcut is
  * normalised here — every modifier explicit — because the app matches against it
  * and a missing boolean would read as "chord with no modifier".
  */
@@ -688,7 +686,7 @@ export interface PluginCommandRecord {
   run: () => void | Promise<void>;
 }
 
-/** Runtime shape of a `bb.browser.registerSiteInfoProvider` registration. */
+/** Runtime shape of a `patcher.browser.registerSiteInfoProvider` registration. */
 export interface PluginBrowserSiteInfoProviderRecord {
   id: string;
   label: string;
@@ -700,13 +698,13 @@ export interface PluginBrowserSiteInfoProviderRecord {
     | Promise<PluginBrowserSiteInfoRow[] | null>;
 }
 
-/** Provider registered by `bb.agents.contributeInstructions`. */
+/** Provider registered by `patcher.agents.contributeInstructions`. */
 export type PluginInstructionProvider = (ctx: {
   threadId: string;
   projectId: string;
 }) => string | null;
 
-/** Provider registered by `bb.agents.configure`. */
+/** Provider registered by `patcher.agents.configure`. */
 export type PluginAgentConfigurationProvider = (
   context: PluginAgentConfigurationContext,
 ) => PluginAgentConfiguration;
@@ -745,9 +743,9 @@ function resolveDeclaredMatches(args: {
   for (const pattern of matches) {
     if (typeof pattern !== "string" || !declared.includes(pattern)) {
       throw new Error(
-        `${kind} "${id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "bb.sites". ` +
+        `${kind} "${id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "patcher.sites". ` +
           (declared.length === 0
-            ? `That list is empty — add the site there, then run \`bb plugin reload ${pluginId}\`.`
+            ? `That list is empty — add the site there, then run \`patcher plugin reload ${pluginId}\`.`
             : `It declares: ${declared.join(", ")}.`),
       );
     }
@@ -788,14 +786,14 @@ function summarizeParseIssues(error: unknown): string {
  * unless the plugin sets those fields explicitly.
  */
 function wrapSdkForPlugin(
-  sdk: BbSdk,
+  sdk: PatcherSdk,
   pluginId: string,
   gate: PluginPermissionGate,
-): BbSdk {
+): PatcherSdk {
   // Attribution first, then the gate: a denied `threads` area replaces this
   // wrapper wholesale, and doing it the other way round would hand the plugin
   // an attribution wrapper over a proxy that throws on every read.
-  const attributed: BbSdk = {
+  const attributed: PatcherSdk = {
     ...sdk,
     threads: {
       ...sdk.threads,
@@ -827,27 +825,27 @@ function wrapSdkForPlugin(
 export function createPluginApi(options: {
   pluginId: string;
   /**
-   * What `bb.permissions` declared. Absent or empty denies everything gated —
+   * What `patcher.permissions` declared. Absent or empty denies everything gated —
    * there is no legacy "everything" mode, see ./plugin-permission-gate.ts.
    */
   permissions: readonly PluginPermission[] | undefined;
   /**
-   * What `bb.sites` declared: the websites this plugin's page contributions may
+   * What `patcher.sites` declared: the websites this plugin's page contributions may
    * reach. Absent or empty reaches none, so a `registerPageStyle` or
    * `registerPageScript` call with nothing declared is refused rather than
    * silently applying nowhere.
    */
   sites: readonly string[] | undefined;
   logger: ServerLogger;
-  /** `bb.storage.kv`'s rows; db-backed in the server, a channel call in a
+  /** `patcher.storage.kv`'s rows; db-backed in the server, a channel call in a
    * plugin process. See {@link PluginKvStore}. */
   kvStore: PluginKvStore;
   /** Resolves declared settings to their current values, secrets included. */
   readSettingsValues: PluginSettingsReader;
   dataDir: string;
-  /** Undefined until the server is listening (bb.sdk is bind-gated). */
-  getSdk: () => BbSdk | undefined;
-  /** Undefined until the server is listening (bb.server is bind-gated too). */
+  /** Undefined until the server is listening (patcher.sdk is bind-gated). */
+  getSdk: () => PatcherSdk | undefined;
+  /** Undefined until the server is listening (patcher.server is bind-gated too). */
   getLoopbackBaseUrl: () => string | undefined;
   /** Broadcasts a plugin-signal WS message (hub.notifyPluginSignal). */
   publishSignal: (channel: string, payload: unknown) => void;
@@ -867,7 +865,7 @@ export function createPluginApi(options: {
     timeoutMs: number;
     signal?: AbortSignal;
   }) => Promise<PluginInteractionResult>;
-  /** Performs one `bb.browser.*` command in the connected app window. */
+  /** Performs one `patcher.browser.*` command in the connected app window. */
   requestBrowserCommand: (args: {
     command: BrowserCommand;
     timeoutMs?: number;
@@ -875,18 +873,6 @@ export function createPluginApi(options: {
   }) => Promise<BrowserCommandValue>;
   /** Whether any app window can serve browser commands right now. */
   getBrowserHostStatus: () => { connected: boolean; hostCount: number };
-  ensureSharedPortTunnel: PluginHosts["ensureSharedPortTunnel"];
-  validateSharedPortDeclaration: (
-    hostId: string,
-    ports: readonly number[],
-  ) => readonly number[];
-  declareSharedPorts: PluginHosts["declareSharedPorts"];
-  replaceDeclaredSharedPorts: (
-    declarations: readonly {
-      hostId: string;
-      ports: readonly number[];
-    }[],
-  ) => void;
 }): PluginApiHandle {
   const {
     pluginId,
@@ -905,18 +891,13 @@ export function createPluginApi(options: {
     requestInteraction,
     requestBrowserCommand,
     getBrowserHostStatus,
-    ensureSharedPortTunnel,
-    validateSharedPortDeclaration,
-    declareSharedPorts,
-    replaceDeclaredSharedPorts,
   } = options;
   const permissionGate = createPluginPermissionGate(pluginId, permissions);
   let invalidated = false;
   let activated = false;
-  let wrappedSdk: BbSdk | undefined;
+  let wrappedSdk: PatcherSdk | undefined;
   let pendingNeedsConfiguration: string | null = null;
   const pendingAgentToolProblems: string[] = [];
-  const pendingSharedPorts = new Map<string, readonly number[]>();
   const disposeHooks: Array<() => void | Promise<void>> = [];
   const settingsRecord: PluginApiHandle["settings"] = {
     descriptors: {},
@@ -941,8 +922,8 @@ export function createPluginApi(options: {
   }
 
   const prefix = `[plugin:${pluginId}]`;
-  // Every bb.log line goes to the prefixed server log and, as JSONL, to the
-  // per-plugin log file served by GET /plugins/:id/logs (`bb plugin logs`).
+  // Every patcher.log line goes to the prefixed server log and, as JSONL, to the
+  // per-plugin log file served by GET /plugins/:id/logs (`patcher plugin logs`).
   function emitLog(
     level: "debug" | "info" | "warn" | "error",
     message: string,
@@ -1065,17 +1046,19 @@ export function createPluginApi(options: {
     migrate(database, statements) {
       assertLive();
       database.exec(
-        "CREATE TABLE IF NOT EXISTS _bb_migrations (id INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS _patcher_migrations (id INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)",
       );
       const applied = new Set(
         (
-          database.prepare("SELECT id FROM _bb_migrations").all() as Array<{
+          database
+            .prepare("SELECT id FROM _patcher_migrations")
+            .all() as Array<{
             id: number;
           }>
         ).map((row) => row.id),
       );
       const record = database.prepare(
-        "INSERT INTO _bb_migrations (id, applied_at) VALUES (?, ?)",
+        "INSERT INTO _patcher_migrations (id, applied_at) VALUES (?, ?)",
       );
       database.transaction(() => {
         statements.forEach((statement, index) => {
@@ -1330,7 +1313,7 @@ export function createPluginApi(options: {
       }
       if (RESERVED_AGENT_TOOL_NAMES.includes(name)) {
         throw new Error(
-          `tool name "${name}" is a built-in bb tool — pick another name`,
+          `tool name "${name}" is a built-in Patcher tool — pick another name`,
         );
       }
       if (
@@ -1567,7 +1550,7 @@ export function createPluginApi(options: {
       const key = command.shortcut?.key;
       if (typeof key !== "string" || key.length === 0) {
         throw new Error(
-          `command "${id}" needs a shortcut with a non-empty key — bb has no command palette, so a command without one could never run`,
+          `command "${id}" needs a shortcut with a non-empty key — Patcher has no command palette, so a command without one could never run`,
         );
       }
       const shortcut = {
@@ -1605,7 +1588,7 @@ export function createPluginApi(options: {
     },
   };
 
-  // Argument validation for bb.browser.*. It happens here rather than on the
+  // Argument validation for patcher.browser.*. It happens here rather than on the
   // wire so a plugin's own mistake surfaces as that plugin's error instead of
   // travelling to the app and coming back as a refusal, the same way
   // `requestInput` validates its request before reaching the interaction store.
@@ -1989,12 +1972,12 @@ export function createPluginApi(options: {
     expected: TType,
   ): Promise<Extract<BrowserCommandValue, { type: TType }>> {
     assertLive();
-    // Every bb.browser call that reaches a page funnels through here, so this
+    // Every patcher.browser call that reaches a page funnels through here, so this
     // is the whole browser half of the gate — and the list of what a plugin
     // host would have to carry over RPC.
     permissionGate.assert(
       permissionForBrowserCommand(command),
-      `bb.browser command "${command.type}"`,
+      `patcher.browser command "${command.type}"`,
     );
     const value = await requestBrowserCommand({
       command,
@@ -2056,7 +2039,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "omnibox.register",
-        "bb.browser.registerOmniboxProvider",
+        "patcher.browser.registerOmniboxProvider",
       );
       const id = provider?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
@@ -2094,7 +2077,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "contextMenu.register",
-        "bb.browser.registerContextMenuItem",
+        "patcher.browser.registerContextMenuItem",
       );
       const id = item?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
@@ -2127,7 +2110,10 @@ export function createPluginApi(options: {
     },
     registerFindAction(action) {
       assertLive();
-      permissionGate.assert("find.register", "bb.browser.registerFindAction");
+      permissionGate.assert(
+        "find.register",
+        "patcher.browser.registerFindAction",
+      );
       const id = action?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
         throw new Error(
@@ -2156,7 +2142,10 @@ export function createPluginApi(options: {
     },
     registerTabAction(action) {
       assertLive();
-      permissionGate.assert("tabMenu.register", "bb.browser.registerTabAction");
+      permissionGate.assert(
+        "tabMenu.register",
+        "patcher.browser.registerTabAction",
+      );
       const id = action?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
         throw new Error(
@@ -2187,7 +2176,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "siteInfo.register",
-        "bb.browser.registerSiteInfoProvider",
+        "patcher.browser.registerSiteInfoProvider",
       );
       const id = provider?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
@@ -2219,7 +2208,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "toolbar.register",
-        "bb.browser.registerToolbarItem",
+        "patcher.browser.registerToolbarItem",
       );
       const id = item?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
@@ -2261,7 +2250,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "newTab.register",
-        "bb.browser.registerNewTabWidget",
+        "patcher.browser.registerNewTabWidget",
       );
       const id = widget?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
@@ -2293,7 +2282,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "searchEngine.register",
-        "bb.browser.registerSearchEngine",
+        "patcher.browser.registerSearchEngine",
       );
       const id = engine?.id;
       if (
@@ -2332,7 +2321,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "pageStyle.register",
-        "bb.browser.registerPageStyle",
+        "patcher.browser.registerPageStyle",
       );
       const id = style?.id;
       if (
@@ -2372,7 +2361,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "pageScript.register",
-        "bb.browser.registerPageScript",
+        "patcher.browser.registerPageScript",
       );
       const id = script?.id;
       if (
@@ -2412,7 +2401,10 @@ export function createPluginApi(options: {
     },
     registerAuthProvider(provider) {
       assertLive();
-      permissionGate.assert("auth.provide", "bb.browser.registerAuthProvider");
+      permissionGate.assert(
+        "auth.provide",
+        "patcher.browser.registerAuthProvider",
+      );
       if (typeof provider !== "function") {
         throw new Error(
           "registerAuthProvider(provider) needs a function taking one challenge",
@@ -2424,7 +2416,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "pdf.provide",
-        "bb.browser.registerPdfTextProvider",
+        "patcher.browser.registerPdfTextProvider",
       );
       if (typeof provider !== "function") {
         throw new Error(
@@ -2437,7 +2429,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "externalLink.handle",
-        "bb.browser.registerExternalLinkHandler",
+        "patcher.browser.registerExternalLinkHandler",
       );
       if (typeof handler !== "function") {
         throw new Error(
@@ -2448,7 +2440,7 @@ export function createPluginApi(options: {
     },
     registerHistoryFilter(filter) {
       assertLive();
-      permissionGate.assert("history", "bb.browser.registerHistoryFilter");
+      permissionGate.assert("history", "patcher.browser.registerHistoryFilter");
       if (typeof filter !== "function") {
         throw new Error(
           "registerHistoryFilter(filter) needs a function taking one visit",
@@ -2460,7 +2452,7 @@ export function createPluginApi(options: {
       assertLive();
       permissionGate.assert(
         "downloads.handle",
-        "bb.browser.registerDownloadHandler",
+        "patcher.browser.registerDownloadHandler",
       );
       if (typeof handler !== "function") {
         throw new Error(
@@ -3147,9 +3139,9 @@ export function createPluginApi(options: {
           `invalid cli command name ${JSON.stringify(name)} — use lowercase letters, digits, and "-"`,
         );
       }
-      if (RESERVED_BB_CLI_COMMANDS.includes(name)) {
+      if (RESERVED_PATCHER_CLI_COMMANDS.includes(name)) {
         throw new Error(
-          `cli command name "${name}" is reserved by the bb CLI — pick another name`,
+          `cli command name "${name}" is reserved by the Patcher CLI — pick another name`,
         );
       }
       if (
@@ -3211,7 +3203,7 @@ export function createPluginApi(options: {
       const baseUrl = getLoopbackBaseUrl();
       if (baseUrl === undefined) {
         throw new Error(
-          "bb.server.loopbackBaseUrl is not available until the server is listening — " +
+          "patcher.server.loopbackBaseUrl is not available until the server is listening — " +
             "use it inside handlers, services, or timers, not at factory load time",
         );
       }
@@ -3219,26 +3211,6 @@ export function createPluginApi(options: {
     },
   };
 
-  const hosts: PluginHosts = {
-    ensureSharedPortTunnel(hostId) {
-      assertLive();
-      // Reaching a host, which `sdk.hosts` charges `workspace` for — and this
-      // one does more than read: it mints a gate identity for that machine.
-      permissionGate.assert("workspace", "bb.hosts.ensureSharedPortTunnel");
-      return ensureSharedPortTunnel(hostId);
-    },
-    declareSharedPorts(hostId, ports) {
-      assertLive();
-      permissionGate.assert("workspace", "bb.hosts.declareSharedPorts");
-      if (activated) declareSharedPorts(hostId, ports);
-      else {
-        pendingSharedPorts.set(
-          hostId,
-          validateSharedPortDeclaration(hostId, ports),
-        );
-      }
-    },
-  };
   const events: PluginEvents = {
     on(event, handler) {
       assertLive();
@@ -3246,7 +3218,7 @@ export function createPluginApi(options: {
       // thread — the same data `sdk.threads` and the `thread:changed` feed
       // both charge for. A push costing less than a pull for identical
       // content is a hole, not a convenience.
-      permissionGate.assert("threads", "bb.events.on");
+      permissionGate.assert("threads", "patcher.events.on");
       const handlers = threadEventHandlers[event];
       if (handlers === undefined) {
         // Plugin sources are untyped at runtime; fail loudly at registration
@@ -3261,7 +3233,7 @@ export function createPluginApi(options: {
     },
   };
 
-  const api: BbPluginApi = {
+  const api: PatcherPluginApi = {
     pluginId,
     log,
     settings,
@@ -3277,13 +3249,12 @@ export function createPluginApi(options: {
     events,
     status,
     server,
-    hosts,
-    get sdk(): BbSdk {
+    get sdk(): PatcherSdk {
       assertLive();
       const sdk = getSdk();
       if (!sdk) {
         throw new Error(
-          "bb.sdk is not available until the server is listening — " +
+          "patcher.sdk is not available until the server is listening — " +
             "use it inside handlers, services, or timers, not at factory load time",
         );
       }
@@ -3335,11 +3306,7 @@ export function createPluginApi(options: {
     activate() {
       if (activated) return;
       assertLive();
-      replaceDeclaredSharedPorts(
-        [...pendingSharedPorts].map(([hostId, ports]) => ({ hostId, ports })),
-      );
       activated = true;
-      pendingSharedPorts.clear();
       for (const problem of pendingAgentToolProblems) {
         reportAgentToolProblem(problem);
       }
@@ -3356,21 +3323,21 @@ export function createPluginApi(options: {
 }
 
 /**
- * Two packages this module needs for one corner of `bb` each, loaded on the
+ * Two packages this module needs for one corner of `patcher` each, loaded on the
  * first call rather than at import.
  *
  * This file is the one every plugin process loads, and most of what it drags in
- * is for a part of `bb` a given plugin never touches: cron parsing costs
+ * is for a part of `patcher` a given plugin never touches: cron parsing costs
  * ~11MB resident and matters only to a plugin with a schedule, the browser
  * control schemas cost ~23MB (~9MB of it zod itself) and matter only to a
  * plugin that drives a tab. Deferring both takes a host process from ~84MB to
  * ~58MB — see apps/server/scripts/measure-plugin-host.mjs.
  *
  * Why `require` and not `await import`: both call sites are synchronous by
- * contract — `bb.background.schedule()` rejects a bad cron expression before it
+ * contract — `patcher.background.schedule()` rejects a bad cron expression before it
  * returns, and the browser argument checks answer inside functions that must
  * not become async. The mechanics, and why a literal specifier is required for
- * this to survive bundling, are written out once at `loadBbSdk` in
+ * this to survive bundling, are written out once at `loadPatcherSdk` in
  * plugin-child-runtime.ts.
  */
 let cronParserModule: typeof import("cron-parser") | undefined;
@@ -3386,16 +3353,16 @@ function loadCronParser(): typeof import("cron-parser") {
 }
 
 let browserControlModule:
-  | typeof import("@bb/domain/browser-control")
+  | typeof import("@patcher/domain/browser-control")
   | undefined;
 
-function loadBrowserControl(): typeof import("@bb/domain/browser-control") {
+function loadBrowserControl(): typeof import("@patcher/domain/browser-control") {
   browserControlModule ??=
     typeof require === "function"
-      ? (require("@bb/domain/browser-control") as typeof import("@bb/domain/browser-control"))
+      ? (require("@patcher/domain/browser-control") as typeof import("@patcher/domain/browser-control"))
       : (createRequire(import.meta.url)(
-          "@bb/domain/browser-control",
-        ) as typeof import("@bb/domain/browser-control"));
+          "@patcher/domain/browser-control",
+        ) as typeof import("@patcher/domain/browser-control"));
   return browserControlModule;
 }
 
@@ -3410,16 +3377,16 @@ function loadZod(): typeof import("zod") {
 }
 
 let appKeybindingsModule:
-  | typeof import("@bb/domain/app-keybindings")
+  | typeof import("@patcher/domain/app-keybindings")
   | undefined;
 
-function loadAppKeybindings(): typeof import("@bb/domain/app-keybindings") {
+function loadAppKeybindings(): typeof import("@patcher/domain/app-keybindings") {
   appKeybindingsModule ??=
     typeof require === "function"
-      ? (require("@bb/domain/app-keybindings") as typeof import("@bb/domain/app-keybindings"))
+      ? (require("@patcher/domain/app-keybindings") as typeof import("@patcher/domain/app-keybindings"))
       : (createRequire(import.meta.url)(
-          "@bb/domain/app-keybindings",
-        ) as typeof import("@bb/domain/app-keybindings"));
+          "@patcher/domain/app-keybindings",
+        ) as typeof import("@patcher/domain/app-keybindings"));
   return appKeybindingsModule;
 }
 

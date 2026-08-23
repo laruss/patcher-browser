@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import type { Thread } from "@bb/domain";
-import { defaultAppSettings } from "@bb/domain";
+import type { Thread } from "@patcher/domain";
+import { defaultAppSettings } from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppCommandProvider } from "@/components/commands/AppCommandProvider";
 import { PaneContext, type PaneContextValue } from "./PaneContext";
@@ -53,8 +53,8 @@ vi.mock("@/hooks/queries/system-queries", () => ({
   }),
 }));
 
-vi.mock("@/lib/bb-desktop", () => ({
-  getBbDesktopInfo: () => null,
+vi.mock("@/lib/patcher-desktop", () => ({
+  getPatcherDesktopInfo: () => null,
 }));
 
 function makeThread(id: string, title: string): Thread {

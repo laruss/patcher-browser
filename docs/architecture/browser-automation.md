@@ -5,7 +5,7 @@ exposes to an agent, **minus its Testing group**, driving the user's real browse
 surface instead of a headless instance.
 
 Where this started is [agent-browser-tools.md](agent-browser-tools.md): 12 tools
-covering navigation, tab bookkeeping and reading page text, plus `bb browser` as
+covering navigation, tab bookkeeping and reading page text, plus `patcher browser` as
 a terminal path onto the same API — roughly PW's `goto` / `go-back` /
 `go-forward` / `reload` / `tab-*` and half of `snapshot`, with **no interaction
 at all**. Stages A through F closed that: an agent can now snapshot a page,
@@ -23,14 +23,14 @@ was right for `innerText`. It does not survive contact with the rest of the
 list, and the reason is not effort — it is that the hard parts are already
 solved behind `webContents.debugger`:
 
-| What we need | Hand-rolled | Via CDP |
-| --- | --- | --- |
-| Accessibility tree with stable refs | reimplement accessible-name computation (the accname spec) | `Accessibility.getFullAXTree` |
-| Accept/dismiss a JS dialog | **impossible** — Electron only offers `disableDialogs` (suppress, no result) | `Page.javascriptDialogOpening` + `Page.handleJavaScriptDialog` |
-| Mock a response body | `webRequest` can block but cannot supply a body | `Fetch.enable` + `Fetch.fulfillRequest` |
-| File input upload | no Electron API | `DOM.setFileInputFiles` |
-| Viewport control without fighting the surface layout | — | `Emulation.setDeviceMetricsOverride` |
-| Console + network observation | partial (`webRequest` sees no bodies) | `Runtime`/`Log`/`Network` events |
+| What we need                                         | Hand-rolled                                                                  | Via CDP                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Accessibility tree with stable refs                  | reimplement accessible-name computation (the accname spec)                   | `Accessibility.getFullAXTree`                                  |
+| Accept/dismiss a JS dialog                           | **impossible** — Electron only offers `disableDialogs` (suppress, no result) | `Page.javascriptDialogOpening` + `Page.handleJavaScriptDialog` |
+| Mock a response body                                 | `webRequest` can block but cannot supply a body                              | `Fetch.enable` + `Fetch.fulfillRequest`                        |
+| File input upload                                    | no Electron API                                                              | `DOM.setFileInputFiles`                                        |
+| Viewport control without fighting the surface layout | —                                                                            | `Emulation.setDeviceMetricsOverride`                           |
+| Console + network observation                        | partial (`webRequest` sees no bodies)                                        | `Runtime`/`Log`/`Network` events                               |
 
 PW itself is a CDP client; matching it without CDP means rewriting the parts of
 Chromium's protocol that make it possible. Verified present in Electron 41.7.0:
@@ -58,12 +58,12 @@ Caveats to design around rather than discover:
 
 ### 2. The CLI is the primary surface, not 70 agent tools
 
-PW Agent CLI exposes ~70 commands and it is *a CLI*, not 70 tool definitions —
+PW Agent CLI exposes ~70 commands and it is _a CLI_, not 70 tool definitions —
 deliberately, for token efficiency, with `install --skills` teaching the agent
 what exists. That is the right answer for us too, and we already have the shape:
-`bb browser`.
+`patcher browser`.
 
-So the long tail lands in `bb browser <command>`, and the registered agent tools
+So the long tail lands in `patcher browser <command>`, and the registered agent tools
 stay a small curated set — the ones worth the tool-slot cost because they are
 used constantly and their results need structure:
 
@@ -74,35 +74,35 @@ browser_tabs_*          browser_page_get_text
 ```
 
 Everything else (cookies, storage, routes, tracing, video, PDF, vision) is
-reachable as `bb browser …`. bb agents run with shell access, so this costs them
+reachable as `patcher browser …`. Patcher agents run with shell access, so this costs them
 nothing, and it keeps the provider's tool list from ballooning past the point
 where models pick well.
 
-Corollary: a dedicated skill teaching `bb browser` becomes worth writing — our
+Corollary: a dedicated skill teaching `patcher browser` becomes worth writing — our
 equivalent of `install --skills`.
 
 ## Scope map
 
-| PW group | Plan | Mechanism |
-| --- | --- | --- |
-| Core — navigation | done | existing |
-| Core — `snapshot` | **Stage A** | `Accessibility.getFullAXTree`, scoped by `DOM.querySelector` |
-| Core — dialogs | **Stage A** (also a live bug) | `Page.javascriptDialogOpening` / `handleJavaScriptDialog` |
-| Core — click/fill/type/select/check/hover/drag/upload/press | done | `Input.*`, `DOM.setFileInputFiles` |
-| Core — `resize` | done | `Emulation.setDeviceMetricsOverride` |
-| Core — `screenshot` | done | `capturePage()`; `Page.captureScreenshot` for `--full-page` |
-| PDF | done | `printToPDF()` |
-| DevTools — `console` | done | `console-message` (**not** CDP — see Stage C) |
-| Network — observe | done | `webRequest` (**not** CDP — see Stage C) |
-| Storage — cookies / localStorage / sessionStorage / state-save/load | done | `session.cookies` + an isolated-world script (**not** `DOMStorage` — see Stage D) |
-| Network — `route` / `route-list` / `unroute` / offline | done | `Fetch.enable` + `fulfillRequest`, `Network.emulateNetworkConditions` |
-| Vision — mousemove/down/up/wheel | done | `Input.dispatchMouseEvent` by coordinate |
-| Core — `eval` | done | `Runtime.callFunctionOn` in the page's own world |
-| Core — `run-code` | **out** | PW's is a driver-side script with the Playwright API; ours would be arbitrary code in the shell — see Stage E |
-| DevTools — tracing | done | our own action log, kept in the app (see Stage F) |
-| DevTools — video | done | `Page.startScreencast` → frames + timings; the system's ffmpeg encodes on `--encode` |
-| Sessions (`-s`, `--profile`, `--persistent`) | **n/a** | PW runs separate browsers; ours is the user's one browser, and tabs are the unit |
-| Testing (assertions, locator generation) | **out** | we are not a test runner |
+| PW group                                                            | Plan                          | Mechanism                                                                                                     |
+| ------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Core — navigation                                                   | done                          | existing                                                                                                      |
+| Core — `snapshot`                                                   | **Stage A**                   | `Accessibility.getFullAXTree`, scoped by `DOM.querySelector`                                                  |
+| Core — dialogs                                                      | **Stage A** (also a live bug) | `Page.javascriptDialogOpening` / `handleJavaScriptDialog`                                                     |
+| Core — click/fill/type/select/check/hover/drag/upload/press         | done                          | `Input.*`, `DOM.setFileInputFiles`                                                                            |
+| Core — `resize`                                                     | done                          | `Emulation.setDeviceMetricsOverride`                                                                          |
+| Core — `screenshot`                                                 | done                          | `capturePage()`; `Page.captureScreenshot` for `--full-page`                                                   |
+| PDF                                                                 | done                          | `printToPDF()`                                                                                                |
+| DevTools — `console`                                                | done                          | `console-message` (**not** CDP — see Stage C)                                                                 |
+| Network — observe                                                   | done                          | `webRequest` (**not** CDP — see Stage C)                                                                      |
+| Storage — cookies / localStorage / sessionStorage / state-save/load | done                          | `session.cookies` + an isolated-world script (**not** `DOMStorage` — see Stage D)                             |
+| Network — `route` / `route-list` / `unroute` / offline              | done                          | `Fetch.enable` + `fulfillRequest`, `Network.emulateNetworkConditions`                                         |
+| Vision — mousemove/down/up/wheel                                    | done                          | `Input.dispatchMouseEvent` by coordinate                                                                      |
+| Core — `eval`                                                       | done                          | `Runtime.callFunctionOn` in the page's own world                                                              |
+| Core — `run-code`                                                   | **out**                       | PW's is a driver-side script with the Playwright API; ours would be arbitrary code in the shell — see Stage E |
+| DevTools — tracing                                                  | done                          | our own action log, kept in the app (see Stage F)                                                             |
+| DevTools — video                                                    | done                          | `Page.startScreencast` → frames + timings; the system's ffmpeg encodes on `--encode`                          |
+| Sessions (`-s`, `--profile`, `--persistent`)                        | **n/a**                       | PW runs separate browsers; ours is the user's one browser, and tabs are the unit                              |
+| Testing (assertions, locator generation)                            | **out**                       | we are not a test runner                                                                                      |
 
 ## Stages
 
@@ -112,7 +112,7 @@ runnable throughout (plan §21 rule 10).
 ### Stage A — the primitive everything else needs
 
 Without addressable elements there is no interaction: `innerText` cannot say
-"click *this* button", and asking a model for CSS selectors is the brittle path
+"click _this_ button", and asking a model for CSS selectors is the brittle path
 PW exists to avoid.
 
 **Done:**
@@ -125,7 +125,7 @@ PW exists to avoid.
   `Accessibility.getFullAXTree` reduced to PW's compact form, refs on interactive
   nodes only, state worth acting on (`[checked]`, `[collapsed]`, `[disabled]`),
   node/length/depth caps that report truncation. Reachable as an agent tool, as
-  `bb.browser.page.snapshot`, and as `bb browser snapshot`.
+  `patcher.browser.page.snapshot`, and as `patcher browser snapshot`.
 - **Ref lifetime** — refs map to `backendNodeId`, invalidated on navigation and
   on same-document navigation, with a `generation` carried in the result so a
   later interaction command can be refused rather than resolved against whatever
@@ -136,17 +136,17 @@ PW exists to avoid.
   native view and pushes the dialog to the renderer;
   `BrowserPageDialog` draws over the placeholder; answering goes back through
   `Page.handleJavaScriptDialog` and the view returns. Agents answer the same
-  dialog through `browser_handle_dialog` / `bb browser dialog`.
+  dialog through `browser_handle_dialog` / `patcher browser dialog`.
 
-- **Selector-scoped snapshots**, added after F. `bb browser snapshot --selector
-  "form.checkout"` — and the `selector` parameter on the snapshot tool — render
+- **Selector-scoped snapshots**, added after F. `patcher browser snapshot --selector
+"form.checkout"` — and the `selector` parameter on the snapshot tool — render
   the matched element's subtree instead of the page, with refs for it alone.
 
   It does **not** work the way this plan guessed. `Accessibility.getPartialAXTree`
   answers with the node and one level of children, so building a subtree from it
   would be a protocol round trip per level; the tree is fetched whole as before
-  and the render starts at the matched node. So the saving is the *caller's
-  context*, not the protocol traffic — which is the scarce thing here anyway,
+  and the render starts at the matched node. So the saving is the _caller's
+  context_, not the protocol traffic — which is the scarce thing here anyway,
   and the honest way to describe the feature.
 
   The lookup is `DOM.getDocument` → `DOM.querySelector` → `DOM.describeNode`,
@@ -180,7 +180,7 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   expected. One probe run in an isolated world answers attached / visible /
   settled / enabled / not-covered in a single round trip and returns the point to
   act at; the manager polls it until it passes or a 5s deadline expires, then
-  reports *why* it never did. Stability is two `requestAnimationFrame`s and a box
+  reports _why_ it never did. Stability is two `requestAnimationFrame`s and a box
   comparison; "not covered" is a hit test at the point about to be clicked, which
   is the check that catches the fading-out modal backdrop. The blocked reasons
   are separate because each implies a different fix — `covered` means dismiss
@@ -213,7 +213,7 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   metrics rather than the view's bounds, which the renderer's layout owns.
 
 Three registered agent tools (`browser_click`, `browser_fill`, `browser_press`),
-the rest as `bb browser click|hover|drag|type|select|check|uncheck|upload|resize`
+the rest as `patcher browser click|hover|drag|type|select|check|uncheck|upload|resize`
 — the split the CLI decision above calls for. The instructions block tells the
 model the CLI exists, since a tool it cannot see is a tool it will not use.
 
@@ -226,7 +226,7 @@ Interactions carry the `generation` of the snapshot their refs came from, and th
 shell refuses a mismatch. It is **optional**, and the reasoning is worth keeping:
 navigation already drops every ref, so acting on an element that no longer exists
 fails either way (`unknown-ref`). What the generation adds is protection against
-a *newer* snapshot having reassigned `e5` to a different element between the
+a _newer_ snapshot having reassigned `e5` to a different element between the
 caller reading it and acting on it — narrow, but silent when it bites.
 
 So it is offered everywhere (the snapshot prints it, the tools take it, the CLI
@@ -246,7 +246,7 @@ built around, and it is why the mechanisms moved:
 
 - **`screenshot`** — `capturePage()`, the visible viewport, JPEG by default and
   PNG on request. Full-page is the exception below.
-- **`pdf`** — `printToPDF()`, which *is* the whole document. It is also the one
+- **`pdf`** — `printToPDF()`, which _is_ the whole document. It is also the one
   call that can come back `result_too_large`; a truncated PDF is not a smaller
   PDF, so the cap is a refusal.
 - **`console`** — Electron's own `console-message` event, buffered per tab from
@@ -283,15 +283,15 @@ Two design points that follow from the buffers being rings:
 One registered agent tool, `browser_screenshot`, which returns the **image
 itself** rather than a path — a model that asked to see the page has to see it in
 the same turn, and it cannot open a file. The other three are
-`bb browser screenshot <file> | pdf <file> | console | network`, where a file is
+`patcher browser screenshot <file> | pdf <file> | console | network`, where a file is
 the right answer because a terminal cannot show an image and a human can open
 one. The CLI resolves a relative path against the invoking shell's `cwd`, not the
 server process's.
 
 #### Full-page capture, added after F
 
-`bb browser screenshot out.jpg --full-page`, the `fullPage` parameter on the
-screenshot tool, and `bb.browser.page.screenshot({ fullPage: true })` capture the
+`patcher browser screenshot out.jpg --full-page`, the `fullPage` parameter on the
+screenshot tool, and `patcher.browser.page.screenshot({ fullPage: true })` capture the
 whole scrollable document. This is the item Stage C deferred, and it is deferred
 no longer for the reason it was deferred in the first place: there is no way to
 do it without the debugger, so the only honest options were to attach one or to
@@ -332,7 +332,7 @@ Two limits, reported rather than hidden:
 
 It rides its own channel and its own optional method, and for a sharper reason
 than the scoped snapshot's. The observation union's members are plain objects, so
-an older shell would not *reject* a `fullPage` flag added to the screenshot
+an older shell would not _reject_ a `fullPage` flag added to the screenshot
 member — it would **strip** it, capture the viewport, and report success. A
 caller cannot see that it got the wrong answer. Feature-detecting `captureFullPage`
 turns a silent wrong picture into "this version cannot do that, ask for the
@@ -408,7 +408,7 @@ Done when: an agent can carry a signed-in session in and out of a tab. ✅
 **Done**, and the first stage since B that genuinely needed CDP — `Fetch`,
 `Input`, `Runtime` and `Network.emulateNetworkConditions`, none of which
 Electron offers an equivalent for. So this is also the stage where the property
-C and D held — *no debugger* — stops holding, by design rather than by drift.
+C and D held — _no debugger_ — stops holding, by design rather than by drift.
 
 What it is, stated as the plan asked: **this is the group whose members hand a
 caller what the rest of the API deliberately withholds.** That is what they have
@@ -418,11 +418,11 @@ hold the user's live logins. The mouse commands act at raw viewport coordinates,
 skipping both the ref lookup and the actionability check, so they land on
 whatever is at that point. A route rewrites what the page receives from the
 network, and `network-state-set offline` cuts it off. None of it is a registered
-agent tool; all of it is `bb browser`, behind the plugin toggle.
+agent tool; all of it is `patcher browser`, behind the plugin toggle.
 
 **`eval` runs in the page's own world**, which is the deliberate inversion of
 every other script in this codebase. The isolated world exists to stop a page
-shadowing the globals *our* fixed scripts read; it cannot protect an expression
+shadowing the globals _our_ fixed scripts read; it cannot protect an expression
 whose entire purpose is to touch the page, and running there would silently hide
 `window.__NEXT_DATA__`, a framework's state and any function the page defined —
 which is what people reach for `eval` to read. The expression is never spliced
@@ -431,7 +431,7 @@ it as one function, and a ref is passed as its argument (`(el) => el.value`,
 exactly Playwright's shape).
 
 **`run-code` is out**, and that is a scope decision rather than an omission.
-Playwright's `run-code` runs a script *in the driver* with the full Playwright
+Playwright's `run-code` runs a script _in the driver_ with the full Playwright
 API. Our driver is the Electron shell; the equivalent would be arbitrary code in
 the main process, which is a different thing from arbitrary code in a page and
 not something a page-automation plugin should offer. `eval` covers what
@@ -440,7 +440,7 @@ not something a page-automation plugin should offer. `eval` covers what
 Three implementation decisions worth keeping:
 
 - **`Fetch` is enabled only while a tab holds a route, and disabled the moment
-  it holds none.** An enabled `Fetch` domain pauses *every* request until
+  it holds none.** An enabled `Fetch` domain pauses _every_ request until
   something answers it, so an interception left on with nothing behind it is a
   page that never loads. For the same reason the handler answers on every path
   including its own failure: a request neither fulfilled nor continued hangs
@@ -478,7 +478,7 @@ arguing about. The shell sees more of the browser and holds the pixels, but it
 cannot tell an agent's command from a person's: a `navigate` arriving there
 looks identical whether a tool call or the user's omnibox sent it, and a log of
 "what the agent did" that also logs what the user did is not that log. The
-executor in the app is the only place a browser command exists *as a command*,
+executor in the app is the only place a browser command exists _as a command_,
 so the trace is kept there — which also means it needs no IPC channel, no
 desktop-contract change and no version skew.
 
@@ -494,7 +494,7 @@ command, a rendered detail line, the outcome, and optionally a JPEG of the
 visible tab after each step that could have changed it. Rendered rather than
 serialized, deliberately: the JSON of a `state.load` is a set of the user's
 cookies, and a trace is a file people save and send each other. So keys are
-named and their values are not — while text typed into a field *is* kept, since
+named and their values are not — while text typed into a field _is_ kept, since
 a log that will not say what was filled in is not a log of what happened.
 
 **Video is `Page.startScreencast`, and the recording stops at the frames.** What
@@ -504,20 +504,20 @@ separate, optional step over an artifact that is already complete.
 
 ### The encoder decision
 
-**bb ships no encoder and downloads none. `--encode` runs the ffmpeg the machine
+**Patcher ships no encoder and downloads none. `--encode` runs the ffmpeg the machine
 already has.** The alternatives, and why each lost:
 
 - **Bundling ffmpeg** — 40–80MB in every auto-update payload for a mac-arm64-only
   app, a GPL build inside the distribution, and another binary to sign once
   notarization is turned on (today `identity: null`, `notarize: false`). Real
   costs, for a feature most sessions never use.
-- **Downloading one on demand** — worse, not better. bb would execute a binary
-  that was never part of a bb release: responsibly done that means a pinned URL,
+- **Downloading one on demand** — worse, not better. Patcher would execute a binary
+  that was never part of a Patcher release: responsibly done that means a pinned URL,
   a checksum, and a story for updates, and on Apple Silicon it also means
   depending on how a third party signed their build, with a quarantine flag to
   strip if it comes to that. Writing code whose job is to remove a Gatekeeper
   attribute from a freshly downloaded executable is not a thing to do quietly.
-  It would also install onto the *server's* machine, which on a remote server is
+  It would also install onto the _server's_ machine, which on a remote server is
   not the machine the terminal is on.
 - **`MediaRecorder` in a renderer** — the dependency-free path, and it fails on
   timing rather than on packaging: MediaRecorder timestamps frames by when they
@@ -525,16 +525,16 @@ already has.** The alternatives, and why each lost:
   seconds of wall clock inside a tool call. (The hidden-window painting problem
   is real too, but this one alone settles it.)
 
-So: `bb browser video-stop <dir> --encode` writes `video.mp4` beside the frames,
-and `bb browser install-ffmpeg` installs one with Homebrew when there is none.
+So: `patcher browser video-stop <dir> --encode` writes `video.mp4` beside the frames,
+and `patcher browser install-ffmpeg` installs one with Homebrew when there is none.
 Three properties make that acceptable rather than a shrug:
 
 - **The frames are the artifact, the video is a rendering of it.** A missing or
   failing encoder costs the convenience, never the recording — and the failure
   message says so, because the alternative is someone re-recording a session
   they still have on disk.
-- **The lookup is a candidate list, not `PATH`.** `BB_FFMPEG` → `PATH` →
-  `/opt/homebrew/bin` → `/usr/local/bin`, and each candidate is *run* rather than
+- **The lookup is a candidate list, not `PATH`.** `PATCHER_FFMPEG` → `PATH` →
+  `/opt/homebrew/bin` → `/usr/local/bin`, and each candidate is _run_ rather than
   stat-ed, because a path can exist and be the wrong architecture. A server
   started from a macOS GUI inherits `/usr/bin:/bin` and nothing else, so `PATH`
   alone finds neither Homebrew's ffmpeg nor Homebrew — the lesson the automations
@@ -542,7 +542,7 @@ Three properties make that acceptable rather than a shrug:
 - **Installing is its own command.** It is the one thing here that changes the
   machine it runs on, so it is never a side effect of stopping a recording. An
   agent that hits a missing encoder is told the exact command; it has shell
-  access, so that *is* the button, pressed by something with the right to press
+  access, so that _is_ the button, pressed by something with the right to press
   it and installing a signed, updatable build.
 
 One bug this fixed on the way: the `ffmpeg` line the CLI used to print has no
@@ -556,7 +556,7 @@ Three implementation notes, in the order they bite:
 - **Every screencast frame is acknowledged, including the ones dropped for
   pacing.** Chromium sends the next frame only once the last has been answered,
   so a frame that is silently ignored does not cost one frame — it ends the
-  recording. Pacing therefore keeps or discards *after* the ack, never instead
+  recording. Pacing therefore keeps or discards _after_ the ack, never instead
   of it.
 - **The frames are budgeted while filming, not at the end.** They arrive at the
   page's paint rate for as long as it runs, so an unbounded buffer is a
@@ -576,8 +576,8 @@ frames — the same reason a step screenshot is taken of the active tab and of n
 other.
 
 What the trace does not record, stated because a reader will assume otherwise:
-anything the *user* does in the same browser while it runs, and any navigation a
-*page* starts by itself. It records the commands bb was asked to run.
+anything the _user_ does in the same browser while it runs, and any navigation a
+_page_ starts by itself. It records the commands Patcher was asked to run.
 
 Done when: a session an agent drove can be reviewed after the fact. ✅ (against
 fakes, as with A through E)
@@ -607,7 +607,7 @@ dismisses everything else. The message is page-authored, so it renders as text.
 Before Stage A, `apps/desktop/src/desktop-browser-view.ts` handled JavaScript
 dialogs **not at all**: no `disableDialogs`, no interception. Electron's default
 is a native modal owned by the app window, so a page calling `alert()` or
-`confirm()` blocked the whole BB window rather than only itself — and **an agent
+`confirm()` blocked the whole Patcher window rather than only itself — and **an agent
 had no way to answer it**. The user could click its buttons; the automation path
 could not, so a dialog stopped an agent dead.
 
@@ -646,7 +646,7 @@ wires.
 
 Stage D adds: the cookie mapping in both directions, where the cases that matter
 are the ones a wrong guess makes silently wrong — a session cookie's expiry
-spelled `-1` and then *omitted* rather than sent as 1969, a host-only cookie
+spelled `-1` and then _omitted_ rather than sent as 1969, a host-only cookie
 staying host-only because naming its domain would widen it, and a non-secure
 cookie offered over `http` because Chromium refuses it the other way round; that
 a key which reads as code stays a string; that reads answer without the debugger
@@ -679,7 +679,7 @@ never answers how large it is costs no capture request at all; and that DevTools
 holding the tab is reported as itself rather than as a generic failure. On the
 agent side: that `fullPage` picks the channel instead of travelling on the
 observation, that an older shell is reported as unsupported rather than answered
-with a viewport picture, and that the shell's union *strips* the flag — which is
+with a viewport picture, and that the shell's union _strips_ the flag — which is
 the fact the whole channel decision rests on.
 
 The selector scoping added after F is covered where it can go wrong: that the
@@ -699,17 +699,17 @@ handed back even when the stop command itself fails; the trace recording one
 step per command an agent issued, including the case where one command runs
 another internally; a step's failure carried as its code, which is what a trace
 is read for; the caps dropping images while the log keeps going; that cookie and
-storage *values* never reach a step's detail line while filled-in text does;
+storage _values_ never reach a step's detail line while filled-in text does;
 that the recording union is the same on both wires for video and deliberately
 not for the trace; and, end to end through the CLI, a trace written as a
 directory of JSON and JPEGs and a film written with the ffconcat playlist that
 carries its timings.
 
-**Untested, and worth knowing:** `bb browser install-ffmpeg` end to end, which
+**Untested, and worth knowing:** `patcher browser install-ffmpeg` end to end, which
 would mean running Homebrew from a test suite — the candidate lists and the
-messages are covered, the `brew install` is not. The encode path *is* covered,
+messages are covered, the `brew install` is not. The encode path _is_ covered,
 against a stand-in binary the test writes: what is worth pinning there is the
-argv bb passes and that it checks a file appeared, neither of which needs a real
+argv Patcher passes and that it checks a file appeared, neither of which needs a real
 encoder, and a test that encodes video is a test that fails on a machine without
 one. Also untested: the argument normalizers in the server's plugin
 API — the observation defaults (JPEG at 80, a limit of 100), Stage D's cookie
@@ -733,7 +733,7 @@ documented:
 - that `console-message` fires for a `WebContentsView`'s contents at all, and
   carries the details object rather than only the legacy positional arguments —
   Stage C's console log is empty and silent if it does not;
-- that an isolated world's `window.localStorage` is the *page origin's* storage
+- that an isolated world's `window.localStorage` is the _page origin's_ storage
   rather than a world of its own — it is for extension content scripts, which is
   the same mechanism, but if Electron differs here Stage D's web-storage reads
   come back empty on a page that plainly has data;
@@ -743,9 +743,9 @@ documented:
 - that `Runtime.evaluate` with no execution context id really lands in the main
   world here, which is what makes `eval` able to see the page's globals at all;
 - that `Page.startScreencast` delivers frames for a `WebContentsView` at all,
-  and keeps delivering them while the BB window is merely unfocused rather than
+  and keeps delivering them while the Patcher window is merely unfocused rather than
   hidden — Stage F's video is a blank directory if it does not;
-- that a `capturePage` taken immediately after an action shows the page *after*
+- that a `capturePage` taken immediately after an action shows the page _after_
   it, rather than the frame before the compositor caught up, which is what a
   trace's step images are for;
 - that `Page.captureScreenshot` with a clip and `captureBeyondViewport` renders
@@ -762,25 +762,25 @@ The shortest way to find out, in order:
 
 ```bash
 bun run dev            # and, in another shell, bun run dev:desktop
-bun run bb:dev plugin enable browser-tools
+bun run patcher:dev plugin enable browser-tools
 # open /browser in the desktop app and load a page with a form, then:
-bun run bb:dev browser snapshot        # refs, and the generation on stderr
-bun run bb:dev browser snapshot --selector form   # the form alone?
-bun run bb:dev browser fill e2 hello
-bun run bb:dev browser click e1
-bun run bb:dev browser console        # does anything at all come back?
-bun run bb:dev browser network        # the page's own request, with its status?
-bun run bb:dev browser screenshot /tmp/shot.png
-bun run bb:dev browser screenshot /tmp/full.jpg --full-page   # taller than the window?
-bun run bb:dev browser cookie-list     # on a site you are signed into
-bun run bb:dev browser localstorage-list   # empty here would mean the world is wrong
-bun run bb:dev browser eval "() => location.href"   # the page's world, or not?
-bun run bb:dev browser route "**/*.json" --body '{"mocked":true}'
-bun run bb:dev browser reload && bun run bb:dev browser route-list  # matched > 0?
-bun run bb:dev browser tracing-start --screenshots
-bun run bb:dev browser click e1 && bun run bb:dev browser tracing-stop /tmp/trace
-bun run bb:dev browser video-start && bun run bb:dev browser reload
-bun run bb:dev browser video-stop /tmp/film --encode   # frames, then video.mp4?
+bun run patcher:dev browser snapshot        # refs, and the generation on stderr
+bun run patcher:dev browser snapshot --selector form   # the form alone?
+bun run patcher:dev browser fill e2 hello
+bun run patcher:dev browser click e1
+bun run patcher:dev browser console        # does anything at all come back?
+bun run patcher:dev browser network        # the page's own request, with its status?
+bun run patcher:dev browser screenshot /tmp/shot.png
+bun run patcher:dev browser screenshot /tmp/full.jpg --full-page   # taller than the window?
+bun run patcher:dev browser cookie-list     # on a site you are signed into
+bun run patcher:dev browser localstorage-list   # empty here would mean the world is wrong
+bun run patcher:dev browser eval "() => location.href"   # the page's world, or not?
+bun run patcher:dev browser route "**/*.json" --body '{"mocked":true}'
+bun run patcher:dev browser reload && bun run patcher:dev browser route-list  # matched > 0?
+bun run patcher:dev browser tracing-start --screenshots
+bun run patcher:dev browser click e1 && bun run patcher:dev browser tracing-stop /tmp/trace
+bun run patcher:dev browser video-start && bun run patcher:dev browser reload
+bun run patcher:dev browser video-stop /tmp/film --encode   # frames, then video.mp4?
 # then, from the page's own console: alert("hi") — whose modal appears?
 ```
 
@@ -800,10 +800,10 @@ browser.
 
 Stage E cuts across that grouping — its commands belong to PW's Network, Vision
 and Core groups — and it still ships as one channel and one plugin-API namespace
-(`bb.browser.control`). That is deliberate: the CLI and the docs keep PW's
+(`patcher.browser.control`). That is deliberate: the CLI and the docs keep PW's
 grouping because that is how someone looks a command up, while the wire groups
 by how much a command hands over, because that is the line a permission would
-one day be drawn along. `bb browser eval` and `bb browser route` have nothing in
+one day be drawn along. `patcher browser eval` and `patcher browser route` have nothing in
 common as verbs and everything in common as a thing to grant.
 
 Stage F cuts across it differently: `tracing-*` and `video-*` are one CLI group
@@ -830,7 +830,7 @@ F was predicted to be the largest per unit of value, and it came out smaller
 than that — but only because it stops where it does. The trace needed no wire at
 all, and the video is a bounded buffer, an acknowledgement rule and a playlist.
 Everything expensive about "video" is in the encoding, and the encoding is not
-here — the decision that would have been large turned out to be a decision *not*
+here — the decision that would have been large turned out to be a decision _not_
 to ship an encoder, which cost one small module and a candidate list.
 
 The two additions after F are both small, and both were small for the same
@@ -843,7 +843,7 @@ which needs a channel, and what an older shell does with the difference.
 ## Upload, and what it does not add
 
 `upload` hands a web page the contents of local files by absolute path, which
-reads like an exfiltration primitive and deserves saying out loud. In bb's threat
+reads like an exfiltration primitive and deserves saying out loud. In Patcher's threat
 model it is not a new one: an agent with these tools already has shell access and
 could `curl` the same file to the same host. What it adds is a path where the
 agent never sees the bytes it moved.

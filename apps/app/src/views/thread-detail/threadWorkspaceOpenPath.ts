@@ -1,5 +1,5 @@
-import type { Environment, WorkspaceFileStatus } from "@bb/domain";
-import type { OpenInTargetContext } from "@bb/host-daemon-contract";
+import type { Environment, WorkspaceFileStatus } from "@patcher/domain";
+import type { OpenInTargetContext } from "@patcher/host-daemon-contract";
 import type { WorkspaceChangedFilesSection } from "@/components/workspace/workspace-change-summary";
 import type {
   EnvironmentFilePreviewSource,

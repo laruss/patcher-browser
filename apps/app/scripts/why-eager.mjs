@@ -38,7 +38,7 @@ const graph = new Map();
 let entryId = null;
 
 const dumpGraph = {
-  name: "bb:dump-module-graph",
+  name: "patcher:dump-module-graph",
   buildEnd() {
     for (const id of this.getModuleIds()) {
       const info = this.getModuleInfo(id);
@@ -64,7 +64,8 @@ await build({
   },
 });
 
-const rel = (id) => path.relative(path.resolve(appDir, "../.."), id).replace(/^\.\.\//, "");
+const rel = (id) =>
+  path.relative(path.resolve(appDir, "../.."), id).replace(/^\.\.\//, "");
 
 // Breadth-first over static edges only: the first time we reach a module is the
 // shortest eager chain to it.
@@ -86,7 +87,9 @@ const chainTo = (id) => {
 };
 
 console.log(`entry: ${rel(entryId)}`);
-console.log(`modules in graph: ${graph.size}, statically reachable: ${parent.size}\n`);
+console.log(
+  `modules in graph: ${graph.size}, statically reachable: ${parent.size}\n`,
+);
 
 for (const target of targets) {
   const hits = [...parent.keys()].filter((id) => id.includes(target));
@@ -104,8 +107,13 @@ for (const target of targets) {
   hits.sort((a, b) => chainTo(a).length - chainTo(b).length);
   const chain = chainTo(hits[0]);
   console.log(`  shortest chain (${chain.length} hops):`);
-  for (const [i, step] of chain.entries()) console.log(`    ${String(i).padStart(2)}. ${step}`);
+  for (const [i, step] of chain.entries())
+    console.log(`    ${String(i).padStart(2)}. ${step}`);
   // The last app-owned file before the dependency is where the cut goes.
-  const cutIndex = chain.findLastIndex((step) => !step.includes("node_modules"));
-  console.log(`  cut point: ${chain[cutIndex]} -> ${chain[cutIndex + 1] ?? "(self)"}\n`);
+  const cutIndex = chain.findLastIndex(
+    (step) => !step.includes("node_modules"),
+  );
+  console.log(
+    `  cut point: ${chain[cutIndex]} -> ${chain[cutIndex + 1] ?? "(self)"}\n`,
+  );
 }

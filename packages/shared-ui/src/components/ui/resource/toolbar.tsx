@@ -433,7 +433,7 @@ export function ResourceFilterMenu({
             {/*
               Merging several dimensions into one menu makes the headings
               load-bearing: without the group wrapper a screen reader reads
-              "bb Official, checkbox" with no hint of which dimension it
+              "Patcher Official, checkbox" with no hint of which dimension it
               belongs to, and "Type" arrives as an unrelated preceding item.
 
               The name is spelled out with `aria-label` rather than pointed at

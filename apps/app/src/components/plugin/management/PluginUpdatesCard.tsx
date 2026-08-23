@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
 import { PluginBannerBar } from "@/components/tools/plugin-detail-banner";
 import { appToast } from "@/components/ui/app-toast";
 import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
@@ -16,7 +16,7 @@ import { UpdatePluginDialog } from "./UpdatePluginDialog";
  * Whether a plugin has any update surfaces at all.
  *
  * Bundled plugins — auto builtins and store-installed officials alike — are
- * pinned to the copy shipped inside the app and update with bb releases, so
+ * pinned to the copy shipped inside the app and update with Patcher releases, so
  * none of these surfaces render for them.
  */
 export function pluginHasUpdateSurfaces(plugin: PluginListItem): boolean {
@@ -58,7 +58,7 @@ export function PluginUpdateBanner({ plugin }: { plugin: PluginListItem }) {
         icon="PackageReceive"
         testId="plugin-update-banner"
         title={`Update to ${availableVersion}`}
-        detail="Compatible with your bb."
+        detail="Compatible with your Patcher."
         action={
           <Button
             type="button"
@@ -80,7 +80,7 @@ export function PluginUpdateBanner({ plugin }: { plugin: PluginListItem }) {
   );
 }
 
-/** The newest release that exists but cannot run on this bb version. */
+/** The newest release that exists but cannot run on this Patcher version. */
 export function pluginCompatibilityBlockedVersion(
   plugin: PluginListItem,
 ): string | null {
@@ -213,7 +213,7 @@ export function PluginDetailReleaseStatus({
           aria-hidden
         />
         <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">
-          bb couldn&rsquo;t activate {failure.version}. It restored{" "}
+          Patcher couldn&rsquo;t activate {failure.version}. It restored{" "}
           {plugin.version} and its data.
         </p>
       </div>
@@ -246,7 +246,7 @@ export function PluginDetailReleaseStatus({
       <div className="min-w-0">
         <p className="text-xs leading-relaxed text-muted-foreground">
           {blockedReasons[0] === undefined
-            ? `${blockedVersion} isn’t compatible with this bb.`
+            ? `${blockedVersion} isn’t compatible with this Patcher.`
             : sentence(blockedReasons[0])}{" "}
           {plugin.version} remains installed. Keep using it and check again when
           a compatible plugin version is available.

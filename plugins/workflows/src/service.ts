@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import Ajv from "ajv";
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import {
   WORKFLOW_CALL_CACHE_VERSION,
@@ -148,8 +148,8 @@ export function formatWorkflowNotification(
   run: WorkflowRunRow,
   maximumBytes: number,
 ): string {
-  const prefix = `[BB workflow finished · ${run.id}]\n\nRun ${run.id} (${run.name}) ${run.status}.\n`;
-  const suffix = `\nRun \`bb workflows status ${run.id}\` for authoritative details.`;
+  const prefix = `[Patcher workflow finished · ${run.id}]\n\nRun ${run.id} (${run.name}) ${run.status}.\n`;
+  const suffix = `\nRun \`patcher workflows status ${run.id}\` for authoritative details.`;
   const detail =
     run.status === "succeeded"
       ? `Result: ${run.resultJson ?? "null"}`
@@ -166,7 +166,7 @@ export function formatWorkflowNotification(
     return `${prefix}${utf8Prefix(detail, available)}${marker}${suffix}`;
   }
   return utf8Prefix(
-    `[BB workflow ${run.id}] ${run.status} — run bb workflows status ${run.id}`,
+    `[Patcher workflow ${run.id}] ${run.status} — run patcher workflows status ${run.id}`,
     maximumBytes,
   );
 }
@@ -374,7 +374,7 @@ export interface WorkflowService {
     value: JsonValue,
   ): Promise<{ ok: true } | { ok: false; terminal: boolean; error: string }>;
   agentConfiguration(threadId: string): {
-    /** Parameter schema for bb_workflow_result; null when the call is not a
+    /** Parameter schema for patcher_workflow_result; null when the call is not a
      * running structured call. */
     resultParameters: Record<string, unknown> | null;
     terminal: boolean;
@@ -404,7 +404,7 @@ export interface WorkflowRunInspectionPage {
 }
 
 export function createWorkflowService(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   db: Db,
   initialSettings: WorkflowSettings = DEFAULT_WORKFLOW_SETTINGS,
 ): WorkflowService {
@@ -427,12 +427,12 @@ export function createWorkflowService(
   async function stopChild(threadId: string): Promise<void> {
     const pending = childStops.get(threadId);
     if (pending !== undefined) return pending;
-    const stopping = bb.sdk.threads
+    const stopping = patcher.sdk.threads
       .stop({ threadId })
       .then(() => undefined)
       .catch((error) => {
         if (!isMissingThread(error)) {
-          bb.log.warn(
+          patcher.log.warn(
             `Could not stop workflow worker ${threadId}: ${message(error)}`,
           );
         }
@@ -447,12 +447,14 @@ export function createWorkflowService(
   }
 
   async function resolveOrigin(input: StartWorkflowInput) {
-    const thread = await bb.sdk.threads.get({ threadId: input.originThreadId });
+    const thread = await patcher.sdk.threads.get({
+      threadId: input.originThreadId,
+    });
     if (thread.environmentId === null) {
       throw new Error("Workflow origin thread has no environment");
     }
     const defaults = executionValuesSchema.parse(
-      await bb.sdk.threads.defaultExecutionOptions({
+      await patcher.sdk.threads.defaultExecutionOptions({
         threadId: input.originThreadId,
       }),
     );
@@ -604,7 +606,7 @@ export function createWorkflowService(
       model: run.originModel,
       reasoningLevel: run.originReasoningLevel,
     };
-    const providers = await bb.sdk.providers.list({
+    const providers = await patcher.sdk.providers.list({
       environmentId: run.environmentId,
     });
     throwIfCancelled(signal);
@@ -616,7 +618,7 @@ export function createWorkflowService(
         `Provider ${JSON.stringify(requested.provider)} is not available on this workflow host`,
       );
     }
-    const catalog = await bb.sdk.providers.models({
+    const catalog = await patcher.sdk.providers.models({
       environmentId: run.environmentId,
       providerId: requested.provider,
     });
@@ -670,11 +672,11 @@ export function createWorkflowService(
     prompt: string,
     options: WorkflowAgentOptions,
   ) {
-    const header = `[BB workflow ${run.name} · run ${run.id}]`;
+    const header = `[Patcher workflow ${run.name} · run ${run.id}]`;
     if (options.outputSchema === null) {
       return `${header}\n\n${prompt}\n\nYour final text IS the return value (not a human-facing message), so return raw data.`;
     }
-    return `${header}\n\n${prompt}\n\nUse bb_workflow_result to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response with {"value": ...} to provide the structured output. The value must satisfy this JSON Schema:\n${JSON.stringify(options.outputSchema, null, 2)}\nIf the tool is unavailable during startup, return only the JSON value in your final response as a fallback. If the tool reports validation errors, correct the value and retry. You have at most ${MAX_REPAIR_ATTEMPTS} corrective retries.`;
+    return `${header}\n\n${prompt}\n\nUse patcher_workflow_result to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response with {"value": ...} to provide the structured output. The value must satisfy this JSON Schema:\n${JSON.stringify(options.outputSchema, null, 2)}\nIf the tool is unavailable during startup, return only the JSON value in your final response as a fallback. If the tool reports validation errors, correct the value and retry. You have at most ${MAX_REPAIR_ATTEMPTS} corrective retries.`;
   }
 
   function canReplayCall(run: WorkflowRunRow): boolean {
@@ -814,7 +816,7 @@ export function createWorkflowService(
     while (true) {
       try {
         throwIfCancelled(signal);
-        const child = await bb.sdk.threads.spawn({
+        const child = await patcher.sdk.threads.spawn({
           projectId: run.projectId,
           environment: { type: "reuse", environmentId: run.environmentId },
           prompt: childPrompt(run, prompt, options),
@@ -837,10 +839,12 @@ export function createWorkflowService(
         const stopOnAbort = () => void stopChild(child.id);
         signal.addEventListener("abort", stopOnAbort, { once: true });
         try {
-          const current = await bb.sdk.threads.get({ threadId: child.id });
+          const current = await patcher.sdk.threads.get({ threadId: child.id });
           throwIfCancelled(signal);
           if (current.status === "idle") {
-            const output = await bb.sdk.threads.output({ threadId: child.id });
+            const output = await patcher.sdk.threads.output({
+              threadId: child.id,
+            });
             throwIfCancelled(signal);
             onThreadIdle(child.id, output.output);
           } else if (current.status === "error") {
@@ -854,7 +858,7 @@ export function createWorkflowService(
             await stopChild(child.id);
             throw error;
           }
-          bb.log.warn(
+          patcher.log.warn(
             `Could not reconcile new workflow worker ${child.id}: ${message(error)}`,
           );
         }
@@ -873,7 +877,7 @@ export function createWorkflowService(
         const queued = queueCallProviderRetry(db, call.id, detail);
         if (queued === null) throw error;
         call = queued;
-        bb.log.warn(
+        patcher.log.warn(
           `[${run.id}] Retrying agent call ${callIndex + 1} after transient provider failure ` +
             `(${call.providerRetryAttempts}/${PROVIDER_RETRY_DELAYS_MS.length}) in ${delay} ms: ${detail}`,
         );
@@ -978,13 +982,13 @@ export function createWorkflowService(
       }
 
       try {
-        await bb.sdk.threads.send({
+        await patcher.sdk.threads.send({
           threadId,
           mode: "auto",
           input: [
             {
               type: "text",
-              text: `Structured result missing or invalid (${detail}). Call bb_workflow_result with one value matching the required schema. Corrective turn ${attempts} of ${MAX_REPAIR_ATTEMPTS}.`,
+              text: `Structured result missing or invalid (${detail}). Call patcher_workflow_result with one value matching the required schema. Corrective turn ${attempts} of ${MAX_REPAIR_ATTEMPTS}.`,
               mentions: [],
             },
           ],
@@ -1020,7 +1024,7 @@ export function createWorkflowService(
     idleHandlers.add(call.id);
     const task = handleThreadIdle(threadId, output)
       .catch((error) => {
-        bb.log.error(
+        patcher.log.error(
           `Could not handle idle workflow worker ${threadId}: ${message(error)}`,
         );
         failThreadCall(
@@ -1137,7 +1141,7 @@ export function createWorkflowService(
           ? "This workflow worker is already terminal. Do not perform more work."
           : options.outputSchema === null
             ? null
-            : `You are a BB workflow worker. Submit your final value with bb_workflow_result. Required schema: ${JSON.stringify(options.outputSchema)}`,
+            : `You are a Patcher workflow worker. Submit your final value with patcher_workflow_result. Required schema: ${JSON.stringify(options.outputSchema)}`,
     };
   }
 
@@ -1147,7 +1151,7 @@ export function createWorkflowService(
     const settings = settingsForRun(latest);
     if (!beginNotificationAttempt(db, run.id)) return;
     try {
-      await bb.sdk.threads.send({
+      await patcher.sdk.threads.send({
         threadId: latest.originThreadId,
         mode: "steer-if-active",
         input: [
@@ -1171,7 +1175,7 @@ export function createWorkflowService(
           run.id,
           `Origin thread is unavailable: ${detail}`,
         );
-        bb.log.warn(
+        patcher.log.warn(
           `Settled workflow notification ${run.id} without delivery because its origin thread is unavailable`,
         );
         return;
@@ -1186,7 +1190,7 @@ export function createWorkflowService(
         error: detail,
         nextAttemptAt: Date.now() + delay,
       });
-      bb.log.error(
+      patcher.log.error(
         `Could not notify workflow origin for ${run.id}; retrying in ${delay} ms: ${detail}`,
       );
     }
@@ -1279,7 +1283,7 @@ export function createWorkflowService(
       ) {
         const prepareAndLaunch = async () => {
           const prepared = await prepareWorkflowSource(
-            bb,
+            patcher,
             { projectId: run.projectId, environmentId: run.environmentId },
             workflowReferenceToSourceInput(reference),
           );
@@ -1330,7 +1334,7 @@ export function createWorkflowService(
         return result;
       },
       log(text) {
-        bb.log.info(`[${run.id}] ${text}`);
+        patcher.log.info(`[${run.id}] ${text}`);
       },
       phase(title) {
         updateRunPhase(db, run.id, title);
@@ -1389,9 +1393,9 @@ export function createWorkflowService(
     for (const call of listRunningCalls(db, 100)) {
       const threadId = call.childThreadId!;
       try {
-        const thread = await bb.sdk.threads.get({ threadId });
+        const thread = await patcher.sdk.threads.get({ threadId });
         if (thread.status === "idle") {
-          const output = await bb.sdk.threads.output({ threadId });
+          const output = await patcher.sdk.threads.output({ threadId });
           onThreadIdle(threadId, output.output);
           await idleHandlerTasks.get(call.id);
         } else if (thread.status === "error") {
@@ -1401,7 +1405,7 @@ export function createWorkflowService(
         if (isMissingThread(error)) {
           failThreadCall(threadId, "Workflow worker was deleted");
         } else {
-          bb.log.warn(
+          patcher.log.warn(
             `Could not reconcile workflow worker ${threadId}: ${message(error)}`,
           );
         }
@@ -1431,7 +1435,7 @@ export function createWorkflowService(
       try {
         await operation();
       } catch (error) {
-        bb.log.error(
+        patcher.log.error(
           `Workflow maintenance step ${name} failed: ${message(error)}`,
         );
       }
@@ -1479,7 +1483,7 @@ export function createWorkflowService(
         try {
           await notify(pending);
         } catch (error) {
-          bb.log.error(
+          patcher.log.error(
             `Workflow notification maintenance failed for ${pending.id}: ${message(error)}`,
           );
         }

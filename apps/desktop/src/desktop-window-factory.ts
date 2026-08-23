@@ -1,5 +1,5 @@
 import type { BrowserWindowConstructorOptions } from "electron";
-import { BB_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX } from "@patcher/desktop-contract";
 import {
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
@@ -25,7 +25,7 @@ export type DesktopWindowIcon = BrowserWindowConstructorOptions["icon"];
 // value vertically centers the lights within the 48px chrome row and brings them
 // onto the sidebar icon column's left rail. This is the native half of a paired
 // geometry contract: the renderer half is `CHROME_ROW_HEIGHT_CLASS` (48px) and
-// the traffic-light reserve tokens in apps/app/src/lib/bb-desktop.ts. The two
+// the traffic-light reserve tokens in apps/app/src/lib/patcher-desktop.ts. The two
 // bundles can't share a runtime value, so keep this inset in sync with them.
 const MACOS_TRAFFIC_LIGHT_DIAGONAL_INSET = 18;
 const MACOS_TRAFFIC_LIGHT_POSITION = {
@@ -174,7 +174,7 @@ function createWindowOptions(
     minHeight: MIN_WINDOW_HEIGHT,
     minWidth: MIN_WINDOW_WIDTH,
     show: false,
-    title: "bb",
+    title: "Patcher",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION,
     webPreferences: {
@@ -183,7 +183,7 @@ function createWindowOptions(
       // list) picks its storage key as it initialises. An argument is the only
       // channel that has already arrived by then.
       additionalArguments: [
-        `${BB_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}${args.stateKey}`,
+        `${PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}${args.stateKey}`,
       ],
       contextIsolation: true,
       nodeIntegration: false,

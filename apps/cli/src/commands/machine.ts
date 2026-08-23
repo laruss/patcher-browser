@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import type { Host } from "@bb/domain";
+import type { Host } from "@patcher/domain";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { renderBorderlessTable } from "../table.js";
 import { outputJson } from "./helpers.js";
 import { confirmDestructiveAction } from "./helpers.js";
@@ -110,7 +110,7 @@ export async function resolveMachineHostId(args: {
   serverUrl: string;
   target: string;
 }): Promise<string> {
-  const hosts = await createCliBbSdk(args.serverUrl).hosts.list();
+  const hosts = await createCliPatcherSdk(args.serverUrl).hosts.list();
   const hostId = resolveMachineId(hosts, args.target);
   if (
     args.requireConnected &&
@@ -135,7 +135,7 @@ export function registerMachineCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: MachineListCommandOptions) => {
-        const hosts = await createCliBbSdk(getUrl()).hosts.list();
+        const hosts = await createCliPatcherSdk(getUrl()).hosts.list();
         if (outputJson(opts, hosts)) return;
         if (hosts.length === 0) {
           console.log("No machines found");
@@ -151,7 +151,7 @@ export function registerMachineCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (target: string, opts: MachineListCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hostId = resolveMachineId(await sdk.hosts.list(), target);
         const host = await sdk.hosts.get({ hostId });
         if (outputJson(opts, host)) return;
@@ -165,7 +165,8 @@ export function registerMachineCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: MachineListCommandOptions) => {
-        const result = await createCliBbSdk(getUrl()).hosts.createJoinCode();
+        const result =
+          await createCliPatcherSdk(getUrl()).hosts.createJoinCode();
         if (outputJson(opts, result)) return;
         console.log(result.joinCode);
       }),
@@ -182,7 +183,7 @@ export function registerMachineCommands(
           name: string,
           opts: MachineListCommandOptions,
         ) => {
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const hostId = resolveMachineId(await sdk.hosts.list(), target);
           const host = await sdk.hosts.update({ hostId, name });
           if (outputJson(opts, host)) return;
@@ -198,7 +199,7 @@ export function registerMachineCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (target: string, opts: MachineMutationCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hostId = resolveMachineId(await sdk.hosts.list(), target);
         if (
           !opts.yes &&
@@ -217,7 +218,7 @@ export function registerMachineCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (target: string, opts: MachineListCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hostId = resolveMachineId(await sdk.hosts.list(), target);
         const result = await sdk.hosts.retryUpdate({ hostId });
         if (outputJson(opts, result)) return;
@@ -234,7 +235,7 @@ export function registerMachineCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (target: string, opts: MachineListCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hostId = resolveMachineId(await sdk.hosts.list(), target);
         const result = await sdk.hosts.providerCliStatus({ hostId });
         if (outputJson(opts, result)) return;
@@ -256,7 +257,7 @@ export function registerMachineCommands(
           if (opts.action !== "install" && opts.action !== "update") {
             throw new Error("--action must be install or update.");
           }
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const hostId = resolveMachineId(await sdk.hosts.list(), target);
           const events = await sdk.hosts.installProviderCli({
             hostId,

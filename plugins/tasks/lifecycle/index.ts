@@ -1,4 +1,4 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import type { TasksApiStore } from "../api";
 import type { TaskThread, TaskThreadLiveStatus } from "../db";
 import {
@@ -14,7 +14,7 @@ const TERMINAL_LIVE_STATUSES = new Set<TaskThreadLiveStatus>([
 export const THREAD_STATUS_RECONCILE_INTERVAL_MS = 5 * 60_000;
 export const THREAD_STATUS_IDLE_INTERVAL_MS = 60_000;
 
-type SdkThread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
+type SdkThread = Awaited<ReturnType<PatcherPluginApi["sdk"]["threads"]["get"]>>;
 
 function liveStatusFromThread(thread: SdkThread): TaskThreadLiveStatus {
   if (thread.status === "error") return "failed";
@@ -58,7 +58,7 @@ function sdkErrorCode(error: unknown): string | undefined {
 }
 
 function transitionThread(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   thread: TaskThread,
   liveStatus: TaskThreadLiveStatus,
@@ -82,37 +82,42 @@ function transitionThread(
     }
   });
 
-  publishThreadsChanged(bb, thread.taskId);
-  publishCommentsChanged(bb, thread.taskId);
+  publishThreadsChanged(patcher, thread.taskId);
+  publishCommentsChanged(patcher, thread.taskId);
 }
 
 function transitionTrackedThread(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   threadId: string,
   liveStatus: TaskThreadLiveStatus,
 ): void {
   for (const thread of trackedThreads(store, threadId)) {
-    transitionThread(bb, store, thread, liveStatus);
+    transitionThread(patcher, store, thread, liveStatus);
   }
 }
 
 async function reconcileTrackedThread(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
   trackedThread: TaskThread,
 ): Promise<void> {
   try {
-    const thread = await bb.sdk.threads.get({
+    const thread = await patcher.sdk.threads.get({
       threadId: trackedThread.threadId,
     });
-    transitionThread(bb, store, trackedThread, liveStatusFromThread(thread));
+    transitionThread(
+      patcher,
+      store,
+      trackedThread,
+      liveStatusFromThread(thread),
+    );
   } catch (error) {
     if (sdkErrorCode(error) === "thread_not_found") {
-      transitionThread(bb, store, trackedThread, "completed");
+      transitionThread(patcher, store, trackedThread, "completed");
       return;
     }
-    bb.log.warn(
+    patcher.log.warn(
       `Could not reconcile task thread ${trackedThread.threadId}: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -121,7 +126,7 @@ async function reconcileTrackedThread(
 }
 
 async function reconcileTrackedThreads(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
 ): Promise<void> {
   const nonTerminalThreads = trackedThreads(store).filter(
@@ -129,7 +134,7 @@ async function reconcileTrackedThreads(
   );
 
   for (const trackedThread of nonTerminalThreads) {
-    await reconcileTrackedThread(bb, store, trackedThread);
+    await reconcileTrackedThread(patcher, store, trackedThread);
   }
 }
 
@@ -158,29 +163,34 @@ function waitForNextReconciliation(
 }
 
 export async function registerLifecycle(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksApiStore,
 ): Promise<void> {
-  bb.events.on("thread.created", ({ thread }) => {
-    transitionTrackedThread(bb, store, thread.id, liveStatusFromThread(thread));
+  patcher.events.on("thread.created", ({ thread }) => {
+    transitionTrackedThread(
+      patcher,
+      store,
+      thread.id,
+      liveStatusFromThread(thread),
+    );
   });
-  bb.events.on("thread.active", ({ thread }) => {
-    transitionTrackedThread(bb, store, thread.id, "working");
+  patcher.events.on("thread.active", ({ thread }) => {
+    transitionTrackedThread(patcher, store, thread.id, "working");
   });
-  bb.events.on("thread.idle", ({ thread }) => {
-    transitionTrackedThread(bb, store, thread.id, "idle");
+  patcher.events.on("thread.idle", ({ thread }) => {
+    transitionTrackedThread(patcher, store, thread.id, "idle");
   });
-  bb.events.on("thread.failed", ({ thread }) => {
-    transitionTrackedThread(bb, store, thread.id, "failed");
+  patcher.events.on("thread.failed", ({ thread }) => {
+    transitionTrackedThread(patcher, store, thread.id, "failed");
   });
-  bb.events.on("thread.deleted", ({ thread }) => {
-    transitionTrackedThread(bb, store, thread.id, "completed");
+  patcher.events.on("thread.deleted", ({ thread }) => {
+    transitionTrackedThread(patcher, store, thread.id, "completed");
   });
 
   // Lifecycle events cover live transitions without a full-SDK subscription.
   // Reconciliation remains a low-frequency recovery path for transitions that
   // happen while the plugin is unloaded or while a replacement is loading.
-  bb.background.service("thread-status-reconcile", {
+  patcher.background.service("thread-status-reconcile", {
     async start(signal) {
       while (!signal.aborted) {
         if (!hasNonTerminalTrackedThreads(store)) {
@@ -195,11 +205,11 @@ export async function registerLifecycle(
           THREAD_STATUS_RECONCILE_INTERVAL_MS,
         );
         if (signal.aborted) break;
-        await reconcileTrackedThreads(bb, store);
+        await reconcileTrackedThreads(patcher, store);
       }
     },
   });
 
-  await reconcileTrackedThreads(bb, store);
-  await reconcileTrackedThreads(bb, store);
+  await reconcileTrackedThreads(patcher, store);
+  await reconcileTrackedThreads(patcher, store);
 }

@@ -3,15 +3,15 @@ import type {
   ThreadConversationOutlineItem,
   TimelineConversationAttachments,
   TimelineRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { useScrollOverflowState } from "@/components/thread/timeline/useScrollOverflowState";
 import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-body.js";
 import { useThreadConversationOutline } from "@/hooks/queries/thread-queries";
 import { useSenderThreadMetadataById } from "@/hooks/useSenderThreadMetadataById";
 import { PromptMentionIcon } from "@/components/promptbox/mentions/PromptMentionIcon";
 import { PROMPT_MENTION_PILL_CLASS } from "@/components/promptbox/mentions/prompt-mention-display";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { parseAgentMessageEnvelope } from "@bb/thread-view";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { parseAgentMessageEnvelope } from "@patcher/thread-view";
 import { useThreadTitleDisplayText } from "@/components/thread/ThreadTitleMentions";
 
 export interface TocItem {

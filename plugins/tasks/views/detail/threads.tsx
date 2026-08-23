@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useBbNavigate, useRpc } from "@bb/plugin-sdk/app";
+import { usePatcherNavigate, useRpc } from "@patcher/plugin-sdk/app";
 import type { DelegationRpcContract } from "../../delegate/contract.js";
 import type {
   Preset,
@@ -17,16 +17,16 @@ import {
   savePresetDraft,
 } from "../manage/preset-dialog.js";
 import { useTasksRpc } from "../../shell/data.js";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/dropdown-menu";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 /**
  * PR pill on a thread card: a real link to GitHub when the thread's
@@ -80,7 +80,7 @@ function ThreadCard({
   pullRequest: TaskPullRequest | undefined;
   pullRequestUnavailable: boolean;
 }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const meta = THREAD_STATUS_META[thread.liveStatus];
   return (
     <div className="mb-2 flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2 shadow-2xs">
@@ -118,7 +118,7 @@ function ThreadCard({
   );
 }
 
-const LAST_PRESET_STORAGE_KEY = "bb-tasks:last-dispatch-preset";
+const LAST_PRESET_STORAGE_KEY = "patcher-tasks:last-dispatch-preset";
 
 function loadLastPresetId(): string | null {
   try {

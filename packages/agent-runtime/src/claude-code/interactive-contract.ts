@@ -2,11 +2,11 @@ import { z } from "zod";
 import {
   USER_QUESTION_MAX_OPTIONS,
   USER_QUESTION_MAX_QUESTIONS,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   PendingInteractionGrantedPermissionProfile,
   PendingInteractionGrantablePermissionProfile,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { ResolvedAdapterPermissionPolicy } from "../shared/permission-policy.js";
 
 export const CLAUDE_PERMISSION_REQUEST_APPROVAL_METHOD =
@@ -33,7 +33,7 @@ export type ClaudeExitPlanModeInput = z.infer<
  * Sent back to the model when the user rejects a plan. The turn stays open and
  * the session stays in plan mode, so the message has to stop the model from
  * proposing the same plan again in a loop. It points at AskUserQuestion because
- * that is the one channel bb can show the user mid-turn.
+ * that is the one channel Patcher can show the user mid-turn.
  */
 export function buildClaudePlanRejectionMessage(): string {
   return "The user rejected this plan. Do not call ExitPlanMode again with the same plan. Use AskUserQuestion to find out what they want changed, revise the plan, and only then propose it again.";
@@ -67,7 +67,7 @@ const claudePermissionRuleValueSchema = z.object({
   ruleContent: z.string().optional(),
 });
 
-// Updates bb sends back to Claude. bb never writes a user's settings files, so
+// Updates Patcher sends back to Claude. Patcher never writes a user's settings files, so
 // an outgoing update is always scoped to the session.
 export const claudePermissionUpdateSchema = z.discriminatedUnion("type", [
   z.object({
@@ -86,10 +86,10 @@ export type ClaudePermissionUpdate = z.infer<
   typeof claudePermissionUpdateSchema
 >;
 
-// Suggestions Claude sends to bb. Claude picks the destination it would use for
+// Suggestions Claude sends to Patcher. Claude picks the destination it would use for
 // its own prompt, and that is frequently not "session": the sandbox network
 // prompt suggests a "localSettings" rule. The destination describes where Claude
-// would persist the grant, not what the grant covers, so bb accepts every
+// would persist the grant, not what the grant covers, so Patcher accepts every
 // destination here and re-scopes its answer to the session above. Dropping a
 // suggestion costs the prompt its grant and leaves the user unable to allow it.
 const claudePermissionUpdateDestinationSchema = z.enum([

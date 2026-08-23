@@ -1,7 +1,7 @@
 import type {
   PendingInteraction,
   ProviderPendingInteraction,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { ThreadPendingInteractionBanner } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 
@@ -38,8 +38,8 @@ const commandApproval: PendingInteraction = {
     subject: {
       kind: "command",
       itemId: "item_cmd",
-      command: "git push origin bb/promptbox-stories",
-      cwd: "/Users/michael/Projects/bb",
+      command: "git push origin patcher/promptbox-stories",
+      cwd: "/Users/michael/Projects/patcher",
       actions: [],
       sessionGrant: null,
     },
@@ -57,8 +57,8 @@ const longCommandApproval: PendingInteraction = {
       kind: "command",
       itemId: "item_cmd_long",
       command:
-        "pnpm exec turbo run typecheck --filter=@bb/app --filter=@bb/server --filter=@bb/domain --filter=@bb/server-contract --force",
-      cwd: "/Users/michael/Projects/bb",
+        "pnpm exec turbo run typecheck --filter=@patcher/app --filter=@patcher/server --filter=@patcher/domain --filter=@patcher/server-contract --force",
+      cwd: "/Users/michael/Projects/patcher",
       actions: [],
       sessionGrant: null,
     },
@@ -106,11 +106,11 @@ const permissionGrant: PendingInteraction = {
         network: null,
         fileSystem: {
           read: [
-            "/Users/michael/Projects/bb/apps/app",
-            "/Users/michael/Projects/bb/packages",
+            "/Users/michael/Projects/patcher/apps/app",
+            "/Users/michael/Projects/patcher/packages",
           ],
           write: [
-            "/Users/michael/Projects/bb/apps/app/src/components/promptbox",
+            "/Users/michael/Projects/patcher/apps/app/src/components/promptbox",
           ],
         },
       },

@@ -22,7 +22,7 @@ function renderPermissionModePreference() {
 describe("usePromptBoxPermissionModePreference", () => {
   it("migrates a stored legacy workspace-write preference to accept-edits", () => {
     window.localStorage.setItem(
-      "bb.promptbox.permission-mode",
+      "patcher.promptbox.permission-mode",
       "workspace-write",
     );
     const { result } = renderPermissionModePreference();
@@ -30,7 +30,10 @@ describe("usePromptBoxPermissionModePreference", () => {
   });
 
   it("drops a stored legacy readonly preference instead of widening it", () => {
-    window.localStorage.setItem("bb.promptbox.permission-mode", "readonly");
+    window.localStorage.setItem(
+      "patcher.promptbox.permission-mode",
+      "readonly",
+    );
     const { result } = renderPermissionModePreference();
     // Untrusted local data: "readonly" must never be reinterpreted as a
     // writable mode, so the preference reads as unset.
@@ -38,7 +41,7 @@ describe("usePromptBoxPermissionModePreference", () => {
   });
 
   it("keeps a stored current preset", () => {
-    window.localStorage.setItem("bb.promptbox.permission-mode", "auto");
+    window.localStorage.setItem("patcher.promptbox.permission-mode", "auto");
     const { result } = renderPermissionModePreference();
     expect(result.current.value).toBe("auto");
   });

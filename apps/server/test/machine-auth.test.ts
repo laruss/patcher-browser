@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { authApiKeys, authUsers } from "@bb/db";
+import { authApiKeys, authUsers } from "@patcher/db";
 import { afterEach, describe, expect, it } from "vitest";
 import { initDb } from "../src/db.js";
 import { createMachineAuthService } from "../src/services/machine-auth.js";
@@ -17,7 +17,7 @@ const testLogger = {
 };
 
 async function makeTempDir(): Promise<string> {
-  const dataDir = await mkdtemp(join(tmpdir(), "bb-machine-auth-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "patcher-machine-auth-"));
   tempDirs.push(dataDir);
   return dataDir;
 }
@@ -63,7 +63,7 @@ describe("machine auth service", () => {
 
     expect(storedKey?.key).toBeTruthy();
     expect(storedKey?.key).not.toBe(issuedKey);
-    expect(storedKey?.key).not.toContain("bbdh_");
+    expect(storedKey?.key).not.toContain("patcherdh_");
   });
 
   it("rotates daemon host keys and invalidates the previous key", async () => {
@@ -199,7 +199,7 @@ describe("machine auth service", () => {
         id: "apikey_owner_cli_expired",
         name: null,
         start: null,
-        prefix: "bboc_",
+        prefix: "patcheroc_",
         key: "hashed-owner-cli-key",
         referenceId: systemUser.id,
         refillInterval: null,

@@ -20,9 +20,9 @@
  */
 
 /** Cap on nodes rendered, so one enormous page cannot fill an agent's context. */
-export const BB_SNAPSHOT_MAX_NODES = 2_000;
+export const PATCHER_SNAPSHOT_MAX_NODES = 2_000;
 /** Cap on the rendered text, mirroring how page reads are bounded. */
-export const BB_SNAPSHOT_MAX_LENGTH = 65_536;
+export const PATCHER_SNAPSHOT_MAX_LENGTH = 65_536;
 
 /** A CDP `AXValue`; only `value` is ever read here. */
 interface AxValue {
@@ -197,8 +197,8 @@ export function findBrowserSnapshotRoot(
 export function buildBrowserSnapshot(
   args: BuildBrowserSnapshotArgs,
 ): BrowserSnapshot {
-  const maxNodes = args.maxNodes ?? BB_SNAPSHOT_MAX_NODES;
-  const maxLength = args.maxLength ?? BB_SNAPSHOT_MAX_LENGTH;
+  const maxNodes = args.maxNodes ?? PATCHER_SNAPSHOT_MAX_NODES;
+  const maxLength = args.maxLength ?? PATCHER_SNAPSHOT_MAX_LENGTH;
   const byId = new Map<string, AxNode>();
   for (const node of args.nodes) {
     if (typeof node.nodeId === "string") {

@@ -5,7 +5,7 @@ import { appToast } from "@/components/ui/app-toast.js";
 import { pluginAdminErrorMessage } from "@/lib/plugin-admin-error";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import { PluginSettingsSections } from "@/components/plugin/PluginSettingsSections";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,20 +13,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
+} from "@patcher/shared-ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { EmptyState } from "@bb/shared-ui/empty-state";
-import { Icon } from "@bb/shared-ui/icon";
-import { Input } from "@bb/shared-ui/input";
-import { Pill, type PillVariant } from "@bb/shared-ui/pill";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/dropdown-menu";
+import { EmptyState } from "@patcher/shared-ui/empty-state";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
+import { Pill, type PillVariant } from "@patcher/shared-ui/pill";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { SettingsWithControl } from "@/components/ui/settings-section.js";
-import { Switch } from "@bb/shared-ui/switch";
+import { Switch } from "@patcher/shared-ui/switch";
 import {
   applyPluginSettingsView,
   invalidatePluginList,
@@ -81,11 +81,11 @@ const DROPDOWN_CONTENT_CLASS =
 
 /**
  * Seed prompt for the "Create a plugin" entry point: opens the composer
- * pre-filled so the agent reaches for the bb-plugin-authoring skill and
+ * pre-filled so the agent reaches for the patcher-plugin-authoring skill and
  * scaffolds a new plugin. The user reviews and sends.
  */
 const CREATE_PLUGIN_PROMPT =
-  "I want to build a new bb plugin. Use the bb-plugin-authoring skill to scaffold a starter plugin and walk me through customizing it.";
+  "I want to build a new Patcher plugin. Use the patcher-plugin-authoring skill to scaffold a starter plugin and walk me through customizing it.";
 
 function statusPillVariant(status: string): PillVariant {
   if (status === "running") return "secondary";
@@ -398,7 +398,7 @@ export function PluginsSettingsSection() {
       <div>
         <h2 className="text-sm font-semibold text-foreground">Plugins</h2>
         <p className="mt-0.5 text-xs leading-snug text-subtle-foreground/75">
-          Customize bb to your liking with plugins.
+          Customize Patcher to your liking with plugins.
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -488,7 +488,7 @@ function RemovePluginSection({ plugin }: { plugin: PluginListItem }) {
         <p className="text-sm font-medium text-foreground">Remove plugin</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {isBuiltin
-            ? "Removes the plugin from BB. Its bundled files are left in place."
+            ? "Removes the plugin from Patcher. Its bundled files are left in place."
             : isPathSource
               ? "Uninstalls the plugin. Its local source files are left in place."
               : "Uninstalls the plugin and deletes its downloaded files."}
@@ -509,7 +509,7 @@ function RemovePluginSection({ plugin }: { plugin: PluginListItem }) {
             <DialogTitle>Remove {name}?</DialogTitle>
             <DialogDescription>
               {isBuiltin
-                ? "This removes the plugin and its stored settings. BB remembers the removal so the plugin stays hidden after restart; its bundled files remain in place."
+                ? "This removes the plugin and its stored settings. Patcher remembers the removal so the plugin stays hidden after restart; its bundled files remain in place."
                 : isPathSource
                   ? "This uninstalls the plugin and removes its stored settings. Its local source files stay on disk, so you can reinstall it."
                   : "This uninstalls the plugin, deletes its downloaded files, and removes its stored settings."}

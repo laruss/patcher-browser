@@ -1,4 +1,4 @@
-import type { ProviderErrorCategory, ProviderErrorInfo } from "@bb/domain";
+import type { ProviderErrorCategory, ProviderErrorInfo } from "@patcher/domain";
 import type {
   ClaudeAssistantMessageError,
   ClaudeResultSubtype,

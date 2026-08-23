@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createFakeAdapter } from "@bb/agent-runtime/test";
-import { shellSingleQuote, waitForSetupMarkerCount } from "@bb/test-helpers";
+import { createFakeAdapter } from "@patcher/agent-runtime/test";
+import { shellSingleQuote, waitForSetupMarkerCount } from "@patcher/test-helpers";
 import { describe, expect, it } from "vitest";
 import {
   createHostThread,
@@ -39,7 +39,7 @@ describe.sequential(
               content: "setup project\n",
             },
             {
-              relativePath: ".bb-env-setup.sh",
+              relativePath: ".patcher-env-setup.sh",
               content:
                 [
                   "set -euo pipefail",

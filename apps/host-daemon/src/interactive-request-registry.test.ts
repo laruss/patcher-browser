@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
-} from "@bb/domain";
-import type { HostDaemonInteractiveRequestResponse } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import type { HostDaemonInteractiveRequestResponse } from "@patcher/host-daemon-contract";
 import {
   InteractiveRequestRegistry,
   InteractiveRequestRegistryError,

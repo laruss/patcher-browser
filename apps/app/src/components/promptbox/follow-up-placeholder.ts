@@ -1,5 +1,5 @@
-import type { ThreadRuntimeDisplayStatus } from "@bb/domain";
-import { assertNever } from "@bb/core-ui";
+import type { ThreadRuntimeDisplayStatus } from "@patcher/domain";
+import { assertNever } from "@patcher/core-ui";
 
 /**
  * Placeholder copy for the follow-up prompt-box, derived from the thread's

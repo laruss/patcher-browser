@@ -7,8 +7,8 @@ import {
   threadPullRequestSchema,
   workspaceDiffTargetSchema,
   workspaceStatusSchema,
-} from "@bb/domain";
-import { workspaceResolutionFailureSchema } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import { workspaceResolutionFailureSchema } from "@patcher/host-daemon-contract";
 import { apiErrorSchema } from "../errors.js";
 import {
   branchListQuerySchema,

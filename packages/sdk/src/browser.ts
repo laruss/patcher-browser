@@ -1,25 +1,25 @@
-import { createBbSdk, type BbSdk } from "./core.js";
+import { createPatcherSdk, type PatcherSdk } from "./core.js";
 import { createHttpTransport } from "./transport-http.js";
 import type {
-  BbRealtimeSocketFactory,
-  BbSdkContext,
-  BbSdkTransport,
+  PatcherRealtimeSocketFactory,
+  PatcherSdkContext,
+  PatcherSdkTransport,
 } from "./transport.js";
 
 export interface CreateBrowserTransportArgs {
   baseUrl?: string;
   fetch?: typeof fetch;
   realtimeUrl?: string;
-  websocket?: BbRealtimeSocketFactory;
+  websocket?: PatcherRealtimeSocketFactory;
 }
 
-export interface CreateBrowserBbSdkArgs extends CreateBrowserTransportArgs {
-  context?: BbSdkContext;
+export interface CreateBrowserPatcherSdkArgs extends CreateBrowserTransportArgs {
+  context?: PatcherSdkContext;
 }
 
 export function createBrowserTransport(
   args: CreateBrowserTransportArgs = {},
-): BbSdkTransport {
+): PatcherSdkTransport {
   return createHttpTransport({
     baseUrl: args.baseUrl,
     fetch: args.fetch,
@@ -29,18 +29,20 @@ export function createBrowserTransport(
   });
 }
 
-export function createBrowserBbSdk(args: CreateBrowserBbSdkArgs = {}): BbSdk {
-  return createBbSdk({
+export function createBrowserPatcherSdk(
+  args: CreateBrowserPatcherSdkArgs = {},
+): PatcherSdk {
+  return createPatcherSdk({
     context: args.context,
     transport: createBrowserTransport(args),
   });
 }
 
-export const bb = createBrowserBbSdk();
+export const patcher = createBrowserPatcherSdk();
 
-export { BbHttpError, BbRequestTimeoutError } from "./response.js";
-export type { BbHttpErrorArgs } from "./response.js";
-export { createBbSdk, createHttpTransport };
-export type { BbSdk, BbSdkContext, BbSdkTransport };
+export { PatcherHttpError, PatcherRequestTimeoutError } from "./response.js";
+export type { PatcherHttpErrorArgs } from "./response.js";
+export { createPatcherSdk, createHttpTransport };
+export type { PatcherSdk, PatcherSdkContext, PatcherSdkTransport };
 export type * from "./areas/skills.js";
 export type * from "./public-types.js";

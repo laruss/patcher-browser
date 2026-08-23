@@ -3,13 +3,13 @@ import { SaxesParser } from "saxes";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 /**
- * Validate the exact bytes of a plugin-owned compact icon before BB builds or
+ * Validate the exact bytes of a plugin-owned compact icon before Patcher builds or
  * serves it. The XML parser is namespace-aware and never resolves external
  * entities; declarations that could define entities are rejected outright.
  */
 export function assertValidPluginCompactIconSvg(
   bytes: Uint8Array,
-  label = "bb.branding.icon",
+  label = "patcher.branding.icon",
 ): void {
   let source: string;
   try {

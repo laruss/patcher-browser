@@ -9,12 +9,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import type { BbDesktopBrowserDownload } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserDownload } from "@patcher/desktop-contract";
 import { AppCommandProvider } from "@/components/commands/AppCommandProvider";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { useBrowserDownloadNotifications } from "@/lib/browser-downloads";
 import { getBrowserSurfaceTabsStorageKey } from "@/lib/browser-surface-tabs";
@@ -61,7 +61,7 @@ const desktopInfo = {
 
 const ACTIVE_TAB_ID = "browser:one";
 
-function completedDownload(): BbDesktopBrowserDownload {
+function completedDownload(): PatcherDesktopBrowserDownload {
   return {
     id: "download-1",
     tabId: ACTIVE_TAB_ID,
@@ -114,9 +114,10 @@ function OverlayHarness() {
 
 function renderSurface() {
   const setOverlay = vi.fn();
-  const downloadListeners: Array<(download: BbDesktopBrowserDownload) => void> =
-    [];
-  window.bbDesktop = createBbDesktopApi(desktopInfo, {
+  const downloadListeners: Array<
+    (download: PatcherDesktopBrowserDownload) => void
+  > = [];
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, {
     ...createNoopDesktopBrowserApi(),
     setOverlay,
     onDownload(listener) {
@@ -183,7 +184,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.removeItem(getBrowserSurfaceTabsStorageKey());
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
   vi.unstubAllGlobals();
 });
 

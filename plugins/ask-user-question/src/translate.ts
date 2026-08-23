@@ -32,7 +32,7 @@ export function validateToolInput(input: ToolInput): string | null {
 }
 
 /**
- * `bb.ui.requestInput` rejects payloads over 64 KiB. Previews are the only
+ * `patcher.ui.requestInput` rejects payloads over 64 KiB. Previews are the only
  * unbounded contributor, so the payload is measured before the request and the
  * model is told to shorten them rather than having the request fail opaquely.
  */

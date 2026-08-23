@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import type { SidebarBootstrapResponse } from "@bb/server-contract";
+import type { SidebarBootstrapResponse } from "@patcher/server-contract";
 import { useDebounceValue } from "usehooks-ts";
 import {
   buildSectionMentionSuggestions,

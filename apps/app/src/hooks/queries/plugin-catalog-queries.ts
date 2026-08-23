@@ -5,7 +5,7 @@ import type {
   PluginCatalogStatus as SdkPluginCatalogStatus,
   PluginSourceDetail as SdkPluginSourceDetail,
   PluginUpdateCheckEntry,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { useQuery, type QueryKey } from "@tanstack/react-query";
 import { createPluginsClient } from "./plugin-client";
 import { toEpochMs } from "./plugin-settings-queries";
@@ -17,7 +17,7 @@ export interface PluginSourceDetail {
   resolved: string;
   integrity: string | null;
   registry: string | null;
-  engines: { bb: string | null; bbPluginSdk: string | null };
+  engines: { patcher: string | null; patcherPluginSdk: string | null };
   installedAt: number | null;
   history: { version: string; activatedAt: number | null }[];
 }
@@ -31,8 +31,8 @@ function toPluginSourceDetail(
     integrity: source.integrity ?? null,
     registry: source.registry ?? null,
     engines: {
-      bb: source.engines.bb ?? null,
-      bbPluginSdk: source.engines.bbPluginSdk ?? null,
+      patcher: source.engines.patcher ?? null,
+      patcherPluginSdk: source.engines.patcherPluginSdk ?? null,
     },
     installedAt: toEpochMs(source.installedAt),
     history: source.history.map((entry) => ({

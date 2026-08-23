@@ -1,4 +1,4 @@
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 
 /**
  * Tracks the most recent full window rows the server sent for a given request

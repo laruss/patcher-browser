@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readdir, stat } from "node:fs/promises";
 import { watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
-import { escapeHtmlText } from "@bb/domain";
+import { escapeHtmlText } from "@patcher/domain";
 import {
   LOG_VIEWER_VISIBLE_LINE_LIMIT,
   type LogViewerComponent,
@@ -198,7 +198,7 @@ export function createLogViewerViewUrl(
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>bb - Server & Daemon Logs</title>
+  <title>Patcher - Server & Daemon Logs</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -329,7 +329,7 @@ export function createLogViewerViewUrl(
   </main>
   <script>
     const maxLines = ${LOG_VIEWER_VISIBLE_LINE_LIMIT};
-    const api = window.bbLogViewer;
+    const api = window.patcherLogViewer;
     const autoscroll = document.getElementById("autoscroll");
     const clearButton = document.getElementById("clear");
     const copyButton = document.getElementById("copy");

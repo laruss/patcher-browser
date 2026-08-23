@@ -1,5 +1,5 @@
-import type { ProviderUsageResponse } from "@bb/host-daemon-contract";
-import type { SystemUsageLimitsQuery } from "@bb/server-contract";
+import type { ProviderUsageResponse } from "@patcher/host-daemon-contract";
+import type { SystemUsageLimitsQuery } from "@patcher/server-contract";
 import type { AppDeps } from "../../types.js";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { callHostRetryableOnlineRpc } from "../hosts/online-rpc.js";

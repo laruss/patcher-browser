@@ -6,12 +6,12 @@ import {
   createTerminalOutputLineReader,
   readTerminalOutputLines,
   type ProvisioningTranscriptEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   sanitizeInheritedChildProcessEnv,
   spawnPortableOutputProcess,
   type PortableOutputChildProcess,
-} from "@bb/process-utils";
+} from "@patcher/process-utils";
 import { Workspace } from "./workspace.js";
 import { tryWithCheckoutMutationLock } from "./checkout-mutation-lock.js";
 import {
@@ -450,7 +450,7 @@ function summarizePaths(paths: readonly string[]): string {
  * and report the result in the provisioning transcript. This runs before the
  * setup script so the script can read a copied `.env`.
  *
- * A failure here never fails provisioning: the transcript reports what bb
+ * A failure here never fails provisioning: the transcript reports what Patcher
  * skipped and the thread still starts. Only cancellation propagates.
  */
 async function copyIncludedFiles(args: {
@@ -537,7 +537,7 @@ export async function runSetupScript(
   emitStep({
     onProgress: args.onProgress,
     key: "setup-started",
-    text: "Running .bb-env-setup.sh",
+    text: "Running .patcher-env-setup.sh",
     status: "started",
     startedAt,
   });
@@ -622,7 +622,7 @@ export async function runSetupScript(
       emitStep({
         onProgress: args.onProgress,
         key: "setup-cancelled",
-        text: ".bb-env-setup.sh cancelled",
+        text: ".patcher-env-setup.sh cancelled",
         status: "failed",
         startedAt,
         metadata: { durationMs },
@@ -634,7 +634,7 @@ export async function runSetupScript(
       emitStep({
         onProgress: args.onProgress,
         key: "setup-failed",
-        text: ".bb-env-setup.sh failed",
+        text: ".patcher-env-setup.sh failed",
         status: "failed",
         startedAt,
         metadata: { durationMs },
@@ -649,7 +649,7 @@ export async function runSetupScript(
       emitStep({
         onProgress: args.onProgress,
         key: "setup-failed",
-        text: ".bb-env-setup.sh failed",
+        text: ".patcher-env-setup.sh failed",
         status: "failed",
         startedAt,
         metadata: { durationMs },
@@ -664,7 +664,7 @@ export async function runSetupScript(
       emitStep({
         onProgress: args.onProgress,
         key: "setup-failed",
-        text: ".bb-env-setup.sh failed",
+        text: ".patcher-env-setup.sh failed",
         status: "failed",
         startedAt,
         metadata: { durationMs },
@@ -678,7 +678,7 @@ export async function runSetupScript(
     emitStep({
       onProgress: args.onProgress,
       key: "setup-completed",
-      text: ".bb-env-setup.sh finished",
+      text: ".patcher-env-setup.sh finished",
       status: "completed",
       startedAt,
       metadata: { durationMs },

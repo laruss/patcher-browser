@@ -13,11 +13,11 @@ import {
   activityRowClass,
   activityTextClass,
   type ActivityRowState,
-} from "@bb/shared-ui/activity-row-styles";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+} from "@patcher/shared-ui/activity-row-styles";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import {
   WorkflowPhaseStrip,
   WorkflowProgress,
@@ -26,15 +26,15 @@ import {
   type WorkflowProgressAgentState,
   type WorkflowProgressSnapshot,
   type WorkflowStatusPillState,
-} from "@bb/shared-ui/workflow-progress";
+} from "@patcher/shared-ui/workflow-progress";
 import {
   definePluginApp,
-  useBbNavigate,
+  usePatcherNavigate,
   useComposerView,
   useRpc,
   type PluginMessageDirectiveProps,
   type PluginThreadPanelProps,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import type { workflowUiRpcContract } from "./ui-contract.js";
 import type { WorkflowCallView, WorkflowRunView } from "./ui-contract.js";
 
@@ -493,7 +493,7 @@ function WorkflowStatusBanner() {
 }
 
 function WorkflowComposerCard({ run }: { run: WorkflowRunView }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const [expanded, setExpanded] = useState(false);
   const bodyId = useId();
   const toggleId = useId();
@@ -654,7 +654,7 @@ function WorkflowPreviewLoaded({
   threadId: string;
   source: string;
 }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const { state } = useWorkflowRun(threadId, runId);
   const [expanded, setExpanded] = useState(true);
   const bodyId = useId();
@@ -819,7 +819,7 @@ function WorkflowRunPanelLoaded({
   threadId: string;
   runId: string | null;
 }) {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   const rpc = useRpc<typeof workflowUiRpcContract>();
   const { state, refresh } = useWorkflowRun(threadId, runId);
   const [stopping, setStopping] = useState(false);

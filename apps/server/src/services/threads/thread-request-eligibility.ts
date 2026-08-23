@@ -1,10 +1,10 @@
-import { getProjectSourceByHost } from "@bb/db";
+import { getProjectSourceByHost } from "@patcher/db";
 import {
   type Environment,
   type LocalPathProjectSource,
   PERSONAL_PROJECT_ID,
-} from "@bb/domain";
-import type { EnvironmentArgs } from "@bb/server-contract";
+} from "@patcher/domain";
+import type { EnvironmentArgs } from "@patcher/server-contract";
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 import { requireEnvironment } from "../lib/entity-lookup.js";

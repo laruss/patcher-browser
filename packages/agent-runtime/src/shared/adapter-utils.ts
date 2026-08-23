@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import type { ThreadEventItem } from "@bb/domain";
+import type { ThreadEventItem } from "@patcher/domain";
 import { contentWrapperSchema, textBlockSchema } from "./tool-arg-schemas.js";
 import { getStringProperty, isRecord } from "./provider-visibility-helpers.js";
 

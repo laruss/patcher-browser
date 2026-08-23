@@ -1,8 +1,8 @@
-export const LOG_VIEWER_APPEND_CHANNEL = "bb:log-viewer:append";
-export const LOG_VIEWER_COPY_CHANNEL = "bb:log-viewer:copy";
+export const LOG_VIEWER_APPEND_CHANNEL = "patcher:log-viewer:append";
+export const LOG_VIEWER_COPY_CHANNEL = "patcher:log-viewer:copy";
 export const LOG_VIEWER_OPEN_LOGS_FOLDER_CHANNEL =
-  "bb:log-viewer:open-logs-folder";
-export const LOG_VIEWER_SNAPSHOT_CHANNEL = "bb:log-viewer:snapshot";
+  "patcher:log-viewer:open-logs-folder";
+export const LOG_VIEWER_SNAPSHOT_CHANNEL = "patcher:log-viewer:snapshot";
 export const LOG_VIEWER_VISIBLE_LINE_LIMIT = 10_000;
 
 export type LogViewerComponent = "host-daemon" | "server";

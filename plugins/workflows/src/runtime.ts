@@ -481,7 +481,7 @@ function installWorkflowFunction(
     vm.unwrapResult(runtime.executePendingJobs());
   };
 
-  const fn = vm.newFunction("__bbWorkflow", (...handles) => {
+  const fn = vm.newFunction("__patcherWorkflow", (...handles) => {
     if (closed) return rejectImmediately("Workflow is no longer running");
     if (depth >= 1) {
       return rejectImmediately(
@@ -524,7 +524,7 @@ function installWorkflowFunction(
       .catch((error) => finish(call, { error }));
     return call.deferred.handle;
   });
-  vm.setProp(vm.global, "__bbWorkflow", fn);
+  vm.setProp(vm.global, "__patcherWorkflow", fn);
   fn.dispose();
 
   const close = (reason?: string) => {
@@ -593,10 +593,10 @@ const HARDENING_SOURCE = `
 
 const DSL_SOURCE = `
 (() => {
-  const readBudget = globalThis.__bbWorkflowBudget;
-  const callWorkflow = globalThis.__bbWorkflow;
-  delete globalThis.__bbWorkflowBudget;
-  delete globalThis.__bbWorkflow;
+  const readBudget = globalThis.__patcherWorkflowBudget;
+  const callWorkflow = globalThis.__patcherWorkflow;
+  delete globalThis.__patcherWorkflowBudget;
+  delete globalThis.__patcherWorkflow;
   const maximumCollectionSize = 4096;
   const validateWorkflowReference = (reference) => {
     if (typeof reference === "string") {
@@ -740,10 +740,10 @@ export async function executeWorkflowScript({
       signal,
       () => currentPhase,
     );
-    const budgetFunction = vm.newFunction("__bbWorkflowBudget", () =>
+    const budgetFunction = vm.newFunction("__patcherWorkflowBudget", () =>
       jsonToHandle(vm, scheduler.budget()),
     );
-    vm.setProp(vm.global, "__bbWorkflowBudget", budgetFunction);
+    vm.setProp(vm.global, "__patcherWorkflowBudget", budgetFunction);
     budgetFunction.dispose();
     workflowBridge = installWorkflowFunction(
       vm,

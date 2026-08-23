@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import mimeTypes from "mime-types";
-import type { HostReadFileRelativeDotfilePolicy } from "@bb/host-daemon-contract";
-import { readGitBlob, WorkspaceError } from "@bb/host-workspace";
+import type { HostReadFileRelativeDotfilePolicy } from "@patcher/host-daemon-contract";
+import { readGitBlob, WorkspaceError } from "@patcher/host-workspace";
 import {
   CommandDispatchError,
   ExpectedCommandDispatchError,

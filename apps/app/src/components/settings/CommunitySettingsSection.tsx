@@ -1,13 +1,12 @@
-import { Button } from "@bb/shared-ui/button";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section.js";
 import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
 
-export const DISCORD_INVITE_URL = "https://discord.gg/kvBU6tJhcJ";
-export const GITHUB_REPO_URL = "https://github.com/get-bb/bb";
+export const GITHUB_REPO_URL = "https://github.com/laruss/patcher-browser";
 
 interface CommunityLinkRowProps {
   description: string;
@@ -48,26 +47,23 @@ function CommunityLinkRow({
 }
 
 /**
- * Settings → Community: external links to Discord and the public GitHub
- * repository (moved out of the app sidebar footer).
+ * Settings → Community: external links to the public GitHub repository (moved
+ * out of the app sidebar footer).
+ *
+ * The Discord row was dropped with the Patcher rename: the invite it carried
+ * was bb's server, and sending Patcher users there to ask Patcher questions
+ * helps neither project. It comes back when Patcher has a server of its own.
  */
 export function CommunitySettingsSection() {
   return (
     <SettingsSection
       title="Community"
-      description="Chat with other bb users and follow development on GitHub."
+      description="Follow Patcher development on GitHub."
     >
       <div className="space-y-5">
         <CommunityLinkRow
-          label="Discord"
-          description="Join the server for support, feedback, and announcements."
-          href={DISCORD_INVITE_URL}
-          icon="Discord"
-          openLabel="Join Discord"
-        />
-        <CommunityLinkRow
           label="GitHub"
-          description="Source code, issues, and releases for the bb project."
+          description="Source code, issues, and releases for the Patcher project."
           href={GITHUB_REPO_URL}
           icon="Github"
           openLabel="View on GitHub"

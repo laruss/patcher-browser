@@ -7,7 +7,7 @@ import {
   migrate,
   noopNotifier,
   upsertHost,
-} from "@bb/db";
+} from "@patcher/db";
 import { parseStoredEvent } from "../../src/services/threads/thread-data.js";
 
 function setup() {

@@ -23,7 +23,7 @@
  */
 
 /** CDP revision to negotiate. 1.3 is the current stable protocol. */
-export const BB_CDP_PROTOCOL_VERSION = "1.3";
+export const PATCHER_CDP_PROTOCOL_VERSION = "1.3";
 
 /**
  * The slice of Electron's `Debugger` this module uses, so the session logic can
@@ -96,7 +96,7 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
     );
   }
   try {
-    target.attach(BB_CDP_PROTOCOL_VERSION);
+    target.attach(PATCHER_CDP_PROTOCOL_VERSION);
   } catch (error) {
     throw new CdpUnavailableError(
       `Could not attach the browser debugger: ${

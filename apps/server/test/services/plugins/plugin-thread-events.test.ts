@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { threadScope, turnScope } from "@bb/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import { applyLoggedThreadLifecycleEvent } from "../../../src/services/threads/lifecycle-outcome.js";
 import { createThreadRecord } from "../../../src/services/threads/thread-create-helpers.js";
 import type { ThreadCreateServiceRequest } from "../../../src/services/threads/thread-create-request.js";
@@ -37,15 +37,15 @@ async function setUpPluginHarness(serverSource: string): Promise<{
   cleanup(): Promise<void>;
 }> {
   const harness = await createTestAppHarness();
-  const workDir = await mkdtemp(join(tmpdir(), "bb-plugin-events-"));
-  const rootDir = join(workDir, "bb-plugin-observer");
+  const workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-events-"));
+  const rootDir = join(workDir, "patcher-plugin-observer");
   await mkdir(rootDir, { recursive: true });
   await writeFile(
     join(rootDir, "package.json"),
     JSON.stringify({
-      name: "bb-plugin-observer",
+      name: "patcher-plugin-observer",
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Observer fixture",
         description: "Thread events plugin fixture.",
         branding: { icon: "Zap" },
@@ -76,8 +76,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__activeEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.active", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.active", (payload: any) => {
           (globalThis as any).__activeEvents.push(payload);
         });
       }
@@ -115,8 +115,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__idleEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.idle", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.idle", (payload: any) => {
           (globalThis as any).__idleEvents.push(payload);
         });
       }
@@ -163,8 +163,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__failedEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.failed", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.failed", (payload: any) => {
           (globalThis as any).__failedEvents.push(payload);
         });
       }
@@ -202,8 +202,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__createdEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.created", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.created", (payload: any) => {
           (globalThis as any).__createdEvents.push(payload);
         });
       }
@@ -238,8 +238,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__hiddenCreatedEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.created", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.created", (payload: any) => {
           (globalThis as any).__hiddenCreatedEvents.push(payload);
         });
       }
@@ -285,8 +285,8 @@ describe("plugin thread lifecycle events", () => {
     const deleted: RecordedThreadPayload[] = [];
     globals.__rollbackDeletedEvents = deleted;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.deleted", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.deleted", (payload: any) => {
           (globalThis as any).__rollbackDeletedEvents.push(payload);
         });
       }
@@ -325,8 +325,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__deletedEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.deleted", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.deleted", (payload: any) => {
           (globalThis as any).__deletedEvents.push(payload);
         });
       }
@@ -360,8 +360,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__archivedEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.archived", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.archived", (payload: any) => {
           (globalThis as any).__archivedEvents.push(payload);
         });
       }
@@ -388,8 +388,8 @@ describe("plugin thread lifecycle events", () => {
 
   it("isolates a throwing thread.deleted handler and still deletes", async () => {
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.deleted", () => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.deleted", () => {
           throw new Error("delete handler boom");
         });
       }
@@ -427,11 +427,11 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__survivorEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.idle", () => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.idle", () => {
           throw new Error("handler boom");
         });
-        bb.events.on("thread.idle", (payload: any) => {
+        patcher.events.on("thread.idle", (payload: any) => {
           (globalThis as any).__survivorEvents.push(payload);
         });
       }
@@ -462,7 +462,7 @@ describe("plugin thread lifecycle events", () => {
         expect(entry?.statusDetail).toContain("thread.idle handler failed");
       });
 
-      // The stats travel through GET /api/v1/plugins for bb plugin list.
+      // The stats travel through GET /api/v1/plugins for patcher plugin list.
       const response = await harness.app.request("/api/v1/plugins");
       expect(response.status).toBe(200);
       const body = (await response.json()) as {
@@ -482,8 +482,8 @@ describe("plugin thread lifecycle events", () => {
     const recorded: RecordedThreadPayload[] = [];
     globals.__disabledEvents = recorded;
     const { harness, cleanup } = await setUpPluginHarness(`
-      export default function plugin(bb: any) {
-        bb.events.on("thread.idle", (payload: any) => {
+      export default function plugin(patcher: any) {
+        patcher.events.on("thread.idle", (payload: any) => {
           (globalThis as any).__disabledEvents.push(payload);
         });
       }

@@ -3,10 +3,13 @@ import {
   APP_SURFACE_HEADER_NAME,
   APP_SURFACE_WEB,
   type AppSurface,
-} from "@bb/config/app-surface";
+} from "@patcher/config/app-surface";
+import { getPatcherDesktopInfo } from "./patcher-desktop";
 
 export function getAppSurface(): AppSurface {
-  if (typeof window !== "undefined" && window.bbDesktop !== undefined) {
+  // Through the accessor, so the global the preload exposes is named in
+  // exactly one place.
+  if (getPatcherDesktopInfo() !== null) {
     return APP_SURFACE_DESKTOP;
   }
   return APP_SURFACE_WEB;

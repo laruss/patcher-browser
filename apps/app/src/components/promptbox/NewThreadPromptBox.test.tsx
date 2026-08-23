@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { Host, ProjectSource } from "@bb/domain";
+import type { Host, ProjectSource } from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectlessMachineSlot, ThreadEnvSlot } from "./NewThreadPromptBox";
 

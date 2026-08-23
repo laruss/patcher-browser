@@ -11,8 +11,8 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@bb/plugin-sdk": [
-        "../../packages/plugin-sdk/bundled-types/bb-plugin-sdk.d.ts"
+      "@patcher/plugin-sdk": [
+        "../../packages/plugin-sdk/bundled-types/patcher-plugin-sdk.d.ts"
       ]
     }
   },

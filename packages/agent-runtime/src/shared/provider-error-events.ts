@@ -1,5 +1,5 @@
-import type { ThreadEvent } from "@bb/domain";
-import { threadScope, turnScope } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import type {
   EnsureProviderTurnStartedArgs,
   ProviderTurnState,

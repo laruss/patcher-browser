@@ -1,4 +1,4 @@
-import type { FeatureFlags } from "@bb/domain";
+import type { FeatureFlags } from "@patcher/domain";
 import type { AppSurface } from "./app-surface.js";
 import {
   loadCommonConfig,
@@ -9,29 +9,29 @@ import { loadDatabaseConfig, type DatabaseConfig } from "./database.js";
 import { loadDevAppConfig } from "./dev-app.js";
 import { readEnvVarWithDefault, resolveEnvLoader } from "./env.js";
 import {
-  BB_APP_URL_ENV,
-  BB_APP_SURFACE_ENV,
-  BB_APP_VERSION_ENV,
-  BB_EXTERNAL_URL_ENV,
-  BB_INHERITED_SKILLS_ROOTS_ENV,
-  BB_INFERENCE_FALLBACK_ENV,
-  BB_INFERENCE_ENV,
-  BB_PLUGIN_PROCESS_ENV,
-  BB_POSTHOG_API_KEY_ENV,
-  BB_SERVER_BIND_HOST_ENV,
-  BB_TELEMETRY_ENV,
-  BB_TRANSCRIPTION_ENV,
-  DEFAULT_BB_APP_URL,
-  DEFAULT_BB_APP_SURFACE,
-  DEFAULT_BB_APP_VERSION,
-  DEFAULT_BB_EXTERNAL_URL,
-  DEFAULT_BB_INFERENCE_FALLBACK,
-  DEFAULT_BB_INFERENCE,
-  DEFAULT_BB_PLUGIN_PROCESS,
-  DEFAULT_BB_POSTHOG_API_KEY,
-  DEFAULT_BB_SERVER_BIND_HOST,
-  DEFAULT_BB_TELEMETRY,
-  DEFAULT_BB_TRANSCRIPTION,
+  PATCHER_APP_URL_ENV,
+  PATCHER_APP_SURFACE_ENV,
+  PATCHER_APP_VERSION_ENV,
+  PATCHER_EXTERNAL_URL_ENV,
+  PATCHER_INHERITED_SKILLS_ROOTS_ENV,
+  PATCHER_INFERENCE_FALLBACK_ENV,
+  PATCHER_INFERENCE_ENV,
+  PATCHER_PLUGIN_PROCESS_ENV,
+  PATCHER_POSTHOG_API_KEY_ENV,
+  PATCHER_SERVER_BIND_HOST_ENV,
+  PATCHER_TELEMETRY_ENV,
+  PATCHER_TRANSCRIPTION_ENV,
+  DEFAULT_PATCHER_APP_URL,
+  DEFAULT_PATCHER_APP_SURFACE,
+  DEFAULT_PATCHER_APP_VERSION,
+  DEFAULT_PATCHER_EXTERNAL_URL,
+  DEFAULT_PATCHER_INFERENCE_FALLBACK,
+  DEFAULT_PATCHER_INFERENCE,
+  DEFAULT_PATCHER_PLUGIN_PROCESS,
+  DEFAULT_PATCHER_POSTHOG_API_KEY,
+  DEFAULT_PATCHER_SERVER_BIND_HOST,
+  DEFAULT_PATCHER_TELEMETRY,
+  DEFAULT_PATCHER_TRANSCRIPTION,
   DEFAULT_OPENAI_API_KEY,
   OPENAI_API_KEY_ENV,
   parseServerBindHost,
@@ -44,20 +44,20 @@ import { loadServerPortConfig, type ServerPortConfig } from "./server-port.js";
 
 export interface ServerConfig
   extends CommonConfig, DatabaseConfig, ServerPortConfig {
-  BB_APP_URL: string;
-  BB_APP_SURFACE: AppSurface;
-  BB_APP_VERSION: string;
-  BB_DEV_APP_PORT?: number;
-  BB_EXTERNAL_URL: string;
-  BB_HOST_DAEMON_PORT: number;
-  BB_INHERITED_SKILLS_ROOTS: string[];
-  BB_INFERENCE: string;
-  BB_INFERENCE_FALLBACK: string;
-  BB_PLUGIN_PROCESS: boolean;
-  BB_POSTHOG_API_KEY: string;
-  BB_SERVER_BIND_HOST: ServerBindHost;
-  BB_TELEMETRY: boolean;
-  BB_TRANSCRIPTION: string;
+  PATCHER_APP_URL: string;
+  PATCHER_APP_SURFACE: AppSurface;
+  PATCHER_APP_VERSION: string;
+  PATCHER_DEV_APP_PORT?: number;
+  PATCHER_EXTERNAL_URL: string;
+  PATCHER_HOST_DAEMON_PORT: number;
+  PATCHER_INHERITED_SKILLS_ROOTS: string[];
+  PATCHER_INFERENCE: string;
+  PATCHER_INFERENCE_FALLBACK: string;
+  PATCHER_PLUGIN_PROCESS: boolean;
+  PATCHER_POSTHOG_API_KEY: string;
+  PATCHER_SERVER_BIND_HOST: ServerBindHost;
+  PATCHER_TELEMETRY: boolean;
+  PATCHER_TRANSCRIPTION: string;
   OPENAI_API_KEY: string;
   featureFlags: FeatureFlags;
 }
@@ -99,82 +99,82 @@ export function loadServerConfig(
     ...commonConfig,
     ...databaseConfig,
     ...serverPortConfig,
-    BB_APP_URL: readEnvVarWithDefault({
+    PATCHER_APP_URL: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_APP_URL,
-      definition: BB_APP_URL_ENV,
+      defaultValue: DEFAULT_PATCHER_APP_URL,
+      definition: PATCHER_APP_URL_ENV,
       env: loader.env,
     }),
-    BB_APP_SURFACE: readEnvVarWithDefault({
+    PATCHER_APP_SURFACE: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_APP_SURFACE,
-      definition: BB_APP_SURFACE_ENV,
+      defaultValue: DEFAULT_PATCHER_APP_SURFACE,
+      definition: PATCHER_APP_SURFACE_ENV,
       env: loader.env,
     }),
-    BB_APP_VERSION: readEnvVarWithDefault({
+    PATCHER_APP_VERSION: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_APP_VERSION,
-      definition: BB_APP_VERSION_ENV,
+      defaultValue: DEFAULT_PATCHER_APP_VERSION,
+      definition: PATCHER_APP_VERSION_ENV,
       env: loader.env,
     }),
-    BB_EXTERNAL_URL: readEnvVarWithDefault({
+    PATCHER_EXTERNAL_URL: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_EXTERNAL_URL,
-      definition: BB_EXTERNAL_URL_ENV,
+      defaultValue: DEFAULT_PATCHER_EXTERNAL_URL,
+      definition: PATCHER_EXTERNAL_URL_ENV,
       env: loader.env,
     }),
-    BB_HOST_DAEMON_PORT: loadHostDaemonPortValue({
+    PATCHER_HOST_DAEMON_PORT: loadHostDaemonPortValue({
       env: loader.env,
       homeDir: loader.context.homeDir,
       mode: loader.mode,
       repoRoot: args.repoRoot,
     }),
-    BB_INHERITED_SKILLS_ROOTS: readEnvVarWithDefault({
+    PATCHER_INHERITED_SKILLS_ROOTS: readEnvVarWithDefault({
       context: loader.context,
       defaultValue: [],
-      definition: BB_INHERITED_SKILLS_ROOTS_ENV,
+      definition: PATCHER_INHERITED_SKILLS_ROOTS_ENV,
       env: loader.env,
     }),
-    BB_INFERENCE: readEnvVarWithDefault({
+    PATCHER_INFERENCE: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_INFERENCE,
-      definition: BB_INFERENCE_ENV,
+      defaultValue: DEFAULT_PATCHER_INFERENCE,
+      definition: PATCHER_INFERENCE_ENV,
       env: loader.env,
     }),
-    BB_INFERENCE_FALLBACK: readEnvVarWithDefault({
+    PATCHER_INFERENCE_FALLBACK: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_INFERENCE_FALLBACK,
-      definition: BB_INFERENCE_FALLBACK_ENV,
+      defaultValue: DEFAULT_PATCHER_INFERENCE_FALLBACK,
+      definition: PATCHER_INFERENCE_FALLBACK_ENV,
       env: loader.env,
     }),
-    BB_PLUGIN_PROCESS: readEnvVarWithDefault({
+    PATCHER_PLUGIN_PROCESS: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_PLUGIN_PROCESS,
-      definition: BB_PLUGIN_PROCESS_ENV,
+      defaultValue: DEFAULT_PATCHER_PLUGIN_PROCESS,
+      definition: PATCHER_PLUGIN_PROCESS_ENV,
       env: loader.env,
     }),
-    BB_POSTHOG_API_KEY: readEnvVarWithDefault({
+    PATCHER_POSTHOG_API_KEY: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_POSTHOG_API_KEY,
-      definition: BB_POSTHOG_API_KEY_ENV,
+      defaultValue: DEFAULT_PATCHER_POSTHOG_API_KEY,
+      definition: PATCHER_POSTHOG_API_KEY_ENV,
       env: loader.env,
     }),
-    BB_SERVER_BIND_HOST: readEnvVarWithDefault({
+    PATCHER_SERVER_BIND_HOST: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_SERVER_BIND_HOST,
-      definition: BB_SERVER_BIND_HOST_ENV,
+      defaultValue: DEFAULT_PATCHER_SERVER_BIND_HOST,
+      definition: PATCHER_SERVER_BIND_HOST_ENV,
       env: loader.env,
     }),
-    BB_TELEMETRY: readEnvVarWithDefault({
+    PATCHER_TELEMETRY: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_TELEMETRY,
-      definition: BB_TELEMETRY_ENV,
+      defaultValue: DEFAULT_PATCHER_TELEMETRY,
+      definition: PATCHER_TELEMETRY_ENV,
       env: loader.env,
     }),
-    BB_TRANSCRIPTION: readEnvVarWithDefault({
+    PATCHER_TRANSCRIPTION: readEnvVarWithDefault({
       context: loader.context,
-      defaultValue: DEFAULT_BB_TRANSCRIPTION,
-      definition: BB_TRANSCRIPTION_ENV,
+      defaultValue: DEFAULT_PATCHER_TRANSCRIPTION,
+      definition: PATCHER_TRANSCRIPTION_ENV,
       env: loader.env,
     }),
     OPENAI_API_KEY: readEnvVarWithDefault({
@@ -191,9 +191,9 @@ export function loadServerConfig(
   };
 
   assignIfDefined({
-    key: "BB_DEV_APP_PORT",
+    key: "PATCHER_DEV_APP_PORT",
     target: config,
-    value: devAppConfig.BB_DEV_APP_PORT,
+    value: devAppConfig.PATCHER_DEV_APP_PORT,
   });
 
   return config;

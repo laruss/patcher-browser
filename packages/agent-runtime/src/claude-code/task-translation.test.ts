@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
   threadScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ThreadEvent,
   ThreadEventBackgroundTaskItem,
   ThreadEventItem,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { createClaudeCodeProviderAdapter } from "./adapter.js";
 import { CLAUDE_TASK_PROGRESS_THROTTLE_MS } from "./task-translation.js";
 
@@ -98,7 +98,7 @@ describe("claude-code background task translation", () => {
       // so every progress message is emission-eligible.
       advanceClock(CLAUDE_TASK_PROGRESS_THROTTLE_MS + 1);
       allEvents.push(
-        ...adapter.translateEvent(message, { threadId: "bb-thread-1" }),
+        ...adapter.translateEvent(message, { threadId: "patcher-thread-1" }),
       );
     }
 
@@ -135,7 +135,7 @@ describe("claude-code background task translation", () => {
     expect(finalItem.status).toBe("completed");
     expect(finalItem.taskStatus).toBe("completed");
     expect(finalItem.summary).toBe(
-      'Dynamic workflow "Tiny fixture workflow for BB capture" completed',
+      'Dynamic workflow "Tiny fixture workflow for Patcher capture" completed',
     );
     expect(finalItem.usage).toEqual({
       totalTokens: 26674,
@@ -162,7 +162,7 @@ describe("claude-code background task translation", () => {
 
   it("folds delta batches: agents from earlier batches survive later partial batches", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
 
@@ -202,7 +202,7 @@ describe("claude-code background task translation", () => {
 
   it("throttles progress events but flushes status transitions immediately", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
 
@@ -246,7 +246,7 @@ describe("claude-code background task translation", () => {
 
   it("maps killed to a failed item and stopped to an interrupted item", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
     const killed = adapter.translateEvent(
@@ -294,7 +294,7 @@ describe("claude-code background task translation", () => {
     for (const message of loadSessionFixture("subagent-foreground.ndjson")) {
       advanceClock(CLAUDE_TASK_PROGRESS_THROTTLE_MS + 1);
       allEvents.push(
-        ...adapter.translateEvent(message, { threadId: "bb-thread-1" }),
+        ...adapter.translateEvent(message, { threadId: "patcher-thread-1" }),
       );
     }
 
@@ -331,7 +331,7 @@ describe("claude-code background task translation", () => {
     const adapter = createClaudeCodeProviderAdapter();
     const events = adapter.translateEvent(
       loadFixture("task-progress-workflow-batch1.json"),
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
     expect(events).toHaveLength(0);
   });
@@ -343,7 +343,7 @@ describe("claude-code background task translation", () => {
         ...loadFixture("task-started-workflow.json"),
         skip_transcript: true,
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
     const item = backgroundTaskItem(collectTaskEvents(started)[0]!);
     expect(item.skipTranscript).toBe(true);
@@ -351,15 +351,15 @@ describe("claude-code background task translation", () => {
 
   it("settles open tasks as interrupted when the thread resumes", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
 
     const events = adapter.translateAcceptedCommand({
       command: {
         type: "thread/resume",
-        threadId: "bb-thread-1",
-        cwd: "/tmp/bb-fixture/workspace",
+        threadId: "patcher-thread-1",
+        cwd: "/tmp/patcher-fixture/workspace",
         providerThreadId: "claude-session-1",
         options: {
           claudeCodeMockCliTraffic: DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
@@ -383,14 +383,14 @@ describe("claude-code background task translation", () => {
       status: "interrupted",
       taskStatus: "stopped",
     });
-    expect(completed[0]?.threadId).toBe("bb-thread-1");
+    expect(completed[0]?.threadId).toBe("patcher-thread-1");
 
     // Idempotent: a second resume has nothing left to settle.
     const repeat = adapter.translateAcceptedCommand({
       command: {
         type: "thread/resume",
-        threadId: "bb-thread-1",
-        cwd: "/tmp/bb-fixture/workspace",
+        threadId: "patcher-thread-1",
+        cwd: "/tmp/patcher-fixture/workspace",
         providerThreadId: "claude-session-1",
         options: {
           claudeCodeMockCliTraffic: DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
@@ -410,7 +410,7 @@ describe("claude-code background task translation", () => {
 
   it("settling preserves an already-completed status reported before the terminal notification", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
     // task_updated may report "completed" minutes before task_notification
@@ -431,8 +431,8 @@ describe("claude-code background task translation", () => {
     const events = adapter.translateAcceptedCommand({
       command: {
         type: "thread/resume",
-        threadId: "bb-thread-1",
-        cwd: "/tmp/bb-fixture/workspace",
+        threadId: "patcher-thread-1",
+        cwd: "/tmp/patcher-fixture/workspace",
         providerThreadId: "claude-session-1",
         options: {
           claudeCodeMockCliTraffic: DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
@@ -459,12 +459,13 @@ describe("claude-code background task translation", () => {
 
   it("settles open tasks as interrupted when the thread detaches (process exit)", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
 
     const events =
-      adapter.buildThreadDetachedEvents?.({ threadId: "bb-thread-1" }) ?? [];
+      adapter.buildThreadDetachedEvents?.({ threadId: "patcher-thread-1" }) ??
+      [];
     const completed = events.filter(
       (event) => event.type === "item/backgroundTask/completed",
     );
@@ -473,13 +474,13 @@ describe("claude-code background task translation", () => {
 
     // Threads without state produce nothing.
     expect(
-      adapter.buildThreadDetachedEvents?.({ threadId: "bb-thread-other" }),
+      adapter.buildThreadDetachedEvents?.({ threadId: "patcher-thread-other" }),
     ).toEqual([]);
   });
 
   it("settled tasks ignore late events; a repeated start reopens a new generation", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(loadFixture("task-started-workflow.json"), context);
     adapter.translateEvent(
@@ -509,7 +510,7 @@ describe("claude-code background task translation", () => {
 
   it("materializes a backgrounded shell command (task_type local_bash)", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     const started = adapter.translateEvent(
       {
@@ -586,7 +587,7 @@ describe("claude-code background task translation", () => {
         uuid: "u-1",
         session_id: "s-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     const taskEvents = collectTaskEvents(events);

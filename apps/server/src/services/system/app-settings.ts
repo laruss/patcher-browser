@@ -1,4 +1,4 @@
-import { getAppSettings } from "@bb/db";
+import { getAppSettings } from "@patcher/db";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import type { AppDeps } from "../../types.js";
 import { runtimeErrorLogFields } from "../lib/error-log-fields.js";

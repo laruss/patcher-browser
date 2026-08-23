@@ -1,9 +1,9 @@
 import {
   HOST_DAEMON_PROTOCOL_VERSION,
   createHostDaemonClient,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { describe, expect, it } from "vitest";
-import { getHost, upsertHost } from "@bb/db";
+import { getHost, upsertHost } from "@patcher/db";
 import {
   createTestDaemonHostKey,
   startTestServer,
@@ -27,7 +27,6 @@ describe("internal session protocol version", () => {
           instanceId: "instance-1",
           hostName: "Protocol Host",
           hostType: "persistent",
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-protocol-data",
           protocolVersion: staleProtocolVersion,
@@ -62,7 +61,6 @@ describe("internal session protocol version", () => {
           instanceId: "instance-retry",
           hostName: "Protocol Host",
           hostType: "persistent",
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-protocol-data",
           protocolVersion: staleProtocolVersion,
@@ -79,7 +77,6 @@ describe("internal session protocol version", () => {
           instanceId: "instance-retry-consumed",
           hostName: "Protocol Host",
           hostType: "persistent",
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-protocol-data",
           protocolVersion: staleProtocolVersion,
@@ -96,7 +93,6 @@ describe("internal session protocol version", () => {
           instanceId: "instance-2",
           hostName: "Protocol Host",
           hostType: "persistent",
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-protocol-data",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,

@@ -41,6 +41,14 @@ jobs:
       - name: Check app boot-payload budget
         run: node apps/app/scripts/check-bundle-budget.mjs
 
+      # Guards the rename (docs/architecture/rename-to-patcher.md). Every old
+      # token left in the tree is either frozen on the wire, a physical
+      # database name, history, or an English word, and each one is answered by
+      # a rule that says which. A new one is a regression, and so is a
+      # `patcher` welded into the middle of a word.
+      - name: Audit the Patcher rename
+        run: node scripts/rename-audit.mjs
+
   # Tests run on their own runners instead of inside the checks job: the big
   # suites are CPU-bound and previously fought each other (and the builds) for
   # the same 4 vCPUs, which made tests the critical path of every run.
@@ -54,13 +62,13 @@ jobs:
       matrix:
         include:
           - shard: server
-            filter: --filter=@bb/server
+            filter: --filter=@patcher/server
           - shard: app
-            filter: --filter=@bb/app
+            filter: --filter=@patcher/app
           - shard: integration
-            filter: --filter=@bb/integration-tests
+            filter: --filter=@patcher/integration-tests
           - shard: packages
-            filter: --filter='!@bb/server' --filter='!@bb/app' --filter='!@bb/integration-tests'
+            filter: --filter='!@patcher/server' --filter='!@patcher/app' --filter='!@patcher/integration-tests'
 
     steps:
       - name: Checkout repository
@@ -105,8 +113,8 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
           cache-prefix: package-smoke
 
-      - name: Smoke bb-app tarball
-        run: bunx turbo run smoke:tarball --filter=bb-app --cache-dir=.turbo/cache --output-logs=new-only
+      - name: Smoke patcher-app tarball
+        run: bunx turbo run smoke:tarball --filter=patcher-app --cache-dir=.turbo/cache --output-logs=new-only
 
   node-compat-smoke:
     name: Node Compatibility Smoke (${{ matrix.os }}, Node ${{ matrix.node-version }})
@@ -137,5 +145,5 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
           cache-prefix: compat-smoke
 
-      - name: Smoke bb-app tarball
-        run: bunx turbo run smoke:tarball --filter=bb-app --cache-dir=.turbo/cache --output-logs=new-only
+      - name: Smoke patcher-app tarball
+        run: bunx turbo run smoke:tarball --filter=patcher-app --cache-dir=.turbo/cache --output-logs=new-only

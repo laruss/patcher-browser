@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { permissionsForApiPath } from "@bb/domain";
+import { permissionsForApiPath } from "@patcher/domain";
 import {
   createPluginApiFetch,
   createPluginApiIdentities,
@@ -14,7 +14,7 @@ import {
 } from "../../helpers/test-app.js";
 
 /**
- * `bb.sdk` is an HTTP client for bb's own API, and every plugin is handed the
+ * `patcher.sdk` is an HTTP client for Patcher's own API, and every plugin is handed the
  * loopback URL, so a gate on the SDK object alone is a gate on the polite way
  * in. These are about the other way: a request that says which plugin it is,
  * and the API applying that plugin's permissions to it.
@@ -33,7 +33,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Identity fixture",
         description: "Loopback identity fixture.",
         branding: { icon: "Zap" },
@@ -154,7 +154,7 @@ describe("plugin identity on the loopback API", () => {
   }
 
   it("refuses a path the plugin did not declare", async () => {
-    const { headers } = await install("bb-plugin-quiet");
+    const { headers } = await install("patcher-plugin-quiet");
 
     const response = await harness.app.request(`${BASE}/api/v1/threads`, {
       headers,
@@ -167,7 +167,7 @@ describe("plugin identity on the loopback API", () => {
   });
 
   it("lets the same request through once declared", async () => {
-    const { headers } = await install("bb-plugin-reader", ["threads"]);
+    const { headers } = await install("patcher-plugin-reader", ["threads"]);
 
     const response = await harness.app.request(`${BASE}/api/v1/threads`, {
       headers,
@@ -179,7 +179,7 @@ describe("plugin identity on the loopback API", () => {
   // The whole point: the identity is what changes the answer, so the same URL
   // that a plugin is refused stays open to the app.
   it("leaves unidentified callers alone", async () => {
-    await install("bb-plugin-quiet");
+    await install("patcher-plugin-quiet");
 
     const response = await harness.app.request(`${BASE}/api/v1/threads`);
 
@@ -187,7 +187,7 @@ describe("plugin identity on the loopback API", () => {
   });
 
   it("treats a wrong key as no identity rather than as an error", async () => {
-    const { id } = await install("bb-plugin-quiet");
+    const { id } = await install("patcher-plugin-quiet");
 
     const response = await harness.app.request(`${BASE}/api/v1/threads`, {
       headers: {
@@ -202,7 +202,7 @@ describe("plugin identity on the loopback API", () => {
   // An unclassified path is one nobody decided about, and deciding by default
   // is how a new route quietly becomes reachable by every plugin.
   it("refuses a path carrying no classification", async () => {
-    const { headers } = await install("bb-plugin-reader", ["threads"]);
+    const { headers } = await install("patcher-plugin-reader", ["threads"]);
     expect(permissionsForApiPath("/api/v1/nothing-here")).toBeNull();
 
     const response = await harness.app.request(`${BASE}/api/v1/nothing-here`, {
@@ -212,10 +212,10 @@ describe("plugin identity on the loopback API", () => {
     expect(response.status).toBe(403);
   });
 
-  // bb.sdk goes over this same API, so the gate it passes in JavaScript must
+  // patcher.sdk goes over this same API, so the gate it passes in JavaScript must
   // be the gate it passes on the wire — otherwise one of them is decoration.
-  it("gates bb.sdk itself, because bb.sdk is this API", async () => {
-    const { headers } = await install("bb-plugin-partial", ["workspace"]);
+  it("gates patcher.sdk itself, because patcher.sdk is this API", async () => {
+    const { headers } = await install("patcher-plugin-partial", ["workspace"]);
 
     const allowed = await harness.app.request(`${BASE}/api/v1/projects`, {
       headers,

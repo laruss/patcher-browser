@@ -2,7 +2,7 @@ import type { ChildProcess, StdioOptions } from "node:child_process";
 import {
   spawnPortableProcess,
   type PortableChildProcess,
-} from "@bb/process-utils";
+} from "@patcher/process-utils";
 
 export type ForwardedSignal = "SIGINT" | "SIGTERM";
 

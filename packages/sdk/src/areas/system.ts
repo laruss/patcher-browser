@@ -2,11 +2,11 @@ import type {
   AppKeybindingOverrides,
   AppSettings,
   Experiments,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   DiscoverReposResult,
   ProviderUsageResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type {
   SystemAttentionResponse,
   SystemConfigReloadResponse,
@@ -24,8 +24,8 @@ import type {
   SystemVersionQuery,
   SystemVersionResponse,
   SystemVoiceTranscriptionResponse,
-} from "@bb/server-contract";
-import { systemVoiceTranscriptionResponseSchema } from "@bb/server-contract";
+} from "@patcher/server-contract";
+import { systemVoiceTranscriptionResponseSchema } from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 export interface SystemAttentionArgs {
@@ -89,11 +89,11 @@ export interface SystemArea {
     args?: SystemExecutionOptionsArgs,
   ): Promise<SystemExecutionOptionsResult>;
   /**
-   * Copy bb's built-in CLI skills into each named machine's global agent skill
+   * Copy Patcher's built-in CLI skills into each named machine's global agent skill
    * roots (`~/.agents/skills` and `~/.claude/skills`). Machines install
    * independently; the result reports each machine's outcome.
    */
-  /** Per-machine install state of bb's built-in CLI skills. */
+  /** Per-machine install state of Patcher's built-in CLI skills. */
   cliSkillsStatus(
     args?: SystemCliSkillsStatusArgs,
   ): Promise<SystemCliSkillsStatusResult>;

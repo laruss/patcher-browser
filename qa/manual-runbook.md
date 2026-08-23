@@ -1,6 +1,6 @@
 # Real-Provider CLI/API E2E Manual Runbook
 
-This runbook covers the thorough non-app end-to-end validation pass for bb's
+This runbook covers the thorough non-app end-to-end validation pass for Patcher's
 server, host daemon, CLI, API, database state, and real provider paths. It is
 written against the current standalone persistent-host setup and intentionally
 does not claim generic "Full QA" or release readiness by itself.
@@ -18,7 +18,7 @@ state, and logs. This pass does not cover app UI, Electron, or browser behavior.
   change. Its verdict is scoped to the changed behavior.
 - **Real-provider CLI/API E2E** is this non-app provider gate. The automated
   companion is `bunx turbo run test:integration`, including real-provider
-  coverage under `tests/integration/real/**` and `@bb/agent-runtime`; this
+  coverage under `tests/integration/real/**` and `@patcher/agent-runtime`; this
   manual runbook adds operator-driven CLI/API, standalone server + daemon,
   restart, lifecycle, API, DB, and log checks.
 - **Smoke QA** is a shallow liveness check on a running app or surface. It is
@@ -45,12 +45,12 @@ Treat the CLI matrix as a product-surface check, not a wishlist of possible
 commands.
 
 - Thread recovery is validated with the existing lifecycle commands:
-  `bb thread stop`, `bb thread tell`, `bb thread spawn`, archive/unarchive, and
+  `patcher thread stop`, `patcher thread tell`, `patcher thread spawn`, archive/unarchive, and
   the recovery checks below. There is no current product contract for
-  `bb thread retry`; do not mark its absence from `bb thread --help` as blocked.
+  `patcher thread retry`; do not mark its absence from `patcher thread --help` as blocked.
   When a failed or interrupted thread should continue, inspect it first and send
-  a fresh turn with `bb thread tell`, or create a replacement with
-  `bb thread spawn` when a new thread is the right recovery path.
+  a fresh turn with `patcher thread tell`, or create a replacement with
+  `patcher thread spawn` when a new thread is the right recovery path.
 
 ## Prerequisites
 
@@ -72,11 +72,11 @@ sqlite3 --version
 
 Default-path QA must not use generic OpenAI API-key routes. Clear ambient
 `OPENAI_API_KEY` before a normal pass. To intentionally validate API-key routes,
-set `BB_QA_OPENAI_API_KEY` and record that the pass is opt-in.
+set `PATCHER_QA_OPENAI_API_KEY` and record that the pass is opt-in.
 
 ```bash
-if [ -n "${OPENAI_API_KEY:-}" ] && [ -z "${BB_QA_OPENAI_API_KEY:-}" ]; then
-  echo "OPENAI_API_KEY is set. Unset it for default-path QA, or set BB_QA_OPENAI_API_KEY for an explicit API-key route pass."
+if [ -n "${OPENAI_API_KEY:-}" ] && [ -z "${PATCHER_QA_OPENAI_API_KEY:-}" ]; then
+  echo "OPENAI_API_KEY is set. Unset it for default-path QA, or set PATCHER_QA_OPENAI_API_KEY for an explicit API-key route pass."
   false
 fi
 ```
@@ -94,11 +94,11 @@ Start an isolated server + daemon pair and load the exported QA environment:
 ```bash
 eval "$(bun run --silent qa:standalone:start --format env)"
 jq . "$STATE_PATH"
-SERVER_DB_PATH=$(jq -er '.server.dataDir + "/bb.db"' "$STATE_PATH")
+SERVER_DB_PATH=$(jq -er '.server.dataDir + "/patcher.db"' "$STATE_PATH")
 SERVER_LOG_DIR=$(jq -er '(.paths.serverDataDir // .server.dataDir) + "/logs"' "$STATE_PATH")
 DAEMON_LOG_DIR=$(jq -er '(.paths.daemonDataDir // .daemon.dataDir) + "/logs"' "$STATE_PATH")
 
-bb() { node apps/cli/dist/index.js "$@"; }
+Patcher() { node apps/cli/dist/index.js "$@"; }
 ```
 
 The machine-facing contract is the exported env block. The state file at `$STATE_PATH`
@@ -107,18 +107,18 @@ is the diagnostics contract for humans and debugging.
 Basic health checks:
 
 ```bash
-curl -fsS "$BB_SERVER_URL/api/v1/system/config" | jq
-curl -fsS "$BB_SERVER_URL/api/v1/hosts" | jq
-bb status
-bb provider list
+curl -fsS "$PATCHER_SERVER_URL/api/v1/system/config" | jq
+curl -fsS "$PATCHER_SERVER_URL/api/v1/hosts" | jq
+patcher status
+patcher provider list
 ```
 
 Resolve current provider models before spawning real-provider threads:
 
 ```bash
-CODEX_MODEL=$(bb provider models codex --json | jq -er '([.[] | select(.isDefault)][0].model // .[0].model)')
-CLAUDE_MODEL=$(bb provider models claude-code --json | jq -er '([.[] | select(.model == "claude-haiku-4-5")][0].model // [.[] | select(.isDefault)][0].model // .[0].model)')
-PI_MODELS_JSON=$(bb provider models pi --json)
+CODEX_MODEL=$(patcher provider models codex --json | jq -er '([.[] | select(.isDefault)][0].model // .[0].model)')
+CLAUDE_MODEL=$(patcher provider models claude-code --json | jq -er '([.[] | select(.model == "claude-haiku-4-5")][0].model // [.[] | select(.isDefault)][0].model // .[0].model)')
+PI_MODELS_JSON=$(patcher provider models pi --json)
 # Keep Pi preference order in sync with packages/test-helpers/src/provider-models.ts.
 PI_MODEL=$(printf '%s\n' "$PI_MODELS_JSON" | jq -er '
   [.[] | select(.model == "openai-codex/gpt-5.5")][0].model
@@ -138,8 +138,8 @@ printf 'codex: %s\nclaude-code: %s\npi: %s\n' "$CODEX_MODEL" "$CLAUDE_MODEL" "$P
 
 case "$PI_MODEL" in
   openai/*)
-    if [ "${BB_QA_ALLOW_OPENAI_API_KEY_MODELS:-}" != "1" ]; then
-      echo "Pi resolved to generic OpenAI API-key model $PI_MODEL. Pick a subscription-backed model or set BB_QA_ALLOW_OPENAI_API_KEY_MODELS=1 for an explicit API-key route pass."
+    if [ "${PATCHER_QA_ALLOW_OPENAI_API_KEY_MODELS:-}" != "1" ]; then
+      echo "Pi resolved to generic OpenAI API-key model $PI_MODEL. Pick a subscription-backed model or set PATCHER_QA_ALLOW_OPENAI_API_KEY_MODELS=1 for an explicit API-key route pass."
       false
     fi
     ;;
@@ -163,7 +163,7 @@ Validate the upload-and-reference flow before any prompt/timeline attachment QA:
 ```bash
 ATTACHMENT_JSON=$(
   curl -fsS \
-    -X POST "$BB_SERVER_URL/api/v1/projects/$BB_PROJECT_ID/attachments" \
+    -X POST "$PATCHER_SERVER_URL/api/v1/projects/$PATCHER_PROJECT_ID/attachments" \
     -F "file=@$PROJECT_ROOT/alpha.txt"
 )
 echo "$ATTACHMENT_JSON" | jq
@@ -172,7 +172,7 @@ PROMPT_TEXT='Review @alpha.txt and reply exactly ATTACHMENT OK.'
 MENTION_TEXT='@alpha.txt'
 THREAD_CREATE_BODY=$(
   jq -n \
-    --arg projectId "$BB_PROJECT_ID" \
+    --arg projectId "$PATCHER_PROJECT_ID" \
     --arg hostId "$HOST_ID" \
     --arg model "$CODEX_MODEL" \
     --arg text "$PROMPT_TEXT" \
@@ -230,10 +230,10 @@ THREAD_JSON=$(
   curl -fsS \
     -H 'content-type: application/json' \
     -d "$THREAD_CREATE_BODY" \
-    "$BB_SERVER_URL/api/v1/threads"
+    "$PATCHER_SERVER_URL/api/v1/threads"
 )
 THREAD_ID=$(echo "$THREAD_JSON" | jq -er '.id')
-curl -fsS "$BB_SERVER_URL/api/v1/threads/$THREAD_ID/timeline" |
+curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$THREAD_ID/timeline" |
   jq '.rows[] | select(.kind == "conversation" and .role == "user") | {mentions, attachments}'
 ```
 
@@ -258,26 +258,26 @@ bun run qa:standalone:cleanup
 Spawn an unmanaged Codex thread and wait for it to finish:
 
 ```bash
-SMOKE_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+SMOKE_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
   --prompt "Say hello from the smoke pass" \
   --json | jq -r '.id')
 
-bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
-bb thread show "$SMOKE_THREAD_ID"
-bb thread output "$SMOKE_THREAD_ID"
-bb thread log "$SMOKE_THREAD_ID" --format json | jq '.[-10:]'
+patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
+patcher thread show "$SMOKE_THREAD_ID"
+patcher thread output "$SMOKE_THREAD_ID"
+patcher thread log "$SMOKE_THREAD_ID" --format json | jq '.[-10:]'
 ```
 
 Send a follow-up after idle:
 
 ```bash
-bb thread tell "$SMOKE_THREAD_ID" "Now say goodbye from the smoke pass"
-bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
-bb thread output "$SMOKE_THREAD_ID"
+patcher thread tell "$SMOKE_THREAD_ID" "Now say goodbye from the smoke pass"
+patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
+patcher thread output "$SMOKE_THREAD_ID"
 ```
 
 Create a parent thread and child thread, then verify the first bootstrap reaches
@@ -286,8 +286,8 @@ malformed host-RPC message invariants require automated boundary tests.
 
 ```bash
 THREAD_PROTOCOL_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M")
-PROTOCOL_PARENT_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+PROTOCOL_PARENT_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
@@ -295,10 +295,10 @@ PROTOCOL_PARENT_ID=$(bb thread spawn \
   --prompt "Say hello from the parent protocol smoke check." \
   --json | jq -r '.id')
 
-bb thread wait "$PROTOCOL_PARENT_ID" --status idle --timeout 240
+patcher thread wait "$PROTOCOL_PARENT_ID" --status idle --timeout 240
 
-PROTOCOL_CHILD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+PROTOCOL_CHILD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --parent-thread "$PROTOCOL_PARENT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
@@ -307,15 +307,15 @@ PROTOCOL_CHILD_ID=$(bb thread spawn \
   --prompt "Say hello from the child protocol smoke check." \
   --json | jq -r '.id')
 
-bb thread wait "$PROTOCOL_CHILD_ID" --status idle --timeout 240
-bb thread show "$PROTOCOL_PARENT_ID" --json | jq '.thread | {id, parentThreadId, providerId, status}'
-bb thread show "$PROTOCOL_CHILD_ID" --json | jq '.thread | {id, parentThreadId, providerId, status}'
-bb thread output "$PROTOCOL_CHILD_ID"
-if bb manager list; then
-  echo "expected bb manager list to fail"
+patcher thread wait "$PROTOCOL_CHILD_ID" --status idle --timeout 240
+patcher thread show "$PROTOCOL_PARENT_ID" --json | jq '.thread | {id, parentThreadId, providerId, status}'
+patcher thread show "$PROTOCOL_CHILD_ID" --json | jq '.thread | {id, parentThreadId, providerId, status}'
+patcher thread output "$PROTOCOL_CHILD_ID"
+if patcher manager list; then
+  echo "expected patcher manager list to fail"
   exit 1
 fi
-bb manager list 2>&1 | rg "Managers were replaced by parent threads|bb thread"
+patcher manager list 2>&1 | rg "Managers were replaced by parent threads|patcher thread"
 printf 'thread protocol smoke started at UTC minute: %s\n' "$THREAD_PROTOCOL_STARTED_AT"
 rg -n "invalid-message|1008|host_unavailable|command_result_type_mismatch|Ignoring host RPC response" \
   "$SERVER_LOG_DIR" "$DAEMON_LOG_DIR" || true
@@ -325,15 +325,15 @@ Expected result:
 
 - the parent and child threads reach `idle`
 - the child thread reports the parent thread ID
-- `bb manager list` exits non-zero with a parent-thread replacement message
+- `patcher manager list` exits non-zero with a parent-thread replacement message
 - server and daemon logs have no matching protocol disconnect or host-RPC
   mismatch entries at or after `$THREAD_PROTOCOL_STARTED_AT`
 
 Create a managed worktree thread and inspect workspace status:
 
 ```bash
-WORKTREE_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+WORKTREE_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
@@ -341,18 +341,18 @@ WORKTREE_THREAD_ID=$(bb thread spawn \
   --prompt "Create a file named smoke.txt and briefly confirm it" \
   --json | jq -r '.id')
 
-bb thread wait "$WORKTREE_THREAD_ID" --status idle --timeout 120
-WORKTREE_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$WORKTREE_THREAD_ID" | jq -r '.environmentId')
+patcher thread wait "$WORKTREE_THREAD_ID" --status idle --timeout 120
+WORKTREE_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$WORKTREE_THREAD_ID" | jq -r '.environmentId')
 
-bb thread show "$WORKTREE_THREAD_ID"
-bb thread output "$WORKTREE_THREAD_ID"
-bb thread show "$WORKTREE_THREAD_ID" --work-status
-bb thread show "$WORKTREE_THREAD_ID" --git-diff --diff-target uncommitted
-bb thread show "$WORKTREE_THREAD_ID" --git-diff --diff-target branch_committed
-bb thread show "$WORKTREE_THREAD_ID" --git-diff --diff-target all
-curl -fsS "$BB_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID" | jq
-curl -fsS "$BB_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID/status" | jq
-curl -fsS "$BB_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID/diff/branches" | jq
+patcher thread show "$WORKTREE_THREAD_ID"
+patcher thread output "$WORKTREE_THREAD_ID"
+patcher thread show "$WORKTREE_THREAD_ID" --work-status
+patcher thread show "$WORKTREE_THREAD_ID" --git-diff --diff-target uncommitted
+patcher thread show "$WORKTREE_THREAD_ID" --git-diff --diff-target branch_committed
+patcher thread show "$WORKTREE_THREAD_ID" --git-diff --diff-target all
+curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID" | jq
+curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID/status" | jq
+curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID/diff/branches" | jq
 ```
 
 Verify Codex-backed helper inference for environment commit. This catches
@@ -360,49 +360,49 @@ regressions where the default helper path accidentally falls back to generic
 OpenAI API-key inference.
 
 ```bash
-WORKTREE_ENV_PATH=$(curl -fsS "$BB_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID" | jq -er '.path')
+WORKTREE_ENV_PATH=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID" | jq -er '.path')
 printf 'helper inference commit smoke\n' > "$WORKTREE_ENV_PATH/helper-inference-smoke.txt"
 
-bb environment commit "$WORKTREE_ENV_ID" --json | jq -e '.action == "commit" and (.commitSha | type == "string")'
+patcher environment commit "$WORKTREE_ENV_ID" --json | jq -e '.action == "commit" and (.commitSha | type == "string")'
 ```
 
 Verify merge-base environment metadata:
 
 ```bash
-MERGE_BASE_BRANCH=$(curl -fsS "$BB_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID" | jq -er '.defaultBranch // "main"')
+MERGE_BASE_BRANCH=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$WORKTREE_ENV_ID" | jq -er '.defaultBranch // "main"')
 
-bb environment update "$WORKTREE_ENV_ID" --merge-base-branch "$MERGE_BASE_BRANCH"
-bb environment show "$WORKTREE_ENV_ID" --json | jq -e --arg branch "$MERGE_BASE_BRANCH" '.mergeBaseBranch == $branch'
-bb thread show "$WORKTREE_THREAD_ID" --work-status --git-diff --diff-target all
+patcher environment update "$WORKTREE_ENV_ID" --merge-base-branch "$MERGE_BASE_BRANCH"
+patcher environment show "$WORKTREE_ENV_ID" --json | jq -e --arg branch "$MERGE_BASE_BRANCH" '.mergeBaseBranch == $branch'
+patcher thread show "$WORKTREE_THREAD_ID" --work-status --git-diff --diff-target all
 
-bb environment update "$WORKTREE_ENV_ID" --clear-merge-base-branch
-bb environment show "$WORKTREE_ENV_ID" --json | jq -e '.mergeBaseBranch == null'
+patcher environment update "$WORKTREE_ENV_ID" --clear-merge-base-branch
+patcher environment show "$WORKTREE_ENV_ID" --json | jq -e '.mergeBaseBranch == null'
 ```
 
 Archive and unarchive the smoke thread:
 
 ```bash
-bb thread archive "$SMOKE_THREAD_ID"
-curl -fsS "$BB_SERVER_URL/api/v1/threads/$SMOKE_THREAD_ID" | jq
+patcher thread archive "$SMOKE_THREAD_ID"
+curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$SMOKE_THREAD_ID" | jq
 
-if bb thread tell "$SMOKE_THREAD_ID" "This should fail while archived"; then
+if patcher thread tell "$SMOKE_THREAD_ID" "This should fail while archived"; then
   echo "expected archived thread tell to fail"
   false
 else
   echo "archived thread tell was blocked"
 fi
 
-bb thread unarchive "$SMOKE_THREAD_ID"
-bb thread tell "$SMOKE_THREAD_ID" "Say something after unarchive"
-bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
-bb thread output "$SMOKE_THREAD_ID"
+patcher thread unarchive "$SMOKE_THREAD_ID"
+patcher thread tell "$SMOKE_THREAD_ID" "Say something after unarchive"
+patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
+patcher thread output "$SMOKE_THREAD_ID"
 ```
 
 Verify archive cleanup for a dirty managed worktree:
 
 ```bash
-DIRTY_ARCHIVE_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+DIRTY_ARCHIVE_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
@@ -410,17 +410,17 @@ DIRTY_ARCHIVE_THREAD_ID=$(bb thread spawn \
   --prompt "Say exactly: dirty archive setup" \
   --json | jq -r '.id')
 
-bb thread wait "$DIRTY_ARCHIVE_THREAD_ID" --status idle --timeout 120
-DIRTY_ARCHIVE_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$DIRTY_ARCHIVE_THREAD_ID" | jq -r '.environmentId')
-DIRTY_ARCHIVE_ENV_PATH=$(curl -fsS "$BB_SERVER_URL/api/v1/environments/$DIRTY_ARCHIVE_ENV_ID" | jq -er '.path')
+patcher thread wait "$DIRTY_ARCHIVE_THREAD_ID" --status idle --timeout 120
+DIRTY_ARCHIVE_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$DIRTY_ARCHIVE_THREAD_ID" | jq -r '.environmentId')
+DIRTY_ARCHIVE_ENV_PATH=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$DIRTY_ARCHIVE_ENV_ID" | jq -er '.path')
 printf 'dirty archive safety\n' > "$DIRTY_ARCHIVE_ENV_PATH/dirty-archive.txt"
-bb thread show "$DIRTY_ARCHIVE_THREAD_ID" --work-status
+patcher thread show "$DIRTY_ARCHIVE_THREAD_ID" --work-status
 
-bb thread archive "$DIRTY_ARCHIVE_THREAD_ID"
+patcher thread archive "$DIRTY_ARCHIVE_THREAD_ID"
 
-curl -fsS "$BB_SERVER_URL/api/v1/threads/$DIRTY_ARCHIVE_THREAD_ID" | jq -e '.archivedAt != null'
+curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$DIRTY_ARCHIVE_THREAD_ID" | jq -e '.archivedAt != null'
 for i in $(seq 1 60); do
-  DIRTY_ARCHIVE_ENV_STATUS=$(curl -fsS "$BB_SERVER_URL/api/v1/environments/$DIRTY_ARCHIVE_ENV_ID" | jq -r '.status')
+  DIRTY_ARCHIVE_ENV_STATUS=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$DIRTY_ARCHIVE_ENV_ID" | jq -r '.status')
   test "$DIRTY_ARCHIVE_ENV_STATUS" = "destroyed" && break
   sleep 1
 done
@@ -432,9 +432,9 @@ Expected result:
 
 - The unmanaged thread reaches `idle`, shows output, and accepts a follow-up.
 - The worktree thread reaches `idle`, the environment reports `isWorktree: true`, and workspace status/diff routes return data for uncommitted, branch-committed, and combined targets.
-- `bb environment commit` succeeds with helper-generated commit text without requiring `OPENAI_API_KEY`.
-- Environment merge-base metadata can be set, reflected by `bb environment show`, used by thread status/diff output, and cleared.
-- Archiving blocks `bb thread tell`; unarchiving restores normal operation.
+- `patcher environment commit` succeeds with helper-generated commit text without requiring `OPENAI_API_KEY`.
+- Environment merge-base metadata can be set, reflected by `patcher environment show`, used by thread status/diff output, and cleared.
+- Archiving blocks `patcher thread tell`; unarchiving restores normal operation.
 - Dirty isolated managed worktree archive succeeds, destroys the environment, and removes the worktree even while uncommitted or unmerged work remains.
 
 ## Multi-Thread and Shared Environment
@@ -442,67 +442,67 @@ Expected result:
 Create thread A and capture its environment:
 
 ```bash
-THREAD_A_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+THREAD_A_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
   --prompt "Say exactly: THREAD A HELLO" \
   --json | jq -r '.id')
 
-bb thread wait "$THREAD_A_ID" --status idle --timeout 120
-THREAD_A_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$THREAD_A_ID" | jq -r '.environmentId')
-bb thread output "$THREAD_A_ID"
+patcher thread wait "$THREAD_A_ID" --status idle --timeout 120
+THREAD_A_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$THREAD_A_ID" | jq -r '.environmentId')
+patcher thread output "$THREAD_A_ID"
 ```
 
 Create thread B in the same project source path and let the server reuse the ready direct-workspace environment implicitly:
 
 ```bash
-THREAD_B_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+THREAD_B_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
   --prompt "Say exactly: THREAD B WORLD" \
   --json | jq -r '.id')
 
-bb thread wait "$THREAD_B_ID" --status idle --timeout 120
-THREAD_B_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$THREAD_B_ID" | jq -r '.environmentId')
+patcher thread wait "$THREAD_B_ID" --status idle --timeout 120
+THREAD_B_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$THREAD_B_ID" | jq -r '.environmentId')
 
 printf 'thread A env: %s\nthread B env: %s\n' "$THREAD_A_ENV_ID" "$THREAD_B_ENV_ID"
-bb thread output "$THREAD_B_ID"
+patcher thread output "$THREAD_B_ID"
 ```
 
 Alternate follow-ups across the two sibling threads:
 
 ```bash
-bb thread tell "$THREAD_A_ID" "Say exactly: FOLLOW UP A"
-bb thread wait "$THREAD_A_ID" --status idle --timeout 120
+patcher thread tell "$THREAD_A_ID" "Say exactly: FOLLOW UP A"
+patcher thread wait "$THREAD_A_ID" --status idle --timeout 120
 
-bb thread tell "$THREAD_B_ID" "Say exactly: FOLLOW UP B"
-bb thread wait "$THREAD_B_ID" --status idle --timeout 120
+patcher thread tell "$THREAD_B_ID" "Say exactly: FOLLOW UP B"
+patcher thread wait "$THREAD_B_ID" --status idle --timeout 120
 
-bb thread output "$THREAD_A_ID"
-bb thread output "$THREAD_B_ID"
-bb thread log "$THREAD_A_ID" --format json | jq '.[-8:]'
-bb thread log "$THREAD_B_ID" --format json | jq '.[-8:]'
+patcher thread output "$THREAD_A_ID"
+patcher thread output "$THREAD_B_ID"
+patcher thread log "$THREAD_A_ID" --format json | jq '.[-8:]'
+patcher thread log "$THREAD_B_ID" --format json | jq '.[-8:]'
 ```
 
 Archive thread A and verify thread B still works:
 
 ```bash
-bb thread archive "$THREAD_A_ID"
-bb thread tell "$THREAD_B_ID" "Say exactly: STILL WORKING"
-bb thread wait "$THREAD_B_ID" --status idle --timeout 120
-bb thread output "$THREAD_B_ID"
-bb thread unarchive "$THREAD_A_ID"
+patcher thread archive "$THREAD_A_ID"
+patcher thread tell "$THREAD_B_ID" "Say exactly: STILL WORKING"
+patcher thread wait "$THREAD_B_ID" --status idle --timeout 120
+patcher thread output "$THREAD_B_ID"
+patcher thread unarchive "$THREAD_A_ID"
 ```
 
 Run a mixed-provider pass in separate environments:
 
 ```bash
-CLAUDE_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+CLAUDE_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider claude-code \
   --model "$CLAUDE_MODEL" \
   --reasoning-level low \
@@ -510,8 +510,8 @@ CLAUDE_THREAD_ID=$(bb thread spawn \
   --prompt "Say exactly: CLAUDE THREAD" \
   --json | jq -r '.id')
 
-PI_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+PI_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider pi \
   --model "$PI_MODEL" \
   --reasoning-level low \
@@ -519,14 +519,14 @@ PI_THREAD_ID=$(bb thread spawn \
   --prompt "Say exactly: PI THREAD" \
   --json | jq -r '.id')
 
-bb thread wait "$CLAUDE_THREAD_ID" --status idle --timeout 120
-bb thread wait "$PI_THREAD_ID" --status idle --timeout 180
-CLAUDE_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$CLAUDE_THREAD_ID" | jq -r '.environmentId')
-PI_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$PI_THREAD_ID" | jq -r '.environmentId')
+patcher thread wait "$CLAUDE_THREAD_ID" --status idle --timeout 120
+patcher thread wait "$PI_THREAD_ID" --status idle --timeout 180
+CLAUDE_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$CLAUDE_THREAD_ID" | jq -r '.environmentId')
+PI_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$PI_THREAD_ID" | jq -r '.environmentId')
 
 printf 'claude env: %s\npi env: %s\n' "$CLAUDE_ENV_ID" "$PI_ENV_ID"
-bb thread output "$CLAUDE_THREAD_ID"
-bb thread output "$PI_THREAD_ID"
+patcher thread output "$CLAUDE_THREAD_ID"
+patcher thread output "$PI_THREAD_ID"
 ```
 
 Expected result:
@@ -542,23 +542,23 @@ Graceful daemon restart:
 
 ```bash
 kill -TERM "$DAEMON_PID"
-curl -fsS "$BB_SERVER_URL/api/v1/system/config" | jq
-curl -fsS "$BB_SERVER_URL/api/v1/hosts" | jq
+curl -fsS "$PATCHER_SERVER_URL/api/v1/system/config" | jq
+curl -fsS "$PATCHER_SERVER_URL/api/v1/hosts" | jq
 
 eval "$RESTART_DAEMON_COMMAND"
 DAEMON_PID=$!
 
-curl -fsS "$BB_SERVER_URL/api/v1/hosts" | jq
-bb thread tell "$SMOKE_THREAD_ID" "Check recovery after daemon restart"
-bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
-bb thread output "$SMOKE_THREAD_ID"
+curl -fsS "$PATCHER_SERVER_URL/api/v1/hosts" | jq
+patcher thread tell "$SMOKE_THREAD_ID" "Check recovery after daemon restart"
+patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
+patcher thread output "$SMOKE_THREAD_ID"
 ```
 
 Server restart during environment provisioning:
 
 ```bash
-SERVER_RESTART_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+SERVER_RESTART_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
@@ -566,9 +566,9 @@ SERVER_RESTART_THREAD_ID=$(bb thread spawn \
   --prompt "Say exactly: server restart provisioning recovery" \
   --json | jq -r '.id')
 
-SERVER_RESTART_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$SERVER_RESTART_THREAD_ID" | jq -er '.environmentId')
+SERVER_RESTART_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$SERVER_RESTART_THREAD_ID" | jq -er '.environmentId')
 for _ in $(seq 1 60); do
-  ENV_STATUS=$(curl -fsS "$BB_SERVER_URL/api/v1/environments/$SERVER_RESTART_ENV_ID" | jq -r '.status')
+  ENV_STATUS=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$SERVER_RESTART_ENV_ID" | jq -r '.status')
   [ "$ENV_STATUS" = "provisioning" ] && break
   sleep 1
 done
@@ -577,22 +577,22 @@ test "$ENV_STATUS" = "provisioning"
 kill -TERM "$SERVER_PID"
 while kill -0 "$SERVER_PID" 2>/dev/null; do sleep 1; done
 
-BB_DATA_DIR=$(jq -er '.server.dataDir' "$STATE_PATH") \
-BB_SERVER_PORT=$(jq -er '.server.port' "$STATE_PATH") \
+PATCHER_DATA_DIR=$(jq -er '.server.dataDir' "$STATE_PATH") \
+PATCHER_SERVER_PORT=$(jq -er '.server.port' "$STATE_PATH") \
 node apps/server/dist/index.js >> "$(jq -er '.server.logPath' "$STATE_PATH")" 2>&1 &
 SERVER_PID=$!
 
 for _ in $(seq 1 60); do
-  curl -fsS "$BB_SERVER_URL/api/v1/system/config" >/dev/null && break
+  curl -fsS "$PATCHER_SERVER_URL/api/v1/system/config" >/dev/null && break
   sleep 1
 done
 
 eval "$RESTART_DAEMON_COMMAND"
 DAEMON_PID=$!
 
-curl -fsS "$BB_SERVER_URL/api/v1/environments/$SERVER_RESTART_ENV_ID" | jq
-bb thread show "$SERVER_RESTART_THREAD_ID"
-bb thread log "$SERVER_RESTART_THREAD_ID" --format json | jq '.[-12:]'
+curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$SERVER_RESTART_ENV_ID" | jq
+patcher thread show "$SERVER_RESTART_THREAD_ID"
+patcher thread log "$SERVER_RESTART_THREAD_ID" --format json | jq '.[-12:]'
 ```
 
 Expected result:
@@ -609,13 +609,13 @@ Host offline before send:
 ```bash
 kill -TERM "$DAEMON_PID"
 for _ in $(seq 1 60); do
-  HOST_STATUS=$(curl -fsS "$BB_SERVER_URL/api/v1/hosts" | jq -r --arg host "$HOST_ID" '.[] | select(.id == $host) | .status')
+  HOST_STATUS=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/hosts" | jq -r --arg host "$HOST_ID" '.[] | select(.id == $host) | .status')
   [ "$HOST_STATUS" != "connected" ] && break
   sleep 1
 done
 test "$HOST_STATUS" != "connected"
 
-if bb thread tell "$SMOKE_THREAD_ID" "This should fail while the host is offline"; then
+if patcher thread tell "$SMOKE_THREAD_ID" "This should fail while the host is offline"; then
   echo "expected offline host send to fail"
   false
 else
@@ -624,9 +624,9 @@ fi
 
 eval "$RESTART_DAEMON_COMMAND"
 DAEMON_PID=$!
-bb thread tell "$SMOKE_THREAD_ID" "Say exactly: offline retry ok"
-bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
-bb thread output "$SMOKE_THREAD_ID"
+patcher thread tell "$SMOKE_THREAD_ID" "Say exactly: offline retry ok"
+patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
+patcher thread output "$SMOKE_THREAD_ID"
 ```
 
 Expected result:
@@ -640,23 +640,23 @@ Expected result:
 Daemon hot-replace mid-RPC:
 
 ```bash
-HOT_REPLACE_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+HOT_REPLACE_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
   --prompt "Write 80 detailed bullet points about the history of operating systems." \
   --json | jq -r '.id')
 
-bb thread wait "$HOT_REPLACE_THREAD_ID" --status active --timeout 30
+patcher thread wait "$HOT_REPLACE_THREAD_ID" --status active --timeout 30
 OLD_DAEMON_PID=$DAEMON_PID
 eval "$RESTART_DAEMON_COMMAND"
 DAEMON_PID=$!
 test "$DAEMON_PID" != "$OLD_DAEMON_PID"
 
-curl -fsS "$BB_SERVER_URL/api/v1/hosts" | jq
-bb thread show "$HOT_REPLACE_THREAD_ID"
-bb thread log "$HOT_REPLACE_THREAD_ID" --format json | jq '.[-12:]'
+curl -fsS "$PATCHER_SERVER_URL/api/v1/hosts" | jq
+patcher thread show "$HOT_REPLACE_THREAD_ID"
+patcher thread log "$HOT_REPLACE_THREAD_ID" --format json | jq '.[-12:]'
 ```
 
 Expected result:
@@ -671,27 +671,27 @@ Expected result:
 Kill the daemon during active work:
 
 ```bash
-bb thread tell "$SMOKE_THREAD_ID" "Write 80 detailed bullet points about the history of computing."
-bb thread wait "$SMOKE_THREAD_ID" --status active --timeout 30
+patcher thread tell "$SMOKE_THREAD_ID" "Write 80 detailed bullet points about the history of computing."
+patcher thread wait "$SMOKE_THREAD_ID" --status active --timeout 30
 
 kill -TERM "$DAEMON_PID"
-bb thread show "$SMOKE_THREAD_ID"
+patcher thread show "$SMOKE_THREAD_ID"
 
 eval "$RESTART_DAEMON_COMMAND"
 DAEMON_PID=$!
 
-THREAD_STATE=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$SMOKE_THREAD_ID" | jq -r '.status')
+THREAD_STATE=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$SMOKE_THREAD_ID" | jq -r '.status')
 
 if [ "$THREAD_STATE" = "active" ]; then
-  bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 180
+  patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 180
 else
-  bb thread tell "$SMOKE_THREAD_ID" "Say exactly: recovery ok"
-  bb thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
+  patcher thread tell "$SMOKE_THREAD_ID" "Say exactly: recovery ok"
+  patcher thread wait "$SMOKE_THREAD_ID" --status idle --timeout 120
 fi
 
-bb thread output "$SMOKE_THREAD_ID"
-bb thread log "$SMOKE_THREAD_ID" --format json | jq '.[-12:]'
-bb thread log "$SMOKE_THREAD_ID" --format json \
+patcher thread output "$SMOKE_THREAD_ID"
+patcher thread log "$SMOKE_THREAD_ID" --format json | jq '.[-12:]'
+patcher thread log "$SMOKE_THREAD_ID" --format json \
   | jq -e 'any(.[]; .type == "system/error" and (.data.code // .code // null) == "thread_command_failed")'
 ```
 
@@ -700,7 +700,7 @@ Inspect logs and state:
 ```bash
 tail -n 200 "$LOGS_DIR/server.log"
 tail -n 200 "$LOGS_DIR/host-daemon.log"
-curl -fsS "$BB_SERVER_URL/api/v1/threads/$SMOKE_THREAD_ID" | jq
+curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$SMOKE_THREAD_ID" | jq
 ```
 
 Expected result:
@@ -722,34 +722,34 @@ Use the resolved model for each provider:
 - `pi`: `--model "$PI_MODEL"`
 
 ```bash
-PROVIDER_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+PROVIDER_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider <provider-id> \
   --model <provider-model> \
   --reasoning-level low \
   --prompt "Say exactly: hello world" \
   --json | jq -r '.id')
 
-bb thread wait "$PROVIDER_THREAD_ID" --status idle --timeout 120
-bb thread output "$PROVIDER_THREAD_ID"
+patcher thread wait "$PROVIDER_THREAD_ID" --status idle --timeout 120
+patcher thread output "$PROVIDER_THREAD_ID"
 
-bb thread tell "$PROVIDER_THREAD_ID" "Repeat the previous answer in uppercase"
-bb thread wait "$PROVIDER_THREAD_ID" --status idle --timeout 120
-bb thread output "$PROVIDER_THREAD_ID"
+patcher thread tell "$PROVIDER_THREAD_ID" "Repeat the previous answer in uppercase"
+patcher thread wait "$PROVIDER_THREAD_ID" --status idle --timeout 120
+patcher thread output "$PROVIDER_THREAD_ID"
 
-bb thread tell "$PROVIDER_THREAD_ID" "Write a very long essay about computing history"
-bb thread wait "$PROVIDER_THREAD_ID" --status active --timeout 30
-bb thread stop "$PROVIDER_THREAD_ID"
-bb thread wait "$PROVIDER_THREAD_ID" --status idle --timeout 120
-bb thread show "$PROVIDER_THREAD_ID"
-bb thread log "$PROVIDER_THREAD_ID" --format json | jq '.[-10:]'
+patcher thread tell "$PROVIDER_THREAD_ID" "Write a very long essay about computing history"
+patcher thread wait "$PROVIDER_THREAD_ID" --status active --timeout 30
+patcher thread stop "$PROVIDER_THREAD_ID"
+patcher thread wait "$PROVIDER_THREAD_ID" --status idle --timeout 120
+patcher thread show "$PROVIDER_THREAD_ID"
+patcher thread log "$PROVIDER_THREAD_ID" --format json | jq '.[-10:]'
 ```
 
 For workspace interaction, repeat on a worktree thread:
 
 ```bash
-PROVIDER_WORKTREE_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+PROVIDER_WORKTREE_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider <provider-id> \
   --model <provider-model> \
   --reasoning-level low \
@@ -757,18 +757,18 @@ PROVIDER_WORKTREE_THREAD_ID=$(bb thread spawn \
   --prompt "Create hello.txt containing hello world" \
   --json | jq -r '.id')
 
-bb thread wait "$PROVIDER_WORKTREE_THREAD_ID" --status idle --timeout 120
-PROVIDER_WORKTREE_ENV_ID=$(curl -fsS "$BB_SERVER_URL/api/v1/threads/$PROVIDER_WORKTREE_THREAD_ID" | jq -r '.environmentId')
+patcher thread wait "$PROVIDER_WORKTREE_THREAD_ID" --status idle --timeout 120
+PROVIDER_WORKTREE_ENV_ID=$(curl -fsS "$PATCHER_SERVER_URL/api/v1/threads/$PROVIDER_WORKTREE_THREAD_ID" | jq -r '.environmentId')
 
-bb thread output "$PROVIDER_WORKTREE_THREAD_ID"
-curl -fsS "$BB_SERVER_URL/api/v1/environments/$PROVIDER_WORKTREE_ENV_ID/status" | jq
+patcher thread output "$PROVIDER_WORKTREE_THREAD_ID"
+curl -fsS "$PATCHER_SERVER_URL/api/v1/environments/$PROVIDER_WORKTREE_ENV_ID/status" | jq
 ```
 
 Run a pending-interaction pass with permission-restricted turns:
 
 ```bash
-APPROVAL_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+APPROVAL_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
@@ -779,7 +779,7 @@ APPROVAL_THREAD_ID=$(bb thread spawn \
 
 APPROVAL_INTERACTION_ID=
 for _ in {1..60}; do
-  APPROVAL_INTERACTION_ID=$(bb thread interactions list "$APPROVAL_THREAD_ID" --json | jq -r '.[0].id // empty')
+  APPROVAL_INTERACTION_ID=$(patcher thread interactions list "$APPROVAL_THREAD_ID" --json | jq -r '.[0].id // empty')
   if [ -n "$APPROVAL_INTERACTION_ID" ]; then
     break
   fi
@@ -787,26 +787,26 @@ for _ in {1..60}; do
 done
 test -n "$APPROVAL_INTERACTION_ID"
 
-bb thread interactions show "$APPROVAL_INTERACTION_ID" "$APPROVAL_THREAD_ID"
+patcher thread interactions show "$APPROVAL_INTERACTION_ID" "$APPROVAL_THREAD_ID"
 
-if bb thread tell "$APPROVAL_THREAD_ID" "This should be blocked while an interaction is pending"; then
+if patcher thread tell "$APPROVAL_THREAD_ID" "This should be blocked while an interaction is pending"; then
   echo "expected tell to be blocked while the interaction is pending"
   false
 else
   echo "tell was blocked while the interaction was pending"
 fi
 
-bb thread interactions approve "$APPROVAL_INTERACTION_ID" "$APPROVAL_THREAD_ID"
-bb thread wait "$APPROVAL_THREAD_ID" --status idle --timeout 180
-bb thread output "$APPROVAL_THREAD_ID"
-bb thread interactions list "$APPROVAL_THREAD_ID" --json | jq
+patcher thread interactions approve "$APPROVAL_INTERACTION_ID" "$APPROVAL_THREAD_ID"
+patcher thread wait "$APPROVAL_THREAD_ID" --status idle --timeout 180
+patcher thread output "$APPROVAL_THREAD_ID"
+patcher thread interactions list "$APPROVAL_THREAD_ID" --json | jq
 ```
 
 Verify denial handling with a separate interaction:
 
 ```bash
-DENY_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+DENY_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider codex \
   --model "$CODEX_MODEL" \
   --reasoning-level low \
@@ -817,7 +817,7 @@ DENY_THREAD_ID=$(bb thread spawn \
 
 DENY_INTERACTION_ID=
 for _ in {1..60}; do
-  DENY_INTERACTION_ID=$(bb thread interactions list "$DENY_THREAD_ID" --json | jq -r '.[0].id // empty')
+  DENY_INTERACTION_ID=$(patcher thread interactions list "$DENY_THREAD_ID" --json | jq -r '.[0].id // empty')
   if [ -n "$DENY_INTERACTION_ID" ]; then
     break
   fi
@@ -825,21 +825,21 @@ for _ in {1..60}; do
 done
 test -n "$DENY_INTERACTION_ID"
 
-bb thread interactions show "$DENY_INTERACTION_ID" "$DENY_THREAD_ID"
-bb thread interactions deny "$DENY_INTERACTION_ID" "$DENY_THREAD_ID"
-if bb thread wait "$DENY_THREAD_ID" --status idle --timeout 180; then
-  bb thread output "$DENY_THREAD_ID"
+patcher thread interactions show "$DENY_INTERACTION_ID" "$DENY_THREAD_ID"
+patcher thread interactions deny "$DENY_INTERACTION_ID" "$DENY_THREAD_ID"
+if patcher thread wait "$DENY_THREAD_ID" --status idle --timeout 180; then
+  patcher thread output "$DENY_THREAD_ID"
 else
-  bb thread show "$DENY_THREAD_ID"
+  patcher thread show "$DENY_THREAD_ID"
 fi
-bb thread log "$DENY_THREAD_ID" --format json | jq '.[-12:]'
+patcher thread log "$DENY_THREAD_ID" --format json | jq '.[-12:]'
 ```
 
 For `claude-code`, also verify grant semantics with a permission-grant interaction:
 
 ```bash
-GRANT_THREAD_ID=$(bb thread spawn \
-  --project "$BB_PROJECT_ID" \
+GRANT_THREAD_ID=$(patcher thread spawn \
+  --project "$PATCHER_PROJECT_ID" \
   --provider claude-code \
   --model "$CLAUDE_MODEL" \
   --reasoning-level low \
@@ -850,7 +850,7 @@ GRANT_THREAD_ID=$(bb thread spawn \
 
 GRANT_INTERACTION_ID=
 for _ in {1..60}; do
-  GRANT_INTERACTION_ID=$(bb thread interactions list "$GRANT_THREAD_ID" --json | jq -r '.[0].id // empty')
+  GRANT_INTERACTION_ID=$(patcher thread interactions list "$GRANT_THREAD_ID" --json | jq -r '.[0].id // empty')
   if [ -n "$GRANT_INTERACTION_ID" ]; then
     break
   fi
@@ -858,16 +858,16 @@ for _ in {1..60}; do
 done
 test -n "$GRANT_INTERACTION_ID"
 
-bb thread interactions show "$GRANT_INTERACTION_ID" "$GRANT_THREAD_ID"
-bb thread interactions grant "$GRANT_INTERACTION_ID" "$GRANT_THREAD_ID" --scope turn
-bb thread wait "$GRANT_THREAD_ID" --status idle --timeout 180
-bb thread output "$GRANT_THREAD_ID"
+patcher thread interactions show "$GRANT_INTERACTION_ID" "$GRANT_THREAD_ID"
+patcher thread interactions grant "$GRANT_INTERACTION_ID" "$GRANT_THREAD_ID" --scope turn
+patcher thread wait "$GRANT_THREAD_ID" --status idle --timeout 180
+patcher thread output "$GRANT_THREAD_ID"
 ```
 
 Expected result:
 
-- Permission-restricted turns surface pending interactions through `bb thread interactions list/show`.
-- `bb thread tell` is rejected while the thread is awaiting user interaction.
+- Permission-restricted turns surface pending interactions through `patcher thread interactions list/show`.
+- `patcher thread tell` is rejected while the thread is awaiting user interaction.
 - `approve`, `deny`, and `grant` resolve their matching interaction kinds.
 - Approved/granted threads continue to `idle`; denied threads either reply with the denial handling text or clearly record the denied approval in the log.
 

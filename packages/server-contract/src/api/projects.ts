@@ -10,7 +10,7 @@ import {
   projectSourceSchema,
   promptHistoryEntrySchema,
   threadListEntrySchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   branchListQuerySchema,
   isCommaSeparatedIncludeQueryValue,
@@ -299,7 +299,7 @@ export const providerCommandSchema = z.object({
   description: z.string().nullable(),
   /** `null` = no argument hint. */
   argumentHint: z.string().nullable(),
-  /** Present when this skill is contributed by a running bb plugin. */
+  /** Present when this skill is contributed by a running Patcher plugin. */
   pluginId: z.string().min(1).optional(),
 });
 export type ProviderCommand = z.infer<typeof providerCommandSchema>;
@@ -367,16 +367,16 @@ export type ProjectCommandsQuery = z.infer<typeof projectCommandsQuerySchema>;
 
 /**
  * Product scope of a discovered skill, derived server-side from the daemon's raw
- * `(provider, rootKind)`. bb scopes are provider-agnostic; provider-owned
+ * `(provider, rootKind)`. Patcher scopes are provider-agnostic; provider-owned
  * skills retain project/user scope as presentation metadata; `plugin` covers
- * skills bundled by either a bb plugin or a provider plugin. The opaque
+ * skills bundled by either a Patcher plugin or a provider plugin. The opaque
  * `SkillSummary.id` is the only
  * server-resolvable identity.
  */
 export const skillScopeSchema = z.enum([
-  "bb-builtin",
-  "bb-user",
-  "bb-project",
+  "patcher-builtin",
+  "patcher-user",
+  "patcher-project",
   "claude-user",
   "claude-project",
   "codex-user",
@@ -411,7 +411,7 @@ export const skillSummarySchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   /**
-   * `null` for provider-agnostic bb scopes — a bb skill is discovered under both
+   * `null` for provider-agnostic Patcher scopes — a Patcher skill is discovered under both
    * providers, so it is listed once with `provider: null` (de-duped on path).
    */
   provider: skillProviderSchema.nullable(),
@@ -446,10 +446,10 @@ export const projectSkillsQuerySchema = z.object({
 });
 export type ProjectSkillsQuery = z.infer<typeof projectSkillsQuerySchema>;
 
-/** Local skill scopes whose SKILL.md can be edited safely in bb. */
+/** Local skill scopes whose SKILL.md can be edited safely in Patcher. */
 export const editableSkillScopeSchema = z.enum([
-  "bb-user",
-  "bb-project",
+  "patcher-user",
+  "patcher-project",
   "claude-user",
   "claude-project",
   "codex-user",

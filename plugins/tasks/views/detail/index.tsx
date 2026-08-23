@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SmilePlusIcon } from "@hugeicons/core-free-icons";
 import type { Task } from "../../shared/contract.js";
-import { useBbNavigate } from "@bb/plugin-sdk/app";
+import { usePatcherNavigate } from "@patcher/plugin-sdk/app";
 import {
   listAllTasks,
   useMentionItems,
@@ -25,8 +25,8 @@ import {
 } from "./rail.js";
 import { ThreadsSection } from "./threads.js";
 import { DetailToasts, useDetailToasts } from "./toast.js";
-import { Icon } from "@bb/shared-ui/icon";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 
 export interface DetailViewProps {
   /** Task key like TSK-4 (not the ULID). */
@@ -352,7 +352,7 @@ function TaskDetail({ task }: { task: Task }) {
   };
 
   const mentionItems = useMentionItems();
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
 
   const descriptionValue =
     draft && draft.taskId === task.id ? draft.markdown : task.description;

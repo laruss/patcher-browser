@@ -34,7 +34,7 @@ function plugin(
     provenance: "catalog",
     isOrphanedBuiltin: false,
     catalogEntryId: "linear",
-    sourceDisplay: "npm · @bb-plugins/linear · tracks compatible",
+    sourceDisplay: "npm · @patcher-plugins/linear · tracks compatible",
     updateState: { ...EMPTY_PLUGIN_UPDATE_STATE, ...updateState },
     ...overrides,
   };
@@ -53,7 +53,7 @@ describe("pluginRowSignal (the one-pill rule)", () => {
       pluginRowSignal(
         plugin({
           blockedVersion: "1.9.0",
-          blockedReasons: ["requires bb >= 0.15"],
+          blockedReasons: ["requires Patcher >= 0.15"],
         }),
       ),
     ).toBeNull();

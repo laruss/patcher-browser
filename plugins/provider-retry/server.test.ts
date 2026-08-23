@@ -3,7 +3,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import plugin from "./server.js";
 import {
   ProviderRetryService,
@@ -100,7 +100,7 @@ describe("provider retry scheduler", () => {
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "provider-retry",
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
 
     expect(host.harness.registrations.settingsDescriptors).toEqual({
       maximumWait: {
@@ -130,7 +130,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    const service = new ProviderRetryService(host.bb);
+    const service = new ProviderRetryService(host.patcher);
 
     await expect(service.reconcile("thread-error")).rejects.toThrow(
       "status unavailable",
@@ -155,7 +155,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
 
     for (const threadId of ["thread-b", "thread-a"]) {
       await host.harness.emitThreadEvent("thread.failed", {
@@ -198,7 +198,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     for (const threadId of ["thread-rpc", "thread-cli"]) {
       await host.harness.emitThreadEvent("thread.failed", {
         thread: makeThreadResponse({ id: threadId, status: "error" }),
@@ -240,7 +240,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     await host.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thread-manual", status: "error" }),
       error: "Usage limit reached",
@@ -274,7 +274,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     await host.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thread-weekly", status: "error" }),
       error: "Usage limit reached",
@@ -321,7 +321,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     await host.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thread-credits", status: "error" }),
       error: "Credits exhausted",
@@ -373,7 +373,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     const running = host.harness.runService("provider-retry-scheduler");
     await host.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thread-host", status: "error" }),
@@ -409,7 +409,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     await host.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thread-failed", status: "error" }),
       error: "Usage limit reached",
@@ -447,7 +447,7 @@ describe("provider retry scheduler", () => {
         },
       },
     });
-    await plugin(host.bb);
+    await plugin(host.patcher);
     await host.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thread-dispose", status: "error" }),
       error: "Usage limit reached",

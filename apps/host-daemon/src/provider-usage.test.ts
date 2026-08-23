@@ -290,7 +290,7 @@ describe("normalizeClaudeUsage", () => {
 describe("normalizeCursorUsage", () => {
   it("reads and validates Cursor's cached authenticated email", async () => {
     const directory = await fs.mkdtemp(
-      path.join(os.tmpdir(), "bb-cursor-email-"),
+      path.join(os.tmpdir(), "patcher-cursor-email-"),
     );
     const databasePath = path.join(directory, "state.vscdb");
     const database = new Database(databasePath);

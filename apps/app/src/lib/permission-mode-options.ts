@@ -1,4 +1,4 @@
-import type { PermissionMode } from "@bb/domain";
+import type { PermissionMode } from "@patcher/domain";
 import type { PickerOption } from "@/components/pickers/OptionPicker";
 
 /**

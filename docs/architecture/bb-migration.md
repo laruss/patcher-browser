@@ -1,4 +1,4 @@
-# bb → Agent Browser: Migration Map
+# bb → Patcher: Migration Map
 
 Phase 0 deliverable of [`docs/PROJECT_PLAN.md`](../PROJECT_PLAN.md) §18.
 
@@ -17,7 +17,7 @@ git show aefe3ea49:docs/system-overview.md
 git show aefe3ea49:docs/repository-overview.md
 ```
 
-Those two are the authoritative description of bb's runtime shape and are quoted
+Those two are the authoritative description of Patcher's runtime shape and are quoted
 below rather than paraphrased from memory. Several other deleted documents remain
 useful reference (`docs/configuration.md`, 812 lines; `docs/platform-support.md`,
 159 lines) and are recoverable the same way.
@@ -31,21 +31,21 @@ Four processes, from the recovered `system-overview.md`:
 | **Server** (`apps/server`)           | Central hub. All state in SQLite, HTTP API, WebSocket change notifications. Stateless itself; the DB is the source of truth. Owns product policy. |
 | **Host daemon** (`apps/host-daemon`) | Runs on each enrolled execution machine. Provisions workspaces, runs agent provider processes, posts events back. Owns host-local primitives.     |
 | **App** (`apps/app`)                 | React SPA served by the server.                                                                                                                   |
-| **CLI** (`apps/cli`)                 | Scriptable `bb`, same capabilities as the app.                                                                                                    |
+| **CLI** (`apps/cli`)                 | Scriptable `patcher`, same capabilities as the app.                                                                                               |
 
-Two contract packages define the boundaries: `@bb/server-contract`
-(clients ↔ server) and `@bb/host-daemon-contract` (server ↔ daemons).
+Two contract packages define the boundaries: `@patcher/server-contract`
+(clients ↔ server) and `@patcher/host-daemon-contract` (server ↔ daemons).
 Implementation packages never import across these boundaries.
 
 The Electron shell (`apps/desktop`) supervises the packaged runtime and loads the
-SPA the server serves. It attaches to any already-running bb server that passes
+SPA the server serves. It attaches to any already-running Patcher server that passes
 its health probe, with **no version handshake** (`apps/desktop/src/server-probe.ts`),
 so renderer and shell routinely come from different builds. This is why the
 browser IPC schemas are wire-frozen — see Invariants.
 
 ## What the browser project actually inherits
 
-The headline finding of Phase 0: **bb already contains a working embedded
+The headline finding of Phase 0: **Patcher already contains a working embedded
 browser.** Plan §18 Phase 1 is largely satisfied by existing code.
 
 ### Electron browser layer — keep as-is
@@ -53,8 +53,8 @@ browser.** Plan §18 Phase 1 is largely satisfied by existing code.
 `apps/desktop/src/desktop-browser-view.ts` (819 lines) manages one
 `WebContentsView` per browser tab:
 
-- dedicated persistent partition (`BB_BROWSER_PARTITION`), so page cookies and
-  storage never touch the bb app session or the user's real browser;
+- dedicated persistent partition (`PATCHER_BROWSER_PARTITION`), so page cookies and
+  storage never touch the Patcher app session or the user's real browser;
 - `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`;
 - `setWindowOpenHandler` denies every native popup and routes
   `window.open` / `target=_blank` to a new in-panel tab instead;
@@ -90,11 +90,11 @@ Two structural gaps:
 
 ### Plugin platform — adapt, and it is stronger than the plan assumes
 
-Plugin manifest is the `bb` field of a plugin's own `package.json` (name,
+Plugin manifest is the `patcher` field of a plugin's own `package.json` (name,
 description, `branding.icon`, `server` entry, `app` entry). 13 bundled plugins
 under `plugins/` serve as live examples.
 
-`@bb/plugin-sdk` already exposes, verified in
+`@patcher/plugin-sdk` already exposes, verified in
 `packages/plugin-sdk/src/app-contract.ts` (1412 lines) and
 `backend-contract.ts` (715 lines):
 
@@ -105,7 +105,7 @@ under `plugins/` serve as live examples.
 - **Backend API**: scoped settings with change subscriptions, KV storage, a
   plugin-owned SQLite database with migrations, thread event hooks, HTTP routes
   (auth modes `local` / `token` / `none`), typed RPC, realtime publish,
-  background services and cron schedules, `bb` CLI subcommands, **agent tools**,
+  background services and cron schedules, `patcher` CLI subcommands, **agent tools**,
   agent configuration and instruction contribution, mention providers, and
   `ui.requestInput` for user interaction.
 
@@ -113,18 +113,18 @@ What is missing for this project:
 
 - **No browser contribution points** — nothing for omnibox, tabs, toolbar or
   browser context menus.
-- **No isolation.** Plugin `server.ts` modules execute in-process inside the bb
+- **No isolation.** Plugin `server.ts` modules execute in-process inside the Patcher
   server (`apps/server/src/services/plugins/`). Plan §9 requires the opposite
   for agent-generated plugins, so plan Phase 7 (Bun plugin host) is genuinely new
   work, not a refactor.
 
-  A permission model has since landed on top of this — `bb.permissions`,
+  A permission model has since landed on top of this — `patcher.permissions`,
   declared per plugin and denied by default, described in
-  [plugin-permissions.md](plugin-permissions.md). It gates the bb API rather
+  [plugin-permissions.md](plugin-permissions.md). It gates the Patcher API rather
   than the process, so it does not change the sentence above: it specifies the
   boundary Phase 7 has to build, and is not a substitute for it.
 
-Note that `packages/plugin-build/src/toolchain.ts` installs bb's own pinned build
+Note that `packages/plugin-build/src/toolchain.ts` installs Patcher's own pinned build
 packages (esbuild 0.28.1 and friends) with **npm**, into a private staging
 directory promoted by atomic rename, cross-process safe against a server/CLI
 race. This is product behaviour for building plugins and is independent of
@@ -139,7 +139,7 @@ both contract packages, `apps/desktop/src/desktop-browser-view.ts` and
 `packages/desktop-contract/src/browser.ts`.
 
 **Adapt**:
-`@bb/plugin-sdk` (add browser contribution points and a permission model),
+`@patcher/plugin-sdk` (add browser contribution points and a permission model),
 `apps/server/src/services/plugins/` (registration and lifecycle for the new
 points), the renderer browser chrome (promote out of the thread panel),
 `apps/desktop` window/menu wiring once a dedicated browser window is wanted.
@@ -153,15 +153,18 @@ top-level browser surface, browser tab model independent of threads,
 `OmniboxController` with a provider interface, browser plugin contribution
 points, plugin permissions, plugin host process, browser tools for agents.
 
-**Out of product scope, retained untouched**: `apps/web` — per the recovered
+**Out of product scope, removed in the Patcher rename** (see
+[rename-to-patcher.md](rename-to-patcher.md)): `apps/web` — per the recovered
 overview, the getbb.app marketing site plus bb connect auth/dashboard on
-Cloudflare Workers — and `apps/connect`. Plan §17 forbids removing inherited
-systems before their dependencies are understood; neither has been audited.
+Cloudflare Workers — and `apps/connect`. Plan §17 forbade removing them before
+their dependencies were understood; the rename's phase 1 did that audit and
+removed both, along with `plugins/connect`, `packages/connect-db`,
+`packages/connect-client` and the tunnel packages.
 
 ## Invariants that must not break
 
 1. **`HOST_DAEMON_PROTOCOL_VERSION`** (`packages/host-daemon-contract/src/commands.ts`,
-   currently `106`) must be incremented whenever anything on the server ↔ daemon
+   currently `109`) must be incremented whenever anything on the server ↔ daemon
    wire can change. A passing TypeScript build is not evidence of wire
    compatibility: enrolled machines may still run an older daemon, and the
    version mismatch is what triggers their update. Without a bump an old daemon
@@ -173,7 +176,7 @@ systems before their dependencies are understood; neither has been audited.
    against an old shell's strict parser. Change only alongside explicit
    capability negotiation in the preload bridge. The sanctioned shape, used twice
    now — scoped popup requests and tab favicons — is a **new channel** plus an
-   **optional** method on `BbDesktopBrowserApi`: the old parser never sees the new
+   **optional** method on `PatcherDesktopBrowserApi`: the old parser never sees the new
    payload, and feature-detecting the method is the negotiation.
 3. **Server / host-daemon ownership.** The server owns product policy — defaults,
    instructions, manager behaviour, tool lists, thread behaviour. The daemon owns
@@ -225,7 +228,7 @@ to masquerade as migration regressions:
    skills and plugins appear in assertions, and the entry-count cap test sees
    1012 entries instead of 1000. This bites whenever the suite is run from a
    shell that exports it — notably from inside a Claude Code session. With the
-   variable unset, `@bb/host-daemon` is 46/46 files and 542/542 tests green.
+   variable unset, `@patcher/host-daemon` is 46/46 files and 542/542 tests green.
    **Run host-daemon checks as `env -u CLAUDE_CONFIG_DIR ...`.**
 2. **The pinned Node version is load-bearing, and `.nvmrc` is the only thing
    that says so.** Node 25 ships Web Storage globals enabled by default, and
@@ -233,7 +236,7 @@ to masquerade as migration regressions:
    object, with a `--localstorage-file was provided without a valid path`
    warning as the only clue. Every test touching `window.localStorage` then
    fails with `clear is not a function`: on 25.6.1 that is 46 tests in
-   `bb-plugin-tasks` alone, plus `@bb/host-watcher` and `@bb/qa`. On the pinned
+   `patcher-plugin-tasks` alone, plus `@patcher/host-watcher` and `@patcher/qa`. On the pinned
    22.20.0 the same files pass. **Run the suite on the `.nvmrc` version**, and
    distrust any failure list gathered without checking `node --version` first.
 3. **Test parallelism is bounded on purpose, at two levels.** Vitest sizes its
@@ -247,7 +250,7 @@ to masquerade as migration regressions:
    **Both are needed**: capping a package protects it from its own greed, not
    from the ten uncapped packages queued alongside it — measured, a full run at
    turbo's default concurrency failed eight packages even with the per-package
-   caps in place, including `@bb/process-utils`, whose entire job is spawning
+   caps in place, including `@patcher/process-utils`, whose entire job is spawning
    processes. Lowering the outer number costs little: 8m16s at `--concurrency=2`
    against 7m26s at the default, because the long pole is the two largest
    packages either way.
@@ -255,7 +258,7 @@ to masquerade as migration regressions:
    `apps/host-daemon/test/command/host-branches-dispatch.test.ts` builds a real
    git repository per test — `init`, `config` ×2, `add`, `commit`, `branch` ×2 as
    separate processes — against the hard `testTimeout: 15_000` in
-   `apps/host-daemon/vitest.config.ts`. `apps/desktop/test/bb-process.test.ts`
+   `apps/host-daemon/vitest.config.ts`. `apps/desktop/test/patcher-process.test.ts`
    waits on a spawned bridge to log `ready`. Under a full parallel
    `turbo run test` (observed at 630% CPU) those spawns starve and time out;
    run alone they pass in well under a second. This reproduced on pnpm before
@@ -264,7 +267,7 @@ to masquerade as migration regressions:
 
    `apps/desktop` failed even when it was the only package running, because the
    contention is _inside_ it: vitest ran its files concurrently while
-   `bb-process.test.ts` allows the node process it spawns just `timeoutMs: 1_000`
+   `patcher-process.test.ts` allows the node process it spawns just `timeoutMs: 1_000`
    to print `ready`, and a Node cold start alone can exceed that. The test
    writes a temp script and spawns `process.execPath`, so no package manager or
    `node_modules` layout is involved. That workaround used to be a
@@ -294,7 +297,7 @@ the _project's_ `typescript` alias to it and linked `@typescript/old` →
 Two consequences, the second far worse than the first:
 
 - `rollup-plugin-dts` does a bare `import ts from "typescript"` and crashed, so
-  `@bb/plugin-sdk` and `packages/bb-app` could not build.
+  `@patcher/plugin-sdk` and `packages/patcher-app` could not build.
 - The wrapper's `lib/tsc.js` is `require("@typescript/old/lib/tsc.js")`, so the
   wrapper's `tsc` **exited 0 having done nothing**. Typechecks only stayed real
   because `typescript-7` won the `tsc` bin-name collision in `node_modules/.bin`.
@@ -325,7 +328,7 @@ no downgrades, but enough to break two things and silently change a third:
 - `@tailwindcss/node`, `@tailwindcss/oxide` and `tailwindcss` 4.3.0 → 4.3.3,
   which no longer equalled `PLUGIN_TOOLCHAIN_PINS` in
   `packages/plugin-build/src/toolchain.ts`. That comparison is exact on purpose,
-  so bb decided the local toolchain was unusable and tried to _download_ one —
+  so Patcher decided the local toolchain was unusable and tried to _download_ one —
   caught by the test asserting a resolvable toolchain is never fetched.
 
 Note the pattern in the last two: **an exact version pin held in one place only
@@ -390,7 +393,7 @@ in `packages/plugin-sdk`: `@hugeicons/core-free-icons`, `@hugeicons/react`,
 `class-variance-authority`, `clsx`, `tailwind-merge` and `vaul`. They are now
 declared as `plugin-sdk` devDependencies at the same ranges the scaffold itself
 generates (`PLUGIN_STARTER_DEPENDENCIES` and
-`PLUGIN_STARTER_TYPE_DEPENDENCIES`), which restores `@bb/templates` to its
+`PLUGIN_STARTER_TYPE_DEPENDENCIES`), which restores `@patcher/templates` to its
 baseline 23/23.
 
 Expect more of these wherever a package imports something it never declared.
@@ -406,7 +409,7 @@ working:
   served from a cache that ignored the lockfile. Replaced with `bun.lock`, and
   root `package.json` was added to the inputs of the blocks that previously
   relied on `pnpm-workspace.yaml`, since the workspace definition moved there.
-- **`scripts/bb-dev-app`** (a shell script, so it escaped the first sweep over
+- **`scripts/patcher-dev-app`** (a shell script, so it escaped the first sweep over
   `*.ts`/`*.mjs`/`*.json`) probed `node_modules/.pnpm` to decide whether Electron
   needed installing, and launched dev sessions under `screen` with `pnpm run dev`.
   The store path is now `node_modules/.bun`.
@@ -414,7 +417,7 @@ working:
 The general lesson for the sweep: grep the whole tree, not just the extensions
 you expect. `pnpm` also survived in the `packageManager`-refusal path — pnpm now
 declines to run at all ("This project is configured to use bun"), which is what
-surfaced a test that spawned `pnpm run --silent bb` directly.
+surfaced a test that spawned `pnpm run --silent patcher` directly.
 
 ### Translation table
 
@@ -434,37 +437,37 @@ surfaced a test that spawned `pnpm run --silent bb` directly.
 by default, which would swallow a dev server's logs.
 
 Two things stayed on other tools deliberately. `packages/plugin-build/src/toolchain.ts`
-still installs bb's pinned plugin-build packages with **npm** into a private
+still installs Patcher's pinned plugin-build packages with **npm** into a private
 staging directory — that is product behaviour for building plugins, not
-repository tooling. And `bb-app-artifact.ts` still packs with `npm pack`, whose
+repository tooling. And `patcher-app-artifact.ts` still packs with `npm pack`, whose
 stdout contract the caller parses.
 
 ### Result against the baseline
 
-| Check                                 | pnpm baseline                     | bun                         |
-| ------------------------------------- | --------------------------------- | --------------------------- |
-| install, cold                         | 1m 44s                            | 48.6s                       |
-| `turbo run typecheck`                 | 58/58 tasks, 0 errors             | 58/58 tasks, 0 errors       |
-| `@bb/host-daemon` tests alone         | 46/46 files, 542/542              | 46/46 files, 542/542        |
-| `@bb/server` tests alone              | 161/161 files                     | 161/161 files               |
-| `@bb/templates` tests alone           | 23/23                             | 23/23                       |
-| `@bb/cli` tests alone                 | —                                 | 407/407                     |
-| `@bb/host-watcher` tests alone        | —                                 | 39/39                       |
-| `@bb/desktop` tests, `--maxWorkers=2` | not reached (run aborted earlier) | 32/32 files, 232/232        |
-| generated plugin runtime manifest     | —                                 | byte-identical to committed |
-| full suite, max parallelism           | spawn-heavy timeouts              | same timeouts               |
+| Check                                      | pnpm baseline                     | bun                         |
+| ------------------------------------------ | --------------------------------- | --------------------------- |
+| install, cold                              | 1m 44s                            | 48.6s                       |
+| `turbo run typecheck`                      | 58/58 tasks, 0 errors             | 58/58 tasks, 0 errors       |
+| `@patcher/host-daemon` tests alone         | 46/46 files, 542/542              | 46/46 files, 542/542        |
+| `@patcher/server` tests alone              | 161/161 files                     | 161/161 files               |
+| `@patcher/templates` tests alone           | 23/23                             | 23/23                       |
+| `@patcher/cli` tests alone                 | —                                 | 407/407                     |
+| `@patcher/host-watcher` tests alone        | —                                 | 39/39                       |
+| `@patcher/desktop` tests, `--maxWorkers=2` | not reached (run aborted earlier) | 32/32 files, 232/232        |
+| generated plugin runtime manifest          | —                                 | byte-identical to committed |
+| full suite, max parallelism                | spawn-heavy timeouts              | same timeouts               |
 
 Packages that need bounded parallelism to pass — every one spawns processes or
 boots whole stacks against a per-test timeout:
 
-| Package              | bun, `--maxWorkers=2`               |
-| -------------------- | ----------------------------------- |
-| `@bb/host-workspace` | 8/8 files                           |
-| `tests/integration`  | 25/25 files                         |
-| `@bb/desktop`        | 32/32 files, 232/232                |
-| `@bb/agent-runtime`  | 906/907 (the macOS pipe test below) |
+| Package                   | bun, `--maxWorkers=2`               |
+| ------------------------- | ----------------------------------- |
+| `@patcher/host-workspace` | 8/8 files                           |
+| `tests/integration`       | 25/25 files                         |
+| `@patcher/desktop`        | 32/32 files, 232/232                |
+| `@patcher/agent-runtime`  | 906/907 (the macOS pipe test below) |
 
-Inside `@bb/server` the same sensitivity is concentrated in
+Inside `@patcher/server` the same sensitivity is concentrated in
 `test/app/install-machine-script.test.ts`, which spawns real shells against a
 5s per-test timeout: running the package's 162 files together, one of its 14
 tests times out (not always the same one), and the file is 14/14 alone. Re-run
@@ -483,8 +486,8 @@ Reproduce with:
 bun install
 bunx turbo run typecheck
 env -u CLAUDE_CONFIG_DIR bunx turbo run test --concurrency=4 \
-  --filter='!@bb/desktop'
-env -u CLAUDE_CONFIG_DIR bun run --filter @bb/desktop --elide-lines=0 \
+  --filter='!@patcher/desktop'
+env -u CLAUDE_CONFIG_DIR bun run --filter @patcher/desktop --elide-lines=0 \
   test -- --maxWorkers=2
 ```
 
@@ -498,7 +501,7 @@ This was the migration's one deep finding, and it is a product bug rather than a
 test artifact.
 
 A plugin root lives anywhere on disk — a `path:` install, a git clone in the data
-dir, a scaffold in a temp directory. Its `server.ts` imports `@bb/plugin-sdk`,
+dir, a scaffold in a temp directory. Its `server.ts` imports `@patcher/plugin-sdk`,
 and nothing along that directory's own chain resolves the specifier. A packaged
 server handles this by shipping `plugin-sdk-runtime.js` next to the server bundle
 and aliasing to it. A source checkout had no such branch: the old comment said it
@@ -509,8 +512,8 @@ package in `node_modules/.pnpm/node_modules` — pnpm's hidden hoisted directory
 which holds every installed package and sits at a path the resolver probes from
 anywhere. That is a package-manager side effect, not a resolution guarantee.
 Under bun's isolated linker it does not exist, so every plugin loaded from
-outside the repo failed with `Cannot find module '@bb/plugin-sdk'`, which
-surfaced as 24 failures across four `@bb/server` test files.
+outside the repo failed with `Cannot find module '@patcher/plugin-sdk'`, which
+surfaced as 24 failures across four `@patcher/server` test files.
 
 Two things were needed:
 
@@ -525,16 +528,16 @@ Two things were needed:
 2. **Fixtures that load a plugin from source now link the server's
    `node_modules` into the plugin root.** Non-external imports (`zod`) are the
    plugin's own dependency by design — `PLUGIN_SERVER_EXTERNALS` deliberately
-   holds only `@bb/plugin-sdk` and `better-sqlite3` — so a fixture that skips a
+   holds only `@patcher/plugin-sdk` and `better-sqlite3` — so a fixture that skips a
    dependency install has to provide them. Linking makes that explicit instead of
    depending on the resolver's layout. The link is idempotent: several fixtures
    are rewritten in place to simulate a new tip.
 
 Worth knowing for the browser work ahead: this is exactly the class of bug the
 plugin platform will keep producing, because a plugin's module graph is resolved
-against a directory nobody controls. `@bb/server` is now 161/161 files green.
+against a directory nobody controls. `@patcher/server` is now 161/161 files green.
 
-Separately, `@bb/app`'s `vite.config.ts` needed an explicit `UserConfig`
+Separately, `@patcher/app`'s `vite.config.ts` needed an explicit `UserConfig`
 annotation on the exported `sharedViteConfig`: its inferred type named a `Plugin`
 type from whichever `rolldown` copy a transitive vite pulled in, which TypeScript
 rejects as non-portable (TS2883). Annotating is version-robust; pinning `vite`
@@ -565,19 +568,24 @@ is now 0 errors, 151 warnings — the warning count the baseline had.
 ### Finding 8: a global override cannot express "only this major"
 
 Pinning the test toolchain the same way looked correct and was not. `overrides`
-applies to every consumer, and this workspace runs **two majors on purpose**:
-most packages declare `vitest@^4.1.1`, but `packages/tunnel-client` and
-`packages/tunnel-contract` declare `^3.0.0` (the baseline resolved both 3.2.6 and
-4.1.1). A blanket `"vitest": "4.1.1"` dragged those two across a major boundary
-and broke `@bb/tunnel-contract`'s typecheck — `@types/node` had reached it through
-vitest 3's graph, so `Buffer` stopped existing. `vite` has the same shape (6.x
-transitively, 8.x declared).
+applies to every consumer, and at the time this workspace ran **two majors on
+purpose**: most packages declared `vitest@^4.1.1`, but `packages/tunnel-client`
+and `packages/tunnel-contract` declared `^3.0.0` (the baseline resolved both
+3.2.6 and 4.1.1). A blanket `"vitest": "4.1.1"` dragged those two across a major
+boundary and broke `packages/tunnel-contract`'s typecheck — `@types/node` had
+reached it through vitest 3's graph, so `Buffer` stopped existing. `vite` has the
+same shape (6.x transitively, 8.x declared).
 
 The pins for `vitest` and `vite` were dropped. What they were meant to achieve
 happened anyway: once installed, the lockfile records `vitest@4.1.1` and
-`vite@8.0.12` for the `^4`/`^8` consumers while `tunnel-*` keeps vitest 3, which
+`vite@8.0.12` for the `^4`/`^8` consumers while `tunnel-*` kept vitest 3, which
 is exactly the baseline's shape. `jsdom` and `msw` stayed pinned — each has a
 single declared major across the workspace, so there is no boundary to cross.
+
+**Since the Patcher rename**, the two `tunnel-*` packages are gone with the
+cloud and every one of the workspace's remaining `vitest` declarations is
+`^4.1.1`, so the boundary this finding is about no longer exists. The rule below
+is why it is still worth reading, not the vitest example.
 
 Rule for later: check every declared range in the workspace before adding an
 override, not just the one that drifted.
@@ -587,7 +595,7 @@ override, not just the one that drifted.
 `bun install` re-extracts `better-sqlite3` from its cache, which restores the
 package's prebuilt binary and discards whatever ABI the local Node needs. Every
 `better-sqlite3` consumer then fails at `new Database(...)` with
-`NODE_MODULE_VERSION 127 … requires 141` — 124 of `@bb/server`'s 161 test files at
+`NODE_MODULE_VERSION 127 … requires 141` — 124 of `@patcher/server`'s 161 test files at
 once, which looks like a catastrophic regression and is not one.
 
 The repo already ships the fix (`scripts/ensure-native-modules.mjs`, which the
@@ -602,7 +610,7 @@ Observed on macOS 26.5.1 (arm64): after the fix above had run,
 `bun dev:desktop` died with
 
 ```
-scripts/bb-dev-app: line 318: 70660 Killed: 9   node .../ensure-native-modules.mjs
+scripts/patcher-dev-app: line 318: 70660 Killed: 9   node .../ensure-native-modules.mjs
 error: script "dev:desktop" exited with code 137
 ```
 
@@ -631,7 +639,7 @@ rather than the machine:
 
 - **It is not catchable.** The kill lands on whichever process loads the module,
   which was `ensure-native-modules.mjs` itself — the repair tool died to the
-  thing it exists to repair, taking `bb-dev-app` with it.
+  thing it exists to repair, taking `patcher-dev-app` with it.
 - **It survives reinstalls.** Re-running the install writes in place again.
 
 `scripts/ensure-native-modules.mjs` now does its **first** verification in a
@@ -658,7 +666,7 @@ cp $F $F.new && mv $F.new $F
   "bounds provider stderr while data arrives without a newline" fails
   deterministically on macOS. Its fixture writes 100 KB to stderr and calls
   `process.exit(42)` on the next line; the test then asserts the captured stderr
-  still ends with `stderr-tail`. Reproduced with plain `node` — no bb code, no
+  still ends with `stderr-tail`. Reproduced with plain `node` — no Patcher code, no
   vitest, no package manager — the parent receives exactly 65536 bytes (the pipe
   buffer) and the tail is gone, 3/3. `process.exit` does not flush a pending
   async pipe write. The bounding assertion the test exists for still passes; only
@@ -694,15 +702,15 @@ obstacle sits behind the first even if it lifts: Bun reports
 `scripts/ensure-native-modules.mjs` build cannot satisfy both runtimes.
 
 This is not confined to the server. `packages/plugin-sdk` depends on
-better-sqlite3 because `bb.storage.database()` hands the plugin a live
+better-sqlite3 because `patcher.storage.database()` hands the plugin a live
 `Database` — synchronous, with statement objects and iterators, so it is also
 the one part of the plugin API that cannot be proxied over RPC. Two consequences
 for Phase 7:
 
-- A Bun plugin host has to drop `bb.storage.database()` or re-point it at
+- A Bun plugin host has to drop `patcher.storage.database()` or re-point it at
   `bun:sqlite`, which changes a plugin-facing type
   (`backend-contract.ts` imports `Database` from better-sqlite3).
-- `@bb/plugin-sdk/testing` constructs the same handle, so a plugin author who
+- `@patcher/plugin-sdk/testing` constructs the same handle, so a plugin author who
   runs their suite under `bun test` hits the refusal today, host process or not.
 
 ### node-pty: loads, then the master fd disappears
@@ -741,7 +749,7 @@ sometimes `/bin/sh` that then died, sometimes still stuck as node-pty's
 
 Bun is not a candidate for a runtime that needs either module. It stays viable
 only for a plugin host that reaches storage and terminals **over RPC**, and only
-once `bb.storage.database()` is redefined, since that call is a native handle by
+once `patcher.storage.database()` is redefined, since that call is a native handle by
 contract. The narrower Phase 7 question — a Bun host for plugin code alone — is
 not closed by this, but it now costs a plugin-facing contract change, so it is
 no longer free.
@@ -769,7 +777,7 @@ on Node and 3/8 on Bun. Bun issue 4290 is the one to watch.
   the trust tier deciding how much a plugin is sandboxed rather than which
   runtime it gets — two runtimes would be two implementations of the same host,
   and the fake-vs-real host taught this repo what that costs. Node is also what
-  keeps `bb.storage.database()` intact: the plugin's own process opens its
+  keeps `patcher.storage.database()` intact: the plugin's own process opens its
   SQLite file directly, which no transport could have carried and Bun could not
   have opened at all.
   Process topology: **plugins share one process by default**, settled by
@@ -779,13 +787,13 @@ on Node and 3/8 on Bun. Bun issue 4290 is the one to watch.
   A bundled plugin host cost **~204MB** before it loaded any plugin, against
   ~48MB for a bare Node process; thirteen of those at one process each is
   ~2.7GB. It now costs **~84MB**, and almost all of the difference was two
-  imports that nothing needed at startup: `@bb/sdk` builds the entire public
+  imports that nothing needed at startup: `@patcher/sdk` builds the entire public
   API client — every route, every zod schema — at import time (~100MB), and
-  `@bb/domain`'s index runs every schema in the package (~57MB) when three
+  `@patcher/domain`'s index runs every schema in the package (~57MB) when three
   subpath imports cover what the plugin API actually uses. The SDK is deferred
   behind a literal `require`, which keeps `getSdk()` synchronous: the bundler
   folds the module in and initialises it on the first call, so a plugin that
-  never touches `bb.sdk` never pays for it.
+  never touches `patcher.sdk` never pays for it.
   The protocol does not depend on the choice — it is one logical channel per
   plugin either way — so `placement` in `plugin-supervisor.ts` keeps it a
   one-line policy, and `ISOLATED_PLACEMENT` is there for a plugin that has

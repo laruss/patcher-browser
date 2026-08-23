@@ -1,4 +1,4 @@
-import type { JsonObject, ThreadEventScope } from "@bb/domain";
+import type { JsonObject, ThreadEventScope } from "@patcher/domain";
 import type {
   EventProjectionApprovalLifecycleStatus,
   EventProjectionMessage,

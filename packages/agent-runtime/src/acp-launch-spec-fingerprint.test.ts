@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 import { fingerprintAcpLaunchSpec } from "./acp-launch-spec-fingerprint.js";
 
 describe("fingerprintAcpLaunchSpec", () => {

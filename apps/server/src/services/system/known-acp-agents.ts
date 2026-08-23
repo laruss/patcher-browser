@@ -1,6 +1,6 @@
-import { buildAcpProviderInfo } from "@bb/agent-providers";
-import type { ProviderInfo } from "@bb/domain";
-import type { HostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+import { buildAcpProviderInfo } from "@patcher/agent-providers";
+import type { ProviderInfo } from "@patcher/domain";
+import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 
 export interface KnownAcpAgent extends HostDaemonAcpLaunchSpec {
   id: string;

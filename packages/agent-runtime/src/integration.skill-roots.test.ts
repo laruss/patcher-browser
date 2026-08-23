@@ -19,8 +19,12 @@ import { promptTextInput } from "./test/prompt-input.js";
 type SkillRootProviderId = "claude-code" | "codex" | "pi";
 type DirectorySkillRootProviderId = "codex" | "pi";
 
-const providers: readonly SkillRootProviderId[] = ["codex", "claude-code", "pi"];
-const skillName = "bb-runtime-skill-integration";
+const providers: readonly SkillRootProviderId[] = [
+  "codex",
+  "claude-code",
+  "pi",
+];
+const skillName = "patcher-runtime-skill-integration";
 
 interface CreateSkillMarkdownArgs {
   token: string;
@@ -47,10 +51,10 @@ function createSkillMarkdown(args: CreateSkillMarkdownArgs): string {
   return [
     "---",
     `name: ${skillName}`,
-    "description: Use when asked for the BB runtime dynamic skill integration token.",
+    "description: Use when asked for the Patcher runtime dynamic skill integration token.",
     "---",
     "",
-    "# BB Runtime Skill Integration",
+    "# Patcher Runtime Skill Integration",
     "",
     "When asked for the runtime skill integration token, reply with exactly:",
     args.token,
@@ -80,10 +84,10 @@ function createClaudeSkillPlugin(
         $schema: "https://anthropic.com/claude-code/plugin.schema.json",
         name: skillName,
         version: "0.1.0",
-        description: "BB runtime dynamic skill integration test plugin.",
+        description: "Patcher runtime dynamic skill integration test plugin.",
         author: {
-          name: "BB Integration Tests",
-          email: "bb@example.com",
+          name: "Patcher Integration Tests",
+          email: "patcher@example.com",
         },
         skills: ["./"],
       },
@@ -137,9 +141,9 @@ for (const providerId of providers) {
   describe.concurrent(`${providerId} provider skill roots`, () => {
     it("uses a runtime-injected skill root", async () => {
       const workspacePath = mkdtempSync(
-        join(tmpdir(), `bb-integ-skill-${providerId}-`),
+        join(tmpdir(), `patcher-integ-skill-${providerId}-`),
       );
-      const token = `BB_SKILL_TOKEN_${randomUUID()
+      const token = `PATCHER_SKILL_TOKEN_${randomUUID()
         .replaceAll("-", "")
         .toUpperCase()}`;
       const skillRoot = createProviderSkillRoot({

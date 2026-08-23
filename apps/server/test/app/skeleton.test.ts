@@ -7,9 +7,9 @@ import {
   getProjectExecutionDefaults,
   hosts,
   type DbConnection,
-} from "@bb/db";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+} from "@patcher/db";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import { initDb } from "../../src/db.js";
 import { createApp } from "../../src/server.js";
 import { readJson } from "../helpers/json.js";
@@ -61,7 +61,7 @@ describe("server skeleton", () => {
   it("serves install version metadata without auth", async () => {
     const harness = await createTestAppHarness();
     const { app } = createApp(harness.deps, {
-      bbAppArtifactService: {
+      patcherAppArtifactService: {
         getTarballPath: async () => "/unused",
         getVersion: async () => "3.2.1-test",
       },
@@ -78,20 +78,47 @@ describe("server skeleton", () => {
     }
   });
 
-  it("serves the cached server bb-app tarball without auth", async () => {
+  it("serves the cached server patcher-app tarball without auth", async () => {
     const harness = await createTestAppHarness();
     const tarballPath = join(harness.config.dataDir, "fixture.tgz");
     writeFileSync(tarballPath, "tarball-bytes");
     const getTarballPath = vi.fn(async () => tarballPath);
     const { app } = createApp(harness.deps, {
-      bbAppArtifactService: { getTarballPath, getVersion: async () => "test" },
+      patcherAppArtifactService: {
+        getTarballPath,
+        getVersion: async () => "test",
+      },
     });
     try {
-      const response = await app.request("/install/bb-app.tgz");
+      const response = await app.request("/install/patcher-app.tgz");
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("application/gzip");
       expect(await response.text()).toBe("tarball-bytes");
       expect(getTarballPath).toHaveBeenCalledOnce();
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  it("tells a pre-rename daemon to re-enrol instead of 404ing its artifact", async () => {
+    const harness = await createTestAppHarness();
+    const tarballPath = join(harness.config.dataDir, "fixture.tgz");
+    writeFileSync(tarballPath, "tarball-bytes");
+    const getTarballPath = vi.fn(async () => tarballPath);
+    const { app } = createApp(harness.deps, {
+      patcherAppArtifactService: {
+        getTarballPath,
+        getVersion: async () => "test",
+      },
+    });
+    try {
+      const response = await app.request("/install/bb-app.tgz");
+      expect(response.status).toBe(410);
+      expect(await response.text()).toContain("enrol the machine again");
+      // Emphatically not the tarball: installing a package now named
+      // patcher-app would leave the bb-app bin the service invokes in place,
+      // and the daemon would restart into the same version that asked.
+      expect(getTarballPath).not.toHaveBeenCalled();
     } finally {
       await harness.cleanup();
     }
@@ -117,7 +144,6 @@ describe("server skeleton", () => {
           instanceId: "instance-1",
           hostName: "Host",
           hostType: "persistent",
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-data",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
@@ -248,9 +274,9 @@ describe("server skeleton", () => {
   });
 
   it("warns when startup finds future-dated applied migrations", () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "bb-server-db-startup-"));
+    const dataDir = mkdtempSync(join(tmpdir(), "patcher-server-db-startup-"));
     try {
-      const dbPath = join(dataDir, "bb.db");
+      const dbPath = join(dataDir, "patcher.db");
       const seedDb = initDb(dbPath);
       let futureCreatedAt: number;
       try {

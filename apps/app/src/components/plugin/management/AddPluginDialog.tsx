@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { InstalledPlugin } from "@bb/server-contract";
-import { Button } from "@bb/shared-ui/button";
+import type { InstalledPlugin } from "@patcher/server-contract";
+import { Button } from "@patcher/shared-ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
-import { Icon } from "@bb/shared-ui/icon";
-import { Input } from "@bb/shared-ui/input";
+} from "@patcher/shared-ui/dialog";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
 import { pluginIconName } from "@/components/plugin/PluginIcon";
 import { appToast } from "@/components/ui/app-toast.js";
 import { pluginAdminErrorMessage } from "@/lib/plugin-admin-error";
@@ -130,7 +130,7 @@ function AddPluginDialogContent({
         </DialogTitle>
         <DialogDescription>
           {initial !== null
-            ? "Install this official plugin, bundled with BB."
+            ? "Install this official plugin, bundled with Patcher."
             : "Install from npm, a Git repository, or a local path."}
         </DialogDescription>
       </DialogHeader>
@@ -153,7 +153,7 @@ function AddPluginDialogContent({
             <Input
               value={sourceText}
               autoFocus
-              placeholder="https://github.com/owner/bb-plugin-name"
+              placeholder="https://github.com/owner/patcher-plugin-name"
               aria-label="Plugin source"
               className="h-8 font-mono text-xs"
               onChange={(event) => setSourceText(event.target.value)}

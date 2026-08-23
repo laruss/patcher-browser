@@ -8,7 +8,7 @@ import {
   listStoredEventRowsInRange,
   requireThreadLifecycleEventApplied,
   type DbQueryConnection,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   clientTurnRequestIdSchema,
   resolvedThreadExecutionOptionsSchema,
@@ -20,12 +20,12 @@ import {
   type ResolvedThreadExecutionOptions,
   type Thread,
   type ThreadEvent,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ContinueAfterProviderRateLimitResponse,
   ProviderRateLimitRecoveryReason,
   ProviderRateLimitRecoveryStatus,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../../errors.js";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import {

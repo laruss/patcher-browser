@@ -57,7 +57,7 @@ describe("createAppVersionService", () => {
       latestVersion: null,
       source: "npm",
       updateAvailable: false,
-      upgradeCommand: "npx bb-app@latest",
+      upgradeCommand: "npx patcher-app@latest",
     });
     expect(calls).toEqual([]);
   });
@@ -73,7 +73,7 @@ describe("createAppVersionService", () => {
     expect(response.latestVersion).toBe("0.0.6");
     expect(response.updateAvailable).toBe(true);
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe("https://registry.npmjs.org/bb-app/latest");
+    expect(calls[0]?.url).toBe("https://registry.npmjs.org/patcher-app/latest");
   });
 
   it("reports updateAvailable=false when versions are equal", async () => {
@@ -115,7 +115,7 @@ describe("createAppVersionService", () => {
       latestVersion: null,
       source: "npm",
       updateAvailable: false,
-      upgradeCommand: "npx bb-app@latest",
+      upgradeCommand: "npx patcher-app@latest",
     });
     expect(warn).toHaveBeenCalled();
   });

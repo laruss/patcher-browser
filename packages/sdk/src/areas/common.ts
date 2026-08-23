@@ -1,8 +1,8 @@
-import type { BbSdkContext, BbSdkTransport } from "../transport.js";
+import type { PatcherSdkContext, PatcherSdkTransport } from "../transport.js";
 
 export interface CreateSdkAreaArgs {
-  context: BbSdkContext;
-  transport: BbSdkTransport;
+  context: PatcherSdkContext;
+  transport: PatcherSdkTransport;
 }
 
 type SignalRequestOptions = { init: { signal: AbortSignal } };

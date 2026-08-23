@@ -1,5 +1,8 @@
-import type { RawDiffFileStat } from "@bb/domain";
-import { type DiffFileEntry, letterToChangeKind } from "@bb/server-contract";
+import type { RawDiffFileStat } from "@patcher/domain";
+import {
+  type DiffFileEntry,
+  letterToChangeKind,
+} from "@patcher/server-contract";
 import {
   DIFF_FILE_AUTO_LOAD_MAX_CHANGED_LINES,
   DIFF_FILE_TOO_LARGE_CHANGED_LINES,

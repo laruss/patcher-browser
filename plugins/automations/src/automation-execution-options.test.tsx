@@ -2,16 +2,16 @@
 
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AutomationExecutionOptionsResponse } from "bb-plugin-automations/rpc-types";
+import type { AutomationExecutionOptionsResponse } from "patcher-plugin-automations/rpc-types";
 
 const { rpc, rpcCall } = vi.hoisted(() => {
   const call = vi.fn();
   return { rpc: { call }, rpcCall: call };
 });
 
-vi.mock("@bb/plugin-sdk/app", () => ({
+vi.mock("@patcher/plugin-sdk/app", () => ({
   definePluginApp: vi.fn((setup) => ({ setup })),
-  useBbNavigate: vi.fn(),
+  usePatcherNavigate: vi.fn(),
   useRealtime: vi.fn(),
   useRpc: () => rpc,
 }));

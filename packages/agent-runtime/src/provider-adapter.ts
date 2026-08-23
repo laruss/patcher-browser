@@ -13,13 +13,13 @@ import type {
   RuntimeThreadExecutionOptions,
   ServiceTier,
   ThreadEvent,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ProviderInboundRequest,
   ProviderRuntimeEvent,
 } from "./runtime-json-rpc.js";
 import type { AgentRuntimeSkillRoot } from "./types.js";
-import type { HostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 
 export interface ProviderTranslationContext {
   threadId?: string;
@@ -80,7 +80,7 @@ export interface DecodedToolCallRequest {
   requestId: string | number;
   providerThreadId: string;
   /**
-   * Non-empty BB turn id when known. Use null as the canonical unresolved
+   * Non-empty Patcher turn id when known. Use null as the canonical unresolved
    * value so the runtime can resolve from the active turn; empty strings are
    * malformed adapter output.
    */
@@ -96,7 +96,7 @@ export interface DecodedInteractiveRequest {
   method: string;
   providerThreadId: string;
   /**
-   * Non-empty BB turn id when known. Use null as the canonical unresolved
+   * Non-empty Patcher turn id when known. Use null as the canonical unresolved
    * value so the runtime can resolve from the active turn; empty strings are
    * malformed adapter output.
    */
@@ -329,7 +329,7 @@ export interface ProviderAdapter {
    * Called when a thread detaches because its provider process exited or the
    * runtime is shutting down. Returns events reconciling adapter state that
    * cannot survive the process — e.g. open background tasks settled as
-   * interrupted. Events must carry the real bb threadId; the runtime emits
+   * interrupted. Events must carry the real Patcher threadId; the runtime emits
    * them before clearing the thread's runtime state.
    */
   buildThreadDetachedEvents?(args: { threadId: string }): ThreadEvent[];

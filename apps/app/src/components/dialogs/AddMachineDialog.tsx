@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import type { Host } from "@bb/domain";
-import { z } from "zod";
-import { Button } from "@bb/shared-ui/button";
+import type { Host } from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,57 +9,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
-import { Icon } from "@bb/shared-ui/icon";
+} from "@patcher/shared-ui/dialog";
+import { Icon } from "@patcher/shared-ui/icon";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { useHosts } from "@/hooks/queries/host-queries";
-import { BbHttpError, sdk } from "@/lib/sdk";
+import { sdk } from "@/lib/sdk";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 
 interface AddMachineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   serverUrl: string | null;
-}
-
-const connectMachineCodeSchema = z.object({
-  code: z.string(),
-  expiresAt: z.number(),
-  serverUrl: z.string(),
-});
-
-const pluginRpcErrorEnvelopeSchema = z.object({
-  error: z.object({ message: z.string() }),
-});
-
-type ConnectMachineCode = z.infer<typeof connectMachineCodeSchema>;
-
-function isNotPairedRpcError(error: BbHttpError): boolean {
-  const envelope = pluginRpcErrorEnvelopeSchema.safeParse(error.body);
-  return envelope.success && envelope.data.error.message === "not_paired";
-}
-
-async function createConnectMachineCode(): Promise<ConnectMachineCode | null> {
-  try {
-    return await sdk.plugins.callRpc({
-      pluginId: "connect",
-      method: "createMachineCode",
-      input: null,
-      outputSchema: connectMachineCodeSchema,
-    });
-  } catch (error) {
-    if (
-      error instanceof BbHttpError &&
-      (error.code === "not_paired" ||
-        isNotPairedRpcError(error) ||
-        error.status === 404 ||
-        error.status === 422 ||
-        error.status === 503)
-    ) {
-      return null;
-    }
-    throw error;
-  }
 }
 
 /**
@@ -99,24 +58,18 @@ function formatCountdown(remainingMs: number): string {
  * The pairing one-liner. S9 ships the install script this command downloads;
  * the flag names and order here are the contract it must honor
  * (`--join-code`, `--host-id`, `--server`, mapping onto
- * `bb-app host-daemon join`).
+ * `patcher-app host-daemon join`).
  *
- * With a machine code (tunnel pairing) the whole command targets the connect
- * serverUrl the code was minted for. Otherwise it uses the direct server URL
- * reported by system config, which may differ from the frontend origin in
- * source development.
+ * Uses the direct server URL reported by system config, which may differ from
+ * the frontend origin in source development.
  */
 function pairingCommand(
   joinCode: string,
   hostId: string,
-  machineCode: ConnectMachineCode | null,
-  directServerUrl: string | null,
+  serverUrl: string | null,
 ): string | null {
-  const serverUrl = machineCode?.serverUrl ?? directServerUrl;
   if (serverUrl === null) return null;
-  const machineFlag =
-    machineCode === null ? "" : ` --machine-code ${machineCode.code}`;
-  return `curl -fsSL ${serverUrl}/install.sh | sh -s -- --join-code ${joinCode} --host-id ${hostId} --server ${serverUrl}${machineFlag}`;
+  return `curl -fsSL ${serverUrl}/install.sh | sh -s -- --join-code ${joinCode} --host-id ${hostId} --server ${serverUrl}`;
 }
 
 function AddMachineDialogContent({
@@ -129,13 +82,7 @@ function AddMachineDialogContent({
   const hostsQuery = useHosts();
   const mintJoinCode = useMutation({
     meta: { showErrorToast: false },
-    mutationFn: async () => {
-      const [join, machine] = await Promise.all([
-        sdk.hosts.createJoinCode(),
-        createConnectMachineCode(),
-      ]);
-      return { join, machine };
-    },
+    mutationFn: () => sdk.hosts.createJoinCode(),
   });
   const mint = mintJoinCode.mutate;
   useEffect(() => {
@@ -170,22 +117,13 @@ function AddMachineDialogContent({
     return () => window.clearTimeout(timeout);
   }, [copied]);
 
-  const joinCode = mintJoinCode.data?.join ?? null;
-  const machineCode = mintJoinCode.data?.machine ?? null;
-  const expiresAt =
-    joinCode === null
-      ? null
-      : Math.min(joinCode.expiresAt, machineCode?.expiresAt ?? Infinity);
+  const joinCode = mintJoinCode.data ?? null;
+  const expiresAt = joinCode?.expiresAt ?? null;
   const remainingMs = expiresAt !== null ? expiresAt - now : null;
   const expired = remainingMs !== null && remainingMs <= 0;
   const command =
     joinCode !== null
-      ? pairingCommand(
-          joinCode.joinCode,
-          joinCode.hostId,
-          machineCode,
-          serverUrl,
-        )
+      ? pairingCommand(joinCode.joinCode, joinCode.hostId, serverUrl)
       : null;
 
   return (
@@ -258,7 +196,7 @@ function AddMachineDialogContent({
               ) : null}
             </div>
             <p className="text-xs text-subtle-foreground/75">
-              This installs bb, enrolls the daemon, and configures it to
+              This installs Patcher, enrolls the daemon, and configures it to
               reconnect automatically on the other machine.
             </p>
           </div>

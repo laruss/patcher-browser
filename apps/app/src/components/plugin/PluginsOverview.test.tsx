@@ -9,12 +9,12 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import type { SystemConfigResponse } from "@bb/server-contract";
+import type { SystemConfigResponse } from "@patcher/server-contract";
 import {
   defaultAppSettings,
   defaultAppTheme,
   defaultExperiments,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { focusManager } from "@tanstack/react-query";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
@@ -39,11 +39,11 @@ function systemConfig(): SystemConfigResponse {
     pluginThemes: [],
     featureFlags: { placeholder: false, timelineWindowEventBudget: 1_500 },
     hostDaemonPort: null,
-    serverUrl: "http://localhost:38886",
+    serverUrl: "http://localhost:38986",
     primaryHostId: null,
     primaryHostPlatform: null,
     voiceTranscriptionEnabled: false,
-    dataDir: "/tmp/bb-test",
+    dataDir: "/tmp/patcher-test",
   };
 }
 
@@ -79,10 +79,11 @@ const GITHUB_CATALOG_ENTRY = {
   entryId: "github",
   pluginId: "github",
   displayName: "GitHub",
-  description: "Browse GitHub issues and pull requests in BB.",
+  description: "Browse GitHub issues and pull requests in Patcher.",
   icon: "Github",
   category: "Developer tools",
-  source: "github-release:ymichael/bb/bb-plugin-github-{version}.tgz@^0.1.0",
+  source:
+    "github-release:ymichael/patcher/patcher-plugin-github-{version}.tgz@^0.1.0",
   installed: false,
   compatible: true,
   incompatibleReason: null,
@@ -160,7 +161,7 @@ function installFetch(plugins: readonly unknown[] = [AUTOMATIONS_PLUGIN]) {
             icon: GITHUB_CATALOG_ENTRY.icon,
             provenance: "catalog",
             catalogEntryId: GITHUB_CATALOG_ENTRY.entryId,
-            sourceDisplay: "BB Official · GitHub",
+            sourceDisplay: "Patcher Official · GitHub",
           },
         });
       }
@@ -515,7 +516,7 @@ describe("PluginsOverview", () => {
     }
   });
 
-  it("sorts enabled plugins before inactive plugins and BB Official first within enabled", async () => {
+  it("sorts enabled plugins before inactive plugins and Patcher Official first within enabled", async () => {
     installFetch([
       {
         ...AUTOMATIONS_PLUGIN,
@@ -569,7 +570,7 @@ describe("PluginsOverview", () => {
       "plugin-row-inactive-local",
       "plugin-row-inactive-official",
     ]);
-    const officialPills = screen.getAllByText("BB Official");
+    const officialPills = screen.getAllByText("Patcher Official");
     expect(officialPills).toHaveLength(3);
     expect(officialPills[0]?.parentElement?.className).toContain("rounded-md");
     expect(officialPills[0]?.parentElement?.className).toContain(
@@ -622,7 +623,7 @@ describe("PluginsOverview", () => {
     ]);
   });
 
-  it("filters installed plugins by type, treating builtin and catalog as BB Official", async () => {
+  it("filters installed plugins by type, treating builtin and catalog as Patcher Official", async () => {
     installFetch([
       { ...AUTOMATIONS_PLUGIN, id: "builtin-one", name: "Builtin One" },
       {
@@ -666,7 +667,7 @@ describe("PluginsOverview", () => {
     expect(screen.queryByRole("menuitemcheckbox", { name: "All" })).toBeNull();
 
     fireEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: "BB Official" }),
+      screen.getByRole("menuitemcheckbox", { name: "Patcher Official" }),
     );
     await waitFor(() => {
       expect(rowIds()).toEqual([
@@ -677,7 +678,7 @@ describe("PluginsOverview", () => {
 
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "User" }));
     fireEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: "BB Official" }),
+      screen.getByRole("menuitemcheckbox", { name: "Patcher Official" }),
     );
     await waitFor(() => {
       expect(rowIds()).toEqual(["plugin-row-direct-one"]);
@@ -744,7 +745,7 @@ describe("PluginsOverview", () => {
     expect(screen.getByText("Inactive Local Plugin")).toBeTruthy();
   });
 
-  it("consolidates built-in and catalog plugins under BB Official", async () => {
+  it("consolidates built-in and catalog plugins under Patcher Official", async () => {
     installFetch([
       AUTOMATIONS_PLUGIN,
       {
@@ -754,7 +755,7 @@ describe("PluginsOverview", () => {
         source: GITHUB_CATALOG_ENTRY.source,
         provenance: "catalog",
         catalogEntryId: GITHUB_CATALOG_ENTRY.entryId,
-        sourceDisplay: "BB Official · GitHub",
+        sourceDisplay: "Patcher Official · GitHub",
       },
     ]);
     const { wrapper: QueryClientWrapper } = createQueryClientTestHarness();
@@ -766,7 +767,7 @@ describe("PluginsOverview", () => {
       </MemoryRouter>,
     );
 
-    const official = await screen.findAllByText("BB Official");
+    const official = await screen.findAllByText("Patcher Official");
     expect(official).toHaveLength(2);
     expect(official[0]?.parentElement?.className).toBe(
       official[1]?.parentElement?.className,

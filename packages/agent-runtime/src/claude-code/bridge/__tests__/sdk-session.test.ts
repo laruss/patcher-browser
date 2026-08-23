@@ -239,7 +239,7 @@ describe("SdkSession", () => {
     const session = new SdkSession(
       {
         ...defaultOptions,
-        plugins: [{ type: "local", path: "/tmp/bb-skills" }],
+        plugins: [{ type: "local", path: "/tmp/patcher-skills" }],
       },
       onMessage,
       onDone,
@@ -250,12 +250,12 @@ describe("SdkSession", () => {
     expect(queryMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          plugins: [{ type: "local", path: "/tmp/bb-skills" }],
+          plugins: [{ type: "local", path: "/tmp/patcher-skills" }],
         }),
       }),
     );
     // The SDK `skills` option is an allowlist: setting it would hide every
-    // skill the user installed outside bb (~/.claude, plugins, built-ins).
+    // skill the user installed outside Patcher (~/.claude, plugins, built-ins).
     expect(queryMock.mock.calls[0]?.[0]?.options).not.toHaveProperty("skills");
   });
 
@@ -449,7 +449,7 @@ describe("SdkSession", () => {
     const session = new SdkSession(
       {
         ...defaultOptions,
-        additionalDirectories: ["/repo/.git/worktrees/bb13"],
+        additionalDirectories: ["/repo/.git/worktrees/patcher13"],
         sandbox: {
           enabled: true,
           autoAllowBashIfSandboxed: true,
@@ -466,7 +466,7 @@ describe("SdkSession", () => {
     expect(queryMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          additionalDirectories: ["/repo/.git/worktrees/bb13"],
+          additionalDirectories: ["/repo/.git/worktrees/patcher13"],
           sandbox: {
             enabled: true,
             autoAllowBashIfSandboxed: true,

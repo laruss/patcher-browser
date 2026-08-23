@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
-  bbDesktopBrowserAttachRequestSchema,
-  bbDesktopBrowserSetBoundsRequestSchema,
-  bbDesktopBrowserStateSchema,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+  patcherDesktopBrowserAttachRequestSchema,
+  patcherDesktopBrowserSetBoundsRequestSchema,
+  patcherDesktopBrowserStateSchema,
+} from "@patcher/desktop-contract";
 import {
   browserUrlHost,
   evaluatePopupRate,
@@ -67,7 +67,7 @@ describe("resolveWindowOpenAction", () => {
     for (const url of [
       "http://localhost:5173/",
       "https://app.localhost/path",
-      "http://127.0.0.1:38886/",
+      "http://127.0.0.1:38986/",
       "http://[::1]:5173/",
       "http://192.168.1.1/",
       "http://printer.local/",
@@ -78,12 +78,12 @@ describe("resolveWindowOpenAction", () => {
 });
 
 describe("browser IPC payload schemas", () => {
-  // The desktop shell hosts whatever SPA the probed bb server serves (no
+  // The desktop shell hosts whatever SPA the probed Patcher server serves (no
   // version handshake), so these request shapes are wire-frozen: they must
   // keep accepting exactly the historical bounds-only payloads.
   it("accepts a well-formed attach request and rejects bad shapes", () => {
     expect(
-      bbDesktopBrowserAttachRequestSchema.safeParse({
+      patcherDesktopBrowserAttachRequestSchema.safeParse({
         tabId: "browser:abc",
         url: "",
         bounds: { x: 0, y: 0, width: 800, height: 600 },
@@ -93,7 +93,7 @@ describe("browser IPC payload schemas", () => {
 
     // Empty tabId, negative size, and unknown keys are all rejected.
     expect(
-      bbDesktopBrowserAttachRequestSchema.safeParse({
+      patcherDesktopBrowserAttachRequestSchema.safeParse({
         tabId: "",
         url: "",
         bounds: { x: 0, y: 0, width: 800, height: 600 },
@@ -101,13 +101,13 @@ describe("browser IPC payload schemas", () => {
       }).success,
     ).toBe(false);
     expect(
-      bbDesktopBrowserSetBoundsRequestSchema.safeParse({
+      patcherDesktopBrowserSetBoundsRequestSchema.safeParse({
         tabId: "browser:abc",
         bounds: { x: 0, y: 0, width: -1, height: 600 },
       }).success,
     ).toBe(false);
     expect(
-      bbDesktopBrowserAttachRequestSchema.safeParse({
+      patcherDesktopBrowserAttachRequestSchema.safeParse({
         tabId: "browser:abc",
         url: "",
         bounds: { x: 0, y: 0, width: 800, height: 600 },
@@ -118,7 +118,7 @@ describe("browser IPC payload schemas", () => {
     // A layout descriptor never crosses the IPC boundary; older shells'
     // strict parsers would drop the whole request if a renderer sent one.
     expect(
-      bbDesktopBrowserAttachRequestSchema.safeParse({
+      patcherDesktopBrowserAttachRequestSchema.safeParse({
         tabId: "browser:abc",
         url: "",
         bounds: { x: 0, y: 0, width: 800, height: 600 },
@@ -130,7 +130,7 @@ describe("browser IPC payload schemas", () => {
 
   it("accepts a well-formed state push and rejects non-integer bounds", () => {
     expect(
-      bbDesktopBrowserStateSchema.safeParse({
+      patcherDesktopBrowserStateSchema.safeParse({
         tabId: "browser:abc",
         url: "https://example.com",
         title: "Example",
@@ -142,7 +142,7 @@ describe("browser IPC payload schemas", () => {
     ).toBe(true);
 
     expect(
-      bbDesktopBrowserSetBoundsRequestSchema.safeParse({
+      patcherDesktopBrowserSetBoundsRequestSchema.safeParse({
         tabId: "browser:abc",
         bounds: { x: 0.5, y: 0, width: 800, height: 600 },
       }).success,
@@ -151,10 +151,10 @@ describe("browser IPC payload schemas", () => {
 
   it("rejects oversized URLs beyond the length cap", () => {
     const longUrl = `https://example.com/${"a".repeat(
-      BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
     )}`;
     expect(
-      bbDesktopBrowserAttachRequestSchema.safeParse({
+      patcherDesktopBrowserAttachRequestSchema.safeParse({
         tabId: "browser:abc",
         url: longUrl,
         bounds: { x: 0, y: 0, width: 800, height: 600 },
@@ -271,11 +271,11 @@ describe("browser request host classification", () => {
 
 describe("isBlockedBrowserRequestUrl", () => {
   it("blocks requests to loopback/LAN over http(s)/ws(s)", () => {
-    expect(isBlockedBrowserRequestUrl("http://127.0.0.1:38886/")).toBe(true);
+    expect(isBlockedBrowserRequestUrl("http://127.0.0.1:38986/")).toBe(true);
     expect(isBlockedBrowserRequestUrl("https://127.0.0.1/x")).toBe(true);
-    expect(isBlockedBrowserRequestUrl("http://0.0.0.0:38886/")).toBe(true);
+    expect(isBlockedBrowserRequestUrl("http://0.0.0.0:38986/")).toBe(true);
     expect(isBlockedBrowserRequestUrl("https://0.0.0.0/")).toBe(true);
-    expect(isBlockedBrowserRequestUrl("ws://localhost:38886/ws")).toBe(true);
+    expect(isBlockedBrowserRequestUrl("ws://localhost:38986/ws")).toBe(true);
     expect(isBlockedBrowserRequestUrl("wss://10.0.0.5/socket")).toBe(true);
     expect(isBlockedBrowserRequestUrl("http://[::1]/")).toBe(true);
   });
@@ -308,7 +308,7 @@ describe("localRequestOriginKey", () => {
       localRequestOriginKey("https://localhost:5173/"),
     );
     expect(localRequestOriginKey("http://localhost:5173/")).not.toBe(
-      localRequestOriginKey("http://localhost:38886/"),
+      localRequestOriginKey("http://localhost:38986/"),
     );
     expect(localRequestOriginKey("http://localhost:5173/")).not.toBe(
       localRequestOriginKey("http://127.0.0.1:5173/"),
@@ -375,7 +375,7 @@ describe("shouldBlockBrowserRequest", () => {
   it("allows top-level public and loopback http(s) navigations", () => {
     for (const url of [
       "http://localhost:3000/",
-      "http://127.0.0.1:38886/",
+      "http://127.0.0.1:38986/",
       "http://[::1]:5173/",
       "https://example.com/",
     ]) {
@@ -385,7 +385,7 @@ describe("shouldBlockBrowserRequest", () => {
 
   it("blocks top-level private and LAN navigations", () => {
     for (const url of [
-      "http://0.0.0.0:38886/",
+      "http://0.0.0.0:38986/",
       "http://192.168.1.1/",
       "http://printer.local/",
     ]) {
@@ -396,7 +396,7 @@ describe("shouldBlockBrowserRequest", () => {
   it("blocks non-read-only main-frame requests to local targets", () => {
     for (const url of [
       "http://localhost:3000/api",
-      "http://127.0.0.1:38886/api",
+      "http://127.0.0.1:38986/api",
       "http://192.168.1.1/action",
     ]) {
       expect(
@@ -712,7 +712,7 @@ describe("isAllowedBrowserPopupTarget", () => {
       "javascript:alert(1)",
       "file:///etc/passwd",
       "about:srcdoc",
-      "http://127.0.0.1:38886/",
+      "http://127.0.0.1:38986/",
       "https://192.168.1.10/admin",
       "not a url",
     ]) {

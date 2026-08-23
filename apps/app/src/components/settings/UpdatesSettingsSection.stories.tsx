@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import type { Host } from "@bb/domain";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+import type { Host } from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import type { ProviderCliIssue } from "@/components/provider-cli/provider-cli-install";
 import type { UpdateInventoryMachine } from "@/hooks/useUpdateInventory";
 import {
-  BbAppUpdateRows,
+  PatcherAppUpdateRows,
   MachineUpdatesRows,
   UpdatesRowList,
   UpdatesSection,
@@ -181,7 +181,7 @@ export function HealthyFleet() {
   return (
     <Stage>
       <UpdatesSection
-        title="bb"
+        title="Patcher"
         footnote="Connected machines follow the server version automatically."
         action={
           <>
@@ -193,14 +193,14 @@ export function HealthyFleet() {
         }
       >
         <UpdatesRowList>
-          <BbAppUpdateRows
+          <PatcherAppUpdateRows
             systemVersion={{
               currentVersion: "0.0.33",
               latestVersion: "0.0.33",
               source: "npm",
               updateAvailable: false,
               isDevelopment: false,
-              upgradeCommand: "npx bb-app@latest",
+              upgradeCommand: "npx patcher-app@latest",
             }}
             desktopInfo={null}
             isDesktop={false}
@@ -259,7 +259,7 @@ export function MixedFleet() {
   return (
     <Stage>
       <UpdatesSection
-        title="bb"
+        title="Patcher"
         footnote="Connected machines follow the server version automatically."
         action={
           <>
@@ -271,14 +271,14 @@ export function MixedFleet() {
         }
       >
         <UpdatesRowList>
-          <BbAppUpdateRows
+          <PatcherAppUpdateRows
             systemVersion={{
               currentVersion: "0.0.32",
               latestVersion: "0.0.33",
               source: "npm",
               updateAvailable: true,
               isDevelopment: false,
-              upgradeCommand: "npx bb-app@latest",
+              upgradeCommand: "npx patcher-app@latest",
             }}
             desktopInfo={null}
             isDesktop={false}
@@ -342,16 +342,16 @@ export function MixedFleet() {
 export function WebAppUpdateAvailable() {
   return (
     <Stage>
-      <UpdatesSection title="bb">
+      <UpdatesSection title="Patcher">
         <UpdatesRowList>
-          <BbAppUpdateRows
+          <PatcherAppUpdateRows
             systemVersion={{
               currentVersion: "0.0.32",
               latestVersion: "0.0.33",
               source: "npm",
               updateAvailable: true,
               isDevelopment: false,
-              upgradeCommand: "npx bb-app@latest",
+              upgradeCommand: "npx patcher-app@latest",
             }}
             desktopInfo={null}
             isDesktop={false}
@@ -367,9 +367,9 @@ export function WebAppUpdateAvailable() {
 export function DesktopUpdateReady() {
   return (
     <Stage>
-      <UpdatesSection title="bb">
+      <UpdatesSection title="Patcher">
         <UpdatesRowList>
-          <BbAppUpdateRows
+          <PatcherAppUpdateRows
             systemVersion={undefined}
             desktopInfo={{
               downloadState: "downloaded",
@@ -394,9 +394,9 @@ export function DesktopUpdateReady() {
 export function DesktopDownloading() {
   return (
     <Stage>
-      <UpdatesSection title="bb">
+      <UpdatesSection title="Patcher">
         <UpdatesRowList>
-          <BbAppUpdateRows
+          <PatcherAppUpdateRows
             systemVersion={undefined}
             desktopInfo={{
               downloadState: "downloading",

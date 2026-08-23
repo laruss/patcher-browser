@@ -1,9 +1,9 @@
-import type { HostDaemonEntrypointConfig } from "@bb/config/host-daemon-entrypoint";
+import type { HostDaemonEntrypointConfig } from "@patcher/config/host-daemon-entrypoint";
 
 export interface HostDaemonRuntimeEnvironment extends HostDaemonEntrypointConfig {
-  BB_DATA_DIR: string;
-  BB_HOST_DAEMON_PORT: string;
-  BB_SERVER_URL: string;
+  PATCHER_DATA_DIR: string;
+  PATCHER_HOST_DAEMON_PORT: string;
+  PATCHER_SERVER_URL: string;
   NODE_ENV: "development" | "production";
 }
 

@@ -5,8 +5,8 @@ import {
   type ProviderCommandOrigin,
   type ProviderCommandSection,
   type ProviderCommandSource,
-} from "@bb/server-contract";
-import type { PromptMentionCommandTrigger } from "@bb/domain";
+} from "@patcher/server-contract";
+import type { PromptMentionCommandTrigger } from "@patcher/domain";
 import type { PluginMentionTrigger } from "@/lib/plugin-mention-triggers";
 
 export type PromptPathMentionSource = "workspace" | "thread-storage";

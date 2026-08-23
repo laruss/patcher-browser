@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import type { PromptTextMention } from "@bb/domain";
-import type { ThreadResponse } from "@bb/server-contract";
-import type { TimelineTitleLink } from "@bb/thread-view";
+import type { PromptTextMention } from "@patcher/domain";
+import type { ThreadResponse } from "@patcher/server-contract";
+import type { TimelineTitleLink } from "@patcher/thread-view";
 import { RouteNavigationProvider } from "@/components/ui/app-route-anchor";
 import {
   type MarkdownMessageDirectives,

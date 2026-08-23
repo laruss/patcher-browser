@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useBbNavigate } from "@bb/plugin-sdk/app";
+import { usePatcherNavigate } from "@patcher/plugin-sdk/app";
 
 /** The nav panel `path` registered in app.tsx; panel URLs are /plugins/tasks/<PANEL_PATH>/<subPath>. */
 export const PANEL_PATH = "tasks";
@@ -78,7 +78,7 @@ export interface TasksNavigation {
 }
 
 export function useTasksNavigation(): TasksNavigation {
-  const navigate = useBbNavigate();
+  const navigate = usePatcherNavigate();
   return useMemo(
     () => ({
       go: (route, options) => {

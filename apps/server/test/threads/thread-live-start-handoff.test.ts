@@ -1,4 +1,4 @@
-import { getThread } from "@bb/db";
+import { getThread } from "@patcher/db";
 import {
   encodeClientTurnRequestIdNumber,
   threadScope,
@@ -6,8 +6,8 @@ import {
   type Environment,
   type ResolvedThreadExecutionOptions,
   type Thread,
-} from "@bb/domain";
-import { groupHostDaemonEvents } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import { groupHostDaemonEvents } from "@patcher/host-daemon-contract";
 import { describe, expect, it } from "vitest";
 import {
   hasLiveThreadStartInFlight,

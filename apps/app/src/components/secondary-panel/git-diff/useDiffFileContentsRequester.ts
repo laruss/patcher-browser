@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { WorkspaceDiffTarget } from "@bb/domain";
-import type { EnvironmentDiffFileResponse } from "@bb/server-contract";
-import type { EnvironmentDiffFileArgs } from "@bb/sdk/browser";
+import type { WorkspaceDiffTarget } from "@patcher/domain";
+import type { EnvironmentDiffFileResponse } from "@patcher/server-contract";
+import type { EnvironmentDiffFileArgs } from "@patcher/sdk/browser";
 import { environmentDiffFileQueryKey } from "@/hooks/queries/query-keys";
 import { sdk } from "@/lib/sdk";
 import type {

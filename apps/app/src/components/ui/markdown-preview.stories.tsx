@@ -103,7 +103,7 @@ def fib(n: int) -> int:
 Long lines scroll horizontally until you toggle wrap (no language tag):
 
 \`\`\`
-$ pnpm exec turbo run typecheck --filter=@bb/app --filter=@bb/server --filter=@bb/host-daemon --filter=@bb/cli && echo "all packages clean"
+$ pnpm exec turbo run typecheck --filter=@patcher/app --filter=@patcher/server --filter=@patcher/host-daemon --filter=@patcher/cli && echo "all packages clean"
 \`\`\``;
 
 const MATH_MARKDOWN = `Inline math sits in the prose, like the mass–energy
@@ -172,7 +172,7 @@ spilling into the gutter where the surrounding paragraph isn't reaching.
 | --- | --- | --- | --- | --- | --- |
 | \`thr_8f12ab3c\` | claude-code | localhost:3002 | running | 2026-05-11 10:24 | tracked since v1.2.0 |
 | \`thr_9d44ee01\` | codex | localhost:3002 | idle | 2026-05-10 22:11 | flagged for replay |
-| \`thr_a7b21c89\` | claude-code | localhost:38887 | error | 2026-05-09 13:02 | exited 137 (oom) |
+| \`thr_a7b21c89\` | claude-code | localhost:38987 | error | 2026-05-09 13:02 | exited 137 (oom) |
 
 The paragraph below returns to the regular column width, so the contrast
 between the breakout table and the text flow is clear.`;
@@ -185,7 +185,7 @@ horizontally inside it.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | \`thr_8f12ab3c\` | claude-code | localhost:3002 | running | feat/onboarding-flow | 2026-05-11 10:24:01 | claude-opus-4-7 | 184,210 | 22,118 | tracked since v1.2.0 |
 | \`thr_9d44ee01\` | codex | localhost:3002 | idle | main | 2026-05-10 22:11:48 | gpt-5 | 91,002 | 6,420 | flagged for replay |
-| \`thr_a7b21c89\` | claude-code | localhost:38887 | error | bug/race-on-startup | 2026-05-09 13:02:30 | claude-sonnet-4-6 | 41,778 | 198 | exited 137 (oom) |
+| \`thr_a7b21c89\` | claude-code | localhost:38987 | error | bug/race-on-startup | 2026-05-09 13:02:30 | claude-sonnet-4-6 | 41,778 | 198 | exited 137 (oom) |
 
 Notice the scrollbar inside the wrapper — the surrounding paragraphs stay at
 the column width.`;

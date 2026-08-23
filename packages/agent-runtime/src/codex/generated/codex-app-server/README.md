@@ -44,15 +44,15 @@ After copying the schema in, delete everything not reachable from the
 importers listed above (and the barrels), then verify:
 
 ```bash
-bunx turbo run typecheck --filter=@bb/agent-runtime
+bunx turbo run typecheck --filter=@patcher/agent-runtime
 ```
 
 TypeScript reports any over-deletion as a missing-module error; a green
-typecheck plus `bunx turbo run test --filter=@bb/agent-runtime` confirms
+typecheck plus `bunx turbo run test --filter=@patcher/agent-runtime` confirms
 the kept subset is complete. Keep it pruned to avoid re-vendoring dead types.
 
 ## Source of truth
 
 - `schema/*.ts`: generated from Codex app-server, pruned to the reachable subset (see above).
 - `index.ts` / barrels: intentionally **not** committed; the adapter imports concrete `schema/**` files directly.
-- `packages/agent-runtime/src/codex/event-translation.ts`: translates Codex app-server events into bb thread events.
+- `packages/agent-runtime/src/codex/event-translation.ts`: translates Codex app-server events into patcher thread events.

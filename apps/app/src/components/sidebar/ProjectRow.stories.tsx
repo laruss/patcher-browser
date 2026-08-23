@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from "react";
-import type { ThreadListEntry } from "@bb/domain";
-import type { ProjectResponse } from "@bb/server-contract";
+import type { ThreadListEntry } from "@patcher/domain";
+import type { ProjectResponse } from "@patcher/server-contract";
 import {
   BRANCH_NAMES,
   HOST_IDS,
@@ -44,7 +44,7 @@ function SidebarStage({ children }: { children: ReactNode }) {
 // Wrap the shared builders for slightly different defaults the sidebar wants
 // (a different demo project id; ThreadListEntry instead of Thread).
 const makeProject = (overrides: Partial<ProjectResponse> = {}) =>
-  makeSharedProject({ id: PROJECT_IDS.bb, name: "bb", ...overrides });
+  makeSharedProject({ id: PROJECT_IDS.patcher, name: "Patcher", ...overrides });
 
 const makeThread = (overrides: Partial<ThreadListEntry> = {}) =>
   makeThreadListEntry({ id: "thr_default", ...overrides });
@@ -213,7 +213,7 @@ const sharedWorktreeThreadA = makeThread({
   titleFallback: "Refactor timeline row types",
   environmentId: "env_shared_worktree",
   environmentHostId: HOST_IDS.local,
-  environmentBranchName: "bb/set-default-tab-for-panel-thr_vnj2qze4fg",
+  environmentBranchName: "patcher/set-default-tab-for-panel-thr_vnj2qze4fg",
   environmentWorkspaceDisplayKind: "managed-worktree",
 });
 const sharedWorktreeThreadB = makeThread({
@@ -222,7 +222,7 @@ const sharedWorktreeThreadB = makeThread({
   titleFallback: "Add story for env-grouped sidebar",
   environmentId: "env_shared_worktree",
   environmentHostId: HOST_IDS.local,
-  environmentBranchName: "bb/set-default-tab-for-panel-thr_vnj2qze4fg",
+  environmentBranchName: "patcher/set-default-tab-for-panel-thr_vnj2qze4fg",
   environmentWorkspaceDisplayKind: "managed-worktree",
 });
 const parentThread = makeThread({
@@ -287,7 +287,7 @@ const deepWorktreeA = makeThread({
   parentThreadId: deepIntermediateParent.id,
   environmentId: "env_deep_worktree",
   environmentHostId: HOST_IDS.local,
-  environmentBranchName: "bb/sidebar-parent-child-nesting",
+  environmentBranchName: "patcher/sidebar-parent-child-nesting",
   environmentWorkspaceDisplayKind: "managed-worktree",
 });
 const deepWorktreeB = makeThread({
@@ -297,24 +297,24 @@ const deepWorktreeB = makeThread({
   parentThreadId: deepIntermediateParent.id,
   environmentId: "env_deep_worktree",
   environmentHostId: HOST_IDS.local,
-  environmentBranchName: "bb/sidebar-parent-child-nesting",
+  environmentBranchName: "patcher/sidebar-parent-child-nesting",
   environmentWorkspaceDisplayKind: "managed-worktree",
   hasPendingInteraction: true,
 });
 
 const multipleProjects: StoryProjectRow[] = [
   {
-    project: makeProject({ id: "proj_bb", name: "bb" }),
+    project: makeProject({ id: "proj_patcher", name: "Patcher" }),
     isActive: true,
     threadListState: {
       status: "ready",
       threads: [
-        { ...rootThread, projectId: "proj_bb" },
-        { ...parentThread, projectId: "proj_bb" },
-        { ...parentChildA, projectId: "proj_bb" },
-        { ...parentChildB, projectId: "proj_bb" },
-        { ...busyThread, projectId: "proj_bb" },
-        { ...pendingThread, projectId: "proj_bb" },
+        { ...rootThread, projectId: "proj_patcher" },
+        { ...parentThread, projectId: "proj_patcher" },
+        { ...parentChildA, projectId: "proj_patcher" },
+        { ...parentChildB, projectId: "proj_patcher" },
+        { ...busyThread, projectId: "proj_patcher" },
+        { ...pendingThread, projectId: "proj_patcher" },
       ],
     },
   },
@@ -696,7 +696,8 @@ const fullProjectAThreads: ThreadListEntry[] = [
     parentThreadId: fullParentA.id,
     environmentId: "env_full_a_codex_train",
     environmentHostId: "host_local",
-    environmentBranchName: "bb/squash-merge-ready-app-train-thr_s6fn8fuv9w",
+    environmentBranchName:
+      "patcher/squash-merge-ready-app-train-thr_s6fn8fuv9w",
     environmentWorkspaceDisplayKind: "managed-worktree",
   }),
   makeThread({
@@ -707,7 +708,8 @@ const fullProjectAThreads: ThreadListEntry[] = [
     parentThreadId: fullParentA.id,
     environmentId: "env_full_a_codex_train",
     environmentHostId: "host_local",
-    environmentBranchName: "bb/squash-merge-ready-app-train-thr_s6fn8fuv9w",
+    environmentBranchName:
+      "patcher/squash-merge-ready-app-train-thr_s6fn8fuv9w",
     environmentWorkspaceDisplayKind: "managed-worktree",
   }),
   makeThread({
@@ -734,7 +736,7 @@ const fullProjectAThreads: ThreadListEntry[] = [
     titleFallback: "Wire sidebar env-grouping data shape",
     environmentId: "env_full_a_sidebar_rail",
     environmentHostId: "host_local",
-    environmentBranchName: "bb/fix-diff-panel-issues-thr_u8cnp5fnea",
+    environmentBranchName: "patcher/fix-diff-panel-issues-thr_u8cnp5fnea",
     environmentWorkspaceDisplayKind: "managed-worktree",
   }),
   makeThread({
@@ -744,7 +746,7 @@ const fullProjectAThreads: ThreadListEntry[] = [
     titleFallback: "Add story for env-grouped sidebar",
     environmentId: "env_full_a_sidebar_rail",
     environmentHostId: "host_local",
-    environmentBranchName: "bb/fix-diff-panel-issues-thr_u8cnp5fnea",
+    environmentBranchName: "patcher/fix-diff-panel-issues-thr_u8cnp5fnea",
     environmentWorkspaceDisplayKind: "managed-worktree",
   }),
 ];
@@ -794,7 +796,7 @@ const fullProjectCThreads: ThreadListEntry[] = [
 
 const fullProjects: StoryProjectRow[] = [
   {
-    project: makeProject({ id: "proj_full_a", name: "bb" }),
+    project: makeProject({ id: "proj_full_a", name: "Patcher" }),
     isActive: true,
     threadListState: { status: "ready", threads: fullProjectAThreads },
   },
@@ -815,7 +817,7 @@ export function MultipleProjects() {
     <StoryCard>
       <StoryRow
         label="projects list — three projects"
-        hint="the Projects section only (no Pinned/Threads/Apps): bb (active) with a parent that has 4 loose children + a 2-thread env sub-group, plus 2 standalones and a 2-thread project-level env group; pierre with 3 standalones; ingest-pipeline with a parent + 1 standalone"
+        hint="the Projects section only (no Pinned/Threads/Apps): Patcher (active) with a parent that has 4 loose children + a 2-thread env sub-group, plus 2 standalones and a 2-thread project-level env group; pierre with 3 standalones; ingest-pipeline with a parent + 1 standalone"
       >
         <SidebarStage>
           <ProjectListShell>

@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { events } from "@bb/db";
+import { events } from "@patcher/db";
 import { describe, expect, it } from "vitest";
 import { internalAuthHeaders } from "../helpers/commands.js";
 import { readJson } from "../helpers/json.js";

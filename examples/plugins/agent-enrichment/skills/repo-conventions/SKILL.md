@@ -8,9 +8,9 @@ description: Conventions for working in this repository — commit style, branch
 Search the bundled docs before guessing:
 
 ```
-bb docs search "conventional commits"
+patcher docs search "conventional commits"
 ```
 
 - Commits follow conventional-commit style (`feat(scope): summary`).
-- Branches are named `bb/<topic>`.
+- Branches are named `patcher/<topic>`.
 - Every bug fix ships with a regression test.

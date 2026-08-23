@@ -42,7 +42,7 @@ describe("readBrowserExternalLinkDecision", () => {
   });
 
   it("keeps `handled` when the rewrite is refused", () => {
-    // The plugin took the link over *and* offered an address bb will not open:
+    // The plugin took the link over *and* offered an address Patcher will not open:
     // the take-over still stands, so nothing opens.
     expect(
       readBrowserExternalLinkDecision({ handled: true, url: "ftp://x/y" }),

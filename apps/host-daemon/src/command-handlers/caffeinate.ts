@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
+import type { HostDaemonOnlineRpcResult } from "@patcher/host-daemon-contract";
 
 type CaffeinateResult = HostDaemonOnlineRpcResult<"host.caffeinate">;
 

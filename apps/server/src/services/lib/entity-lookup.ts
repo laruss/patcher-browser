@@ -7,9 +7,9 @@ import {
   getThread,
   listPublicHosts,
   type HostDaemonSessionRow,
-} from "@bb/db";
-import type { Environment, Host } from "@bb/domain";
-import type { DbConnection } from "@bb/db";
+} from "@patcher/db";
+import type { Environment, Host } from "@patcher/domain";
+import type { DbConnection } from "@patcher/db";
 import type { NotificationHub } from "../../ws/hub.js";
 import { ApiError } from "../../errors.js";
 import {
@@ -41,7 +41,7 @@ export interface ThreadEnvironmentLookupResult {
 
 /**
  * The host's data directory, or null when no daemon session is open. Callers
- * that only want to recognize bb-owned paths use this instead of
+ * that only want to recognize Patcher-owned paths use this instead of
  * {@link requireConnectedHostSession}, so an offline host degrades the check
  * rather than failing the request.
  */

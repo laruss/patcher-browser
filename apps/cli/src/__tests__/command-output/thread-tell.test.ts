@@ -7,13 +7,13 @@ import {
 import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import { registerThreadCommands } from "../../commands/thread/index.js";
 
-describe("bb thread tell command output", () => {
+describe("patcher thread tell command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerThreadCommands(program, () => "http://server");
 
-  it("bb thread tell --json prints the raw response plus thread id", async () => {
+  it("patcher thread tell --json prints the raw response plus thread id", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -31,7 +31,7 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell --mode queue preserves non-urgent queued delivery", async () => {
+  it("patcher thread tell --mode queue preserves non-urgent queued delivery", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -49,7 +49,7 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell --mode auto preserves explicit legacy auto delivery", async () => {
+  it("patcher thread tell --mode auto preserves explicit legacy auto delivery", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -67,7 +67,7 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell forwards execution options", async () => {
+  it("patcher thread tell forwards execution options", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -102,7 +102,7 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell forwards automatic review mode", async () => {
+  it("patcher thread tell forwards automatic review mode", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -128,7 +128,7 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell forwards host-readable paths without reading them on the CLI machine", async () => {
+  it("patcher thread tell forwards host-readable paths without reading them on the CLI machine", async () => {
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -159,8 +159,8 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell includes sender thread metadata when run inside another thread", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-sender");
+  it("patcher thread tell includes sender thread metadata when run inside another thread", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-sender");
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 
@@ -179,8 +179,8 @@ describe("bb thread tell command output", () => {
     });
   });
 
-  it("bb thread tell omits sender metadata when targeting the current thread", async () => {
-    vi.stubEnv("BB_THREAD_ID", "thread-self");
+  it("patcher thread tell omits sender metadata when targeting the current thread", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thread-self");
     const post = vi.fn(async () => ({ ok: true }));
     stubServerApi({ "v1.threads.:id.send.$post": post });
 

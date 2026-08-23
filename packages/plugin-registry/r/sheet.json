@@ -3,15 +3,15 @@
   "name": "sheet",
   "type": "registry:ui",
   "title": "sheet",
-  "description": "BB ui \"sheet\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"sheet\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-dialog",
     "class-variance-authority",
     "lucide-react"
   ],
   "registryDependencies": [
-    "@bb/portal-scope",
-    "@bb/utils"
+    "@patcher/portal-scope",
+    "@patcher/utils"
   ],
   "files": [
     {

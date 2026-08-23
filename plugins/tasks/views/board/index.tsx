@@ -28,10 +28,10 @@ import {
   visibleBoardStatuses,
 } from "./drop-position.js";
 import { PriorityIcon, STATUS_LABELS, StatusIcon } from "./icons.js";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 const DRAG_THRESHOLD_PX = 5;
 

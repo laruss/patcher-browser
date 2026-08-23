@@ -4,8 +4,8 @@ import { performance } from "node:perf_hooks";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
-import { terminalWebSocketQuerySchema } from "@bb/server-contract";
-import { permissionsForApiPath } from "@bb/domain";
+import { terminalWebSocketQuerySchema } from "@patcher/server-contract";
+import { permissionsForApiPath } from "@patcher/domain";
 import {
   PLUGIN_API_ID_HEADER,
   PLUGIN_API_KEY_HEADER,
@@ -15,7 +15,7 @@ import { cors } from "hono/cors";
 import {
   buildLocalAppOrigins,
   type BuildLocalAppOriginsArgs,
-} from "@bb/config/local-app-origins";
+} from "@patcher/config/local-app-origins";
 import type { AppDeps, ServerAppDeps } from "./types.js";
 import { ApiError, errorToResponse } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
@@ -71,15 +71,14 @@ import {
   onTerminalSocketOpen,
 } from "./ws/terminal-protocol.js";
 import {
-  createBbAppArtifactService,
-  type BbAppArtifactService,
-} from "./services/install/bb-app-artifact.js";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+  createPatcherAppArtifactService,
+  type PatcherAppArtifactService,
+} from "./services/install/patcher-app-artifact.js";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import {
   createPluginCatalogService,
   type PluginCatalogService,
 } from "./services/plugin-catalog/plugin-catalog-service.js";
-import { callHostRetryableOnlineRpc } from "./services/hosts/online-rpc.js";
 import { browserRequestProblem } from "./browser-request-guard.js";
 import { rankAcceptedAssetEncodings } from "./asset-content-encoding.js";
 
@@ -119,7 +118,7 @@ function normalizeInternalAuthPath(path: string): string {
 }
 
 interface CreateAppOptions {
-  bbAppArtifactService?: BbAppArtifactService;
+  patcherAppArtifactService?: PatcherAppArtifactService;
   /**
    * Which plugins run in a plugin process rather than in the server. Omitted
    * loads every plugin here; the shipped policy is `pluginProcessPolicy` and
@@ -282,9 +281,9 @@ export function createApp(
   });
   const slowApiRequestLogThresholdMs =
     options?.slowApiRequestLogThresholdMs ?? SLOW_API_REQUEST_LOG_THRESHOLD_MS;
-  const bbAppArtifactService =
-    options?.bbAppArtifactService ??
-    createBbAppArtifactService({
+  const patcherAppArtifactService =
+    options?.patcherAppArtifactService ??
+    createPatcherAppArtifactService({
       dataDir: deps.config.dataDir,
       serverEntryUrl: import.meta.url,
     });
@@ -333,21 +332,41 @@ export function createApp(
   });
   app.get("/install/version", async (context) => {
     return context.json({
-      version: await bbAppArtifactService.getVersion(),
+      version: await patcherAppArtifactService.getVersion(),
       protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
     });
   });
-  // bb-app is public on npm. A paired tunnel can expose an unpublished build
+  // patcher-app is public on npm. A paired tunnel can expose an unpublished build
   // slightly before release; serving the exact server build is an accepted
   // tradeoff so remote daemons cannot be stranded by protocol skew.
-  app.get("/install/bb-app.tgz", async (context) => {
-    const tarball = await readFile(await bbAppArtifactService.getTarballPath());
+  app.get("/install/patcher-app.tgz", async (context) => {
+    const tarball = await readFile(
+      await patcherAppArtifactService.getTarballPath(),
+    );
     return new Response(tarball, {
       headers: {
         "cache-control": "public, max-age=300",
         "content-type": "application/gzip",
       },
     });
+  });
+  // The path a pre-rename daemon asks for. Answered, rather than left to fall
+  // through to a bare 404, because the 404 said nothing and the daemon retries
+  // forever on the 5-minute backoff cap.
+  //
+  // It must NOT serve the tarball. The package is named `patcher-app` now, so
+  // `npm install -g <tarball>` installs the `patcher*` bins and leaves the
+  // `bb-app` bin the machine's service file invokes exactly where it was — the
+  // restart would re-run the very daemon that asked, and the loud loop would
+  // become a silent one. Re-enrolling the machine is the only way forward, so
+  // that is what the body says, for whoever reads the daemon's log or curls the
+  // URL by hand.
+  app.get("/install/bb-app.tgz", (context) => {
+    return context.text(
+      "This server no longer publishes bb-app. The daemon on this machine predates the rename to Patcher and cannot update itself: enrol the machine again to replace it.\n",
+      410,
+      { "cache-control": "no-store" },
+    );
   });
   app.use("/api/v1/*", async (context, next) => {
     const startedAt = performance.now();
@@ -411,23 +430,14 @@ export function createApp(
     browserBridge: createBrowserBridge({ hub: deps.hub }),
     dataDir: deps.config.dataDir,
     appVersion: deps.config.appVersion,
-    sharedPorts: deps.sharedPorts,
-    ensureSharedPortTunnel: (hostId) =>
-      deps.sharedPorts.ensureTunnelIdentity(hostId, () =>
-        callHostRetryableOnlineRpc(deps, {
-          command: { type: "connect-tunnel.ensure-identity" },
-          hostId,
-          timeoutMs: 30_000,
-        }),
-      ),
     watchBuiltinPluginSources:
-      process.env.BB_MANAGED_DEV_BUILTIN_PLUGIN_HOT_RELOAD === "1",
+      process.env.PATCHER_MANAGED_DEV_BUILTIN_PLUGIN_HOT_RELOAD === "1",
   });
   // Bridge the thread lifecycle seams to this service's plugins (§4.5).
   setPluginThreadEventEmitter(pluginService.events);
   // Bridge runtime-config assembly to plugin skills + context (§4.4).
   setPluginAgentContributions(pluginService);
-  // Plugin traffic is gated where it actually arrives. `bb.sdk` is an HTTP
+  // Plugin traffic is gated where it actually arrives. `patcher.sdk` is an HTTP
   // client for this API and every plugin holds the loopback URL, so a gate on
   // the SDK object alone covers only the polite way in — and this is the check
   // that keeps working once plugins run in their own process.
@@ -455,7 +465,7 @@ export function createApp(
   registerProjectRoutes(publicApi, deps);
   registerThreadSectionRoutes(publicApi, deps);
   registerFileRoutes(publicApi, deps);
-  registerHostRoutes(publicApi, deps, pluginService);
+  registerHostRoutes(publicApi, deps);
   registerTerminalRoutes(publicApi, deps);
   registerEnvironmentRoutes(publicApi, deps);
   registerThreadRoutes(publicApi, deps);
@@ -584,7 +594,7 @@ export function createApp(
   );
 
   if (!options?.staticDir) {
-    app.get("/", (context) => context.text("bb server"));
+    app.get("/", (context) => context.text("Patcher server"));
   }
 
   if (options?.staticDir) {

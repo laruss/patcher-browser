@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH } from "@patcher/desktop-contract";
 import {
-  BB_DESKTOP_BROWSER_MAX_PDF_BYTES,
+  PATCHER_DESKTOP_BROWSER_MAX_PDF_BYTES,
   browserPdfFailureReason,
   buildBrowserPdfText,
   isBrowserPdfContentType,
@@ -75,10 +75,12 @@ describe("buildBrowserPdfText", () => {
   });
 
   it("truncates to the page-read cap and says so", () => {
-    const long = "x".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 100);
+    const long = "x".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 100);
     const built = buildBrowserPdfText([items([long, false])]);
 
-    expect(built.text).toHaveLength(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH);
+    expect(built.text).toHaveLength(
+      PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+    );
     expect(built.truncated).toBe(true);
   });
 });
@@ -120,7 +122,7 @@ describe("readBrowserPdfBytes", () => {
     // The size that matters is the one the server chooses to send: a body that
     // keeps going must not become an allocation the page controls.
     const cancel = vi.fn();
-    const chunk = new Uint8Array(BB_DESKTOP_BROWSER_MAX_PDF_BYTES);
+    const chunk = new Uint8Array(PATCHER_DESKTOP_BROWSER_MAX_PDF_BYTES);
     const result = await readBrowserPdfBytes({
       body: streamOf([chunk, new Uint8Array([1])], cancel),
       arrayBuffer: async () => new ArrayBuffer(0),
@@ -141,7 +143,7 @@ describe("readBrowserPdfBytes", () => {
     await expect(
       readBrowserPdfBytes({
         arrayBuffer: async () =>
-          new ArrayBuffer(BB_DESKTOP_BROWSER_MAX_PDF_BYTES + 1),
+          new ArrayBuffer(PATCHER_DESKTOP_BROWSER_MAX_PDF_BYTES + 1),
       }),
     ).resolves.toEqual({ ok: false, reason: "too-large" });
   });
@@ -168,13 +170,13 @@ describe("parseBrowserPdfTextMessage", () => {
 
     const parsed = parseBrowserPdfTextMessage({
       ok: true,
-      text: "x".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 5),
+      text: "x".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 5),
       truncated: false,
     });
 
     expect(parsed).toEqual({
       ok: true,
-      text: "x".repeat(BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+      text: "x".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
       truncated: true,
     });
   });

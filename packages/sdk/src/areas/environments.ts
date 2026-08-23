@@ -1,4 +1,4 @@
-import { environmentSchema, type Environment } from "@bb/domain";
+import { environmentSchema, type Environment } from "@patcher/domain";
 import {
   commitActionResponseSchema,
   pullRequestDraftActionResponseSchema,
@@ -6,7 +6,7 @@ import {
   pullRequestReadyActionResponseSchema,
   squashMergeActionResponseSchema,
   updateEnvironmentRequestSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   CommitActionResponse,
   EnvironmentArchiveThreadsResponse,
@@ -30,7 +30,7 @@ import type {
   EnvironmentStatusQuery,
   UpdateEnvironmentRequest,
   WorkspacePathListResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 export interface EnvironmentActionArgs {

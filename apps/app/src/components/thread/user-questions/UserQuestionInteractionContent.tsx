@@ -5,20 +5,20 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { QUESTION_SELECT_APP_COMMAND_IDS } from "@bb/domain";
+import { QUESTION_SELECT_APP_COMMAND_IDS } from "@patcher/domain";
 import type {
   PendingInteractionUserQuestionOption,
   PendingInteractionUserQuestionQuestion,
-} from "@bb/domain";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
+} from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import { TabPill } from "@/components/ui/tab-pill.js";
 import { useAutoGrow } from "@/hooks/useAutoGrow";
 import { useResolveThreadPendingInteraction } from "@/hooks/mutations/thread-interaction-mutations";
 import { useStopThread } from "@/hooks/mutations/thread-runtime-mutations";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   answerStateFor,
   buildUserAnswerResolution,

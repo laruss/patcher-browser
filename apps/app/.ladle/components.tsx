@@ -6,7 +6,7 @@ import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { Provider as JotaiProvider, createStore } from "jotai";
 import { MemoryRouter } from "react-router-dom";
 import { AppToaster } from "../src/components/AppToaster";
-import { TooltipProvider } from "@bb/shared-ui/tooltip";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 import { setPreferredTheme } from "../src/hooks/useTheme";
 import {
   createDiffWorker,
@@ -23,7 +23,7 @@ import "./ladle.css";
 if (typeof window !== "undefined") {
   const params = new URLSearchParams(window.location.search);
   if (!params.has("theme")) {
-    const stored = window.localStorage.getItem("bb.theme");
+    const stored = window.localStorage.getItem("patcher.theme");
     if (stored === "light" || stored === "dark") {
       params.set("theme", stored);
       const next = `${window.location.pathname}?${params.toString()}${window.location.hash}`;

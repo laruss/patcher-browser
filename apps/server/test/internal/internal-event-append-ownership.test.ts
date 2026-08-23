@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
-import { events, getThread } from "@bb/db";
-import { threadScope, turnScope } from "@bb/domain";
+import { events, getThread } from "@patcher/db";
+import { threadScope, turnScope } from "@patcher/domain";
 import {
   groupHostDaemonEvents,
   hostDaemonEventBatchResponseSchema,
   type HostDaemonEventEnvelope,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { describe, expect, it } from "vitest";
 import { buildThreadTimeline } from "../../src/services/threads/timeline.js";
 import {
@@ -266,7 +266,7 @@ describe("internal event append ownership", () => {
     }
   });
 
-  it("accepts a batch carrying a provider/unhandled event for a turn bb never started", async () => {
+  it("accepts a batch carrying a provider/unhandled event for a turn Patcher never started", async () => {
     // The production wedge, at the route that produced it. Codex labels its
     // automatic-compaction traffic with a turn id of its own making, so the
     // daemon posted a provider/unhandled event scoped to `auto-compact-1`. The

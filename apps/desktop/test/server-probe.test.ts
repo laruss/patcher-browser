@@ -4,7 +4,10 @@ import {
   type ServerResponse,
 } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { probeBbServer, type ServerProbeFetch } from "../src/server-probe.js";
+import {
+  probePatcherServer,
+  type ServerProbeFetch,
+} from "../src/server-probe.js";
 
 interface TestServer {
   close(): Promise<void>;
@@ -64,7 +67,7 @@ afterEach(async () => {
   }
 });
 
-describe("probeBbServer", () => {
+describe("probePatcherServer", () => {
   it("uses the provided authenticated fetch implementation", async () => {
     const fetchImpl = vi
       .fn<ServerProbeFetch>()
@@ -77,7 +80,7 @@ describe("probeBbServer", () => {
       );
 
     await expect(
-      probeBbServer({
+      probePatcherServer({
         fetchImpl,
         serverUrl: "https://studio.example",
         timeoutMs: 1_000,
@@ -90,7 +93,7 @@ describe("probeBbServer", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it("accepts a server with bb health and system config endpoints", async () => {
+  it("accepts a server with Patcher health and system config endpoints", async () => {
     const testServer = await startTestServer({
       handler(request, response) {
         if (request.url === "/health") {
@@ -102,7 +105,7 @@ describe("probeBbServer", () => {
             response,
             200,
             JSON.stringify({
-              hostDaemonPort: 38887,
+              hostDaemonPort: 38987,
               primaryHostPlatform: null,
               voiceTranscriptionEnabled: false,
             }),
@@ -114,7 +117,7 @@ describe("probeBbServer", () => {
     });
 
     await expect(
-      probeBbServer({ serverUrl: testServer.url, timeoutMs: 500 }),
+      probePatcherServer({ serverUrl: testServer.url, timeoutMs: 500 }),
     ).resolves.toEqual({
       dataDir: null,
       kind: "compatible",
@@ -128,20 +131,20 @@ describe("probeBbServer", () => {
       .mockResolvedValueOnce(Response.json({ ok: true }))
       .mockResolvedValueOnce(
         Response.json({
-          dataDir: "/Users/example/.bb",
+          dataDir: "/Users/example/.patcher",
           hostDaemonPort: 4_242,
           voiceTranscriptionEnabled: false,
         }),
       );
 
     await expect(
-      probeBbServer({
+      probePatcherServer({
         fetchImpl,
         serverUrl: "https://studio.example",
         timeoutMs: 1_000,
       }),
     ).resolves.toEqual({
-      dataDir: "/Users/example/.bb",
+      dataDir: "/Users/example/.patcher",
       kind: "compatible",
       serverUrl: "https://studio.example",
     });
@@ -158,7 +161,7 @@ describe("probeBbServer", () => {
       },
     });
 
-    const result = await probeBbServer({
+    const result = await probePatcherServer({
       serverUrl: testServer.url,
       timeoutMs: 500,
     });
@@ -179,7 +182,7 @@ describe("probeBbServer", () => {
             response,
             200,
             JSON.stringify({
-              hostDaemonPort: 38887,
+              hostDaemonPort: 38987,
               primaryHostPlatform: null,
               voiceTranscriptionEnabled: false,
             }),
@@ -196,7 +199,7 @@ describe("probeBbServer", () => {
     });
 
     await expect(
-      probeBbServer({ serverUrl: testServer.url, timeoutMs: 500 }),
+      probePatcherServer({ serverUrl: testServer.url, timeoutMs: 500 }),
     ).resolves.toEqual({
       dataDir: null,
       kind: "compatible",
@@ -215,7 +218,7 @@ describe("probeBbServer", () => {
     await testServer.close();
     testServers.pop();
 
-    const result = await probeBbServer({
+    const result = await probePatcherServer({
       serverUrl: unavailableUrl,
       timeoutMs: 500,
     });

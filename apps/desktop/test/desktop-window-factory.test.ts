@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowserWindowConstructorOptions } from "electron";
 import { afterEach, describe, expect, it } from "vitest";
-import { BB_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX } from "@patcher/desktop-contract";
 import {
   createDesktopWindowFactory,
   type DesktopBrowserWindow,
@@ -32,7 +32,7 @@ interface FakeDesktopWindowArgs {
 const tempDirs: TempDir[] = [];
 
 async function createTempDir(): Promise<TempDir> {
-  const path = await mkdtemp(join(tmpdir(), "bb-desktop-window-factory-"));
+  const path = await mkdtemp(join(tmpdir(), "patcher-desktop-window-factory-"));
   const tempDir = { path };
   tempDirs.push(tempDir);
   return tempDir;
@@ -261,11 +261,11 @@ describe("desktop window factory", () => {
 
     runtimeSupervisorInvocations += 1;
     const firstWindow = await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
     const secondWindow = await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
 
@@ -285,8 +285,8 @@ describe("desktop window factory", () => {
       x: 18,
       y: 18,
     });
-    expect(createdWindows[0]?.loadedUrls).toEqual(["http://127.0.0.1:38886"]);
-    expect(createdWindows[1]?.loadedUrls).toEqual(["http://127.0.0.1:38886"]);
+    expect(createdWindows[0]?.loadedUrls).toEqual(["http://127.0.0.1:38986"]);
+    expect(createdWindows[1]?.loadedUrls).toEqual(["http://127.0.0.1:38986"]);
     expect(createdWindows[0]?.webContents.zoomFactors).toEqual([1]);
     expect(createdWindows[1]?.webContents.zoomFactors).toEqual([1]);
     expect(runtimeSupervisorInvocations).toBe(1);
@@ -349,11 +349,11 @@ describe("desktop window factory", () => {
     });
 
     await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
     await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
 
@@ -362,8 +362,8 @@ describe("desktop window factory", () => {
         (window) => window.options.webPreferences?.additionalArguments,
       ),
     ).toEqual([
-      [`${BB_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}main`],
-      [`${BB_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}window-second`],
+      [`${PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}main`],
+      [`${PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}window-second`],
     ]);
   });
 
@@ -402,11 +402,11 @@ describe("desktop window factory", () => {
 
     const [firstWindow, secondWindow] = await Promise.all([
       factory.createWindow({
-        initialUrl: "http://127.0.0.1:38886",
+        initialUrl: "http://127.0.0.1:38986",
         stateKey: null,
       }),
       factory.createWindow({
-        initialUrl: "http://127.0.0.1:38886",
+        initialUrl: "http://127.0.0.1:38986",
         stateKey: null,
       }),
     ]);
@@ -460,7 +460,7 @@ describe("desktop window factory", () => {
     });
 
     await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
     const browserWindow = createdWindows[0];
@@ -510,8 +510,8 @@ describe("desktop window factory", () => {
       preloadPath: "/tmp/preload.cjs",
       userDataPath: tempDir.path,
     });
-    const initialUrl = "http://127.0.0.1:38886";
-    const threadUrl = "http://127.0.0.1:38886/projects/proj_a/threads/thr_a";
+    const initialUrl = "http://127.0.0.1:38986";
+    const threadUrl = "http://127.0.0.1:38986/projects/proj_a/threads/thr_a";
 
     expect(await factory.loadUrlInFirstWindow({ url: threadUrl })).toBe(false);
 
@@ -568,11 +568,11 @@ describe("desktop window factory", () => {
     });
 
     expect(
-      factory.sendToFirstWindow("bb:test", { path: "/threads/thr_a" }),
+      factory.sendToFirstWindow("patcher:test", { path: "/threads/thr_a" }),
     ).toBe(false);
 
     await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
     const browserWindow = createdWindows[0];
@@ -581,12 +581,12 @@ describe("desktop window factory", () => {
     }
 
     expect(
-      factory.sendToFirstWindow("bb:test", { path: "/threads/thr_a" }),
+      factory.sendToFirstWindow("patcher:test", { path: "/threads/thr_a" }),
     ).toBe(true);
     expect(browserWindow.webContents.sentMessages).toEqual([
-      { channel: "bb:test", payload: { path: "/threads/thr_a" } },
+      { channel: "patcher:test", payload: { path: "/threads/thr_a" } },
     ]);
-    expect(browserWindow.loadedUrls).toEqual(["http://127.0.0.1:38886"]);
+    expect(browserWindow.loadedUrls).toEqual(["http://127.0.0.1:38986"]);
     expect(browserWindow.focused).toBe(true);
   });
 
@@ -627,11 +627,11 @@ describe("desktop window factory", () => {
     });
 
     await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
     await factory.createWindow({
-      initialUrl: "http://127.0.0.1:38886",
+      initialUrl: "http://127.0.0.1:38986",
       stateKey: null,
     });
     const firstWindow = createdWindows[0];
@@ -641,13 +641,13 @@ describe("desktop window factory", () => {
     }
     secondWindow.focused = true;
 
-    expect(factory.sendToFocusedWindow("bb:test", { action: "new-tab" })).toBe(
-      true,
-    );
+    expect(
+      factory.sendToFocusedWindow("patcher:test", { action: "new-tab" }),
+    ).toBe(true);
 
     expect(firstWindow.webContents.sentMessages).toEqual([]);
     expect(secondWindow.webContents.sentMessages).toEqual([
-      { channel: "bb:test", payload: { action: "new-tab" } },
+      { channel: "patcher:test", payload: { action: "new-tab" } },
     ]);
   });
 });

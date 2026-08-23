@@ -13,7 +13,7 @@ export const MAX_SELECTED = MAX_OPTIONS;
 export const MAX_FREE_TEXT_LENGTH = 4096;
 /**
  * Per-option preview cap. Previews are freeform (mockups, diffs, snippets) and
- * every one of them rides the 64 KiB `bb.ui.requestInput` payload, so the cap
+ * every one of them rides the 64 KiB `patcher.ui.requestInput` payload, so the cap
  * keeps a single question from exhausting that budget on its own.
  */
 export const MAX_OPTION_PREVIEW_LENGTH = 4096;

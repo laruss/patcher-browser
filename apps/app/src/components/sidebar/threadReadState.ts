@@ -1,4 +1,4 @@
-import type { Thread } from "@bb/domain";
+import type { Thread } from "@patcher/domain";
 import { isThreadRead } from "@/lib/thread-read-state";
 
 type ThreadReadToggleAction = "mark_read" | "mark_unread";

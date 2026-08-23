@@ -3,7 +3,7 @@
  * so a model that already knows the native tool behaves identically here.
  *
  * Two deliberate departures from the native definition, both forced by the fact
- * that BB delivers the answer as a tool *result* instead of rewriting the tool
+ * that Patcher delivers the answer as a tool *result* instead of rewriting the tool
  * call's input the way Claude Code's harness does:
  *
  * 1. The native input schema also carries `answers`, `annotations`, and
@@ -22,12 +22,12 @@
  * Verbatim from Claude Code's `AskUserQuestion` tool description, in the form
  * it sends to current models: the main body, the "Reserve this for decisions…"
  * paragraph, and the markdown variant of the Preview block (Claude selects that
- * variant for its own monospace preview box; BB renders previews the same way,
+ * variant for its own monospace preview box; Patcher renders previews the same way,
  * so the HTML-fragment variant would describe the wrong format).
  *
  * One sentence is adapted rather than copied: Claude's says the UI "switches to
  * a side-by-side layout with a vertical option list on the left and preview on
- * the right". BB reveals the preview beneath the selected option instead, and
+ * the right". Patcher reveals the preview beneath the selected option instead, and
  * describing a layout the model cannot produce would be a lie in a paragraph
  * whose entire job is telling it what the preview will look like.
  */

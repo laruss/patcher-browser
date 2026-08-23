@@ -1,4 +1,4 @@
-import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@bb/domain/browser-search-engine";
+import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@patcher/domain/browser-search-engine";
 import { describe, expect, it } from "vitest";
 import {
   getBrowserUrlHost,
@@ -30,7 +30,7 @@ describe("looksLikeUrl", () => {
     expect(looksLikeUrl("localhost:3000")).toBe(true);
     expect(looksLikeUrl("localhost:3000?debug=1")).toBe(true);
     expect(looksLikeUrl("foo.localhost:3000/path")).toBe(true);
-    expect(looksLikeUrl("127.0.0.1:38886")).toBe(true);
+    expect(looksLikeUrl("127.0.0.1:38986")).toBe(true);
     expect(looksLikeUrl("[::1]:5173/#/route")).toBe(true);
   });
 
@@ -190,11 +190,11 @@ describe("getBrowserUrlSecurity", () => {
 
   // Plain http that never leaves the machine. Warning about it was the same kind
   // of lie as a padlock on an unverified certificate, pointed the other way — and
-  // bb's own pages are served exactly like this.
+  // Patcher's own pages are served exactly like this.
   it("does not warn about loopback", () => {
     for (const url of [
       "http://localhost:5173/",
-      "http://127.0.0.1:38886/threads/th_1",
+      "http://127.0.0.1:38986/threads/th_1",
       "http://dev.localhost/",
       "http://[::1]:3000/",
     ]) {

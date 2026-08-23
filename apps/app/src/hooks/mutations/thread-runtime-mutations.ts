@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ThreadQueuedMessage } from "@bb/domain";
+import type { ThreadQueuedMessage } from "@patcher/domain";
 import type {
   CreateQueuedMessageRequest,
   CreateThreadRequest,
@@ -7,8 +7,8 @@ import type {
   SendQueuedMessageResponse,
   ThreadQueuedMessageListResponse,
   UpdateQueuedMessageRequest,
-} from "@bb/server-contract";
-import { BbHttpError, sdk } from "@/lib/sdk";
+} from "@patcher/server-contract";
+import { PatcherHttpError, sdk } from "@/lib/sdk";
 import { wsManager } from "@/lib/ws";
 import type { QueuedMessageReorderRequest } from "@/lib/queued-message-reorder";
 import type {
@@ -95,7 +95,7 @@ interface SetThreadQueuedMessageGroupBoundaryMutationRequest {
   id: string;
 }
 
-function getHttpErrorBodyMessage(error: BbHttpError): string | null {
+function getHttpErrorBodyMessage(error: PatcherHttpError): string | null {
   const body = error.body;
   if (
     typeof body !== "object" ||
@@ -110,7 +110,7 @@ function getHttpErrorBodyMessage(error: BbHttpError): string | null {
 
 function isQueuedMessageNotFoundError(error: unknown): boolean {
   return (
-    error instanceof BbHttpError &&
+    error instanceof PatcherHttpError &&
     error.status === 404 &&
     error.code === "invalid_request" &&
     getHttpErrorBodyMessage(error) === "Queued message not found"

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { getAppKeybindingOverrides } from "@bb/db";
+import { getAppKeybindingOverrides } from "@patcher/db";
 import {
   BROWSER_SELECT_TAB_APP_COMMAND_IDS,
   PANE_FOCUS_APP_COMMAND_IDS,
   THREAD_JUMP_APP_COMMAND_IDS,
   applyAppKeybindingOverrides,
   appKeybindingOverridesSchema,
-} from "@bb/domain";
-import { systemConfigResponseSchema } from "@bb/server-contract";
+} from "@patcher/domain";
+import { systemConfigResponseSchema } from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
@@ -46,9 +46,9 @@ describe("app keybindings", () => {
             shift: binding.shortcut.shift,
           })),
       ).toEqual([{ desktopOnly: false, key: "o", shift: true }]);
-      // Mod+N belongs to the browser: bb is one, and that chord opens a window
+      // Mod+N belongs to the browser: Patcher is one, and that chord opens a window
       // in every other. Mod+Shift+N stays unassigned on purpose — it is the
-      // incognito window everywhere else, and bb has yet to build one.
+      // incognito window everywhere else, and Patcher has yet to build one.
       expect(
         config.keybindings.find((binding) => binding.command === "window.new"),
       ).toMatchObject({
@@ -175,7 +175,7 @@ describe("app keybindings", () => {
         },
       });
       // The cycle chords must stay on plain Alt and share the scope of
-      // `modelPicker.toggle`. Alt is unused elsewhere in bb, so nothing shadows
+      // `modelPicker.toggle`. Alt is unused elsewhere in Patcher, so nothing shadows
       // them and they shadow nothing.
       expect(
         assignedDefaultKeybindings

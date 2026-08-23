@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
+} from "@patcher/shared-ui/dialog";
 import {
   Select,
   SelectContent,
@@ -21,10 +21,10 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from "@bb/shared-ui/select";
-import { Button } from "@bb/shared-ui/button";
-import { Input } from "@bb/shared-ui/input";
-import { Icon } from "@bb/shared-ui/icon";
+} from "@patcher/shared-ui/select";
+import { Button } from "@patcher/shared-ui/button";
+import { Input } from "@patcher/shared-ui/input";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   ColorSwatchPicker,
   DEFAULT_COLOR,
@@ -34,11 +34,11 @@ import {
   PROJECT_PREFIX_PATTERN,
 } from "./shared.js";
 import {
-  BbProjectLinkPicker,
-  emptyBbProjectLinkState,
-  resolveBbProjectLink,
-  type BbProjectLinkState,
-} from "./bb-project-link.js";
+  PatcherProjectLinkPicker,
+  emptyPatcherProjectLinkState,
+  resolvePatcherProjectLink,
+  type PatcherProjectLinkState,
+} from "./patcher-project-link.js";
 
 const NO_FOLDER = "__none__";
 const NEW_FOLDER = "__new__";
@@ -48,7 +48,10 @@ export interface NewProjectDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) {
+export function NewProjectDialog({
+  open,
+  onOpenChange,
+}: NewProjectDialogProps) {
   const rpc = useTasksRpc();
   const navigation = useTasksNavigation();
   const projects = useProjects();
@@ -61,18 +64,18 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   const [folderId, setFolderId] = useState<string | null>(null);
   const [newFolderMode, setNewFolderMode] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [linkState, setLinkState] = useState<BbProjectLinkState>(
-    emptyBbProjectLinkState,
+  const [linkState, setLinkState] = useState<PatcherProjectLinkState>(
+    emptyPatcherProjectLinkState,
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // BB workspace projects, including Personal, for the linked-project picker.
-  const bbProjects = useTasksQuery(
-    async (rpc) => (await rpc.call("listBbProjects")).bbProjects,
+  // Patcher workspace projects, including Personal, for the linked-project picker.
+  const patcherProjects = useTasksQuery(
+    async (rpc) => (await rpc.call("listPatcherProjects")).patcherProjects,
     [],
   );
-  const bbProjectList = bbProjects.data ?? [];
+  const patcherProjectList = patcherProjects.data ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +86,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     setFolderId(null);
     setNewFolderMode(false);
     setNewFolderName("");
-    setLinkState(emptyBbProjectLinkState());
+    setLinkState(emptyPatcherProjectLinkState());
     setError(null);
   }, [open]);
 
@@ -98,7 +101,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     return clash ? `Already used by ${clash.name}.` : null;
   }, [prefix, projects.data]);
 
-  const linkedTrimmed = resolveBbProjectLink(linkState);
+  const linkedTrimmed = resolvePatcherProjectLink(linkState);
 
   const canSubmit =
     name.trim().length > 0 &&
@@ -147,7 +150,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
         prefix,
         color,
         folderId,
-        linkedBbProjectId: linkedTrimmed === "" ? null : linkedTrimmed,
+        linkedPatcherProjectId: linkedTrimmed === "" ? null : linkedTrimmed,
       });
       onOpenChange(false);
       navigation.go({ kind: "project", projectId: project.id, view: "list" });
@@ -274,13 +277,13 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
             ) : null}
           </Field>
           <Field
-            label="Linked bb project"
-            hint="Optional. Linking a bb project enables dispatching to agents."
+            label="Linked Patcher project"
+            hint="Optional. Linking a Patcher project enables dispatching to agents."
           >
-            <BbProjectLinkPicker
+            <PatcherProjectLinkPicker
               state={linkState}
               onStateChange={setLinkState}
-              bbProjects={bbProjectList}
+              patcherProjects={patcherProjectList}
             />
           </Field>
         </div>

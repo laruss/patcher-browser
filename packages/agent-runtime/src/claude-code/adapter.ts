@@ -1,13 +1,13 @@
 /**
  * Claude Code provider adapter.
  *
- * Maps between bb's ProviderAdapter contract and the Claude Code SDK bridge
+ * Maps between Patcher's ProviderAdapter contract and the Claude Code SDK bridge
  * process. The bridge communicates via JSON-RPC over stdin/stdout. The adapter
  * owns event translation: it takes raw `SDKMessage` from the Claude Agent SDK
  * and produces `ThreadEvent[]`.
  */
 
-import { getBuiltInAgentProviderInfo } from "@bb/agent-providers";
+import { getBuiltInAgentProviderInfo } from "@patcher/agent-providers";
 import type {
   ApprovalPendingInteractionPayload,
   PendingInteractionApprovalDecision,
@@ -20,20 +20,20 @@ import type {
   UserQuestionPendingInteractionPayload,
   UserQuestionPendingInteractionResolution,
   ClaudeTaskToolOutput,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   claudeTaskToolNameSchema,
   claudeTaskToolOutputSchema,
   jsonValueSchema,
   removeCommandMentionsFromPromptInput,
   threadScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
   isUserQuestionPendingInteractionPayload,
   isUserQuestionPendingInteractionResolution,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { decodeNormalizedProviderToolCallRequest } from "../shared/provider-tool-call-contract.js";
 import { resolveAdapterPermissionPolicy } from "../shared/permission-policy.js";
 import { resolveBridgeProcessArgs } from "../shared/bridge-path.js";
@@ -834,7 +834,7 @@ function stripClaudePlanCommandInput(
 export interface CreateClaudeCodeProviderAdapterOptions extends ProviderAdapterFactoryOptions {
   /** Override the directory containing bundled bridge files. */
   bridgeBundleDir?: string;
-  /** Prefix for bb-owned turn ids emitted by this adapter instance. */
+  /** Prefix for Patcher-owned turn ids emitted by this adapter instance. */
   turnIdPrefix?: string;
 }
 
@@ -1055,7 +1055,7 @@ export function createClaudeCodeProviderAdapter(
       command: opts?.bridgeNodeExecutablePath ?? "node",
       args: resolveBridgeProcessArgs({
         bridgeBundleDir: opts?.bridgeBundleDir,
-        bundleFileName: "bb-claude-code-bridge.mjs",
+        bundleFileName: "patcher-claude-code-bridge.mjs",
         importMetaUrl: import.meta.url,
         bridgeRelativePath: "bridge/bridge.js",
       }),
@@ -1070,7 +1070,7 @@ export function createClaudeCodeProviderAdapter(
           return {
             kind: "request",
             method: "initialize",
-            params: { clientInfo: { name: "bb", version: "1.0.0" } },
+            params: { clientInfo: { name: "Patcher", version: "1.0.0" } },
           };
         case "model/list":
           return {

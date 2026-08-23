@@ -1,5 +1,5 @@
-import { getSupportedPermissionModes } from "@bb/agent-providers";
-import { getProjectExecutionDefaults, getThread } from "@bb/db";
+import { getSupportedPermissionModes } from "@patcher/agent-providers";
+import { getProjectExecutionDefaults, getThread } from "@patcher/db";
 import type {
   CallerExecutionInputSource,
   PermissionMode,
@@ -8,7 +8,7 @@ import type {
   ResolvedThreadExecutionOptions,
   ServiceTier,
   ThreadExecutionSource,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 import {

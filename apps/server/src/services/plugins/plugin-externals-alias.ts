@@ -12,11 +12,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PLUGIN_SERVER_EXTERNALS } from "@bb/plugin-build";
+import { PLUGIN_SERVER_EXTERNALS } from "@patcher/plugin-build";
 
 /**
  * Plugin server bundles leave `PLUGIN_SERVER_EXTERNALS` unresolved (see
- * @bb/plugin-build), and plugin authors never have `@bb/plugin-sdk` installed —
+ * @patcher/plugin-build), and plugin authors never have `@patcher/plugin-sdk` installed —
  * the scaffold maps that specifier to bundled `.d.ts` files only. Built and
  * packaged servers have no node_modules copy, so the server build ships a
  * self-contained SDK runtime bundle next to the server bundle and the loader
@@ -85,5 +85,5 @@ function resolveWorkspaceExternalsAlias(): Record<string, string> | undefined {
 
 export const pluginExternalsAlias: Record<string, string> | undefined =
   existsSync(pluginSdkRuntimePath)
-    ? { "@bb/plugin-sdk": pluginSdkRuntimePath }
+    ? { "@patcher/plugin-sdk": pluginSdkRuntimePath }
     : resolveWorkspaceExternalsAlias();

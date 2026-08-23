@@ -1,4 +1,4 @@
-import { getEnvironment, getThread, type DbConnection } from "@bb/db";
+import { getEnvironment, getThread, type DbConnection } from "@patcher/db";
 import {
   realtimeSubscriptionTargetKey,
   type ChangedMessage,
@@ -6,12 +6,12 @@ import {
   type RealtimeSubscriptionTarget,
   type ThreadChangeKind,
   type ThreadEventType,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   HostDaemonWatchSet,
   HostDaemonWatchSetThreadStorageTarget,
   HostDaemonWatchSetWorkspaceTarget,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { workspaceContextFromPath } from "../services/environments/workspace-command-target.js";
 import type { NotificationHub } from "./hub.js";
 

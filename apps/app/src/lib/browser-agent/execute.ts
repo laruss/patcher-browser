@@ -6,19 +6,19 @@ import {
   type BrowserCommandOutcome,
   type BrowserCommandValue,
   type BrowserTabSnapshot,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
-  BbDesktopBrowserApi,
-  BbDesktopBrowserCaptureFullPageResult,
-  BbDesktopBrowserControlResult,
-  BbDesktopBrowserRecordResult,
-  BbDesktopBrowserInteractResult,
-  BbDesktopBrowserObserveResult,
-  BbDesktopBrowserPageReadResult,
-  BbDesktopBrowserSnapshotResult,
-  BbDesktopBrowserState,
-  BbDesktopBrowserStorageResult,
-} from "@bb/desktop-contract";
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserCaptureFullPageResult,
+  PatcherDesktopBrowserControlResult,
+  PatcherDesktopBrowserRecordResult,
+  PatcherDesktopBrowserInteractResult,
+  PatcherDesktopBrowserObserveResult,
+  PatcherDesktopBrowserPageReadResult,
+  PatcherDesktopBrowserSnapshotResult,
+  PatcherDesktopBrowserState,
+  PatcherDesktopBrowserStorageResult,
+} from "@patcher/desktop-contract";
 import type { BrowserFixedPanelTab } from "../fixed-panel-tabs-state";
 import { normalizeBrowserUrl } from "../browser-url";
 import {
@@ -63,8 +63,8 @@ export interface BrowserCommandDeps {
     update: (current: BrowserSurfaceTabsState) => BrowserSurfaceTabsState,
   ) => void;
   /** Null on the web build, where there is no browser at all. */
-  desktopBrowser: BbDesktopBrowserApi | null;
-  getLiveState: (tabId: string) => BbDesktopBrowserState | null;
+  desktopBrowser: PatcherDesktopBrowserApi | null;
+  getLiveState: (tabId: string) => PatcherDesktopBrowserState | null;
   waitForSettled: (tabId: string) => Promise<{ timedOut: boolean }>;
   /** Seam so tests get predictable tab ids. */
   createTab?: (url: string) => BrowserFixedPanelTab;
@@ -77,7 +77,7 @@ export interface BrowserCommandDeps {
   recordMuted?: (args: { muted: boolean; tabId: string }) => void;
   /** Called when a tab is closed, so its native view is torn down too. */
   destroyView?: (args: {
-    desktopBrowser: BbDesktopBrowserApi;
+    desktopBrowser: PatcherDesktopBrowserApi;
     tabId: string;
   }) => void;
   /**
@@ -118,7 +118,7 @@ function success(value: BrowserCommandValue): BrowserCommandOutcome {
 function toSnapshot(
   tab: BrowserFixedPanelTab,
   state: BrowserSurfaceTabsState,
-  live: BbDesktopBrowserState | null,
+  live: PatcherDesktopBrowserState | null,
 ): BrowserTabSnapshot {
   return {
     tabId: tab.id,
@@ -138,7 +138,7 @@ function snapshotAll(
   state: BrowserSurfaceTabsState,
   deps: BrowserCommandDeps,
 ): BrowserTabSnapshot[] {
-  // Web tabs only, here and in `resolveTab`. The strip also carries bb's own
+  // Web tabs only, here and in `resolveTab`. The strip also carries Patcher's own
   // screens (Settings, Extensions, a plugin's panel), and those have no page for
   // an agent to read, navigate or screenshot — listing them would be offering
   // tools that cannot work on them.
@@ -191,11 +191,11 @@ function resolveTab(
 }
 
 const NOT_LIVE_HINT =
-  "Open the Browser surface in the BB desktop app and select that tab, then try again.";
+  "Open the Browser surface in the Patcher desktop app and select that tab, then try again.";
 
 /** Maps the shell's typed refusals onto the codes the agent tools speak. */
 function pageReadFailure(
-  result: Extract<BbDesktopBrowserPageReadResult, { ok: false }>,
+  result: Extract<PatcherDesktopBrowserPageReadResult, { ok: false }>,
   tabId: string,
 ): BrowserCommandOutcome {
   switch (result.reason) {
@@ -224,7 +224,7 @@ function pageReadFailure(
 
 /** Maps the shell's snapshot refusals onto the codes the agent tools speak. */
 function snapshotFailure(
-  result: Extract<BbDesktopBrowserSnapshotResult, { ok: false }>,
+  result: Extract<PatcherDesktopBrowserSnapshotResult, { ok: false }>,
   tabId: string,
 ): BrowserCommandOutcome {
   switch (result.reason) {
@@ -267,7 +267,7 @@ function snapshotFailure(
 
 /** Maps the shell's interaction refusals onto the codes the agent tools speak. */
 function interactFailure(
-  result: Extract<BbDesktopBrowserInteractResult, { ok: false }>,
+  result: Extract<PatcherDesktopBrowserInteractResult, { ok: false }>,
   tabId: string,
 ): BrowserCommandOutcome {
   const detail = result.message === undefined ? "" : ` ${result.message}`;
@@ -318,7 +318,8 @@ function interactFailure(
  */
 function observeFailure(
   result: Extract<
-    BbDesktopBrowserObserveResult | BbDesktopBrowserCaptureFullPageResult,
+    | PatcherDesktopBrowserObserveResult
+    | PatcherDesktopBrowserCaptureFullPageResult,
     { ok: false }
   >,
   tabId: string,
@@ -355,7 +356,7 @@ function observeFailure(
 
 /** Maps the shell's storage refusals onto the codes the agent tools speak. */
 function storageFailure(
-  result: Extract<BbDesktopBrowserStorageResult, { ok: false }>,
+  result: Extract<PatcherDesktopBrowserStorageResult, { ok: false }>,
   tabId: string,
 ): BrowserCommandOutcome {
   const detail = result.message === undefined ? "" : ` ${result.message}`;
@@ -385,7 +386,7 @@ function storageFailure(
 
 /** Maps the shell's direct-control refusals onto the agent tools' codes. */
 function controlFailure(
-  result: Extract<BbDesktopBrowserControlResult, { ok: false }>,
+  result: Extract<PatcherDesktopBrowserControlResult, { ok: false }>,
   tabId: string,
 ): BrowserCommandOutcome {
   const detail = result.message === undefined ? "" : ` ${result.message}`;
@@ -431,7 +432,7 @@ function controlFailure(
 
 /** Maps the shell's filming refusals onto the codes the agent tools speak. */
 function recordFailure(
-  result: Extract<BbDesktopBrowserRecordResult, { ok: false }>,
+  result: Extract<PatcherDesktopBrowserRecordResult, { ok: false }>,
   tabId: string,
 ): BrowserCommandOutcome {
   const detail = result.message === undefined ? "" : ` ${result.message}`;
@@ -550,9 +551,12 @@ async function recordTraceStep(
 
 async function readPage(
   tabId: string,
-  desktopBrowser: BbDesktopBrowserApi,
+  desktopBrowser: PatcherDesktopBrowserApi,
 ): Promise<
-  | { ok: true; content: Extract<BbDesktopBrowserPageReadResult, { ok: true }> }
+  | {
+      ok: true;
+      content: Extract<PatcherDesktopBrowserPageReadResult, { ok: true }>;
+    }
   | { ok: false; outcome: BrowserCommandOutcome }
 > {
   // Feature-detected: an older desktop shell has no read-page channel at all.
@@ -561,7 +565,7 @@ async function readPage(
       ok: false,
       outcome: failure(
         "unsupported_command",
-        "This version of the BB desktop app cannot read page content.",
+        "This version of the Patcher desktop app cannot read page content.",
       ),
     };
   }
@@ -579,7 +583,7 @@ export async function executeBrowserCommand(
   deps: BrowserCommandDeps,
 ): Promise<BrowserCommandOutcome> {
   // The command originated from a language model, so it is parsed like any
-  // other untrusted payload rather than trusted for having come from bb.
+  // other untrusted payload rather than trusted for having come from Patcher.
   const parsed = browserCommandSchema.safeParse(rawCommand);
   if (!parsed.success) {
     return failure(
@@ -636,7 +640,7 @@ async function runBrowserCommand(
   if (desktopBrowser === null) {
     return failure(
       "desktop_unavailable",
-      "Browser control needs the BB desktop app; this session is running in a web browser.",
+      "Browser control needs the Patcher desktop app; this session is running in a web browser.",
     );
   }
 
@@ -731,7 +735,7 @@ async function runBrowserCommand(
       if (setMuted === undefined) {
         return failure(
           "desktop_unavailable",
-          "This BB desktop build cannot mute a tab.",
+          "This Patcher desktop build cannot mute a tab.",
         );
       }
       setMuted({ muted: command.muted, tabId: tab.id });
@@ -834,7 +838,7 @@ async function runBrowserCommand(
       if (desktopBrowser.respondToDialog === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot answer page dialogs.",
+          "This version of the Patcher desktop app cannot answer page dialogs.",
         );
       }
       const answered = await desktopBrowser.respondToDialog({
@@ -861,19 +865,19 @@ async function runBrowserCommand(
       if (desktopBrowser.snapshot === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot snapshot pages.",
+          "This version of the Patcher desktop app cannot snapshot pages.",
         );
       }
       const depth =
         command.maxDepth === null ? {} : { maxDepth: command.maxDepth };
-      let result: BbDesktopBrowserSnapshotResult;
+      let result: PatcherDesktopBrowserSnapshotResult;
       if (command.selector === null) {
         result = await desktopBrowser.snapshot({ tabId: tab.id, ...depth });
       } else {
         if (desktopBrowser.snapshotIn === undefined) {
           return failure(
             "unsupported_command",
-            "This version of the BB desktop app cannot snapshot part of a page. Snapshot the whole page instead.",
+            "This version of the Patcher desktop app cannot snapshot part of a page. Snapshot the whole page instead.",
           );
         }
         result = await desktopBrowser.snapshotIn({
@@ -906,7 +910,7 @@ async function runBrowserCommand(
       if (desktopBrowser.interact === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot act on pages.",
+          "This version of the Patcher desktop app cannot act on pages.",
         );
       }
       const result = await desktopBrowser.interact({
@@ -950,7 +954,7 @@ async function runBrowserCommand(
       if (desktopBrowser.observe === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot capture or inspect pages.",
+          "This version of the Patcher desktop app cannot capture or inspect pages.",
         );
       }
       // A full-page capture is a different channel and a different mechanism,
@@ -964,7 +968,7 @@ async function runBrowserCommand(
         if (desktopBrowser.captureFullPage === undefined) {
           return failure(
             "unsupported_command",
-            "This version of the BB desktop app cannot capture a whole page — ask for the visible viewport instead.",
+            "This version of the Patcher desktop app cannot capture a whole page — ask for the visible viewport instead.",
           );
         }
         const captured = await desktopBrowser.captureFullPage({
@@ -1057,7 +1061,7 @@ async function runBrowserCommand(
       if (desktopBrowser.storage === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot read or write browser storage.",
+          "This version of the Patcher desktop app cannot read or write browser storage.",
         );
       }
       const result = await desktopBrowser.storage({
@@ -1106,7 +1110,7 @@ async function runBrowserCommand(
       if (desktopBrowser.control === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot evaluate scripts, mock requests or act by coordinate.",
+          "This version of the Patcher desktop app cannot evaluate scripts, mock requests or act by coordinate.",
         );
       }
       const result = await desktopBrowser.control({
@@ -1159,7 +1163,7 @@ async function runBrowserCommand(
       if (desktopBrowser.record === undefined) {
         return failure(
           "unsupported_command",
-          "This version of the BB desktop app cannot film a tab.",
+          "This version of the Patcher desktop app cannot film a tab.",
         );
       }
       const result = await desktopBrowser.record({
@@ -1313,7 +1317,7 @@ async function runBrowserCommand(
       if (setZoom === undefined) {
         return failure(
           "desktop_unavailable",
-          "This BB desktop build cannot zoom a page.",
+          "This Patcher desktop build cannot zoom a page.",
         );
       }
       // No clamping here: the command schema already refuses a factor outside

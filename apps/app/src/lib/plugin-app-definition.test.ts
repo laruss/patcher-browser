@@ -17,7 +17,7 @@ describe("definePluginApp", () => {
     const definition = definePluginApp(() => {});
     expect(isPluginAppDefinition(definition)).toBe(true);
     expect(isPluginAppDefinition({})).toBe(false);
-    expect(isPluginAppDefinition({ __bbPluginApp: true })).toBe(false);
+    expect(isPluginAppDefinition({ __patcherPluginApp: true })).toBe(false);
     expect(isPluginAppDefinition(null)).toBe(false);
   });
 

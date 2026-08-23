@@ -1,5 +1,8 @@
-import type { EnvironmentStatus, WorkspaceProvisionType } from "@bb/domain";
-import type { WorkspaceContext } from "@bb/host-daemon-contract";
+import type {
+  EnvironmentStatus,
+  WorkspaceProvisionType,
+} from "@patcher/domain";
+import type { WorkspaceContext } from "@patcher/host-daemon-contract";
 import { throwEnvironmentNotReady } from "../lib/lifecycle-api-errors.js";
 
 interface WorkspaceCommandTargetEnvironment {

@@ -1,4 +1,4 @@
-import type { WorkspaceCommitSummary } from "@bb/domain";
+import type { WorkspaceCommitSummary } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   buildGitDiffSelectionOptions,

@@ -1,10 +1,10 @@
-// bb-plugin-t3sidebar backend — the settled / snoozed store.
+// patcher-plugin-t3sidebar backend — the settled / snoozed store.
 //
-// This state lives in the plugin's own SQLite database, never on bb's thread.
+// This state lives in the plugin's own SQLite database, never on Patcher's thread.
 // Putting it on the thread would mean a schema change, a wire change, and a
 // HOST_DAEMON_PROTOCOL_VERSION bump for something only this sidebar
 // understands. Here, uninstalling the plugin removes its state with it.
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import { defineRpcContract, type PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 const migrations = [
@@ -62,9 +62,9 @@ export const t3sidebarRpcContract = defineRpcContract({
 /** Channel the frontend re-reads on. */
 export const LIFECYCLE_CHANNEL = "lifecycle";
 
-export default function plugin(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, migrations);
+export default function plugin(patcher: PatcherPluginApi) {
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, migrations);
 
   const readAll = (): StoredLifecycleRow[] =>
     (
@@ -91,17 +91,17 @@ export default function plugin(bb: BbPluginApi) {
          snoozed_until = excluded.snoozed_until,
          snoozed_at = excluded.snoozed_at`,
     ).run(row.threadId, row.settledAt, row.snoozedUntil, row.snoozedAt);
-    bb.realtime.publish(LIFECYCLE_CHANNEL, { threadId: row.threadId });
+    patcher.realtime.publish(LIFECYCLE_CHANNEL, { threadId: row.threadId });
   };
 
   const clear = (threadId: string): void => {
     db.prepare(`DELETE FROM thread_lifecycle WHERE thread_id = ?`).run(
       threadId,
     );
-    bb.realtime.publish(LIFECYCLE_CHANNEL, { threadId });
+    patcher.realtime.publish(LIFECYCLE_CHANNEL, { threadId });
   };
 
-  bb.rpc.register(t3sidebarRpcContract, {
+  patcher.rpc.register(t3sidebarRpcContract, {
     async listLifecycle() {
       return { rows: readAll() };
     },
@@ -138,7 +138,7 @@ export default function plugin(bb: BbPluginApi) {
 
   // A deleted thread must not leave a row behind that would park a future
   // thread reusing the id, and stale rows accumulate otherwise.
-  bb.events.on("thread.deleted", ({ thread }) => {
+  patcher.events.on("thread.deleted", ({ thread }) => {
     clear(thread.id);
   });
 }

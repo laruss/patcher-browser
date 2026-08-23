@@ -4,7 +4,7 @@ import type {
   WorkflowAgentState,
   WorkflowPhaseSnapshot,
   WorkflowProgressSnapshot,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { ThreadWorkflowCard } from "./ThreadWorkflowCard";
 import { workflowRow } from "@/test/fixtures/thread-timeline-rows";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
@@ -94,7 +94,7 @@ const runningWorkflow = workflowRow({
   id: "thr_fixture:workflow:investigation:running",
   status: "pending",
   taskStatus: "running",
-  workflowName: "bb-plugin-investigation",
+  workflowName: "patcher-plugin-investigation",
   description: "Investigate the plugin subsystem",
   // ~5m26s ago, so the live duration reads like the mockup.
   startedAt: Date.now() - 326_000,
@@ -193,7 +193,7 @@ const manyPhasesWorkflow = workflowRow({
   id: "thr_fixture:workflow:many-phases:running",
   status: "pending",
   taskStatus: "running",
-  workflowName: "bb-repo-wide-audit",
+  workflowName: "patcher-repo-wide-audit",
   description: "Audit the entire repository across forty phases",
   startedAt: Date.now() - 1_472_000,
   workflow: buildManyPhasesSnapshot(40, 12),
@@ -207,7 +207,7 @@ const secondRunningWorkflow = workflowRow({
   id: "thr_fixture:workflow:balance:running",
   status: "pending",
   taskStatus: "running",
-  workflowName: "bb-balance-pass",
+  workflowName: "patcher-balance-pass",
   description: "Close the remaining balance defects",
   startedAt: Date.now() - 94_000,
   workflow: {
@@ -305,7 +305,7 @@ function AutoAdvancePreview() {
         id: "thr_fixture:workflow:auto-advance:running",
         status: "pending",
         taskStatus: "running",
-        workflowName: "bb-repo-wide-audit",
+        workflowName: "patcher-repo-wide-audit",
         description: "Audit the entire repository across forty phases",
         startedAt: Date.now() - 1_472_000,
         workflow: buildManyPhasesSnapshot(40, activePhase),

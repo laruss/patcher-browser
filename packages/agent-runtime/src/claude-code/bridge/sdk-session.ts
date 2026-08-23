@@ -33,7 +33,7 @@ export interface SdkSessionOptions {
   pathToClaudeCodeExecutable?: Options["pathToClaudeCodeExecutable"];
   plugins?: Options["plugins"];
   thinking?: Options["thinking"];
-  /** Flag-tier settings (highest user-controlled tier); BB owns this layer. */
+  /** Flag-tier settings (highest user-controlled tier); Patcher owns this layer. */
   settings?: Options["settings"];
 }
 
@@ -121,7 +121,7 @@ function buildSdkPermissionOptions(
     return { permissionMode };
   }
 
-  // Claude Code refuses dangerous permission skipping under root. Keep bb's
+  // Claude Code refuses dangerous permission skipping under root. Keep Patcher's
   // logical bypass policy in the bridge canUseTool handler, but avoid sending
   // the SDK flags that make the CLI exit before the session starts.
   if (isCurrentProcessRoot()) {
@@ -228,7 +228,7 @@ export class SdkSession {
       // Mirror the Claude CLI cascade so the SDK loads both the user's global
       // configuration (~/.claude/settings.json, ~/.claude/CLAUDE.md) and the
       // workspace's project and local settings. Restricting this to "project"
-      // hid global home configuration from bb-managed sessions.
+      // hid global home configuration from Patcher-managed sessions.
       settingSources: ["user", "project", "local"],
       persistSession: true,
       env: this.options.env ?? process.env,

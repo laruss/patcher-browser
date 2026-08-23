@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { confirmDestructiveAction, outputJson } from "./helpers.js";
 
 interface FileTargetOptions {
@@ -58,7 +58,7 @@ export function registerFileCommands(
 ): void {
   const file = program
     .command("file")
-    .description("Read and manage files on BB machines");
+    .description("Read and manage files on Patcher machines");
 
   file
     .command("read <path>")
@@ -68,7 +68,7 @@ export function registerFileCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (path: string, opts: FileTargetOptions) => {
-        const result = await createCliBbSdk(getUrl()).files.read({
+        const result = await createCliPatcherSdk(getUrl()).files.read({
           path,
           ...commonTarget(opts),
         });
@@ -98,7 +98,7 @@ export function registerFileCommands(
           throw new Error("Provide exactly one of --content or --stdin.");
         }
         const content = opts.stdin ? await readStdin() : (opts.content ?? "");
-        const result = await createCliBbSdk(getUrl()).files.write({
+        const result = await createCliPatcherSdk(getUrl()).files.write({
           path,
           content,
           ...commonTarget(opts),
@@ -125,7 +125,7 @@ export function registerFileCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (path: string, opts: FileListOptions) => {
-        const result = await createCliBbSdk(getUrl()).files.list({
+        const result = await createCliPatcherSdk(getUrl()).files.list({
           path,
           ...(opts.host ? { hostId: opts.host } : {}),
           ...(opts.query ? { query: opts.query } : {}),
@@ -150,7 +150,7 @@ export function registerFileCommands(
         const includeFiles = opts.files || !opts.directories;
         const includeDirectories = opts.directories || !opts.files;
         const limit = parseLimit(opts.limit);
-        const result = await createCliBbSdk(getUrl()).files.listPaths({
+        const result = await createCliPatcherSdk(getUrl()).files.listPaths({
           path,
           includeFiles,
           includeDirectories,
@@ -177,7 +177,7 @@ export function registerFileCommands(
           path: string,
           opts: FileTargetOptions & { recursive?: boolean },
         ) => {
-          const result = await createCliBbSdk(getUrl()).files.mkdir({
+          const result = await createCliPatcherSdk(getUrl()).files.mkdir({
             path,
             ...commonTarget(opts),
             recursive: opts.recursive,
@@ -201,7 +201,7 @@ export function registerFileCommands(
           destination: string,
           opts: FileTargetOptions,
         ) => {
-          const result = await createCliBbSdk(getUrl()).files.move({
+          const result = await createCliPatcherSdk(getUrl()).files.move({
             sourcePath: source,
             destinationPath: destination,
             ...commonTarget(opts),
@@ -224,7 +224,7 @@ export function registerFileCommands(
       action(async (path: string, opts: FileRemoveOptions) => {
         if (!opts.yes && !(await confirmDestructiveAction(`Remove ${path}?`)))
           return;
-        const result = await createCliBbSdk(getUrl()).files.remove({
+        const result = await createCliPatcherSdk(getUrl()).files.remove({
           path,
           ...commonTarget(opts),
           recursive: opts.recursive,

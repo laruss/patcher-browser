@@ -3,8 +3,8 @@ import {
   hostDaemonServerWsMessageSchema,
   type HostDaemonOnlineRpcRequestMessage,
   type HostDaemonOnlineRpcResult,
-} from "@bb/host-daemon-contract";
-import { hostDaemonSessions } from "@bb/db";
+} from "@patcher/host-daemon-contract";
+import { hostDaemonSessions } from "@patcher/db";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../../src/errors.js";

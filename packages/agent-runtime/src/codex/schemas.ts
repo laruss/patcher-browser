@@ -4,8 +4,8 @@ import {
   pendingInteractionFileSystemPermissionsSchema,
   pendingInteractionMacOsPermissionsSchema,
   pendingInteractionNetworkPermissionsSchema,
-} from "@bb/domain";
-import type { PendingInteractionCommandAction } from "@bb/domain";
+} from "@patcher/domain";
+import type { PendingInteractionCommandAction } from "@patcher/domain";
 import { jsonRpcEnvelopeSchema } from "../shared/json-rpc-envelope.js";
 
 export const codexTurnStatusSchema = z.enum([

@@ -1,5 +1,9 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
-import type { Thread, ThreadListEntry, ThreadWithRuntime } from "@bb/domain";
+import type {
+  Thread,
+  ThreadListEntry,
+  ThreadWithRuntime,
+} from "@patcher/domain";
 import {
   applyToCachedThreadLists,
   getCachedThreadLists,
@@ -11,7 +15,7 @@ import type {
   ThreadResponse,
   ThreadTimelineResponse,
   TimelineRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   ARCHIVED_THREADS_LIST_KIND,
   ENVIRONMENT_WORK_STATUS_QUERY_KEY,

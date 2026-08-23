@@ -2,8 +2,8 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createConnection, migrate, type DbConnection } from "@bb/db";
-import type { Logger } from "@bb/logger";
+import { createConnection, migrate, type DbConnection } from "@patcher/db";
+import type { Logger } from "@patcher/logger";
 import {
   createPluginService,
   type PluginService,
@@ -26,8 +26,8 @@ const logger = testLogger as unknown as Logger;
 // echoes the run context), a provider whose suggest throws, and a provider that
 // returns a run action it cannot perform.
 const OMNIBOX_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerOmniboxProvider({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerOmniboxProvider({
       id: "agent",
       label: "Agent",
       async suggest(ctx: any) {
@@ -44,14 +44,14 @@ const OMNIBOX_SOURCE = `
         return { navigate: "https://ran.test/" + itemId + "?q=" + ctx.query };
       },
     });
-    bb.browser.registerOmniboxProvider({
+    patcher.browser.registerOmniboxProvider({
       id: "broken",
       label: "Broken",
       async suggest() {
         throw new Error("suggest boom");
       },
     });
-    bb.browser.registerOmniboxProvider({
+    patcher.browser.registerOmniboxProvider({
       id: "unrunnable",
       label: "Unrunnable",
       async suggest() {
@@ -63,15 +63,15 @@ const OMNIBOX_SOURCE = `
 
 /** A provider that never answers, for the suggest time box. */
 const HANGING_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerOmniboxProvider({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerOmniboxProvider({
       id: "hangs",
       label: "Hangs",
       suggest() {
         return new Promise(() => {});
       },
     });
-    bb.browser.registerOmniboxProvider({
+    patcher.browser.registerOmniboxProvider({
       id: "fast",
       label: "Fast",
       suggest() {
@@ -92,7 +92,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Omnibox provider fixture",
         description: "Omnibox provider plugin fixture.",
         branding: { icon: "Zap" },
@@ -120,14 +120,14 @@ async function runAction(
   return { status: response.status, body: await response.json() };
 }
 
-describe("plugin omnibox providers (bb.browser.registerOmniboxProvider)", () => {
+describe("plugin omnibox providers (patcher.browser.registerOmniboxProvider)", () => {
   let harness: TestAppHarness;
 
   beforeEach(async () => {
     harness = await createTestAppHarness();
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
-      { name: "bb-plugin-omnibox", serverSource: OMNIBOX_SOURCE },
+      { name: "patcher-plugin-omnibox", serverSource: OMNIBOX_SOURCE },
     );
     const entry = await harness.pluginService.installPath(rootDir);
     expect(entry.status).toBe("running");
@@ -328,8 +328,8 @@ describe("omnibox suggest time box", () => {
   let service: PluginService;
 
   beforeEach(async () => {
-    workDir = await mkdtemp(join(tmpdir(), "bb-omnibox-timeout-"));
-    db = createConnection(join(workDir, "bb.db"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-omnibox-timeout-"));
+    db = createConnection(join(workDir, "patcher.db"));
     migrate(db);
     service = createPluginService({
       db,
@@ -353,7 +353,7 @@ describe("omnibox suggest time box", () => {
 
   it("drops a provider that never answers and keeps the rest", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-omnibox-hangs",
+      name: "patcher-plugin-omnibox-hangs",
       serverSource: HANGING_SOURCE,
     });
     const entry = await service.installPath(rootDir);

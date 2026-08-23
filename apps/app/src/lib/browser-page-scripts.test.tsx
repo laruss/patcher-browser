@@ -3,17 +3,17 @@
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS,
-  type BbDesktopBrowserApi,
-  type BbDesktopBrowserPageScriptCall,
-  type BbDesktopBrowserPageScriptCallHandler,
-  type BbDesktopBrowserPageScriptResult,
-  type BbDesktopBrowserPageScripts,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS,
+  type PatcherDesktopBrowserApi,
+  type PatcherDesktopBrowserPageScriptCall,
+  type PatcherDesktopBrowserPageScriptCallHandler,
+  type PatcherDesktopBrowserPageScriptResult,
+  type PatcherDesktopBrowserPageScripts,
+} from "@patcher/desktop-contract";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import type { PluginBrowserPageScriptContribution } from "@/hooks/queries/plugin-contribution-queries";
 import { useBrowserPageScripts } from "./browser-page-scripts";
 
@@ -37,31 +37,33 @@ const SCRIPT: PluginBrowserPageScriptContribution = {
   pluginId: "site-tweaks",
   scriptId: "toolbar",
   matches: ["https://github.com/**"],
-  code: "bb.ready(function(){})",
+  code: "patcher.ready(function(){})",
 };
 
-const CALL: BbDesktopBrowserPageScriptCall = {
+const CALL: PatcherDesktopBrowserPageScriptCall = {
   callId: "page-script-1",
   tabId: "browser:a",
   pluginId: "site-tweaks",
   method: "notes",
-  input: '{"repo":"bb/bb"}',
-  url: "https://github.com/bb/bb",
+  input: '{"repo":"patcher/browser"}',
+  url: "https://github.com/patcher/browser",
 };
 
 interface Shell {
-  pushes: BbDesktopBrowserPageScripts[];
-  answers: BbDesktopBrowserPageScriptResult[];
-  call(request?: Partial<BbDesktopBrowserPageScriptCall>): void;
+  pushes: PatcherDesktopBrowserPageScripts[];
+  answers: PatcherDesktopBrowserPageScriptResult[];
+  call(request?: Partial<PatcherDesktopBrowserPageScriptCall>): void;
   unsubscribed(): number;
 }
 
-function installShell(overrides: Partial<BbDesktopBrowserApi> = {}): Shell {
-  const pushes: BbDesktopBrowserPageScripts[] = [];
-  const answers: BbDesktopBrowserPageScriptResult[] = [];
-  const listeners = new Set<BbDesktopBrowserPageScriptCallHandler>();
+function installShell(
+  overrides: Partial<PatcherDesktopBrowserApi> = {},
+): Shell {
+  const pushes: PatcherDesktopBrowserPageScripts[] = [];
+  const answers: PatcherDesktopBrowserPageScriptResult[] = [];
+  const listeners = new Set<PatcherDesktopBrowserPageScriptCallHandler>();
   let unsubscribes = 0;
-  window.bbDesktop = createBbDesktopApi(desktopInfo, {
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, {
     ...createNoopDesktopBrowserApi(),
     setPageScripts(request) {
       pushes.push(request);
@@ -94,7 +96,7 @@ afterEach(() => {
   cleanup();
   contributions.value = undefined;
   vi.unstubAllGlobals();
-  delete window.bbDesktop;
+  delete window.patcherDesktop;
 });
 
 function stubRpc(
@@ -158,7 +160,7 @@ describe("useBrowserPageScripts", () => {
   it("pushes no more scripts than the shell will accept", async () => {
     contributions.value = {
       browserPageScripts: Array.from(
-        { length: BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS + 5 },
+        { length: PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS + 5 },
         (_unused, index) => ({ ...SCRIPT, scriptId: `toolbar-${index}` }),
       ),
     };
@@ -168,7 +170,7 @@ describe("useBrowserPageScripts", () => {
 
     await waitFor(() => {
       expect(shell.pushes[0]?.scripts).toHaveLength(
-        BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS,
+        PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS,
       );
     });
   });
@@ -189,7 +191,7 @@ describe("useBrowserPageScripts", () => {
     expect(calls).toEqual([
       {
         url: "/api/v1/plugins/site-tweaks/rpc/notes",
-        body: { repo: "bb/bb" },
+        body: { repo: "patcher/browser" },
       },
     ]);
   });
@@ -210,7 +212,7 @@ describe("useBrowserPageScripts", () => {
           callId: "page-script-1",
           ok: false,
           message:
-            'bb.rpc: plugin "site-tweaks" declares no page script for this address.',
+            'patcher.rpc: plugin "site-tweaks" declares no page script for this address.',
         },
       ]);
     });
@@ -261,7 +263,7 @@ describe("useBrowserPageScripts", () => {
           callId: "page-script-1",
           ok: false,
           message:
-            'bb.rpc("notes"): the answer is too large to hand to a page.',
+            'patcher.rpc("notes"): the answer is too large to hand to a page.',
         },
       ]);
     });
@@ -279,7 +281,7 @@ describe("useBrowserPageScripts", () => {
 
   it("says nothing to a shell that has no such channel", () => {
     contributions.value = { browserPageScripts: [SCRIPT] };
-    window.bbDesktop = createBbDesktopApi(
+    window.patcherDesktop = createPatcherDesktopApi(
       desktopInfo,
       createNoopDesktopBrowserApi(),
     );

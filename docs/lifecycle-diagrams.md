@@ -6,7 +6,7 @@
 # Lifecycle state machines
 
 Rendered from `THREAD_LIFECYCLE` and `ENVIRONMENT_LIFECYCLE` — the
-transition tables consumed by the CAS single-writers in `@bb/db`
+transition tables consumed by the CAS single-writers in `@patcher/db`
 (`applyThreadLifecycleEvent` / `applyEnvironmentLifecycleEvent`).
 
 How to read these: each edge groups all events that transition between

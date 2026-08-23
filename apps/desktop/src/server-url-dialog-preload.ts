@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 import {
-  BB_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL,
-  BB_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
+  PATCHER_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL,
+  PATCHER_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
   serverUrlDialogSubmitResponseSchema,
 } from "./server-url-dialog-ipc.js";
 
@@ -25,7 +25,7 @@ window.addEventListener("DOMContentLoaded", () => {
     event.preventDefault();
     void (async () => {
       const payload: unknown = await ipcRenderer.invoke(
-        BB_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
+        PATCHER_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
         { url: input.value },
       );
       const parsed = serverUrlDialogSubmitResponseSchema.safeParse(payload);
@@ -36,12 +36,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   cancel.addEventListener("click", () => {
-    ipcRenderer.send(BB_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL);
+    ipcRenderer.send(PATCHER_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL);
   });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      ipcRenderer.send(BB_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL);
+      ipcRenderer.send(PATCHER_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL);
     }
   });
 });

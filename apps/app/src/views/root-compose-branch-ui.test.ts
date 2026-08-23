@@ -1,4 +1,4 @@
-import type { ProjectSourceCheckout } from "@bb/domain";
+import type { ProjectSourceCheckout } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   buildRootComposeBranchUiState,

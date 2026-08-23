@@ -1,4 +1,4 @@
-import type { GitHostPullRequest } from "@bb/domain";
+import type { GitHostPullRequest } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { assembleThreadPullRequest } from "./pull-request.js";
 
@@ -9,10 +9,10 @@ function rawPullRequest(
     number: 42,
     title: "Add pull request section",
     state: "OPEN",
-    url: "https://github.com/acme/bb/pull/42",
+    url: "https://github.com/acme/patcher/pull/42",
     isDraft: false,
     baseRefName: "main",
-    headRefName: "bb/add-pr-section",
+    headRefName: "patcher/add-pr-section",
     updatedAt: "2026-06-16T12:30:00Z",
     checks: [],
     reviewDecision: null,
@@ -28,10 +28,10 @@ describe("assembleThreadPullRequest", () => {
     expect(assembleThreadPullRequest(rawPullRequest())).toEqual({
       number: 42,
       title: "Add pull request section",
-      url: "https://github.com/acme/bb/pull/42",
+      url: "https://github.com/acme/patcher/pull/42",
       state: "open",
       baseRefName: "main",
-      headRefName: "bb/add-pr-section",
+      headRefName: "patcher/add-pr-section",
       updatedAt: "2026-06-16T12:30:00Z",
       checks: {
         state: "no_checks",
@@ -97,7 +97,7 @@ describe("assembleThreadPullRequest", () => {
               name: "typecheck",
               status: "completed",
               conclusion: "failure",
-              url: "https://github.com/acme/bb/actions/runs/1",
+              url: "https://github.com/acme/patcher/actions/runs/1",
               startedAt: "2026-06-16T12:21:00Z",
             },
           ],
@@ -126,7 +126,7 @@ describe("assembleThreadPullRequest", () => {
               name: "Checks (ubuntu-latest, Node 22.x)",
               status: "in_progress",
               conclusion: null,
-              url: "https://github.com/acme/bb/actions/runs/1",
+              url: "https://github.com/acme/patcher/actions/runs/1",
               startedAt: "2026-06-16T12:22:00Z",
             },
           ],
@@ -184,14 +184,14 @@ describe("assembleThreadPullRequest", () => {
               name: "conventional title",
               status: "completed",
               conclusion: "success",
-              url: "https://github.com/acme/bb/actions/runs/2",
+              url: "https://github.com/acme/patcher/actions/runs/2",
               startedAt: "2026-06-16T12:25:00Z",
             },
             {
               name: "conventional title",
               status: "completed",
               conclusion: "cancelled",
-              url: "https://github.com/acme/bb/actions/runs/1",
+              url: "https://github.com/acme/patcher/actions/runs/1",
               startedAt: "2026-06-16T12:20:00Z",
             },
           ],

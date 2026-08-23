@@ -134,7 +134,7 @@ describe("environments", () => {
         path: "/tmp/project",
         isGitRepo: true,
         isWorktree: false,
-        branchName: "bb/test",
+        branchName: "patcher/test",
         defaultBranch: "main",
       },
     );
@@ -143,7 +143,7 @@ describe("environments", () => {
       path: "/tmp/project",
       status: "provisioning",
       isGitRepo: true,
-      branchName: "bb/test",
+      branchName: "patcher/test",
       defaultBranch: "main",
     });
     expect(notifier.notifyEnvironment).toHaveBeenCalledWith(environment.id, [
@@ -157,7 +157,7 @@ describe("environments", () => {
       projectId: project.id,
       hostId: host.id,
       workspaceProvisionType: "managed-worktree",
-      branchName: "bb/old",
+      branchName: "patcher/old",
       defaultBranch: "main",
       status: "ready",
     });
@@ -190,7 +190,7 @@ describe("environments", () => {
       projectId: project.id,
       hostId: host.id,
       workspaceProvisionType: "managed-worktree",
-      branchName: "bb/old",
+      branchName: "patcher/old",
       defaultBranch: "main",
       status: "ready",
     });

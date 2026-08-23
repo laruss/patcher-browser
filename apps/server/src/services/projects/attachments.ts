@@ -12,9 +12,9 @@ import {
   resolve,
   win32,
 } from "node:path";
-import { resolveContainedPath } from "@bb/process-utils";
-import type { PromptInput } from "@bb/domain";
-import type { UploadedPromptAttachment } from "@bb/server-contract";
+import { resolveContainedPath } from "@patcher/process-utils";
+import type { PromptInput } from "@patcher/domain";
+import type { UploadedPromptAttachment } from "@patcher/server-contract";
 import mimeTypes from "mime-types";
 import { ApiError } from "../../errors.js";
 

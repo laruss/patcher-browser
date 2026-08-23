@@ -43,8 +43,8 @@ export function scoreOmniboxTextMatch(args: ScoreOmniboxTextMatchArgs): number {
 
 /**
  * Match candidates for a URL: the host on its own, and the URL without its
- * scheme — so typing `gith` or `github.com/get-bb` both hit
- * `https://github.com/get-bb/bb`, which a raw-URL prefix test would miss
+ * scheme — so typing `gith` or `github.com/laruss` both hit
+ * `https://github.com/laruss/patcher-browser`, which a raw-URL prefix test would miss
  * because the user does not type `https://`.
  */
 export function omniboxUrlMatchCandidates(url: string): readonly string[] {

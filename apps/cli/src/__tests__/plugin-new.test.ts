@@ -10,9 +10,13 @@ import {
 
 describe("resolveNewPluginTarget", () => {
   it.each([
-    ["hello", "bb-plugin-hello", "bb-plugin-hello"],
-    ["bb-plugin-hello", "bb-plugin-hello", "bb-plugin-hello"],
-    ["@acme/bb-plugin-hello", "@acme/bb-plugin-hello", "bb-plugin-hello"],
+    ["hello", "patcher-plugin-hello", "patcher-plugin-hello"],
+    ["patcher-plugin-hello", "patcher-plugin-hello", "patcher-plugin-hello"],
+    [
+      "@acme/patcher-plugin-hello",
+      "@acme/patcher-plugin-hello",
+      "patcher-plugin-hello",
+    ],
   ])("resolves %s", (name, expectedPackageName, expectedDirectoryName) => {
     expect(resolveNewPluginTarget(name)).toEqual({
       packageName: expectedPackageName,
@@ -22,18 +26,18 @@ describe("resolveNewPluginTarget", () => {
 
   it.each([
     "Hello",
-    "bb-plugin-",
+    "patcher-plugin-",
     "@acme/hello",
-    "@acme/bb-plugin-Hello",
-    "@acme/team/bb-plugin-hello",
+    "@acme/patcher-plugin-Hello",
+    "@acme/team/patcher-plugin-hello",
   ])("rejects %s", (name) => {
     expect(resolveNewPluginTarget(name)).toBeNull();
   });
 });
 
 /**
- * `bb plugin new` runs npm itself, and the packaged CLI runs with
- * NODE_ENV=production (bb-app's launcher sets it), which npm reads as
+ * `patcher plugin new` runs npm itself, and the packaged CLI runs with
+ * NODE_ENV=production (patcher-app's launcher sets it), which npm reads as
  * `omit=dev`. Issue #1133: npm skipped the packages the scaffold needs, exited
  * 0, and the CLI reported success for a plugin that could not build.
  *
@@ -48,10 +52,10 @@ const { join } = require("node:path");
 
 const args = process.argv.slice(2);
 // npm treats NODE_ENV=production as omit=dev; a command-line --include=dev
-// outranks it. BB_TEST_NPM_ALWAYS_OMIT_DEV forces the omission to stand in for
+// outranks it. PATCHER_TEST_NPM_ALWAYS_OMIT_DEV forces the omission to stand in for
 // an install that silently drops packages.
 const omitDev =
-  process.env.BB_TEST_NPM_ALWAYS_OMIT_DEV === "1" ||
+  process.env.PATCHER_TEST_NPM_ALWAYS_OMIT_DEV === "1" ||
   (process.env.NODE_ENV === "production" && !args.includes("--include=dev"));
 const manifest = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
 const installed = {
@@ -59,8 +63,8 @@ const installed = {
   ...(omitDev ? {} : manifest.devDependencies),
 };
 // npm installs the whole workspace and hoists to its root when the package is
-// a workspace member; BB_TEST_NPM_HOIST_TO stands in for that root.
-const installRoot = process.env.BB_TEST_NPM_HOIST_TO ?? process.cwd();
+// a workspace member; PATCHER_TEST_NPM_HOIST_TO stands in for that root.
+const installRoot = process.env.PATCHER_TEST_NPM_HOIST_TO ?? process.cwd();
 for (const name of Object.keys(installed)) {
   mkdirSync(join(installRoot, "node_modules", ...name.split("/")), {
     recursive: true,
@@ -68,14 +72,14 @@ for (const name of Object.keys(installed)) {
 }
 `;
 
-describe.sequential("bb plugin new dependency install", () => {
+describe.sequential("patcher plugin new dependency install", () => {
   const originalCwd = process.cwd();
   let workDir: string;
   let logged: string[];
   let warned: string[];
 
   beforeEach(async () => {
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-new-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-new-"));
     const binDir = join(workDir, "bin");
     await mkdir(binDir);
     await writeFile(join(binDir, "npm"), FAKE_NPM, { mode: 0o755 });
@@ -104,7 +108,7 @@ describe.sequential("bb plugin new dependency install", () => {
     const program = new Command();
     program.exitOverride();
     registerPluginCommands(program, () => "http://localhost");
-    await program.parseAsync(["node", "bb", "plugin", "new", ...args]);
+    await program.parseAsync(["node", "patcher", "plugin", "new", ...args]);
   }
 
   async function isInstalled(
@@ -121,9 +125,11 @@ describe.sequential("bb plugin new dependency install", () => {
 
     // zod is imported by the generated server.ts and inlined by the build;
     // typescript/@types are what the scaffold typechecks against.
-    expect(await isInstalled("bb-plugin-prod-env", "zod")).toBe(true);
-    expect(await isInstalled("bb-plugin-prod-env", "typescript")).toBe(true);
-    expect(await isInstalled("bb-plugin-prod-env", "clsx")).toBe(true);
+    expect(await isInstalled("patcher-plugin-prod-env", "zod")).toBe(true);
+    expect(await isInstalled("patcher-plugin-prod-env", "typescript")).toBe(
+      true,
+    );
+    expect(await isInstalled("patcher-plugin-prod-env", "clsx")).toBe(true);
     expect(warned).toEqual([]);
     expect(logged).toContain("Installed dependencies (npm install).");
     expect(logged).not.toContain("  npm install --include=dev");
@@ -132,7 +138,7 @@ describe.sequential("bb plugin new dependency install", () => {
   it("installs headless scaffolds too, whose server.ts also imports zod", async () => {
     await runPluginNew(["headless"]);
 
-    expect(await isInstalled("bb-plugin-headless", "zod")).toBe(true);
+    expect(await isInstalled("patcher-plugin-headless", "zod")).toBe(true);
     expect(logged).toContain("Installed dependencies (npm install).");
   });
 
@@ -145,21 +151,21 @@ describe.sequential("bb plugin new dependency install", () => {
       join(workDir, "package.json"),
       JSON.stringify({ name: "host", private: true, workspaces: ["*"] }),
     );
-    vi.stubEnv("BB_TEST_NPM_HOIST_TO", workDir);
+    vi.stubEnv("PATCHER_TEST_NPM_HOIST_TO", workDir);
 
     await runPluginNew(["hoisted", "--app"]);
 
-    expect(await isInstalled("bb-plugin-hoisted", "zod")).toBe(false);
+    expect(await isInstalled("patcher-plugin-hoisted", "zod")).toBe(false);
     expect(warned).toEqual([]);
     expect(logged).toContain("Installed dependencies (npm install).");
   });
 
   it("does not report success when npm exits 0 without installing the tree", async () => {
-    vi.stubEnv("BB_TEST_NPM_ALWAYS_OMIT_DEV", "1");
+    vi.stubEnv("PATCHER_TEST_NPM_ALWAYS_OMIT_DEV", "1");
 
     await runPluginNew(["silent-omit", "--app"]);
 
-    expect(await isInstalled("bb-plugin-silent-omit", "typescript")).toBe(
+    expect(await isInstalled("patcher-plugin-silent-omit", "typescript")).toBe(
       false,
     );
     expect(logged).not.toContain("Installed dependencies (npm install).");

@@ -9,7 +9,7 @@ import {
   type HostDaemonSessionCloseReason,
   type HostDaemonSessionOpenResponse,
   type HostDaemonDaemonWsMessage,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { z } from "zod";
 import {
   DEFAULT_CONNECTION_TIMEOUT_MS,
@@ -89,8 +89,6 @@ function recoverableMessageKey(
   message: HostDaemonDaemonWsMessage,
 ): string | null {
   switch (message.type) {
-    case "connect-tunnel.identity":
-      return "connect-tunnel.identity";
     case "environment-change":
       return `environment-change\u0000${message.environmentId}\u0000${message.change}`;
     case "environment-metadata-change":
@@ -377,7 +375,6 @@ export class ServerConnection {
         instanceId: this.options.instanceId,
         hostName: this.options.hostName,
         hostType: this.options.hostType,
-        connectMachineId: this.options.connectMachineId,
         dataDir: this.options.dataDir,
         activeThreads: this.options.getActiveThreads?.() ?? [],
         loadedEnvironments: this.options.getLoadedEnvironments?.() ?? [],
@@ -453,11 +450,6 @@ export class ServerConnection {
           authorization: buildHostDaemonWebSocketAuthorizationHeader(
             this.options.hostKey,
           ),
-          ...(this.options.machineCredential !== undefined
-            ? {
-                "x-bb-connect-machine": this.options.machineCredential,
-              }
-            : {}),
         },
         maxRetries: Number.POSITIVE_INFINITY,
         protocols: buildHostDaemonWebSocketProtocols(),
@@ -652,22 +644,6 @@ export class ServerConnection {
             ...runtimeErrorLogFields(error),
           },
           "Watch set handler failed",
-        );
-      });
-      return;
-    }
-
-    if (message.data.type === "connect-shares.replace") {
-      const sharesMessage = message.data;
-      void Promise.resolve(
-        this.options.onConnectSharesReplace?.(sharesMessage),
-      ).catch((error) => {
-        this.options.logger.warn(
-          {
-            generation: sharesMessage.generation,
-            ...runtimeErrorLogFields(error),
-          },
-          "Connect shares handler failed",
         );
       });
       return;

@@ -1,4 +1,4 @@
-import { threadScope } from "@bb/domain";
+import { threadScope } from "@patcher/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createEventSink, type CreateEventSinkOptions } from "./event-sink.js";
 import { ServerResponseError } from "./server-client.js";

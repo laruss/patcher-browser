@@ -3,15 +3,15 @@
   "name": "command",
   "type": "registry:ui",
   "title": "command",
-  "description": "BB ui \"command\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"command\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-dialog",
     "cmdk",
     "lucide-react"
   ],
   "registryDependencies": [
-    "@bb/dialog",
-    "@bb/utils"
+    "@patcher/dialog",
+    "@patcher/utils"
   ],
   "files": [
     {

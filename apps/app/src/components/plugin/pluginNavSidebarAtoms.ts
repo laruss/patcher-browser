@@ -1,8 +1,9 @@
 import { atomWithStorage } from "jotai/utils";
 import { createJsonLocalStorage } from "@/lib/browser-storage";
 
-const PLUGIN_NAV_PANEL_ORDER_STORAGE_KEY = "bb.sidebar.pluginPanelOrder";
-const HIDDEN_PLUGIN_NAV_PANELS_STORAGE_KEY = "bb.sidebar.hiddenPluginPanels";
+const PLUGIN_NAV_PANEL_ORDER_STORAGE_KEY = "patcher.sidebar.pluginPanelOrder";
+const HIDDEN_PLUGIN_NAV_PANELS_STORAGE_KEY =
+  "patcher.sidebar.hiddenPluginPanels";
 
 /**
  * User-chosen order of the sidebar's plugin panel rows, as

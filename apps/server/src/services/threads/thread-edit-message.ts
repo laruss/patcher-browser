@@ -11,16 +11,16 @@ import {
   hasRootStoredTurnStarted,
   listActiveBackgroundTaskCountsByThreadIds,
   type DbQueryConnection,
-} from "@bb/db";
-import { threadScope, type Thread, type ThreadEvent } from "@bb/domain";
+} from "@patcher/db";
+import { threadScope, type Thread, type ThreadEvent } from "@patcher/domain";
 import type {
   EditMessageRequest,
   EditMessageResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   HostDaemonCommand,
   HostDaemonCommandResult,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import {

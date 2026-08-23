@@ -1,4 +1,4 @@
-// bb-plugin-thread-chat-demo — the frontend bundle.
+// patcher-plugin-thread-chat-demo — the frontend bundle.
 //
 // Demonstrates the two chat-integration surfaces added for the sidechat
 // rebuild:
@@ -10,10 +10,10 @@
 //   text-selection menu): "Open in demo panel" opens this plugin's own
 //   thread panel anchored on the clicked message via `openPanel`.
 import { useState } from "react";
-import { definePluginApp, ThreadChat, useBbContext } from "@bb/plugin-sdk/app";
+import { definePluginApp, ThreadChat, usePatcherContext } from "@patcher/plugin-sdk/app";
 
 function ThreadChatDemoPanel({ subPath }: { subPath: string }) {
-  const { threadId: routeThreadId } = useBbContext();
+  const { threadId: routeThreadId } = usePatcherContext();
   const [threadId, setThreadId] = useState(subPath);
   const [focusRequest, setFocusRequest] = useState(0);
   const activeThreadId = threadId || routeThreadId || "";

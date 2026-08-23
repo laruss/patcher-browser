@@ -3,14 +3,14 @@ import { z } from "zod";
 import {
   normalizeProviderThreadNameEvent,
   toProviderExternalThreadName,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   DynamicTool,
   InstructionMode,
   ProviderErrorCategory,
   ThreadEvent,
-} from "@bb/domain";
-import type { HostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 import type {
   AdapterCommand,
   ProviderAdapter,
@@ -250,7 +250,7 @@ function resolveThreadStoragePath(
 
 /**
  * Coordinates provider processes for an environment and bridges provider
- * JSON-RPC traffic into bb thread events, dynamic tool calls, and pending
+ * JSON-RPC traffic into patcher thread events, dynamic tool calls, and pending
  * interactions.
  */
 export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
@@ -450,11 +450,11 @@ function createAgentRuntimeInternal(
     });
   }
 
-  function resolveBbThreadIdForProcess(
+  function resolvePatcherThreadIdForProcess(
     proc: ProviderProcess,
     providerThreadId: string | undefined,
   ): string | undefined {
-    return threadIdentityRegistry.resolveBbThreadIdForProviderThread({
+    return threadIdentityRegistry.resolvePatcherThreadIdForProviderThread({
       providerState: proc.identity,
       providerThreadId,
     });
@@ -469,7 +469,7 @@ function createAgentRuntimeInternal(
   function resolveProviderRequestThreadId(
     args: ResolveProviderRequestThreadIdArgs,
   ): string | null {
-    const resolvedThreadId = resolveBbThreadIdForProcess(
+    const resolvedThreadId = resolvePatcherThreadIdForProcess(
       args.proc,
       args.providerThreadId,
     );
@@ -477,7 +477,7 @@ function createAgentRuntimeInternal(
       sendJsonRpcError({
         child: args.proc.child,
         id: args.parsedId,
-        message: `Unable to resolve BB thread id for ${args.requestKind} on provider thread "${args.providerThreadId}"`,
+        message: `Unable to resolve Patcher thread id for ${args.requestKind} on provider thread "${args.providerThreadId}"`,
       });
       return null;
     }
@@ -485,7 +485,7 @@ function createAgentRuntimeInternal(
       sendJsonRpcError({
         child: args.proc.child,
         id: args.parsedId,
-        message: `${formatProviderRequestKindForSentence(args.requestKind)} thread hint "${args.threadIdHint}" did not match resolved BB thread "${resolvedThreadId}" for provider thread "${args.providerThreadId}"`,
+        message: `${formatProviderRequestKindForSentence(args.requestKind)} thread hint "${args.threadIdHint}" did not match resolved Patcher thread "${resolvedThreadId}" for provider thread "${args.providerThreadId}"`,
       });
       return null;
     }
@@ -817,7 +817,7 @@ function createAgentRuntimeInternal(
       ) {
         // Codex archive/unarchive is not idempotent at the protocol layer;
         // duplicate-state errors mean the requested final state is already
-        // reached from bb's perspective.
+        // reached from Patcher's perspective.
       } else {
         throw error;
       }
@@ -962,32 +962,34 @@ function createAgentRuntimeInternal(
         continue;
       }
 
-      const bbThreadId =
+      const patcherThreadId =
         threadIdentityRegistry.resolvePendingProviderThreadIdentity(
           args.proc.identity,
         );
-      if (bbThreadId) {
+      if (patcherThreadId) {
         recordProviderThreadIdentity(
           args.proc,
-          bbThreadId,
+          patcherThreadId,
           event.providerThreadId,
         );
       }
     }
 
     for (const event of args.events) {
-      const resolvedBbThreadId =
+      const resolvedPatcherThreadId =
         threadIdentityRegistry.resolveProviderEventThreadId({
           eventThreadId: event.threadId,
           providerState: args.proc.identity,
           sourceThreadId: args.sourceThreadId,
         });
 
-      const targetThreadIds = resolvedBbThreadId ? [resolvedBbThreadId] : [];
+      const targetThreadIds = resolvedPatcherThreadId
+        ? [resolvedPatcherThreadId]
+        : [];
 
       if (targetThreadIds.length === 0) {
         options.onStderr?.(
-          `Dropping unscoped provider event ${event.type}; no bb thread could be resolved`,
+          `Dropping unscoped provider event ${event.type}; no Patcher thread could be resolved`,
         );
         continue;
       }
@@ -1522,7 +1524,7 @@ function createAgentRuntimeInternal(
             });
             // An ambiguous threadId is not sufficient to adopt a provider
             // thread, but it is safe to use for best-effort cleanup because
-            // the BB staging id is unique to this rewind operation.
+            // the Patcher staging id is unique to this rewind operation.
             providerThreadIdForCleanup =
               result.providerThreadId ??
               result.thread?.id ??

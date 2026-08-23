@@ -1,6 +1,9 @@
-import { getEnvironment, getHost } from "@bb/db";
-import { clampPermissionModeToCeiling, type PermissionMode } from "@bb/domain";
-import { getSupportedPermissionModes } from "@bb/agent-providers";
+import { getEnvironment, getHost } from "@patcher/db";
+import {
+  clampPermissionModeToCeiling,
+  type PermissionMode,
+} from "@patcher/domain";
+import { getSupportedPermissionModes } from "@patcher/agent-providers";
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 

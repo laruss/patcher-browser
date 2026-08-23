@@ -4,11 +4,11 @@ import {
   reasoningLevelSchema,
   reasoningLevelValues,
   type ReasoningLevel,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CommitActionResponse,
   SquashMergeActionResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { ResolvedId } from "../context-env.js";
 
 export {

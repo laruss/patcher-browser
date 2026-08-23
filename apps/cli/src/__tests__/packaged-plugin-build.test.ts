@@ -23,7 +23,7 @@ describe("packaged CLI plugin build", () => {
 
   it("includes a newly generated SDK app export when the facade package is not resolvable", async () => {
     // Keep the bundle below apps/cli so its external build dependencies
-    // resolve exactly as they do for dist/index.js. @bb/plugin-sdk is not a
+    // resolve exactly as they do for dist/index.js. @patcher/plugin-sdk is not a
     // CLI dependency, so import.meta.resolve in this bundle takes the
     // packaged fallback that the source-level plugin-build tests do not.
     const tempRoot = await mkdtemp(join(cliRoot, ".packaged-plugin-build-"));
@@ -50,10 +50,10 @@ describe("packaged CLI plugin build", () => {
     await writeFile(
       join(pluginRoot, "package.json"),
       JSON.stringify({
-        name: "bb-plugin-packaged-shim-fixture",
+        name: "patcher-plugin-packaged-shim-fixture",
         version: "0.1.0",
         type: "module",
-        bb: {
+        patcher: {
           name: "Packaged shim fixture",
           description: "Exercises the packaged CLI SDK shim fallback.",
           branding: { icon: "Zap" },
@@ -69,7 +69,7 @@ describe("packaged CLI plugin build", () => {
     await writeFile(
       join(pluginRoot, "app.ts"),
       [
-        'import { definePluginApp, useComposerView } from "@bb/plugin-sdk/app";',
+        'import { definePluginApp, useComposerView } from "@patcher/plugin-sdk/app";',
         "function ComposerProbe() {",
         "  return useComposerView().layout;",
         "}",
@@ -86,9 +86,9 @@ describe("packaged CLI plugin build", () => {
 
     const childEnv: NodeJS.ProcessEnv = {
       ...process.env,
-      BB_CLI_REEXEC: "1",
+      PATCHER_CLI_REEXEC: "1",
     };
-    delete childEnv.BB_CLI;
+    delete childEnv.PATCHER_CLI;
     await execFileAsync(
       process.execPath,
       [cliEntry, "plugin", "build", pluginRoot],

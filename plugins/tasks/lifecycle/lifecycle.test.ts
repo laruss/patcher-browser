@@ -2,7 +2,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 import { createStore } from "../api";
 import type { TaskThreadLiveStatus } from "../db";
@@ -13,7 +13,7 @@ import {
 } from ".";
 
 interface TrackedThreadFixture {
-  bb: ReturnType<typeof createFakePluginHost>["bb"];
+  patcher: ReturnType<typeof createFakePluginHost>["patcher"];
   harness: ReturnType<typeof createFakePluginHost>["harness"];
   store: ReturnType<typeof createStore>;
   taskId: string;
@@ -38,7 +38,7 @@ function trackedThreadFixture(
       },
     },
   });
-  const store = createStore(host.bb);
+  const store = createStore(host.patcher);
   const project = store.tasks.createProject({
     name: "Tasks plugin",
     prefix: "TASK",
@@ -67,7 +67,7 @@ function trackedThreadFixture(
 describe("task thread lifecycle", () => {
   it("moves a working thread to completed, comments, and publishes", async () => {
     const fixture = trackedThreadFixture("working", "active");
-    await registerLifecycle(fixture.bb, fixture.store);
+    await registerLifecycle(fixture.patcher, fixture.store);
 
     await fixture.harness.emitThreadEvent("thread.deleted", {
       thread: makeThreadResponse({
@@ -99,7 +99,7 @@ describe("task thread lifecycle", () => {
 
   it("moves a working thread to failed, comments, and publishes", async () => {
     const fixture = trackedThreadFixture("working", "active");
-    await registerLifecycle(fixture.bb, fixture.store);
+    await registerLifecycle(fixture.patcher, fixture.store);
 
     await fixture.harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({
@@ -130,7 +130,7 @@ describe("task thread lifecycle", () => {
   it("reconciles a stale non-terminal row on load", async () => {
     const fixture = trackedThreadFixture("starting", "idle");
 
-    await registerLifecycle(fixture.bb, fixture.store);
+    await registerLifecycle(fixture.patcher, fixture.store);
 
     expect(fixture.harness.sdk.callsTo("threads.get")).toEqual([
       [{ threadId: "thr_worker" }],
@@ -169,7 +169,7 @@ describe("task thread lifecycle", () => {
         },
       },
     });
-    const store = createStore(host.bb);
+    const store = createStore(host.patcher);
     const project = store.tasks.createProject({
       name: "Fast lifecycle",
       prefix: "FAST",
@@ -187,7 +187,7 @@ describe("task thread lifecycle", () => {
       liveStatus: "starting",
     });
 
-    await registerLifecycle(host.bb, store);
+    await registerLifecycle(host.patcher, store);
 
     expect(handlersAtFirstRead).toEqual({
       "thread.created": 1,
@@ -205,7 +205,7 @@ describe("task thread lifecycle", () => {
 
   it("moves a starting thread to working from thread.active without an SDK subscription", async () => {
     const fixture = trackedThreadFixture("starting", "starting");
-    await registerLifecycle(fixture.bb, fixture.store);
+    await registerLifecycle(fixture.patcher, fixture.store);
 
     await fixture.harness.emitThreadEvent("thread.active", {
       thread: makeThreadResponse({
@@ -242,7 +242,7 @@ describe("task thread lifecycle", () => {
         },
       },
     });
-    const store = createStore(host.bb);
+    const store = createStore(host.patcher);
     const project = store.tasks.createProject({
       name: "Safety net lifecycle",
       prefix: "SAFE",
@@ -261,7 +261,7 @@ describe("task thread lifecycle", () => {
     });
 
     try {
-      await registerLifecycle(host.bb, store);
+      await registerLifecycle(host.patcher, store);
       const service = host.harness.runService("thread-status-reconcile");
 
       await vi.advanceTimersByTimeAsync(
@@ -294,7 +294,7 @@ describe("task thread lifecycle", () => {
         },
       },
     });
-    const store = createStore(host.bb);
+    const store = createStore(host.patcher);
     const project = store.tasks.createProject({
       name: "Idle polling",
       prefix: "IDLE",
@@ -306,7 +306,7 @@ describe("task thread lifecycle", () => {
     });
 
     try {
-      await registerLifecycle(host.bb, store);
+      await registerLifecycle(host.patcher, store);
       const service = host.harness.runService("thread-status-reconcile");
       const tracked = store.tasks.upsertTaskThread({
         taskId: task.id,
@@ -339,12 +339,12 @@ describe("task thread lifecycle", () => {
   });
 
   it("ignores lifecycle events for non-tracked threads", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    const store = createStore(bb);
-    await registerLifecycle(bb, store);
+    const store = createStore(patcher);
+    await registerLifecycle(patcher, store);
 
     await harness.emitThreadEvent("thread.failed", {
       thread: makeThreadResponse({ id: "thr_untracked", status: "error" }),

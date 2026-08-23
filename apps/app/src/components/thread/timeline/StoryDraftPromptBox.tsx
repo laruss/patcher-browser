@@ -1,4 +1,4 @@
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import { useCallback, useMemo, useState } from "react";
 import {
   PromptBoxInternal,

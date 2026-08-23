@@ -12,13 +12,13 @@ import { Suggestion, type SuggestionProps } from "@tiptap/suggestion";
 import type { IconSvgElement } from "@hugeicons/react";
 import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 
-/** One entry in the @-mention popover: a task or a bb thread. */
+/** One entry in the @-mention popover: a task or a Patcher thread. */
 export type MentionItem =
   | { type: "task"; id: string; key: string; title: string }
   | { type: "thread"; id: string; title: string };
 
-const MENTION_SCHEME = "bbtask://";
-const THREAD_MENTION_SCHEME = "bbthread://";
+const MENTION_SCHEME = "patchertask://";
+const THREAD_MENTION_SCHEME = "patcherthread://";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -42,7 +42,7 @@ function mentionIconSpec(icon: IconSvgElement): DOMOutputSpec {
     {
       viewBox: "0 0 24 24",
       fill: "none",
-      class: "bb-tasks-mention-icon",
+      class: "patcher-tasks-mention-icon",
       "aria-hidden": "true",
     },
     ...icon.map(
@@ -96,7 +96,7 @@ const MarkdownTaskInput = Extension.create({
 });
 
 // Inline atom that renders as a pill and serializes to markdown as a
-// bbtask:// link: [TSK-42](bbtask://TSK-42).
+// patchertask:// link: [TSK-42](patchertask://TSK-42).
 export const TaskMention = Node.create({
   name: "taskMention",
   group: "inline",
@@ -119,7 +119,7 @@ export const TaskMention = Node.create({
         },
       },
       {
-        // Markdown input arrives as <a href="bbtask://KEY">label</a>; this
+        // Markdown input arrives as <a href="patchertask://KEY">label</a>; this
         // rule must outrank the Link mark's a[href] rule.
         tag: `a[href^="${MENTION_SCHEME}"]`,
         priority: 100,
@@ -136,7 +136,7 @@ export const TaskMention = Node.create({
       "span",
       {
         "data-task-mention": String(node.attrs.key),
-        class: "bb-tasks-mention",
+        class: "patcher-tasks-mention",
       },
       String(node.attrs.label || node.attrs.key),
     ];
@@ -161,8 +161,8 @@ export const TaskMention = Node.create({
 });
 
 // Inline atom that renders as a pill (with a small chat glyph to distinguish
-// it from task pills) and serializes to markdown as a bbthread:// link:
-// [Fix login flow](bbthread://thr_abc).
+// it from task pills) and serializes to markdown as a patcherthread:// link:
+// [Fix login flow](patcherthread://thr_abc).
 export const ThreadMention = Node.create({
   name: "threadMention",
   group: "inline",
@@ -187,7 +187,7 @@ export const ThreadMention = Node.create({
         },
       },
       {
-        // Markdown input arrives as <a href="bbthread://thr_x">label</a>; this
+        // Markdown input arrives as <a href="patcherthread://thr_x">label</a>; this
         // rule must outrank the Link mark's a[href] rule.
         tag: `a[href^="${THREAD_MENTION_SCHEME}"]`,
         priority: 100,
@@ -206,7 +206,7 @@ export const ThreadMention = Node.create({
       "span",
       {
         "data-thread-mention": String(node.attrs.threadId),
-        class: "bb-tasks-mention bb-tasks-thread-mention",
+        class: "patcher-tasks-mention patcher-tasks-thread-mention",
         role: "link",
       },
       mentionIconSpec(BubbleChatIcon),

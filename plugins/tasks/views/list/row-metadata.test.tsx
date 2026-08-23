@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
 import type { Label, Task, TaskThread } from "../../shared/contract.js";
 
 // jsdom lacks matchMedia/ResizeObserver; the list shell touches both.
@@ -41,7 +41,7 @@ const project = {
   nextTaskNumber: 9,
   color: "blue",
   folderId: null,
-  linkedBbProjectId: null,
+  linkedPatcherProjectId: null,
   createdAt: "2026-07-15T00:00:00.000Z",
 };
 

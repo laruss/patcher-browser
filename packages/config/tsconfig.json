@@ -1,7 +1,7 @@
 {
   "extends": [
-    "@bb/tsconfig/base.json",
-    "@bb/tsconfig/typecheck-overrides.json"
+    "@patcher/tsconfig/base.json",
+    "@patcher/tsconfig/typecheck-overrides.json"
   ],
   "compilerOptions": {
     "allowJs": true,

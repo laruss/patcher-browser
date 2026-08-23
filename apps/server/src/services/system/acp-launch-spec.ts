@@ -1,11 +1,11 @@
 import {
   formatCustomAcpAgentProviderId,
   type CustomAcpAgent,
-} from "@bb/config/bb-app-managed-config";
+} from "@patcher/config/patcher-app-managed-config";
 import {
   normalizeHostDaemonAcpLaunchSpec,
   type HostDaemonAcpLaunchSpec,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { AppDeps } from "../../types.js";
 import { findKnownAcpAgentForProviderId } from "./known-acp-agents.js";
 

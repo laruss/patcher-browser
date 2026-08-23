@@ -10,7 +10,7 @@ import {
   ResourceMultiSelectMenu,
   ResourceSortMenu,
   ResourceToolbar,
-} from "@bb/shared-ui/resource-list";
+} from "@patcher/shared-ui/resource-list";
 import {
   ConfirmDeleteDialog,
   ConfirmDeleteDialogContent,
@@ -29,7 +29,7 @@ import { removePlugin } from "@/hooks/queries/plugin-settings-queries";
 import type { AddPluginInitial } from "./AddPluginDialog";
 import { PlaceholderBadge } from "./plugin-ui";
 
-/** Browse BB's official plugins, bundled with the app. */
+/** Browse Patcher's official plugins, bundled with the app. */
 export function BrowsePluginsTab({
   onInstall,
   onOpenPlugin,
@@ -121,7 +121,7 @@ export function BrowsePluginsTab({
           state={searchQuery.isError ? "error" : "empty"}
           message={
             searchQuery.isError
-              ? "BB's official plugins are unavailable."
+              ? "Patcher's official plugins are unavailable."
               : "No plugins match this search."
           }
           onRetry={
@@ -252,7 +252,7 @@ function BrowseCard({
       >
         <ConfirmDeleteDialogContent
           title={`Uninstall ${entry.displayName}?`}
-          description="The plugin will be removed from this BB host. Plugin data may be retained for a future reinstall."
+          description="The plugin will be removed from this Patcher host. Plugin data may be retained for a future reinstall."
           confirmLabel={uninstall.isPending ? "Uninstalling…" : "Uninstall"}
           pending={uninstall.isPending}
           onConfirm={() => uninstall.mutate()}

@@ -38,6 +38,6 @@ describe("plugin placement policy", () => {
     );
 
     expect(startup).toContain("pluginProcessPolicy({");
-    expect(startup).toContain("enabled: serverConfig.BB_PLUGIN_PROCESS,");
+    expect(startup).toContain("enabled: serverConfig.PATCHER_PLUGIN_PROCESS,");
   });
 });

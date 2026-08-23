@@ -753,7 +753,7 @@ describe("threads", () => {
       name: "Review workspace",
       workspaceProvisionType: "managed-worktree",
       isWorktree: true,
-      branchName: "bb/worktree",
+      branchName: "patcher/worktree",
     });
     const personalEnvironment = createEnvironment(db, noopNotifier, {
       projectId: project.id,
@@ -809,7 +809,7 @@ describe("threads", () => {
       environmentName: null,
     });
     expect(environmentIdentityByThreadId.get(worktreeThread.id)).toEqual({
-      environmentBranchName: "bb/worktree",
+      environmentBranchName: "patcher/worktree",
       environmentHostId: host.id,
       environmentName: "Review workspace",
     });

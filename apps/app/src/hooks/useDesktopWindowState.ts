@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
-import type { BbDesktopWindowState } from "@bb/desktop-contract";
+import type { PatcherDesktopWindowState } from "@patcher/desktop-contract";
 import {
   DEFAULT_DESKTOP_WINDOW_STATE,
-  getBbDesktopInfo,
-} from "@/lib/bb-desktop";
+  getPatcherDesktopInfo,
+} from "@/lib/patcher-desktop";
 
-export function useDesktopWindowState(): BbDesktopWindowState {
-  const [windowState, setWindowState] = useState<BbDesktopWindowState>(
+export function useDesktopWindowState(): PatcherDesktopWindowState {
+  const [windowState, setWindowState] = useState<PatcherDesktopWindowState>(
     DEFAULT_DESKTOP_WINDOW_STATE,
   );
 
   useEffect(() => {
-    const desktopApi = getBbDesktopInfo();
+    const desktopApi = getPatcherDesktopInfo();
     let cancelled = false;
 
     const unsubscribe = desktopApi?.onWindowStateChange?.((nextState) => {

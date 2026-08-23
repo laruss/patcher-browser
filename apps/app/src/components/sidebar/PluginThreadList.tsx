@@ -40,7 +40,7 @@ export function PluginThreadList({
   const handleCrash = useCallback(
     (pluginId: string) => {
       toast.error("Sidebar plugin crashed", {
-        description: `${slot.title} (${pluginId}) stopped working, so bb's own thread list is back.`,
+        description: `${slot.title} (${pluginId}) stopped working, so Patcher's own thread list is back.`,
       });
     },
     [slot.title],

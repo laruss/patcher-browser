@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 10 44.5 45.5" role="img" aria-labelledby="patcher-logo-title">
+  <title id="patcher-logo-title">Patcher</title>
+  <!-- Single-fill on purpose: the app renders this through `dark:invert` and
+       `brightness-0 invert`, and a two-colour mark comes out of an inversion
+       with the wrong second colour. The patch is offset clear of the bowl so
+       the shape, not the colour, keeps it readable down to 16px. The full
+       colour mark, plate and red patch included, is patcher-icon.svg. -->
+  <path fill="#111111" fill-rule="evenodd" d="M13 11h24c10 0 17 6.6 17 16s-7 16-17 16H25v10H13V11Zm12 11v10h11.5c3.4 0 5.5-1.9 5.5-5s-2.1-5-5.5-5H25Z"/>
+  <rect x="44.5" y="43.5" width="11" height="11" fill="#111111"/>
+</svg>

@@ -1,7 +1,7 @@
 import { loadServerPortValue, type RuntimePortLoaderArgs } from "./ports.js";
 
 export interface ServerPortConfig {
-  BB_SERVER_PORT: number;
+  PATCHER_SERVER_PORT: number;
 }
 
 export type LoadServerPortConfigArgs = RuntimePortLoaderArgs;
@@ -10,6 +10,6 @@ export function loadServerPortConfig(
   args: LoadServerPortConfigArgs = {},
 ): ServerPortConfig {
   return {
-    BB_SERVER_PORT: loadServerPortValue(args),
+    PATCHER_SERVER_PORT: loadServerPortValue(args),
   };
 }

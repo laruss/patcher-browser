@@ -1,14 +1,14 @@
 import { useAtom } from "jotai";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import { SettingsWithControl } from "@/components/ui/settings-section";
 import {
   BUILT_IN_THREAD_LIST_PROVIDER,
@@ -19,7 +19,7 @@ import { usePluginSlots } from "@/lib/plugin-slots";
 
 const BUILT_IN_OPTION = {
   key: BUILT_IN_THREAD_LIST_PROVIDER,
-  title: "bb (built-in)",
+  title: "Patcher (built-in)",
   description: "Projects, sections, and nested threads.",
 } as const;
 

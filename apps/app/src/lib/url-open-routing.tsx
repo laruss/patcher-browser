@@ -5,7 +5,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { getBbDesktopInfo, isDesktopBrowserAvailable } from "@/lib/bb-desktop";
+import { getPatcherDesktopInfo, isDesktopBrowserAvailable } from "@/lib/patcher-desktop";
 import {
   openUrlByPreference,
   useOpenLinksInAppBrowserPreference,
@@ -26,7 +26,7 @@ const InAppBrowserUrlOpenContext =
   createContext<OpenInAppBrowserUrl | null>(null);
 
 export function openUrlInExternalBrowser(url: string): void {
-  const desktopInfo = getBbDesktopInfo();
+  const desktopInfo = getPatcherDesktopInfo();
   if (desktopInfo !== null) {
     desktopInfo.openExternalUrl(url);
     return;

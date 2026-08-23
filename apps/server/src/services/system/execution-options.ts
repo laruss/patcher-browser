@@ -4,23 +4,23 @@ import type {
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
   SystemProvidersQuery,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   buildAcpProviderInfo,
   listBuiltInAgentProviderInfos,
   listClaudeCodeFallbackModels,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import {
   formatCustomAcpAgentProviderId,
   type CustomAcpAgent,
   type CustomProviderModel,
-} from "@bb/config/bb-app-managed-config";
+} from "@patcher/config/patcher-app-managed-config";
 import {
   reasoningEffortsForLevels,
   type AvailableModel,
   type ProviderInfo,
-} from "@bb/domain";
-import { normalizeHostDaemonAcpLaunchSpec } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import { normalizeHostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 import type { LoggedWorkSessionDeps } from "../../types.js";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
@@ -330,7 +330,7 @@ function buildCustomModel(customModel: CustomProviderModel): AvailableModel {
     description: "Custom model from config.json",
     // Custom models advertise the provider's full reasoning ladder: per-model
     // support is unknowable server-side and the picker reconciles the user's
-    // choice per model (see reconcileReasoningLevel in @bb/domain). The
+    // choice per model (see reconcileReasoningLevel in @patcher/domain). The
     // ladder comes from the same per-provider policy table that validates
     // reasoning overrides, so the picker and validation cannot drift apart.
     supportedReasoningEfforts: reasoningEffortsForLevels(

@@ -11,12 +11,12 @@ import { MemoryRouter } from "react-router-dom";
 import type {
   InstalledPlugin,
   SystemConfigResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   defaultAppSettings,
   defaultAppTheme,
   defaultExperiments,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import {
@@ -61,11 +61,11 @@ function systemConfig(): SystemConfigResponse {
     pluginThemes: [],
     featureFlags: { placeholder: false, timelineWindowEventBudget: 1_500 },
     hostDaemonPort: null,
-    serverUrl: "http://localhost:38886",
+    serverUrl: "http://localhost:38986",
     primaryHostId: null,
     primaryHostPlatform: null,
     voiceTranscriptionEnabled: false,
-    dataDir: "/tmp/bb-test",
+    dataDir: "/tmp/patcher-test",
   };
 }
 
@@ -355,7 +355,7 @@ describe("PluginSettingsDetail settings gating", () => {
                 cssUrl: null,
                 hash: "linear-app",
                 sdkMajor: 0,
-                sdkVersion: "0.4.1",
+                sdkVersion: "1.0.0",
                 compatible: true,
               },
             },
@@ -431,7 +431,7 @@ describe("PluginSettingsDetail settings gating", () => {
                 cssUrl: null,
                 hash: "stale-linear-app",
                 sdkMajor: 0,
-                sdkVersion: "0.4.1",
+                sdkVersion: "1.0.0",
                 compatible: true,
               },
             },
@@ -546,7 +546,9 @@ describe("PluginSettingsDetail settings gating", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(
-      screen.getByText(/BB remembers the removal so the plugin stays hidden/),
+      screen.getByText(
+        /Patcher remembers the removal so the plugin stays hidden/,
+      ),
     ).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Remove plugin" }));
 
@@ -754,7 +756,7 @@ describe("InstalledPluginRow", () => {
             updateState: {
               ...EMPTY_PLUGIN_UPDATE_STATE,
               blockedVersion: "1.9.0",
-              blockedReasons: ["requires bb >= 0.15"],
+              blockedReasons: ["requires Patcher >= 0.15"],
             },
           }}
           onUpdateClick={() => {}}

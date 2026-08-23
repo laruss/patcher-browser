@@ -1,5 +1,5 @@
-import type { ClientTurnRequestId, ThreadEvent } from "@bb/domain";
-import { turnScope } from "@bb/domain";
+import type { ClientTurnRequestId, ThreadEvent } from "@patcher/domain";
+import { turnScope } from "@patcher/domain";
 
 export interface AcceptedUserMessageState {
   pendingAcceptedUserMessages: AcceptedUserMessage[];

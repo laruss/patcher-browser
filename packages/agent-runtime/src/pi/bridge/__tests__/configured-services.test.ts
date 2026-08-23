@@ -21,7 +21,7 @@ async function createTestDirs(): Promise<{
   cwd: string;
   markerPath: string;
 }> {
-  const root = await mkdtemp(join(tmpdir(), "bb-pi-services-test-"));
+  const root = await mkdtemp(join(tmpdir(), "patcher-pi-services-test-"));
   testRoots.push(root);
   const agentDir = join(root, "agent");
   const cwd = join(root, "workspace");

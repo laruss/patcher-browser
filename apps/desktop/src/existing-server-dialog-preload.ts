@@ -1,6 +1,6 @@
 import { ipcRenderer } from "electron";
 import {
-  BB_DESKTOP_EXISTING_SERVER_DIALOG_CHOOSE_CHANNEL,
+  PATCHER_DESKTOP_EXISTING_SERVER_DIALOG_CHOOSE_CHANNEL,
   EXISTING_SERVER_DIALOG_CHOICES,
   type ExistingServerDialogChooseRequest,
 } from "./existing-server-dialog-ipc.js";
@@ -9,7 +9,7 @@ import {
 // the preload wires the buttons from the isolated world instead.
 window.addEventListener("DOMContentLoaded", () => {
   function choose(choice: ExistingServerDialogChooseRequest["choice"]): void {
-    ipcRenderer.send(BB_DESKTOP_EXISTING_SERVER_DIALOG_CHOOSE_CHANNEL, {
+    ipcRenderer.send(PATCHER_DESKTOP_EXISTING_SERVER_DIALOG_CHOOSE_CHANNEL, {
       choice,
     });
   }

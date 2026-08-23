@@ -18,13 +18,13 @@ import type {
   ThreadEvent,
   ToolCallRequest,
   ToolCallResponse,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   getThreadEventScopeTurnId,
   isApprovalPendingInteractionPayload,
   isUserQuestionPendingInteractionPayload,
-} from "@bb/domain";
-import { resolvePreferredTestModel } from "@bb/test-helpers";
+} from "@patcher/domain";
+import { resolvePreferredTestModel } from "@patcher/test-helpers";
 import { createAgentRuntime } from "../runtime.js";
 import { PI_BRIDGE_SESSION_DIR_ENV } from "../pi/bridge/session-paths.js";
 import type {
@@ -832,7 +832,7 @@ function copyPiAgentFileIfPresent(args: CopyPiAgentFileIfPresentArgs): void {
 }
 
 function preparePiAgentDir(args: PreparePiAgentDirArgs): string {
-  const targetAgentDir = join(args.tmpDir, ".bb-pi-agent");
+  const targetAgentDir = join(args.tmpDir, ".patcher-pi-agent");
   mkdirSync(targetAgentDir, { recursive: true });
 
   const sourceAgentDir = getAgentDir();
@@ -856,7 +856,7 @@ function createRuntimeProcessEnv(
     return undefined;
   }
 
-  const sessionDir = join(args.tmpDir, ".bb-pi-bridge-sessions");
+  const sessionDir = join(args.tmpDir, ".patcher-pi-bridge-sessions");
   mkdirSync(sessionDir, { recursive: true });
   return {
     [PI_BRIDGE_SESSION_DIR_ENV]: sessionDir,
@@ -870,7 +870,7 @@ export function createTestRuntime(
 ): TestContext {
   const tmpDir =
     opts?.workspacePath ??
-    mkdtempSync(join(tmpdir(), `bb-integ-${providerId}-`));
+    mkdtempSync(join(tmpdir(), `patcher-integ-${providerId}-`));
   const ownsTmpDir = !opts?.workspacePath;
   const events: ThreadEvent[] = [];
   const toolCalls: ToolCallRequest[] = [];

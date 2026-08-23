@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { getAppSettings, setAppSettings } from "@bb/db";
-import { appSettingsSchema, defaultAppSettings } from "@bb/domain";
-import { systemConfigResponseSchema } from "@bb/server-contract";
+import { getAppSettings, setAppSettings } from "@patcher/db";
+import { appSettingsSchema, defaultAppSettings } from "@patcher/domain";
+import { systemConfigResponseSchema } from "@patcher/server-contract";
 import { schedulePrimaryHostCaffeinateReconciliation } from "../../src/services/system/app-settings.js";
 import { readJson } from "../helpers/json.js";
 import { registerHostRpcResponder } from "../helpers/host-rpc.js";

@@ -4,20 +4,20 @@ import {
   DEFAULT_BROWSER_SEARCH_ENGINE_ID,
   resolveBrowserSearchEngine,
   type BrowserSearchEngine,
-} from "@bb/domain/browser-search-engine";
+} from "@patcher/domain/browser-search-engine";
 import { usePluginContributions } from "@/hooks/queries/plugin-contribution-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 
 /**
  * Which search engine the address bar uses, and the whole list to choose from.
  *
- * Two sources: bb's own engines and whatever plugins declared
- * (`bb.browser.registerSearchEngine`). Read through a hook rather than threaded
+ * Two sources: Patcher's own engines and whatever plugins declared
+ * (`patcher.browser.registerSearchEngine`). Read through a hook rather than threaded
  * as a prop because the two places that need it — the omnibox and the surface —
  * are not on one path, and both are already inside the query cache.
  */
 export interface BrowserSearchEngineOption extends BrowserSearchEngine {
-  /** Null for bb's own; the plugin's id for a declared one, so the list can say. */
+  /** Null for Patcher's own; the plugin's id for a declared one, so the list can say. */
   pluginId: string | null;
 }
 
@@ -30,7 +30,7 @@ export function useBrowserSearchEngineOptions(): readonly BrowserSearchEngineOpt
         pluginId: null,
       }));
     for (const engine of contributed ?? []) {
-      // bb's own win a collision: a plugin cannot quietly replace the engine the
+      // Patcher's own win a collision: a plugin cannot quietly replace the engine the
       // user's setting already names.
       if (options.some((option) => option.id === engine.id)) {
         continue;
@@ -47,7 +47,7 @@ export function useBrowserSearchEngineOptions(): readonly BrowserSearchEngineOpt
 }
 
 /**
- * The engine to search with. Falls back to bb's default while the config is
+ * The engine to search with. Falls back to Patcher's default while the config is
  * still loading and for a setting naming an engine whose plugin is gone — see
  * {@link resolveBrowserSearchEngine}.
  */

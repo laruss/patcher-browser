@@ -155,7 +155,7 @@ function instrumentSqliteClient(
 }
 
 export function createConnection(
-  dbPath: string = "bb.db",
+  dbPath: string = "patcher.db",
   options: CreateConnectionOptions = {},
 ) {
   const sqlite = new Database(dbPath);

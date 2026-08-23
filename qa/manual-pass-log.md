@@ -42,7 +42,7 @@ Validated:
 - Interleaved follow-ups stayed distinct and the shared direct workspace remained clean.
 - Archiving one sibling did not break the other.
 - Mixed-provider threads completed in separate worktree environments with no observed cross-thread event contamination.
-- `bb environment commit`, `bb environment promote`, and `bb environment demote` all succeeded on the managed worktree in a targeted standalone rerun after correcting stale runbook CLI flags.
+- `patcher environment commit`, `patcher environment promote`, and `patcher environment demote` all succeeded on the managed worktree in a targeted standalone rerun after correcting stale runbook CLI flags.
 
 ## Recovery
 
@@ -83,7 +83,7 @@ Validated:
 
 ## Notes
 
-- The QA runbook was updated to match the current CLI surface: explicit `--model` flags on `bb thread spawn`, `bb thread show` without the removed `--recent-events` flag, and `bb environment commit/promote/demote` with `--thread`.
+- The QA runbook was updated to match the current CLI surface: explicit `--model` flags on `patcher thread spawn`, `patcher thread show` without the removed `--recent-events` flag, and `patcher environment commit/promote/demote` with `--thread`.
 - The shared direct-workspace prompts explicitly said not to modify files so the archive check exercised lifecycle behavior instead of workspace dirtiness.
 - One combined provider-specific loop hit a transient Pi stop timeout after earlier provider work; isolated per-provider reruns passed, so no reproducible product bug remained in that path.
 
@@ -102,18 +102,18 @@ Bridge provider: `claude-code`
 
 Validated:
 
-- The codex thread reached `idle` after executing `bb status --json`, `bb guide`, `env | sort | grep '^BB_'`, and `bb thread update --self --title 'CLI Self Rename Smoke'` from inside the provider shell.
-- No `command not found: bb` failure occurred. The thread reported `BB_PROJECT_ID=proj_2v4aicwcy5`, `BB_THREAD_ID=thr_4bhd5pbbaj`, `BB_ENVIRONMENT_ID=env_pvtttduv8x`, `BB_SERVER_URL=http://127.0.0.1:50429`, and `BB_HOST_DAEMON_PORT=50430`.
+- The codex thread reached `idle` after executing `patcher status --json`, `patcher guide`, `env | sort | grep '^PATCHER_'`, and `patcher thread update --self --title 'CLI Self Rename Smoke'` from inside the provider shell.
+- No `command not found: patcher` failure occurred. The thread reported `PATCHER_PROJECT_ID=proj_2v4aicwcy5`, `PATCHER_THREAD_ID=thr_4bhd5pbbaj`, `PATCHER_ENVIRONMENT_ID=env_pvtttduv8x`, `PATCHER_SERVER_URL=http://127.0.0.1:50429`, and `PATCHER_HOST_DAEMON_PORT=50430`.
 - The thread title changed to `CLI Self Rename Smoke`, confirming that mutating CLI commands work from the injected thread context.
 - A real daemon restart was verified twice:
   - first by manually stopping PID `49755` and starting a fresh daemon session, then sending a follow-up to the same thread
   - again with the repaired standalone restart command, which shut down daemon PID `8819` and produced a fresh connected session (`hses_74jgcwdivb`) in the daemon log before the follow-up completed
-- After both restarts, the same thread resumed and still reported the same `BB_*` values, including the same `BB_ENVIRONMENT_ID`.
-- The `claude-code` bridge-backed thread also reached `idle` and reported the expected `BB_PROJECT_ID`, `BB_THREAD_ID`, `BB_ENVIRONMENT_ID`, `BB_SERVER_URL`, and `BB_HOST_DAEMON_PORT` values from inside its shell.
+- After both restarts, the same thread resumed and still reported the same `PATCHER_*` values, including the same `PATCHER_ENVIRONMENT_ID`.
+- The `claude-code` bridge-backed thread also reached `idle` and reported the expected `PATCHER_PROJECT_ID`, `PATCHER_THREAD_ID`, `PATCHER_ENVIRONMENT_ID`, `PATCHER_SERVER_URL`, and `PATCHER_HOST_DAEMON_PORT` values from inside its shell.
 
 Notes:
 
-- `bb thread show --self --json` is not currently supported by the CLI; the codex smoke thread reported `unknown option '--self'`. This did not block verification because `bb thread update --self` worked and the follow-up checks used `bb thread show <thread-id> --json`.
+- `patcher thread show --self --json` is not currently supported by the CLI; the codex smoke thread reported `unknown option '--self'`. This did not block verification because `patcher thread update --self` worked and the follow-up checks used `patcher thread show <thread-id> --json`.
 - The standalone restart helper was incorrect at the start of QA because it tried to launch a new daemon without stopping the existing one, which correctly failed on the daemon lock. `tests/qa/src/shared.ts` and `tests/qa/src/standalone/start.ts` were updated so the generated restart command now kills the old daemon PID before starting the replacement process.
 
 ## Manager CLI
@@ -134,23 +134,23 @@ Routing frontend child: `thr_4eangjpzgs`
 
 Validated:
 
-- Codex manager hire immediately hatched, reached `idle`, and exposed the meet-and-greet through `bb thread output`.
+- Codex manager hire immediately hatched, reached `idle`, and exposed the meet-and-greet through `patcher thread output`.
 - Manager updates now flow through `message_user` end to end; live logs show successful `message_user` tool calls and persisted `system/manager/user_message` events.
 - A substantive backend task was delegated to a child thread, followed by a same-environment review thread, then triaged back to the original worker before the final user update.
 - Manager completion handling now uses automated managed-thread completion signals. The manager log shows system-driven `client/turn/requested` entries for completion, ownership assigned, and ownership removed.
-- Ownership transfer via `bb thread update --parent-thread` and `--clear-parent-thread` triggered manager follow-up turns as expected.
+- Ownership transfer via `patcher thread update --parent-thread` and `--clear-parent-thread` triggered manager follow-up turns as expected.
 - Provider-routing preferences worked in a live parallel request:
   - backend child used `providerId: codex`
   - frontend child used `providerId: claude-code`
 - Pi manager smoke passed with `anthropic/claude-opus-4-7` / `medium`; the Pi manager reached `idle` and produced a visible hatch message.
   Critical issues fixed during the pass:
 
-- dynamic `message_user` forwarding used provider thread ids instead of BB thread ids
+- dynamic `message_user` forwarding used provider thread ids instead of Patcher thread ids
 - manager completion / ownership control messages were not wired on the server
-- `bb thread output` dropped manager-visible messages when a later assistant item was empty
+- `patcher thread output` dropped manager-visible messages when a later assistant item was empty
   Residual notes:
 
-- The manager no longer relied on polling loops to detect completion, but live logs still showed a small number of `bb thread show --json` inspections while reviewing completed child results. This did not behave like tight completion polling, but it remains worth watching.
+- The manager no longer relied on polling loops to detect completion, but live logs still showed a small number of `patcher thread show --json` inspections while reviewing completed child results. This did not behave like tight completion polling, but it remains worth watching.
 
 ## Pi Manager Parity Rerun
 
@@ -180,7 +180,7 @@ Validated:
   - backend child used `providerId: codex`
   - frontend child used `providerId: claude-code`
 - When `claude-code` failed because the local OAuth token was expired, the Pi manager recovered by retrying the affected work with codex rather than stalling.
-- Ownership transfer via `bb thread update --parent-thread` and `--clear-parent-thread` triggered the expected Pi-manager follow-up turns and user-visible updates.
+- Ownership transfer via `patcher thread update --parent-thread` and `--clear-parent-thread` triggered the expected Pi-manager follow-up turns and user-visible updates.
 - Archive judgment passed in a focused helper-thread flow: Pi manager `thr_xt5yisgw67` summarized a one-off codex research thread and archived `thr_ydwh24qkxp` afterward.
 
 Critical issues fixed during the Pi rerun:
@@ -242,13 +242,13 @@ Provider-specific pass:
 
 Validated:
 
-- Standalone health checks passed: server config, hosts, `bb status`, provider list, and provider model discovery.
+- Standalone health checks passed: server config, hosts, `patcher status`, provider list, and provider model discovery.
 - Codex smoke reached `idle`, produced output, accepted a follow-up, created a managed worktree file, and exposed environment status/diff routes.
-- Archive rejected `bb thread tell` while archived; unarchive restored follow-up operation.
+- Archive rejected `patcher thread tell` while archived; unarchive restored follow-up operation.
 - Thread A and B reused the same direct environment, and alternating follow-ups stayed distinct.
 - Archiving Thread A did not block Thread B.
 - Mixed-provider worktree threads reached `idle` in separate environments with no observed event cross-contamination.
-- `bb environment commit`, `bb environment promote`, and `bb environment demote` succeeded on the managed worktree using the current CLI syntax.
+- `patcher environment commit`, `patcher environment promote`, and `patcher environment demote` succeeded on the managed worktree using the current CLI syntax.
 - Graceful daemon restart left the server reachable, host status recovered to `connected`, and the smoke thread accepted a follow-up.
 - Mid-turn daemon loss left the thread inspectable; after restart it was `idle` and accepted a `recovery ok` follow-up.
 - Codex, Claude Code, and Pi provider-specific chat flows completed hello, uppercase follow-up, active-turn stop, and worktree `hello.txt` creation with readable environment status.
@@ -256,10 +256,10 @@ Validated:
 
 Critical issues fixed during the pass:
 
-- `qa/manual-runbook.md` hard-coded stale provider model IDs. The runbook now resolves current models through `bb provider models` and uses `CODEX_MODEL`, `CLAUDE_MODEL`, and `PI_MODEL`.
-- `qa/manual-runbook.md` still documented removed `--thread` flags for `bb environment commit/promote/demote`; those commands now match the current CLI.
-- Bare bridge error notifications from Pi/Claude could leave threads stuck in `provisioning` because no terminal turn event was emitted. Bridge adapters now synthesize a failed turn for thread-scoped bridge errors, with regression coverage in `@bb/agent-runtime`.
-- The standalone daemon restart command did not reload the `.env` used by the original daemon, which dropped provider credentials after restart. The generated restart command now sources the env file without embedding secrets in state, with `@bb/qa` regression coverage.
+- `qa/manual-runbook.md` hard-coded stale provider model IDs. The runbook now resolves current models through `patcher provider models` and uses `CODEX_MODEL`, `CLAUDE_MODEL`, and `PI_MODEL`.
+- `qa/manual-runbook.md` still documented removed `--thread` flags for `patcher environment commit/promote/demote`; those commands now match the current CLI.
+- Bare bridge error notifications from Pi/Claude could leave threads stuck in `provisioning` because no terminal turn event was emitted. Bridge adapters now synthesize a failed turn for thread-scoped bridge errors, with regression coverage in `@patcher/agent-runtime`.
+- The standalone daemon restart command did not reload the `.env` used by the original daemon, which dropped provider credentials after restart. The generated restart command now sources the env file without embedding secrets in state, with `@patcher/qa` regression coverage.
 
 Residual notes:
 
@@ -277,7 +277,7 @@ Standalone workflow: `bun run qa:standalone:start` / `bun run qa:standalone:stop
 
 Old-prompt rerun:
 
-- Artifact directory: `/tmp/bb-mixed-claude-rerun-2026-04-16-080929`
+- Artifact directory: `/tmp/patcher-mixed-claude-rerun-2026-04-16-080929`
 - Standalone state path: `/var/folders/lr/f3ynv4xj6p77kvx_rz7zgzg00000gn/T/bb-standalone-KWCiYE/standalone-state.json`
 - Claude thread: `thr_r2b92bmmtc`
 - Claude environment: `env_c4way45wmx`
@@ -292,7 +292,7 @@ Investigation:
 
 Fixed-prompt rerun:
 
-- Artifact directory: `/tmp/bb-mixed-claude-rerun-fixed-prompt-2026-04-16-081317`
+- Artifact directory: `/tmp/patcher-mixed-claude-rerun-fixed-prompt-2026-04-16-081317`
 - Standalone state path: `/var/folders/lr/f3ynv4xj6p77kvx_rz7zgzg00000gn/T/bb-standalone-qp8qrb/standalone-state.json`
 - Resolved models: `claude-code=claude-haiku-4-5`, `pi=openai/gpt-5.4`
 - Claude thread: `thr_8wcamxbmq5`
@@ -313,13 +313,13 @@ Status: runbook corrected
 
 Model-list check:
 
-- Artifact directory: `/tmp/bb-pi-model-list-check-2026-04-16-103917`
+- Artifact directory: `/tmp/patcher-pi-model-list-check-2026-04-16-103917`
 - Standalone state path: `/var/folders/lr/f3ynv4xj6p77kvx_rz7zgzg00000gn/T/bb-standalone-aAIrGn/standalone-state.json`
 - Current runbook selector result after correction: `anthropic/claude-opus-4-7`
 
 Subscription-backed smoke:
 
-- Artifact directory: `/tmp/bb-pi-subscription-smoke-2026-04-16-104215`
+- Artifact directory: `/tmp/patcher-pi-subscription-smoke-2026-04-16-104215`
 - Standalone state path: `/var/folders/lr/f3ynv4xj6p77kvx_rz7zgzg00000gn/T/bb-standalone-6s1E9C/standalone-state.json`
 - Pi thread: `thr_w2jfs9razh`
 - Model: `anthropic/claude-opus-4-7`
@@ -327,7 +327,7 @@ Subscription-backed smoke:
 
 Forced generic-OpenAI error check:
 
-- Artifact directory: `/tmp/bb-pi-forced-openai-error-2026-04-16-104322`
+- Artifact directory: `/tmp/patcher-pi-forced-openai-error-2026-04-16-104322`
 - Standalone state path: `/var/folders/lr/f3ynv4xj6p77kvx_rz7zgzg00000gn/T/bb-standalone-8kmvgi/standalone-state.json`
 - Pi thread: `thr_nj7tfsugyn`
 - Model: `openai/gpt-5.4`
@@ -346,7 +346,7 @@ Date: 2026-04-17
 Operator: Codex
 Status: passed
 Standalone workflow: `bun run qa:standalone:start` / `bun run qa:standalone:stop`
-Run log: `/tmp/bb-manual-qa.log`
+Run log: `/tmp/patcher-manual-qa.log`
 
 Resolved models:
 
@@ -481,9 +481,9 @@ Status: passed
 
 Validated:
 
-- Replayed known bad Claude thread `thr_m22cr9ggq7` from the active dev database (`<dev-data-dir>/bb.db`) through the server timeline builder. The rendered timeline had 13 rows, 6 `Unhandled Claude Code event` entries, and 0 such entries in the trailing 30 rendered lines.
-- Spot-checked all 13 unarchived development threads in the active dev database (`<dev-data-dir>/bb.db`) through `buildThreadTimeline`; 0 failed to project.
-- Re-ran malformed turn-scope projection coverage with `bunx turbo run test --filter=@bb/core-ui -- --run test/to-view-messages.turn-lifecycle.test.ts`; 9 tests passed.
+- Replayed known bad Claude thread `thr_m22cr9ggq7` from the active dev database (`<dev-data-dir>/patcher.db`) through the server timeline builder. The rendered timeline had 13 rows, 6 `Unhandled Claude Code event` entries, and 0 such entries in the trailing 30 rendered lines.
+- Spot-checked all 13 unarchived development threads in the active dev database (`<dev-data-dir>/patcher.db`) through `buildThreadTimeline`; 0 failed to project.
+- Re-ran malformed turn-scope projection coverage with `bunx turbo run test --filter=@patcher/core-ui -- --run test/to-view-messages.turn-lifecycle.test.ts`; 9 tests passed.
 
 Notes:
 
@@ -557,7 +557,7 @@ Status: passed
 Validated:
 
 - Ran a live Claude Code SDK query from `packages/agent-runtime` with `effort: "high"` and `thinking: { type: "adaptive", display: "summarized" }`. The stream emitted 4 thinking deltas, 207 thinking characters, 1 final thinking block, and a successful result.
-- Ran a live query through bb's Claude bridge session helpers, using `buildSessionOptions` plus `SdkSession` from the built `@bb/agent-runtime` output. The resolved options included `thinking: { type: "adaptive", display: "summarized" }` and `effort: "high"`. The stream emitted 6 thinking deltas, 284 thinking characters, 1 final thinking block, and a successful result.
+- Ran a live query through Patcher's Claude bridge session helpers, using `buildSessionOptions` plus `SdkSession` from the built `@patcher/agent-runtime` output. The resolved options included `thinking: { type: "adaptive", display: "summarized" }` and `effort: "high"`. The stream emitted 6 thinking deltas, 284 thinking characters, 1 final thinking block, and a successful result.
 
 Notes:
 
@@ -570,7 +570,7 @@ Date: 2026-05-01
 Operator: Codex
 Status: passed
 Standalone workflow: `bun run qa:standalone:start` / `bun run qa:standalone:stop`
-Run log: `/tmp/bb-manual-runbook.log`
+Run log: `/tmp/patcher-manual-runbook.log`
 
 Resolved models:
 
@@ -653,7 +653,7 @@ Validated:
 - Final `lint`, `typecheck`, `test`, `test:integration`, and root `build` gates all passed through Turbo.
 - Real-provider integration exercised Codex, Claude Code, and Pi registry, turn, control, concurrency, and workspace scenarios.
 - Standalone manual runbook coverage exercised health/model resolution, API prompt attachments, smoke/follow-up, parent/child protocol, worktree/diff routes, archive safety, multi-thread shared environments, mixed-provider worktrees, recovery probes, provider-specific chat/follow-up/stop/worktree flows, and pending-interaction approval/denial.
-- The final pending-interaction rerun confirmed `bb thread tell` now returns HTTP 409 while a command approval is pending, then approval and denial both resolve through the real Codex provider flow.
+- The final pending-interaction rerun confirmed `patcher thread tell` now returns HTTP 409 while a command approval is pending, then approval and denial both resolve through the real Codex provider flow.
 
 Fixes made during the pass:
 
@@ -665,4 +665,4 @@ Fixes made during the pass:
 Cleanup:
 
 - Standalone teardown and cleanup succeeded after the final manual rerun.
-- No `/tmp/bb-standalone-*` roots remained after cleanup.
+- No `/tmp/patcher-standalone-*` roots remained after cleanup.

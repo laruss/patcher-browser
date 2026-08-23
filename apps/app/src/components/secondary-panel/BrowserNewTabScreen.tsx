@@ -1,9 +1,9 @@
 import {
   COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
   COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { getBrowserUrlHost } from "@/lib/browser-url";
 import { formatRelativeTime } from "@/lib/relative-time";
 import type { BrowserHistoryEntry } from "@/lib/browser-history";
@@ -119,7 +119,7 @@ export function BrowserNewTabScreen({
             </ul>
           </section>
         )}
-        {/* After bb's own list: the browser's recents are what a new tab has
+        {/* After Patcher's own list: the browser's recents are what a new tab has
             always shown, and a plugin adds to that rather than displacing it. */}
         <BrowserNewTabPluginSections
           onNavigate={onNavigateInput}

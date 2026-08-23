@@ -15,7 +15,7 @@ import {
   useFixedPanelTabsState,
   useUpdateFixedPanelTabsState,
 } from "./fixed-panel-tabs";
-import { BbHttpError } from "./sdk";
+import { PatcherHttpError } from "./sdk";
 
 const apiMocks = vi.hoisted(() => ({
   getThreadTabs: vi.fn(),
@@ -220,7 +220,7 @@ describe("fixed panel tab server sync", () => {
       .mockResolvedValueOnce({ revision: 0, tabs: [] })
       .mockResolvedValueOnce({ revision: 1, tabs: [serverTab] });
     apiMocks.updateThreadTabs.mockRejectedValueOnce(
-      new BbHttpError({
+      new PatcherHttpError({
         body: null,
         code: "thread_tabs_conflict",
         message: "changed",
@@ -322,7 +322,7 @@ describe("fixed panel tab server sync", () => {
         tabs: [originalTab, concurrentTab],
       });
     apiMocks.updateThreadTabs.mockRejectedValueOnce(
-      new BbHttpError({
+      new PatcherHttpError({
         body: null,
         code: "thread_tabs_conflict",
         message: "changed",

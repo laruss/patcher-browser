@@ -1,6 +1,9 @@
-import { getThread, markThreadDeleted, pinThread } from "@bb/db";
-import { threadSchema } from "@bb/domain";
-import { apiErrorSchema, threadListResponseSchema } from "@bb/server-contract";
+import { getThread, markThreadDeleted, pinThread } from "@patcher/db";
+import { threadSchema } from "@patcher/domain";
+import {
+  apiErrorSchema,
+  threadListResponseSchema,
+} from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import { readJson } from "../helpers/json.js";
 import {

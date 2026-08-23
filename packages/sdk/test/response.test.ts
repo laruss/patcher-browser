@@ -1,19 +1,19 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
-  BbHttpError,
+  PatcherHttpError,
   createRequestTimeoutFetch,
-  DEFAULT_BB_REQUEST_TIMEOUT_MS,
+  DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
   readJsonResponse,
   readVoidResponse,
 } from "../src/response.js";
 import { createNodeTransport } from "../src/node.js";
 
-const REQUEST_TIMEOUT_ERROR_NAME = "BbRequestTimeoutError";
+const REQUEST_TIMEOUT_ERROR_NAME = "PatcherRequestTimeoutError";
 const REQUEST_TIMEOUT_VALIDATION_MESSAGE =
-  "BB request timeout must be a non-negative finite number.";
+  "Patcher request timeout must be a non-negative finite number.";
 
 function requestTimeoutMessage(duration: string): string {
-  return `BB request timed out after ${duration}.`;
+  return `Patcher request timed out after ${duration}.`;
 }
 
 const IMMEDIATE_TIMEOUT_MS = 0;
@@ -126,7 +126,9 @@ function getBytesReader(response: Response): () => Promise<Uint8Array> {
 
 function createAbortedTimeoutSignal(): AbortSignal {
   const controller = new AbortController();
-  controller.abort(new DOMException("The operation timed out.", "TimeoutError"));
+  controller.abort(
+    new DOMException("The operation timed out.", "TimeoutError"),
+  );
   return controller.signal;
 }
 
@@ -190,12 +192,12 @@ describe("readJsonResponse()", () => {
       statusText: "Internal Server Error",
     });
 
-    await expect(
-      readVoidResponse(Promise.resolve(response)),
-    ).rejects.toThrow("HTTP 500: Internal Server Error");
+    await expect(readVoidResponse(Promise.resolve(response))).rejects.toThrow(
+      "HTTP 500: Internal Server Error",
+    );
   });
 
-  it("throws BbHttpError carrying status and server code for non-ok response", async () => {
+  it("throws PatcherHttpError carrying status and server code for non-ok response", async () => {
     const response = new Response(
       JSON.stringify({
         code: "thread_not_found",
@@ -216,9 +218,9 @@ describe("readJsonResponse()", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(BbHttpError);
-    if (!(error instanceof BbHttpError)) {
-      throw new Error("Expected a BbHttpError");
+    expect(error).toBeInstanceOf(PatcherHttpError);
+    if (!(error instanceof PatcherHttpError)) {
+      throw new Error("Expected a PatcherHttpError");
     }
     expect(error.message).toBe("HTTP 404: Thread thread-1 not found");
     expect(error.status).toBe(404);
@@ -234,7 +236,7 @@ describe("readJsonResponse()", () => {
     await expect(readJson(response)).rejects.toMatchObject({
       code: null,
       message: "HTTP 502: plain failure",
-      name: "BbHttpError",
+      name: "PatcherHttpError",
       status: 502,
     });
   });
@@ -272,7 +274,7 @@ describe("readJsonResponse()", () => {
         details: { reason: "provisioning" },
       },
       code: "environment_not_ready",
-      name: "BbHttpError",
+      name: "PatcherHttpError",
     });
   });
 
@@ -289,7 +291,7 @@ describe("readJsonResponse()", () => {
     await expect(readJson(response)).rejects.toMatchObject({
       body: null,
       message: "HTTP 502: Bad Gateway",
-      name: "BbHttpError",
+      name: "PatcherHttpError",
       status: 502,
     });
   });
@@ -310,27 +312,25 @@ describe("readJsonResponse()", () => {
       cause: { code: "ECONNREFUSED" },
     });
 
-    await expect(
-      readJsonResponse(Promise.reject(connError)),
-    ).rejects.toThrow(
-      "Cannot connect to BB server. Ensure it is running and BB_SERVER_URL is correct.",
+    await expect(readJsonResponse(Promise.reject(connError))).rejects.toThrow(
+      "Cannot connect to Patcher server. Ensure it is running and PATCHER_SERVER_URL is correct.",
     );
   });
 
   it("rethrows other errors as-is", async () => {
     const otherError = new Error("Network timeout");
 
-    await expect(
-      readJsonResponse(Promise.reject(otherError)),
-    ).rejects.toThrow("Network timeout");
+    await expect(readJsonResponse(Promise.reject(otherError))).rejects.toThrow(
+      "Network timeout",
+    );
   });
 
   it("rethrows non-TypeError connection errors", async () => {
     const error = new RangeError("something wrong");
 
-    await expect(
-      readJsonResponse(Promise.reject(error)),
-    ).rejects.toThrow("something wrong");
+    await expect(readJsonResponse(Promise.reject(error))).rejects.toThrow(
+      "something wrong",
+    );
     await expect(
       readJsonResponse(Promise.reject(error)),
     ).rejects.toBeInstanceOf(RangeError);
@@ -347,7 +347,7 @@ describe("createRequestTimeoutFetch()", () => {
 
   it("uses the default timeout when creating the node transport", async () => {
     useImmediateTimeoutSignalFor({
-      timeoutMs: DEFAULT_BB_REQUEST_TIMEOUT_MS,
+      timeoutMs: DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
     });
     mockPendingFetchUntilAbort();
     const transport = createNodeTransport({ baseUrl: "http://server" });
@@ -411,7 +411,7 @@ describe("createRequestTimeoutFetch()", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => {
       return Promise.resolve(
         new Response("ok", {
-          headers: { "x-bb-test": "wrapped" },
+          headers: { "x-patcher-test": "wrapped" },
           status: 202,
         }),
       );
@@ -422,7 +422,7 @@ describe("createRequestTimeoutFetch()", () => {
 
     expect(response.status).toBe(202);
     expect(response.ok).toBe(true);
-    expect(response.headers.get("x-bb-test")).toBe("wrapped");
+    expect(response.headers.get("x-patcher-test")).toBe("wrapped");
   });
 
   it("passes request init values through while adding the timeout signal", async () => {
@@ -431,7 +431,7 @@ describe("createRequestTimeoutFetch()", () => {
       expect(input).toBe("http://server/api/v1/hosts");
       expect(init?.method).toBe("POST");
       expect(init?.body).toBe(requestBody);
-      expect(new Headers(init?.headers).get("x-bb-test")).toBe("yes");
+      expect(new Headers(init?.headers).get("x-patcher-test")).toBe("yes");
       expect(init?.signal?.aborted).toBe(false);
       return Promise.resolve(new Response("ok"));
     });
@@ -439,7 +439,7 @@ describe("createRequestTimeoutFetch()", () => {
     const timeoutFetch = createRequestTimeoutFetch({ timeoutMs: 1_000 });
     const response = await timeoutFetch("http://server/api/v1/hosts", {
       body: requestBody,
-      headers: { "x-bb-test": "yes" },
+      headers: { "x-patcher-test": "yes" },
       method: "POST",
     });
 
@@ -496,7 +496,9 @@ describe("createRequestTimeoutFetch()", () => {
     );
 
     const blobResponse = await timeoutFetch("http://server/api/v1/blob");
-    await expect(blobResponse.blob()).rejects.toThrow(IMMEDIATE_TIMEOUT_MESSAGE);
+    await expect(blobResponse.blob()).rejects.toThrow(
+      IMMEDIATE_TIMEOUT_MESSAGE,
+    );
 
     const formDataResponse = await timeoutFetch(
       "http://server/api/v1/form-data",
@@ -598,7 +600,9 @@ describe("createRequestTimeoutFetch()", () => {
         init?.signal?.addEventListener(
           "abort",
           () => {
-            reject(new DOMException("The operation was aborted.", "AbortError"));
+            reject(
+              new DOMException("The operation was aborted.", "AbortError"),
+            );
           },
           { once: true },
         );

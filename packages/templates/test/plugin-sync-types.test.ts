@@ -14,16 +14,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { syncPluginTypes } from "../src/plugin-scaffold.js";
 
 /**
- * `bb plugin new` seeds types/ once, but the SDK surface grows every release,
+ * `patcher plugin new` seeds types/ once, but the SDK surface grows every release,
  * so a plugin scaffolded months ago typechecks against declarations that no
- * longer describe the running bb. syncPluginTypes is the refresh; these guard
- * the behavior the CLI (`bb plugin types`, build, dev) depends on.
+ * longer describe the running Patcher. syncPluginTypes is the refresh; these guard
+ * the behavior the CLI (`patcher plugin types`, build, dev) depends on.
  */
 describe("syncPluginTypes", () => {
   let rootDir: string;
 
   beforeEach(async () => {
-    rootDir = await mkdtemp(join(tmpdir(), "bb-sync-types-"));
+    rootDir = await mkdtemp(join(tmpdir(), "patcher-sync-types-"));
   });
 
   afterEach(async () => {
@@ -34,32 +34,37 @@ describe("syncPluginTypes", () => {
     const results = await syncPluginTypes({ rootDir, app: false });
 
     expect(results).toEqual([
-      { path: "types/bb-plugin-sdk.d.ts", outcome: "written" },
+      { path: "types/patcher-plugin-sdk.d.ts", outcome: "written" },
     ]);
     const written = await readFile(
-      join(rootDir, "types", "bb-plugin-sdk.d.ts"),
+      join(rootDir, "types", "patcher-plugin-sdk.d.ts"),
       "utf8",
     );
-    expect(written).toContain("interface BbPluginApi");
+    expect(written).toContain("interface PatcherPluginApi");
 
-    await writeFile(join(rootDir, "types", "bb-plugin-sdk.d.ts"), "// stale\n");
+    await writeFile(
+      join(rootDir, "types", "patcher-plugin-sdk.d.ts"),
+      "// stale\n",
+    );
     const refreshed = await syncPluginTypes({ rootDir, app: false });
     expect(refreshed[0]?.outcome).toBe("written");
     expect(
-      await readFile(join(rootDir, "types", "bb-plugin-sdk.d.ts"), "utf8"),
-    ).toContain("interface BbPluginApi");
+      await readFile(join(rootDir, "types", "patcher-plugin-sdk.d.ts"), "utf8"),
+    ).toContain("interface PatcherPluginApi");
   });
 
   it("reports unchanged instead of rewriting a current declaration", async () => {
     await syncPluginTypes({ rootDir, app: false });
-    const before = await stat(join(rootDir, "types", "bb-plugin-sdk.d.ts"));
+    const before = await stat(
+      join(rootDir, "types", "patcher-plugin-sdk.d.ts"),
+    );
 
     const results = await syncPluginTypes({ rootDir, app: false });
 
     expect(results).toEqual([
-      { path: "types/bb-plugin-sdk.d.ts", outcome: "unchanged" },
+      { path: "types/patcher-plugin-sdk.d.ts", outcome: "unchanged" },
     ]);
-    const after = await stat(join(rootDir, "types", "bb-plugin-sdk.d.ts"));
+    const after = await stat(join(rootDir, "types", "patcher-plugin-sdk.d.ts"));
     expect(after.mtimeMs).toBe(before.mtimeMs);
   });
 
@@ -67,32 +72,35 @@ describe("syncPluginTypes", () => {
     await syncPluginTypes({ rootDir, app: false });
 
     await expect(
-      readFile(join(rootDir, "types", "bb-plugin-sdk-app.d.ts"), "utf8"),
+      readFile(join(rootDir, "types", "patcher-plugin-sdk-app.d.ts"), "utf8"),
     ).rejects.toThrow();
   });
 
-  it("refreshes existing app types even when the caller reports no bb.app", async () => {
+  it("refreshes existing app types even when the caller reports no patcher.app", async () => {
     // A manifest read can fail or predate the frontend entry; an app
     // declaration already on disk must not be left stale because of it.
     await mkdir(join(rootDir, "types"), { recursive: true });
     await writeFile(
-      join(rootDir, "types", "bb-plugin-sdk-app.d.ts"),
+      join(rootDir, "types", "patcher-plugin-sdk-app.d.ts"),
       "// stale\n",
     );
 
     const results = await syncPluginTypes({ rootDir, app: false });
 
     expect(results).toContainEqual({
-      path: "types/bb-plugin-sdk-app.d.ts",
+      path: "types/patcher-plugin-sdk-app.d.ts",
       outcome: "written",
     });
     expect(
-      await readFile(join(rootDir, "types", "bb-plugin-sdk-app.d.ts"), "utf8"),
+      await readFile(
+        join(rootDir, "types", "patcher-plugin-sdk-app.d.ts"),
+        "utf8",
+      ),
     ).toContain("definePluginApp");
   });
 
   /**
-   * `bb plugin build` and `bb plugin dev` refresh declarations without being
+   * `patcher plugin build` and `patcher plugin dev` refresh declarations without being
    * asked, and building a plugin never runs its code — so cloning an untrusted
    * plugin and building it must not write outside that plugin. Both link forms
    * redirected the write before this was guarded.
@@ -102,7 +110,7 @@ describe("syncPluginTypes", () => {
       const victim = join(rootDir, "victim.txt");
       await writeFile(victim, "PRECIOUS\n");
       await mkdir(join(rootDir, "types"));
-      await symlink(victim, join(rootDir, "types", "bb-plugin-sdk.d.ts"));
+      await symlink(victim, join(rootDir, "types", "patcher-plugin-sdk.d.ts"));
 
       await expect(syncPluginTypes({ rootDir, app: false })).rejects.toThrow(
         /symbolic link/,
@@ -113,15 +121,15 @@ describe("syncPluginTypes", () => {
     it("rejects a linked types directory and leaves the target intact", async () => {
       const outside = join(rootDir, "outside");
       await mkdir(outside);
-      await writeFile(join(outside, "bb-plugin-sdk.d.ts"), "PRECIOUS\n");
+      await writeFile(join(outside, "patcher-plugin-sdk.d.ts"), "PRECIOUS\n");
       await symlink(outside, join(rootDir, "types"));
 
       await expect(syncPluginTypes({ rootDir, app: false })).rejects.toThrow(
         /symbolic link/,
       );
-      expect(await readFile(join(outside, "bb-plugin-sdk.d.ts"), "utf8")).toBe(
-        "PRECIOUS\n",
-      );
+      expect(
+        await readFile(join(outside, "patcher-plugin-sdk.d.ts"), "utf8"),
+      ).toBe("PRECIOUS\n");
     });
   });
 
@@ -129,14 +137,14 @@ describe("syncPluginTypes", () => {
     await syncPluginTypes({ rootDir, app: true });
 
     const entries = await readdir(join(rootDir, "types"));
-    expect(entries.filter((name) => name.includes("bb-tmp"))).toEqual([]);
+    expect(entries.filter((name) => name.includes("patcher-tmp"))).toEqual([]);
   });
 
   it("check mode reports stale files and writes nothing", async () => {
     const missing = await syncPluginTypes({ rootDir, app: true, check: true });
     expect(missing).toEqual([
-      { path: "types/bb-plugin-sdk.d.ts", outcome: "stale" },
-      { path: "types/bb-plugin-sdk-app.d.ts", outcome: "stale" },
+      { path: "types/patcher-plugin-sdk.d.ts", outcome: "stale" },
+      { path: "types/patcher-plugin-sdk-app.d.ts", outcome: "stale" },
     ]);
     await expect(stat(join(rootDir, "types"))).rejects.toThrow();
 

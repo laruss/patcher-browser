@@ -2,7 +2,7 @@
 
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { TerminalSession } from "@bb/server-contract";
+import type { TerminalSession } from "@patcher/server-contract";
 import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -438,7 +438,7 @@ describe("useThreadFileTabs file opener diversion", () => {
 
   function setDefaultOpener() {
     window.localStorage.setItem(
-      "bb.fileOpenerByExtension",
+      "patcher.fileOpenerByExtension",
       JSON.stringify({ md: "notes:editor" }),
     );
   }
@@ -591,7 +591,7 @@ describe("useThreadFileTabs file opener diversion", () => {
     expect(result.current.activeWorkspaceFilePath).toBe("notes/todo.md");
 
     // A forced opener applies even with no default preference set.
-    window.localStorage.removeItem("bb.fileOpenerByExtension");
+    window.localStorage.removeItem("patcher.fileOpenerByExtension");
     act(() =>
       result.current.openTab(
         {

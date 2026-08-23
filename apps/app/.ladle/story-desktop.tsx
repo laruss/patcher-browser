@@ -1,16 +1,16 @@
 import { useEffect, type ReactNode } from "react";
 import type {
-  BbDesktopApi,
-  BbDesktopBrowserApi,
-  BbDesktopBrowserState,
-  BbDesktopInfo,
-} from "@bb/desktop-contract";
+  PatcherDesktopApi,
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserState,
+  PatcherDesktopInfo,
+} from "@patcher/desktop-contract";
 
 // A minimal, inert desktop bridge for stories that need the desktop-only browser
 // surface to register as available. The browser methods are no-ops: the native
 // `WebContentsView` only exists in the packaged desktop app, so in a story the
 // browser tab renders its chrome + new-tab screen and never a live page.
-const STORY_DESKTOP_INFO: BbDesktopInfo = {
+const STORY_DESKTOP_INFO: PatcherDesktopInfo = {
   lastCheckedAt: null,
   latestVersion: null,
   pendingVersion: null,
@@ -21,8 +21,8 @@ const STORY_DESKTOP_INFO: BbDesktopInfo = {
 };
 
 function createStoryDesktopBrowserApi(
-  initialState: BbDesktopBrowserState | null,
-): BbDesktopBrowserApi {
+  initialState: PatcherDesktopBrowserState | null,
+): PatcherDesktopBrowserApi {
   return {
     attach() {},
     detach() {},
@@ -51,8 +51,8 @@ function createStoryDesktopBrowserApi(
 }
 
 function createStoryDesktopApi(
-  browserState: BbDesktopBrowserState | null,
-): BbDesktopApi {
+  browserState: PatcherDesktopBrowserState | null,
+): PatcherDesktopApi {
   return {
     ...STORY_DESKTOP_INFO,
     browser: createStoryDesktopBrowserApi(browserState),
@@ -72,12 +72,12 @@ function createStoryDesktopApi(
 }
 
 interface WithDesktopBrowserProps {
-  browserState?: BbDesktopBrowserState | null;
+  browserState?: PatcherDesktopBrowserState | null;
   children: ReactNode;
 }
 
 /**
- * Installs an inert `window.bbDesktop` so stories can exercise the desktop-only
+ * Installs an inert `window.patcherDesktop` so stories can exercise the desktop-only
  * browser surface — the launcher's "Open browser" entry and the browser tab.
  * The bridge is set synchronously during render (before children read
  * `isDesktopBrowserAvailable()`, which runs at render time) and removed on
@@ -88,13 +88,13 @@ export function WithDesktopBrowser({
   browserState = null,
   children,
 }: WithDesktopBrowserProps) {
-  if (typeof window !== "undefined" && window.bbDesktop === undefined) {
-    window.bbDesktop = createStoryDesktopApi(browserState);
+  if (typeof window !== "undefined" && window.patcherDesktop === undefined) {
+    window.patcherDesktop = createStoryDesktopApi(browserState);
   }
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined") {
-        delete window.bbDesktop;
+        delete window.patcherDesktop;
       }
     };
   }, []);

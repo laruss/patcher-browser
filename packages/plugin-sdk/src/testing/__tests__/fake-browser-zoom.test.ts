@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BROWSER_COMMAND_MAX_ZOOM_FACTOR,
   BROWSER_COMMAND_MIN_ZOOM_FACTOR,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { createFakePluginHost } from "../fake-plugin-host.js";
 
 /**
@@ -13,12 +13,12 @@ import { createFakePluginHost } from "../fake-plugin-host.js";
  * this test with it.
  */
 async function zoomTo(factor: number): Promise<number> {
-  const { bb } = createFakePluginHost({
+  const { patcher } = createFakePluginHost({
     pluginId: "p",
     permissions: ["tabs.modify", "page.interact"],
   });
-  await bb.browser.tabs.open({ url: "https://example.test/" });
-  return await bb.browser.page.zoom({ factor });
+  await patcher.browser.tabs.open({ url: "https://example.test/" });
+  return await patcher.browser.page.zoom({ factor });
 }
 
 describe("the fake host's page.zoom", () => {

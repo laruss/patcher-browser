@@ -2,14 +2,14 @@ import { z } from "zod";
 import {
   listOpenBackgroundTaskItemRowsForHost,
   type OpenBackgroundTaskItemRow,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   backgroundTaskItemStatus,
   isSettledBackgroundTaskStatus,
   threadEventBackgroundTaskItemSchema,
   threadScope,
-} from "@bb/domain";
-import type { ThreadEventBackgroundTaskItem } from "@bb/domain";
+} from "@patcher/domain";
+import type { ThreadEventBackgroundTaskItem } from "@patcher/domain";
 import type { AppDeps } from "../../types.js";
 import { appendThreadEventsInTransaction } from "./thread-events.js";
 

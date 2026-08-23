@@ -56,13 +56,13 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Typecheck desktop and launcher
-        run: bunx turbo run typecheck --filter=@bb/desktop --filter=bb-app --output-logs=new-only
+        run: bunx turbo run typecheck --filter=@patcher/desktop --filter=patcher-app --output-logs=new-only
 
       - name: Build desktop
-        run: bunx turbo run build --filter=@bb/desktop --output-logs=new-only
+        run: bunx turbo run build --filter=@patcher/desktop --output-logs=new-only
 
       - name: Test desktop and launcher
-        run: bunx turbo run test --filter=@bb/desktop --filter=bb-app --force --output-logs=new-only
+        run: bunx turbo run test --filter=@patcher/desktop --filter=patcher-app --force --output-logs=new-only
 
       - name: Validate macOS signing secrets
         env:
@@ -109,13 +109,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: bunx turbo run desktop:build --filter=@bb/desktop --force --output-logs=new-only
+        run: bunx turbo run desktop:build --filter=@patcher/desktop --force --output-logs=new-only
 
       - name: Smoke test packaged desktop app
-        run: bunx turbo run smoke:packaged --filter=@bb/desktop --force --output-logs=new-only
+        run: bunx turbo run smoke:packaged --filter=@patcher/desktop --force --output-logs=new-only
 
       - name: Generate desktop version feed
-        run: bun run --filter @bb/desktop --elide-lines=0 desktop:version-feed
+        run: bun run --filter @patcher/desktop --elide-lines=0 desktop:version-feed
 
       - name: Plan release publication
         id: release_plan
@@ -164,7 +164,7 @@ jobs:
       - name: Upload desktop workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bb-desktop-macos-arm64
+          name: patcher-desktop-macos-arm64
           path: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.zip
@@ -204,8 +204,8 @@ jobs:
 
           gh release create "$VERSION_TAG" "${RELEASE_ASSETS[@]}" \
             --target "$GITHUB_SHA" \
-            --title "bb desktop ${VERSION}" \
-            --notes "bb desktop ${VERSION}" \
+            --title "Patcher desktop ${VERSION}" \
+            --notes "Patcher desktop ${VERSION}" \
             --latest
 
           git tag -f "$LATEST_TAG" "$GITHUB_SHA"
@@ -214,8 +214,8 @@ jobs:
           if gh release view "$LATEST_TAG" >/dev/null 2>&1; then
             gh release edit "$LATEST_TAG" \
               --target "$GITHUB_SHA" \
-              --title "bb desktop latest" \
-              --notes "Latest stable bb desktop release metadata." \
+              --title "Patcher desktop latest" \
+              --notes "Latest stable Patcher desktop release metadata." \
               --latest=false
 
             # desktop-latest is a moving release, but --clobber only replaces
@@ -233,8 +233,8 @@ jobs:
           else
             gh release create "$LATEST_TAG" "${RELEASE_ASSETS[@]}" \
               --target "$GITHUB_SHA" \
-              --title "bb desktop latest" \
-              --notes "Latest stable bb desktop release metadata." \
+              --title "Patcher desktop latest" \
+              --notes "Latest stable Patcher desktop release metadata." \
               --latest=false
           fi
 
@@ -246,12 +246,12 @@ jobs:
           VERSION: ${{ steps.release_plan.outputs.version }}
         run: |
           {
-            echo "## bb desktop artifacts"
+            echo "## Patcher desktop artifacts"
             echo
             echo "- arm64 macOS .dmg, .zip, latest-mac.yml, and desktop-version.json uploaded as workflow artifacts"
             echo "- version: ${VERSION}"
             echo "- prerelease version: ${IS_PRERELEASE}"
             echo "- stable release publication requested and allowed: ${SHOULD_PUBLISH}"
             echo "- release binary upload enabled: ${PUBLISH_BINARIES}"
-            echo "- desktop feed URL: https://github.com/get-bb/bb/releases/download/desktop-latest/desktop-version.json"
+            echo "- desktop feed URL: https://github.com/laruss/patcher-browser/releases/download/desktop-latest/desktop-version.json"
           } >> "$GITHUB_STEP_SUMMARY"

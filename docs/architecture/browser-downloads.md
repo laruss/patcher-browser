@@ -80,7 +80,7 @@ A page can start downloads without a click, so they go through the same
 sliding-window limiter the popup policy uses: five per ten seconds per tab. Past
 that the download is refused and **the refusal is pushed to the renderer** — the
 same cap catches a legitimate "download all" button, and a user whose files
-stopped arriving needs to know it was bb that stopped them.
+stopped arriving needs to know it was Patcher that stopped them.
 
 That is why `refused` is a state of its own rather than a failure: a caller must
 be able to tell "the network failed" from "we said no", and only one of those is
@@ -91,7 +91,7 @@ event at all — there is no tab to attribute it to and nobody to tell.
 
 ## The wire, and the two events
 
-A new channel plus an optional `onDownload` on `BbDesktopBrowserApi`, which is
+A new channel plus an optional `onDownload` on `PatcherDesktopBrowserApi`, which is
 invariant 2 of [bb-migration.md](bb-migration.md) and the same shape favicons,
 scoped popups and page reads used. Feature detection is the negotiation, and it
 is unusually clean here: a shell that predates downloads has no channel _and_
@@ -207,15 +207,15 @@ because it means a bug on our side rather than anything the user did.
 
 ## Rewriting downloads in a plugin
 
-`bb.browser.registerDownloadHandler(handler)` — the plan's
+`patcher.browser.registerDownloadHandler(handler)` — the plan's
 `browser.downloads.handlers`. A handler receives each finished download and may
 do anything with the file: move it by media type, rename it, hand it to an
 agent, upload it, delete it.
 
 **A handler cannot prevent the write, and that is a platform limit rather than a
 policy.** Chromium demands the save path synchronously, inside the
-`will-download` handler, while a plugin lives in the bb server process behind a
-WebSocket and an HTTP hop. No cross-process answer can arrive in time. So bb
+`will-download` handler, while a plugin lives in the Patcher server process behind a
+WebSocket and an HTTP hop. No cross-process answer can arrive in time. So Patcher
 writes first and hands the result over; a plugin that wants files elsewhere
 moves them, and one that wants them gone deletes them.
 
@@ -229,13 +229,13 @@ handler can already undo. Not worth it now; the seam that would change is
 
 The chain, mirroring the omnibox contribution point exactly:
 
-| Step                                 | Where                                         |
-| ------------------------------------ | --------------------------------------------- |
-| `bb.browser.registerDownloadHandler` | `packages/plugin-sdk/src/backend-contract.ts` |
-| Registration, runtime record         | `apps/server/.../plugins/plugin-api.ts`       |
-| Fan-out, time box, isolation         | `apps/server/.../plugins/plugin-service.ts`   |
-| `POST /plugins/browser/downloads`    | `apps/server/src/routes/plugins.ts`           |
-| Reporting the download               | `apps/app/src/lib/browser-downloads.ts`       |
+| Step                                      | Where                                         |
+| ----------------------------------------- | --------------------------------------------- |
+| `patcher.browser.registerDownloadHandler` | `packages/plugin-sdk/src/backend-contract.ts` |
+| Registration, runtime record              | `apps/server/.../plugins/plugin-api.ts`       |
+| Fan-out, time box, isolation              | `apps/server/.../plugins/plugin-service.ts`   |
+| `POST /plugins/browser/downloads`         | `apps/server/src/routes/plugins.ts`           |
+| Reporting the download                    | `apps/app/src/lib/browser-downloads.ts`       |
 
 Three properties follow the omnibox's discipline rather than inventing their
 own: handlers are additive (several per plugin, several plugins), each is
@@ -290,16 +290,16 @@ against our own shell.
   showing while the capture is in flight and hidden only once the bitmap is
   pushed, the reveal-then-clear ordering on close, and the page hidden anyway
   when the capture fails.
-- `desktop-browser-view-manager.test.ts` — the path allowlist: a file bb
+- `desktop-browser-view-manager.test.ts` — the path allowlist: a file Patcher
   downloaded opens and reveals, **a path it did not write is refused and
   nothing is touched** (including a plausible one inside the downloads folder),
   and the OS refusal passed through as a failure.
-- Full suites: `@bb/desktop` 44 files / 472 tests, `@bb/app` 357 files / 2770
+- Full suites: `@patcher/desktop` 44 files / 472 tests, `@patcher/app` 357 files / 2770
   tests. Repo typecheck 59/59, `bunx turbo run lint` clean.
 
 **Written but not executed:** `plugin-browser-downloads.test.ts` (fan-out to two
 handlers, isolation of a throwing one, failure and refusal states, a malformed
-payload refused, the cross-origin guard). No `@bb/server` test runs on this
+payload refused, the cross-origin guard). No `@patcher/server` test runs on this
 machine — its forked workers are killed before they report, and the
 pre-existing `plugin-omnibox-providers.test.ts` fails identically, so this is
 the environment rather than the change. `bun run ensure-native-modules` is the

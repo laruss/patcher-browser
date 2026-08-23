@@ -1,4 +1,4 @@
-import type { ThreadEvent, ThreadTimelineGoal } from "@bb/domain";
+import type { ThreadEvent, ThreadTimelineGoal } from "@patcher/domain";
 import type { ThreadEventWithMeta } from "./build-event-projection.js";
 import { getOrderedThreadEvents } from "./group-event-projection-turns.js";
 

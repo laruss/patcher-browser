@@ -2,7 +2,7 @@ import { useAtom } from "jotai";
 import { createBooleanPreferenceAtom } from "./browser-storage";
 
 export const NAVIGATE_TO_THREAD_AFTER_CREATE_STORAGE_KEY =
-  "bb.root-compose.navigate-after-create";
+  "patcher.root-compose.navigate-after-create";
 
 export const NAVIGATE_TO_THREAD_AFTER_CREATE_DEFAULT = true;
 

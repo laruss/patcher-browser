@@ -1,5 +1,5 @@
 {
-  "name": "@bb/host-workspace",
+  "name": "@patcher/host-workspace",
   "version": "0.0.1",
   "type": "module",
   "exports": {
@@ -16,12 +16,12 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/domain": "workspace:*",
-    "@bb/process-utils": "workspace:*"
+    "@patcher/domain": "workspace:*",
+    "@patcher/process-utils": "workspace:*"
   },
   "devDependencies": {
-    "@bb/test-helpers": "workspace:*",
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/test-helpers": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.2",
     "typescript-7": "npm:typescript@^7.0.2"

@@ -3,7 +3,7 @@ import {
   getPersonalWorkspaceRoot,
   WorkspaceError,
   type HostWorkspace,
-} from "@bb/host-workspace";
+} from "@patcher/host-workspace";
 import { dispatchCommand } from "../../src/command-dispatch.js";
 import type { EventSinkInput } from "../../src/event-sink.js";
 import {
@@ -156,7 +156,7 @@ function createTerminalManager(
 describe("environment command dispatch", () => {
   it("covers environment.provision in unmanaged mode", async () => {
     const harness = createHarness({ workspacePath: "/tmp/unmanaged" });
-    const sourcePath = await makeTempDir("bb-dispatch-unmanaged-");
+    const sourcePath = await makeTempDir("patcher-dispatch-unmanaged-");
 
     const result = await dispatchCommand(
       {
@@ -203,7 +203,7 @@ describe("environment command dispatch", () => {
       workspacePath: "/tmp/worktree",
       isWorktree: true,
     });
-    const sourcePath = await makeTempDir("bb-dispatch-worktree-");
+    const sourcePath = await makeTempDir("patcher-dispatch-worktree-");
 
     const result = await dispatchCommand(
       {
@@ -213,7 +213,7 @@ describe("environment command dispatch", () => {
         workspaceProvisionType: "managed-worktree",
         sourcePath,
         targetPath: "/tmp/worktree",
-        branchName: "bb/test",
+        branchName: "patcher/test",
         baseBranch: "main",
         setupTimeoutMs: 900000,
       },
@@ -244,7 +244,7 @@ describe("environment command dispatch", () => {
         workspaceProvisionType: "managed-worktree",
         sourcePath,
         targetPath: "/tmp/worktree",
-        branchName: "bb/test",
+        branchName: "patcher/test",
         baseBranch: "main",
         timeoutMs: 900000,
         onProgress: expect.any(Function),
@@ -254,7 +254,7 @@ describe("environment command dispatch", () => {
   });
 
   it("covers environment.provision in personal mode", async () => {
-    const dataDir = await makeTempDir("bb-dispatch-personal-data-");
+    const dataDir = await makeTempDir("patcher-dispatch-personal-data-");
     const environmentId = "env_personal";
     const personalWorkspaceRoot = getPersonalWorkspaceRoot(dataDir);
     const targetPath = `${personalWorkspaceRoot}/${environmentId}`;
@@ -417,7 +417,7 @@ describe("environment command dispatch", () => {
   });
 
   it("rejects personal provision targets outside the data dir personal workspace root", async () => {
-    const dataDir = await makeTempDir("bb-dispatch-personal-data-");
+    const dataDir = await makeTempDir("patcher-dispatch-personal-data-");
     const environmentId = "env_personal";
     const harness = createHarness();
 
@@ -437,7 +437,7 @@ describe("environment command dispatch", () => {
   });
 
   it("rejects personal provision targets that traverse out of the environment directory", async () => {
-    const dataDir = await makeTempDir("bb-dispatch-personal-data-");
+    const dataDir = await makeTempDir("patcher-dispatch-personal-data-");
     const environmentId = "env_personal";
     const harness = createHarness();
 
@@ -458,7 +458,7 @@ describe("environment command dispatch", () => {
 
   it("streams live events and flushes when initiator is provided", async () => {
     const harness = createHarness({ workspacePath: "/tmp/live-stream" });
-    const sourcePath = await makeTempDir("bb-dispatch-stream-");
+    const sourcePath = await makeTempDir("patcher-dispatch-stream-");
     const emittedEvents: EventSinkInput[] = [];
     let flushCount = 0;
 
@@ -586,7 +586,7 @@ describe("environment command dispatch", () => {
         options.onProgress?.({
           type: "step",
           key: "git-worktree",
-          text: "git worktree add -B bb/failure /tmp/failure",
+          text: "git worktree add -B patcher/failure /tmp/failure",
           status: "started",
           startedAt: Date.now(),
         });
@@ -610,7 +610,7 @@ describe("environment command dispatch", () => {
           workspaceProvisionType: "managed-worktree",
           sourcePath: "/tmp/source",
           targetPath: "/tmp/failure",
-          branchName: "bb/failure",
+          branchName: "patcher/failure",
           baseBranch: "main",
           setupTimeoutMs: 900000,
         },
@@ -639,7 +639,7 @@ describe("environment command dispatch", () => {
 
   it("returns empty transcript when environment already exists", async () => {
     const harness = createHarness({ workspacePath: "/tmp/idempotent" });
-    const sourcePath = await makeTempDir("bb-dispatch-idempotent-");
+    const sourcePath = await makeTempDir("patcher-dispatch-idempotent-");
 
     // First provision
     await dispatchCommand(

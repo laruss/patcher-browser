@@ -1,12 +1,12 @@
 import type {
   WorkspaceCommitSummary,
   WorkspaceFileStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   makeWorkspaceMergeBase,
   makeWorkspaceStatus,
   makeWorkspaceWorkingTree,
-} from "@bb/test-helpers";
+} from "@patcher/test-helpers";
 import { describe, expect, it } from "vitest";
 import {
   formatChangeSummary,

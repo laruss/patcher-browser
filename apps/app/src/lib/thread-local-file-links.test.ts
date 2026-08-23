@@ -143,18 +143,18 @@ describe("resolveThreadLocalFileLink", () => {
         hostFileLinksAvailable: true,
         link: {
           lineRange: { startLineNumber: 4, endLineNumber: 6 },
-          path: "/Users/me/.bb/thread-storage/thr_one/reports/preview.html",
+          path: "/Users/me/.patcher/thread-storage/thr_one/reports/preview.html",
         },
-        threadStorageRootPath: "/Users/me/.bb/thread-storage/thr_one",
+        threadStorageRootPath: "/Users/me/.patcher/thread-storage/thr_one",
         workspaceRootPath: "/Users/me/project",
       }),
     ).toEqual({
       kind: "open-thread-storage-path",
       request: {
         lineRange: { startLineNumber: 4, endLineNumber: 6 },
-        path: "/Users/me/.bb/thread-storage/thr_one/reports/preview.html",
+        path: "/Users/me/.patcher/thread-storage/thr_one/reports/preview.html",
         relativePath: "reports/preview.html",
-        threadStorageRootPath: "/Users/me/.bb/thread-storage/thr_one",
+        threadStorageRootPath: "/Users/me/.patcher/thread-storage/thr_one",
       },
     });
   });

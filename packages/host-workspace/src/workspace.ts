@@ -6,7 +6,7 @@ import type {
   WorkspaceFileStatus,
   WorkspaceFileStatusKind,
   WorkspaceStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -1126,7 +1126,7 @@ export class Workspace {
     });
   }
 
-  async stash(message = "bb-workspace-stash"): Promise<string | null> {
+  async stash(message = "patcher-workspace-stash"): Promise<string | null> {
     await ensureGitRepo(this.path);
 
     return this.withMutation(async () => {
@@ -1170,7 +1170,7 @@ export class Workspace {
     }
 
     const target = await this.resolveSquashMergeTarget(options.targetBranch);
-    const tempDir = await createTempDir("bb-squash-");
+    const tempDir = await createTempDir("patcher-squash-");
     const tempDirPath = path.resolve(tempDir);
 
     try {

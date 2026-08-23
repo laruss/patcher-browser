@@ -1,7 +1,7 @@
 import type {
-  BbDesktopBrowserApi,
-  BbDesktopBrowserState,
-} from "@bb/desktop-contract";
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserState,
+} from "@patcher/desktop-contract";
 
 /**
  * The navigation state the shell pushes for every browser view, kept where code
@@ -19,8 +19,8 @@ import type {
  * previous one.
  */
 
-const liveStates = new Map<string, BbDesktopBrowserState>();
-type LiveStateListener = (state: BbDesktopBrowserState) => void;
+const liveStates = new Map<string, PatcherDesktopBrowserState>();
+type LiveStateListener = (state: PatcherDesktopBrowserState) => void;
 const listeners = new Set<LiveStateListener>();
 
 /** How long to wait for a navigation to settle before answering anyway. */
@@ -31,7 +31,7 @@ export const BROWSER_TAB_SETTLE_TIMEOUT_MS = 15_000;
  * is no desktop bridge (the web build), where it does nothing.
  */
 export function subscribeBrowserLiveState(
-  desktopBrowser: BbDesktopBrowserApi | null,
+  desktopBrowser: PatcherDesktopBrowserApi | null,
 ): () => void {
   if (desktopBrowser === null) {
     return () => undefined;
@@ -53,7 +53,7 @@ export function subscribeBrowserLiveState(
  */
 export function getBrowserLiveState(
   tabId: string,
-): BbDesktopBrowserState | null {
+): PatcherDesktopBrowserState | null {
   return liveStates.get(tabId) ?? null;
 }
 

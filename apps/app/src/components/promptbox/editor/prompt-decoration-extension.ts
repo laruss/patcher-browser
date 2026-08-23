@@ -2,12 +2,12 @@ import type {
   ComposerRichTextSpec,
   ComposerStructuredDraft,
   ComposerView,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { Extension, type Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import {
   promptEditorSerializationFromDoc,
   type PromptEditorOffsetSegment,
@@ -223,7 +223,7 @@ function buildDecorations(
             {
               className: rule.className,
               ...(source.pluginId
-                ? { "data-bb-plugin-decoration": source.pluginId }
+                ? { "data-patcher-plugin-decoration": source.pluginId }
                 : {}),
               ruleId: rule.id,
               sourceId: source.id,

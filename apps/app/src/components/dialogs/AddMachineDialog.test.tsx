@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import type { Host } from "@bb/domain";
+import type { Host } from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BbHttpError, sdk } from "@/lib/sdk";
+import { sdk } from "@/lib/sdk";
 import { hostsQueryKey } from "@/hooks/queries/query-keys";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { AddMachineDialog } from "./AddMachineDialog";
@@ -17,7 +17,6 @@ vi.mock("@/lib/sdk", async (importOriginal) => {
         createJoinCode: vi.fn(),
         list: vi.fn(),
       },
-      plugins: { callRpc: vi.fn() },
     },
   };
 });
@@ -53,13 +52,6 @@ describe("AddMachineDialog", () => {
       hostId: "host_new",
       expiresAt: Date.now() + 15 * 60 * 1000,
     });
-    // The connect serverUrl differs from the browser origin (bb viewed on
-    // localhost while paired through a tunnel) — the command must use it.
-    vi.mocked(sdk.plugins.callRpc).mockResolvedValue({
-      code: "mc_test456",
-      expiresAt: Date.now() + 10 * 60 * 1000,
-      serverUrl: "https://example.getbb.app",
-    });
     vi.mocked(sdk.hosts.list).mockResolvedValue([existingHost]);
 
     const { queryClient, wrapper } = createQueryClientTestHarness();
@@ -67,25 +59,19 @@ describe("AddMachineDialog", () => {
       <AddMachineDialog
         open
         onOpenChange={vi.fn()}
-        serverUrl="http://direct.example.test:38886"
+        serverUrl="http://direct.example.test:38986"
       />,
       { wrapper },
     );
 
     const command = await screen.findByText(/--join-code jc_test123/);
-    expect(sdk.plugins.callRpc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pluginId: "connect",
-        method: "createMachineCode",
-        input: null,
-      }),
-    );
     expect(command.textContent).toContain("--host-id host_new");
     expect(command.textContent).toContain(
-      "curl -fsSL https://example.getbb.app/install.sh",
+      "curl -fsSL http://direct.example.test:38986/install.sh",
     );
-    expect(command.textContent).toContain("--server https://example.getbb.app");
-    expect(command.textContent).toContain("--machine-code mc_test456");
+    expect(command.textContent).toContain(
+      "--server http://direct.example.test:38986",
+    );
     expect(command.textContent).not.toContain(window.location.origin);
     expect(screen.getByText(/Code expires in \d+:\d{2}/)).toBeDefined();
     expect(
@@ -113,23 +99,12 @@ describe("AddMachineDialog", () => {
     ).toBeNull();
   });
 
-  it("falls back to direct pairing when connect is unpaired and ignores known hosts", async () => {
+  it("ignores a machine that was already known when it reconnects", async () => {
     vi.mocked(sdk.hosts.createJoinCode).mockResolvedValue({
       joinCode: "jc_test123",
       hostId: "host_new",
       expiresAt: Date.now() + 15 * 60 * 1000,
     });
-    vi.mocked(sdk.plugins.callRpc).mockRejectedValue(
-      new BbHttpError({
-        body: {
-          ok: false,
-          error: { code: "handler_error", message: "not_paired" },
-        },
-        code: "handler_error",
-        message: "not_paired",
-        status: 500,
-      }),
-    );
     vi.mocked(sdk.hosts.list).mockResolvedValue([
       existingHost,
       host({ id: "host_offline", name: "dev-vm", status: "disconnected" }),
@@ -140,21 +115,12 @@ describe("AddMachineDialog", () => {
       <AddMachineDialog
         open
         onOpenChange={vi.fn()}
-        serverUrl="http://direct.example.test:38886"
+        serverUrl="http://direct.example.test:38986"
       />,
       { wrapper },
     );
 
-    // No machine code (not connect-paired): the direct/LAN command uses the
-    // server-reported URL and carries no --machine-code flag.
-    const command = await screen.findByText(/--join-code jc_test123/);
-    expect(command.textContent).toContain(
-      "curl -fsSL http://direct.example.test:38886/install.sh",
-    );
-    expect(command.textContent).toContain(
-      "--server http://direct.example.test:38886",
-    );
-    expect(command.textContent).not.toContain("--machine-code");
+    await screen.findByText(/--join-code jc_test123/);
 
     await waitFor(() => {
       expect(queryClient.getQueryData<Host[]>(hostsQueryKey())).toHaveLength(2);

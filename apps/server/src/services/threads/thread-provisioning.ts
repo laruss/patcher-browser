@@ -1,4 +1,4 @@
-import { getThread, type DbNotifier, type DbTransaction } from "@bb/db";
+import { getThread, type DbNotifier, type DbTransaction } from "@patcher/db";
 import {
   type Environment,
   type PromptInput,
@@ -9,8 +9,8 @@ import {
   type Thread,
   type ThreadTurnInitiator,
   type TurnRequestTarget,
-} from "@bb/domain";
-import type { StartedOnBehalfOf } from "@bb/server-contract";
+} from "@patcher/domain";
+import type { StartedOnBehalfOf } from "@patcher/server-contract";
 import type { AppDeps } from "../../types.js";
 import {
   appendClientTurnEvent,

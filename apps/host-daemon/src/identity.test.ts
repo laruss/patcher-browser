@@ -35,7 +35,7 @@ afterEach(async () => {
 
 describe("identity", () => {
   it("resolves a host ID once persisted and reuses it on subsequent runs", async () => {
-    const dataDir = await makeTempDir("bb-host-daemon-identity-");
+    const dataDir = await makeTempDir("patcher-host-daemon-identity-");
 
     const first = await loadHostIdentity({
       dataDir,
@@ -65,8 +65,8 @@ describe("identity", () => {
     );
   });
 
-  it("does not persist BB_HOST_ID until persistHostId is called", async () => {
-    const dataDir = await makeTempDir("bb-host-daemon-identity-env-");
+  it("does not persist PATCHER_HOST_ID until persistHostId is called", async () => {
+    const dataDir = await makeTempDir("patcher-host-daemon-identity-env-");
 
     const identity = await loadHostIdentity({
       dataDir,
@@ -87,8 +87,8 @@ describe("identity", () => {
     ).resolves.toContain("host-provided");
   });
 
-  it("lets a fresh BB_HOST_ID be used after an earlier load failed to persist", async () => {
-    const dataDir = await makeTempDir("bb-host-daemon-identity-retry-");
+  it("lets a fresh PATCHER_HOST_ID be used after an earlier load failed to persist", async () => {
+    const dataDir = await makeTempDir("patcher-host-daemon-identity-retry-");
 
     const first = await loadHostIdentity({
       dataDir,
@@ -98,7 +98,7 @@ describe("identity", () => {
     expect(first.hostId).toBe("host-original");
 
     // Simulate the first attempt failing after loadHostIdentity but before
-    // persistHostId — the user retries with a different BB_HOST_ID.
+    // persistHostId — the user retries with a different PATCHER_HOST_ID.
     const second = await loadHostIdentity({
       dataDir,
       fallbackHostName: () => "test-host",
@@ -107,8 +107,8 @@ describe("identity", () => {
     expect(second.hostId).toBe("host-retry");
   });
 
-  it("rejects a BB_HOST_ID that conflicts with a persisted host ID", async () => {
-    const dataDir = await makeTempDir("bb-host-daemon-identity-conflict-");
+  it("rejects a PATCHER_HOST_ID that conflicts with a persisted host ID", async () => {
+    const dataDir = await makeTempDir("patcher-host-daemon-identity-conflict-");
 
     await persistHostId({ dataDir, hostId: "host-persisted" });
 
@@ -121,8 +121,10 @@ describe("identity", () => {
     ).rejects.toThrow(/does not match persisted host ID/u);
   });
 
-  it("uses BB_HOST_NAME when provided instead of detecting a hostname", async () => {
-    const dataDir = await makeTempDir("bb-host-daemon-identity-host-name-");
+  it("uses PATCHER_HOST_NAME when provided instead of detecting a hostname", async () => {
+    const dataDir = await makeTempDir(
+      "patcher-host-daemon-identity-host-name-",
+    );
     const execFile = vi.fn();
 
     const identity = await loadHostIdentity({

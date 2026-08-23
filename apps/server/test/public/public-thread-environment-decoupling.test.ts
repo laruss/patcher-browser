@@ -1,9 +1,9 @@
-import { archiveThread, getEnvironment, getThread } from "@bb/db";
+import { archiveThread, getEnvironment, getThread } from "@patcher/db";
 import {
   applyEnvironmentLifecycleEvent,
   requireEnvironmentLifecycleEventApplied,
-} from "@bb/db/internal-environment-lifecycle";
-import type { EnvironmentStatus } from "@bb/domain";
+} from "@patcher/db/internal-environment-lifecycle";
+import type { EnvironmentStatus } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { readJson } from "../helpers/json.js";
 import {

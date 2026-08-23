@@ -1,4 +1,4 @@
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import type { PromptDraftState } from "@/lib/prompt-draft";
 
 export const THREAD_HANDOFF_CREATE_SEED_LOCATION_STATE_KEY =

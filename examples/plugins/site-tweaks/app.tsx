@@ -7,10 +7,10 @@
 // owns the traffic lights. So the *host* removes the column instead, and this
 // component can assume it is only ever mounted on a matching page.
 //
-// It costs no permission, unlike the page style in server.ts: this is bb reacting
+// It costs no permission, unlike the page style in server.ts: this is Patcher reacting
 // to its own address bar, not code reaching into a page.
 import { useCallback, useEffect, useState } from "react";
-import { definePluginApp, useRealtime, useRpc } from "@bb/plugin-sdk/app";
+import { definePluginApp, useRealtime, useRpc } from "@patcher/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { repoFromUrl } from "./server";
 
@@ -32,7 +32,7 @@ function RepoNotes({ browserUrl }: { browserUrl: string | null }) {
   // dependency is "something changed on the server", which has no value of its own.
   const [reloads, setReloads] = useState(0);
 
-  // The other end of `bb.realtime.publish` in server.ts. This is what makes the
+  // The other end of `patcher.realtime.publish` in server.ts. This is what makes the
   // in-page button and this panel one feature rather than two: the click happens
   // in GitHub's own page, and the note appears here without either side knowing
   // about the other.
@@ -127,7 +127,7 @@ export default definePluginApp((app) => {
     icon: "StickyNote",
     component: RepoNotes,
     // The same site the page style is declared for. Unlike `matches` there, this
-    // one is not checked against `bb.sites` — it decides whether bb draws its own
+    // one is not checked against `patcher.sites` — it decides whether Patcher draws its own
     // column, not what this plugin may reach.
     matches: ["https://github.com/**"],
   });

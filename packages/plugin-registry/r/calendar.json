@@ -3,14 +3,14 @@
   "name": "calendar",
   "type": "registry:ui",
   "title": "calendar",
-  "description": "BB ui \"calendar\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"calendar\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "lucide-react",
     "react-day-picker"
   ],
   "registryDependencies": [
-    "@bb/button",
-    "@bb/utils"
+    "@patcher/button",
+    "@patcher/utils"
   ],
   "files": [
     {

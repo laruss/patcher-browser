@@ -1,4 +1,4 @@
-import type { ActiveThinking } from "@bb/domain";
+import type { ActiveThinking } from "@patcher/domain";
 import type { EventMeta } from "./event-decode.js";
 import type { BuildEventProjectionMessagesOptions } from "./event-projection-types.js";
 import { finalizeProjectionKey } from "./assistant-stream-projection.js";

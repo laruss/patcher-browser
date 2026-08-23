@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  BB_BROWSER_ACTIONABILITY_SCRIPT,
-  BB_BROWSER_PREPARE_FILL_SCRIPT,
-  BB_BROWSER_READ_CHECKED_SCRIPT,
-  BB_BROWSER_SELECT_OPTION_SCRIPT,
+  PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
+  PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
+  PATCHER_BROWSER_READ_CHECKED_SCRIPT,
+  PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
   parseBrowserActionProbe,
   parseBrowserScriptOutcome,
 } from "../src/desktop-browser-actions.js";
@@ -97,10 +97,10 @@ describe("the injected scripts", () => {
     // page is that the source is fixed and every value crosses as a CDP
     // argument. A template placeholder here would be script injection.
     for (const script of [
-      BB_BROWSER_ACTIONABILITY_SCRIPT,
-      BB_BROWSER_PREPARE_FILL_SCRIPT,
-      BB_BROWSER_READ_CHECKED_SCRIPT,
-      BB_BROWSER_SELECT_OPTION_SCRIPT,
+      PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
+      PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
+      PATCHER_BROWSER_READ_CHECKED_SCRIPT,
+      PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
     ]) {
       expect(script).not.toContain("${");
       expect(script.startsWith("function") || script.startsWith("async function")).toBe(
@@ -110,6 +110,6 @@ describe("the injected scripts", () => {
   });
 
   it("passes the select values in as a parameter rather than baking them in", () => {
-    expect(BB_BROWSER_SELECT_OPTION_SCRIPT).toContain("function (values)");
+    expect(PATCHER_BROWSER_SELECT_OPTION_SCRIPT).toContain("function (values)");
   });
 });

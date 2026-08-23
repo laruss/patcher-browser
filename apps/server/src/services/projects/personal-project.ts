@@ -1,5 +1,5 @@
-import { ensurePersonalProject } from "@bb/db";
-import type { DbConnection } from "@bb/db";
+import { ensurePersonalProject } from "@patcher/db";
+import type { DbConnection } from "@patcher/db";
 
 export function ensurePersonalProjectBootstrap(db: DbConnection): void {
   ensurePersonalProject(db);

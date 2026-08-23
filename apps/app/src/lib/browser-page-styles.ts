@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { BB_DESKTOP_BROWSER_MAX_PAGE_STYLES } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES } from "@patcher/desktop-contract";
 import { usePluginContributions } from "@/hooks/queries/plugin-contribution-queries";
-import { getDesktopBrowserApi } from "./bb-desktop";
+import { getDesktopBrowserApi } from "./patcher-desktop";
 
 /**
  * Hands the shell the page styles plugins declared, and keeps it current.
@@ -38,7 +38,7 @@ export function useBrowserPageStyles(): void {
       // whole push and keeps the list it already had, so every plugin's styles
       // would go stale because one plugin declared too many.
       styles: styles
-        .slice(0, BB_DESKTOP_BROWSER_MAX_PAGE_STYLES)
+        .slice(0, PATCHER_DESKTOP_BROWSER_MAX_PAGE_STYLES)
         .map((style) => ({
           pluginId: style.pluginId,
           styleId: style.styleId,

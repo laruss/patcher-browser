@@ -10,7 +10,6 @@ import {
   nativeImage,
   nativeTheme,
   net,
-  safeStorage,
   session,
   shell,
   type Event,
@@ -21,20 +20,20 @@ import { autoUpdater } from "electron-updater";
 import {
   APP_SURFACE_DESKTOP,
   APP_SURFACE_ENV_NAME,
-} from "@bb/config/app-surface";
-import type { ConnectCredential } from "@bb/connect-client";
-import type { AppKeybindings } from "@bb/domain";
+} from "@patcher/config/app-surface";
+import { PATCHER_PROD_DATA_DIR_NAME } from "@patcher/config/runtime";
+import type { AppKeybindings } from "@patcher/domain";
 import {
-  bbDesktopThemeSchema,
-  type BbDesktopDefaultBrowserStatus,
-  type BbDesktopInfo,
-  type BbDesktopWindowState,
-} from "@bb/desktop-contract";
+  patcherDesktopThemeSchema,
+  type PatcherDesktopDefaultBrowserStatus,
+  type PatcherDesktopInfo,
+  type PatcherDesktopWindowState,
+} from "@patcher/desktop-contract";
 import {
   serverMessageLenientSchema,
   systemConfigResponseSchema,
   type ClientMessage,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { z } from "zod";
 import {
   assertPathExists,
@@ -43,11 +42,11 @@ import {
   type DesktopPathContext,
 } from "./app-paths.js";
 import {
-  resolveBbAppProcessRuntime,
-  type BbAppProcess,
-  type BbAppProcessExit,
-  startBbAppProcess,
-} from "./bb-process.js";
+  resolvePatcherAppProcessRuntime,
+  type PatcherAppProcess,
+  type PatcherAppProcessExit,
+  startPatcherAppProcess,
+} from "./patcher-process.js";
 import { openExistingServerDialog } from "./existing-server-dialog.js";
 import {
   readForeignRuntimeDetails,
@@ -65,7 +64,7 @@ import {
   writeOwnedRuntimePidFile,
 } from "./owned-runtime-supervisor.js";
 import {
-  probeBbServer,
+  probePatcherServer,
   waitForCompatibleServer,
   type CompatibleServerProbeResult,
   type ServerProbeResult,
@@ -74,30 +73,9 @@ import {
   BUILTIN_SERVER_NAME,
   createServerTargetStore,
   SERVER_TARGET_FILE_NAME,
-  type ConnectServerRef,
   type ServerTargetStore,
 } from "./server-target.js";
 import { openServerUrlDialog } from "./server-url-dialog.js";
-import {
-  createConnectServerSync,
-  type ConnectAccountServer,
-  type ConnectServerSync,
-} from "./connect-server-sync.js";
-import {
-  createCredentialCookieSource,
-  createLocalServerCookieSource,
-  installConnectDesktopSession,
-  type ConnectDesktopSessionResult,
-} from "./connect-desktop-session.js";
-import {
-  createConnectCredentialCache,
-  type ConnectCredentialCache,
-} from "./connect-credential-cache.js";
-import { enrollDesktopMachine } from "./connect-machine-enrollment.js";
-import {
-  createConnectSessionRenewal,
-  type ConnectSessionRenewal,
-} from "./connect-session-renewal.js";
 import {
   createDesktopShutdownState,
   registerDesktopShutdownSignalHandlers,
@@ -124,21 +102,21 @@ import {
 } from "./desktop-auto-update.js";
 import { mergeDesktopUpdateInfo } from "./desktop-update-info.js";
 import {
-  BB_DESKTOP_CHECK_FOR_UPDATES_CHANNEL,
-  BB_DESKTOP_GET_INFO_CHANNEL,
-  BB_DESKTOP_INFO_CHANGED_CHANNEL,
-  BB_DESKTOP_INSTALL_UPDATE_CHANNEL,
-  BB_DESKTOP_OPEN_EXTERNAL_URL_CHANNEL,
-  BB_DESKTOP_SET_THEME_CHANNEL,
+  PATCHER_DESKTOP_CHECK_FOR_UPDATES_CHANNEL,
+  PATCHER_DESKTOP_GET_INFO_CHANNEL,
+  PATCHER_DESKTOP_INFO_CHANGED_CHANNEL,
+  PATCHER_DESKTOP_INSTALL_UPDATE_CHANNEL,
+  PATCHER_DESKTOP_OPEN_EXTERNAL_URL_CHANNEL,
+  PATCHER_DESKTOP_SET_THEME_CHANNEL,
 } from "./desktop-update-ipc.js";
 import {
-  BB_DESKTOP_APP_COMMAND_CHANNEL,
-  BB_DESKTOP_CLOSE_WINDOW_CHANNEL,
-  BB_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL,
-  BB_DESKTOP_CLOSE_WINDOW_RESPONSE_CHANNEL,
-  BB_DESKTOP_GET_WINDOW_STATE_CHANNEL,
-  BB_DESKTOP_OPEN_NEW_TAB_CHANNEL,
-  BB_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
+  PATCHER_DESKTOP_APP_COMMAND_CHANNEL,
+  PATCHER_DESKTOP_CLOSE_WINDOW_CHANNEL,
+  PATCHER_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL,
+  PATCHER_DESKTOP_CLOSE_WINDOW_RESPONSE_CHANNEL,
+  PATCHER_DESKTOP_GET_WINDOW_STATE_CHANNEL,
+  PATCHER_DESKTOP_OPEN_NEW_TAB_CHANNEL,
+  PATCHER_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
   CLOSE_WINDOW_REQUEST_TIMEOUT_MS,
 } from "./desktop-window-command-ipc.js";
 import {
@@ -149,14 +127,14 @@ import { createBrowserPdfTextExtractor } from "./desktop-browser-pdf-process.js"
 import { resolveDesktopBrowserAppCommand } from "./desktop-browser-shortcuts.js";
 import { registerDesktopBrowserIpc } from "./desktop-browser-main-ipc.js";
 import {
-  BB_DESKTOP_BROWSER_EXTERNAL_URLS_PENDING_CHANNEL,
-  BB_DESKTOP_BROWSER_TAKE_EXTERNAL_URLS_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_EXTERNAL_URLS_PENDING_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_TAKE_EXTERNAL_URLS_CHANNEL,
 } from "./desktop-browser-ipc.js";
 import { createExternalUrlQueue } from "./desktop-external-url.js";
 import {
-  BB_DESKTOP_DEFAULT_BROWSER_CHANGED_CHANNEL,
-  BB_DESKTOP_GET_DEFAULT_BROWSER_CHANNEL,
-  BB_DESKTOP_REQUEST_DEFAULT_BROWSER_CHANNEL,
+  PATCHER_DESKTOP_DEFAULT_BROWSER_CHANGED_CHANNEL,
+  PATCHER_DESKTOP_GET_DEFAULT_BROWSER_CHANNEL,
+  PATCHER_DESKTOP_REQUEST_DEFAULT_BROWSER_CHANNEL,
   readDefaultBrowserStatus,
   requestDefaultBrowser,
   type DefaultBrowserEnvironment,
@@ -185,7 +163,7 @@ import {
 } from "./log-viewer-contract.js";
 import {
   ATTACH_PROBE_TIMEOUT_MS,
-  DEFAULT_BB_SERVER_URL,
+  DEFAULT_PATCHER_SERVER_URL,
   PROCESS_LOG_LINE_LIMIT,
   STARTUP_POLL_INTERVAL_MS,
   STARTUP_TIMEOUT_MS,
@@ -200,7 +178,7 @@ const FOREIGN_RUNTIME_KILL_TIMEOUT_MS = 3_000;
 const REMOTE_SYSTEM_CONFIG_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 interface DesktopRuntime {
-  bbProcess: BbAppProcess | null;
+  patcherProcess: PatcherAppProcess | null;
   ownership: RuntimeOwnership;
   serverUrl: string;
   userDataPath: string | null;
@@ -251,7 +229,7 @@ type StartupRaceResult =
   | ServerProbeStartupRaceResult;
 
 interface ProcessExitedStartupRaceResult {
-  exit: BbAppProcessExit;
+  exit: PatcherAppProcessExit;
   kind: "process-exited";
 }
 
@@ -319,27 +297,21 @@ let systemConfigSync: SystemConfigSync | null = null;
 let systemConfigRefreshToken = 0;
 let refreshRemoteSystemConfig: (() => void) | null = null;
 const applicationWindowWebContentsIds = new Set<number>();
-let bbAppLoaded = false;
+let patcherAppLoaded = false;
 let stoppingForQuit = false;
 let quitting = false;
 let serverTargetStore: ServerTargetStore | null = null;
-let connectServerSync: ConnectServerSync | null = null;
-let connectCredentialCache: ConnectCredentialCache | null = null;
-let cachedConnectCredential: ConnectCredential | null = null;
-let enrollingDesktopMachine: Promise<void> | null = null;
-let connectSessionRenewal: ConnectSessionRenewal | null = null;
 let serverTargetGeneration = 0;
-let connectAccountServers: ConnectAccountServer[] = [];
-let builtinServerUrl: string = DEFAULT_BB_SERVER_URL;
+let builtinServerUrl: string = DEFAULT_PATCHER_SERVER_URL;
 let desktopBridgePath: string | null = null;
 let desktopUserDataPath: string | null = null;
 let serverUrlDialogPreloadPath: string | null = null;
 let existingServerDialogPreloadPath: string | null = null;
 
 function resolveDesktopServerUrl(args: ResolveDesktopServerUrlArgs): string {
-  const rawPort = args.env.BB_SERVER_PORT?.trim();
+  const rawPort = args.env.PATCHER_SERVER_PORT?.trim();
   if (rawPort === undefined || rawPort.length === 0) {
-    return DEFAULT_BB_SERVER_URL;
+    return DEFAULT_PATCHER_SERVER_URL;
   }
 
   const port = Number(rawPort);
@@ -347,19 +319,19 @@ function resolveDesktopServerUrl(args: ResolveDesktopServerUrlArgs): string {
     return `http://127.0.0.1:${port}`;
   }
 
-  throw new Error("BB_SERVER_PORT must be a valid TCP port");
+  throw new Error("PATCHER_SERVER_PORT must be a valid TCP port");
 }
 
 /**
- * The URL the main window loads. Defaults to the attached/owned bb server, which
- * serves the built UI. In dev, `run-electron-dev.mjs` sets `BB_DESKTOP_APP_URL`
+ * The URL the main window loads. Defaults to the attached/owned Patcher server, which
+ * serves the built UI. In dev, `run-electron-dev.mjs` sets `PATCHER_DESKTOP_APP_URL`
  * to the running Vite dev server — but only when it has confirmed Vite is
  * actually listening — so the desktop shell loads live source with HMR while
  * still talking to the same server it attached to. It is unset in packaged
  * builds, so production always loads the server itself.
  */
 function resolveDesktopWindowUrl(args: ResolveDesktopWindowUrlArgs): string {
-  const rawAppUrl = args.env.BB_DESKTOP_APP_URL?.trim();
+  const rawAppUrl = args.env.PATCHER_DESKTOP_APP_URL?.trim();
   if (rawAppUrl === undefined || rawAppUrl.length === 0) {
     return args.serverUrl;
   }
@@ -367,10 +339,10 @@ function resolveDesktopWindowUrl(args: ResolveDesktopWindowUrlArgs): string {
   try {
     parsedAppUrl = new URL(rawAppUrl);
   } catch {
-    throw new Error("BB_DESKTOP_APP_URL must be a valid URL");
+    throw new Error("PATCHER_DESKTOP_APP_URL must be a valid URL");
   }
   if (parsedAppUrl.protocol !== "http:" && parsedAppUrl.protocol !== "https:") {
-    throw new Error("BB_DESKTOP_APP_URL must be an http(s) URL");
+    throw new Error("PATCHER_DESKTOP_APP_URL must be an http(s) URL");
   }
   return rawAppUrl;
 }
@@ -378,7 +350,7 @@ function resolveDesktopWindowUrl(args: ResolveDesktopWindowUrlArgs): string {
 function resolveDesktopUpdateFeedUrl(
   args: ResolveDesktopUpdateFeedUrlArgs,
 ): string {
-  const rawFeedUrl = args.env.BB_DESKTOP_VERSION_FEED_URL?.trim();
+  const rawFeedUrl = args.env.PATCHER_DESKTOP_VERSION_FEED_URL?.trim();
   if (rawFeedUrl === undefined || rawFeedUrl.length === 0) {
     return DESKTOP_UPDATE_FEED_URL;
   }
@@ -392,7 +364,7 @@ function getDesktopVersion(version: string | undefined): string {
   return version;
 }
 
-function getCurrentDesktopInfo(): BbDesktopInfo | null {
+function getCurrentDesktopInfo(): PatcherDesktopInfo | null {
   return mergeDesktopUpdateInfo({
     autoInfo: desktopAutoUpdateService?.getInfo() ?? null,
     feedInfo: desktopUpdateService?.getInfo() ?? null,
@@ -445,18 +417,21 @@ function sendDesktopInfoChanged(): void {
     if (isRegisteredApplicationWindow(browserWindow)) {
       sendToApplicationRenderer(
         browserWindow,
-        BB_DESKTOP_INFO_CHANGED_CHANNEL,
+        PATCHER_DESKTOP_INFO_CHANGED_CHANNEL,
         info,
       );
     } else {
-      browserWindow.webContents.send(BB_DESKTOP_INFO_CHANGED_CHANNEL, info);
+      browserWindow.webContents.send(
+        PATCHER_DESKTOP_INFO_CHANGED_CHANNEL,
+        info,
+      );
     }
   }
 }
 
 function getDesktopWindowState(
   browserWindow: Pick<DesktopBrowserWindow, "isFullScreen"> | null,
-): BbDesktopWindowState {
+): PatcherDesktopWindowState {
   return {
     isFullScreen: browserWindow?.isFullScreen() ?? false,
   };
@@ -464,7 +439,7 @@ function getDesktopWindowState(
 
 function getSenderDesktopWindowState(
   event: IpcMainInvokeEvent,
-): BbDesktopWindowState {
+): PatcherDesktopWindowState {
   return getDesktopWindowState(resolveApplicationWindow(event.sender));
 }
 
@@ -473,7 +448,7 @@ function sendDesktopWindowStateChanged(
 ): void {
   sendToApplicationRenderer(
     browserWindow as BrowserWindow,
-    BB_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
+    PATCHER_DESKTOP_WINDOW_STATE_CHANGED_CHANNEL,
     getDesktopWindowState(browserWindow),
   );
 }
@@ -493,9 +468,10 @@ function createDesktopLogger(): DesktopAutoUpdateLogger {
 }
 
 function resolveDataDirFromEnv(args: ResolveDataDirFromEnvArgs): string {
-  const rawDataDir = args.env.BB_DATA_DIR?.trim();
+  const rawDataDir = args.env.PATCHER_DATA_DIR?.trim();
   if (rawDataDir === undefined || rawDataDir.length === 0) {
-    return join(args.homeDir, ".bb");
+    // Derived, not restated — same reason as the prod port in types.ts.
+    return join(args.homeDir, PATCHER_PROD_DATA_DIR_NAME);
   }
   if (rawDataDir === "~") {
     return args.homeDir;
@@ -516,7 +492,7 @@ function formatLogDirectory(): string {
   );
 }
 
-function formatExitResult(result: BbAppProcessExit): string {
+function formatExitResult(result: PatcherAppProcessExit): string {
   if (result.code !== null) {
     return `exit code ${result.code}`;
   }
@@ -534,7 +510,7 @@ function createDesktopPathContext(): DesktopPathContext {
 }
 
 function shouldEnableServerDaemonLogsMenu(): boolean {
-  // Attached runtimes are owned by an external bb-app, so the desktop has no
+  // Attached runtimes are owned by an external patcher-app, so the desktop has no
   // reliable server/daemon log lifecycle to tail.
   return (
     process.platform === "darwin" && currentRuntime?.ownership === "spawned"
@@ -557,12 +533,12 @@ const defaultBrowserEnvironment: DefaultBrowserEnvironment = {
 };
 
 /** Last status pushed to renderers, so an unchanged one is not pushed twice. */
-let lastDefaultBrowserStatus: BbDesktopDefaultBrowserStatus | null = null;
+let lastDefaultBrowserStatus: PatcherDesktopDefaultBrowserStatus | null = null;
 
 /**
- * Links macOS handed us because bb is the user's default browser, waiting for a
+ * Links macOS handed us because Patcher is the user's default browser, waiting for a
  * surface to take them. Module state rather than a field on a window: the click
- * that launched bb arrives before any window exists.
+ * that launched Patcher arrives before any window exists.
  */
 const externalUrlQueue = createExternalUrlQueue();
 
@@ -585,13 +561,13 @@ function requestRendererWindowClose(browserWindow: BrowserWindow): void {
   );
   sendToApplicationRenderer(
     browserWindow,
-    BB_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL,
+    PATCHER_DESKTOP_CLOSE_WINDOW_REQUEST_CHANNEL,
     null,
   );
 }
 
 /**
- * A link the OS asked bb to open. Queued first and delivered second, because on
+ * A link the OS asked Patcher to open. Queued first and delivered second, because on
  * a cold start there is nothing to deliver to yet — `getFocusedApplicationWindow`
  * is null until the runtime has built a window, and the surface drains the queue
  * itself when it mounts.
@@ -610,7 +586,7 @@ function handleExternalUrlOpen(rawUrl: string): void {
   browserWindow.show();
   sendToApplicationRenderer(
     browserWindow,
-    BB_DESKTOP_BROWSER_EXTERNAL_URLS_PENDING_CHANNEL,
+    PATCHER_DESKTOP_BROWSER_EXTERNAL_URLS_PENDING_CHANNEL,
     null,
   );
 }
@@ -635,7 +611,7 @@ function refreshDefaultBrowserStatus(): void {
     if (isRegisteredApplicationWindow(browserWindow)) {
       sendToApplicationRenderer(
         browserWindow,
-        BB_DESKTOP_DEFAULT_BROWSER_CHANGED_CHANNEL,
+        PATCHER_DESKTOP_DEFAULT_BROWSER_CHANGED_CHANNEL,
         status,
       );
     }
@@ -643,16 +619,16 @@ function refreshDefaultBrowserStatus(): void {
 }
 
 function registerDefaultBrowserIpc(): void {
-  ipcMain.handle(BB_DESKTOP_GET_DEFAULT_BROWSER_CHANNEL, () =>
+  ipcMain.handle(PATCHER_DESKTOP_GET_DEFAULT_BROWSER_CHANNEL, () =>
     readDefaultBrowserStatus(defaultBrowserEnvironment),
   );
-  ipcMain.handle(BB_DESKTOP_REQUEST_DEFAULT_BROWSER_CHANNEL, () =>
+  ipcMain.handle(PATCHER_DESKTOP_REQUEST_DEFAULT_BROWSER_CHANNEL, () =>
     requestDefaultBrowser(defaultBrowserEnvironment),
   );
 }
 
 function registerExternalUrlIpc(): void {
-  ipcMain.handle(BB_DESKTOP_BROWSER_TAKE_EXTERNAL_URLS_CHANNEL, () => ({
+  ipcMain.handle(PATCHER_DESKTOP_BROWSER_TAKE_EXTERNAL_URLS_CHANNEL, () => ({
     urls: externalUrlQueue.takeAll(),
   }));
 }
@@ -695,30 +671,6 @@ function formatCustomServerName(url: string): string {
   }
 }
 
-function connectServerMenuId(handle: string): string {
-  return `connect:${handle}`;
-}
-
-/**
- * Synced account servers plus the persisted selection when its handle has
- * dropped out of the account list (so the checkmark never dangles).
- */
-function listMenuConnectServers(): ConnectServerRef[] {
-  const servers: ConnectServerRef[] = connectAccountServers.map((server) => ({
-    handle: server.handle,
-    name: server.name,
-    url: server.url,
-  }));
-  const selected = serverTargetStore?.getConnectServer() ?? null;
-  if (
-    selected !== null &&
-    !servers.some((server) => server.handle === selected.handle)
-  ) {
-    servers.push(selected);
-  }
-  return servers;
-}
-
 function buildMenuServerItems(): Array<{
   checked: boolean;
   id: string;
@@ -732,14 +684,6 @@ function buildMenuServerItems(): Array<{
       name: BUILTIN_SERVER_NAME,
     },
   ];
-  for (const server of listMenuConnectServers()) {
-    items.push({
-      checked:
-        target.kind === "connect" && target.server.handle === server.handle,
-      id: connectServerMenuId(server.handle),
-      name: server.name,
-    });
-  }
   const customUrl = serverTargetStore?.getCustomServerUrl() ?? null;
   if (customUrl !== null) {
     items.push({
@@ -765,12 +709,12 @@ function installCurrentApplicationMenu(): void {
       if (browserWindow !== null) {
         sendToApplicationRenderer(
           browserWindow,
-          BB_DESKTOP_OPEN_NEW_TAB_CHANNEL,
+          PATCHER_DESKTOP_OPEN_NEW_TAB_CHANNEL,
           null,
         );
         sendToApplicationRenderer(
           browserWindow,
-          BB_DESKTOP_APP_COMMAND_CHANNEL,
+          PATCHER_DESKTOP_APP_COMMAND_CHANNEL,
           "panel.newTab",
         );
       }
@@ -780,7 +724,7 @@ function installCurrentApplicationMenu(): void {
       if (browserWindow !== null) {
         sendToApplicationRenderer(
           browserWindow,
-          BB_DESKTOP_APP_COMMAND_CHANNEL,
+          PATCHER_DESKTOP_APP_COMMAND_CHANNEL,
           "thread.new",
         );
       }
@@ -790,7 +734,7 @@ function installCurrentApplicationMenu(): void {
       if (browserWindow !== null) {
         sendToApplicationRenderer(
           browserWindow,
-          BB_DESKTOP_APP_COMMAND_CHANNEL,
+          PATCHER_DESKTOP_APP_COMMAND_CHANNEL,
           "settings.open",
         );
       }
@@ -833,11 +777,6 @@ function installCurrentApplicationMenu(): void {
     setServerUrl() {
       void openSetServerUrlDialog();
     },
-    onServerMenuWillShow() {
-      // Refresh the Connect account list (60s-coalesced) so a menu opened
-      // after pairing or adding a machine shows current servers.
-      connectServerSync?.onListRequested();
-    },
     serverDaemonLogsMenuEnabled: shouldEnableServerDaemonLogsMenu(),
     servers: buildMenuServerItems(),
   });
@@ -851,9 +790,6 @@ function setCurrentRuntime(runtime: DesktopRuntime | null): void {
   currentRuntime = runtime;
   if (runtime === null) {
     stopSystemConfigSync();
-  } else {
-    // Local runtime is up — pull the Connect account server list.
-    connectServerSync?.onRuntimeReady();
   }
   refreshApplicationMenu();
   if (runtime?.ownership !== "spawned") {
@@ -1039,7 +975,7 @@ function startSystemConfigSync(serverUrl: string): void {
   void refreshSystemConfig({ fetchImpl: fetch, serverUrl });
 }
 
-/** System config for a connect or custom target, with no local server. */
+/** System config for a custom target, with no local server. */
 function startRemoteSystemConfigSync(serverUrl: string): void {
   systemConfigSync?.stop();
   systemConfigSync = createRemoteSystemConfigSync(serverUrl);
@@ -1064,7 +1000,7 @@ function registerApplicationWindow(browserWindow: DesktopBrowserWindow): void {
 }
 
 /**
- * Attach to a compatible bb server on this Mac, or start one. The caller pins
+ * Attach to a compatible Patcher server on this Mac, or start one. The caller pins
  * the system config sync, because a remote target reads its config elsewhere.
  */
 async function ensureBuiltinRuntimeAttached(): Promise<boolean> {
@@ -1075,14 +1011,14 @@ async function ensureBuiltinRuntimeAttached(): Promise<boolean> {
     return false;
   }
 
-  const existingProbe = await probeBbServer({
+  const existingProbe = await probePatcherServer({
     serverUrl: builtinServerUrl,
     timeoutMs: ATTACH_PROBE_TIMEOUT_MS,
   });
 
   if (existingProbe.kind === "compatible") {
     setCurrentRuntime({
-      bbProcess: null,
+      patcherProcess: null,
       ownership: "attached",
       serverUrl: existingProbe.serverUrl,
       userDataPath: null,
@@ -1103,125 +1039,6 @@ async function ensureBuiltinRuntimeAttached(): Promise<boolean> {
 }
 
 /**
- * Mint and install the Connect session cookie for a remote server.
- *
- * The app's own machine credential is the fast path: it needs no local bb
- * server. A credential the gate refuses (revoked machine, unpaired account) is
- * dropped, and the local server mints the cookie instead — which is also the
- * first-launch path, before the app has enrolled.
- */
-async function authenticateConnectTarget(
-  remoteServerUrl: string,
-  isCurrent: () => boolean,
-): Promise<ConnectDesktopSessionResult> {
-  const cookieStore = session.defaultSession.cookies;
-  let cachedFailure: ConnectDesktopSessionResult | null = null;
-  if (cachedConnectCredential !== null) {
-    const cachedResult = await installConnectDesktopSession({
-      cookieStore,
-      mintCookie: createCredentialCookieSource({
-        credential: cachedConnectCredential,
-      }),
-      remoteServerUrl,
-    });
-    if (cachedResult.ok) {
-      return cachedResult;
-    }
-    if (cachedResult.code === "unauthorized") {
-      createDesktopLogger().info(
-        "[desktop] bb Connect refused the cached machine credential — dropping it",
-      );
-      await clearCachedConnectCredential();
-    } else if (cachedResult.code === "network") {
-      // The gate is unreachable. The local server would call the same gate, so
-      // starting one cannot help — and starting one is what this path avoids.
-      return cachedResult;
-    }
-    cachedFailure = cachedResult;
-  }
-
-  if (!isCurrent()) {
-    // The app left this server while the gate call ran. Starting the local
-    // server now would undo the switch the user just made.
-    return (
-      cachedFailure ?? {
-        code: "network",
-        detail: "the app no longer targets this server",
-        ok: false,
-      }
-    );
-  }
-  const localRuntimeReady = await ensureBuiltinRuntimeAttached();
-  if (!localRuntimeReady || currentRuntime === null) {
-    return (
-      cachedFailure ?? {
-        code: "network",
-        detail:
-          "the local bb server is unavailable, and this app has no stored bb Connect credential",
-        ok: false,
-      }
-    );
-  }
-  const localResult = await installConnectDesktopSession({
-    cookieStore,
-    mintCookie: createLocalServerCookieSource({
-      localServerUrl: currentRuntime.serverUrl,
-    }),
-    remoteServerUrl,
-  });
-  if (localResult.ok) {
-    // Enroll for next launch, so this target needs no local server again.
-    void ensureDesktopMachineEnrolled();
-  }
-  return localResult;
-}
-
-async function clearCachedConnectCredential(): Promise<void> {
-  cachedConnectCredential = null;
-  await connectCredentialCache?.clear();
-}
-
-/**
- * Give this app its own connect machine credential, using the local server's
- * pairing secret once. Best effort: a failure only means the app keeps asking
- * the local server for session cookies.
- */
-function ensureDesktopMachineEnrolled(): void {
-  const cache = connectCredentialCache;
-  const localServerUrl = currentRuntime?.serverUrl;
-  if (
-    cache === null ||
-    cachedConnectCredential !== null ||
-    enrollingDesktopMachine !== null ||
-    localServerUrl === undefined
-  ) {
-    return;
-  }
-  if (!cache.canPersist()) {
-    // Enrolling now would burn an account machine slot on every launch.
-    createDesktopLogger().info(
-      "[desktop] no OS keychain available — keeping the local bb server for bb Connect sessions",
-    );
-    return;
-  }
-  const logger = createDesktopLogger();
-  enrollingDesktopMachine = (async () => {
-    const result = await enrollDesktopMachine({ localServerUrl });
-    if (!result.ok) {
-      logger.info(
-        `[desktop] could not enroll this app with bb Connect (${result.code}): ${result.detail}`,
-      );
-      return;
-    }
-    cachedConnectCredential = result.credential;
-    await cache.write(result.credential);
-    logger.info("[desktop] enrolled this app as a bb Connect machine");
-  })().finally(() => {
-    enrollingDesktopMachine = null;
-  });
-}
-
-/**
  * Load the saved target and pin the session, config sync, and menu to it.
  *
  * The Server menu starts a switch without waiting, so two of these can overlap
@@ -1234,10 +1051,6 @@ async function applyServerTarget(): Promise<void> {
     return;
   }
   const target = serverTargetStore.getTarget();
-  // Retire the outgoing session before any await below. A renewal already in
-  // flight would otherwise still read itself as current while this switch
-  // runs, and its local-server fallback would undo the switch.
-  connectSessionRenewal?.stop();
   serverTargetGeneration += 1;
   const generation = serverTargetGeneration;
   const isCurrent = (): boolean => serverTargetGeneration === generation;
@@ -1250,7 +1063,7 @@ async function applyServerTarget(): Promise<void> {
     if (!attached) {
       await loadStartupError({
         details:
-          "Could not connect to the local bb server on this Mac. Check that the port is free or that a compatible bb server is running.",
+          "Could not connect to the local Patcher server on this Mac. Check that the port is free or that a compatible Patcher server is running.",
         logs: "",
         title: "Could not connect",
       });
@@ -1261,50 +1074,15 @@ async function applyServerTarget(): Promise<void> {
     // Switching back from a remote target leaves that target's config poll
     // running, so re-pin the sync to the local server here.
     startSystemConfigSync(localServerUrl);
-    await loadBbApp(
+    await loadPatcherApp(
       resolveDesktopWindowUrl({
         env: process.env,
         serverUrl: localServerUrl,
       }),
     );
-  } else if (target.kind === "connect") {
-    // Connect servers load as plain web pages behind a session cookie. The
-    // cookie comes from the app's own machine credential when it has one, so
-    // no local bb server has to run.
-    const result = await authenticateConnectTarget(
-      target.server.url,
-      isCurrent,
-    );
-    if (!isCurrent()) {
-      return;
-    }
-    if (!result.ok) {
-      createDesktopLogger().warn(
-        `[desktop] Connect authentication failed (${result.code}): ${result.detail}`,
-      );
-      await loadStartupError({
-        details:
-          "The desktop app could not establish a session for this Connect server. " +
-          `Try switching servers again. (${result.code}: ${result.detail})`,
-        logs: "",
-        title: "Could not authenticate with bb Connect",
-      });
-      refreshApplicationMenu();
-      return;
-    }
-    connectSessionRenewal?.start({
-      expiresAt: result.expiresAt,
-      remoteServerUrl: target.server.url,
-    });
-    bbAppLoaded = true;
-    await loadWindowUrl({ url: target.server.url });
-    if (!isCurrent()) {
-      return;
-    }
-    startRemoteSystemConfigSync(target.server.url);
   } else {
-    // A custom server is a plain web load with no bb Connect involved.
-    bbAppLoaded = true;
+    // A custom server is a plain web load.
+    patcherAppLoaded = true;
     await loadWindowUrl({ url: target.url });
     if (!isCurrent()) {
       return;
@@ -1316,19 +1094,6 @@ async function applyServerTarget(): Promise<void> {
 
 async function setActiveServerTarget(serverId: string): Promise<void> {
   if (serverTargetStore === null) {
-    return;
-  }
-  if (serverId.startsWith("connect:")) {
-    const handle = serverId.slice("connect:".length);
-    const server = listMenuConnectServers().find(
-      (candidate) => candidate.handle === handle,
-    );
-    if (server === undefined) {
-      refreshApplicationMenu();
-      return;
-    }
-    await serverTargetStore.setConnectServer(server);
-    await applyServerTarget();
     return;
   }
   if (serverId !== "builtin" && serverId !== "custom") {
@@ -1441,7 +1206,7 @@ async function loadLogViewerWindow(
     minHeight: 520,
     minWidth: 840,
     show: false,
-    title: "bb - Server & Daemon Logs",
+    title: "Patcher - Server & Daemon Logs",
     titleBarStyle: "default",
     webPreferences: {
       contextIsolation: true,
@@ -1527,20 +1292,20 @@ async function loadWindowUrl(args: LoadWindowUrlArgs): Promise<void> {
 }
 
 async function loadLoadingView(): Promise<void> {
-  bbAppLoaded = false;
+  patcherAppLoaded = false;
   await loadWindowUrl({
     url: createLocalViewUrl({
       viewModel: {
         kind: "loading",
-        message: "Starting local services and opening the bb workspace.",
-        title: "Opening bb",
+        message: "Starting local services and opening the Patcher workspace.",
+        title: "Opening Patcher",
       },
     }),
   });
 }
 
 async function loadStartupError(args: LoadStartupErrorArgs): Promise<void> {
-  bbAppLoaded = false;
+  patcherAppLoaded = false;
   await loadWindowUrl({
     url: createLocalViewUrl({
       viewModel: {
@@ -1553,8 +1318,8 @@ async function loadStartupError(args: LoadStartupErrorArgs): Promise<void> {
   });
 }
 
-async function loadBbApp(serverUrl: string): Promise<void> {
-  bbAppLoaded = true;
+async function loadPatcherApp(serverUrl: string): Promise<void> {
+  patcherAppLoaded = true;
   await loadWindowUrl({ url: serverUrl });
   if (shouldOpenDevTools()) {
     desktopWindowFactory?.openDevTools();
@@ -1562,7 +1327,7 @@ async function loadBbApp(serverUrl: string): Promise<void> {
 }
 
 function shouldOpenDevTools(): boolean {
-  return process.env.BB_DESKTOP_OPEN_DEVTOOLS === "1";
+  return process.env.PATCHER_DESKTOP_OPEN_DEVTOOLS === "1";
 }
 
 async function createApplicationWindow(
@@ -1577,7 +1342,7 @@ async function createApplicationWindow(
     stateKey: args.stateKey,
   });
   registerApplicationWindow(browserWindow);
-  if (bbAppLoaded && shouldOpenDevTools()) {
+  if (patcherAppLoaded && shouldOpenDevTools()) {
     browserWindow.webContents.openDevTools({ mode: "detach" });
   }
   return browserWindow;
@@ -1592,7 +1357,7 @@ async function stopOwnedRuntime(): Promise<void> {
 
   setCurrentRuntime(null);
   try {
-    await runtime.bbProcess?.stop({
+    await runtime.patcherProcess?.stop({
       killSignal: "SIGKILL",
       killTimeoutMs: OWNED_RUNTIME_KILL_TIMEOUT_MS,
       signal: "SIGTERM",
@@ -1620,7 +1385,6 @@ function handleBeforeQuit(event: Event): void {
 
 async function finishQuit(): Promise<void> {
   stopSystemConfigSync();
-  connectSessionRenewal?.stop();
   desktopUpdateService?.stop();
   desktopAutoUpdateService?.stop();
   desktopBrowserViewManager?.destroyAll();
@@ -1629,20 +1393,20 @@ async function finishQuit(): Promise<void> {
 }
 
 function registerDesktopUpdateIpc(): void {
-  ipcMain.handle(BB_DESKTOP_GET_INFO_CHANNEL, () => {
+  ipcMain.handle(PATCHER_DESKTOP_GET_INFO_CHANNEL, () => {
     return getCurrentDesktopInfo();
   });
-  ipcMain.handle(BB_DESKTOP_GET_WINDOW_STATE_CHANNEL, (event) => {
+  ipcMain.handle(PATCHER_DESKTOP_GET_WINDOW_STATE_CHANNEL, (event) => {
     return getSenderDesktopWindowState(event);
   });
-  ipcMain.handle(BB_DESKTOP_CHECK_FOR_UPDATES_CHANNEL, async () => {
+  ipcMain.handle(PATCHER_DESKTOP_CHECK_FOR_UPDATES_CHANNEL, async () => {
     await Promise.all([
       desktopUpdateService?.checkForUpdates() ?? Promise.resolve(null),
       desktopAutoUpdateService?.checkForUpdates() ?? Promise.resolve(null),
     ]);
     return getCurrentDesktopInfo();
   });
-  ipcMain.handle(BB_DESKTOP_INSTALL_UPDATE_CHANNEL, async () => {
+  ipcMain.handle(PATCHER_DESKTOP_INSTALL_UPDATE_CHANNEL, async () => {
     if (desktopAutoUpdateService === null) {
       return;
     }
@@ -1655,37 +1419,40 @@ function registerDesktopUpdateIpc(): void {
     await finishQuit();
     desktopAutoUpdateService.installUpdate();
   });
-  // Renderer pushes the bb theme preference so the NSWindow appearance —
-  // traffic lights and inactive title-bar chrome — follows an explicit bb
+  // Renderer pushes the Patcher theme preference so the NSWindow appearance —
+  // traffic lights and inactive title-bar chrome — follows an explicit Patcher
   // theme or the OS when set to system. `themeSource` is app-global so a
   // single assignment covers every BrowserWindow, including the log viewer.
-  ipcMain.on(BB_DESKTOP_SET_THEME_CHANNEL, (_event, payload: unknown) => {
-    const parsed = bbDesktopThemeSchema.safeParse(payload);
+  ipcMain.on(PATCHER_DESKTOP_SET_THEME_CHANNEL, (_event, payload: unknown) => {
+    const parsed = patcherDesktopThemeSchema.safeParse(payload);
     if (!parsed.success) {
       return;
     }
     nativeTheme.themeSource = parsed.data;
   });
 
-  ipcMain.on(BB_DESKTOP_CLOSE_WINDOW_CHANNEL, (event) => {
+  ipcMain.on(PATCHER_DESKTOP_CLOSE_WINDOW_CHANNEL, (event) => {
     resolveApplicationWindow(event.sender)?.close();
   });
 
-  ipcMain.on(BB_DESKTOP_CLOSE_WINDOW_RESPONSE_CHANNEL, (event, payload) => {
-    const pending = pendingCloseWindowRequests.get(event.sender.id);
-    if (pending !== undefined) {
-      clearTimeout(pending);
-      pendingCloseWindowRequests.delete(event.sender.id);
-    }
-    if (payload === false) {
-      resolveApplicationWindow(event.sender)?.close();
-    }
-  });
+  ipcMain.on(
+    PATCHER_DESKTOP_CLOSE_WINDOW_RESPONSE_CHANNEL,
+    (event, payload) => {
+      const pending = pendingCloseWindowRequests.get(event.sender.id);
+      if (pending !== undefined) {
+        clearTimeout(pending);
+        pendingCloseWindowRequests.delete(event.sender.id);
+      }
+      if (payload === false) {
+        resolveApplicationWindow(event.sender)?.close();
+      }
+    },
+  );
   // The in-app browser tab hands off the current address to the system
   // browser. The URL originates from a possibly-hostile page, so only open
   // well-formed `http(s)` URLs — never `file:`, custom schemes, or junk.
   ipcMain.on(
-    BB_DESKTOP_OPEN_EXTERNAL_URL_CHANNEL,
+    PATCHER_DESKTOP_OPEN_EXTERNAL_URL_CHANNEL,
     (_event, payload: unknown) => {
       if (typeof payload !== "string") {
         return;
@@ -1762,7 +1529,7 @@ function registerDesktopBrowserWindowLifecycle({
 async function startOwnedRuntime(
   args: StartOwnedRuntimeArgs,
 ): Promise<DesktopRuntime | null> {
-  const bbProcess = startBbAppProcess({
+  const patcherProcess = startPatcherAppProcess({
     bridgePath: args.bridgePath,
     cwd: homedir(),
     env: {
@@ -1770,38 +1537,38 @@ async function startOwnedRuntime(
       [APP_SURFACE_ENV_NAME]: APP_SURFACE_DESKTOP,
     },
     logLineLimit: PROCESS_LOG_LINE_LIMIT,
-    runtime: resolveBbAppProcessRuntime({
+    runtime: resolvePatcherAppProcessRuntime({
       env: process.env,
       isPackaged: app.isPackaged,
       processExecPath: process.execPath,
     }),
   });
   const runtime: DesktopRuntime = {
-    bbProcess,
+    patcherProcess,
     ownership: "spawned",
     serverUrl: args.serverUrl,
     userDataPath: args.userDataPath,
   };
   await writeOwnedRuntimePidFile({
     bridgePath: args.bridgePath,
-    pid: bbProcess.pid,
+    pid: patcherProcess.pid,
     serverUrl: args.serverUrl,
     userDataPath: args.userDataPath,
   });
   setCurrentRuntime(runtime);
 
-  void bbProcess.exit.then((exit) => {
+  void patcherProcess.exit.then((exit) => {
     void clearOwnedRuntimePidFile({ userDataPath: args.userDataPath });
     if (quitting || currentRuntime !== runtime) {
       return;
     }
     setCurrentRuntime(null);
     void loadStartupError({
-      details: `The Electron-owned bb-app process stopped with ${formatExitResult(
+      details: `The Electron-owned patcher-app process stopped with ${formatExitResult(
         exit,
       )}.`,
-      logs: bbProcess.logs.text(),
-      title: "bb stopped",
+      logs: patcherProcess.logs.text(),
+      title: "Patcher stopped",
     });
   });
 
@@ -1814,7 +1581,7 @@ async function startOwnedRuntime(
       kind: "server-probe",
       result,
     })),
-    bbProcess.exit.then((exit) => ({
+    patcherProcess.exit.then((exit) => ({
       exit,
       kind: "process-exited",
     })),
@@ -1822,11 +1589,11 @@ async function startOwnedRuntime(
 
   if (raceResult.kind === "process-exited") {
     await loadStartupError({
-      details: `bb-app exited before the server was ready with ${formatExitResult(
+      details: `patcher-app exited before the server was ready with ${formatExitResult(
         raceResult.exit,
       )}.`,
-      logs: bbProcess.logs.text(),
-      title: "Could not start bb",
+      logs: patcherProcess.logs.text(),
+      title: "Could not start Patcher",
     });
     setCurrentRuntime(null);
     return null;
@@ -1839,10 +1606,10 @@ async function startOwnedRuntime(
   await loadStartupError({
     details:
       raceResult.result.kind === "incompatible"
-        ? `Port ${args.serverUrl} is responding, but it does not look like bb: ${raceResult.result.reason}.`
-        : `Timed out waiting for bb at ${args.serverUrl}: ${raceResult.result.reason}.`,
-    logs: bbProcess.logs.text(),
-    title: "Could not start bb",
+        ? `Port ${args.serverUrl} is responding, but it does not look like patcher: ${raceResult.result.reason}.`
+        : `Timed out waiting for Patcher at ${args.serverUrl}: ${raceResult.result.reason}.`,
+    logs: patcherProcess.logs.text(),
+    title: "Could not start Patcher",
   });
   await stopOwnedRuntime();
   return null;
@@ -1855,11 +1622,11 @@ interface InitializeRuntimeArgs {
 }
 
 /**
- * Attaching to a bb this app did not start is invisible to the person using it,
+ * Attaching to a Patcher this app did not start is invisible to the person using it,
  * so ask first. Local development stays silent, because attaching to a
  * `bun run dev` server is the whole point there.
  *
- * `BB_DESKTOP_ATTACH_WITHOUT_PROMPT` exists for the packaged smoke test, which
+ * `PATCHER_DESKTOP_ATTACH_WITHOUT_PROMPT` exists for the packaged smoke test, which
  * points a packaged build at a stub server and has no one to click the dialog.
  * It is deliberately opt-in and never set by the app itself: the prompt is a
  * safety boundary, so suppressing it must be an explicit act by the harness.
@@ -1868,10 +1635,10 @@ function shouldAskBeforeAttaching(): boolean {
   if (!app.isPackaged || existingServerDialogPreloadPath === null) {
     return false;
   }
-  if (process.env.BB_DESKTOP_ATTACH_WITHOUT_PROMPT === "1") {
+  if (process.env.PATCHER_DESKTOP_ATTACH_WITHOUT_PROMPT === "1") {
     return false;
   }
-  return (process.env.BB_DESKTOP_APP_URL ?? "").trim().length === 0;
+  return (process.env.PATCHER_DESKTOP_APP_URL ?? "").trim().length === 0;
 }
 
 /**
@@ -1881,7 +1648,7 @@ function shouldAskBeforeAttaching(): boolean {
 async function waitForServerToStop(serverUrl: string): Promise<boolean> {
   const deadline = Date.now() + FOREIGN_RUNTIME_STOP_TIMEOUT_MS;
   while (Date.now() <= deadline) {
-    const probe = await probeBbServer({
+    const probe = await probePatcherServer({
       serverUrl,
       timeoutMs: ATTACH_PROBE_TIMEOUT_MS,
     });
@@ -1935,36 +1702,36 @@ async function decideOnExistingServer(
   if (stopResult.kind === "unverified") {
     await loadStartupError({
       details:
-        `The bb at ${probe.serverUrl} records process ${String(stopResult.pid)}, but that ` +
-        "process no longer matches the record. bb did not stop it. Stop it yourself, then open bb again.",
+        `The Patcher at ${probe.serverUrl} records process ${String(stopResult.pid)}, but that ` +
+        "process no longer matches the record. Patcher did not stop it. Stop it yourself, then open Patcher again.",
       logs: "",
-      title: "Could not stop the running bb",
+      title: "Could not stop the running Patcher",
     });
     return "quit";
   }
   if (stopResult.kind === "still-running") {
     await loadStartupError({
-      details: `bb could not stop process ${String(stopResult.pid)}, even after SIGKILL.`,
+      details: `Patcher could not stop process ${String(stopResult.pid)}, even after SIGKILL.`,
       logs: "",
-      title: "Could not stop the running bb",
+      title: "Could not stop the running Patcher",
     });
     return "quit";
   }
   if (stopResult.kind === "replaced") {
     await loadStartupError({
       details:
-        `Another bb started at ${probe.serverUrl} while the question was open, so bb stopped nothing. ` +
-        "Open bb again to see the copy that runs now.",
+        `Another Patcher started at ${probe.serverUrl} while the question was open, so Patcher stopped nothing. ` +
+        "Open Patcher again to see the copy that runs now.",
       logs: "",
-      title: "Could not stop the running bb",
+      title: "Could not stop the running Patcher",
     });
     return "quit";
   }
   if (!(await waitForServerToStop(probe.serverUrl))) {
     await loadStartupError({
-      details: `The bb at ${probe.serverUrl} stopped, but the address is still in use.`,
+      details: `The Patcher at ${probe.serverUrl} stopped, but the address is still in use.`,
       logs: "",
-      title: "Could not stop the running bb",
+      title: "Could not stop the running Patcher",
     });
     return "quit";
   }
@@ -1972,7 +1739,7 @@ async function decideOnExistingServer(
 }
 
 async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
-  const existingProbe = await probeBbServer({
+  const existingProbe = await probePatcherServer({
     serverUrl: args.serverUrl,
     timeoutMs: ATTACH_PROBE_TIMEOUT_MS,
   });
@@ -1991,7 +1758,7 @@ async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
         userDataPath: args.userDataPath,
       });
       if (freshRuntime !== null) {
-        await loadBbApp(freshRuntime.serverUrl);
+        await loadPatcherApp(freshRuntime.serverUrl);
         startSystemConfigSync(freshRuntime.serverUrl);
         refreshApplicationMenu();
       }
@@ -1999,7 +1766,7 @@ async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
     }
 
     setCurrentRuntime({
-      bbProcess: null,
+      patcherProcess: null,
       ownership: "attached",
       serverUrl: existingProbe.serverUrl,
       userDataPath: null,
@@ -2007,7 +1774,7 @@ async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
     // When attaching to an already-running server (the `bun run dev` case) load the
     // Vite dev URL if the launcher provided one, so the shell gets live source
     // and HMR. The attached server still handles every API/WS request.
-    await loadBbApp(
+    await loadPatcherApp(
       resolveDesktopWindowUrl({
         env: process.env,
         serverUrl: existingProbe.serverUrl,
@@ -2020,7 +1787,7 @@ async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
 
   if (existingProbe.kind === "incompatible") {
     await loadStartupError({
-      details: `Port ${args.serverUrl} is already in use, but it is not a compatible bb server: ${existingProbe.reason}.`,
+      details: `Port ${args.serverUrl} is already in use, but it is not a compatible Patcher server: ${existingProbe.reason}.`,
       logs: "",
       title: "Port conflict",
     });
@@ -2033,7 +1800,7 @@ async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
     userDataPath: args.userDataPath,
   });
   if (runtime !== null) {
-    await loadBbApp(runtime.serverUrl);
+    await loadPatcherApp(runtime.serverUrl);
     startSystemConfigSync(runtime.serverUrl);
     refreshApplicationMenu();
   }
@@ -2047,7 +1814,9 @@ async function runDesktopApp(): Promise<void> {
     platform: process.platform,
   });
 
-  app.setName(app.isPackaged ? DESKTOP_RELEASE_INFO.applicationName : "bb-dev");
+  app.setName(
+    app.isPackaged ? DESKTOP_RELEASE_INFO.applicationName : "patcher-dev",
+  );
 
   if (!app.requestSingleInstanceLock()) {
     app.quit();
@@ -2063,7 +1832,7 @@ async function runDesktopApp(): Promise<void> {
       stateKey: null,
     });
   });
-  // macOS delivers every link bb is asked to open here — and on a cold start it
+  // macOS delivers every link Patcher is asked to open here — and on a cold start it
   // fires before `whenReady`, which is why this listener is registered with the
   // other app events rather than after the runtime is up. `preventDefault` marks
   // the URL as ours; without it macOS treats the launch as unhandled.
@@ -2087,13 +1856,12 @@ async function runDesktopApp(): Promise<void> {
   });
   app.on("did-become-active", () => {
     // The user may have answered the system's "change your default browser?"
-    // dialog, or changed it in System Settings, while bb was in the background.
+    // dialog, or changed it in System Settings, while Patcher was in the background.
     refreshDefaultBrowserStatus();
     void desktopUpdateService?.checkAfterActive();
     void desktopAutoUpdateService?.checkAfterActive();
     // A remote target has no realtime socket for config changes.
     refreshRemoteSystemConfig?.();
-    connectSessionRenewal?.renewIfDue();
   });
   app.on("browser-window-created", (_event, browserWindow) => {
     if (desktopBrowserViewManager === null) {
@@ -2157,14 +1925,14 @@ async function runDesktopApp(): Promise<void> {
   const serverUrl = resolveDesktopServerUrl({ env: process.env });
   builtinServerUrl = serverUrl;
   desktopBridgePath = bridgePath;
-  const desktopVersion = getDesktopVersion(process.env.BB_DESKTOP_VERSION);
+  const desktopVersion = getDesktopVersion(process.env.PATCHER_DESKTOP_VERSION);
   const desktopUpdateFeedUrl = resolveDesktopUpdateFeedUrl({
     env: process.env,
   });
   const userDataPath = app.getPath("userData");
   desktopUserDataPath = userDataPath;
 
-  assertPathExists({ label: "bb-app bridge", path: bridgePath });
+  assertPathExists({ label: "patcher-app bridge", path: bridgePath });
   assertPathExists({
     label: "existing server dialog preload script",
     path: resolvedExistingServerDialogPreloadPath,
@@ -2202,56 +1970,11 @@ async function runDesktopApp(): Promise<void> {
     storagePath: join(userDataPath, SERVER_TARGET_FILE_NAME),
   });
   await serverTargetStore.load();
-  connectCredentialCache = createConnectCredentialCache({
-    encryption: safeStorage,
-    userDataPath,
-  });
-  cachedConnectCredential = await connectCredentialCache.read();
-  const logger = createDesktopLogger();
-  connectServerSync = createConnectServerSync({
-    getCredential: () => cachedConnectCredential,
-    getLocalServerUrl: () => currentRuntime?.serverUrl ?? null,
-    onUnauthorized() {
-      void clearCachedConnectCredential();
-    },
-    onServers(servers) {
-      connectAccountServers = servers;
-      const selected = serverTargetStore?.getConnectServer() ?? null;
-      const synced = servers.find(
-        (server) => server.handle === selected?.handle,
-      );
-      if (synced !== undefined) {
-        void serverTargetStore?.refreshConnectServer({
-          handle: synced.handle,
-          name: synced.name,
-          url: synced.url,
-        });
-      }
-      refreshApplicationMenu();
-    },
-    log: (message) => {
-      logger.info(`[desktop] ${message}`);
-    },
-  });
-  connectServerSync.start();
-  connectSessionRenewal = createConnectSessionRenewal({
-    async authenticate(remoteServerUrl, isCurrent) {
-      const result = await authenticateConnectTarget(
-        remoteServerUrl,
-        isCurrent,
-      );
-      return result.ok
-        ? result
-        : { detail: `${result.code}: ${result.detail}`, ok: false };
-    },
-    log: (message) => {
-      logger.warn(`[desktop] ${message}`);
-    },
-  });
 
   desktopUpdateService = createDesktopUpdateService({
     currentVersion: desktopVersion,
-    enabled: app.isPackaged || process.env.BB_DESKTOP_VERSION_CHECK === "1",
+    enabled:
+      app.isPackaged || process.env.PATCHER_DESKTOP_VERSION_CHECK === "1",
     feedUrl: desktopUpdateFeedUrl,
     logger: createDesktopLogger(),
   });
@@ -2262,7 +1985,7 @@ async function runDesktopApp(): Promise<void> {
       isPackaged: app.isPackaged,
     }),
     forceDevUpdateConfig:
-      !app.isPackaged && process.env.BB_DESKTOP_AUTO_UPDATE === "1",
+      !app.isPackaged && process.env.PATCHER_DESKTOP_AUTO_UPDATE === "1",
     logger: createDesktopLogger(),
     updater: createElectronAutoUpdaterAdapter(autoUpdater),
   });
@@ -2284,7 +2007,7 @@ async function runDesktopApp(): Promise<void> {
       }
       sendToApplicationRenderer(
         browserWindow,
-        BB_DESKTOP_APP_COMMAND_CHANNEL,
+        PATCHER_DESKTOP_APP_COMMAND_CHANNEL,
         command,
       );
     },
@@ -2306,7 +2029,7 @@ async function runDesktopApp(): Promise<void> {
       void shell.openExternal(url);
     },
     canOpenExternalUrl() {
-      // When bb is the default browser, `shell.openExternal` hands the link to
+      // When Patcher is the default browser, `shell.openExternal` hands the link to
       // Launch Services, which hands it straight back here as a new tab. That is
       // one round trip rather than a loop, but it makes the entry a lie.
       return !readDefaultBrowserStatus(defaultBrowserEnvironment).isDefault;
@@ -2374,12 +2097,9 @@ async function runDesktopApp(): Promise<void> {
   if (serverTargetStore.getTarget().kind === "builtin") {
     await initializeRuntime({ bridgePath, serverUrl, userDataPath });
   } else {
-    // A saved remote target needs no bb server on this Mac: the session cookie
-    // and the account server list both come from bb Connect. The local server
-    // starts only when the user switches back to "This Mac", or when this app
-    // has no credential of its own yet.
+    // A saved custom target is a plain web load: no Patcher server on this Mac. The
+    // local server starts only when the user switches back to "This Mac".
     await applyServerTarget();
-    connectServerSync.syncNow().catch(() => {});
   }
 }
 
@@ -2390,6 +2110,6 @@ void runDesktopApp().catch((error) => {
   void loadStartupError({
     details: message,
     logs: "",
-    title: "Could not open bb",
+    title: "Could not open Patcher",
   });
 });

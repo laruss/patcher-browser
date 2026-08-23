@@ -1,4 +1,4 @@
-import type { ToolCallResponse } from "@bb/domain";
+import type { ToolCallResponse } from "@patcher/domain";
 import type {
   PluginAgentConfigurationContext,
   PluginAgentToolContext,
@@ -43,7 +43,7 @@ export function getPluginSkillRootContributions(): PluginSkillRootContribution[]
   return contributions?.listSkillRootContributions() ?? [];
 }
 
-/** Native tools from bb.agents.registerTool, resolved live per session start. */
+/** Native tools from patcher.agents.registerTool, resolved live per session start. */
 export function listPluginAgentTools(): PluginAgentToolContribution[] {
   return contributions?.listAgentTools() ?? [];
 }
@@ -64,7 +64,7 @@ export async function resolvePluginAgentConfiguration(args: {
 }
 
 /**
- * Dynamic instruction providers from bb.agents.contributeInstructions,
+ * Dynamic instruction providers from patcher.agents.contributeInstructions,
  * resolved live per session start / turn submit.
  */
 export function listPluginInstructionContributions(): Array<{

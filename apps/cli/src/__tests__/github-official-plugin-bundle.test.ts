@@ -10,13 +10,13 @@ vi.setConfig({ testTimeout: 60_000 });
 import {
   buildPluginApp,
   resolvePluginBuildToolchain,
-} from "@bb/plugin-build";
+} from "@patcher/plugin-build";
 /**
- * The monorepo's own toolchain: resolved from `@bb/plugin-build`'s
+ * The monorepo's own toolchain: resolved from `@patcher/plugin-build`'s
  * devDependencies, so tests never download one.
  */
 function testToolchain() {
-  return resolvePluginBuildToolchain(join(tmpdir(), "bb-toolchain-unused"));
+  return resolvePluginBuildToolchain(join(tmpdir(), "patcher-toolchain-unused"));
 }
 
 
@@ -43,12 +43,12 @@ describe("GitHub official plugin frontend bundle", () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bb-github-bundle-"));
+    root = await mkdtemp(join(tmpdir(), "patcher-github-bundle-"));
   });
 
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
-    delete (globalThis as { __bbPluginRuntime?: unknown }).__bbPluginRuntime;
+    delete (globalThis as { __patcherPluginRuntime?: unknown }).__patcherPluginRuntime;
   });
 
   it("registers a single GitHub nav panel with header content", async () => {
@@ -60,11 +60,11 @@ describe("GitHub official plugin frontend bundle", () => {
         return name !== "dist" && name !== "node_modules";
       },
     });
-    // The temp copy has no node_modules; link @bb/shared-ui (the plugin's UI
+    // The temp copy has no node_modules; link @patcher/shared-ui (the plugin's UI
     // components — its own deps resolve through the workspace realpath) so
     // buildPluginApp can bundle it. Shimmed packages — react, radix portal
     // families, sonner, vaul, pierre — never resolve from disk.
-    const sharedUiLink = join(pluginDir, "node_modules", "@bb", "shared-ui");
+    const sharedUiLink = join(pluginDir, "node_modules", "@patcher", "shared-ui");
     await mkdir(dirname(sharedUiLink), { recursive: true });
     await symlink(
       fileURLToPath(new URL("../../../../packages/shared-ui", import.meta.url)),
@@ -89,7 +89,7 @@ describe("GitHub official plugin frontend bundle", () => {
           : (componentStub as object),
       set: () => true,
     });
-    (globalThis as { __bbPluginRuntime?: unknown }).__bbPluginRuntime = {
+    (globalThis as { __patcherPluginRuntime?: unknown }).__patcherPluginRuntime = {
       // Bundled radix primitives (slot, tabs) call these at module scope.
       react: {
         forwardRef: (render: unknown) => render,
@@ -100,7 +100,7 @@ describe("GitHub official plugin frontend bundle", () => {
       reactDomClient: componentStub,
       jsxRuntime: { jsx: () => ({}), jsxs: () => ({}), Fragment: {} },
       pluginSdkApp: {
-        definePluginApp: (setup: unknown) => ({ __bbPluginApp: true, setup }),
+        definePluginApp: (setup: unknown) => ({ __patcherPluginApp: true, setup }),
       },
       // Shimmed singleton packages the vendored components import.
       sonner: componentStub,
@@ -114,13 +114,13 @@ describe("GitHub official plugin frontend bundle", () => {
       /* @vite-ignore */ pathToFileURL(jsPath).href
     )) as {
       default: {
-        __bbPluginApp: boolean;
+        __patcherPluginApp: boolean;
         setup: (app: {
           slots: Record<string, (registration: SlotRegistration) => void>;
         }) => void;
       };
     };
-    expect(mod.default.__bbPluginApp).toBe(true);
+    expect(mod.default.__patcherPluginApp).toBe(true);
     mod.default.setup({
       slots: {
         homepageSection: (r) => registered.homepageSection.push(r),

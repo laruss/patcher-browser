@@ -1,11 +1,11 @@
-import { supportsNativeFork } from "@bb/agent-providers";
+import { supportsNativeFork } from "@patcher/agent-providers";
 import type {
   PermissionMode,
   PromptInput,
   ReasoningLevel,
   ServiceTier,
   Thread,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { AppCreateThreadRequest } from "@/lib/api-types";
 
 export const FORK_THREAD_CREATE_SEED_LOCATION_STATE_KEY =

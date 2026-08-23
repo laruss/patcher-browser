@@ -7,7 +7,7 @@ import type {
   HostMovePathResponse,
   HostPathListResponse,
   HostRemovePathResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 /**

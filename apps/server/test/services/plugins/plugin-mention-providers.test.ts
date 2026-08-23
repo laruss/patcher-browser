@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createConnection, migrate, type DbConnection } from "@bb/db";
-import { type PromptInput } from "@bb/domain";
-import type { Logger } from "@bb/logger";
+import { createConnection, migrate, type DbConnection } from "@patcher/db";
+import { type PromptInput } from "@patcher/domain";
+import type { Logger } from "@patcher/logger";
 import {
   createPluginService,
   type PluginService,
@@ -43,8 +43,8 @@ const logger = testLogger as unknown as Logger;
 // whose search throws (its group must simply disappear).
 const MENTION_SOURCE = `
   let resolveCalls = 0;
-  export default function plugin(bb: any) {
-    bb.ui.registerMentionProvider({
+  export default function plugin(patcher: any) {
+    patcher.ui.registerMentionProvider({
       id: "issues",
       label: "Linear issues",
       triggers: ["@", "#"],
@@ -66,7 +66,7 @@ const MENTION_SOURCE = `
         };
       },
     });
-    bb.ui.registerMentionProvider({
+    patcher.ui.registerMentionProvider({
       id: "docs",
       label: "Docs",
       async search() {
@@ -76,7 +76,7 @@ const MENTION_SOURCE = `
         throw new Error("docs resolve boom");
       },
     });
-    bb.ui.registerMentionProvider({
+    patcher.ui.registerMentionProvider({
       id: "broken",
       label: "Broken",
       async search() {
@@ -100,7 +100,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Mention provider fixture",
         description: "Mention provider plugin fixture.",
         branding: { icon: "Zap" },
@@ -172,14 +172,14 @@ function seedWarmIdleThreadFixture(harness: TestAppHarness, value: number) {
   return { environment, thread };
 }
 
-describe("plugin mention providers (bb.ui.registerMentionProvider)", () => {
+describe("plugin mention providers (patcher.ui.registerMentionProvider)", () => {
   let harness: TestAppHarness;
 
   beforeEach(async () => {
     harness = await createTestAppHarness();
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
-      { name: "bb-plugin-mentions", serverSource: MENTION_SOURCE },
+      { name: "patcher-plugin-mentions", serverSource: MENTION_SOURCE },
     );
     const entry = await harness.pluginService.installPath(rootDir);
     expect(entry.status).toBe("running");
@@ -561,13 +561,13 @@ describe("plugin mention providers (bb.ui.registerMentionProvider)", () => {
     const dupeDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-dupe-mentions",
+        name: "patcher-plugin-dupe-mentions",
         serverSource: `
-          export default function plugin(bb: any) {
-            bb.ui.registerMentionProvider({
+          export default function plugin(patcher: any) {
+            patcher.ui.registerMentionProvider({
               id: "a", label: "A", search: () => [], resolve: () => ({ context: "x" }),
             });
-            bb.ui.registerMentionProvider({
+            patcher.ui.registerMentionProvider({
               id: "a", label: "A again", search: () => [], resolve: () => ({ context: "x" }),
             });
           }
@@ -583,10 +583,10 @@ describe("plugin mention providers (bb.ui.registerMentionProvider)", () => {
     const badIdDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-bad-mention-id",
+        name: "patcher-plugin-bad-mention-id",
         serverSource: `
-          export default function plugin(bb: any) {
-            bb.ui.registerMentionProvider({
+          export default function plugin(patcher: any) {
+            patcher.ui.registerMentionProvider({
               id: "has:colon", label: "Nope", search: () => [], resolve: () => ({ context: "x" }),
             });
           }
@@ -600,10 +600,10 @@ describe("plugin mention providers (bb.ui.registerMentionProvider)", () => {
     const badTriggerDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-bad-mention-trigger",
+        name: "patcher-plugin-bad-mention-trigger",
         serverSource: `
-          export default function plugin(bb: any) {
-            bb.ui.registerMentionProvider({
+          export default function plugin(patcher: any) {
+            patcher.ui.registerMentionProvider({
               id: "bad", label: "Nope", triggers: ["?"], search: () => [], resolve: () => ({ context: "x" }),
             });
           }
@@ -626,7 +626,7 @@ describe("mention search time box", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-mention-timeout-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-mention-timeout-"));
     service = createPluginService({
       db,
       hub: {
@@ -649,16 +649,16 @@ describe("mention search time box", () => {
 
   it("drops a slow provider after the time box and keeps fast providers", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-slow-mentions",
+      name: "patcher-plugin-slow-mentions",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.ui.registerMentionProvider({
+        export default function plugin(patcher: any) {
+          patcher.ui.registerMentionProvider({
             id: "fast",
             label: "Fast",
             search: () => [{ id: "one", title: "One" }],
             resolve: () => ({ context: "one" }),
           });
-          bb.ui.registerMentionProvider({
+          patcher.ui.registerMentionProvider({
             id: "slow",
             label: "Slow",
             search: () => new Promise((resolve) => {
@@ -704,7 +704,7 @@ describe("mention resolve time box", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-resolve-timeout-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-resolve-timeout-"));
     service = createPluginService({
       db,
       hub: {
@@ -727,10 +727,10 @@ describe("mention resolve time box", () => {
 
   it("fails the resolve after the time box instead of hanging the send", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-slow-resolve",
+      name: "patcher-plugin-slow-resolve",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.ui.registerMentionProvider({
+        export default function plugin(patcher: any) {
+          patcher.ui.registerMentionProvider({
             id: "stuck",
             label: "Stuck",
             search: () => [{ id: "one", title: "One" }],

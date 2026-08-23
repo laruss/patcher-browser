@@ -14,7 +14,7 @@ import type {
   ThreadEventScope,
   ThreadTurnInitiator,
   WorkflowProgressSnapshot,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { EventProjection } from "./event-projection.js";
 
 export const eventProjectionMessageStatusValues = [

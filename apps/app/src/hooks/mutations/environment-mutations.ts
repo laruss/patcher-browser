@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Environment } from "@bb/domain";
+import type { Environment } from "@patcher/domain";
 import type {
   EnvironmentArchiveThreadsResponse,
   EnvironmentActionResponse,
   UpdateEnvironmentRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
 import type { RequestEnvironmentActionMutationRequest } from "./mutation-request-types";
 import { invalidateEnvironmentActionQueries } from "../cache-owners/environment-cache-effects";

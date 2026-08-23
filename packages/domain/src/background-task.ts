@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Raw SDK task-type discriminants for the background tasks bb materializes as
+ * Raw SDK task-type discriminants for the background tasks Patcher materializes as
  * timeline rows: dynamic workflows (the Workflow tool), backgrounded shell
  * commands (Bash with run_in_background), and backgrounded subagents. They
  * share the provider task event family (task_started / task_progress /

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import { getPatcherDesktopInfo } from "@/lib/patcher-desktop";
 
 interface RootComposePanelCommandHandlersProps {
   isFocused: boolean;
@@ -25,7 +25,7 @@ export function RootComposePanelCommandHandlers({
   });
   useEffect(() => {
     if (!isFocused) return;
-    const desktopInfo = getBbDesktopInfo();
+    const desktopInfo = getPatcherDesktopInfo();
     if (desktopInfo?.onCloseWindowRequest === undefined) return;
     return desktopInfo.onCloseWindowRequest(onClose);
   }, [isFocused, onClose]);

@@ -3,19 +3,19 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { Sidebar, useCloseMobileSidebar } from "@/components/ui/sidebar.js";
 import { SectionSidebarIcon, SectionSidebarRow } from "./SectionSidebar";
 import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
 import {
   CHROME_ROW_CLASS,
-  getBbDesktopInfo,
+  getPatcherDesktopInfo,
   MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
   MACOS_WINDOW_DRAG_CLASS,
   shouldUseMacosDesktopChrome,
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
-} from "@/lib/bb-desktop";
+} from "@/lib/patcher-desktop";
 
 /**
  * The side panel while an agent screen owns it: New thread, or a thread.
@@ -46,7 +46,7 @@ export function AgentPanelSidebar({
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
   const closeOnMobile = useCloseMobileSidebar();
-  const [desktopInfo] = useState(getBbDesktopInfo);
+  const [desktopInfo] = useState(getPatcherDesktopInfo);
   const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
 
   return (

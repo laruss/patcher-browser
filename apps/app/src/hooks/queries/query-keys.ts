@@ -1,4 +1,4 @@
-import type { WorkspaceDiffTarget } from "@bb/domain";
+import type { WorkspaceDiffTarget } from "@patcher/domain";
 import type { ThreadListFilters, ThreadSearchFilters } from "@/lib/api-types";
 import type { EnvironmentFilePreviewSource } from "@/lib/file-preview";
 import {

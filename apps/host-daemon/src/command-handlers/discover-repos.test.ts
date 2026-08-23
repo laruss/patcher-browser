@@ -19,7 +19,7 @@ describe("discoverRepos", () => {
   };
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), "bb-discover-"));
+    home = await mkdtemp(join(tmpdir(), "patcher-discover-"));
   });
 
   afterEach(async () => {
@@ -47,7 +47,7 @@ describe("discoverRepos", () => {
   it("skips dot-directories, which hold tool internals rather than projects", async () => {
     await makeRepo("projects/app");
     await makeRepo(".nvm/versions/thing");
-    await makeRepo(".bb-dev/worktrees/copy");
+    await makeRepo(".patcher-dev/worktrees/copy");
 
     const { repos } = await run();
 

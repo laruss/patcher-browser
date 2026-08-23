@@ -2,7 +2,7 @@ import {
   promptInputHasCommandMention,
   type ThreadTimelineActivePromptMode,
   type PromptTextMention,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export interface PromptModeInput {
   mentionRanges: readonly PromptTextMention[];

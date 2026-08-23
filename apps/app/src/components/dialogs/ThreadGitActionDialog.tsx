@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { assertNever } from "@bb/core-ui";
-import type { GitBranchRefClassification } from "@bb/domain";
+import { assertNever } from "@patcher/core-ui";
+import type { GitBranchRefClassification } from "@patcher/domain";
 import {
   DetailCard,
   DetailRow,
@@ -9,9 +9,9 @@ import {
 import type { ThreadGitStatusDisplay } from "@/components/workspace/workspace-status";
 import { ChangedFilesDetailRow } from "@/components/workspace/ChangedFilesDetailRow";
 import type { WorkspaceChangedFilesSection } from "@/components/workspace/workspace-change-summary";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
+} from "@patcher/shared-ui/dialog";
 import {
   getMergeBaseBranchCandidateGroups,
   BranchPicker,

@@ -16,7 +16,7 @@ export interface PluginSettingRow {
   updatedAt: number;
 }
 
-// --- plugin_kv: namespaced JSON-text values (`bb.storage.kv`) ---
+// --- plugin_kv: namespaced JSON-text values (`patcher.storage.kv`) ---
 
 export function getPluginKvValue(
   db: DbConnection,
@@ -78,7 +78,7 @@ export function listPluginKvKeys(
     .map((row) => row.key);
 }
 
-// --- plugin_settings: non-secret settings values (`bb.settings`) ---
+// --- plugin_settings: non-secret settings values (`patcher.settings`) ---
 
 export function getPluginSettingsValues(
   db: DbConnection,

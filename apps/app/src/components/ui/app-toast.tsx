@@ -4,9 +4,9 @@ import {
   type Action,
   type ExternalToast,
 } from "sonner";
-import { Button } from "@bb/shared-ui/button";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 export type AppToastTone =
   | "message"
@@ -207,7 +207,7 @@ function showAppToast({
     ),
     {
       ...sonnerOptions,
-      className: cn("bb-app-toast", className),
+      className: cn("patcher-app-toast", className),
       duration: nextDuration,
     },
   );

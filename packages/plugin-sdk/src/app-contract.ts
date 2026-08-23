@@ -4,11 +4,11 @@ import type {
   PromptInput,
   ReasoningLevel,
   ServiceTier,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CreateExecutionInputSources,
   CreateThreadEnvironmentArgs,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { JsonValue } from "./json-value.js";
 import type {
   PluginRpcCallArgs,
@@ -17,10 +17,10 @@ import type {
 } from "./rpc-contract.js";
 
 /**
- * The `@bb/plugin-sdk/app` contract (plugin design §5.2) — pure types with no
- * side effects. The BB app imports these to keep its real implementation in
+ * The `@patcher/plugin-sdk/app` contract (plugin design §5.2) — pure types with no
+ * side effects. The Patcher app imports these to keep its real implementation in
  * sync (`satisfies PluginSdkApp`). Plugin authors import the same shapes through
- * `@bb/plugin-sdk/app`.
+ * `@patcher/plugin-sdk/app`.
  *
  * Per-slot props are versioned contracts: additive-only within an SDK major.
  */
@@ -69,7 +69,7 @@ export interface PluginNavPanelProps {
    * route is `/plugins/<pluginId>/<path>/*`, so a deep link like
    * `/plugins/notes/notes/work/ideas.md` renders the panel with
    * `subPath: "work/ideas.md"`. Navigate within the panel via
-   * `useBbNavigate().toPluginPanel(path, { subPath })` — browser
+   * `usePatcherNavigate().toPluginPanel(path, { subPath })` — browser
    * back/forward then walks panel-internal history.
    */
   subPath: string;
@@ -251,11 +251,11 @@ export interface PluginSettingsSectionRegistration {
 /**
  * A panel on the window's **leading** edge — the end opposite the sidebar.
  *
- * bb puts nothing there itself. The edge exists for plugins and is absent
+ * Patcher puts nothing there itself. The edge exists for plugins and is absent
  * entirely when no plugin has asked for it: no empty column, no toggle for a
  * panel with nothing in it. What appears is decided by how many registrations
  * there are, not by configuration — one plugin gets the whole panel with no
- * chrome of bb's own around it, and a second one is what makes bb draw a rail
+ * chrome of Patcher's own around it, and a second one is what makes Patcher draw a rail
  * to switch between them.
  *
  * Unlike a `navPanel` this is not a route: it has no path, nothing links to it,
@@ -269,7 +269,7 @@ export interface PluginLeadingPanelRegistration {
   id: string;
   /** Named in the rail's tooltip, and its accessible name. */
   title: string;
-  /** Icon hint (BB icon name); unknown names fall back to a generic icon. */
+  /** Icon hint (Patcher icon name); unknown names fall back to a generic icon. */
   icon: string;
   /** Rendered as the whole panel body; it owns its own scrolling. */
   component: ComponentType<PluginLeadingPanelProps>;
@@ -282,8 +282,8 @@ export interface PluginLeadingPanelRegistration {
    * that returns null for the page in front of the user leaves an empty edge
    * behind. The host removes the column instead.
    *
-   * Unlike `bb.sites`, this costs no permission and is not checked against one:
-   * the panel is bb's own UI, and what it is told about the tab is the address
+   * Unlike `patcher.sites`, this costs no permission and is not checked against one:
+   * the panel is Patcher's own UI, and what it is told about the tab is the address
    * the address bar is already showing.
    */
   matches?: string[];
@@ -293,7 +293,7 @@ export interface PluginNavPanelRegistration {
   /** Unique within the plugin; letters, digits, `-`, `_`. */
   id: string;
   title: string;
-  /** Icon hint (BB icon name); unknown names fall back to a generic icon. */
+  /** Icon hint (Patcher icon name); unknown names fall back to a generic icon. */
   icon: string;
   /** URL segment under `/plugins/<pluginId>/`; letters, digits, `-`, `_`. */
   path: string;
@@ -345,7 +345,7 @@ export interface PluginThreadPanelActionRegistration {
   /** Label of the action row in the panel's new-tab launcher. */
   title: string;
   /**
-   * Icon hint (BB icon name) used when the plugin ships no logo; the
+   * Icon hint (Patcher icon name) used when the plugin ships no logo; the
    * launcher row and opened tabs prefer the plugin's logo.
    */
   icon?: string;
@@ -387,7 +387,7 @@ export interface PluginNewThreadPanelActionRegistration {
   id: string;
   /** Label of the action row in the panel's new-tab launcher. */
   title: string;
-  /** Icon hint (BB icon name) used when the plugin ships no logo. */
+  /** Icon hint (Patcher icon name) used when the plugin ships no logo. */
   icon?: string;
   /** Rendered inside every panel tab this action opens. */
   component: ComponentType<PluginNewThreadPanelProps>;
@@ -401,7 +401,7 @@ export interface PluginNewThreadPanelActionRegistration {
 }
 
 export interface PluginPendingInteractionRegistration {
-  /** Matches `rendererId` passed to `bb.ui.requestInput`. */
+  /** Matches `rendererId` passed to `patcher.ui.requestInput`. */
   id: string;
   component: ComponentType<PluginPendingInteractionProps>;
 }
@@ -425,7 +425,7 @@ export interface PluginSidebarFooterActionRegistration {
   id: string;
   /** Tooltip and accessible label for the icon button. */
   title: string;
-  /** Icon hint (BB icon name); unknown names fall back to a generic icon. */
+  /** Icon hint (Patcher icon name); unknown names fall back to a generic icon. */
   icon: string;
   /**
    * Runs when the user activates the action (e.g. call `openSettings()`,
@@ -440,11 +440,11 @@ export interface PluginSidebarFooterActionRegistration {
 // ---------------------------------------------------------------------------
 
 /**
- * The one status bb would paint for a thread, already resolved through the
+ * The one status Patcher would paint for a thread, already resolved through the
  * host's precedence (attention before work; plan and goal before the generic
  * spinner). Draw your own glyph for it — the SDK ships no status component.
  *
- * Treat an unrecognized value as "none": bb adds kinds over time, and an
+ * Treat an unrecognized value as "none": Patcher adds kinds over time, and an
  * older plugin must degrade to drawing nothing rather than throwing.
  *
  * "draft" and "working-draft" are never reported here: an unsubmitted composer
@@ -467,7 +467,7 @@ export type PluginSidebarThreadIndicator =
   | "none";
 
 /**
- * How a thread's environment presents its workspace: a worktree bb manages,
+ * How a thread's environment presents its workspace: a worktree Patcher manages,
  * a worktree the user manages, or anything else (a plain checkout).
  */
 export type PluginSidebarWorkspaceKind =
@@ -544,7 +544,7 @@ export interface PluginSidebarThread {
 
 /**
  * The pull request for a thread's branch, narrowed to what a sidebar row
- * needs. `attention` is bb's rolled-up "does this need you" signal, so a row
+ * needs. `attention` is Patcher's rolled-up "does this need you" signal, so a row
  * can colour a badge without reading checks, review, and mergeability itself.
  */
 export interface PluginSidebarPullRequest {
@@ -599,7 +599,7 @@ export interface PluginSidebarThreadsState {
  */
 export interface PluginSidebarThreadActions {
   /**
-   * Navigate to a thread. `split: true` applies bb's split placement rules —
+   * Navigate to a thread. `split: true` applies Patcher's split placement rules —
    * a right split by default, focus when the thread is already open, replace
    * at the pane cap — and falls back to plain navigation where splits are off.
    */
@@ -616,7 +616,7 @@ export interface PluginSidebarThreadActions {
   /** Archives the thread AND its children, closing any panes showing them. */
   archive(threadId: string): void;
   /**
-   * Opens bb's delete confirmation, which counts child threads first. Deletion
+   * Opens Patcher's delete confirmation, which counts child threads first. Deletion
    * is destructive and recursive, so the host owns the confirmation: there is
    * deliberately no silent `delete`.
    */
@@ -626,7 +626,7 @@ export interface PluginSidebarThreadActions {
 /**
  * Render a plugin component in the thread header's action row.
  *
- * The frontend sibling of the backend `bb.ui.registerThreadAction`, which
+ * The frontend sibling of the backend `patcher.ui.registerThreadAction`, which
  * renders a host-owned button and runs server-side. Use that one for "do a
  * thing"; use this one when the control must draw live state.
  *
@@ -777,7 +777,7 @@ export interface PluginMessageActionContext {
   /**
    * Open one of this plugin's `threadPanelAction` components in the current
    * thread's side panel — the registration-callback equivalent of
-   * `useBbNavigate().openThreadPanel`. Returns true when the host
+   * `usePatcherNavigate().openThreadPanel`. Returns true when the host
    * accepted (the action id exists and the surface has a panel); false
    * otherwise.
    */
@@ -795,7 +795,7 @@ export interface PluginMessageActionRegistration {
   id: string;
   /** Tooltip / menu label for the action. */
   title: string;
-  /** Icon hint (BB icon name); unknown names fall back to a generic icon. */
+  /** Icon hint (Patcher icon name); unknown names fall back to a generic icon. */
   icon?: string;
   /**
    * Runs when the user activates the action. Errors (sync or async) are
@@ -858,7 +858,7 @@ export interface PluginAppComposer {
   customize(registration: ComposerCustomization): void;
 }
 
-/** Stable lifecycle values for one content-script instance in one bb client. */
+/** Stable lifecycle values for one content-script instance in one Patcher client. */
 export interface PluginContentScriptContext {
   /** The id of the plugin that owns this script. */
   readonly pluginId: string;
@@ -890,7 +890,7 @@ export interface PluginContentScriptContext {
    * a tab id the strip does not hold is not an error — the tab may not be open
    * yet, or may be in another window — it simply shows nowhere.
    *
-   * Which tabs exist is `bb.browser.tabs.list()` on the backend side; a decorator
+   * Which tabs exist is `patcher.browser.tabs.list()` on the backend side; a decorator
    * is what a plugin does once it knows.
    *
    * Optional so bundles can feature-detect support while this experimental
@@ -907,13 +907,13 @@ export type PluginContentScriptDisposer = () => void | Promise<void>;
 
 /**
  * Trusted same-origin JavaScript/TypeScript mounted once per active frontend
- * generation in each bb app window or browser tab.
+ * generation in each Patcher app window or browser tab.
  */
 export interface PluginContentScriptRegistration {
   /** Unique within the plugin; letters, digits, `-`, `_`. */
   id: string;
   /**
-   * Install behavior into the bb app shell. The host awaits a returned
+   * Install behavior into the Patcher app shell. The host awaits a returned
    * promise, contains failures, and calls the returned disposer exactly once.
    */
   mount(
@@ -944,7 +944,7 @@ export type PluginAppSetup = (app: PluginAppBuilder) => void;
  */
 export interface PluginAppDefinition {
   /** Brand the host checks before interpreting a bundle's default export. */
-  readonly __bbPluginApp: true;
+  readonly __patcherPluginApp: true;
   readonly setup: PluginAppSetup;
 }
 
@@ -956,7 +956,7 @@ export interface PluginRpcClient<
   Contract extends PluginRpcContract = PluginRpcContract,
 > {
   /**
-   * Invoke one of the plugin's `bb.rpc` methods (POST
+   * Invoke one of the plugin's `patcher.rpc` methods (POST
    * /api/v1/plugins/&lt;id&gt;/rpc/&lt;method&gt;). Resolves with the method's
    * inferred output; rejects with an `Error` carrying the server's message,
    * stable `code`, and validation `issues` when present.
@@ -976,7 +976,7 @@ export interface PluginSettingsState {
   isLoading: boolean;
 }
 
-/** State of the app's shared realtime connection to the bb server. */
+/** State of the app's shared realtime connection to the Patcher server. */
 export type PluginRealtimeConnectionState =
   | "connecting"
   | "connected"
@@ -1024,7 +1024,7 @@ export interface ComposerCustomization {
 export interface ComposerPlusMenuItem {
   id: string;
   label: string;
-  /** BB icon name; unknown names fall back to the generic plugin icon. */
+  /** Patcher icon name; unknown names fall back to the generic plugin icon. */
   icon?: string;
   /** Accessible description for the host-rendered row. */
   description?: string;
@@ -1079,7 +1079,7 @@ export interface PluginComposerTextEffect {
  * be squeezed to its icon is one glyph with a label behind it.
  */
 export interface PluginBrowserTabStatus {
-  /** BB icon-name hint; unknown names fall back to the generic plugin icon. */
+  /** Patcher icon-name hint; unknown names fall back to the generic plugin icon. */
   icon: string;
   /** Accessible label for the mark, and its tooltip. */
   label: string;
@@ -1092,7 +1092,7 @@ export interface PluginBrowserTabStatus {
 
 /** Host-rendered status that temporarily replaces a thread's draft glyph. */
 export interface PluginComposerThreadRowStatus {
-  /** BB icon-name hint; unknown names fall back to the generic plugin icon. */
+  /** Patcher icon-name hint; unknown names fall back to the generic plugin icon. */
   icon: string;
   /** Accessible label for the status glyph. */
   label: string;
@@ -1106,7 +1106,7 @@ export interface PluginComposerThreadRowStatus {
 
 /** An @-mention pill bound to one of the calling plugin's mention providers. */
 export interface PluginComposerMention {
-  /** Mention provider id registered by THIS plugin via `bb.ui.registerMentionProvider`. */
+  /** Mention provider id registered by THIS plugin via `patcher.ui.registerMentionProvider`. */
   provider: string;
   /** Item id your provider's `resolve` will receive at send time. */
   id: string;
@@ -1183,7 +1183,7 @@ export interface ThreadChatMessageAction {
   id: string;
   /** Tooltip / menu label for the action. */
   title: string;
-  /** Icon hint (BB icon name); unknown names fall back to a generic icon. */
+  /** Icon hint (Patcher icon name); unknown names fall back to a generic icon. */
   icon?: string;
   /**
    * Message roles the action applies to. Omitted = both user and assistant
@@ -1200,7 +1200,7 @@ export interface ThreadChatMessageAction {
 /**
  * Props of the host-owned `ThreadChat` component — one thread's chat
  * (timeline, and for the composer variants the full send/queue/draft
- * engine), rendered by the BB app inside a plugin slot. This is the
+ * engine), rendered by the Patcher app inside a plugin slot. This is the
  * deliberate exception to the no-host-components rule (§5.5): a stable
  * product capability, not a UI kit. Versioned additive like slot props;
  * internal timeline rows, query hooks, and prompt-box configuration are
@@ -1247,10 +1247,10 @@ export interface ThreadChatProps {
 /**
  * Every selection the composer resolved, JSON-serializable so a plugin can
  * forward it to its own backend rpc verbatim and hand it straight to
- * `bb.sdk.threads.spawn`.
+ * `patcher.sdk.threads.spawn`.
  *
  * The split is deliberate: the composer owns *user selections*, the plugin
- * owns *filing and attribution*. `bb.sdk.threads.spawn` auto-fills
+ * owns *filing and attribution*. `patcher.sdk.threads.spawn` auto-fills
  * `origin: "plugin"` and `originPluginId`, so a thread created this way stays
  * attributed to the plugin — which it would not be if the component created
  * the thread itself. The plugin adds `sectionId`, `parentThreadId`, `title`,
@@ -1276,11 +1276,11 @@ export interface NewThreadRequest {
 }
 
 /**
- * Props of the host-owned `experimental_NewThreadComposer` component — bb's
+ * Props of the host-owned `experimental_NewThreadComposer` component — Patcher's
  * full new-thread compose surface (prompt editor with @-mentions and expand,
  * attachments, provider/model/reasoning picker, voice, submit, and the row
  * beneath with project, environment, branch-from, and permission mode),
- * rendered by the BB app inside a plugin slot.
+ * rendered by the Patcher app inside a plugin slot.
  *
  * It is the create-side counterpart to `ThreadChat`: same deliberate
  * exception to the no-host-components rule (§5.5), same additive versioning.
@@ -1377,7 +1377,7 @@ export interface NewThreadComposerProps {
 }
 
 /**
- * Props of the host-owned `Markdown` component — bb's chat message renderer
+ * Props of the host-owned `Markdown` component — Patcher's chat message renderer
  * (the same typography, spacing, and code styling as timeline messages).
  * Use it wherever plugin UI quotes or previews message content so it reads
  * like the rest of the chat. Like `ThreadChat`, this is a stable product
@@ -1390,12 +1390,12 @@ export interface MarkdownProps {
 }
 
 /** Current app selection, derived from the route. */
-export interface BbContext {
+export interface PatcherContext {
   projectId: string | null;
   threadId: string | null;
 }
 
-export interface BbNavigate {
+export interface PatcherNavigate {
   toThread(threadId: string): void;
   toProject(projectId: string): void;
   /**
@@ -1429,20 +1429,20 @@ export interface BbNavigate {
 
 // ---------------------------------------------------------------------------
 // The whole runtime surface. Declaration-versus-runtime parity is tested
-// against the actual `@bb/plugin-sdk/app` module namespace.
+// against the actual `@patcher/plugin-sdk/app` module namespace.
 //
 // Components are deliberately NOT part of this surface (removed 2026-07-03,
 // plugin design §5.5): plugins vendor shadcn-style component source from the
-// BB registry (`npx shadcn add @bb/<name>`) and own it. `bb plugin build`
+// Patcher registry (`npx shadcn add @patcher/<name>`) and own it. `patcher plugin build`
 // shims react + the shared-singleton packages (portal radix families,
 // sonner, vaul); everything else bundles per plugin. Freezing 65 component
 // prop types here made every host component change a plugin-breaking change.
 // ---------------------------------------------------------------------------
 
 /**
- * Everything `@bb/plugin-sdk/app` resolves to at runtime. The BB app builds
- * the real implementation and `satisfies` this interface; `bb plugin build`
- * shims the specifier to that object on `globalThis.__bbPluginRuntime`.
+ * Everything `@patcher/plugin-sdk/app` resolves to at runtime. The Patcher app builds
+ * the real implementation and `satisfies` this interface; `patcher plugin build`
+ * shims the specifier to that object on `globalThis.__patcherPluginRuntime`.
  */
 export interface PluginSdkApp {
   definePluginApp(setup: PluginAppSetup): PluginAppDefinition;
@@ -1458,8 +1458,8 @@ export interface PluginSdkApp {
    */
   useRealtimeConnectionState(): PluginRealtimeConnectionState;
   useSettings(): PluginSettingsState;
-  useBbContext(): BbContext;
-  useBbNavigate(): BbNavigate;
+  usePatcherContext(): PatcherContext;
+  usePatcherNavigate(): PatcherNavigate;
   useComposer(): PluginComposerApi;
   /**
    * The sidebar's live thread view (see {@link PluginSidebarThreadsState}).

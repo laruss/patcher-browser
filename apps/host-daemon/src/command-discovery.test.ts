@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { HostProviderCommand } from "@bb/host-daemon-contract";
+import type { HostProviderCommand } from "@patcher/host-daemon-contract";
 import { discoverProviderCommands } from "./command-discovery.js";
 import {
   listHostCommands,
@@ -39,7 +39,7 @@ async function writeFileEnsuringDir(
 async function makeWorkspaceFixture(): Promise<WorkspaceFixture> {
   const cwd = path.join(tempRoot, "workspace");
   const builtinSkillsRootPath = path.join(tempRoot, "builtin-skills");
-  const dataDir = path.join(tempRoot, "bb-data");
+  const dataDir = path.join(tempRoot, "patcher-data");
   const homeDir = path.join(tempRoot, "home");
   const codexHome = path.join(homeDir, ".codex");
   await mkdir(cwd, { recursive: true });
@@ -96,7 +96,7 @@ function fromSlashPath(rootPath: string, relativePath: string): string {
 }
 
 beforeEach(async () => {
-  tempRoot = await mkdtemp(path.join(tmpdir(), "bb-command-discovery-"));
+  tempRoot = await mkdtemp(path.join(tmpdir(), "patcher-command-discovery-"));
 });
 
 afterEach(async () => {
@@ -105,26 +105,32 @@ afterEach(async () => {
 });
 
 describe("discoverProviderCommands (claude-code)", () => {
-  it("leaves bb-managed skills to the server catalog", async () => {
+  it("leaves Patcher-managed skills to the server catalog", async () => {
     const fixture = await makeWorkspaceFixture();
     await writeFileEnsuringDir(
-      path.join(fixture.cwd, ".bb", "skills", "project-bb", "SKILL.md"),
-      "---\nname: project-bb\ndescription: Project bb skill\n---\n",
+      path.join(
+        fixture.cwd,
+        ".patcher",
+        "skills",
+        "project-patcher",
+        "SKILL.md",
+      ),
+      "---\nname: project-patcher\ndescription: Project patcher skill\n---\n",
     );
     await writeFileEnsuringDir(
-      path.join(fixture.dataDir, "skills", "user-bb", "SKILL.md"),
-      "---\nname: user-bb\ndescription: User bb skill\n---\n",
+      path.join(fixture.dataDir, "skills", "user-patcher", "SKILL.md"),
+      "---\nname: user-patcher\ndescription: User patcher skill\n---\n",
     );
     await writeFileEnsuringDir(
-      path.join(fixture.builtinSkillsRootPath, "bb-cli", "SKILL.md"),
-      "---\nname: bb-cli\ndescription: Built-in bb CLI skill\n---\n",
+      path.join(fixture.builtinSkillsRootPath, "patcher-cli", "SKILL.md"),
+      "---\nname: patcher-cli\ndescription: Built-in Patcher CLI skill\n---\n",
     );
 
     const commands = await discoverClaude(fixture, fixture.cwd);
 
-    expect(byName(commands, "project-bb")).toBeUndefined();
-    expect(byName(commands, "user-bb")).toBeUndefined();
-    expect(byName(commands, "bb-cli")).toBeUndefined();
+    expect(byName(commands, "project-patcher")).toBeUndefined();
+    expect(byName(commands, "user-patcher")).toBeUndefined();
+    expect(byName(commands, "patcher-cli")).toBeUndefined();
   });
 
   it("parses project skills, namespaced commands, and frontmatter", async () => {
@@ -874,29 +880,35 @@ describe("discoverProviderCommands (claude-code)", () => {
 });
 
 describe("discoverProviderCommands (codex)", () => {
-  it("leaves bb-managed skills to the server catalog", async () => {
+  it("leaves Patcher-managed skills to the server catalog", async () => {
     const fixture = await makeWorkspaceFixture();
     await writeFileEnsuringDir(
-      path.join(fixture.cwd, ".bb", "skills", "project-bb", "SKILL.md"),
-      "---\nname: project-bb\ndescription: Project bb skill\n---\n",
+      path.join(
+        fixture.cwd,
+        ".patcher",
+        "skills",
+        "project-patcher",
+        "SKILL.md",
+      ),
+      "---\nname: project-patcher\ndescription: Project patcher skill\n---\n",
     );
     await writeFileEnsuringDir(
-      path.join(fixture.dataDir, "skills", "user-bb", "SKILL.md"),
-      "---\nname: user-bb\ndescription: User bb skill\n---\n",
+      path.join(fixture.dataDir, "skills", "user-patcher", "SKILL.md"),
+      "---\nname: user-patcher\ndescription: User patcher skill\n---\n",
     );
     await writeFileEnsuringDir(
-      path.join(fixture.builtinSkillsRootPath, "bb-cli", "SKILL.md"),
-      "---\nname: bb-cli\ndescription: Built-in bb CLI skill\n---\n",
+      path.join(fixture.builtinSkillsRootPath, "patcher-cli", "SKILL.md"),
+      "---\nname: patcher-cli\ndescription: Built-in Patcher CLI skill\n---\n",
     );
 
     const commands = await discoverCodex(fixture, fixture.cwd);
 
-    expect(byName(commands, "project-bb")).toBeUndefined();
-    expect(byName(commands, "user-bb")).toBeUndefined();
-    expect(byName(commands, "bb-cli")).toBeUndefined();
+    expect(byName(commands, "project-patcher")).toBeUndefined();
+    expect(byName(commands, "user-patcher")).toBeUndefined();
+    expect(byName(commands, "patcher-cli")).toBeUndefined();
   });
 
-  it("does not scan inherited bb skill roots", async () => {
+  it("does not scan inherited patcher skill roots", async () => {
     const fixture = await makeWorkspaceFixture();
     const inheritedSkillsRootPath = path.join(tempRoot, "inherited-skills");
     await writeFileEnsuringDir(
@@ -1274,7 +1286,7 @@ describe("resolveCommandScanRoots", () => {
     expect(roots.map((root) => root.origin)).toEqual(["user"]);
   });
 
-  it("does not accept synchronized bb skills", async () => {
+  it("does not accept synchronized Patcher skills", async () => {
     const sourceRootPath = path.join(tempRoot, "server-skill", "synced-skill");
     const skillFilePath = path.join(sourceRootPath, "SKILL.md");
     await writeFileEnsuringDir(

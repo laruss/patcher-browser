@@ -1,7 +1,7 @@
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   deleteExpiredTerminalRuns,
@@ -73,7 +73,7 @@ function setup(
   let childCount = 0;
   let originDeleted = false;
   const workers = new Map<string, WorkerState>();
-  const { bb, harness } = createFakePluginHost({
+  const { patcher, harness } = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "workflows",
     sdk: {
@@ -174,9 +174,9 @@ function setup(
       },
     },
   });
-  const db = bb.storage.database();
-  bb.storage.migrate(db, migrations);
-  const service = createWorkflowService(bb, db, settings);
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, migrations);
+  const service = createWorkflowService(patcher, db, settings);
 
   async function start(workflowSource: string) {
     return service.start({
@@ -189,7 +189,7 @@ function setup(
   }
 
   return {
-    bb,
+    patcher,
     db,
     harness,
     service,
@@ -219,7 +219,7 @@ describe("workflow service policy integration", () => {
       retentionDays: "7",
       maxNotificationBytes: "2048",
     };
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "workflows",
       agentSkillIds: ["workflows"],
@@ -243,11 +243,11 @@ describe("workflow service policy integration", () => {
       },
     });
     harnesses.push(harness);
-    await plugin(bb);
+    await plugin(patcher);
     expect(harness.registrations.settingsDescriptors).not.toEqual({});
 
     const first = JSON.parse(
-      (await harness.callAgentTool("bb_workflow_run", {
+      (await harness.callAgentTool("patcher_workflow_run", {
         script: source("return null;", "settings-one"),
       })) as string,
     ) as { runId: string };
@@ -261,7 +261,7 @@ describe("workflow service policy integration", () => {
     };
     await harness.setSettings(next);
     const second = JSON.parse(
-      (await harness.callAgentTool("bb_workflow_run", {
+      (await harness.callAgentTool("patcher_workflow_run", {
         script: source("return null;", "settings-two"),
       })) as string,
     ) as { runId: string };
@@ -302,7 +302,7 @@ describe("workflow service policy integration", () => {
     const named = source("return { kind: 'named', args };", "named-child");
     const path = source("return { kind: 'path', args };", "path-child");
     const test = setup(DEFAULT_WORKFLOW_SETTINGS, {
-      "/workspace/.bb/workflows/named-child.js": named,
+      "/workspace/.patcher/workflows/named-child.js": named,
       "/workspace/child.js": path,
     });
     harnesses.push(test.harness);
@@ -328,7 +328,7 @@ describe("workflow service policy integration", () => {
       [
         {
           hostId: "host-1",
-          path: "/workspace/.bb/workflows/named-child.js",
+          path: "/workspace/.patcher/workflows/named-child.js",
           rootPath: "/workspace",
         },
       ],
@@ -349,7 +349,7 @@ describe("workflow service policy integration", () => {
     const named = source("return { kind: 'named', args };", "named-child");
     const path = source("return { kind: 'path', args };", "path-child");
     const test = setup(DEFAULT_WORKFLOW_SETTINGS, {
-      "/workspace/.bb/workflows/named-child.js": named,
+      "/workspace/.patcher/workflows/named-child.js": named,
       "/workspace/child.js": path,
     });
     harnesses.push(test.harness);
@@ -377,7 +377,7 @@ describe("workflow service policy integration", () => {
       [
         {
           hostId: "host-1",
-          path: "/workspace/.bb/workflows/named-child.js",
+          path: "/workspace/.patcher/workflows/named-child.js",
           rootPath: "/workspace",
         },
       ],
@@ -402,11 +402,11 @@ describe("workflow service policy integration", () => {
       releaseFirst = resolve;
     });
     const children: Record<string, string> = {
-      "/workspace/.bb/workflows/first.js": source(
+      "/workspace/.patcher/workflows/first.js": source(
         `return await agent("first-agent");`,
         "first",
       ),
-      "/workspace/.bb/workflows/second.js": source(
+      "/workspace/.patcher/workflows/second.js": source(
         `return await agent("second-agent");`,
         "second",
       ),
@@ -1170,7 +1170,7 @@ describe("workflow service policy integration", () => {
     expect(getRunRequired(test.db, run.id).status).toBe("queued");
     expect(test.harness.sdk.callsTo("threads.send")).toHaveLength(0);
 
-    const restarted = createWorkflowService(test.bb, test.db);
+    const restarted = createWorkflowService(test.patcher, test.db);
     test.harness.sdk.stub("threads.stop", (async () => ({
       ok: true,
     })) as never);
@@ -1216,7 +1216,7 @@ describe("workflow service policy integration", () => {
     test.harness.sdk.stub("threads.send", (async () => ({
       ok: true,
     })) as never);
-    const restarted = createWorkflowService(test.bb, test.db);
+    const restarted = createWorkflowService(test.patcher, test.db);
     test.db
       .prepare(
         `UPDATE workflow_runs SET notification_next_attempt_at = 0 WHERE id = ?`,
@@ -1327,7 +1327,7 @@ describe("workflow service policy integration", () => {
     expect(text).toContain(run.id);
     expect(text).toContain("failed");
     expect(text).toContain("[truncated]");
-    expect(text).toContain(`bb workflows status ${run.id}`);
+    expect(text).toContain(`patcher workflows status ${run.id}`);
     expect(text).not.toContain("�");
   });
 });

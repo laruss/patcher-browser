@@ -11,11 +11,11 @@ import {
 import {
   definePluginApp,
   type PluginPendingInteractionProps,
-} from "@bb/plugin-sdk/app";
-import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/plugin-sdk/app";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon } from "@patcher/shared-ui/icon";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   interactionPayloadSchema,
   type InteractionOption,
@@ -31,7 +31,7 @@ import {
   type QuestionFormState,
 } from "./src/form-state.js";
 
-// Ported from BB's native user-question form
+// Ported from Patcher's native user-question form
 // (apps/app/src/components/thread/user-questions/UserQuestionInteractionContent.tsx)
 // so the cross-provider tool looks and behaves identically to the Claude Code
 // one. Differences are only where the plugin surface differs: submit/cancel
@@ -43,7 +43,7 @@ const OTHER_OPTION_LABEL = "Other…";
 const FREE_TEXT_MIN_HEIGHT = 84;
 const FREE_TEXT_MAX_HEIGHT = 158;
 const PREVIEW_MAX_HEIGHT = 220;
-/** Matches BB's default `question.select.N` bindings: plain digits, 1-based. */
+/** Matches Patcher's default `question.select.N` bindings: plain digits, 1-based. */
 const MAX_SHORTCUT_ROWS = 9;
 
 interface QuestionOptionRowProps {
@@ -438,7 +438,7 @@ function AskUserQuestionInteraction({
     })();
   };
 
-  // Number-key answer selection, matching BB's default `question.select.N`
+  // Number-key answer selection, matching Patcher's default `question.select.N`
   // bindings (plain digits, inactive while an editable is focused so typing a
   // free-text answer never picks an option).
   useEffect(() => {

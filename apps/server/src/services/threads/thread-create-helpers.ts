@@ -5,11 +5,11 @@ import {
   getProject,
   getThread,
   isSqliteForeignKeyConstraint,
-} from "@bb/db";
-import type { DbNotifier } from "@bb/db";
-import type { HostDaemonCommand } from "@bb/host-daemon-contract";
-import type { LocalPathProjectSource } from "@bb/domain";
-import type { BaseBranchSpec } from "@bb/server-contract";
+} from "@patcher/db";
+import type { DbNotifier } from "@patcher/db";
+import type { HostDaemonCommand } from "@patcher/host-daemon-contract";
+import type { LocalPathProjectSource } from "@patcher/domain";
+import type { BaseBranchSpec } from "@patcher/server-contract";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { emitPluginThreadCreated } from "../plugins/plugin-thread-events.js";
@@ -50,8 +50,8 @@ export function buildManagedBranchName(args: ManagedBranchNameArgs): string {
     ? sanitizeGeneratedBranchSlug(args.branchSlug)
     : null;
   return branchSlug
-    ? `bb/${branchSlug}-${args.threadId}`
-    : `bb/${args.threadId}`;
+    ? `patcher/${branchSlug}-${args.threadId}`
+    : `patcher/${args.threadId}`;
 }
 
 export function requirePublicProjectForThreadCreate(

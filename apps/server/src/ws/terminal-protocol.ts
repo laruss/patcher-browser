@@ -1,7 +1,7 @@
 import {
   terminalClientMessageSchema,
   terminalServerMessageSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../errors.js";
 import type { AppDeps } from "../types.js";
 import { decodeSocketPayload } from "./decode-payload.js";

@@ -10,8 +10,8 @@ import type {
   PermissionMode,
 } from "./src/rpc-types";
 import { AUTOMATION_PROMPT_MAX_LENGTH } from "./src/rpc-types";
-import { Button } from "@bb/shared-ui/button";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import {
   ResourceActionButton,
   ResourceActivitySection,
@@ -24,31 +24,31 @@ import {
   ResourceMeta,
   ResourceOverflowMenu,
   useResourceRouteLabel,
-} from "@bb/shared-ui/resource-list";
-import { Switch } from "@bb/shared-ui/switch";
-import { Textarea } from "@bb/shared-ui/textarea";
+} from "@patcher/shared-ui/resource-list";
+import { Switch } from "@patcher/shared-ui/switch";
+import { Textarea } from "@patcher/shared-ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@bb/shared-ui/select";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+} from "@patcher/shared-ui/select";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import {
   OptionDisplay,
   OPTION_BASE_CLASS_NAME,
   OPTION_CONTENT_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
   OPTION_MUTED_CLASS_NAME,
-} from "@bb/shared-ui/option-display";
+} from "@patcher/shared-ui/option-display";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
-import { cn, formatHomePathForDisplay } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/tooltip";
+import { cn, formatHomePathForDisplay } from "@patcher/shared-ui/lib/utils";
 import {
   formatAutomationTrigger,
   formatDetailScheduleStatusLabel,

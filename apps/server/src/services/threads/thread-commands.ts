@@ -4,12 +4,12 @@ import {
   getAppSettings,
   getExperiments,
   threads,
-} from "@bb/db";
+} from "@patcher/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   getBuiltInAgentProviderInfo,
   isAgentProviderId,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_ENDPOINT,
   type ClaudeCodeMockCliTrafficConfig,
@@ -23,11 +23,11 @@ import {
   EnvironmentStatus,
   WorkspaceProvisionType,
   promptInputHasCommandMention,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   type HostDaemonCommand,
   type TurnSubmitTarget,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { AppDeps, LoggedWorkSessionDeps } from "../../types.js";
 import type { CommandResultSideEffectsDeps } from "../../internal/command-result-side-effects.js";
 import { ApiError } from "../../errors.js";

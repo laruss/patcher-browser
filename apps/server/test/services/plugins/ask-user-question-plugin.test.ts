@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { encodeClientTurnRequestIdNumber } from "@bb/domain";
+import { encodeClientTurnRequestIdNumber } from "@patcher/domain";
 import { builtinPluginSource } from "../../../src/services/plugins/builtin-registry.js";
 import { buildThreadStartCommand } from "../../../src/services/threads/thread-commands.js";
 import { resolveExecutionOptions } from "../../../src/services/threads/thread-runtime-config.js";
@@ -18,7 +18,7 @@ import {
 
 /**
  * The ask-user-question plugin ships an `AskUserQuestion` tool for providers
- * that lack one. Claude Code has the tool natively and BB routes that native
+ * that lack one. Claude Code has the tool natively and Patcher routes that native
  * call through the provider's own pending-interaction path, so the plugin must
  * not also advertise it there — otherwise the model gets two ways to ask one
  * question. This exercises the real plugin against the real thread.start
@@ -150,7 +150,7 @@ describe("ask-user-question builtin plugin", () => {
       ).sort(),
     ).toEqual(["description", "label", "preview"]);
     // The harness-injected round-trip fields Claude carries are deliberately
-    // absent: BB returns them in the result instead.
+    // absent: Patcher returns them in the result instead.
     expect(Object.keys(schema.properties)).toEqual(["questions"]);
   });
 

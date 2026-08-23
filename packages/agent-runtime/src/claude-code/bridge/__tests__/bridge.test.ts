@@ -17,7 +17,7 @@ import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
   type JsonValue,
   type PermissionEscalation,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 const { forkSessionMock, queryMock } = vi.hoisted(() => ({
   forkSessionMock: vi.fn(),
@@ -482,7 +482,7 @@ function createAssistantToolUseMessage(
 }
 
 function createTempClaudeExecutable(): TempClaudeExecutable {
-  const binDir = mkdtempSync(join(tmpdir(), "bb-claude-path-"));
+  const binDir = mkdtempSync(join(tmpdir(), "patcher-claude-path-"));
   tempDirs.push(binDir);
   const executablePath = join(binDir, "claude");
   writeFileSync(executablePath, "#!/bin/sh\nexit 0\n");
@@ -822,13 +822,13 @@ describe("bridge", () => {
         getPermissionEscalation: () => "ask",
         permissionMode: "default",
         permissionScope: "workspace",
-        plugins: [{ type: "local", path: "/tmp/bb-skills" }],
+        plugins: [{ type: "local", path: "/tmp/patcher-skills" }],
       },
       {},
     );
 
     expect(options.plugins).toEqual([
-      { type: "local", path: "/tmp/bb-skills" },
+      { type: "local", path: "/tmp/patcher-skills" },
     ]);
     expect(options).not.toHaveProperty("skills");
   });
@@ -869,7 +869,7 @@ describe("bridge", () => {
   });
 
   it("falls back to well-known install locations when PATH discovery fails", () => {
-    const homeDir = mkdtempSync(join(tmpdir(), "bb-claude-home-"));
+    const homeDir = mkdtempSync(join(tmpdir(), "patcher-claude-home-"));
     tempDirs.push(homeDir);
     const localBinDir = join(homeDir, ".local", "bin");
     mkdirSync(localBinDir, { recursive: true });
@@ -887,7 +887,7 @@ describe("bridge", () => {
         permissionMode: "default",
         permissionScope: "workspace",
       },
-      { HOME: homeDir, PATH: "/nonexistent-bb-test-dir" },
+      { HOME: homeDir, PATH: "/nonexistent-patcher-test-dir" },
     );
 
     expect(options.pathToClaudeCodeExecutable).toBe(executablePath);
@@ -906,7 +906,7 @@ describe("bridge", () => {
         permissionScope: "workspace",
       },
       {
-        BB_CLAUDE_CODE_EXECUTABLE: executablePath,
+        PATCHER_CLAUDE_CODE_EXECUTABLE: executablePath,
         PATH: "/usr/bin",
       },
     );
@@ -927,7 +927,7 @@ describe("bridge", () => {
         permissionScope: "workspace",
       },
       {
-        BB_CLAUDE_CODE_EXECUTABLE: `  ${executablePath}  `,
+        PATCHER_CLAUDE_CODE_EXECUTABLE: `  ${executablePath}  `,
         PATH: "/usr/bin",
       },
     );
@@ -936,7 +936,7 @@ describe("bridge", () => {
   });
 
   it("rejects explicit Claude executable overrides that are not executable", () => {
-    const binDir = mkdtempSync(join(tmpdir(), "bb-claude-path-"));
+    const binDir = mkdtempSync(join(tmpdir(), "patcher-claude-path-"));
     tempDirs.push(binDir);
     const executablePath = join(binDir, "claude");
 
@@ -952,11 +952,11 @@ describe("bridge", () => {
           permissionScope: "workspace",
         },
         {
-          BB_CLAUDE_CODE_EXECUTABLE: executablePath,
+          PATCHER_CLAUDE_CODE_EXECUTABLE: executablePath,
           PATH: "/usr/bin",
         },
       ),
-    ).toThrow("BB_CLAUDE_CODE_EXECUTABLE must point to an executable");
+    ).toThrow("PATCHER_CLAUDE_CODE_EXECUTABLE must point to an executable");
   });
 
   it("configures acceptEdits and auto sessions with the same Claude sandbox", () => {
@@ -1007,7 +1007,7 @@ describe("bridge", () => {
     const options = buildSessionOptions(
       {
         workflowsEnabled: false,
-        additionalWorkspaceWriteRoots: ["/repo/.git/worktrees/bb13"],
+        additionalWorkspaceWriteRoots: ["/repo/.git/worktrees/patcher13"],
         baseInstructions: "You are a coder.",
         cwd: "/tmp/worktree",
         instructionMode: "append",
@@ -1028,7 +1028,7 @@ describe("bridge", () => {
       {
         workflowsEnabled: false,
         additionalWorkspaceWriteRoots: [
-          "/repo/.git/worktrees/bb13",
+          "/repo/.git/worktrees/patcher13",
           "/repo/.git/objects",
         ],
         baseInstructions: "You are a coder.",
@@ -1042,7 +1042,7 @@ describe("bridge", () => {
     );
 
     expect(options.additionalDirectories).toEqual([
-      "/repo/.git/worktrees/bb13",
+      "/repo/.git/worktrees/patcher13",
       "/repo/.git/objects",
     ]);
     expect(options.sandbox).toEqual({
@@ -1052,7 +1052,7 @@ describe("bridge", () => {
       allowUnsandboxedCommands: true,
       network: { allowLocalBinding: true },
       filesystem: {
-        allowWrite: ["/repo/.git/worktrees/bb13", "/repo/.git/objects"],
+        allowWrite: ["/repo/.git/worktrees/patcher13", "/repo/.git/objects"],
       },
     });
   });
@@ -1152,8 +1152,8 @@ describe("bridge", () => {
         expectedCommand: "git --no-optional-locks branch --show-current",
       },
       {
-        command: "git branch --list bb/probe",
-        expectedCommand: "git --no-optional-locks branch --list bb/probe",
+        command: "git branch --list patcher/probe",
+        expectedCommand: "git --no-optional-locks branch --list patcher/probe",
       },
       {
         command: "git branch --merged main",
@@ -1209,7 +1209,7 @@ describe("bridge", () => {
       { command: "git fetch origin" },
       { command: "git pull" },
       { command: "git push" },
-      { command: "git branch bb-probe" },
+      { command: "git branch patcher-probe" },
       { command: "git branch --merged main extra" },
       { command: "git -c core.pager=cat status --short" },
       { command: "git -C /tmp status" },
@@ -1347,7 +1347,8 @@ describe("bridge", () => {
         },
         expected: {
           behavior: "deny",
-          messageIncludes: "bb readonly mode allows reading and analysis only",
+          messageIncludes:
+            "Patcher readonly mode allows reading and analysis only",
         },
       },
       {
@@ -1360,7 +1361,8 @@ describe("bridge", () => {
         input: { file_path: "/tmp/project/package.json" },
         expected: {
           behavior: "deny",
-          messageIncludes: "bb readonly mode allows reading and analysis only",
+          messageIncludes:
+            "Patcher readonly mode allows reading and analysis only",
         },
       },
       {
@@ -1376,7 +1378,7 @@ describe("bridge", () => {
         },
         expected: {
           behavior: "deny",
-          messageIncludes: "bb's workspace sandbox allows work inside",
+          messageIncludes: "Patcher's workspace sandbox allows work inside",
         },
       },
       {
@@ -1393,7 +1395,7 @@ describe("bridge", () => {
         },
         expected: {
           behavior: "deny",
-          messageIncludes: "bb's workspace sandbox allows work inside",
+          messageIncludes: "Patcher's workspace sandbox allows work inside",
         },
       },
       {
@@ -1486,7 +1488,7 @@ describe("bridge", () => {
     });
   });
 
-  it("forwards unresolved high-risk auto-mode asks to bb", async () => {
+  it("forwards unresolved high-risk auto-mode asks to Patcher", async () => {
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
     queryMock.mockImplementation(() => {
@@ -1562,7 +1564,7 @@ describe("bridge", () => {
 
   it("forwards a sandbox network ask with a grantable network permission", async () => {
     // Claude suggests a "localSettings" rule for this prompt, not a "session"
-    // one. bb used to drop that suggestion, so the prompt reached the user with
+    // one. Patcher used to drop that suggestion, so the prompt reached the user with
     // nothing to grant and the server rejected every allow. See issue #1041.
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
@@ -1905,7 +1907,7 @@ describe("bridge", () => {
   // `method` field is what separates them; without that check the request was
   // settled as a bogus response and dropped, and the daemon only found out when
   // it timed out 30s later.
-  it("dispatches an inbound request whose id collides with a pending bb request", async () => {
+  it("dispatches an inbound request whose id collides with a pending Patcher request", async () => {
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
     queryMock.mockImplementation(() => {
@@ -1989,7 +1991,7 @@ describe("bridge", () => {
     }
   });
 
-  it("denies invalid AskUserQuestion input before forwarding to bb", async () => {
+  it("denies invalid AskUserQuestion input before forwarding to Patcher", async () => {
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
     queryMock.mockImplementation(() => {
@@ -2028,7 +2030,7 @@ describe("bridge", () => {
     }
   });
 
-  it("denies AskUserQuestion when bb returns an interactive request error", async () => {
+  it("denies AskUserQuestion when Patcher returns an interactive request error", async () => {
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
     queryMock.mockImplementation(() => {
@@ -2069,7 +2071,7 @@ describe("bridge", () => {
     }
   });
 
-  it("denies AskUserQuestion when bb returns an invalid response payload", async () => {
+  it("denies AskUserQuestion when Patcher returns an invalid response payload", async () => {
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
     queryMock.mockImplementation(() => {
@@ -2114,7 +2116,7 @@ describe("bridge", () => {
     }
   });
 
-  it("denies AskUserQuestion when bb returns a mismatched response kind", async () => {
+  it("denies AskUserQuestion when Patcher returns a mismatched response kind", async () => {
     const bridge = createBridgeJsonRpcTestHarness(handleLine);
     const queries: ControlledClaudeQuery[] = [];
     queryMock.mockImplementation(() => {
@@ -2243,7 +2245,7 @@ describe("bridge", () => {
     });
 
     const originalHome = process.env.HOME;
-    process.env.HOME = "/Users/test-bb";
+    process.env.HOME = "/Users/test-patcher";
     try {
       bridge.sendRequest(1, "thread/start", {
         workflowsEnabled: false,
@@ -2260,7 +2262,7 @@ describe("bridge", () => {
       await bridge.waitForResponse(1);
 
       const queryOptions = getLatestQueryOptions();
-      expect(queryOptions.env?.HOME).toBe("/Users/test-bb");
+      expect(queryOptions.env?.HOME).toBe("/Users/test-patcher");
       // Sessions report as the Claude CLI entrypoint (renders `sdk-cli` on the
       // wire), with no `client-app/...` user-agent segment.
       expect(queryOptions.env?.CLAUDE_CODE_ENTRYPOINT).toBe("cli");
@@ -2443,7 +2445,7 @@ describe("bridge", () => {
         workflowsEnabled: false,
         claudeCodeMockCliTraffic: DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
         additionalWorkspaceWriteRoots: [
-          "/repo/.git/worktrees/bb13",
+          "/repo/.git/worktrees/patcher13",
           "/repo/.git/objects",
         ],
         baseInstructions: "test",
@@ -2462,12 +2464,15 @@ describe("bridge", () => {
           options: expect.objectContaining({
             permissionMode: "acceptEdits",
             additionalDirectories: [
-              "/repo/.git/worktrees/bb13",
+              "/repo/.git/worktrees/patcher13",
               "/repo/.git/objects",
             ],
             sandbox: expect.objectContaining({
               filesystem: {
-                allowWrite: ["/repo/.git/worktrees/bb13", "/repo/.git/objects"],
+                allowWrite: [
+                  "/repo/.git/worktrees/patcher13",
+                  "/repo/.git/objects",
+                ],
               },
             }),
           }),
@@ -2499,7 +2504,7 @@ describe("bridge", () => {
         workflowsEnabled: false,
         claudeCodeMockCliTraffic: DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
         additionalWorkspaceWriteRoots: [
-          "/repo/.git/worktrees/bb13",
+          "/repo/.git/worktrees/patcher13",
           "/repo/.git/objects",
         ],
         cwd: "/tmp/worktree",
@@ -2518,12 +2523,15 @@ describe("bridge", () => {
           options: expect.objectContaining({
             permissionMode: "auto",
             additionalDirectories: [
-              "/repo/.git/worktrees/bb13",
+              "/repo/.git/worktrees/patcher13",
               "/repo/.git/objects",
             ],
             sandbox: expect.objectContaining({
               filesystem: {
-                allowWrite: ["/repo/.git/worktrees/bb13", "/repo/.git/objects"],
+                allowWrite: [
+                  "/repo/.git/worktrees/patcher13",
+                  "/repo/.git/objects",
+                ],
               },
             }),
           }),

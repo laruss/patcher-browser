@@ -1,83 +1,66 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/e40bda56-54a4-47f8-a417-6bbadf2e5b40">
-    <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/4d9d02fb-c179-449b-a38a-041955143232">
-    <img alt="bb" src="https://github.com/user-attachments/assets/4d9d02fb-c179-449b-a38a-041955143232" width="128">
-  </picture>
+  <img alt="Patcher" src="assets/patcher-icon.png" width="128">
 </p>
 
-# bb
+# Patcher
 
-[![npm version](https://img.shields.io/npm/v/bb-app.svg)](https://www.npmjs.com/package/bb-app)
-[![Join Discord](https://img.shields.io/badge/Discord-Join%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/kvBU6tJhcJ)
-
-bb is an agentic IDE that builds itself. It can control, customize, and automate
+Patcher is an agentic IDE that builds itself. It can control, customize, and automate
 itself, laying the groundwork for your own software factory.
 
 Every surface — the desktop app, web app, CLI, and HTTP API — is a first-class
-way to drive bb. Work runs in threads you can follow live, steer at any point,
+way to drive Patcher. Work runs in threads you can follow live, steer at any point,
 or hand off to another agent.
 
 > [!NOTE]
-> bb is in active development. Core architecture is stable, but workflows
+> Patcher is in active development. Core architecture is stable, but workflows
 > and surfaces are still evolving.
 
-<p align="center">
-  <img alt="bb desktop app showing a code review thread, dispatch panel, and task board" src="assets/app-screenshot.png" width="800">
-</p>
+Patcher is a fork of [bb](https://github.com/get-bb/bb) by Michael Yong, and
+keeps its MIT license. It is developed independently: it has its own data
+directory, ports, package names, and plugin contract, and it neither reads nor
+migrates the state of a bb install. The two can be installed side by side.
 
-## Use bb
+## Use Patcher
 
-### Download the desktop app
+### There is no release yet
 
-The recommended way to start using bb is the desktop app:
+Patcher has not cut its first release. Nothing is published to npm, and the
+[releases page](https://github.com/laruss/patcher-browser/releases) is empty, so
+the only way to run it today is to build it from this repository — see
+[Development](#development).
 
-**[Download the latest desktop app](https://github.com/get-bb/bb/releases/tag/desktop-latest)**
+When there is one, the desktop app will be the way to install it, and
+[`.github/workflows/publish-patcher-app.yml`](./.github/workflows/publish-patcher-app.yml)
+is the workflow that cuts it.
 
-The desktop build is currently macOS Apple Silicon (arm64) only. Intel Mac and
-Linux users should run bb with `npx` instead. On Windows, run bb inside
-[WSL2 (Windows Subsystem for Linux)](https://learn.microsoft.com/windows/wsl/install):
-install WSL2 first, then run the same `npx` command below from your WSL2 (Linux)
-shell. Native Windows PowerShell and CMD are not supported.
+### Supported platforms
 
-Early adopters can install
-**[bb Nightly](https://github.com/get-bb/bb/releases/tag/desktop-nightly)**
-alongside the stable desktop app. It has a separate application identity,
-yellow icon, and auto-update feed.
+**macOS on Apple Silicon (arm64), and nothing else yet.** That is the only
+platform Patcher is built and tested for. The Electron shell is arm64-only by
+configuration; the server and CLI are plain Node and will probably run
+elsewhere, but nobody has checked.
 
-### Or run it anywhere with npx
+Patcher uses the provider CLI you already have authenticated.
 
-```bash
-npx bb-app@latest
-```
-
-Then open `http://localhost:38886`.
-
-To run the newest automated build instead:
-
-```bash
-npx bb-app@nightly
-```
-
-bb uses the provider CLI you already have authenticated.
-
-For install requirements, provider setup, configuration, and package-focused
-docs, start with
-[`packages/bb-app`](./packages/bb-app/README.md).
+Enrolling an additional machine from a running Patcher needs no registry: the
+server builds and serves its own `patcher-app` package, and the enrollment
+script installs that.
 
 ### Telemetry
 
-Production runs (the desktop app and `npx bb-app`) send anonymous usage
-telemetry (app starts, thread creation counts, and user message counts) to help
-us understand adoption. Identification is a random per-install id stored in your
+Patcher currently sends no telemetry: it ships with an empty PostHog key, and
+an empty key disables the sender. The code path is still there, and if a key is
+ever configured, production runs (the desktop app and the packaged launcher) would
+send anonymous usage telemetry (app starts, thread creation counts, and user
+message counts). Identification would be a random per-install id stored in your
 data dir — no user, host, project, workspace, or message content is ever
-attached. Development/source runs never send. Opt out any run with
-`BB_TELEMETRY=false`. See
+attached. Development/source runs never send. Opt out of any run with
+`PATCHER_TELEMETRY=false`. See
 [`apps/server/src/services/system/telemetry.ts`](./apps/server/src/services/system/telemetry.ts).
 
 ## Development
 
-Use the development loop when working on bb itself:
+Use the development loop when working on Patcher itself:
 
 ```bash
 bun run dev
@@ -86,10 +69,10 @@ bun run dev
 That starts the Vite app and proxies API and WebSocket traffic to a separate
 dev server. The launcher prints the actual ports at startup. Each checkout gets
 a data directory under
-`~/.bb-dev/<checkout-instance>/` and deterministic high ports derived from the
+`~/.patcher-dev/<checkout-instance>/` and deterministic high ports derived from the
 checkout path. The checkout instance id is the sanitized path to the checkout,
 relative to your home directory, plus a short hash suffix. Separate worktrees
-can run alongside each other and the packaged `npx bb-app@latest` instance.
+can run alongside each other and the packaged production instance.
 
 To run that same source dev server with the Electron desktop shell:
 
@@ -97,7 +80,7 @@ To run that same source dev server with the Electron desktop shell:
 bun run dev:desktop
 ```
 
-This uses `scripts/bb-dev-app current --desktop`, which stops stale launcher
+This uses `scripts/patcher-dev-app current --desktop`, which stops stale launcher
 sessions, checks dependencies and native modules, starts the source dev server,
 then opens the desktop shell against that dev app. The launcher prints the web
 URL but does not open a browser unless you pass `--open`.
@@ -146,15 +129,14 @@ bun run start
 ```
 
 That builds only the app, server, and host-daemon runtime artifacts, then runs
-the launcher directly against those workspace outputs. Use the `bb-app`
-tarball smoke task when validating the published `npx bb-app@latest` package
-layout.
+the launcher directly against those workspace outputs. Use the `patcher-app`
+tarball smoke task when validating the `patcher-app` package layout.
 
 ```bash
-bun run bb --help            # built CLI, targets the default/prod instance
+bun run patcher --help            # built CLI, targets the default/prod instance
 bun run reset                # clear production state
 
-bun run bb:dev --help        # source CLI, targets this checkout's dev instance
+bun run patcher:dev --help        # source CLI, targets this checkout's dev instance
 bun run reset:dev            # clear this checkout's dev state
 
 bun run reset:all            # clear both production and dev states
@@ -162,21 +144,20 @@ bun run reset:all            # clear both production and dev states
 
 These reset commands prompt for confirmation before deleting anything.
 
-## Repository Overview
-
-See [Repository overview](docs/repository-overview.md) for the monorepo package and app map.
-
-## System Overview
-
-See [System overview](docs/system-overview.md) for runtime architecture, data model, and component boundaries.
-
 ## Further Reading
 
-- [Vision](docs/VISION.md)
-- [Platform support](docs/platform-support.md)
-- [Configuration](docs/configuration.md)
-- [Using bb on multiple devices](docs/multiple-devices.md)
-- [Worktrees and setup scripts](docs/worktrees.md)
+Seven links here used to point at `docs/` pages the fork does not carry
+(`repository-overview`, `system-overview`, `VISION`, `platform-support`,
+`configuration`, `multiple-devices`, `worktrees`). What exists:
+
+- [AGENTS.md](AGENTS.md) — working agreements, and the invariants a passing build
+  does not protect
+- [Migration map](docs/architecture/bb-migration.md) — what this fork inherited,
+  and the contracts that must survive changing it
+- [Project plan](docs/PROJECT_PLAN.md) and [TODO](docs/TODO.md)
+- [Lifecycle diagrams](docs/lifecycle-diagrams.md)
+- [`docs/architecture/`](docs/architecture) — the browser surface, the plugin
+  contract, permissions, and the transport between them
 
 ## Contributing
 
@@ -186,9 +167,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ### `Could not locate the bindings file`
 
-bb uses native add-ons, for example `better-sqlite3` and `@parcel/watcher`. npm
+Patcher uses native add-ons, for example `better-sqlite3` and `@parcel/watcher`. npm
 downloads or builds those binaries in a package install script. If npm does not
-run install scripts, the binaries are absent. bb then stops at startup with this
+run install scripts, the binaries are absent. Patcher then stops at startup with this
 error:
 
 ```
@@ -196,22 +177,19 @@ Error: Could not locate the bindings file. Tried:
  → .../node_modules/better-sqlite3/build/better_sqlite3.node
 ```
 
-The usual cause is `ignore-scripts=true` in your `~/.npmrc`. Set the
-`npm_config_ignore_scripts` environment variable to let this one command run its
-install scripts:
+The usual cause is `ignore-scripts=true` in your `~/.npmrc`. The desktop app is
+unaffected — it ships its native modules prebuilt — so this bites the two paths
+that run `npm install` on your machine: enrolling a machine from a running
+Patcher, and building from this repository.
+
+Set the `npm_config_ignore_scripts` environment variable for that one command:
 
 ```bash
-npm_config_ignore_scripts=false npx bb-app@latest
+npm_config_ignore_scripts=false sh install.sh --join-code <code> --host-id <id> --server <url>
+npm_config_ignore_scripts=false bun install    # in a checkout
 ```
 
-For a permanent install with the same setting, use:
-
-```bash
-npm_config_ignore_scripts=false npm install -g bb-app
-bb-app
-```
-
-The environment variable applies to that one command only. Keep
+The environment variable applies to the command you put it in front of. Keep
 `ignore-scripts=true` in your `~/.npmrc` if you want it for security.
 
 The same error has other causes. A Node.js major-version change after the

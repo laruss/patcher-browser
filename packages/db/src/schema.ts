@@ -9,13 +9,13 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
-import { threadStatusValues } from "@bb/domain/thread-status";
+import { threadStatusValues } from "@patcher/domain/thread-status";
 import {
   threadChildOriginValues,
   threadOriginKindValues,
-} from "@bb/domain/thread-child-origin";
-import { threadVisibilityValues } from "@bb/domain/thread-visibility";
-import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "@bb/domain/browser-search-engine";
+} from "@patcher/domain/thread-child-origin";
+import { threadVisibilityValues } from "@patcher/domain/thread-visibility";
+import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "@patcher/domain/browser-search-engine";
 import type {
   EnvironmentStatus,
   FaviconColorPreference,
@@ -35,7 +35,7 @@ import type {
   ThreadEventType,
   WorkspaceProvisionType,
   ProjectKind,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export const authUsers = sqliteTable(
   "user",
@@ -204,7 +204,7 @@ export const appSettings = sqliteTable("app_settings", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-// Installed plugins registered by `bb plugin install`. Rows hold durable
+// Installed plugins registered by `patcher plugin install`. Rows hold durable
 // registration facts only; live status (running/error/…) is plugin-loader
 // memory served via GET /api/v1/plugins.
 export const installedPlugins = sqliteTable("plugins", {
@@ -313,7 +313,7 @@ export const pluginStateSnapshots = sqliteTable(
     }).notNull(),
     rollbackCandidateVersion: text("rollback_candidate_version"),
     rollbackSourceFingerprint: text("rollback_source_fingerprint"),
-    rollbackBbVersion: text("rollback_bb_version"),
+    rollbackPatcherVersion: text("rollback_bb_version"),
     rollbackSdkVersion: text("rollback_sdk_version"),
     rollbackDetail: text("rollback_detail"),
     createdAt: integer("created_at").notNull(),
@@ -326,7 +326,7 @@ export const pluginStateSnapshots = sqliteTable(
   ],
 );
 
-// Namespaced plugin key/value storage (`bb.storage.kv`). Values are JSON text;
+// Namespaced plugin key/value storage (`patcher.storage.kv`). Values are JSON text;
 // the plugin API caps them at 256KB before they reach this table.
 export const pluginKv = sqliteTable(
   "plugin_kv",
@@ -339,7 +339,7 @@ export const pluginKv = sqliteTable(
   (table) => [primaryKey({ columns: [table.pluginId, table.key] })],
 );
 
-// Non-secret plugin settings values (`bb.settings`). Values are JSON text;
+// Non-secret plugin settings values (`patcher.settings`). Values are JSON text;
 // `secret: true` values live in files under <dataDir>/plugins/<id>/secrets/
 // instead, never in the database.
 export const pluginSettings = sqliteTable(
@@ -353,7 +353,7 @@ export const pluginSettings = sqliteTable(
   (table) => [primaryKey({ columns: [table.pluginId, table.key] })],
 );
 
-// Durable rows for `bb.background.schedule`. Registration (plugin load)
+// Durable rows for `patcher.background.schedule`. Registration (plugin load)
 // upserts the row and computes next_run_at; the periodic sweep claims a due
 // row with a compare-and-swap on next_run_at, but only while its plugin is
 // loaded. Dispose keeps rows; removing the plugin deletes them.

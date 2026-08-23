@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { ThreadListEntry } from "@bb/domain";
-import type { ProjectResponse } from "@bb/server-contract";
+import type { ThreadListEntry } from "@patcher/domain";
+import type { ProjectResponse } from "@patcher/server-contract";
 import {
   BRANCH_NAMES,
   HOST_IDS,
@@ -64,7 +64,11 @@ const HIDDEN_ROLLUP_COMBOS: readonly (readonly RollupSignal[])[] =
   });
 
 function makeProject(overrides: Partial<ProjectResponse> = {}) {
-  return makeSharedProject({ id: PROJECT_IDS.bb, name: "bb", ...overrides });
+  return makeSharedProject({
+    id: PROJECT_IDS.patcher,
+    name: "Patcher",
+    ...overrides,
+  });
 }
 
 function makeThread(
@@ -165,7 +169,7 @@ function StoryThreadRow({
 }: StoryThreadRowProps) {
   return (
     <ThreadRow
-      projectId={PROJECT_IDS.bb}
+      projectId={PROJECT_IDS.patcher}
       thread={thread}
       isActive={isActive}
       hasComposerDraft={hasComposerDraft}
@@ -283,7 +287,7 @@ function makeWorktreeComboThreads(combo: readonly RollupSignal[]) {
   const environmentFields = {
     environmentId,
     environmentHostId: HOST_IDS.local,
-    environmentBranchName: `bb/status-${key}`,
+    environmentBranchName: `patcher/status-${key}`,
     environmentWorkspaceDisplayKind: "managed-worktree",
   } satisfies Partial<ThreadListEntry>;
 

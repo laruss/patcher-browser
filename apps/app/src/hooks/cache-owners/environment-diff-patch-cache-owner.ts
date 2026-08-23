@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { DiffPatchEntry } from "@bb/server-contract";
+import type { DiffPatchEntry } from "@patcher/server-contract";
 import { environmentDiffPatchQueryKey } from "../queries/query-keys";
 
 /**

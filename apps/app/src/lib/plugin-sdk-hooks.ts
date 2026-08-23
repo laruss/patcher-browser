@@ -8,10 +8,10 @@ import {
 } from "react";
 import { useQuery, type QueryKey } from "@tanstack/react-query";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import type {
-  BbContext,
-  BbNavigate,
+  PatcherContext,
+  PatcherNavigate,
   ComposerView,
   PluginComposerApi,
   PluginComposerMention,
@@ -19,7 +19,7 @@ import type {
   PluginRpcContract,
   PluginRpcClient,
   PluginSettingsState,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import {
   PluginSlotOwnershipContext,
   usePluginId,
@@ -53,7 +53,7 @@ import { useServerConnectionState } from "@/hooks/useServerConnectionState";
 import { wsManager } from "@/lib/ws";
 
 /**
- * Host implementations of the `@bb/plugin-sdk/app` hooks (plugin design
+ * Host implementations of the `@patcher/plugin-sdk/app` hooks (plugin design
  * §5.2). Every hook requires the PluginContext provider that PluginSlotMount
  * wraps around mounted slot components; the fetch-backed parts are split
  * into pure functions taking an injected `fetch` so tests can exercise the
@@ -272,7 +272,7 @@ export function useSettings(): PluginSettingsState {
   };
 }
 
-export function useBbContext(): BbContext {
+export function usePatcherContext(): PatcherContext {
   const { projectId, threadId } = useRouteState();
   return useMemo(
     () => ({ projectId: projectId ?? null, threadId: threadId ?? null }),
@@ -280,7 +280,7 @@ export function useBbContext(): BbContext {
   );
 }
 
-export function useBbNavigate(): BbNavigate {
+export function usePatcherNavigate(): PatcherNavigate {
   const pluginId = usePluginId();
   const location = useLocation();
   const openThreadPanelHandler = usePluginThreadPanelOpenHandler();
@@ -338,7 +338,7 @@ export function useBbNavigate(): BbNavigate {
     },
     [location.pathname, navigate, pluginId],
   );
-  const openThreadPanel = useCallback<BbNavigate["openThreadPanel"]>(
+  const openThreadPanel = useCallback<PatcherNavigate["openThreadPanel"]>(
     (options) => openThreadPanelHandler?.({ ...options, pluginId }) ?? false,
     [openThreadPanelHandler, pluginId],
   );

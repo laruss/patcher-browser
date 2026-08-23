@@ -1,4 +1,4 @@
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 import { ConversationMessageContent } from "@/components/thread/timeline/ConversationMessageContent";
 import { ThreadTimelineRows } from "@/components/thread/timeline/ThreadTimelineRows";
 import { PAGE_SHELL_CONTENT_STYLE } from "@/components/ui/page-shell-content-style";
@@ -30,7 +30,7 @@ function TimelineStage({ children }: { children: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// Real assistant messages pulled from live threads in ~/.bb-dev/bb.db.
+// Real assistant messages pulled from live threads in ~/.patcher-dev/patcher.db.
 // ---------------------------------------------------------------------------
 
 // thr_zzvsfyn7rm — "Investigate User Manual Issue"
@@ -51,7 +51,7 @@ const longMessage = `# Merge-readiness report
 
 ## Branch / main / merge base
 
-- **Branch:** \`bb/investigate-file-list-inconsistency-thr_3vw9r8igrb\`
+- **Branch:** \`patcher/investigate-file-list-inconsistency-thr_3vw9r8igrb\`
 - **Branch HEAD:** \`d61c0cf8\` — \`chore: drop dead onOpenFileDiff prop in ThreadDetailView after rebase\`
 - **Local main:** \`f49ae132\` — \`Classify provider status noise events\`
 - **Merge-base of branch and main:** \`f49ae132\` (branch is now linear on top of current main)
@@ -75,7 +75,7 @@ const longMessage = `# Merge-readiness report
 
 | Area | Change |
 |---|---|
-| **\`@bb/ui-core\` primitive (new)** | \`FilePathLink\` — clickable filename with hover-underline, optional \`external-link\` icon variant, integrates \`TruncateStart\` for path text. |
+| **\`@patcher/ui-core\` primitive (new)** | \`FilePathLink\` — clickable filename with hover-underline, optional \`external-link\` icon variant, integrates \`TruncateStart\` for path text. |
 | **\`apps/app\` Info tab** | \`WorkspaceChangesList\` files open the diff panel via \`onChangedFileClick\`, gated on \`canUseGitUi\`. |
 | **\`apps/app\` diff banner header** | \`GitDiffFileCard\` renders \`FilePathLink\` with \`variant="external"\` and a \`MoreHorizontal\` kebab → "Copy path". |
 | **Docs** | \`plans/tab-split-layout.md\` — Phase 2a (this branch) + Phase 2b (file tabs, blocked). |
@@ -124,7 +124,7 @@ export function FilePathLink({
 | \`WorkspaceChangesList\` migration | ✅ Preserved. Single \`onFileClick\` API. |
 | Info tab \`onChangedFileClick\` → opens diff panel | ✅ Preserved, gated on \`canUseGitUi\`. |
 | **DelegationRow "Working…" empty-state** | ✅ **Reimplemented** in \`WorkRowBody\`'s \`delegation\` case. Same trigger, same shimmer. |
-| **Click filename → open diff** | ❌ Dropped — needs a \`TimelineTitle\` contract change in \`@bb/thread-view\`. Outside scope. |
+| **Click filename → open diff** | ❌ Dropped — needs a \`TimelineTitle\` contract change in \`@patcher/thread-view\`. Outside scope. |
 
 ## Validation
 

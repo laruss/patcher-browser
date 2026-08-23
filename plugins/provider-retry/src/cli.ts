@@ -1,4 +1,4 @@
-import type { BbPluginApi, PluginCliContext } from "@bb/plugin-sdk";
+import type { PatcherPluginApi, PluginCliContext } from "@patcher/plugin-sdk";
 import type { ProviderRetryView } from "./contract.js";
 import type { ProviderRetryService } from "./service.js";
 
@@ -20,22 +20,22 @@ function textView(view: ProviderRetryView): string {
 }
 
 export function registerProviderRetryCli(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   service: ProviderRetryService,
 ): void {
-  bb.cli.register({
+  patcher.cli.register({
     name: "provider-retry",
     summary: "Manage pending automatic provider retries",
     commands: [
       {
         name: "status",
         summary: "Show pending automatic provider retries",
-        usage: "bb provider-retry status [thread-id] [--json]",
+        usage: "patcher provider-retry status [thread-id] [--json]",
       },
       {
         name: "cancel",
         summary: "Cancel a pending automatic provider retry",
-        usage: "bb provider-retry cancel <thread-id> [--json]",
+        usage: "patcher provider-retry cancel <thread-id> [--json]",
       },
     ],
     run(argv, context) {
@@ -44,7 +44,7 @@ export function registerProviderRetryCli(
         return {
           exitCode: 2,
           stderr:
-            "Usage: bb provider-retry <status|cancel> [thread-id] [--json]\n",
+            "Usage: patcher provider-retry <status|cancel> [thread-id] [--json]\n",
         };
       }
 
@@ -54,7 +54,7 @@ export function registerProviderRetryCli(
           return {
             exitCode: 2,
             stderr:
-              "A thread id is required: bb provider-retry cancel <thread-id>\n",
+              "A thread id is required: patcher provider-retry cancel <thread-id>\n",
           };
         }
         const cancelled = service.cancel(threadId);

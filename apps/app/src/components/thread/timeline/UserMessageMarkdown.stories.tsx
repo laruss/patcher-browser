@@ -1,6 +1,6 @@
-import type { PromptMentionResource, PromptTextMention } from "@bb/domain";
-import type { TimelineConversationTurnRequest } from "@bb/server-contract";
-import type { TimelineTitleLink } from "@bb/thread-view";
+import type { PromptMentionResource, PromptTextMention } from "@patcher/domain";
+import type { TimelineConversationTurnRequest } from "@patcher/server-contract";
+import type { TimelineTitleLink } from "@patcher/thread-view";
 import type { ReactNode } from "react";
 import { ConversationMessageContent } from "@/components/thread/timeline/ConversationMessageContent";
 import {

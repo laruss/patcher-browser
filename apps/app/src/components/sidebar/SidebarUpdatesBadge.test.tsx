@@ -2,9 +2,9 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { TooltipProvider } from "@bb/shared-ui/tooltip";
-import type { Host } from "@bb/domain";
-import type { ProviderCliKey } from "@bb/host-daemon-contract";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
+import type { Host } from "@patcher/domain";
+import type { ProviderCliKey } from "@patcher/host-daemon-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProviderCliIssue } from "@/components/provider-cli/provider-cli-install";
 import type {
@@ -75,7 +75,7 @@ function missingInstallIssue(
     },
     action: null,
     title: `${displayName} CLI not installed`,
-    description: `Install ${displayName} so bb can start ${displayName} sessions.`,
+    description: `Install ${displayName} so Patcher can start ${displayName} sessions.`,
     fingerprint: `${provider}:missing:1.1.0`,
   };
 }
@@ -136,28 +136,28 @@ describe("SidebarUpdatesBadge", () => {
     expect(result.container.innerHTML).toBe("");
   });
 
-  it("shows only the bb chip for a bb-only update", () => {
+  it("shows only the Patcher chip for a Patcher-only update", () => {
     renderBadge({ appUpdateAvailable: true });
 
-    expect(screen.getByTestId("sidebar-updates-badge-bb")).toBeTruthy();
+    expect(screen.getByTestId("sidebar-updates-badge-patcher")).toBeTruthy();
     expect(screen.queryByTestId("sidebar-updates-badge-providers")).toBeNull();
   });
 
-  it("counts a daemon stuck on an old protocol as a bb update, not a provider one", () => {
+  it("counts a daemon stuck on an old protocol as a Patcher update, not a provider one", () => {
     renderBadge({ machines: [machine({ canRetryDaemonUpdate: true })] });
 
-    expect(screen.getByTestId("sidebar-updates-badge-bb")).toBeTruthy();
+    expect(screen.getByTestId("sidebar-updates-badge-patcher")).toBeTruthy();
     expect(screen.queryByTestId("sidebar-updates-badge-providers")).toBeNull();
   });
 
-  it("shows only the provider chip when bb itself is current", () => {
+  it("shows only the provider chip when Patcher itself is current", () => {
     renderBadge({
       machines: [
         machine({ issues: [providerIssue("claudeCode", "Claude Code")] }),
       ],
     });
 
-    expect(screen.queryByTestId("sidebar-updates-badge-bb")).toBeNull();
+    expect(screen.queryByTestId("sidebar-updates-badge-patcher")).toBeNull();
     expect(
       screen
         .getByTestId("sidebar-updates-badge-providers")
@@ -175,10 +175,10 @@ describe("SidebarUpdatesBadge", () => {
     });
 
     expect(screen.queryByTestId("sidebar-updates-badge-providers")).toBeNull();
-    expect(screen.queryByTestId("sidebar-updates-badge-bb")).toBeNull();
+    expect(screen.queryByTestId("sidebar-updates-badge-patcher")).toBeNull();
   });
 
-  it("still shows the bb chip when the only provider issue is a missing CLI", () => {
+  it("still shows the Patcher chip when the only provider issue is a missing CLI", () => {
     renderBadge({
       appUpdateAvailable: true,
       machines: [
@@ -188,7 +188,7 @@ describe("SidebarUpdatesBadge", () => {
       ],
     });
 
-    expect(screen.getByTestId("sidebar-updates-badge-bb")).toBeTruthy();
+    expect(screen.getByTestId("sidebar-updates-badge-patcher")).toBeTruthy();
     expect(screen.queryByTestId("sidebar-updates-badge-providers")).toBeNull();
   });
 
@@ -216,6 +216,6 @@ describe("SidebarUpdatesBadge", () => {
       "Codex and Claude Code updates available",
     );
     expect(providerChip.querySelectorAll("svg[viewBox]").length).toBe(3);
-    expect(screen.getByTestId("sidebar-updates-badge-bb")).toBeTruthy();
+    expect(screen.getByTestId("sidebar-updates-badge-patcher")).toBeTruthy();
   });
 });

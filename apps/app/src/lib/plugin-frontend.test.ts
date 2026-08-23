@@ -137,19 +137,17 @@ describe("loadPluginFrontends", () => {
 });
 
 describe("installPluginRuntime", () => {
-  type RuntimeHost = typeof globalThis & { __bbPluginRuntime?: unknown };
+  type RuntimeHost = typeof globalThis & { __patcherPluginRuntime?: unknown };
 
   afterEach(() => {
-    delete (globalThis as RuntimeHost).__bbPluginRuntime;
+    delete (globalThis as RuntimeHost).__patcherPluginRuntime;
   });
 
   it("exposes the app's own runtime modules on every shim slot, exactly once", () => {
     installPluginRuntime();
-    const runtime = (globalThis as RuntimeHost).__bbPluginRuntime as Record<
-      string,
-      unknown
-    >;
-    // The shim slot names `bb plugin build` emits (react ×5 + SDK + the
+    const runtime = (globalThis as RuntimeHost)
+      .__patcherPluginRuntime as Record<string, unknown>;
+    // The shim slot names `patcher plugin build` emits (react ×5 + SDK + the
     // shared-singleton packages: portal radix families, sonner, vaul,
     // @pierre/diffs).
     expect(Object.keys(runtime).sort()).toEqual([
@@ -185,6 +183,6 @@ describe("installPluginRuntime", () => {
 
     // A second call never replaces an installed runtime.
     installPluginRuntime();
-    expect((globalThis as RuntimeHost).__bbPluginRuntime).toBe(runtime);
+    expect((globalThis as RuntimeHost).__patcherPluginRuntime).toBe(runtime);
   });
 });

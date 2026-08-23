@@ -4,12 +4,12 @@ import {
   type PromptInput,
   serviceTierSchema,
   type ServiceTier,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS as SDK_DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS,
   DEFAULT_THREAD_WAIT_TIMEOUT_MS,
   type ThreadWaitTarget,
-} from "@bb/sdk";
+} from "@patcher/sdk";
 import { joinValues } from "../helpers.js";
 
 export const THREAD_WAIT_EXIT_CODE_TIMEOUT = 2;

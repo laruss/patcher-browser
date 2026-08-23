@@ -3,19 +3,19 @@ import * as React from "react";
 import { flushSync } from "react-dom";
 import { Slot } from "@radix-ui/react-slot";
 
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { useBrowserDimmingModal } from "@/hooks/useBrowserDimmingModal";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { Button } from "@bb/shared-ui/button";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { Icon } from "@bb/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { Button } from "@patcher/shared-ui/button";
+import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/tooltip";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "min(90vw, 320px)";
@@ -788,7 +788,7 @@ const Sidebar = React.forwardRef<
             // The visibility leg hides the fully collapsed offcanvas panel
             // after the slide-out so its mounted rows stop painting (#1261);
             // the zero delay on expand shows it again immediately.
-            "fixed inset-y-0 z-10 flex h-(--bb-shell-height) w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground [transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_0s]",
+            "fixed inset-y-0 z-10 flex h-(--patcher-shell-height) w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground [transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_0s]",
             "group-data-[collapsible=offcanvas]:invisible group-data-[collapsible=offcanvas]:[transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_200ms]",
             side === "left"
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
@@ -1405,7 +1405,7 @@ const SidebarMobilePanel = React.forwardRef<
             // initial containing block, so it reads the shell unit directly.
             // touch-pan-y hands horizontal touch moves to the drag-to-close
             // handler while leaving vertical list scrolling native.
-            "group fixed inset-y-0 z-40 flex h-(--bb-shell-height) w-(--sidebar-width-mobile) touch-pan-y flex-col bg-sidebar text-sidebar-foreground outline-none will-change-[translate]",
+            "group fixed inset-y-0 z-40 flex h-(--patcher-shell-height) w-(--sidebar-width-mobile) touch-pan-y flex-col bg-sidebar text-sidebar-foreground outline-none will-change-[translate]",
             SIDEBAR_MOBILE_PANEL_TRANSITION_CLASS,
             side === "left"
               ? "left-0 data-[state=closed]:-translate-x-full"
@@ -2052,7 +2052,7 @@ interface SidebarStickyTierProps extends React.ComponentProps<"div"> {
 }
 
 type SidebarStickyParentLevelStyle = React.CSSProperties & {
-  "--bb-sidebar-sticky-parent-level": number;
+  "--patcher-sidebar-sticky-parent-level": number;
 };
 
 const SidebarStickyStack = React.forwardRef<
@@ -2079,7 +2079,7 @@ const SidebarStickyTier = React.forwardRef<
     tier === "parent" && level !== undefined
       ? ({
           ...style,
-          "--bb-sidebar-sticky-parent-level": level,
+          "--patcher-sidebar-sticky-parent-level": level,
         } satisfies SidebarStickyParentLevelStyle)
       : style;
   return (

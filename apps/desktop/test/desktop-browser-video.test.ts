@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  BB_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES,
-  BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES,
+  PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH,
+} from "@patcher/desktop-contract";
 import { BrowserVideoRecording } from "../src/desktop-browser-video.js";
 
 describe("BrowserVideoRecording", () => {
@@ -29,10 +29,10 @@ describe("BrowserVideoRecording", () => {
 
   it("stops keeping frames once they weigh what the bridge will carry", () => {
     const recording = new BrowserVideoRecording(0, 1);
-    const frame = "x".repeat(BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH);
+    const frame = "x".repeat(PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH);
     const fit = Math.floor(
-      BB_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH /
-        BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_VIDEO_BASE64_LENGTH /
+        PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH,
     );
 
     for (let index = 0; index <= fit; index += 1) {
@@ -48,7 +48,7 @@ describe("BrowserVideoRecording", () => {
     const recording = new BrowserVideoRecording(0, 1);
 
     recording.offerFrame(
-      "x".repeat(BB_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH + 1),
+      "x".repeat(PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAME_BASE64_LENGTH + 1),
       0,
     );
     recording.offerFrame("small", 1_000);
@@ -61,12 +61,12 @@ describe("BrowserVideoRecording", () => {
   it("never keeps more frames than the wire's own limit", () => {
     const recording = new BrowserVideoRecording(0, 1);
 
-    for (let index = 0; index <= BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES; index += 1) {
+    for (let index = 0; index <= PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES; index += 1) {
       recording.offerFrame("f", index * 1_000);
     }
 
     expect(recording.finish(0).frames).toHaveLength(
-      BB_DESKTOP_BROWSER_MAX_VIDEO_FRAMES,
+      PATCHER_DESKTOP_BROWSER_MAX_VIDEO_FRAMES,
     );
   });
 

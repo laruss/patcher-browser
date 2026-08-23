@@ -47,7 +47,7 @@ tomorrow a write." This is the write.
 
 Reducing an error to data is usually lossy in a way that matters. Here it is
 not, because this codebase had already decided that **error identity is the
-name**: `@bb/plugin-sdk`'s contract says so ("Runtime classes stay host-side.
+name**: `@patcher/plugin-sdk`'s contract says so ("Runtime classes stay host-side.
 NeedsConfigurationError in particular is matched by NAME"),
 `isNeedsConfigurationError` tests `error.name`, and plugin authors are told to
 throw `Object.assign(new Error(msg), { name: "..." })`.
@@ -135,13 +135,13 @@ hanging it.
 ## The plugin process
 
 `plugin-child-runtime.ts` is a plugin running in its own process, and the
-decision that shapes it is what it does **not** contain: a second `bb`.
+decision that shapes it is what it does **not** contain: a second `patcher`.
 
 `createPluginApi` already took every host-facing capability as an injected
 function. That was always the seam — it just pointed at the server. So the
 plugin's process builds the _same_ object with those functions pointed at the
-channel, and there is one copy of what `bb.storage.kv.set` means, of the 256KB
-limit, of every error string. A hand-written plugin-side `bb` would have been
+channel, and there is one copy of what `patcher.storage.kv.set` means, of the 256KB
+limit, of every error string. A hand-written plugin-side `patcher` would have been
 the third time this repo paid for two descriptions of one thing.
 
 Making that possible took one narrow change: `createPluginApi` took a
@@ -176,23 +176,25 @@ anything when the function returns `unknown`: `undefined` is a perfectly good
 
 Building it surfaced something the catalogue had no field for.
 `createPluginApi` takes three capabilities as **synchronous** functions, and
-the `bb` members behind them do not await:
+the `patcher` members behind them do not await:
 
-| Path                       | Why it cannot be a request                            |
-| -------------------------- | ----------------------------------------------------- |
-| `browser.getStatus`        | read from `bb.agents.configure()`, which cannot await |
-| `agents.registerTool`      | rejects a name another plugin took, at registration   |
-| `hosts.declareSharedPorts` | validates against host policy and returns void        |
+| Path                  | Why it cannot be a request                                 |
+| --------------------- | ---------------------------------------------------------- |
+| `browser.getStatus`   | read from `patcher.agents.configure()`, which cannot await |
+| `agents.registerTool` | rejects a name another plugin took, at registration        |
 
 Their arguments and results serialise perfectly, which is exactly why they were
-easy to miss. `synchronousHostState` now marks them, and the answers differ:
-the first two get a pushed copy (a stale copy can only produce a worse error
-message, never a wrong decision, and the host stays authoritative for tool
-names because it is the only process that sees every plugin). The third must
-not — a port policy is a decision, not a fact — so the host validates what it
-is told and a refusal reaches the plugin as a log line rather than a throw.
-**That is the one place this boundary is not transparent**, and it is recorded
-rather than smoothed over.
+easy to miss. `synchronousHostState` marks them, and both get a pushed copy: a
+stale copy can only produce a worse error message, never a wrong decision, and
+the host stays authoritative for tool names because it is the only process that
+sees every plugin.
+
+There was a third, `hosts.declareSharedPorts`, and it was the one place this
+boundary was not transparent: a port policy is a decision rather than a fact, so
+the host validated what it was told and a refusal reached the plugin as a log
+line rather than a throw. Shared ports went with the cloud, and the asymmetry
+went with them — recorded here because the shape will come back the first time a
+plugin needs a decision rather than a value.
 
 ## Topology, decided by measurement
 
@@ -214,16 +216,16 @@ attacking — twice. `apps/server/scripts/measure-plugin-host.mjs` reproduces
 every number here: it builds the host the way the release does, forks it, and
 reads resident memory from the outside, because what a package costs is what it
 _runs_, not how many bytes of it were bundled. (A bundle-size breakdown says
-zod is 551 KB and luxon 258 KB; the memory says `@bb/sdk` is 149 MB and hono is
+zod is 551 KB and luxon 258 KB; the memory says `@patcher/sdk` is 149 MB and hono is
 0.5 MB.)
 
 ### What the 120 MB was
 
-**`@bb/sdk`: ~100 MB.** It pulls `createApiClient`, which constructs the whole
+**`@patcher/sdk`: ~100 MB.** It pulls `createApiClient`, which constructs the whole
 public API surface — every route, every schema — at import time, in every
-plugin process, whether or not the plugin ever touches `bb.sdk`. It is now
+plugin process, whether or not the plugin ever touches `patcher.sdk`. It is now
 loaded on first use. The awkward part is that `getSdk()` is synchronous and
-must stay so: `bb.sdk.guide.render()` answers without awaiting anything. A
+must stay so: `patcher.sdk.guide.render()` answers without awaiting anything. A
 literal `require()` is what makes a synchronous deferral possible — the bundler
 keeps the module in the bundle and initialises it on the first call, so the
 process stays self-contained; under tsx there is no `require` in scope and
@@ -231,25 +233,25 @@ process stays self-contained; under tsx there is no `require` in scope and
 one by a forked `plugin-host-entry.ts`, the bundled one by
 `plugin-host-bundle.test.ts`, which builds the real bundle.
 
-**`@bb/domain`'s index: ~57 MB.** Importing one constant from it runs every
+**`@patcher/domain`'s index: ~57 MB.** Importing one constant from it runs every
 schema in the package. `plugin-api.ts` and `plugin-permission-gate.ts` take
-subpaths now (`@bb/domain/browser-control`, `/plugin-permissions`,
+subpaths now (`@patcher/domain/browser-control`, `/plugin-permissions`,
 `/app-keybindings`, `/pending-interactions`, `/json-value`, `/browser-history`)
 — the same files, without the rest of the package. Same file means one copy in a
 process that also loads the index, so nothing is duplicated.
 
 The budget in `plugin-host-bundle.test.ts` is what keeps this honest, and it has
 already caught a barrel import walking back in: a history filter took one length
-cap from `@bb/domain`, and every host process went from ~67 MB to ~105 MB. A file
+cap from `@patcher/domain`, and every host process went from ~67 MB to ~105 MB. A file
 this list does not mention can still be in the graph — check before importing
 into anything `plugin-child-runtime.ts` reaches.
 
-**`@bb/db`: gone from the graph.** `plugin-api.ts` imported
+**`@patcher/db`: gone from the graph.** `plugin-api.ts` imported
 `registerSettingDescriptors` from `plugin-settings.ts`, and that module also
 reads and writes values — so every plugin process loaded drizzle and
 better-sqlite3 to get a validator. Describing settings and storing them are now
 separate modules. It bought little memory (~1 MB; `better-sqlite3` itself is
-2 MB and stays, for `bb.storage.database()`) and one real thing: the bundle no
+2 MB and stays, for `patcher.storage.database()`) and one real thing: the bundle no
 longer needs the native module resolvable just to start.
 
 What is left is ~34 MB over bare Node: browser-control's schemas (~22 MB) and
@@ -282,26 +284,26 @@ with the backoff switched off.
 ### And what the next 17 MB was
 
 The first pass took out the two biggest imports. The second took out the idea
-that a plugin process should load an area of `bb` the plugin never calls, and
+that a plugin process should load an area of `patcher` the plugin never calls, and
 it is worth stating as a rule because it is what the numbers kept saying:
 
 > Nothing in `plugin-api.ts`'s startup path should be there for a corner of
-> `bb` this plugin has not touched.
+> `patcher` this plugin has not touched.
 
 - **cron-parser (luxon), ~11 MB** — one call, validating a cron expression at
-  `bb.background.schedule`. A plugin with no schedules paid for a date library.
-- **The browser-control schemas, ~23 MB** — argument checks for `bb.browser.*`,
+  `patcher.background.schedule`. A plugin with no schedules paid for a date library.
+- **The browser-control schemas, ~23 MB** — argument checks for `patcher.browser.*`,
   of which ~9 MB is zod itself. A plugin that never drives a tab paid for all
   of it.
 - **zod, ~9 MB, three more ways in.** The interesting ones were not deferrals
-  but splits: `@bb/domain/plugin-permissions` is in every process (the gate
+  but splits: `@patcher/domain/plugin-permissions` is in every process (the gate
   reads its tables) and needed zod for a single `z.enum(PLUGIN_PERMISSIONS)`,
   and `plugin-api.ts` imported one number out of `pending-interactions.ts`'s 500
   lines of schemas. Both are now their own module — `plugin-permission-schema.ts`
   and `plugin-interaction-limits.ts` — and the file the host loads is zod-free.
   What was left (the settings-descriptor schema, `z.toJSONSchema` for agent
   tools, the keybinding id) is built on first use.
-- **better-sqlite3, ~2 MB and a dlopen** — deferred to `bb.storage.database()`.
+- **better-sqlite3, ~2 MB and a dlopen** — deferred to `patcher.storage.database()`.
   This one is the exception to the mechanism: natives are external to the
   bundle, so it resolves from disk in both branches rather than out of the
   bundle. `plugin-host-bundle.test.ts` opens a database in the real bundle,
@@ -316,7 +318,7 @@ trade than the megabytes are worth.
 
 `plugin-host-call-server.ts` receives a `PluginHostCallPath` and performs it
 against the server's real dependencies — the other end of every call the
-plugin's `bb` makes.
+plugin's `patcher` makes.
 
 It takes **the same options object `createPluginApi` does**. The loader builds
 those capabilities once and hands the same object either to `createPluginApi`
@@ -359,7 +361,7 @@ moving them would buy isolation from ourselves and cost the one thing the
 boundary cannot carry (a streaming HTTP response). Catalog plugins are the
 opposite case on both counts and move like any other install.
 
-`BB_PLUGIN_PROCESS=false` loads everything in the server again. It exists as a
+`PATCHER_PLUGIN_PROCESS=false` loads everything in the server again. It exists as a
 way back if the boundary breaks something in the field, not as a per-plugin
 knob; deciding placement per plugin would need somewhere to keep the decision,
 and no one has asked for that yet.
@@ -370,7 +372,7 @@ The hook takes the plugin's row rather than its id because the policy reads
 
 Where a plugin ended up is then **reported, not inferred**: `placement` on the
 list entry is `"process"`, `"server"`, or null for a plugin that is not loaded,
-and `bb plugin list` prints it. Intent and outcome differ here — the move is
+and `patcher plugin list` prints it. Intent and outcome differ here — the move is
 best effort — so a policy that says "process" and a plugin that fell back to the
 server is a state an operator has to be able to see. The reason for the fallback
 is already in `statusDetail`.
@@ -396,7 +398,7 @@ finishes into a live instance nobody holds while the same plugin runs here —
 one plugin, two live copies, one of them invisible.
 
 A fallback costs a second run of the factory, which is survivable only because
-a factory has always had to be re-runnable (`bb plugin reload` re-runs it on
+a factory has always had to be re-runnable (`patcher plugin reload` re-runs it on
 every reload).
 
 And every fallback is **named in the plugin's status detail**, not just logged.
@@ -437,7 +439,7 @@ the old one. So recovery worked and the plugin was unreachable anyway: every
 call came back `plugin channel … closed`. The remote handle holds the instance
 id and looks the channel up per call now. (What a restart does not refresh is
 the registration snapshot: the reinstated process runs the same entry file, and
-picking up an edited plugin is what `bb plugin reload` is for.)
+picking up an edited plugin is what `patcher plugin reload` is for.)
 
 When the crash budget runs out, the supervisor stops trying — and that used to
 be the whole story. The plugins in that process stayed registered with shut
@@ -465,7 +467,7 @@ A fixture importing `zod` failed to load in a plugin process with
 `Cannot find module 'zod'`, which read as the plugin process resolving
 differently. It does not: the same fixture fails the same way **in-process**.
 A bare source tree in a temp directory has no `node_modules` and nothing along
-its parent chain to find, and only `PLUGIN_SERVER_EXTERNALS` — `@bb/plugin-sdk`
+its parent chain to find, and only `PLUGIN_SERVER_EXTERNALS` — `@patcher/plugin-sdk`
 and `better-sqlite3` — is aliased to the server's copy. Real plugins have their
 dependencies installed in their own tree or inlined into `dist/server.js` at
 build time.

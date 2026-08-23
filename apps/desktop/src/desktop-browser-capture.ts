@@ -1,4 +1,4 @@
-import { BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@patcher/desktop-contract";
 
 /**
  * Capturing the whole document rather than the visible viewport.
@@ -35,7 +35,7 @@ import { BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@bb/desktop-contract
  * this shell injects: the caller supplies no part of it, so a page has nothing
  * to inject into.
  */
-export const BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT = `(() => {
+export const PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT = `(() => {
   const doc = document.documentElement;
   const body = document.body;
   const measure = (name) =>
@@ -87,10 +87,16 @@ export function parseBrowserCaptureRegion(
   const flooredWidth = Math.floor(width);
   const flooredHeight = Math.floor(height);
   return {
-    width: Math.min(flooredWidth, BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION),
-    height: Math.min(flooredHeight, BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION),
+    width: Math.min(
+      flooredWidth,
+      PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+    ),
+    height: Math.min(
+      flooredHeight,
+      PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+    ),
     truncated:
-      flooredWidth > BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION ||
-      flooredHeight > BB_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
+      flooredWidth > PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION ||
+      flooredHeight > PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
   };
 }

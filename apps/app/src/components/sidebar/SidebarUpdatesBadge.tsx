@@ -1,8 +1,12 @@
 import { Link } from "react-router-dom";
-import type { ProviderCliKey } from "@bb/host-daemon-contract";
-import { Icon } from "@bb/shared-ui/icon";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
-import { cn } from "@bb/shared-ui/lib/utils";
+import type { ProviderCliKey } from "@patcher/host-daemon-contract";
+import { Icon } from "@patcher/shared-ui/icon";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@patcher/shared-ui/tooltip";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { SidebarMenuItem } from "@/components/ui/sidebar.js";
 import { useUpdateInventory } from "@/hooks/useUpdateInventory";
 import {
@@ -52,7 +56,7 @@ interface StaleProvider {
 /**
  * The quiet update affordance (BB-48): small outlined chips in the sidebar
  * footer's lower-right corner, rendered only while an update needs attention.
- * Updates split into the two buckets a user acts on separately — bb itself
+ * Updates split into the two buckets a user acts on separately — Patcher itself
  * (app release, downloaded desktop update, or a daemon stuck on an old
  * protocol) and the agent CLIs, which carry their own brand marks so it is
  * clear which agent is stale without hovering. Both chips open the
@@ -68,7 +72,7 @@ export function SidebarUpdatesBadge({ onNavigate }: SidebarUpdatesBadgeProps) {
   const stuckDaemonCount = inventory.machines.filter(
     (machine) => machine.canRetryDaemonUpdate,
   ).length;
-  const bbUpdateCount =
+  const patcherUpdateCount =
     (inventory.appUpdateAvailable ? 1 : 0) +
     (inventory.desktopUpdateReady ? 1 : 0) +
     stuckDaemonCount;
@@ -95,13 +99,15 @@ export function SidebarUpdatesBadge({ onNavigate }: SidebarUpdatesBadgeProps) {
     return stale === undefined ? [] : [stale];
   });
 
-  if (bbUpdateCount === 0 && staleProviders.length === 0) {
+  if (patcherUpdateCount === 0 && staleProviders.length === 0) {
     return null;
   }
 
   const updatesRoutePath = getSettingsRoutePath("updates");
-  const bbLabel =
-    bbUpdateCount === 1 ? "bb update available" : "bb updates available";
+  const patcherLabel =
+    patcherUpdateCount === 1
+      ? "Patcher update available"
+      : "Patcher updates available";
   const providerLabel = `${joinNames(
     staleProviders.map((stale) => stale.displayName),
   )} ${staleProviders.length === 1 ? "update" : "updates"} available`;
@@ -111,21 +117,21 @@ export function SidebarUpdatesBadge({ onNavigate }: SidebarUpdatesBadgeProps) {
     // sidebar footer renders before this item, not from a margin here — a
     // margin would also push the chips right on their own wrapped line.
     <SidebarMenuItem className="flex min-w-0 items-center gap-1">
-      {bbUpdateCount > 0 ? (
+      {patcherUpdateCount > 0 ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
               to={updatesRoutePath}
               onClick={onNavigate}
-              aria-label={bbLabel}
-              data-testid="sidebar-updates-badge-bb"
+              aria-label={patcherLabel}
+              data-testid="sidebar-updates-badge-patcher"
               className={CHIP_CLASS}
             >
               <Icon name="Download" className="size-3 text-muted-foreground" />
-              bb
+              Patcher
             </Link>
           </TooltipTrigger>
-          <TooltipContent side="top">{bbLabel}</TooltipContent>
+          <TooltipContent side="top">{patcherLabel}</TooltipContent>
         </Tooltip>
       ) : null}
       {staleProviders.length > 0 ? (

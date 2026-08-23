@@ -1,10 +1,13 @@
-import { threadScope, turnScope } from "@bb/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import type {
   ThreadEvent,
   ThreadEventBackgroundTaskItem,
   WorkflowProgressSnapshot,
-} from "@bb/domain";
-import type { TimelineRow, TimelineWorkflowWorkRow } from "@bb/server-contract";
+} from "@patcher/domain";
+import type {
+  TimelineRow,
+  TimelineWorkflowWorkRow,
+} from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import {
   buildThreadTimelineFromEvents,

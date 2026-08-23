@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
-  BbNavigate,
+  PatcherNavigate,
   JsonValue,
   PluginThreadPanelActionContext,
   PluginThreadPanelProps,
@@ -11,7 +11,7 @@ import type { JsonValue as AppJsonValue } from "../app.js";
 type OpenPanelOptions = NonNullable<
   Parameters<PluginThreadPanelActionContext["openPanel"]>[0]
 >;
-type NavigatePanelOptions = Parameters<BbNavigate["openThreadPanel"]>[0];
+type NavigatePanelOptions = Parameters<PatcherNavigate["openThreadPanel"]>[0];
 
 describe("plugin SDK JsonValue contract", () => {
   it("types parameter writes as JsonValue and persisted reads as JsonValue or null", () => {
@@ -41,11 +41,14 @@ describe("plugin SDK JsonValue contract", () => {
   it("exports JsonValue from both bundled frontend declaration surfaces", async () => {
     const [rootDeclarations, appDeclarations] = await Promise.all([
       readFile(
-        new URL("../../bundled-types/bb-plugin-sdk.d.ts", import.meta.url),
+        new URL("../../bundled-types/patcher-plugin-sdk.d.ts", import.meta.url),
         "utf8",
       ),
       readFile(
-        new URL("../../bundled-types/bb-plugin-sdk-app.d.ts", import.meta.url),
+        new URL(
+          "../../bundled-types/patcher-plugin-sdk-app.d.ts",
+          import.meta.url,
+        ),
         "utf8",
       ),
     ]);

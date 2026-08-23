@@ -8,11 +8,11 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BbDesktopBrowserApi } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserApi } from "@patcher/desktop-contract";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import {
   createOmniboxHistoryProvider,
   createOmniboxNavigationProvider,
@@ -22,7 +22,7 @@ import {
   type OmniboxProvider,
 } from "@/lib/omnibox";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
-import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@bb/domain/browser-search-engine";
+import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@patcher/domain/browser-search-engine";
 import { BrowserSurfaceChrome } from "./BrowserSurfaceChrome";
 
 /** Named rather than assumed: the provider has no default engine any more. */
@@ -71,7 +71,7 @@ function builtInProviders(): readonly OmniboxProvider[] {
 }
 
 interface RenderChromeResult {
-  browser: BbDesktopBrowserApi;
+  browser: PatcherDesktopBrowserApi;
   input: HTMLInputElement;
   navigate: ReturnType<typeof vi.fn>;
   onActivateTab: ReturnType<typeof vi.fn>;
@@ -88,7 +88,7 @@ function renderChrome(
   const onActivateTab = vi.fn();
   const onPageOverlayChange = vi.fn();
   const browser = { ...createNoopDesktopBrowserApi(), navigate };
-  window.bbDesktop = createBbDesktopApi(desktopInfo, browser);
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, browser);
 
   // A query client because the site-info panel fetches what plugins know about
   // the site when it opens; the rest of the chrome needs none.
@@ -336,7 +336,7 @@ describe("BrowserSurfaceChrome", () => {
   });
 
   // A page served from this machine has no network to be insecure on, and the
-  // old glyph warned about bb's own pages.
+  // old glyph warned about Patcher's own pages.
   it("does not warn about a loopback page", () => {
     renderChrome("http://localhost:5173/");
 
@@ -357,14 +357,14 @@ describe("BrowserSurfaceChrome", () => {
 
   it("enables back and forward from the native view's own state", () => {
     const listeners: ((state: unknown) => void)[] = [];
-    const browser: BbDesktopBrowserApi = {
+    const browser: PatcherDesktopBrowserApi = {
       ...createNoopDesktopBrowserApi(),
       onState(listener) {
         listeners.push(listener as (state: unknown) => void);
         return () => {};
       },
     };
-    window.bbDesktop = createBbDesktopApi(desktopInfo, browser);
+    window.patcherDesktop = createPatcherDesktopApi(desktopInfo, browser);
     const { wrapper: Wrapper } = createQueryClientTestHarness();
     render(
       <Wrapper>
@@ -406,7 +406,7 @@ describe("BrowserSurfaceChrome", () => {
 
   it("ignores state pushed for another tab", () => {
     const listeners: ((state: unknown) => void)[] = [];
-    window.bbDesktop = createBbDesktopApi(desktopInfo, {
+    window.patcherDesktop = createPatcherDesktopApi(desktopInfo, {
       ...createNoopDesktopBrowserApi(),
       onState(listener) {
         listeners.push(listener as (state: unknown) => void);

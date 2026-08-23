@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   getLatestThreadSequence,
   listQueuedThreadMessages,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   createStandaloneBuiltinCompactCommandInput,
   turnScope,
-} from "@bb/domain";
-import type { ClientTurnRequestId } from "@bb/domain";
+} from "@patcher/domain";
+import type { ClientTurnRequestId } from "@patcher/domain";
 import { applyTurnCompletedEvent } from "../../src/internal/turn-completed-events.js";
 import { sendNextQueuedMessageIfPresent } from "../../src/services/threads/queued-messages.js";
 import {

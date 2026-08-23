@@ -11,7 +11,7 @@ import { useEffect, type ComponentType } from "react";
 import { createStore, Provider } from "jotai";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { SidebarProvider } from "@/components/ui/sidebar.js";
 import {
   resetPluginSlotStoreForTest,
@@ -159,7 +159,7 @@ describe("PluginNavSidebarItems", () => {
       screen.getByRole("button", { name: "Tasks" }).classList.contains("pr-18"),
     ).toBe(true);
     for (const className of [
-      "bb-sidebar-hover-actions-fade",
+      "patcher-sidebar-hover-actions-fade",
       "right-1",
       "min-w-5",
       "max-h-5",
@@ -276,7 +276,7 @@ describe("PluginNavSidebarItems", () => {
     });
     expect(panelRowNames()).toEqual(["GitHub"]);
     expect(
-      window.localStorage.getItem("bb.sidebar.hiddenPluginPanels"),
+      window.localStorage.getItem("patcher.sidebar.hiddenPluginPanels"),
     ).toContain("docs/main");
 
     fireEvent.click(screen.getByTestId("plugin-nav-sidebar-overflow-toggle"));
@@ -305,7 +305,7 @@ describe("PluginNavSidebarItems", () => {
     registerPanel("docs", "Docs");
     registerPanel("github", "GitHub");
     window.localStorage.setItem(
-      "bb.sidebar.hiddenPluginPanels",
+      "patcher.sidebar.hiddenPluginPanels",
       JSON.stringify(["docs/main"]),
     );
 
@@ -344,7 +344,7 @@ describe("PluginNavSidebarItems", () => {
       screen.getByTestId("plugin-nav-sidebar-overflow-toggle").textContent,
     ).toContain("More (1)");
     expect(
-      window.localStorage.getItem("bb.sidebar.hiddenPluginPanels"),
+      window.localStorage.getItem("patcher.sidebar.hiddenPluginPanels"),
     ).toContain("__builtin__/tools");
   });
 
@@ -389,7 +389,7 @@ describe("PluginNavSidebarItems", () => {
       expect(panelRowNames()).toEqual(["Docs"]);
     });
     expect(
-      window.localStorage.getItem("bb.sidebar.pluginPanelOrder") ?? "",
+      window.localStorage.getItem("patcher.sidebar.pluginPanelOrder") ?? "",
     ).not.toContain("__builtin__/tools");
   });
 });

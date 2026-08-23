@@ -3,7 +3,7 @@ import type { TypeaheadConfig } from "@/components/promptbox/PromptBoxInternal";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import type { PromptBoxAction } from "@/components/promptbox/PromptBoxActionsMenu";
 import { withAutomationPromptAction } from "@/components/promptbox/PromptBoxActionsMenu";
-import type { ProviderComposerAction } from "@bb/domain";
+import type { ProviderComposerAction } from "@patcher/domain";
 import { buildProviderPromptActionProps } from "@/components/promptbox/mentions/command-trigger";
 import { useCommandSuggestions } from "@/hooks/useCommandSuggestions";
 import { usePromptMentions } from "@/hooks/usePromptMentions";

@@ -3,7 +3,7 @@
 // package that should load on demand reaches the boot path again.
 //
 // Run after `bun run build` in apps/app. Reads bundle-stats.json (written by the
-// bb:bundle-stats Vite plugin) and the brotli files written by
+// patcher:bundle-stats Vite plugin) and the brotli files written by
 // scripts/precompress-app-dist.mjs.
 import fs from "node:fs";
 import path from "node:path";

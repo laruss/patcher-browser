@@ -6,7 +6,7 @@ import {
   type DbConnection,
   type DbNotifier,
   type DbTransaction,
-} from "@bb/db";
+} from "@patcher/db";
 import type { ServerLogger } from "../../types.js";
 import { emitPluginThreadLifecycleOutcome } from "../plugins/plugin-thread-events.js";
 

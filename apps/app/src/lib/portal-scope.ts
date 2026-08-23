@@ -4,8 +4,8 @@ import { PluginContext } from "@/components/plugin/plugin-context";
 /**
  * Shared DOM attributes for portaled UI content. Overlay content (dialog,
  * select, popover, …) portals into document.body — outside every
- * `[data-bb-plugin-root]` mount — so a plugin's compiled stylesheet
- * (`@scope ([data-bb-plugin="<id>"], …)`, see PluginSlotMount) would not
+ * `[data-patcher-plugin-root]` mount — so a plugin's compiled stylesheet
+ * (`@scope ([data-patcher-plugin="<id>"], …)`, see PluginSlotMount) would not
  * style it.
  * Spreading these props on the portaled element re-attaches the plugin scope
  * inside a plugin slot. Every portal also carries a stable overlay marker so
@@ -18,16 +18,16 @@ import { PluginContext } from "@/components/plugin/plugin-context";
  * files stay byte-identical between the app and the component registry.
  */
 export function usePortalScopeProps(): {
-  "data-bb-portaled-overlay": "";
-  "data-bb-plugin-root"?: "";
-  "data-bb-plugin"?: string;
+  "data-patcher-portaled-overlay": "";
+  "data-patcher-plugin-root"?: "";
+  "data-patcher-plugin"?: string;
 } {
   const pluginId = useContext(PluginContext);
   return pluginId === null
-    ? { "data-bb-portaled-overlay": "" }
+    ? { "data-patcher-portaled-overlay": "" }
     : {
-        "data-bb-portaled-overlay": "",
-        "data-bb-plugin-root": "",
-        "data-bb-plugin": pluginId,
+        "data-patcher-portaled-overlay": "",
+        "data-patcher-plugin-root": "",
+        "data-patcher-plugin": pluginId,
       };
 }

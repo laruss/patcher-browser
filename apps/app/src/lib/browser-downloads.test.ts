@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BbDesktopBrowserDownload } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserDownload } from "@patcher/desktop-contract";
 import {
   acknowledgeBrowserDownloads,
   describeBrowserDownload,
@@ -11,8 +11,8 @@ import {
 } from "./browser-downloads";
 
 function download(
-  overrides: Partial<BbDesktopBrowserDownload> = {},
-): BbDesktopBrowserDownload {
+  overrides: Partial<PatcherDesktopBrowserDownload> = {},
+): PatcherDesktopBrowserDownload {
   return {
     id: "download-1",
     tabId: "browser:a",
@@ -73,7 +73,7 @@ describe("describeBrowserDownload", () => {
   });
 
   // Three failures a user must be able to tell apart: they stopped it, the
-  // network stopped it, or bb refused.
+  // network stopped it, or Patcher refused.
   it("distinguishes cancelled, interrupted and refused", () => {
     expect(describeBrowserDownload(download({ state: "cancelled" }))).toMatchObject(
       { title: "Download cancelled: report.pdf", tone: "message" },
@@ -106,7 +106,7 @@ describe("describeBrowserDownload", () => {
 
 describe("browser downloads state", () => {
   function fold(
-    ...events: BbDesktopBrowserDownload[]
+    ...events: PatcherDesktopBrowserDownload[]
   ): BrowserDownloadsState {
     return events.reduce(recordBrowserDownload, EMPTY_BROWSER_DOWNLOADS_STATE);
   }

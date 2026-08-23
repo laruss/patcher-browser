@@ -2,9 +2,9 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { AutomationOverviewView } from "bb-plugin-automations/overview-view";
-import type { AutomationsOverviewResponse } from "bb-plugin-automations/rpc-types";
+import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
+import { AutomationOverviewView } from "patcher-plugin-automations/overview-view";
+import type { AutomationsOverviewResponse } from "patcher-plugin-automations/rpc-types";
 
 function iconNames(element: HTMLElement): string[] {
   return [...element.querySelectorAll("[data-icon]")].map(
@@ -43,7 +43,7 @@ const INSTALLED_AUTOMATIONS: AutomationsOverviewResponse["automations"] = [
       createdAt: 1_700_000_000_000,
       updatedAt: 1_700_000_000_000,
     },
-    project: { id: "proj_1", name: "bb" },
+    project: { id: "proj_1", name: "Patcher" },
   },
 ];
 
@@ -158,12 +158,14 @@ describe("AutomationOverviewView", () => {
     expect(screen.getByText("Projects")).toBeTruthy();
     expect(screen.getByText("Status")).toBeTruthy();
 
-    const projectOption = screen.getByRole("menuitemcheckbox", { name: "bb" });
+    const projectOption = screen.getByRole("menuitemcheckbox", {
+      name: "Patcher",
+    });
     expect(projectOption.className).toContain("md:py-1");
     expect(projectOption.querySelector("[data-icon]")).toBeNull();
     expect(
       projectOption.querySelector(".truncate")?.getAttribute("title"),
-    ).toBe("bb");
+    ).toBe("Patcher");
     const activeOption = screen.getByRole("menuitemcheckbox", {
       name: "Active",
     });
@@ -196,9 +198,9 @@ describe("AutomationOverviewView", () => {
     expect(rowTitles()).toEqual(["Nightly digest"]);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Filters" }));
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "bb" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Patcher" }));
     expect(
-      screen.getByRole("menuitemcheckbox", { name: "bb" }).ariaChecked,
+      screen.getByRole("menuitemcheckbox", { name: "Patcher" }).ariaChecked,
     ).toBe("true");
     // The project selection on its own still matches the fixture.
     expect(rowTitles()).toEqual(["Nightly digest"]);
@@ -206,7 +208,7 @@ describe("AutomationOverviewView", () => {
     // Picking a Status option must not clear the Projects selection.
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Paused" }));
     expect(
-      screen.getByRole("menuitemcheckbox", { name: "bb" }).ariaChecked,
+      screen.getByRole("menuitemcheckbox", { name: "Patcher" }).ariaChecked,
     ).toBe("true");
     expect(
       screen.getByRole("menuitemcheckbox", { name: "Paused" }).ariaChecked,
@@ -214,7 +216,7 @@ describe("AutomationOverviewView", () => {
     expect(
       screen.getByRole("menuitemcheckbox", { name: "Active" }).ariaChecked,
     ).toBe("false");
-    // Groups AND together: the fixture is enabled, so "bb" and "Paused" cannot
+    // Groups AND together: the fixture is enabled, so "Patcher" and "Paused" cannot
     // both be satisfied and the list empties rather than falling back to the
     // union of the two selections.
     expect(rowTitles()).toEqual([]);
@@ -225,7 +227,7 @@ describe("AutomationOverviewView", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(
       screen.getByRole("button", {
-        name: "Filters: Projects: bb; Status: Paused",
+        name: "Filters: Projects: Patcher; Status: Paused",
       }),
     ).toBeTruthy();
 
@@ -234,7 +236,7 @@ describe("AutomationOverviewView", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: /^Filters/ }));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Paused" }));
     expect(
-      screen.getByRole("menuitemcheckbox", { name: "bb" }).ariaChecked,
+      screen.getByRole("menuitemcheckbox", { name: "Patcher" }).ariaChecked,
     ).toBe("true");
     expect(rowTitles()).toEqual(["Nightly digest"]);
     expect(
@@ -299,7 +301,7 @@ describe("AutomationOverviewView", () => {
 
     // A filter holding a selection keeps the same treatment once closed.
     fireEvent.pointerDown(filters());
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "bb" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Patcher" }));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(isEngaged(filters())).toBe(true);
   });

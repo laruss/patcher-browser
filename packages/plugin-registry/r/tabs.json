@@ -3,12 +3,12 @@
   "name": "tabs",
   "type": "registry:ui",
   "title": "tabs",
-  "description": "BB ui \"tabs\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"tabs\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-tabs"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

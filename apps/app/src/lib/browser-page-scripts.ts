@@ -1,12 +1,12 @@
 import { useEffect } from "react";
 import {
-  BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS,
-} from "@bb/desktop-contract";
-import { matchesBrowserUrlPattern } from "@bb/domain/browser-url-pattern";
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS,
+} from "@patcher/desktop-contract";
+import { matchesBrowserUrlPattern } from "@patcher/domain/browser-url-pattern";
 import { usePluginContributions } from "@/hooks/queries/plugin-contribution-queries";
 import { callPluginRpc } from "@/lib/plugin-sdk-hooks";
-import { getDesktopBrowserApi } from "./bb-desktop";
+import { getDesktopBrowserApi } from "./patcher-desktop";
 
 /** Longest refusal the shell will carry back to a page script. */
 const MAX_MESSAGE_LENGTH = 1024;
@@ -21,7 +21,7 @@ const MAX_MESSAGE_LENGTH = 1024;
  *
  * Why the app is in this path at all: the script runs in a browsed page, which
  * cannot be given credentials, and the shell holds none either. This window is
- * the only participant that can authenticate to the bb server — so it performs
+ * the only participant that can authenticate to the Patcher server — so it performs
  * the call, and re-checks on the way that the plugin really does claim the page
  * the shell says asked. Two checks of the same rule, in the two processes that
  * would have to be wrong together.
@@ -47,7 +47,7 @@ export function useBrowserPageScripts(): void {
       // whole push and keeps the list it already had, so one plugin declaring
       // too many would leave every plugin's scripts stale.
       scripts: scripts
-        .slice(0, BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS)
+        .slice(0, PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPTS)
         .map((script) => ({
           pluginId: script.pluginId,
           scriptId: script.scriptId,
@@ -78,7 +78,7 @@ export function useBrowserPageScripts(): void {
         respond({
           callId: call.callId,
           ok: false,
-          message: `bb.rpc: plugin "${call.pluginId}" declares no page script for this address.`,
+          message: `patcher.rpc: plugin "${call.pluginId}" declares no page script for this address.`,
         });
         return;
       }
@@ -116,9 +116,9 @@ async function answer(
   const parsed: unknown = input.length === 0 ? null : JSON.parse(input);
   const result = await callPluginRpc(fetch, pluginId, method, parsed);
   const serialized = result === undefined ? "" : JSON.stringify(result);
-  if (serialized.length > BB_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH) {
+  if (serialized.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_SCRIPT_JSON_LENGTH) {
     throw new Error(
-      `bb.rpc("${method}"): the answer is too large to hand to a page.`,
+      `patcher.rpc("${method}"): the answer is too large to hand to a page.`,
     );
   }
   return serialized;

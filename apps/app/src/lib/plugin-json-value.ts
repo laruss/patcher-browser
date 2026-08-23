@@ -1,5 +1,5 @@
-import { jsonValueSchema } from "@bb/domain";
-import type { JsonValue } from "@bb/plugin-sdk";
+import { jsonValueSchema } from "@patcher/domain";
+import type { JsonValue } from "@patcher/plugin-sdk";
 
 /** Validate a plugin-provided value before it crosses into persisted tab state. */
 export function serializePluginPanelParams(

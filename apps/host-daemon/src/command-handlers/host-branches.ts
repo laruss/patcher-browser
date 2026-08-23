@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { GitBranchRefClassification } from "@bb/domain";
+import type { GitBranchRefClassification } from "@patcher/domain";
 import {
   detectGitRepo,
   fetchRemoteBranches,
@@ -10,8 +10,8 @@ import {
   listBranches,
   listRemoteBranches,
   readDefaultBranchRefs,
-} from "@bb/host-workspace";
-import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
+} from "@patcher/host-workspace";
+import type { HostDaemonOnlineRpcResult } from "@patcher/host-daemon-contract";
 import { CommandDispatchError } from "../command-dispatch-support.js";
 import type { CommandOf } from "../command-dispatch-support.js";
 

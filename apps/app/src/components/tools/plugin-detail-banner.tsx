@@ -1,6 +1,6 @@
 import type { AriaRole, ReactNode } from "react";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 export type PluginBannerTone = "destructive" | "warning" | "success";
 

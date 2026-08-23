@@ -2,7 +2,7 @@ import {
   getAgentProviderServerCapabilities,
   getSupportedPermissionModes,
   listBuiltInAgentProviderInfos,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import type {
   PermissionMode,
   ProjectExecutionDefaults,
@@ -10,9 +10,9 @@ import type {
   ReasoningLevel,
   ServiceTier,
   Thread,
-} from "@bb/domain";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import type { EnvironmentArgs } from "@bb/server-contract";
+} from "@patcher/domain";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import type { EnvironmentArgs } from "@patcher/server-contract";
 import type { AppDeps } from "../../types.js";
 import { requireConnectedPrimaryHostId } from "../hosts/primary-host.js";
 import { isLiveParentThread, type ParentThread } from "./thread-parent.js";

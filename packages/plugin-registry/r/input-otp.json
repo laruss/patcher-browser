@@ -3,13 +3,13 @@
   "name": "input-otp",
   "type": "registry:ui",
   "title": "input-otp",
-  "description": "BB ui \"input-otp\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"input-otp\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "input-otp",
     "lucide-react"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

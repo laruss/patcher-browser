@@ -42,11 +42,11 @@ vi.mock("@/components/ui/bottom-anchored-scroll-body.js", () => ({
   }),
 }));
 
-vi.mock("@bb/shared-ui/hooks/use-compact-viewport", () => ({
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
   useIsCompactViewport: () => mocks.isCompactViewport,
 }));
 
-vi.mock("@bb/shared-ui/hooks/use-pointer-coarse", () => ({
+vi.mock("@patcher/shared-ui/hooks/use-pointer-coarse", () => ({
   usePointerCoarse: () => mocks.isPointerCoarse,
 }));
 
@@ -346,7 +346,7 @@ describe("FollowUpPromptBox", () => {
     const initialMinHeight = Number(promptBox.getAttribute("data-min-height"));
     const stackElement = screen
       .getByText("Expandable plugin banner")
-      .closest("[data-bb-plugin-root]")?.parentElement;
+      .closest("[data-patcher-plugin-root]")?.parentElement;
     if (!stackElement) throw new Error("Expected measured composer stack");
     Object.defineProperty(stackElement, "offsetHeight", {
       configurable: true,
@@ -413,7 +413,7 @@ describe("FollowUpPromptBox", () => {
 
     const pluginHeaderRoot = screen
       .getByTestId("plugin-header")
-      .closest("[data-bb-plugin-root]");
+      .closest("[data-patcher-plugin-root]");
     const queuedMessages = screen.getByTestId("queued-messages");
     expect(queuedMessages.previousElementSibling).toBe(pluginHeaderRoot);
   });

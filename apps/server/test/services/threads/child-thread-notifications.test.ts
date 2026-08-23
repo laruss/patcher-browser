@@ -126,7 +126,7 @@ describe("child thread notifications", () => {
 
     expect(message).toContain(
       [
-        "[bb system]",
+        "[Patcher system]",
         "",
         "Child thread updates:",
         "",

@@ -4,8 +4,8 @@ import {
   hostDaemonSessions,
   listHostThreadIds,
   type HostDaemonSessionRow,
-} from "@bb/db";
-import type { HostDaemonActiveThread } from "@bb/host-daemon-contract";
+} from "@patcher/db";
+import type { HostDaemonActiveThread } from "@patcher/host-daemon-contract";
 import {
   DAEMON_ACTIVE_WORK_DISCONNECT_GRACE_MS,
   DAEMON_DISCONNECT_GRACE_MS,
@@ -28,12 +28,7 @@ const DAEMON_DISCONNECTED_PENDING_INTERACTION_REASON =
 type HostSessionOpenedDeps = LoggedPendingInteractionWorkSessionDeps;
 type DaemonSocketClosedDeps = Pick<
   AppDeps,
-  | "db"
-  | "hub"
-  | "logger"
-  | "pendingInteractions"
-  | "sharedPorts"
-  | "terminalSessions"
+  "db" | "hub" | "logger" | "pendingInteractions" | "terminalSessions"
 >;
 type DaemonDisconnectGraceDeps = Pick<
   AppDeps,
@@ -137,7 +132,6 @@ export function handleDaemonSocketClosed(
 ): void {
   deps.logger.info({ sessionId: args.sessionId }, "Daemon WebSocket closed");
   deps.hub.unregisterDaemon(args.sessionId);
-  deps.sharedPorts.clearHostConnectCapability(args.sessionId);
 
   const session = deps.db
     .select()

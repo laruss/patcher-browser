@@ -1,7 +1,7 @@
 import type {
   ProviderCliStatus,
   ProviderUsageResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { describe, expect, it } from "vitest";
 import { getOnboardingAgentOverview } from "../../src/services/system/onboarding.js";
 import { registerHostRpcResponder } from "../helpers/host-rpc.js";

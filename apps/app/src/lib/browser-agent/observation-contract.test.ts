@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bbDesktopBrowserObservationSchema } from "@bb/desktop-contract";
-import { browserObservationSchema } from "@bb/domain";
+import { patcherDesktopBrowserObservationSchema } from "@patcher/desktop-contract";
+import { browserObservationSchema } from "@patcher/domain";
 
 /**
  * The observation union is written twice for the same reason the interaction
@@ -60,7 +60,7 @@ describe("the observation union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(true);
       expect(
-        bbDesktopBrowserObservationSchema.safeParse({ kind: "screenshot", ...value })
+        patcherDesktopBrowserObservationSchema.safeParse({ kind: "screenshot", ...value })
           .success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(true);
@@ -75,7 +75,7 @@ describe("the observation union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(false);
       expect(
-        bbDesktopBrowserObservationSchema.safeParse({ kind: "screenshot", ...value })
+        patcherDesktopBrowserObservationSchema.safeParse({ kind: "screenshot", ...value })
           .success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(false);
@@ -99,7 +99,7 @@ describe("the observation union, on both wires", () => {
     // forwarding it. An older shell does not reject the flag — it strips it and
     // answers with a viewport picture the caller would read as a full page.
     expect(
-      bbDesktopBrowserObservationSchema.parse({
+      patcherDesktopBrowserObservationSchema.parse({
         kind: "screenshot",
         format: "jpeg",
         quality: 80,
@@ -115,7 +115,7 @@ describe("the observation union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(true);
       expect(
-        bbDesktopBrowserObservationSchema.safeParse(value).success,
+        patcherDesktopBrowserObservationSchema.safeParse(value).success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(true);
     }
@@ -128,7 +128,7 @@ describe("the observation union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(false);
       expect(
-        bbDesktopBrowserObservationSchema.safeParse(value).success,
+        patcherDesktopBrowserObservationSchema.safeParse(value).success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(false);
     }

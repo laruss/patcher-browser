@@ -168,8 +168,8 @@ export function resolveContainedPath(
 }
 
 /**
- * Removes bb runtime-owned env from an inherited process env. Callers should
- * overlay only the child-specific bb env they intentionally expose afterward.
+ * Removes Patcher runtime-owned env from an inherited process env. Callers should
+ * overlay only the child-specific Patcher env they intentionally expose afterward.
  */
 export function sanitizeInheritedChildProcessEnv(
   args: SanitizeInheritedChildProcessEnvArgs,
@@ -179,7 +179,7 @@ export function sanitizeInheritedChildProcessEnv(
     if (value === undefined) {
       continue;
     }
-    if (key === "NODE_ENV" || key.startsWith("BB_")) {
+    if (key === "NODE_ENV" || key.startsWith("PATCHER_")) {
       continue;
     }
     sanitizedEnv[key] = value;

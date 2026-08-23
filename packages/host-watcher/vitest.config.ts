@@ -6,7 +6,7 @@ import {
 export default defineWorkspaceTestConfig({
   test: {
     silent: "passed-only",
-    name: "@bb/host-watcher",
+    name: "@patcher/host-watcher",
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
     // These wait on real FSEvents callbacks, which arrive when the OS says so.

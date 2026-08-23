@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hostTypeSchema } from "@bb/domain";
+import { hostTypeSchema } from "@patcher/domain";
 
 export const HOST_AUTH_FILE_NAME = "auth.json";
 export const HOST_ID_FILE_NAME = "host-id";

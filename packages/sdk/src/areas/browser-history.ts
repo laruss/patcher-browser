@@ -1,7 +1,7 @@
 import type {
   BrowserHistoryEntry,
   BrowserHistoryQuery,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 export interface BrowserHistoryListArgs {
@@ -37,7 +37,7 @@ export interface BrowserHistoryClearArgs {
  * A real store rather than the browser's private state: a plugin can read what
  * was visited, add visits it imported from somewhere else, and delete what the
  * user should not have kept. What it cannot do from here is see a visit as it
- * happens — that is `bb.browser.registerHistoryFilter`, which runs before the
+ * happens — that is `patcher.browser.registerHistoryFilter`, which runs before the
  * write and can rewrite or drop it.
  */
 export interface BrowserHistoryArea {

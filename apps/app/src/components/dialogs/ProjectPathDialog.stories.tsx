@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import type { HostDirectoryListing } from "@bb/server-contract";
+import type { HostDirectoryListing } from "@patcher/server-contract";
 import {
   ProjectPathDialogContent,
   type ProjectPathDialogTarget,
@@ -27,15 +27,15 @@ const createTarget: ProjectPathDialogTarget = { kind: "create" };
 
 const updateTarget: ProjectPathDialogTarget = {
   kind: "update",
-  projectId: PROJECT_IDS.bb,
-  projectName: PROJECT_NAMES.bb,
-  currentPath: "/Users/michael/Projects/bb",
+  projectId: PROJECT_IDS.patcher,
+  projectName: PROJECT_NAMES.patcher,
+  currentPath: "/Users/michael/Projects/patcher",
 };
 
 const addSourceTarget: ProjectPathDialogTarget = {
   kind: "add-source",
-  projectId: PROJECT_IDS.bb,
-  projectName: PROJECT_NAMES.bb,
+  projectId: PROJECT_IDS.patcher,
+  projectName: PROJECT_NAMES.patcher,
 };
 
 const connectedMachine = makeHost();

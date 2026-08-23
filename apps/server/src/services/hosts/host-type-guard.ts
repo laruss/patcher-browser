@@ -1,4 +1,4 @@
-import type { HostType } from "@bb/domain";
+import type { HostType } from "@patcher/domain";
 import { ApiError } from "../../errors.js";
 
 export interface ExistingHostTypeInfo {

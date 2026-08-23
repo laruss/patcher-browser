@@ -1,4 +1,4 @@
-import type { AvailableModel, ReasoningLevel } from "@bb/domain";
+import type { AvailableModel, ReasoningLevel } from "@patcher/domain";
 
 export interface AvailableModelFixtureArgs {
   model: string;

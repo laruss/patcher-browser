@@ -1,4 +1,4 @@
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 import { matchPath } from "react-router-dom";
 
 export const APP_ROOT_ROUTE_PATH = "/";

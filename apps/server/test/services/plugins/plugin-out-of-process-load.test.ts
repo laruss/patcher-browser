@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { getPluginKvValue } from "@bb/db";
+import { getPluginKvValue } from "@patcher/db";
 import {
   createTestAppHarness,
   type TestAppHarness,
@@ -33,7 +33,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Out of process fixture",
         description: "Fixture.",
         branding: { icon: "Zap" },
@@ -50,17 +50,17 @@ async function writePlugin(
 }
 
 const CONTEXT_MENU_PLUGIN = `
-  export default function plugin(bb: any) {
-    bb.log.info("loaded out of process");
-    bb.browser.registerContextMenuItem({
+  export default function plugin(patcher: any) {
+    patcher.log.info("loaded out of process");
+    patcher.browser.registerContextMenuItem({
       id: "shout",
       title: "Shout",
       run: (ctx: any) => (ctx.selectionText ?? "").toUpperCase(),
     });
-    bb.background.schedule("nightly", "0 3 * * *", () => {});
+    patcher.background.schedule("nightly", "0 3 * * *", () => {});
     // Runs in the plugin process; the write lands in the server's store, so
     // whether this instance was disposed is observable from outside.
-    bb.onDispose(() => bb.storage.kv.set("disposed", true));
+    patcher.onDispose(() => patcher.storage.kv.set("disposed", true));
   }
 `;
 
@@ -81,8 +81,8 @@ const EDITED_CONTEXT_MENU_PLUGIN = CONTEXT_MENU_PLUGIN.replace(
 // a real validator from — in either placement, which is what once looked like
 // a plugin-process defect and was the fixture's own.
 const PAGE_STYLE_PLUGIN = `
-  export default function plugin(bb: any) {
-    bb.browser.registerPageStyle({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPageStyle({
       id: "declutter",
       matches: ["https://github.com/**"],
       css: ".ad { display: none !important }",
@@ -91,11 +91,11 @@ const PAGE_STYLE_PLUGIN = `
 `;
 
 const PAGE_SCRIPT_PLUGIN = `
-  export default function plugin(bb: any) {
-    bb.browser.registerPageScript({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPageScript({
       id: "toolbar",
       matches: ["https://github.com/**"],
-      code: "bb.ready(function () { document.title = 'seen'; });",
+      code: "patcher.ready(function () { document.title = 'seen'; });",
     });
   }
 `;
@@ -111,8 +111,8 @@ const RPC_PLUGIN = `
           : { issues: [{ message: "expected an object" }] },
     },
   };
-  export default function plugin(bb: any) {
-    bb.rpc.register(
+  export default function plugin(patcher: any) {
+    patcher.rpc.register(
       { greet: { input: wantsAnObject, output: wantsAnObject } },
       { greet: ({ who }: { who: string }) => ({ text: "hi " + who }) },
     );
@@ -136,7 +136,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["contextMenu.register"],
         source: CONTEXT_MENU_PLUGIN,
       },
@@ -151,7 +151,7 @@ describe("loading a plugin into a plugin process", () => {
     expect(items.map((item) => item.itemId)).toContain("shout");
   }, 30_000);
 
-  // `bb.sites` has to survive the boundary, and nothing else makes it: the
+  // `patcher.sites` has to survive the boundary, and nothing else makes it: the
   // bootstrap payload is built with an `as never` cast, so a field the child
   // needs and the supervisor forgets compiles clean and refuses every style the
   // plugin registers — in the placement that is the whole point of the feature,
@@ -161,7 +161,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["pageStyle.register"],
         sites: ["https://github.com/**"],
         source: PAGE_STYLE_PLUGIN,
@@ -190,7 +190,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["pageScript.register"],
         sites: ["https://github.com/**"],
         source: PAGE_SCRIPT_PLUGIN,
@@ -205,19 +205,19 @@ describe("loading a plugin into a plugin process", () => {
         pluginId: "remote",
         scriptId: "toolbar",
         matches: ["https://github.com/**"],
-        code: "bb.ready(function () { document.title = 'seen'; });",
+        code: "patcher.ready(function () { document.title = 'seen'; });",
       },
     ]);
   }, 30_000);
 
   // The one place the difference is visible, and it is visible on purpose:
-  // there is no in-process `bb` to hand back.
-  it("has no local bb object for it", async () => {
+  // there is no in-process `patcher` to hand back.
+  it("has no local Patcher object for it", async () => {
     await start(() => true);
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["contextMenu.register"],
         source: CONTEXT_MENU_PLUGIN,
       },
@@ -234,7 +234,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["contextMenu.register"],
         source: CONTEXT_MENU_PLUGIN,
       },
@@ -257,7 +257,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["contextMenu.register"],
         source: CONTEXT_MENU_PLUGIN,
       },
@@ -277,7 +277,7 @@ describe("loading a plugin into a plugin process", () => {
     await start(() => true);
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
-      { name: "bb-plugin-rpcish", source: RPC_PLUGIN },
+      { name: "patcher-plugin-rpcish", source: RPC_PLUGIN },
     );
 
     const entry = await harness.pluginService.installPath(rootDir);
@@ -326,7 +326,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["contextMenu.register"],
         source: CONTEXT_MENU_PLUGIN,
       },
@@ -370,7 +370,7 @@ describe("loading a plugin into a plugin process", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-remote",
+        name: "patcher-plugin-remote",
         permissions: ["contextMenu.register"],
         source: CONTEXT_MENU_PLUGIN,
       },

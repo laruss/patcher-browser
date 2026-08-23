@@ -11,8 +11,8 @@ import {
   permissionModeSchema,
   pluginThemeMetaSchema,
   providerInfoSchema,
-} from "@bb/domain";
-import { hostPlatformSchema } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import { hostPlatformSchema } from "@patcher/host-daemon-contract";
 
 export const systemExecutionOptionsModelLoadErrorCodeSchema = z.enum([
   "missing_executable",
@@ -112,8 +112,8 @@ export interface SystemVoiceTranscriptionForm {
 
 // SystemProviderInfo is the same shape as ProviderInfo from domain.
 // Re-export with the API-facing name for backward compatibility.
-export { providerInfoSchema as systemProviderInfoSchema } from "@bb/domain";
-export type { ProviderInfo as SystemProviderInfo } from "@bb/domain";
+export { providerInfoSchema as systemProviderInfoSchema } from "@patcher/domain";
+export type { ProviderInfo as SystemProviderInfo } from "@patcher/domain";
 
 export const systemVoiceTranscriptionResponseSchema = z.object({
   text: z.string(),
@@ -133,10 +133,10 @@ export const onboardingAgentSchema = z.object({
   status: z.enum(["connected", "unauthenticated", "expired", "not_installed"]),
   planLabel: z.string().min(1).nullable(),
   accountEmail: z.string().nullable(),
-  /** True only where bb has a managed installer, so only these may be offered. */
+  /** True only where Patcher has a managed installer, so only these may be offered. */
   canInstall: z.boolean(),
   /**
-   * The agent's own sign-in command, when it has one. bb deliberately does not
+   * The agent's own sign-in command, when it has one. Patcher deliberately does not
    * drive another tool's login: it shows the command and re-checks, so
    * credentials only ever pass through the agent itself.
    */
@@ -226,7 +226,7 @@ export const systemConfigResponseSchema = z.object({
   primaryHostId: z.string().nullable(),
   primaryHostPlatform: hostPlatformSchema.nullable(),
   voiceTranscriptionEnabled: z.boolean(),
-  /** Absolute path of the active bb data directory (where ui/, theme/, the DB live). */
+  /** Absolute path of the active Patcher data directory (where ui/, theme/, the DB live). */
   dataDir: z.string(),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
@@ -240,7 +240,7 @@ export type SystemAttentionResponse = z.infer<
 
 /**
  * Theme catalog: the on-disk custom-theme directory plus the discovered custom
- * themes and the active palette. Drives `bb theme list` / `bb theme dir`.
+ * themes and the active palette. Drives `patcher theme list` / `patcher theme dir`.
  */
 export const themeCatalogResponseSchema = z.object({
   /** Absolute path of the custom-theme root: `<data-dir>/theme`. */
@@ -255,7 +255,7 @@ export const themeCatalogResponseSchema = z.object({
 export type ThemeCatalogResponse = z.infer<typeof themeCatalogResponseSchema>;
 
 export const systemVersionResponseSchema = z.object({
-  /** Version of the running bb-app package, read from package.json. */
+  /** Version of the running patcher-app package, read from package.json. */
   currentVersion: z.string(),
   /** Latest version published to npm, or null when the lookup is unavailable. */
   latestVersion: z.string().nullable(),
@@ -281,7 +281,7 @@ export const systemConfigReloadResponseSchema = z.object({
 });
 
 /**
- * Whether a machine's copy of the built-in bb CLI skills matches what this
+ * Whether a machine's copy of the built-in Patcher CLI skills matches what this
  * server would install. "unknown" covers a disconnected machine or one that
  * could not be asked.
  */
@@ -314,7 +314,7 @@ export type SystemCliSkillsStatusResponse = z.infer<
   typeof systemCliSkillsStatusResponseSchema
 >;
 
-/** The machines to copy the built-in bb CLI skills onto. */
+/** The machines to copy the built-in Patcher CLI skills onto. */
 export const systemInstallCliSkillsRequestSchema = z.object({
   hostIds: z.array(z.string().min(1)).min(1).max(64),
 });

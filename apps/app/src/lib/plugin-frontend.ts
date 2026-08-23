@@ -5,7 +5,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import * as jsxDevRuntime from "react/jsx-dev-runtime";
 // Shared-singleton packages (plugin design §5.5): the portaling radix
 // families + sonner + vaul. Vendored plugin components import these
-// specifiers; `bb plugin build` shims them to the slots installed below, so
+// specifiers; `patcher plugin build` shims them to the slots installed below, so
 // plugin overlays live in the host's dismissable-layer/focus/scroll-lock
 // world and plugin toast() reaches the host toaster. Importing them here
 // (menubar/hover-card/etc. included) is what puts them in the host bundle.
@@ -23,16 +23,16 @@ import * as sonner from "sonner";
 import * as vaul from "vaul";
 import * as pierreDiffs from "@pierre/diffs";
 import * as pierreDiffsReact from "@pierre/diffs/react";
-import { createDebouncedCallbackScheduler } from "@bb/domain";
+import { createDebouncedCallbackScheduler } from "@patcher/domain";
 import type {
   PluginContentScriptDisposer,
   PluginContentScriptRegistration,
   PluginSdkApp,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import {
   normalizePluginBrowserTabStatus,
   normalizePluginThreadRowStatus,
-} from "@bb/plugin-sdk/internal/composer-customization-validation";
+} from "@patcher/plugin-sdk/internal/composer-customization-validation";
 import { resetCrashedPluginSlots } from "@/components/plugin/PluginSlotMount";
 import {
   collectPluginAppRegistrations,
@@ -59,7 +59,7 @@ import {
 /**
  * Plugin frontend bundle loading (plugin design §5.1). Once per page load,
  * after system config resolves: expose the shared
- * runtime on `globalThis.__bbPluginRuntime`, fetch the plugin inventory, and
+ * runtime on `globalThis.__patcherPluginRuntime`, fetch the plugin inventory, and
  * for each running plugin with a compatible bundle link its CSS and
  * dynamic-import() its JS. Per-plugin containment: a bundle that fails to
  * import records status "failed" and never breaks the app or other plugins;
@@ -204,7 +204,7 @@ async function loadOneBundle(
 // Shared runtime + boot wiring (real browser paths).
 // ---------------------------------------------------------------------------
 
-interface BbPluginRuntime {
+interface PatcherPluginRuntime {
   react: unknown;
   reactDom: unknown;
   reactDomClient: unknown;
@@ -227,24 +227,26 @@ interface BbPluginRuntime {
   pierreDiffsReact: unknown;
 }
 
-type RuntimeHost = typeof globalThis & { __bbPluginRuntime?: BbPluginRuntime };
+type RuntimeHost = typeof globalThis & {
+  __patcherPluginRuntime?: PatcherPluginRuntime;
+};
 
 /**
  * Expose the app's own React graph (plus the SDK slot) on
- * `globalThis.__bbPluginRuntime` — set exactly once, and always before any
+ * `globalThis.__patcherPluginRuntime` — set exactly once, and always before any
  * bundle import()s (their shims read it at evaluation time). One React in
  * the page, ever; a second copy is the "Invalid hook call" factory.
  */
 export function installPluginRuntime(): void {
   const host = globalThis as RuntimeHost;
-  if (host.__bbPluginRuntime !== undefined) return;
-  host.__bbPluginRuntime = {
+  if (host.__patcherPluginRuntime !== undefined) return;
+  host.__patcherPluginRuntime = {
     react,
     reactDom,
     reactDomClient,
     jsxRuntime,
     jsxDevRuntime,
-    // The real `@bb/plugin-sdk/app` surface: definePluginApp, the hooks, and
+    // The real `@patcher/plugin-sdk/app` surface: definePluginApp, the hooks, and
     // the curated UI kit. Kept in type-sync with the facade package via
     // `satisfies PluginSdkApp` in plugin-sdk-app-impl.
     pluginSdkApp: pluginSdkAppImplementation,
@@ -328,14 +330,14 @@ async function fetchFrontendCandidates(): Promise<PluginFrontendCandidate[]> {
 }
 
 /**
- * Point a plugin's stylesheet `<link data-bb-plugin-css="<id>">` at `url`,
+ * Point a plugin's stylesheet `<link data-patcher-plugin-css="<id>">` at `url`,
  * or remove it (`url: null`). A changed URL swaps in a fresh element (the
  * new sheet loads, then the old element is removed) rather than mutating
  * `href`, so a reload never flashes unstyled plugin UI. If the fresh sheet
  * fails to load, it is dropped and the old sheet stays in place.
  */
 export function applyPluginCss(pluginId: string, url: string | null): void {
-  const marker = "data-bb-plugin-css";
+  const marker = "data-patcher-plugin-css";
   const existing = [
     ...document.head.querySelectorAll(`link[${marker}="${pluginId}"]`),
   ];
@@ -353,7 +355,9 @@ export function applyPluginCss(pluginId: string, url: string | null): void {
   };
   link.onerror = () => {
     link.remove();
-    console.warn(`bb plugin "${pluginId}": failed to load stylesheet ${url}`);
+    console.warn(
+      `patcher plugin "${pluginId}": failed to load stylesheet ${url}`,
+    );
   };
   document.head.appendChild(link);
 }
@@ -525,20 +529,20 @@ async function mountWithTimeout(
         if (controller.signal.aborted) return;
         if (typeof threadId !== "string") {
           deps.warn(
-            `bb plugin "${pluginId}": contentScript.experimental_setThreadRowStatus: "threadId" must be a non-empty string`,
+            `patcher plugin "${pluginId}": contentScript.experimental_setThreadRowStatus: "threadId" must be a non-empty string`,
           );
           return;
         }
         const normalizedThreadId = threadId.trim();
         if (normalizedThreadId.length === 0) {
           deps.warn(
-            `bb plugin "${pluginId}": contentScript.experimental_setThreadRowStatus: "threadId" must be a non-empty string`,
+            `patcher plugin "${pluginId}": contentScript.experimental_setThreadRowStatus: "threadId" must be a non-empty string`,
           );
           return;
         }
         const normalizedStatus = normalizePluginThreadRowStatus(
           status,
-          (reason) => deps.warn(`bb plugin "${pluginId}": ${reason}`),
+          (reason) => deps.warn(`patcher plugin "${pluginId}": ${reason}`),
         );
         if (normalizedStatus === undefined) return;
         setPluginThreadRowStatus(
@@ -553,13 +557,13 @@ async function mountWithTimeout(
         const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
         if (normalizedTabId.length === 0) {
           deps.warn(
-            `bb plugin "${pluginId}": contentScript.experimental_setBrowserTabStatus: "tabId" must be a non-empty string`,
+            `patcher plugin "${pluginId}": contentScript.experimental_setBrowserTabStatus: "tabId" must be a non-empty string`,
           );
           return;
         }
         const normalizedStatus = normalizePluginBrowserTabStatus(
           status,
-          (reason) => deps.warn(`bb plugin "${pluginId}": ${reason}`),
+          (reason) => deps.warn(`patcher plugin "${pluginId}": ${reason}`),
         );
         if (normalizedStatus === undefined) return;
         setPluginBrowserTabStatus(
@@ -751,7 +755,7 @@ export async function reconcilePluginFrontends(
         const definition = record.module.default;
         if (!isPluginAppDefinition(definition)) {
           throw new Error(
-            "the bundle's default export is not definePluginApp(...) from @bb/plugin-sdk/app",
+            "the bundle's default export is not definePluginApp(...) from @patcher/plugin-sdk/app",
           );
         }
         collected = collectPluginAppRegistrations(definition, (reason) => {
@@ -889,7 +893,7 @@ export async function disposePluginFrontends(
 
 /**
  * Debounce + serialize reconcile runs: a burst of `plugins-changed`
- * broadcasts (e.g. `bb plugin reload` with several plugins) coalesces into
+ * broadcasts (e.g. `patcher plugin reload` with several plugins) coalesces into
  * one run, and a broadcast landing mid-run queues exactly one follow-up
  * instead of overlapping it.
  */

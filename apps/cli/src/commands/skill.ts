@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { Command } from "commander";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import type { RegistrySkill } from "@bb/server-contract";
-import type { SkillsRegistryArea } from "@bb/sdk";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import type { RegistrySkill } from "@patcher/server-contract";
+import type { SkillsRegistryArea } from "@patcher/sdk";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { resolveMachineId } from "./machine.js";
 import type { ContextSnapshot } from "../context-env.js";
 import { renderBorderlessTable } from "../table.js";
@@ -65,7 +65,7 @@ function addWorkspaceOptions(command: Command): Command {
   return command
     .option(
       "--project <id>",
-      "Project ID (defaults to BB_PROJECT_ID or personal)",
+      "Project ID (defaults to PATCHER_PROJECT_ID or personal)",
     )
     .option("--environment <id>", "Project environment workspace")
     .option("--json", "Print machine-readable JSON output");
@@ -176,7 +176,7 @@ export function registerSkillCommands(
     .description("List installed and discovered skills")
     .action(
       action(async (options: SkillWorkspaceOptions) => {
-        const result = await createCliBbSdk(getUrl()).skills.list({
+        const result = await createCliPatcherSdk(getUrl()).skills.list({
           projectId: projectId(options, getContext()),
           environmentId: environmentId(options),
         });
@@ -192,7 +192,7 @@ export function registerSkillCommands(
               entry.id,
               entry.name,
               entry.scope,
-              entry.provider ?? "bb",
+              entry.provider ?? "patcher",
               entry.manageable ? "yes" : "no",
               entry.filePath,
             ]),
@@ -210,7 +210,7 @@ export function registerSkillCommands(
           skillId: string,
           options: SkillWorkspaceOptions & { path: string },
         ) => {
-          const result = await createCliBbSdk(getUrl()).skills.getContent({
+          const result = await createCliPatcherSdk(getUrl()).skills.getContent({
             projectId: projectId(options, getContext()),
             environmentId: environmentId(options),
             skillId,
@@ -227,7 +227,7 @@ export function registerSkillCommands(
     .description("List files included in an installed skill")
     .action(
       action(async (skillId: string, options: SkillWorkspaceOptions) => {
-        const result = await createCliBbSdk(getUrl()).skills.listFiles({
+        const result = await createCliPatcherSdk(getUrl()).skills.listFiles({
           projectId: projectId(options, getContext()),
           environmentId: environmentId(options),
           skillId,
@@ -243,11 +243,11 @@ export function registerSkillCommands(
     .requiredOption("--file <path>", "Local SKILL.md to upload")
     .requiredOption(
       "--revision <sha256>",
-      "Revision returned by bb skill show --json",
+      "Revision returned by patcher skill show --json",
     )
     .action(
       action(async (skillId: string, options: SkillUpdateOptions) => {
-        const result = await createCliBbSdk(getUrl()).skills.update({
+        const result = await createCliPatcherSdk(getUrl()).skills.update({
           projectId: projectId(options, getContext()),
           environmentId: environmentId(options),
           skillId,
@@ -273,7 +273,7 @@ export function registerSkillCommands(
           console.log("Aborted.");
           return;
         }
-        const result = await createCliBbSdk(getUrl()).skills.remove({
+        const result = await createCliPatcherSdk(getUrl()).skills.remove({
           projectId: projectId(options, getContext()),
           environmentId: environmentId(options),
           skillId,
@@ -291,7 +291,7 @@ export function registerSkillCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (query: string | undefined, options: SkillSearchOptions) => {
-        const registry = createCliBbSdk(getUrl()).skills.registry;
+        const registry = createCliPatcherSdk(getUrl()).skills.registry;
         const result = await registry.search({
           query,
           page: parseNonnegativeInteger(options.page, 0),
@@ -331,7 +331,7 @@ export function registerSkillCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (registrySkillId: string, options: JsonOutputOptions) => {
-        const registry = createCliBbSdk(getUrl()).skills.registry;
+        const registry = createCliPatcherSdk(getUrl()).skills.registry;
         const skillEntry = await registry.get({ registrySkillId });
         const [detail, [enrichedSkillEntry]] = await Promise.all([
           registry.detail({
@@ -365,11 +365,13 @@ export function registerSkillCommands(
 
   skill
     .command("install <registry-skill-id>")
-    .description("Install a canonical skills.sh entry into bb user skills")
+    .description("Install a canonical skills.sh entry into Patcher user skills")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (registrySkillId: string, options: JsonOutputOptions) => {
-        const result = await createCliBbSdk(getUrl()).skills.registry.install({
+        const result = await createCliPatcherSdk(
+          getUrl(),
+        ).skills.registry.install({
           registrySkillId,
         });
         if (outputJson(options, result)) return;
@@ -380,7 +382,7 @@ export function registerSkillCommands(
   skill
     .command("cli-skills-status")
     .description(
-      "Show whether each machine has bb's built-in CLI skills installed",
+      "Show whether each machine has Patcher's built-in CLI skills installed",
     )
     .option(
       "--machine <id-or-name>",
@@ -391,7 +393,7 @@ export function registerSkillCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (options: SkillInstallCliSkillsOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hosts = options.machine.length > 0 ? await sdk.hosts.list() : [];
         const hostIds =
           options.machine.length > 0
@@ -420,7 +422,7 @@ export function registerSkillCommands(
   skill
     .command("install-cli-skills")
     .description(
-      "Install bb's built-in CLI skills into ~/.agents/skills and ~/.claude/skills on a machine",
+      "Install Patcher's built-in CLI skills into ~/.agents/skills and ~/.claude/skills on a machine",
     )
     .option(
       "--machine <id-or-name>",
@@ -431,7 +433,7 @@ export function registerSkillCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (options: SkillInstallCliSkillsOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hosts = await sdk.hosts.list();
         const hostIds =
           options.machine.length > 0

@@ -4,7 +4,7 @@ import {
   experimentKeys,
   experimentKeySchema,
   type Experiments,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { DbConnection } from "../connection.js";
 import { systemExperiments } from "../schema.js";
 

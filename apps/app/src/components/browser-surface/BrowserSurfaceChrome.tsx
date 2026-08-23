@@ -7,10 +7,10 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import type { BbDesktopBrowserState } from "@bb/desktop-contract";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import type { PatcherDesktopBrowserState } from "@patcher/desktop-contract";
+import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   useAppCommandHandler,
   useAppCommandShortcut,
@@ -18,7 +18,10 @@ import {
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@/components/ui/chromeStyleTokens";
 import { runPluginOmniboxAction } from "@/hooks/queries/plugin-contribution-queries";
 import { useDefaultBrowserStatus } from "@/hooks/useDefaultBrowserStatus";
-import { getBbDesktopInfo, getDesktopBrowserApi } from "@/lib/bb-desktop";
+import {
+  getPatcherDesktopInfo,
+  getDesktopBrowserApi,
+} from "@/lib/patcher-desktop";
 import { resolveBrowserPageSecurity } from "@/lib/browser-page-security";
 import { useBrowserSearchEngine } from "@/lib/browser-search-engine";
 import {
@@ -56,7 +59,7 @@ export interface BrowserSurfaceChromeProps {
   /** Tab switches are surface state, so the surface performs them. */
   onActivateTab: (tabId: string) => void;
   /**
-   * Go to one of bb's own screens. A route, not a page: the window's router
+   * Go to one of Patcher's own screens. A route, not a page: the window's router
    * takes it and the strip opens or focuses the destination's tab, which is why
    * this cannot go through `desktopBrowser.navigate`.
    */
@@ -148,14 +151,13 @@ export function BrowserSurfaceChrome({
   const desktopBrowser = useMemo(() => getDesktopBrowserApi(), []);
   const inputRef = useRef<HTMLInputElement>(null);
   const locationShortcut = useAppCommandShortcut("browser.focusLocation");
-  const [pushedState, setPushedState] = useState<BbDesktopBrowserState | null>(
-    null,
-  );
+  const [pushedState, setPushedState] =
+    useState<PatcherDesktopBrowserState | null>(null);
   const [draft, setDraft] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [highlight, setHighlight] = useState(NO_OMNIBOX_HIGHLIGHT);
   const omnibox = useOmnibox({ providers });
-  // The user's engine, bb's own or one a plugin declared. Read here rather than
+  // The user's engine, Patcher's own or one a plugin declared. Read here rather than
   // passed down: what Enter does is this component's to resolve, and it has to be
   // able to do it synchronously.
   const searchEngine = useBrowserSearchEngine();
@@ -502,8 +504,8 @@ export function BrowserSurfaceChrome({
             />
           ) : null}
         </div>
-        {/* Other people's controls sit between the address bar and bb's own, the
-            way a browser keeps its extension area — bb's buttons stay where the
+        {/* Other people's controls sit between the address bar and Patcher's own, the
+            way a browser keeps its extension area — Patcher's buttons stay where the
             user learned them. */}
         <BrowserPluginToolbar
           tabId={tabId}
@@ -517,7 +519,7 @@ export function BrowserSurfaceChrome({
             onToggle={toggleDownloads}
           />
         </div>
-        {/* Nothing to hand a link to when bb is the browser macOS hands links
+        {/* Nothing to hand a link to when Patcher is the browser macOS hands links
             to: Launch Services would route it straight back here as a tab. */}
         {defaultBrowserStatus.isDefault ? null : (
           <ChromeButton
@@ -525,7 +527,7 @@ export function BrowserSurfaceChrome({
             label="Open in external browser"
             disabled={url.length === 0}
             onClick={() => {
-              getBbDesktopInfo()?.openExternalUrl(url);
+              getPatcherDesktopInfo()?.openExternalUrl(url);
             }}
           />
         )}

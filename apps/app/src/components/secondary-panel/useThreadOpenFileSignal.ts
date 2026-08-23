@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { ThreadOpenFile } from "@bb/server-contract";
+import type { ThreadOpenFile } from "@patcher/server-contract";
 import { createFilePreviewLineRange } from "@/lib/file-preview";
 import { wsManager } from "@/lib/ws";
 import type { OpenSecondaryPanelTabRequest } from "./useThreadFileTabs";
@@ -16,9 +16,7 @@ interface UseThreadOpenFileSignalParams {
   openTab: (request: OpenSecondaryPanelTabRequest) => void;
 }
 
-function toOpenRequest(
-  file: ThreadOpenFile,
-): OpenSecondaryPanelTabRequest {
+function toOpenRequest(file: ThreadOpenFile): OpenSecondaryPanelTabRequest {
   const lineRange =
     file.lineNumber === null
       ? null
@@ -44,7 +42,7 @@ function toOpenRequest(
 }
 
 /**
- * Open files requested via `bb thread open` in the secondary panel.
+ * Open files requested via `patcher thread open` in the secondary panel.
  * The intent is broadcast to every client and buffered in {@link wsManager}; this
  * hook drains the buffer for the active thread when it becomes viewable (so a
  * file requested while a different thread was open opens on navigation) and

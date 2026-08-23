@@ -26,12 +26,12 @@ import type {
   ThreadStatus,
   ThreadVisibility,
   WorkspaceProvisionType,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   evaluateThreadLifecycleEvent,
   resolveEnvironmentWorkspaceDisplayKind,
   threadSearchSourceKindSchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { DbConnection, DbTransaction } from "../connection.js";
 import type { DbQueryConnection } from "../connection.js";
 import type { DbNotifier } from "../notifier.js";

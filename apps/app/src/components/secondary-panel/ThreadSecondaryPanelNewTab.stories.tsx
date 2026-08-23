@@ -4,7 +4,7 @@ import type {
   ThreadStoragePathListResponse,
   WorkspacePathEntry,
   WorkspacePathListResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { StoryCard, StoryRow } from "../../../.ladle/story-card";
 import { WithDesktopBrowser } from "../../../.ladle/story-desktop";
 import { createAppQueryClient } from "@/lib/query-client";
@@ -16,7 +16,7 @@ import { ThreadSecondaryPanel } from "./ThreadSecondaryPanel";
 import type { SecondaryPanelFileTab } from "./ThreadSecondaryPanel";
 import { NewTabPage } from "./NewTabPage";
 import type { FileSearchSelection } from "./useThreadFileTabs";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   getThreadRecentItemsStorageKey,
   type ThreadRecentItem,
@@ -35,7 +35,7 @@ export default {
   title: "right-panel/New tab",
 };
 
-const PROJECT_ID = "proj_bb";
+const PROJECT_ID = "proj_patcher";
 const ENVIRONMENT_ID = "env_open_file_story";
 const STORY_SOURCE_LIMIT = 40;
 const BLANK_THREAD_ID = "thr_new_tab_blank_story";
@@ -312,7 +312,7 @@ function makeThreadStoragePathResponse(
 ): ThreadStoragePathListResponse {
   return {
     paths: [...paths],
-    storageRootPath: "/Users/michael/.bb-dev/thread-storage/thr_demo",
+    storageRootPath: "/Users/michael/.patcher-dev/thread-storage/thr_demo",
     truncated: false,
   };
 }
@@ -515,7 +515,7 @@ function NewTabPanelStory({
       </div>
     ) : outcome.kind === "terminal" ? (
       <div className="flex min-h-full flex-col justify-center bg-neutral-950 px-4 font-mono text-xs text-emerald-100">
-        <p>$ bb terminal start</p>
+        <p>$ patcher terminal start</p>
         <p className="pt-1 text-emerald-300">
           Terminal tab opened from the New tab page.
         </p>

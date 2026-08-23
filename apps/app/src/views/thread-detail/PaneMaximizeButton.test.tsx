@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { TooltipProvider } from "@bb/shared-ui/tooltip";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HEADER_PANE_ACTION_ICON_BUTTON_CLASS } from "@/components/layout/AppPageHeader";
 import { PaneContext, type PaneContextValue } from "./PaneContext";
@@ -86,7 +86,7 @@ describe("PaneMaximizeButton", () => {
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it("shows only BB's supported split arrangement actions on hover", async () => {
+  it("shows only Patcher's supported split arrangement actions on hover", async () => {
     const onMoveToSide = vi.fn();
     renderButton(false, noop, onMoveToSide);
     const button = screen.getByRole("button", { name: "Full Screen (⌘⇧E)" });

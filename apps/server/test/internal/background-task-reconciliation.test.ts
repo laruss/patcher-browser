@@ -1,6 +1,6 @@
-import { closeSession, getThread, listEvents } from "@bb/db";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
-import { threadScope, turnScope } from "@bb/domain";
+import { closeSession, getThread, listEvents } from "@patcher/db";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
+import { threadScope, turnScope } from "@patcher/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { settleDanglingBackgroundTasks } from "../../src/services/threads/background-task-reconciliation.js";
 import { handleDaemonSocketClosed } from "../../src/internal/session-owner-side-effects.js";
@@ -316,7 +316,6 @@ describe("background-task lifecycle reconciliation triggers", () => {
           instanceId: "instance-restarted",
           hostName: host.name,
           hostType: host.type,
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-daemon-task-settle-restart",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
@@ -355,7 +354,6 @@ describe("background-task lifecycle reconciliation triggers", () => {
           instanceId: "instance-1",
           hostName: host.name,
           hostType: host.type,
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-daemon-task-settle-same-instance",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
@@ -385,7 +383,6 @@ describe("background-task lifecycle reconciliation triggers", () => {
           instanceId: session.instanceId,
           hostName: host.name,
           hostType: host.type,
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-daemon-task-live-same-instance",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
@@ -419,7 +416,6 @@ describe("background-task lifecycle reconciliation triggers", () => {
           instanceId: "instance-restarted",
           hostName: host.name,
           hostType: host.type,
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-daemon-task-live-restarted",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
@@ -480,7 +476,6 @@ describe("active thread disconnect reconciliation triggers", () => {
           instanceId: "instance-1",
           hostName: host.name,
           hostType: host.type,
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-daemon-active-same-instance",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
@@ -515,7 +510,6 @@ describe("active thread disconnect reconciliation triggers", () => {
           instanceId: "instance-restarted",
           hostName: host.name,
           hostType: host.type,
-          hasMachineCredential: false,
           platform: "darwin",
           dataDir: "/tmp/host-daemon-active-restarted-instance",
           protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,

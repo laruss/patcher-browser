@@ -6,7 +6,7 @@ import {
 export default defineWorkspaceTestConfig({
   test: {
     silent: "passed-only",
-    name: "@bb/host-workspace",
+    name: "@patcher/host-workspace",
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
     // Several tests drive real git subprocesses (concurrent reset/checkout,

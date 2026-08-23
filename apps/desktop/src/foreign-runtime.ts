@@ -1,19 +1,19 @@
 import {
-  bbAppRuntimeVerifyTokens,
-  clearOwnBbAppRuntimeFile,
-  readBbAppRuntimeFile,
-  type BbAppRuntimeFile,
-} from "@bb/config/app-runtime-file";
-import { stopVerifiedProcess } from "@bb/config/verified-process-stop";
-import type { VerifiedProcessOps } from "@bb/config/verified-process-stop";
+  patcherAppRuntimeVerifyTokens,
+  clearOwnPatcherAppRuntimeFile,
+  readPatcherAppRuntimeFile,
+  type PatcherAppRuntimeFile,
+} from "@patcher/config/app-runtime-file";
+import { stopVerifiedProcess } from "@patcher/config/verified-process-stop";
+import type { VerifiedProcessOps } from "@patcher/config/verified-process-stop";
 
 /**
- * A "foreign runtime" is a bb this desktop app did not start: a `bb-app start`
+ * A "foreign runtime" is a Patcher this desktop app did not start: a `patcher-app start`
  * from a terminal, a launchd service, or a second desktop build. The desktop
  * finds it by probing the port, then describes it from the runtime file that
  * the launcher writes into the data directory.
  *
- * A bb older than that file reports `null` details. The caller must then offer
+ * A Patcher older than that file reports `null` details. The caller must then offer
  * only "connect" and "quit", because it cannot name or safely stop the process.
  */
 export interface ForeignRuntimeDetails {
@@ -46,7 +46,7 @@ export type StopForeignRuntimeResult =
   | { kind: "unverified"; pid: number };
 
 function matchesProbedServer(
-  runtimeFile: BbAppRuntimeFile,
+  runtimeFile: PatcherAppRuntimeFile,
   serverUrl: string,
 ): boolean {
   try {
@@ -57,7 +57,7 @@ function matchesProbedServer(
 }
 
 /**
- * Read the details of the bb that answered a probe. Returns `null` when the
+ * Read the details of the Patcher that answered a probe. Returns `null` when the
  * data directory is unknown, when no runtime file exists, or when the file
  * describes a different server than the one that answered — a stale file from
  * an earlier run on another port must never be used to stop a live process.
@@ -69,7 +69,7 @@ export async function readForeignRuntimeDetails(
     return null;
   }
 
-  const runtimeFile = await readBbAppRuntimeFile(args.dataDir);
+  const runtimeFile = await readPatcherAppRuntimeFile(args.dataDir);
   if (runtimeFile === null) {
     return null;
   }
@@ -88,7 +88,7 @@ export async function readForeignRuntimeDetails(
 }
 
 /**
- * Stop the exact bb the person approved in the dialog.
+ * Stop the exact Patcher the person approved in the dialog.
  *
  * The dialog waits for a person, which can take any amount of time, and another
  * launcher can replace the record during that wait. So this re-reads the record
@@ -98,7 +98,7 @@ export async function readForeignRuntimeDetails(
 export async function stopForeignRuntime(
   args: StopForeignRuntimeArgs,
 ): Promise<StopForeignRuntimeResult> {
-  const current = await readBbAppRuntimeFile(args.details.dataDir);
+  const current = await readPatcherAppRuntimeFile(args.details.dataDir);
   if (
     current !== null &&
     (current.pid !== args.details.pid ||
@@ -114,7 +114,7 @@ export async function stopForeignRuntime(
     signal: "SIGTERM",
     startedAt: args.details.startedAt,
     timeoutMs: args.timeoutMs,
-    verifyTokens: bbAppRuntimeVerifyTokens(args.details.entryPath),
+    verifyTokens: patcherAppRuntimeVerifyTokens(args.details.entryPath),
   });
 
   if (stopResult.kind === "unverified") {
@@ -128,7 +128,7 @@ export async function stopForeignRuntime(
   }
   // A SIGKILLed launcher never runs its own cleanup, so clear the record it
   // left behind, but only while it still names the process that was stopped.
-  await clearOwnBbAppRuntimeFile({
+  await clearOwnPatcherAppRuntimeFile({
     dataDir: args.details.dataDir,
     pid: args.details.pid,
   });

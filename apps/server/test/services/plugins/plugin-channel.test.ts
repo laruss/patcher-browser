@@ -153,7 +153,7 @@ describe("plugin channel: requests", () => {
 
 describe("plugin channel: errors", () => {
   // The repo matches plugin errors by name, not by class — see the note in
-  // @bb/plugin-sdk's backend contract — so this is the whole of error identity.
+  // @patcher/plugin-sdk's backend contract — so this is the whole of error identity.
   it("keeps the name a caller branches on", async () => {
     const { host } = linkedPair({
       onPluginRequest: () => {

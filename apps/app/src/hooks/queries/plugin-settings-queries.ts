@@ -2,8 +2,8 @@ import type {
   InstalledPlugin,
   PluginSettingDescriptor,
   PluginSettingsResponse,
-} from "@bb/server-contract";
-import { pluginSettingsUpdateRequestSchema } from "@bb/server-contract";
+} from "@patcher/server-contract";
+import { pluginSettingsUpdateRequestSchema } from "@patcher/server-contract";
 import { useQuery, type QueryKey } from "@tanstack/react-query";
 import { createPluginsClient } from "./plugin-client";
 

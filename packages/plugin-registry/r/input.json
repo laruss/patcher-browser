@@ -3,11 +3,11 @@
   "name": "input",
   "type": "registry:ui",
   "title": "input",
-  "description": "BB ui \"input\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"input\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "registryDependencies": [
-    "@bb/coarse-pointer-sizing",
-    "@bb/motion",
-    "@bb/utils"
+    "@patcher/coarse-pointer-sizing",
+    "@patcher/motion",
+    "@patcher/utils"
   ],
   "files": [
     {

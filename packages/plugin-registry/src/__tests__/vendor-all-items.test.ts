@@ -13,21 +13,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   buildPluginApp,
   resolvePluginBuildToolchain,
-} from "@bb/plugin-build";
+} from "@patcher/plugin-build";
 
 /**
- * The monorepo's own toolchain: resolved from `@bb/plugin-build`'s
+ * The monorepo's own toolchain: resolved from `@patcher/plugin-build`'s
  * devDependencies, so tests never download one.
  */
 function testToolchain() {
   return resolvePluginBuildToolchain(
-    path.join(os.tmpdir(), "bb-toolchain-unused"),
+    path.join(os.tmpdir(), "patcher-toolchain-unused"),
   );
 }
 
 /**
  * The registry's CI gate (plugin design §5.5 exit criteria): vendor EVERY
- * registry item into one fixture plugin and run the real `bb plugin build`
+ * registry item into one fixture plugin and run the real `patcher plugin build`
  * over it. Catches items whose source no longer compiles outside the app
  * (missing registryDependency links, an app-internal import that escaped the
  * closure walker, a dep missing from the item), and asserts the compiled CSS
@@ -65,7 +65,7 @@ afterAll(async () => {
 });
 
 describe("plugin component registry", () => {
-  it("every item vendors into a plugin that bb plugin build compiles", async () => {
+  it("every item vendors into a plugin that patcher plugin build compiles", async () => {
     const itemNames: string[] = [];
     for (const fileName of (await readdir(registryDir)).sort()) {
       if (fileName === "index.json") continue;
@@ -103,10 +103,10 @@ describe("plugin component registry", () => {
       path.join(fixtureDir, "package.json"),
       JSON.stringify(
         {
-          name: "bb-plugin-registry-fixture",
+          name: "patcher-plugin-registry-fixture",
           version: "0.0.0",
           type: "module",
-          bb: {
+          patcher: {
             name: "Registry vendor fixture",
             description:
               "Verify every registry item can be vendored and bundled.",
@@ -124,7 +124,7 @@ describe("plugin component registry", () => {
       "export default function plugin() {}\n",
     );
     // esbuild reads tsconfig paths for the "@/*" alias the vendored source
-    // uses — the same file `bb plugin new` scaffolds.
+    // uses — the same file `patcher plugin new` scaffolds.
     await writeFile(
       path.join(fixtureDir, "tsconfig.json"),
       JSON.stringify(
@@ -148,7 +148,7 @@ describe("plugin component registry", () => {
 
     const js = await readFile(result.jsPath, "utf8");
     // Shared singletons resolve through the runtime, never bundled copies.
-    expect(js).toContain("globalThis.__bbPluginRuntime");
+    expect(js).toContain("globalThis.__patcherPluginRuntime");
     // (sonner has no vendored component — plugins import { toast } directly;
     // that shim is asserted in apps/cli plugin-build.test.ts.)
     for (const slot of ["radixDialog", "radixAlertDialog", "vaul"]) {
@@ -163,7 +163,7 @@ describe("plugin component registry", () => {
     // Utilities scope to this plugin's own mounts (id derived from the
     // package name), with a generic-root fallback for pre-id hosts.
     expect(css).toContain(
-      '@scope ([data-bb-plugin="registry-fixture"], [data-bb-plugin-root]:not([data-bb-plugin]))',
+      '@scope ([data-patcher-plugin="registry-fixture"], [data-patcher-plugin-root]:not([data-patcher-plugin]))',
     );
     expect(css).toMatch(/var\(--background\)/);
   });

@@ -21,8 +21,8 @@ import {
   type DbNotifier,
   type DbQueryConnection,
   type DbTransaction,
-} from "@bb/db";
-import { assertNever } from "@bb/core-ui";
+} from "@patcher/db";
+import { assertNever } from "@patcher/core-ui";
 import {
   type ProvisioningTranscriptEntry,
   type SystemThreadInterruptedReason,
@@ -33,7 +33,7 @@ import {
   type ThreadStatus,
   threadScope,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   AppDeps,
   LoggedPendingInteractionWorkSessionDeps,

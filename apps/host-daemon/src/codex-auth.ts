@@ -1,8 +1,12 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolveCodexHome } from "@bb/config/codex-home";
-import { jsonValueSchema, type JsonObject, type JsonValue } from "@bb/domain";
+import { resolveCodexHome } from "@patcher/config/codex-home";
+import {
+  jsonValueSchema,
+  type JsonObject,
+  type JsonValue,
+} from "@patcher/domain";
 import { ExpectedCommandDispatchError } from "./command-dispatch-support.js";
 
 const CODEX_AUTH_FILE_NAME = "auth.json";

@@ -2,20 +2,20 @@ import {
   getBuiltInAgentProviderServerCapabilities,
   isAgentProviderId,
   listBuiltInAgentProviderInfos,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import {
   getProjectExecutionDefaults,
   getThreadExecutionOverride,
   setThreadExecutionOverride,
   type ThreadExecutionOverride,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   reconcileReasoningLevel,
   type AvailableModel,
   type CallerExecutionInputSource,
   type ReasoningLevel,
   type Thread,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { ApiError } from "../../errors.js";
 import type { LoggedWorkSessionDeps } from "../../types.js";
 import { resolveSystemExecutionOptions } from "../system/execution-options.js";

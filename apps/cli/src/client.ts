@@ -1,7 +1,11 @@
-import { createNodeBbSdk, type BbSdk, type BbSdkContext } from "@bb/sdk/node";
+import {
+  createNodePatcherSdk,
+  type PatcherSdk,
+  type PatcherSdkContext,
+} from "@patcher/sdk/node";
 
-export interface CreateCliBbSdkOptions {
-  context?: BbSdkContext;
+export interface CreateCliPatcherSdkOptions {
+  context?: PatcherSdkContext;
 }
 
 export function cliFetch(
@@ -11,11 +15,11 @@ export function cliFetch(
   return fetch(input, init);
 }
 
-export function createCliBbSdk(
+export function createCliPatcherSdk(
   baseUrl: string,
-  options: CreateCliBbSdkOptions = {},
-): BbSdk {
-  return createNodeBbSdk({
+  options: CreateCliPatcherSdkOptions = {},
+): PatcherSdk {
+  return createNodePatcherSdk({
     baseUrl,
     context: options.context,
     fetch: cliFetch,

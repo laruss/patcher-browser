@@ -4,7 +4,7 @@ import {
   hasTimelineExplorationIntent,
   type ThreadTimelineViewRow,
   type TimelineViewWorkRow,
-} from "@bb/thread-view";
+} from "@patcher/thread-view";
 
 interface CollectTimelineAutoExpansionRowIdsArgs {
   rows: readonly ThreadTimelineViewRow[];

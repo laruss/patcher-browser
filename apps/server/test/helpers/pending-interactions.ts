@@ -7,7 +7,7 @@ import type {
   PendingInteractionGrantablePermissionProfile,
   UserQuestionPendingInteractionPayload,
   UserQuestionPendingInteractionResolution,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 type PendingInteractionFileChangeWriteScope = string;
 

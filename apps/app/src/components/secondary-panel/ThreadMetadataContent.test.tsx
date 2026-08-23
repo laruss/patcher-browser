@@ -3,8 +3,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import type { Environment, Thread } from "@bb/domain";
-import { TooltipProvider } from "@bb/shared-ui/tooltip";
+import type { Environment, Thread } from "@patcher/domain";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EnvironmentRow, ParentSelectorRow } from "./ThreadMetadataContent";
 import { parentThreads } from "./ThreadMetadataContent.fixtures";

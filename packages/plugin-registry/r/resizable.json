@@ -3,13 +3,13 @@
   "name": "resizable",
   "type": "registry:ui",
   "title": "resizable",
-  "description": "BB ui \"resizable\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"resizable\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "lucide-react",
     "react-resizable-panels"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

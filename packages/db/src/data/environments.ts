@@ -6,8 +6,8 @@ import type {
   EnvironmentLifecycleNoopReason,
   EnvironmentStatus,
   WorkspaceProvisionType,
-} from "@bb/domain";
-import { evaluateEnvironmentLifecycleEvent } from "@bb/domain";
+} from "@patcher/domain";
+import { evaluateEnvironmentLifecycleEvent } from "@patcher/domain";
 import type { DbConnection, DbTransaction } from "../connection.js";
 import type { DbNotifier } from "../notifier.js";
 import { environments } from "../schema.js";
@@ -101,7 +101,7 @@ export interface FindForeignManagedEnvironmentAtHostPathArgs {
 }
 
 /**
- * A live bb-managed workspace at this directory owned by another project.
+ * A live Patcher-managed workspace at this directory owned by another project.
  * The environment claim is project-scoped, but the directory is physical:
  * destroying a managed environment deletes it, so no other project may attach
  * to it in place.

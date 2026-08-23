@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Host, PermissionMode } from "@bb/domain";
+import type { Host, PermissionMode } from "@patcher/domain";
 import { apiClient } from "@/lib/api-server";
 import { request } from "@/lib/api";
 import { sdk } from "@/lib/sdk";
@@ -56,7 +56,7 @@ interface UpdateHostPermissionCeilingRequest {
  * Sets a machine's permission ceiling. This calls the API client directly
  * instead of `sdk.hosts.*` on purpose: the ceiling is the control that stops
  * one paired machine from running privileged work on another, so it stays out
- * of the agent-facing SDK and the `bb` CLI. The server also refuses the route
+ * of the agent-facing SDK and the `patcher` CLI. The server also refuses the route
  * for machine credentials.
  */
 export function useUpdateHostPermissionCeiling() {

@@ -1,4 +1,4 @@
-export type { EmptyInput, Endpoint, Untyped } from "@bb/hono-typed-routes";
+export type { EmptyInput, Endpoint, Untyped } from "@patcher/hono-typed-routes";
 
 export type PathId = { param: { id: string } };
 export type PathProjectId = { param: { id: string } };

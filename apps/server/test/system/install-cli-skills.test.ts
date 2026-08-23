@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   systemCliSkillsStatusResponseSchema,
   systemInstallCliSkillsResponseSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import { registerHostRpcResponder } from "../helpers/host-rpc.js";
 import { seedHost, seedHostSession } from "../helpers/seed.js";
@@ -14,12 +14,12 @@ import { resolveServerOwnedSkillCatalogEntries } from "../../src/services/skills
 async function writeBuiltinCliSkill(harness: TestAppHarness): Promise<void> {
   const skillDirectory = join(
     harness.deps.config.builtinSkillsRootPath,
-    "bb-cli",
+    "patcher-cli",
   );
   await mkdir(skillDirectory, { recursive: true });
   await writeFile(
     join(skillDirectory, "SKILL.md"),
-    "---\nname: bb-cli\ndescription: Control bb from the CLI.\n---\n",
+    "---\nname: patcher-cli\ndescription: Control Patcher from the CLI.\n---\n",
   );
 }
 
@@ -30,9 +30,9 @@ function expectedCliSkillTreeHash(harness: TestAppHarness): string {
     dataDir: harness.deps.config.dataDir,
     logger: harness.deps.logger,
     skillTreeRegistry: harness.deps.skillTreeRegistry,
-  }).find(({ runtimeSource }) => runtimeSource.name === "bb-cli");
+  }).find(({ runtimeSource }) => runtimeSource.name === "patcher-cli");
   if (entry?.runtimeSource.kind !== "tree") {
-    throw new Error("The built-in bb-cli skill did not resolve to a tree");
+    throw new Error("The built-in patcher-cli skill did not resolve to a tree");
   }
   return entry.runtimeSource.treeHash;
 }
@@ -46,7 +46,7 @@ function installRequest(hostIds: string[]): Request {
 }
 
 describe("install cli skills", () => {
-  it("installs the built-in bb-cli tree on every requested machine", async () => {
+  it("installs the built-in patcher-cli tree on every requested machine", async () => {
     await withTestHarness(async (harness) => {
       await writeBuiltinCliSkill(harness);
       const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
@@ -58,13 +58,16 @@ describe("install cli skills", () => {
           handle: (request) => {
             expect(request.command).toMatchObject({
               type: "host.install_global_skills",
-              skills: [{ name: "bb-cli", entryPath: "SKILL.md" }],
+              skills: [{ name: "patcher-cli", entryPath: "SKILL.md" }],
             });
             return {
               ok: true,
               result: {
                 installations: [
-                  { name: "bb-cli", path: `/home/${host.id}/.agents/skills` },
+                  {
+                    name: "patcher-cli",
+                    path: `/home/${host.id}/.agents/skills`,
+                  },
                 ],
               },
             };
@@ -100,7 +103,9 @@ describe("install cli skills", () => {
         handle: () => ({
           ok: true,
           result: {
-            installations: [{ name: "bb-cli", path: "/home/u/.agents/skills" }],
+            installations: [
+              { name: "patcher-cli", path: "/home/u/.agents/skills" },
+            ],
           },
         }),
       });
@@ -164,15 +169,15 @@ describe("install cli skills", () => {
           handle: (request) => {
             expect(request.command).toMatchObject({
               type: "host.global_skills_status",
-              names: ["bb-cli"],
+              names: ["patcher-cli"],
             });
             return {
               ok: true,
               result: {
                 entries: [
                   {
-                    name: "bb-cli",
-                    path: `/home/${host.id}/.agents/skills/bb-cli`,
+                    name: "patcher-cli",
+                    path: `/home/${host.id}/.agents/skills/patcher-cli`,
                     treeHash: hashByHostId[host.id] ?? null,
                   },
                 ],

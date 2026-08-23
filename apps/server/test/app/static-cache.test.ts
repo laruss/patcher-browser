@@ -8,7 +8,7 @@ import { createTestAppHarness } from "../helpers/test-app.js";
 
 describe("production static cache headers", () => {
   it("keeps index.html fresh while allowing immutable hashed assets", async () => {
-    const staticDir = await mkdtemp(join(tmpdir(), "bb-server-static-"));
+    const staticDir = await mkdtemp(join(tmpdir(), "patcher-server-static-"));
     await mkdir(join(staticDir, "assets"), { recursive: true });
     await writeFile(
       join(staticDir, "index.html"),
@@ -27,7 +27,7 @@ describe("production static cache headers", () => {
     );
     await writeFile(
       join(staticDir, "manifest.webmanifest"),
-      JSON.stringify({ name: "bb", icons: [] }),
+      JSON.stringify({ name: "Patcher", icons: [] }),
     );
 
     const harness = await createTestAppHarness();

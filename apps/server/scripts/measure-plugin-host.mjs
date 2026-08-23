@@ -55,31 +55,31 @@ const PARTS = [
     `import {z} from "zod"; console.error(typeof z.object({a: z.string()}).safeParse({a: "b"}));`,
   ],
   [
-    "@bb/domain/browser-control",
-    `import {browserCookieSchema} from "@bb/domain/browser-control"; console.error(typeof browserCookieSchema);`,
+    "@patcher/domain/browser-control",
+    `import {browserCookieSchema} from "@patcher/domain/browser-control"; console.error(typeof browserCookieSchema);`,
   ],
   [
-    "@bb/domain/plugin-permissions",
-    `import {PLUGIN_PERMISSIONS} from "@bb/domain/plugin-permissions"; console.error(PLUGIN_PERMISSIONS.length);`,
+    "@patcher/domain/plugin-permissions",
+    `import {PLUGIN_PERMISSIONS} from "@patcher/domain/plugin-permissions"; console.error(PLUGIN_PERMISSIONS.length);`,
   ],
   [
-    "@bb/domain/app-keybindings",
-    `import {appCommandIdSchema} from "@bb/domain/app-keybindings"; console.error(typeof appCommandIdSchema.safeParse("x"));`,
+    "@patcher/domain/app-keybindings",
+    `import {appCommandIdSchema} from "@patcher/domain/app-keybindings"; console.error(typeof appCommandIdSchema.safeParse("x"));`,
   ],
   [
-    "@bb/domain/pending-interactions",
-    `import {PLUGIN_INTERACTION_MAX_TITLE_LENGTH as L} from "@bb/domain/pending-interactions"; console.error(L);`,
+    "@patcher/domain/pending-interactions",
+    `import {PLUGIN_INTERACTION_MAX_TITLE_LENGTH as L} from "@patcher/domain/pending-interactions"; console.error(L);`,
   ],
   [
-    "@bb/domain (whole index)",
-    `import {PLUGIN_PERMISSIONS} from "@bb/domain"; console.error(PLUGIN_PERMISSIONS.length);`,
+    "@patcher/domain (whole index)",
+    `import {PLUGIN_PERMISSIONS} from "@patcher/domain"; console.error(PLUGIN_PERMISSIONS.length);`,
   ],
   [
     "plugin-channel.ts (transport only)",
     `import {createPluginChannel} from "${PACKAGE_ROOT}src/services/plugins/plugin-channel.ts"; console.error(typeof createPluginChannel);`,
   ],
   [
-    "plugin-api.ts (the whole bb builder)",
+    "plugin-api.ts (the whole Patcher builder)",
     `import {createPluginApi} from "${PACKAGE_ROOT}src/services/plugins/plugin-api.ts"; console.error(typeof createPluginApi);`,
   ],
   [
@@ -87,8 +87,8 @@ const PARTS = [
     `import {createPluginChildRuntime} from "${PACKAGE_ROOT}src/services/plugins/plugin-child-runtime.ts"; console.error(typeof createPluginChildRuntime);`,
   ],
   [
-    "@bb/sdk (pulls the API client)",
-    `import {createNodeBbSdk} from "@bb/sdk"; console.error(typeof createNodeBbSdk);`,
+    "@patcher/sdk (pulls the API client)",
+    `import {createNodePatcherSdk} from "@patcher/sdk"; console.error(typeof createNodePatcherSdk);`,
   ],
 ];
 

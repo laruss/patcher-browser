@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PendingInteractionUserQuestionQuestion } from "@bb/domain";
+import type { PendingInteractionUserQuestionQuestion } from "@patcher/domain";
 import { resolveQuestionShortcutChoice } from "./UserQuestionInteractionContent";
 
 const question: PendingInteractionUserQuestionQuestion = {

@@ -14,7 +14,7 @@ const packageRoot = path.resolve(
   "..",
 );
 
-describe("@bb/templates", () => {
+describe("@patcher/templates", () => {
   it("keeps generated templates in sync with source templates", () => {
     const result = spawnSync(
       process.execPath,
@@ -38,18 +38,18 @@ describe("@bb/templates", () => {
   });
 
   it("documents project creation machine routing", () => {
-    const guide = renderTemplate("bbGuideProjects", {});
+    const guide = renderTemplate("patcherGuideProjects", {});
 
-    expect(guide).toContain("bb project create --name");
+    expect(guide).toContain("patcher project create --name");
     expect(guide).toContain("--machine <id-or-name>");
     expect(guide).toContain("--host <id-or-name>");
     expect(guide).toContain("local CLI machine fallback");
   });
 
   it("documents complete automation execution replacement", () => {
-    const guide = renderTemplate("bbGuideAutomations", {});
+    const guide = renderTemplate("patcherGuideAutomations", {});
 
-    expect(guide).toContain("bb automation update <automationId>");
+    expect(guide).toContain("patcher automation update <automationId>");
     expect(guide).toContain("replace the previous execution completely");
     expect(guide).toContain("--env-json");
     expect(guide).toContain("--permission-mode <accept-edits|auto|full>");
@@ -64,7 +64,7 @@ describe("@bb/templates", () => {
 
     expect(rendered).toBe(
       [
-        "[bb message from thread:thr_sender]",
+        "[Patcher message from thread:thr_sender]",
         "",
         "Please check the failing test.",
       ].join("\n"),
@@ -88,7 +88,7 @@ describe("@bb/templates", () => {
   it("renders standardAgentAppendInstructions without user-question guidance", () => {
     const rendered = renderTemplate("standardAgentAppendInstructions", {});
 
-    expect(rendered).toContain("You are working inside bb");
+    expect(rendered).toContain("You are working inside Patcher");
     expect(rendered).toContain("agentic IDE");
     expect(rendered).not.toContain(
       "Ask the user a blocking question only when",
@@ -106,7 +106,7 @@ describe("@bb/templates", () => {
 
     expect(rendered).toBe(
       [
-        "[bb system]",
+        "[Patcher system]",
         "",
         "@thread:thr_child needs help.",
         "Blocked on command approval:",
@@ -124,7 +124,7 @@ describe("@bb/templates", () => {
       }),
     ).toBe(
       [
-        "[bb system]",
+        "[Patcher system]",
         "",
         "@thread:thr_child is now a child of this thread.",
       ].join("\n"),
@@ -135,7 +135,7 @@ describe("@bb/templates", () => {
       }),
     ).toBe(
       [
-        "[bb system]",
+        "[Patcher system]",
         "",
         "@thread:thr_child is no longer a child of this thread.",
       ].join("\n"),

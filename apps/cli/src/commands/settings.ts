@@ -8,9 +8,9 @@ import {
   type AppSettings,
   type AppShortcut,
   type Experiments,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { outputJson } from "./helpers.js";
 import { resolveMachineHostId, resolveMachineTargetOption } from "./machine.js";
 
@@ -97,7 +97,7 @@ export function registerSettingsCommands(
 ): void {
   const settings = program
     .command("settings")
-    .description("Inspect and update BB settings");
+    .description("Inspect and update Patcher settings");
 
   settings
     .command("show")
@@ -105,7 +105,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOptions) => {
-        const result = await createCliBbSdk(getUrl()).system.config();
+        const result = await createCliPatcherSdk(getUrl()).system.config();
         if (outputJson(opts, result)) return;
         console.log(JSON.stringify(result, null, 2));
       }),
@@ -117,7 +117,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (key: string, value: string, opts: JsonOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const config = await sdk.system.config();
         const result = await sdk.system.updateGeneralSettings(
           updateGeneralSetting(
@@ -137,7 +137,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const config = await sdk.system.config();
         let experiments = config.experiments;
         if (!config.experiments.newOnboarding) {
@@ -161,7 +161,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (key: string, value: string, opts: JsonOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const config = await sdk.system.config();
         const result = await sdk.system.updateExperiments(
           updateExperiment(config.experiments, key, value),
@@ -180,7 +180,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (value: string, opts: JsonOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const config = await sdk.system.config();
         const result = await sdk.system.updateGeneralSettings(
           updateGeneralSetting(
@@ -199,7 +199,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOptions) => {
-        const config = await createCliBbSdk(getUrl()).system.config();
+        const config = await createCliPatcherSdk(getUrl()).system.config();
         const result = {
           bindings: config.keybindings,
           overrides: config.keybindingOverrides,
@@ -216,7 +216,7 @@ export function registerSettingsCommands(
       action(
         async (commandInput: string, shortcut: string, opts: JsonOptions) => {
           const command = appCommandIdSchema.parse(commandInput);
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const config = await sdk.system.config();
           const next = config.keybindingOverrides.filter(
             (item) => item.command !== command,
@@ -237,7 +237,7 @@ export function registerSettingsCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (commandInput: string | undefined, opts: JsonOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const config = await sdk.system.config();
         const next =
           commandInput === undefined
@@ -275,7 +275,7 @@ export function registerSettingsCommands(
                 serverUrl: getUrl(),
                 target,
               });
-        const result = await createCliBbSdk(getUrl()).system.usageLimits(
+        const result = await createCliPatcherSdk(getUrl()).system.usageLimits(
           hostId === undefined ? {} : { hostId },
         );
         if (outputJson(opts, result)) return;
@@ -285,12 +285,12 @@ export function registerSettingsCommands(
 
   settings
     .command("version")
-    .description("Check the running and latest BB versions")
+    .description("Check the running and latest Patcher versions")
     .option("--force", "Bypass the latest-version cache")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOptions & { force?: boolean }) => {
-        const result = await createCliBbSdk(getUrl()).system.version({
+        const result = await createCliPatcherSdk(getUrl()).system.version({
           force: opts.force,
         });
         if (outputJson(opts, result)) return;
@@ -300,11 +300,12 @@ export function registerSettingsCommands(
 
   settings
     .command("reload")
-    .description("Reload BB's managed configuration")
+    .description("Reload Patcher's managed configuration")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOptions) => {
-        const result = await createCliBbSdk(getUrl()).system.reloadConfig();
+        const result =
+          await createCliPatcherSdk(getUrl()).system.reloadConfig();
         if (outputJson(opts, result)) return;
         console.log("Configuration reloaded");
       }),

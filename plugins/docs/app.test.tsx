@@ -8,11 +8,11 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
+import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
 
 const app = await loadPluginApp(() => import("./app"));
 
-// jsdom has no matchMedia; @bb/shared-ui's responsive overlays query it.
+// jsdom has no matchMedia; @patcher/shared-ui's responsive overlays query it.
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -500,7 +500,7 @@ describe("Docs nav panel", () => {
 
   it("keeps task checkboxes aligned with the first line of their text", async () => {
     const existingStyles = document.head.querySelector(
-      "style[data-bb-simple-notes-styles]",
+      "style[data-patcher-simple-notes-styles]",
     );
     if (existingStyles) existingStyles.textContent = "stale editor styles";
     const slot = renderSlot(
@@ -531,7 +531,7 @@ describe("Docs nav panel", () => {
     expect(slot.queryByRole("button", { name: "Add image" })).toBeNull();
     expect(slot.container.querySelector('input[type="file"]')).toBeNull();
     const styles = document.head.querySelector(
-      "style[data-bb-simple-notes-styles]",
+      "style[data-patcher-simple-notes-styles]",
     );
     expect(styles?.textContent).not.toBe("stale editor styles");
     expect(styles?.textContent).toContain("align-items: flex-start");
@@ -585,7 +585,7 @@ describe("Docs nav panel", () => {
     expect(table?.closest('[contenteditable="true"]')).toBeTruthy();
 
     const styles = document.head.querySelector(
-      "style[data-bb-simple-notes-styles]",
+      "style[data-patcher-simple-notes-styles]",
     );
     expect(styles?.textContent).toContain("border-collapse: collapse");
     expect(styles?.textContent).toContain("column-resize-handle");

@@ -3,14 +3,14 @@ import type {
   ThreadChildOrigin,
   ThreadOriginKind,
   ThreadVisibility,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   CreateThreadEnvironmentArgs,
   CreateThreadRequest,
   EnvironmentArgs,
   StartedOnBehalfOf,
   ThreadCreateOrigin,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 export interface ThreadCreateServiceRequestInput {
   /** @deprecated Use originKind. */

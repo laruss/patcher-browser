@@ -2,8 +2,8 @@ import {
   hostDaemonToolCallRequestSchema,
   typedRoutes,
   type HostDaemonInternalSchema,
-} from "@bb/host-daemon-contract";
-import type { ToolCallResponse } from "@bb/domain";
+} from "@patcher/host-daemon-contract";
+import type { ToolCallResponse } from "@patcher/domain";
 import type { Hono } from "hono";
 import type { AppDeps } from "../types.js";
 import { ApiError } from "../errors.js";
@@ -22,7 +22,7 @@ const textEncoder = new TextEncoder();
 
 /**
  * Return the response head before a plugin tool finishes. Interactive plugin
- * tools can wait for user input for minutes, while bb Connect requires an
+ * tools can wait for user input for minutes, while Patcher Connect requires an
  * origin response head within 30 seconds. The response body can stay open.
  */
 function streamToolCallResponse(result: Promise<ToolCallResponse>): Response {
@@ -73,7 +73,7 @@ export function registerInternalToolCallRoutes(app: Hono, deps: AppDeps): void {
       }
 
       // Built-in tools win name lookups; then the native plugin-tool
-      // registry (bb.agents.registerTool). A tool whose plugin was
+      // registry (patcher.agents.registerTool). A tool whose plugin was
       // disabled/reloaded away since the session started falls through to
       // the unsupported-tool response below.
       if (payload.tool === UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME) {

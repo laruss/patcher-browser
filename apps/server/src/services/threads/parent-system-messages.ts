@@ -3,7 +3,7 @@ import {
   getThread,
   requireThreadLifecycleEventApplied,
   type DbTransaction,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   PromptInput,
   PromptMentionResource,
@@ -12,8 +12,8 @@ import type {
   SystemMessageKind,
   SystemMessageSubject,
   Thread,
-} from "@bb/domain";
-import type { HostDaemonCommand } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import type { HostDaemonCommand } from "@patcher/host-daemon-contract";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import { requireThreadEnvironment } from "../lib/entity-lookup.js";
 import {

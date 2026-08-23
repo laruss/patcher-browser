@@ -1,4 +1,4 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import type { TasksStore } from "../db";
 import { isSideChatShapedThread } from "../shared/side-chat";
 
@@ -27,7 +27,7 @@ function steerPrompt(
   return (
     `New comment on task ${taskKey} from ${authorName}: ${body}\n\n` +
     "Treat this as updated context for your work on this task; " +
-    `reply via bb tasks comment ${taskKey} when relevant.`
+    `reply via patcher tasks comment ${taskKey} when relevant.`
   );
 }
 
@@ -36,7 +36,7 @@ function errorMessage(error: unknown): string {
 }
 
 export async function deliverCommentToLatestAgent(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   store: TasksStore,
   input: DeliverCommentInput,
 ): Promise<CommentDeliveryResult> {
@@ -67,7 +67,7 @@ export async function deliverCommentToLatestAgent(
   const prompt = steerPrompt(task.key, input.authorName, input.body);
   let outcome: CommentDeliveryOutcome;
   try {
-    const thread = await bb.sdk.threads.get({ threadId });
+    const thread = await patcher.sdk.threads.get({ threadId });
     if (isSideChatShapedThread(thread)) {
       outcome = {
         threadId,
@@ -75,7 +75,7 @@ export async function deliverCommentToLatestAgent(
         reason: "latest agent reply belongs to a side chat",
       };
     } else {
-      await bb.sdk.threads.send({
+      await patcher.sdk.threads.send({
         threadId,
         input: [{ type: "text", text: prompt, mentions: [] }],
         mode: "steer-if-active",
@@ -84,7 +84,7 @@ export async function deliverCommentToLatestAgent(
     }
   } catch (error) {
     const reason = errorMessage(error);
-    bb.log.warn(
+    patcher.log.warn(
       `failed to deliver comment ${input.commentId} to thread ${threadId}: ${reason}`,
     );
     outcome = { threadId, status: "failed", reason };

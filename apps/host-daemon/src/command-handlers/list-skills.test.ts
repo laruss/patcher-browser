@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { DiscoveredSkill } from "@bb/host-daemon-contract";
+import type { DiscoveredSkill } from "@patcher/host-daemon-contract";
 import { discoverSkills } from "../command-discovery.js";
 import { CommandDispatchError } from "../command-dispatch-support.js";
 import {
@@ -43,7 +43,7 @@ async function writeSkill(filePath: string, name: string): Promise<void> {
 async function makeWorkspaceFixture(): Promise<WorkspaceFixture> {
   const cwd = path.join(tempRoot, "workspace");
   const builtinSkillsRootPath = path.join(tempRoot, "builtin-skills");
-  const dataDir = path.join(tempRoot, "bb-data");
+  const dataDir = path.join(tempRoot, "patcher-data");
   const homeDir = path.join(tempRoot, "home");
   const codexHome = path.join(homeDir, ".codex");
   await mkdir(cwd, { recursive: true });
@@ -77,7 +77,7 @@ function byName(
 }
 
 beforeEach(async () => {
-  tempRoot = await mkdtemp(path.join(tmpdir(), "bb-list-skills-"));
+  tempRoot = await mkdtemp(path.join(tmpdir(), "patcher-list-skills-"));
 });
 
 afterEach(async () => {
@@ -88,11 +88,22 @@ describe("resolveSkillScanRoots + discoverSkills (claude-code)", () => {
   it("classifies host-owned project and provider roots only", async () => {
     const fixture = await makeWorkspaceFixture();
     const files = {
-      "proj-bb": path.join(fixture.cwd, ".bb", "skills", "proj-bb", "SKILL.md"),
-      "data-bb": path.join(fixture.dataDir, "skills", "data-bb", "SKILL.md"),
-      "builtin-bb": path.join(
+      "proj-patcher": path.join(
+        fixture.cwd,
+        ".patcher",
+        "skills",
+        "proj-patcher",
+        "SKILL.md",
+      ),
+      "data-patcher": path.join(
+        fixture.dataDir,
+        "skills",
+        "data-patcher",
+        "SKILL.md",
+      ),
+      "builtin-patcher": path.join(
         fixture.builtinSkillsRootPath,
-        "builtin-bb",
+        "builtin-patcher",
         "SKILL.md",
       ),
       "proj-claude": path.join(
@@ -116,16 +127,16 @@ describe("resolveSkillScanRoots + discoverSkills (claude-code)", () => {
 
     const skills = await listSkills(fixture, "claude-code", fixture.cwd);
 
-    expect(byName(skills, "proj-bb")).toEqual({
+    expect(byName(skills, "proj-patcher")).toEqual({
       id: expect.stringMatching(/^skill_[a-f0-9]{64}$/u),
-      name: "proj-bb",
-      description: "proj-bb skill",
-      filePath: files["proj-bb"],
-      rootKind: "bb-project",
+      name: "proj-patcher",
+      description: "proj-patcher skill",
+      filePath: files["proj-patcher"],
+      rootKind: "patcher-project",
       linked: false,
     });
-    expect(byName(skills, "data-bb")).toBeUndefined();
-    expect(byName(skills, "builtin-bb")).toBeUndefined();
+    expect(byName(skills, "data-patcher")).toBeUndefined();
+    expect(byName(skills, "builtin-patcher")).toBeUndefined();
     expect(byName(skills, "proj-claude")?.rootKind).toBe("provider-project");
     expect(byName(skills, "user-claude")?.rootKind).toBe("provider-user");
     // Every record carries its absolute SKILL.md path.
@@ -133,8 +144,8 @@ describe("resolveSkillScanRoots + discoverSkills (claude-code)", () => {
   });
 
   it("keeps native skill IDs stable when the workspace root moves", async () => {
-    const firstRoot = path.join(tempRoot, "checkout-a", ".bb", "skills");
-    const secondRoot = path.join(tempRoot, "checkout-b", ".bb", "skills");
+    const firstRoot = path.join(tempRoot, "checkout-a", ".patcher", "skills");
+    const secondRoot = path.join(tempRoot, "checkout-b", ".patcher", "skills");
     await writeSkill(path.join(firstRoot, "review", "SKILL.md"), "review");
     await writeSkill(path.join(secondRoot, "review", "SKILL.md"), "review");
 
@@ -146,8 +157,8 @@ describe("resolveSkillScanRoots + discoverSkills (claude-code)", () => {
           namePrefix: "",
           source: "skill",
           origin: "project",
-          identitySeed: "bb-project",
-          rootKind: "bb-project",
+          identitySeed: "patcher-project",
+          rootKind: "patcher-project",
         },
       ],
     });
@@ -159,8 +170,8 @@ describe("resolveSkillScanRoots + discoverSkills (claude-code)", () => {
           namePrefix: "",
           source: "skill",
           origin: "project",
-          identitySeed: "bb-project",
-          rootKind: "bb-project",
+          identitySeed: "patcher-project",
+          rootKind: "patcher-project",
         },
       ],
     });
@@ -171,18 +182,18 @@ describe("resolveSkillScanRoots + discoverSkills (claude-code)", () => {
   it("drops project roots when cwd is null", async () => {
     const fixture = await makeWorkspaceFixture();
     await writeSkill(
-      path.join(fixture.cwd, ".bb", "skills", "proj-bb", "SKILL.md"),
-      "proj-bb",
+      path.join(fixture.cwd, ".patcher", "skills", "proj-patcher", "SKILL.md"),
+      "proj-patcher",
     );
     await writeSkill(
-      path.join(fixture.dataDir, "skills", "data-bb", "SKILL.md"),
-      "data-bb",
+      path.join(fixture.dataDir, "skills", "data-patcher", "SKILL.md"),
+      "data-patcher",
     );
 
     const skills = await listSkills(fixture, "claude-code", null);
 
-    expect(byName(skills, "proj-bb")).toBeUndefined();
-    expect(byName(skills, "data-bb")).toBeUndefined();
+    expect(byName(skills, "proj-patcher")).toBeUndefined();
+    expect(byName(skills, "data-patcher")).toBeUndefined();
   });
 });
 
@@ -198,16 +209,16 @@ describe("resolveSkillScanRoots + discoverSkills (codex)", () => {
       "user-codex",
     );
     await writeSkill(
-      path.join(fixture.cwd, ".bb", "skills", "proj-bb", "SKILL.md"),
-      "proj-bb",
+      path.join(fixture.cwd, ".patcher", "skills", "proj-patcher", "SKILL.md"),
+      "proj-patcher",
     );
 
     const skills = await listSkills(fixture, "codex", fixture.cwd);
 
     expect(byName(skills, "proj-codex")?.rootKind).toBe("provider-project");
     expect(byName(skills, "user-codex")?.rootKind).toBe("provider-user");
-    // bb roots are shared across providers.
-    expect(byName(skills, "proj-bb")?.rootKind).toBe("bb-project");
+    // Patcher roots are shared across providers.
+    expect(byName(skills, "proj-patcher")?.rootKind).toBe("patcher-project");
   });
 
   it("classifies repository and nested .agents roots as codex project skills", async () => {
@@ -307,7 +318,7 @@ describe("resolveSkillScanRoots + discoverSkills (shared roots)", () => {
 
     const skills = await discoverSkills({
       roots: await resolveSkillScanRoots({
-        providerId: "bb-shared",
+        providerId: "patcher-shared",
         cwd: fixture.cwd,
         homeDir: fixture.homeDir,
         codexHome: fixture.codexHome,
@@ -337,7 +348,7 @@ describe("resolveSkillScanRoots + discoverSkills (shared roots)", () => {
 
     const skills = await discoverSkills({
       roots: await resolveSkillScanRoots({
-        providerId: "bb-shared",
+        providerId: "patcher-shared",
         cwd: fixture.cwd,
         homeDir: fixture.homeDir,
         codexHome: fixture.codexHome,
@@ -396,7 +407,7 @@ describe("resolveSkillScanRoots + discoverSkills (acp-cursor)", () => {
 });
 
 describe("deleteHostSkill", () => {
-  it("deletes a bb-user skill directory", async () => {
+  it("deletes a patcher-user skill directory", async () => {
     const fixture = await makeWorkspaceFixture();
     const skillDir = path.join(fixture.dataDir, "skills", "doomed");
     await writeSkill(path.join(skillDir, "SKILL.md"), "doomed");
@@ -404,7 +415,7 @@ describe("deleteHostSkill", () => {
     const result = await deleteHostSkill(
       {
         type: "host.delete_skill",
-        scope: "bb-user",
+        scope: "patcher-user",
         name: "doomed",
         cwd: null,
         rootPath: null,
@@ -416,15 +427,20 @@ describe("deleteHostSkill", () => {
     expect(result.deletedPath).toContain("doomed");
   });
 
-  it("deletes a bb-project skill directory under cwd/.bb/skills", async () => {
+  it("deletes a patcher-project skill directory under cwd/.patcher/skills", async () => {
     const fixture = await makeWorkspaceFixture();
-    const skillDir = path.join(fixture.cwd, ".bb", "skills", "proj-doomed");
+    const skillDir = path.join(
+      fixture.cwd,
+      ".patcher",
+      "skills",
+      "proj-doomed",
+    );
     await writeSkill(path.join(skillDir, "SKILL.md"), "proj-doomed");
 
     await deleteHostSkill(
       {
         type: "host.delete_skill",
-        scope: "bb-project",
+        scope: "patcher-project",
         name: "proj-doomed",
         cwd: fixture.cwd,
         rootPath: null,
@@ -461,7 +477,7 @@ describe("deleteHostSkill", () => {
       deleteHostSkill(
         {
           type: "host.delete_skill",
-          scope: "bb-user",
+          scope: "patcher-user",
           name: "../evil",
           cwd: null,
           rootPath: null,
@@ -471,12 +487,12 @@ describe("deleteHostSkill", () => {
     ).rejects.toMatchObject({ code: "invalid_skill_name" });
   });
 
-  it("refuses a skill symlinked outside the bb root after realpath", async () => {
+  it("refuses a skill symlinked outside the Patcher root after realpath", async () => {
     const fixture = await makeWorkspaceFixture();
-    // A real skill dir living outside any bb root.
+    // A real skill dir living outside any Patcher root.
     const outside = path.join(tempRoot, "outside", "secret");
     await writeSkill(path.join(outside, "SKILL.md"), "secret");
-    // A symlink inside the bb-user root pointing at it.
+    // A symlink inside the patcher-user root pointing at it.
     const skillsRoot = path.join(fixture.dataDir, "skills");
     await mkdir(skillsRoot, { recursive: true });
     await symlink(outside, path.join(skillsRoot, "link"));
@@ -485,7 +501,7 @@ describe("deleteHostSkill", () => {
       deleteHostSkill(
         {
           type: "host.delete_skill",
-          scope: "bb-user",
+          scope: "patcher-user",
           name: "link",
           cwd: null,
           rootPath: null,
@@ -513,7 +529,7 @@ describe("deleteHostSkill", () => {
       deleteHostSkill(
         {
           type: "host.delete_skill",
-          scope: "bb-user",
+          scope: "patcher-user",
           name: "alias",
           cwd: null,
           rootPath: null,
@@ -534,7 +550,7 @@ describe("deleteHostSkill", () => {
       deleteHostSkill(
         {
           type: "host.delete_skill",
-          scope: "bb-user",
+          scope: "patcher-user",
           name: "ghost",
           cwd: null,
           rootPath: null,
@@ -554,7 +570,7 @@ describe("deleteHostSkill", () => {
       deleteHostSkill(
         {
           type: "host.delete_skill",
-          scope: "bb-user",
+          scope: "patcher-user",
           name: "plain",
           cwd: null,
           rootPath: null,
@@ -567,7 +583,7 @@ describe("deleteHostSkill", () => {
 });
 
 describe("writeHostSkill", () => {
-  it("atomically replaces a bb skill only at the expected revision", async () => {
+  it("atomically replaces a Patcher skill only at the expected revision", async () => {
     const fixture = await makeWorkspaceFixture();
     const filePath = path.join(fixture.dataDir, "skills", "review", "SKILL.md");
     const original = "---\nname: review\ndescription: Review\n---\n";
@@ -578,7 +594,7 @@ describe("writeHostSkill", () => {
     const written = await writeHostSkill(
       {
         type: "host.write_skill",
-        scope: "bb-user",
+        scope: "patcher-user",
         name: "review",
         cwd: null,
         content: "# Updated",
@@ -597,7 +613,7 @@ describe("writeHostSkill", () => {
     const stale = await writeHostSkill(
       {
         type: "host.write_skill",
-        scope: "bb-user",
+        scope: "patcher-user",
         name: "review",
         cwd: null,
         content: "# Stale overwrite",

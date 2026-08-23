@@ -3,10 +3,10 @@ import {
   PERSONAL_PROJECT_ID,
   threadVisibilitySchema,
   type Thread,
-} from "@bb/domain";
-import type { BaseBranchSpec, EnvironmentArgs } from "@bb/server-contract";
+} from "@patcher/domain";
+import type { BaseBranchSpec, EnvironmentArgs } from "@patcher/server-contract";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import {
   resolveExplicitIdFlag,
   resolveContextThreadId,
@@ -90,7 +90,7 @@ function resolveSpawnParentThreadId(args: {
   if (args.parentSelf) {
     const selfThreadId = resolveContextThreadId();
     if (!selfThreadId) {
-      throw new Error("--parent-self requires BB_THREAD_ID to be set.");
+      throw new Error("--parent-self requires PATCHER_THREAD_ID to be set.");
     }
     return selfThreadId;
   }
@@ -178,7 +178,7 @@ export function registerSpawnCommand(
     )
     .option(
       "--base-branch <branch>",
-      "Base branch for new managed worktrees. Omit to let bb choose the project's default worktree base.",
+      "Base branch for new managed worktrees. Omit to let Patcher choose the project's default worktree base.",
     )
     .option(
       "--machine <id-or-name>",
@@ -186,7 +186,7 @@ export function registerSpawnCommand(
     )
     .option("--host <id-or-name>", "Alias for --machine")
     .option("--parent-thread <id>", "Parent thread ID for worker thread links")
-    .option("--parent-self", "Parent the new thread to BB_THREAD_ID")
+    .option("--parent-self", "Parent the new thread to PATCHER_THREAD_ID")
     .option(
       "--provider <id>",
       "Provider ID for the thread. Omit to use the project's remembered provider choice",
@@ -292,7 +292,7 @@ export function registerSpawnCommand(
 
         let thread: Thread;
         try {
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           thread = await sdk.threads.spawn({
             origin: "cli",
             projectId,

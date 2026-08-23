@@ -3,19 +3,19 @@ import { writeFile } from "node:fs/promises";
 import type {
   AgentRuntime,
   AgentRuntimeProcessExitInfo,
-} from "@bb/agent-runtime";
+} from "@patcher/agent-runtime";
 import {
   createAgentRuntimeWithAdapters,
   createFakeAdapter,
   type ProviderAdapter,
   type ProviderAdapterFactory,
-} from "@bb/agent-runtime/test";
+} from "@patcher/agent-runtime/test";
 import {
   encodeClientTurnRequestIdNumber,
   type ClientTurnRequestId,
   type ThreadEvent,
-} from "@bb/domain";
-import type { HostDaemonOnlineRpcResponseMessage } from "@bb/host-daemon-contract";
+} from "@patcher/domain";
+import type { HostDaemonOnlineRpcResponseMessage } from "@patcher/host-daemon-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../../src/command-dispatch.js";
 import {
@@ -43,7 +43,9 @@ import {
 const ENVIRONMENT_ID = "env-stop-race";
 const THREAD_STOP_ACTIVE_TURN_WAIT_MS = 5_000;
 
-type RecordedAdapterCommand = Parameters<ProviderAdapter["buildCommandPlan"]>[0];
+type RecordedAdapterCommand = Parameters<
+  ProviderAdapter["buildCommandPlan"]
+>[0];
 
 interface RaceHarnessArgs {
   adapterFactory?: ProviderAdapterFactory;
@@ -153,7 +155,7 @@ function flushMicrotasks(): Promise<void> {
 async function createRaceHarness(
   args: RaceHarnessArgs = {},
 ): Promise<RaceHarness> {
-  const workspacePath = await makeTempDir("bb-stop-race-workspace-");
+  const workspacePath = await makeTempDir("patcher-stop-race-workspace-");
   const events: ThreadEvent[] = [];
   const exits: AgentRuntimeProcessExitInfo[] = [];
   const recordedCommands: RecordedAdapterCommand[] = [];
@@ -161,7 +163,8 @@ async function createRaceHarness(
     args.adapterFactory ?? (() => createFakeAdapter());
   let runtime: AgentRuntime | null = null;
   const manager = new RuntimeManager({
-    provisionWorkspace: async () => createFakeWorkspace(workspacePath).workspace,
+    provisionWorkspace: async () =>
+      createFakeWorkspace(workspacePath).workspace,
     createRuntime: (options) => {
       runtime = createAgentRuntimeWithAdapters({
         ...options,
@@ -279,9 +282,7 @@ function threadStopCommand(threadId: string): CommandOf<"thread.stop"> {
   };
 }
 
-function recordedThreadStops(
-  harness: RaceHarness,
-): RecordedAdapterCommand[] {
+function recordedThreadStops(harness: RaceHarness): RecordedAdapterCommand[] {
   return harness.recordedCommands.filter(
     (command) => command.type === "thread/stop",
   );
@@ -322,7 +323,10 @@ describe("thread.stop race semantics", () => {
 
     // The turn now starts; its turn/started observation must release the stop.
     const submitPromise = dispatchCommand(
-      turnSubmitCommand(harness, { threadId: "t-race", inputText: "delay:60000" }),
+      turnSubmitCommand(harness, {
+        threadId: "t-race",
+        inputText: "delay:60000",
+      }),
       harness.dispatchOptions,
     );
     await expect(stopPromise).resolves.toEqual({});
@@ -382,7 +386,7 @@ describe("thread.stop race semantics", () => {
   });
 
   it("clears the active turn when the provider crashes mid-turn so a later stop noops", async () => {
-    const crashDir = await makeTempDir("bb-stop-race-crash-");
+    const crashDir = await makeTempDir("patcher-stop-race-crash-");
     const crashScriptPath = path.join(crashDir, "crash-mid-turn-provider.cjs");
     await writeFile(crashScriptPath, CRASH_MID_TURN_PROVIDER_SCRIPT, "utf8");
     const harness = await createRaceHarness({
@@ -448,12 +452,12 @@ describe("thread.stop race semantics", () => {
   it("treats the second of two racing stops as an idempotent no-op", async () => {
     const harness = await createRaceHarness();
     const router = new CommandRouter({
-      dataDir: "/tmp/bb-stop-race-data",
+      dataDir: "/tmp/patcher-stop-race-data",
       eventSink: noopEventSink,
       fetchProjectAttachment: unexpectedProjectAttachmentFetch,
       logger: { debug: () => undefined, warn: () => undefined },
       runtimeManager: harness.manager,
-      threadStorageRootPath: "/tmp/bb-stop-race-thread-storage",
+      threadStorageRootPath: "/tmp/patcher-stop-race-thread-storage",
     });
     await dispatchCommand(
       threadStartCommand(harness, {

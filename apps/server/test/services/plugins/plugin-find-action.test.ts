@@ -19,15 +19,15 @@ const INVOKE_CONTEXT = {
 function findActionSource(observedPath: string): string {
   return `
   import { appendFileSync } from "node:fs";
-  export default function plugin(bb: any) {
-    bb.browser.registerFindAction({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerFindAction({
       id: "save-search",
       title: "Save this search",
       run(context: any) {
         appendFileSync(${JSON.stringify(observedPath)}, JSON.stringify(context) + "\\n");
       },
     });
-    bb.browser.registerFindAction({
+    patcher.browser.registerFindAction({
       id: "boom",
       title: "Explodes",
       run() {
@@ -49,7 +49,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Find action fixture",
         description: "Find action plugin fixture.",
         branding: { icon: "Zap" },
@@ -62,7 +62,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin find actions (bb.browser.registerFindAction)", () => {
+describe("plugin find actions (patcher.browser.registerFindAction)", () => {
   let harness: TestAppHarness;
   let observedPath: string;
 
@@ -95,7 +95,7 @@ describe("plugin find actions (bb.browser.registerFindAction)", () => {
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
       {
-        name: "bb-plugin-find",
+        name: "patcher-plugin-find",
         serverSource: findActionSource(observedPath),
       },
     );

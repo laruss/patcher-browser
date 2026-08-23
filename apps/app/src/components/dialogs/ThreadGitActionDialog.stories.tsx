@@ -1,4 +1,4 @@
-import type { WorkspaceFileStatus } from "@bb/domain";
+import type { WorkspaceFileStatus } from "@patcher/domain";
 import {
   ThreadGitActionDialogContent,
   type ThreadGitActionDialogTarget,

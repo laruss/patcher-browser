@@ -51,7 +51,7 @@ function plugin(overrides: Partial<PluginListItem> = {}): PluginListItem {
     provenance: "direct",
     isOrphanedBuiltin: false,
     catalogEntryId: null,
-    sourceDisplay: "npm · @bb-plugins/linear · pinned",
+    sourceDisplay: "npm · @patcher-plugins/linear · pinned",
     updateState: EMPTY_PLUGIN_UPDATE_STATE,
     ...overrides,
   };
@@ -152,10 +152,10 @@ describe("PluginUpdatesSourceCard source details", () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === "/api/v1/plugins/linear/source") {
         return jsonResponse({
-          requested: "npm:@bb-plugins/linear@^1.4.0",
+          requested: "npm:@patcher-plugins/linear@^1.4.0",
           resolved: "1.6.2",
           integrity: "sha512-9f2c",
-          engines: { bb: ">=0.14" },
+          engines: { patcher: ">=0.14" },
           history: [{ version: "1.6.2", activatedAt: 1752200000000 }],
         });
       }
@@ -174,7 +174,7 @@ describe("PluginUpdatesSourceCard source details", () => {
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
 
     expect(
-      await screen.findByText("npm:@bb-plugins/linear@^1.4.0"),
+      await screen.findByText("npm:@patcher-plugins/linear@^1.4.0"),
     ).toBeTruthy();
     expect(screen.getByText(/1\.6\.2 · sha512-9f2c/)).toBeTruthy();
   });
@@ -191,7 +191,7 @@ describe("PluginUpdatesSourceCard source details", () => {
           updateState: {
             ...EMPTY_PLUGIN_UPDATE_STATE,
             blockedVersion: "1.9.0",
-            blockedReasons: ["requires bb >= 0.15"],
+            blockedReasons: ["requires Patcher >= 0.15"],
           },
         })}
       />,
@@ -199,12 +199,12 @@ describe("PluginUpdatesSourceCard source details", () => {
     );
 
     expect(
-      screen.getByText("1.9.0 isn't compatible with this bb"),
+      screen.getByText("1.9.0 isn't compatible with this Patcher"),
     ).toBeTruthy();
-    expect(screen.getByText("requires bb >= 0.15")).toBeTruthy();
+    expect(screen.getByText("requires Patcher >= 0.15")).toBeTruthy();
   });
 
-  it("renders nothing for builtins (their update channel is the bb release)", () => {
+  it("renders nothing for builtins (their update channel is the Patcher release)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => jsonResponse({ error: "not found" }, 404)),

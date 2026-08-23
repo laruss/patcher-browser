@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { buildSkillEditThreadPrompt } from "@bb/shared-ui/resource-edit-prompt";
-import type { EditableSkillScope, SkillSummary } from "@bb/server-contract";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import { buildSkillEditThreadPrompt } from "@patcher/shared-ui/resource-edit-prompt";
+import type {
+  EditableSkillScope,
+  SkillSummary,
+} from "@patcher/server-contract";
 import {
   ResourceListState,
   useResourceRouteLabel,
-} from "@bb/shared-ui/resource-list";
+} from "@patcher/shared-ui/resource-list";
 import {
   RegistrySkillDetailView,
   RegistrySkillsBrowsePage,
@@ -387,7 +390,7 @@ export function SkillsLibrary() {
   const closeSkillDetail = useCallback(() => {
     navigate(getToolsOwnedCollectionRoutePath("skills"));
   }, [navigate]);
-  // Create via prompt: open the composer seeded with the bb-skill prompt; the
+  // Create via prompt: open the composer seeded with the patcher-skill prompt; the
   // spawned thread authors the SKILL.md.
   const handleCreateSkill = useCallback(
     (prompt?: string) => {

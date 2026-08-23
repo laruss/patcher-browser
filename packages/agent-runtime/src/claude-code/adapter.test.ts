@@ -6,12 +6,12 @@ import {
   DEFAULT_CLAUDE_CODE_MOCK_CLI_TRAFFIC_CONFIG,
   threadScope,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   PendingInteractionResolution,
   UserQuestionPendingInteractionPayload,
   UserQuestionPendingInteractionResolution,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { promptTextInput } from "../test/prompt-input.js";
 import { createClaudeCodeProviderAdapter } from "./adapter.js";
 import {
@@ -161,7 +161,7 @@ describe("claude-code provider adapter", () => {
       additionalWorkspaceWriteRoots: [],
       bridgeBundleDir: "/tmp",
     });
-    expect(adapter.process.args[0]).toBe("/tmp/bb-claude-code-bridge.mjs");
+    expect(adapter.process.args[0]).toBe("/tmp/patcher-claude-code-bridge.mjs");
   });
 
   it("advertises trimmed capabilities", () => {
@@ -206,17 +206,17 @@ describe("claude-code provider adapter", () => {
     const adapter = createClaudeCodeProviderAdapter();
 
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
     adapter.translateEvent(loadFixture("result-success.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
 
     expect(
       adapter.translateAcceptedCommand({
         command: {
           type: "turn/start",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "claude-session-1",
           clientRequestId: "creq_23456789ae",
           input: [promptTextInput({ text: "new turn" })],
@@ -227,7 +227,7 @@ describe("claude-code provider adapter", () => {
 
     const nextTurnEvents = adapter.translateEvent(
       loadFixture("assistant-text.json"),
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(nextTurnEvents).toContainEqual({
@@ -278,9 +278,9 @@ describe("claude-code provider adapter", () => {
         type: "skills/configure",
         skillRoots: [
           {
-            id: "bb-cli",
+            id: "patcher-cli",
             providerId: "claude-code",
-            localPluginPath: "/tmp/bb-skills",
+            localPluginPath: "/tmp/patcher-skills",
           },
         ],
       }),
@@ -295,13 +295,13 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: fullProviderExecutionContext,
     });
     expect(cmd?.params).toMatchObject({
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       permissionMode: "bypassPermissions",
       permissionEscalation: null,
       cwd: "/tmp/worktree",
@@ -313,7 +313,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/fork",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       sourceProviderThreadId: "claude-session-1",
       sourceProviderCheckpointId: "assistant-message-42",
       instructionMode: "append",
@@ -334,7 +334,7 @@ describe("claude-code provider adapter", () => {
     const start = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: { ...fullProviderExecutionContext, workflowsEnabled: true },
@@ -345,7 +345,7 @@ describe("claude-code provider adapter", () => {
     const resume = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       instructionMode: "append",
       options: fullProviderExecutionContext,
@@ -358,16 +358,16 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
         ...fullProviderExecutionContext,
         skillRoots: [
           {
-            id: "bb-cli",
+            id: "patcher-cli",
             providerId: "claude-code",
-            localPluginPath: "/tmp/bb-skills",
+            localPluginPath: "/tmp/patcher-skills",
           },
           {
             id: "repo-tools",
@@ -380,7 +380,7 @@ describe("claude-code provider adapter", () => {
 
     expect(cmd?.params).toMatchObject({
       plugins: [
-        { type: "local", path: "/tmp/bb-skills" },
+        { type: "local", path: "/tmp/patcher-skills" },
         { type: "local", path: "/tmp/repo-skills" },
       ],
     });
@@ -391,14 +391,14 @@ describe("claude-code provider adapter", () => {
   it("buildCommand thread/start includes construction-level workspace-write roots", () => {
     const adapter = createClaudeCodeProviderAdapter({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: workspaceWriteProviderExecutionContext,
@@ -406,7 +406,7 @@ describe("claude-code provider adapter", () => {
 
     expect(cmd?.params).toMatchObject({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
@@ -419,7 +419,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: workspaceWriteProviderExecutionContext,
@@ -431,14 +431,14 @@ describe("claude-code provider adapter", () => {
   it("buildCommand thread/start shares workspace roots with auto but omits them for full", () => {
     const adapter = createClaudeCodeProviderAdapter({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
     const readonlyCmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-readonly",
+      threadId: "patcher-thread-readonly",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -453,7 +453,7 @@ describe("claude-code provider adapter", () => {
     const fullCmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-full",
+      threadId: "patcher-thread-full",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: fullProviderExecutionContext,
@@ -462,7 +462,7 @@ describe("claude-code provider adapter", () => {
     expect(readonlyCmd?.params).toMatchObject({
       permissionMode: "auto",
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
@@ -474,7 +474,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -494,7 +494,7 @@ describe("claude-code provider adapter", () => {
       },
       dynamicTools: [
         {
-          name: "bb_test_ping",
+          name: "patcher_test_ping",
           description: "Ping the host",
           inputSchema: {
             type: "object",
@@ -511,7 +511,7 @@ describe("claude-code provider adapter", () => {
     expect(cmd).toMatchObject({
       method: "thread/start",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         model: "claude-opus-4-7",
         reasoningLevel: "max",
         permissionMode: "acceptEdits",
@@ -521,7 +521,7 @@ describe("claude-code provider adapter", () => {
         ),
         dynamicTools: [
           {
-            name: "bb_test_ping",
+            name: "patcher_test_ping",
             description: "Ping the host",
             inputSchema: {
               type: "object",
@@ -554,14 +554,14 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       instructionMode: "append",
       options: fullProviderExecutionContext,
     });
     expect(cmd?.params).toMatchObject({
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       permissionMode: "bypassPermissions",
       permissionEscalation: null,
@@ -573,7 +573,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -596,7 +596,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
       options: {
@@ -644,7 +644,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       instructionMode: "append",
       options: {
@@ -665,14 +665,14 @@ describe("claude-code provider adapter", () => {
   it("buildCommand thread/resume includes construction-level workspace-write roots", () => {
     const adapter = createClaudeCodeProviderAdapter({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       instructionMode: "append",
       options: workspaceWriteProviderExecutionContext,
@@ -680,7 +680,7 @@ describe("claude-code provider adapter", () => {
 
     expect(cmd?.params).toMatchObject({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
@@ -693,7 +693,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       instructionMode: "append",
       options: workspaceWriteProviderExecutionContext,
@@ -705,14 +705,14 @@ describe("claude-code provider adapter", () => {
   it("buildCommand thread/resume shares workspace roots with auto but omits them for full", () => {
     const adapter = createClaudeCodeProviderAdapter({
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
     const readonlyCmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-readonly",
+      threadId: "patcher-thread-readonly",
       providerThreadId: "claude-session-readonly",
       instructionMode: "append",
       options: {
@@ -727,7 +727,7 @@ describe("claude-code provider adapter", () => {
     const fullCmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-full",
+      threadId: "patcher-thread-full",
       providerThreadId: "claude-session-full",
       instructionMode: "append",
       options: fullProviderExecutionContext,
@@ -736,7 +736,7 @@ describe("claude-code provider adapter", () => {
     expect(readonlyCmd?.params).toMatchObject({
       permissionMode: "auto",
       additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/bb13",
+        "/repo/.git/worktrees/patcher13",
         "/repo/.git/objects",
       ],
     });
@@ -748,7 +748,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "thread/resume",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       instructionMode: "append",
       options: {
@@ -763,7 +763,7 @@ describe("claude-code provider adapter", () => {
       },
       dynamicTools: [
         {
-          name: "bb_test_ping",
+          name: "patcher_test_ping",
           description: "Ping the host",
           inputSchema: {
             type: "object",
@@ -779,14 +779,14 @@ describe("claude-code provider adapter", () => {
     expect(cmd).toMatchObject({
       method: "thread/resume",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "claude-session-1",
         model: "claude-sonnet-4-5",
         reasoningLevel: "high",
         baseInstructions: "Reopen the thread and continue carefully.",
         dynamicTools: [
           {
-            name: "bb_test_ping",
+            name: "patcher_test_ping",
             description: "Ping the host",
             inputSchema: {
               type: "object",
@@ -818,13 +818,13 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "turn/start",
       clientRequestId: "creq_2222222296",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       input: [promptTextInput({ text: "follow up" })],
       options: fullProviderExecutionContext,
     });
     expect(cmd?.params).toMatchObject({
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
     });
   });
@@ -834,7 +834,7 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "turn/start",
       clientRequestId: "creq_2222222297",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       input: [
         promptTextInput({ text: "first" }),
@@ -861,7 +861,7 @@ describe("claude-code provider adapter", () => {
     const startCmd = adapter.buildCommandPlan({
       type: "thread/start",
       cwd: "/tmp/worktree",
-      threadId: "bb-thread-plan",
+      threadId: "patcher-thread-plan",
       input: [],
       instructionMode: "append",
       options: {
@@ -872,7 +872,7 @@ describe("claude-code provider adapter", () => {
     const turnCmd = adapter.buildCommandPlan({
       type: "turn/start",
       clientRequestId: "creq_2222222298",
-      threadId: "bb-thread-plan",
+      threadId: "patcher-thread-plan",
       providerThreadId: "claude-session-plan",
       input: [
         {
@@ -920,14 +920,14 @@ describe("claude-code provider adapter", () => {
     const cmd = adapter.buildCommandPlan({
       type: "turn/steer",
       clientRequestId: "creq_2222222297",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       expectedTurnId: "turn-1",
       input: [promptTextInput({ text: "steer" })],
       options: fullProviderExecutionContext,
     });
     expect(cmd?.params).toMatchObject({
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       expectedTurnId: "turn-1",
     });
@@ -937,7 +937,7 @@ describe("claude-code provider adapter", () => {
     const adapter = createClaudeCodeProviderAdapter();
     const cmd = adapter.buildCommandPlan({
       type: "thread/stop",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       providerThreadId: "claude-session-1",
       activeTurnId: "turn-1",
     });
@@ -945,7 +945,7 @@ describe("claude-code provider adapter", () => {
       kind: "request",
       method: "thread/stop",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
       },
     });
   });
@@ -955,13 +955,13 @@ describe("claude-code provider adapter", () => {
     expect(
       adapter.buildCommandPlan({
         type: "thread/discard",
-        threadId: "bb-staging",
+        threadId: "patcher-staging",
         providerThreadId: "claude-staging",
       }),
     ).toEqual({
       kind: "request",
       method: "thread/stop",
-      params: { threadId: "bb-staging" },
+      params: { threadId: "patcher-staging" },
     });
   });
 
@@ -976,7 +976,7 @@ describe("claude-code provider adapter", () => {
           providerThreadId: "claude-session-1",
           turnId: "turn-1",
           callId: "call-1",
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: { ping: true },
         },
       }),
@@ -986,7 +986,7 @@ describe("claude-code provider adapter", () => {
       providerThreadId: "claude-session-1",
       turnId: "turn-1",
       callId: "call-1",
-      tool: "bb_test_ping",
+      tool: "patcher_test_ping",
       arguments: { ping: true },
     });
   });
@@ -1000,7 +1000,7 @@ describe("claude-code provider adapter", () => {
           threadId: "t1",
           turnId: "turn-1",
           callId: "call-1",
-          tool: "bb_test_ping",
+          tool: "patcher_test_ping",
           arguments: { ping: true },
         },
       }),
@@ -2083,7 +2083,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "sess-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
     adapter.translateEvent(
       {
@@ -2096,7 +2096,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "sess-1",
       },
-      { threadId: "bb-thread-1", parentToolCallId: "tool-subagent" },
+      { threadId: "patcher-thread-1", parentToolCallId: "tool-subagent" },
     );
 
     const events = adapter.translateEvent(
@@ -2105,7 +2105,7 @@ describe("claude-code provider adapter", () => {
         subtype: "success",
         session_id: "sess-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toContainEqual(
@@ -2123,7 +2123,7 @@ describe("claude-code provider adapter", () => {
       adapter.translateAcceptedCommand({
         command: {
           type: "turn/start",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "claude-session-1",
           clientRequestId: "creq_23456789af",
           input: [promptTextInput({ text: "please do this" })],
@@ -2150,7 +2150,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "claude-session-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toEqual([
@@ -2193,7 +2193,7 @@ describe("claude-code provider adapter", () => {
       adapter.translateAcceptedCommand({
         command: {
           type: "turn/start",
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           providerThreadId: "claude-session-1",
           clientRequestId: "creq_23456789af",
           input: [promptTextInput({ text: "please do this" })],
@@ -2207,7 +2207,7 @@ describe("claude-code provider adapter", () => {
         jsonrpc: "2.0",
         method: "sdk/message",
         params: {
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           message: {
             type: "assistant",
             message: {
@@ -2227,7 +2227,7 @@ describe("claude-code provider adapter", () => {
           },
         },
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toEqual([
@@ -2283,7 +2283,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "claude-session-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toContainEqual(
@@ -2315,7 +2315,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "claude-session-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     const events = adapter.translateEvent(
@@ -2336,7 +2336,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "claude-session-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toEqual([
@@ -2352,7 +2352,7 @@ describe("claude-code provider adapter", () => {
 
   it("keeps an open turn for synthetic no-response messages while an agent is running", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
     adapter.translateEvent(loadFixture("task-started-subagent.json"), context);
 
     const events = adapter.translateEvent(
@@ -2867,7 +2867,7 @@ describe("claude-code provider adapter", () => {
       jsonrpc: "2.0",
       method: "thread/identity",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "claude-thread-1",
       },
     });
@@ -2875,7 +2875,7 @@ describe("claude-code provider adapter", () => {
     expect(events).toEqual([
       {
         type: "thread/identity",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         providerThreadId: "claude-thread-1",
         scope: threadScope(),
       },
@@ -2916,7 +2916,7 @@ describe("claude-code provider adapter", () => {
           message: "Claude auth expired",
         },
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toEqual([
@@ -3163,7 +3163,7 @@ describe("claude-code provider adapter", () => {
       jsonrpc: "2.0",
       method: "sdk/message",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         message: {
           type: "custom_event",
         },
@@ -3173,8 +3173,8 @@ describe("claude-code provider adapter", () => {
     expect(events).toEqual([
       expect.objectContaining({
         type: "provider/unhandled",
-        threadId: "bb-thread-1",
-        providerThreadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
+        providerThreadId: "patcher-thread-1",
         providerId: "claude-code",
         rawType: "sdk/custom_event",
         scope: threadScope(),
@@ -3192,7 +3192,7 @@ describe("claude-code provider adapter", () => {
       jsonrpc: "2.0",
       method: "sdk/message",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         message: {
           type: "user",
           message: {
@@ -3223,7 +3223,7 @@ describe("claude-code provider adapter", () => {
       jsonrpc: "2.0",
       method: "sdk/message",
       params: {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         message: {
           type: "stream_event",
           event: {
@@ -3251,7 +3251,7 @@ describe("claude-code provider adapter", () => {
         },
         session_id: "sess-1",
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     const events = adapter.translateEvent(
@@ -3259,19 +3259,19 @@ describe("claude-code provider adapter", () => {
         jsonrpc: "2.0",
         method: "sdk/message",
         params: {
-          threadId: "bb-thread-1",
+          threadId: "patcher-thread-1",
           message: {
             type: "custom_event",
           },
         },
       },
-      { threadId: "bb-thread-1" },
+      { threadId: "patcher-thread-1" },
     );
 
     expect(events).toEqual([
       expect.objectContaining({
         type: "provider/unhandled",
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
         scope: turnScope("turn-1"),
         rawType: "sdk/custom_event",
       }),
@@ -3801,7 +3801,7 @@ describe("claude-code provider adapter", () => {
 
   it("keeps one logical turn open across Claude background-agent reinvocations", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
 
     adapter.translateEvent(
       {
@@ -3891,7 +3891,7 @@ describe("claude-code provider adapter", () => {
 
     for (const [index, task] of blockingTasks.entries()) {
       const adapter = createClaudeCodeProviderAdapter();
-      const context = { threadId: `bb-thread-${index}` };
+      const context = { threadId: `patcher-thread-${index}` };
       adapter.translateEvent(
         {
           type: "assistant",
@@ -3934,7 +3934,7 @@ describe("claude-code provider adapter", () => {
       },
     ]) {
       const adapter = createClaudeCodeProviderAdapter();
-      const context = { threadId: `bb-thread-${task.task_id}` };
+      const context = { threadId: `patcher-thread-${task.task_id}` };
       adapter.translateEvent(
         {
           type: "assistant",
@@ -3978,7 +3978,7 @@ describe("claude-code provider adapter", () => {
 
   it("completes the turn while a workflow keeps running, leaving the task open", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-workflow" };
+    const context = { threadId: "patcher-thread-workflow" };
     adapter.translateEvent(
       {
         type: "assistant",
@@ -4028,7 +4028,7 @@ describe("claude-code provider adapter", () => {
 
   it("opens a fresh turn when a settled workflow reinvokes the model", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-workflow-settle" };
+    const context = { threadId: "patcher-thread-workflow-settle" };
     adapter.translateEvent(
       {
         type: "assistant",
@@ -4086,7 +4086,7 @@ describe("claude-code provider adapter", () => {
 
   it("closes a failed result even while a background agent is open", () => {
     const adapter = createClaudeCodeProviderAdapter();
-    const context = { threadId: "bb-thread-1" };
+    const context = { threadId: "patcher-thread-1" };
     adapter.translateEvent(
       {
         type: "assistant",
@@ -5398,10 +5398,10 @@ describe("claude-code provider adapter", () => {
     const adapter = createClaudeCodeProviderAdapter();
 
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
     adapter.translateEvent(loadFixture("result-success.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
     adapter.translateEvent(
       {
@@ -5411,7 +5411,7 @@ describe("claude-code provider adapter", () => {
         session_id: "session-1",
       },
       {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
       },
     );
 
@@ -5435,7 +5435,7 @@ describe("claude-code provider adapter", () => {
         session_id: "session-1",
       },
       {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
       },
     );
 
@@ -5503,7 +5503,7 @@ describe("claude-code provider adapter", () => {
 
     adapter.buildCommandPlan({
       type: "thread/start",
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
       cwd: "/tmp/worktree",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
@@ -5513,7 +5513,7 @@ describe("claude-code provider adapter", () => {
       },
     });
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
 
     const events = adapter.translateEvent(
@@ -5536,7 +5536,7 @@ describe("claude-code provider adapter", () => {
         session_id: "session-1",
       },
       {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
       },
     );
 
@@ -5556,7 +5556,7 @@ describe("claude-code provider adapter", () => {
     const adapter = createClaudeCodeProviderAdapter();
 
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-unknown",
+      threadId: "patcher-thread-unknown",
     });
 
     const events = adapter.translateEvent(
@@ -5579,7 +5579,7 @@ describe("claude-code provider adapter", () => {
         session_id: "session-1",
       },
       {
-        threadId: "bb-thread-unknown",
+        threadId: "patcher-thread-unknown",
       },
     );
 
@@ -5600,7 +5600,7 @@ describe("claude-code provider adapter", () => {
 
     adapter.buildCommandPlan({
       type: "thread/start",
-      threadId: "bb-thread-default",
+      threadId: "patcher-thread-default",
       cwd: "/tmp/worktree",
       input: [promptTextInput({ text: "hello" })],
       instructionMode: "append",
@@ -5610,7 +5610,7 @@ describe("claude-code provider adapter", () => {
       },
     });
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-default",
+      threadId: "patcher-thread-default",
     });
 
     const events = adapter.translateEvent(
@@ -5633,7 +5633,7 @@ describe("claude-code provider adapter", () => {
         session_id: "session-1",
       },
       {
-        threadId: "bb-thread-default",
+        threadId: "patcher-thread-default",
       },
     );
 
@@ -5653,14 +5653,14 @@ describe("claude-code provider adapter", () => {
     const adapter = createClaudeCodeProviderAdapter();
 
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
     adapter.translateEvent(loadFixture("result-success.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
 
     adapter.translateEvent(loadFixture("assistant-text.json"), {
-      threadId: "bb-thread-1",
+      threadId: "patcher-thread-1",
     });
 
     const events = adapter.translateEvent(
@@ -5683,7 +5683,7 @@ describe("claude-code provider adapter", () => {
         session_id: "session-1",
       },
       {
-        threadId: "bb-thread-1",
+        threadId: "patcher-thread-1",
       },
     );
 

@@ -1,9 +1,9 @@
 /**
  * The composer's model-label rules, duplicated for the automations plugin.
  *
- * The plugin only depends on `@bb/shared-ui`, so it cannot import from
+ * The plugin only depends on `@patcher/shared-ui`, so it cannot import from
  * `apps/app`, and moving these into shared-ui was rejected: `provider-icon.ts`
- * would drag `@bb/agent-providers` and eight brand SVGs into a package that
+ * would drag `@patcher/agent-providers` and eight brand SVGs into a package that
  * currently has five dependencies and no domain knowledge.
  *
  * `formatModelLabel` and `stripModelBrandPrefix` below are verbatim copies so

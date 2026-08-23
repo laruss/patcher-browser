@@ -4,7 +4,7 @@ import {
   experimental_useSidebarThreads as useSidebarThreads,
   type PluginSidebarThread,
   type PluginThreadHeaderActionProps,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import { cn } from "./lib/utils";
 import { Disc } from "./Disc";
 import { StatusGlyph } from "./StatusGlyph";
@@ -16,8 +16,8 @@ const MAX_DISCS = 3;
  * The home for child threads the flat list hides: a chip in the thread header
  * that opens the list of this thread's children.
  *
- * These are bb CHILD THREADS — forks, side chats, and plugin-spawned threads.
- * bb's in-turn subagents are activity counters on the parent, not threads, so
+ * These are Patcher CHILD THREADS — forks, side chats, and plugin-spawned threads.
+ * Patcher's in-turn subagents are activity counters on the parent, not threads, so
  * the label deliberately says "children".
  */
 export function SubagentsChip({

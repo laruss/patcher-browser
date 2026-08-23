@@ -1,7 +1,7 @@
 /**
  * ACP provider adapter.
  *
- * Maps between bb's ProviderAdapter contract and the generic ACP bridge
+ * Maps between Patcher's ProviderAdapter contract and the generic ACP bridge
  * process; the adapter binds a profile's agent command into each bridge
  * session. The agent owns tool execution. CLI-style agents such as Cursor keep
  * reasoning in model-id variants selected at launch. ACP-native agents can
@@ -13,21 +13,21 @@ import {
   buildAcpProviderInfo,
   getBuiltInAgentProviderInfo,
   isAgentProviderId,
-} from "@bb/agent-providers";
+} from "@patcher/agent-providers";
 import type {
   PendingInteractionApprovalDecision,
   ThreadEvent,
   ThreadEventItem,
   ThreadEventItemStatus,
   ThreadEventPlanStep,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
   isStandaloneBuiltinCompactCommand,
   threadScope,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 import type {
   AdapterCommand,
@@ -132,7 +132,7 @@ export interface CreateAcpProviderAdapterOptions {
   bridgeNodeEnv?: Record<string, string>;
   /** Optional executable used to run the Node bridge process. */
   bridgeNodeExecutablePath?: string;
-  /** Prefix for bb-owned turn ids emitted by this adapter instance. */
+  /** Prefix for Patcher-owned turn ids emitted by this adapter instance. */
   turnIdPrefix?: string;
 }
 
@@ -519,9 +519,9 @@ function buildAcpSkillsInstructions(
   }
 
   return [
-    "bb skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
+    "Patcher skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
     "",
-    "Available bb skills:",
+    "Available Patcher skills:",
     ...skillLines,
   ].join("\n");
 }
@@ -1433,7 +1433,7 @@ export function createAcpProviderAdapter(
       command: opts.bridgeNodeExecutablePath ?? "node",
       args: resolveBridgeProcessArgs({
         bridgeBundleDir: opts.bridgeBundleDir,
-        bundleFileName: "bb-acp-bridge.mjs",
+        bundleFileName: "patcher-acp-bridge.mjs",
         importMetaUrl: import.meta.url,
         bridgeRelativePath: "bridge/bridge.js",
       }),
@@ -1448,7 +1448,7 @@ export function createAcpProviderAdapter(
           return {
             kind: "request",
             method: "initialize",
-            params: { clientInfo: { name: "bb", version: "1.0.0" } },
+            params: { clientInfo: { name: "Patcher", version: "1.0.0" } },
           };
         case "model/list":
           const listCommand = buildModelListCommand();

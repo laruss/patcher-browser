@@ -1,11 +1,11 @@
-import { getStoredThreadTabs, replaceStoredThreadTabs } from "@bb/db";
+import { getStoredThreadTabs, replaceStoredThreadTabs } from "@patcher/db";
 import {
   publicApiRoutes,
   threadTabsSchema,
   typedRoutes,
   type PublicApiSchema,
   type ThreadTabsResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
 import { ApiError } from "../../errors.js";
 import { requirePublicThread } from "../../services/lib/entity-lookup.js";

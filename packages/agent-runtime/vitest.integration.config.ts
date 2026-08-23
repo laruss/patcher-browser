@@ -26,7 +26,7 @@ const dotEnv = loadDotEnv();
 export default defineWorkspaceTestConfig({
   test: {
     silent: "passed-only",
-    name: "@bb/agent-runtime:integration",
+    name: "@patcher/agent-runtime:integration",
     include: ["src/integration*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
     testTimeout: 45_000,

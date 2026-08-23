@@ -6,19 +6,25 @@ import { createInterface } from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { Command } from "commander";
 import { z } from "zod";
-import { derivePluginId } from "@bb/domain";
+import { derivePluginId } from "@patcher/domain";
 import type {
   InstalledPlugin as PluginEntry,
   PluginApplyUpdateResult,
   PluginCatalogSearchResult,
   PluginUpdateCheckEntry as PluginUpdateResult,
-} from "@bb/server-contract";
-import { installedPluginSchema } from "@bb/server-contract";
-import { BbHttpError } from "@bb/sdk";
-import { parseDataDirEnvValue, resolveProdDataDir } from "@bb/config/runtime";
-import { scaffoldPlugin, syncPluginTypes } from "@bb/templates/plugin-scaffold";
+} from "@patcher/server-contract";
+import { installedPluginSchema } from "@patcher/server-contract";
+import { PatcherHttpError } from "@patcher/sdk";
+import {
+  parseDataDirEnvValue,
+  resolveProdDataDir,
+} from "@patcher/config/runtime";
+import {
+  scaffoldPlugin,
+  syncPluginTypes,
+} from "@patcher/templates/plugin-scaffold";
 import { action } from "../action.js";
-import { cliFetch, createCliBbSdk } from "../client.js";
+import { cliFetch, createCliPatcherSdk } from "../client.js";
 import {
   buildPluginApp,
   buildPluginServer,
@@ -26,9 +32,9 @@ import {
   PLUGIN_TOOLCHAIN_PINS,
   resolvePluginBuildToolchain,
   type PluginBuildToolchain,
-} from "@bb/plugin-build";
+} from "@patcher/plugin-build";
 import { runPluginCliCommand } from "../plugin-cli-proxy.js";
-import { resolveBbCliVersion } from "../version.js";
+import { resolvePatcherCliVersion } from "../version.js";
 
 import { outputJson, type JsonOutputOptions } from "./helpers.js";
 import { renderBorderlessTable } from "../table.js";
@@ -41,11 +47,11 @@ export interface NewPluginTarget {
 export function resolveNewPluginTarget(name: string): NewPluginTarget | null {
   const packageName = name.startsWith("@")
     ? name
-    : name.startsWith("bb-plugin-")
+    : name.startsWith("patcher-plugin-")
       ? name
-      : `bb-plugin-${name}`;
+      : `patcher-plugin-${name}`;
   if (
-    !/^(?:@[a-z0-9][a-z0-9-]*\/)?bb-plugin-[a-z0-9][a-z0-9-]*$/.test(
+    !/^(?:@[a-z0-9][a-z0-9-]*\/)?patcher-plugin-[a-z0-9][a-z0-9-]*$/.test(
       packageName,
     )
   ) {
@@ -53,19 +59,19 @@ export function resolveNewPluginTarget(name: string): NewPluginTarget | null {
   }
   return {
     packageName,
-    directoryName: `bb-plugin-${derivePluginId(packageName)}`,
+    directoryName: `patcher-plugin-${derivePluginId(packageName)}`,
   };
 }
 
 /**
- * Where `bb plugin build`/`dev` cache the pinned esbuild/Tailwind set.
+ * Where `patcher plugin build`/`dev` cache the pinned esbuild/Tailwind set.
  *
  * The CLI ships no build toolchain, so the first build on a machine fetches
- * one. Honors BB_DATA_DIR (dev instances and tests set it) and otherwise uses
+ * one. Honors PATCHER_DATA_DIR (dev instances and tests set it) and otherwise uses
  * the production data dir, so the CLI and server share one cache.
  */
 function toolchainBaseDir(): string {
-  const configured = process.env.BB_DATA_DIR;
+  const configured = process.env.PATCHER_DATA_DIR;
   const dataDir =
     configured === undefined || configured.trim().length === 0
       ? resolveProdDataDir({ homeDir: homedir() })
@@ -100,7 +106,7 @@ async function searchCatalog(
   baseUrl: string,
   query: string,
 ): Promise<PluginCatalogSearchResult[]> {
-  return createCliBbSdk(baseUrl).plugins.catalog.search({ query });
+  return createCliPatcherSdk(baseUrl).plugins.catalog.search({ query });
 }
 
 const pluginSettingDescriptorSchema = z.object({
@@ -130,7 +136,7 @@ const pluginLogsResultSchema = z.object({
 const pluginPackageSummarySchema = z.object({
   name: z.string().optional(),
   version: z.string().optional(),
-  bb: z
+  patcher: z
     .object({
       permissions: z.array(z.string()).optional(),
       sites: z.array(z.string()).optional(),
@@ -139,7 +145,7 @@ const pluginPackageSummarySchema = z.object({
     .optional(),
 });
 const pluginManifestSchema = z.object({
-  bb: z
+  patcher: z
     .object({
       server: z.unknown().optional(),
       app: z.unknown().optional(),
@@ -169,8 +175,8 @@ async function readPluginManifest(
  * Refresh `types/*.d.ts` against this CLI's bundled SDK declarations and
  * report each file that actually changed.
  *
- * `bb plugin build` and `bb plugin dev` call this so an author never
- * typechecks against declarations older than the bb they run. A failure here
+ * `patcher plugin build` and `patcher plugin dev` call this so an author never
+ * typechecks against declarations older than the Patcher they run. A failure here
  * is reported and swallowed: a read-only or otherwise unwritable `types/`
  * must not fail a build.
  */
@@ -264,14 +270,14 @@ async function isPackageInstalled(
 /**
  * Install a fresh scaffold's npm tree, reporting whether it is usable.
  *
- * Generated source imports packages `bb plugin build` inlines into dist/ (zod;
+ * Generated source imports packages `patcher plugin build` inlines into dist/ (zod;
  * with --app, the vendored components' deps), and path: installs run server.ts
  * from source, so the tree must exist before the plugin can build or load.
  *
  * `--include=dev` rather than a bare `npm install`: the packaged CLI runs with
- * NODE_ENV=production — bb-app's launcher sets it for every `bb` invocation —
+ * NODE_ENV=production — patcher-app's launcher sets it for every `patcher` invocation —
  * which npm reads as `omit=dev`. A command-line flag outranks both that and an
- * inherited `npm_config_omit`, so the install no longer depends on how bb was
+ * inherited `npm_config_omit`, so the install no longer depends on how Patcher was
  * started. Best-effort overall: authors need npm anyway (design §5.5), so a
  * failure surfaces the manual step rather than failing the scaffold.
  */
@@ -288,14 +294,14 @@ async function installScaffoldDependencies(
     );
   } catch {
     console.warn(
-      "Could not run npm install — run it in the plugin directory before `bb plugin build`.",
+      "Could not run npm install — run it in the plugin directory before `patcher plugin build`.",
     );
     return false;
   }
   const problem = await unresolvedScaffoldPackages(targetDir);
   if (problem !== null) {
     console.warn(
-      `npm install reported success but ${problem} — run \`npm install --include=dev\` in the plugin directory before \`bb plugin build\`.`,
+      `npm install reported success but ${problem} — run \`npm install --include=dev\` in the plugin directory before \`patcher plugin build\`.`,
     );
     return false;
   }
@@ -509,7 +515,7 @@ function printPlugin(plugin: PluginEntry): void {
   }
   if (plugin.cliCommand) {
     console.log(
-      `  command: bb ${plugin.cliCommand.name} — ${plugin.cliCommand.summary}`,
+      `  command: patcher ${plugin.cliCommand.name} — ${plugin.cliCommand.summary}`,
     );
   }
 }
@@ -520,7 +526,7 @@ function exitWithError(result: { error?: string }): never {
 }
 
 function sdkErrorMessage(error: unknown): string {
-  if (error instanceof BbHttpError) {
+  if (error instanceof PatcherHttpError) {
     return error.message.replace(/^HTTP \d+: /u, "");
   }
   return error instanceof Error ? error.message : String(error);
@@ -586,14 +592,14 @@ export function registerPluginCommands(
 ): void {
   const plugin = program
     .command("plugin")
-    .description("Manage BB plugins")
+    .description("Manage Patcher plugins")
     // Required (with the program's enablePositionalOptions) for `run` to
     // pass flags after <id> through to the plugin command untouched.
     .enablePositionalOptions();
 
   plugin
     .command("search <query>")
-    .description("Search BB's official plugins (bundled with the app)")
+    .description("Search Patcher's official plugins (bundled with the app)")
     .option("--json", "Output JSON")
     .action(
       action(async (query: string, opts: JsonOutputOptions) => {
@@ -609,7 +615,7 @@ export function registerPluginCommands(
             ? "✓ installed"
             : result.compatible
               ? "compatible"
-              : `requires newer bb${result.incompatibleReason ? `: ${result.incompatibleReason}` : ""}`,
+              : `requires newer Patcher${result.incompatibleReason ? `: ${result.incompatibleReason}` : ""}`,
         ]);
         console.log(
           renderBorderlessTable(
@@ -630,7 +636,7 @@ export function registerPluginCommands(
     .option("--json", "Output JSON")
     .action(
       action(async (opts: JsonOutputOptions) => {
-        const result = await createCliBbSdk(getUrl()).plugins.list();
+        const result = await createCliPatcherSdk(getUrl()).plugins.list();
         if (opts.json) {
           outputJson(opts, result);
           return;
@@ -651,7 +657,7 @@ export function registerPluginCommands(
     .option("--json", "Output JSON")
     .action(
       action(async (id: string, opts: JsonOutputOptions) => {
-        const source = await createCliBbSdk(getUrl()).plugins.getSource({
+        const source = await createCliPatcherSdk(getUrl()).plugins.getSource({
           pluginId: id,
         });
         if (opts.json) {
@@ -663,11 +669,13 @@ export function registerPluginCommands(
         console.log(`  resolved: ${source.resolved}`);
         if (source.registry) console.log(`  registry: ${source.registry}`);
         if (source.integrity) console.log(`  integrity: ${source.integrity}`);
-        if (source.engines.bb) {
-          console.log(`  engines.bb: ${source.engines.bb}`);
+        if (source.engines.patcher) {
+          console.log(`  engines.patcher: ${source.engines.patcher}`);
         }
-        if (source.engines.bbPluginSdk) {
-          console.log(`  engines.bbPluginSdk: ${source.engines.bbPluginSdk}`);
+        if (source.engines.patcherPluginSdk) {
+          console.log(
+            `  engines.patcherPluginSdk: ${source.engines.patcherPluginSdk}`,
+          );
         }
         if (source.installedAt !== undefined) {
           console.log(`  installed: ${formatAbsoluteDate(source.installedAt)}`);
@@ -699,7 +707,7 @@ export function registerPluginCommands(
           let summary =
             intent.kind === "source"
               ? intent.summary
-              : `Installing ${intent.entry.displayName}, bundled with BB (${intent.entry.source})`;
+              : `Installing ${intent.entry.displayName}, bundled with Patcher (${intent.entry.source})`;
           // Only a path source has its manifest on this machine before the
           // install runs, so only a path source can be described before it is
           // confirmed. That is also the agent-generated case, which is the one
@@ -719,8 +727,8 @@ export function registerPluginCommands(
               if (pkg.name !== undefined) {
                 summary = `Installing ${pkg.name}@${pkg.version ?? "?"} from ${path}`;
               }
-              declared = pkg.bb?.permissions ?? [];
-              declaredSites = pkg.bb?.sites ?? [];
+              declared = pkg.patcher?.permissions ?? [];
+              declaredSites = pkg.patcher?.sites ?? [];
             } catch {
               // fall through to the bare path summary
             }
@@ -747,9 +755,9 @@ export function registerPluginCommands(
               }
             }
             console.log(
-              "Plugins are full-trust code running inside the BB server. " +
-                "They can read all local BB data, including other plugins' secrets. " +
-                "Declared permissions gate the bb API, not the process.",
+              "Plugins are full-trust code running inside the Patcher server. " +
+                "They can read all local Patcher data, including other plugins' secrets. " +
+                "Declared permissions gate the Patcher API, not the process.",
             );
           }
           if (!opts.yes) {
@@ -774,10 +782,10 @@ export function registerPluginCommands(
           }
           const plugin =
             intent.kind === "source"
-              ? await createCliBbSdk(getUrl()).plugins.install({
+              ? await createCliPatcherSdk(getUrl()).plugins.install({
                   source: intent.source,
                 })
-              : await createCliBbSdk(getUrl()).plugins.catalog.install({
+              : await createCliPatcherSdk(getUrl()).plugins.catalog.install({
                   entryId: intent.entry.entryId,
                 });
           const result = { ok: true as const, plugin };
@@ -797,7 +805,8 @@ export function registerPluginCommands(
     .option("--json", "Output the raw update results as JSON")
     .action(
       action(async (opts: JsonOutputOptions) => {
-        const results = await createCliBbSdk(getUrl()).plugins.checkUpdates();
+        const results =
+          await createCliPatcherSdk(getUrl()).plugins.checkUpdates();
         if (opts.json) {
           outputJson(opts, results);
           return;
@@ -807,7 +816,7 @@ export function registerPluginCommands(
           result.installed.display,
           result.candidate?.display ?? "—",
           blockedSummary(result),
-          `${UPDATE_STATUS_LABELS[result.outcome]}${result.devMode ? " [dev build: engines.bb not enforced]" : ""}`,
+          `${UPDATE_STATUS_LABELS[result.outcome]}${result.devMode ? " [dev build: engines.patcher not enforced]" : ""}`,
         ]);
         console.log(
           renderBorderlessTable(
@@ -846,7 +855,7 @@ export function registerPluginCommands(
             console.error("Specify exactly one plugin id or --all.");
             process.exit(1);
           }
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const results = await sdk.plugins.checkUpdates(
             id === undefined ? {} : { pluginId: id },
           );
@@ -918,18 +927,18 @@ export function registerPluginCommands(
   plugin
     .command("new <name>")
     .description(
-      "Scaffold a plugin in ./bb-plugin-<name>; accepts @scope/bb-plugin-<name>",
+      "Scaffold a plugin in ./patcher-plugin-<name>; accepts @scope/patcher-plugin-<name>",
     )
     .option(
       "--app",
-      "Also scaffold a frontend entry (app.tsx, built by `bb plugin build`)",
+      "Also scaffold a frontend entry (app.tsx, built by `patcher plugin build`)",
     )
     .action(
       action(async (name: string, opts: { app?: boolean }) => {
         const target = resolveNewPluginTarget(name);
         if (target === null) {
           console.error(
-            `Invalid plugin name "${name}" — use name, bb-plugin-name, or @scope/bb-plugin-name.`,
+            `Invalid plugin name "${name}" — use name, patcher-plugin-name, or @scope/patcher-plugin-name.`,
           );
           process.exit(1);
         }
@@ -938,7 +947,7 @@ export function registerPluginCommands(
         await scaffoldPlugin({
           targetDir,
           packageName,
-          bbVersion: resolveBbCliVersion(),
+          patcherVersion: resolvePatcherCliVersion(),
           app: opts.app ?? false,
         });
         console.log(`Created ${directoryName}/ (${packageName}).`);
@@ -948,14 +957,14 @@ export function registerPluginCommands(
         if (!installed) {
           console.log("  npm install --include=dev");
         }
-        console.log("  bb plugin install .");
+        console.log("  patcher plugin install .");
       }),
     );
 
   plugin
     .command("types [path]")
     .description(
-      "Write this bb's @bb/plugin-sdk declarations into the plugin's types/ directory (default: cwd); the authoritative, readable API surface for editors, tsc, and agents",
+      "Write this Patcher's @patcher/plugin-sdk declarations into the plugin's types/ directory (default: cwd); the authoritative, readable API surface for editors, tsc, and agents",
     )
     .option("--check", "Report whether types/ is current; write nothing")
     .action(
@@ -968,13 +977,13 @@ export function registerPluginCommands(
           );
           process.exit(1);
         }
-        if (typeof manifest.bb?.server !== "string") {
+        if (typeof manifest.patcher?.server !== "string") {
           console.error(
-            `${rootDir} is not a bb plugin — package.json has no "bb.server" entry.`,
+            `${rootDir} is not a Patcher plugin — package.json has no "patcher.server" entry.`,
           );
           process.exit(1);
         }
-        const hasApp = typeof manifest.bb.app === "string";
+        const hasApp = typeof manifest.patcher.app === "string";
         const files = await syncPluginTypes({
           rootDir,
           app: hasApp,
@@ -986,7 +995,7 @@ export function registerPluginCommands(
         if (opts.check) {
           if (files.some((file) => file.outcome === "stale")) {
             console.error(
-              "Declarations are out of date — run `bb plugin types` to refresh them.",
+              "Declarations are out of date — run `patcher plugin types` to refresh them.",
             );
             process.exit(1);
           }
@@ -1001,29 +1010,33 @@ export function registerPluginCommands(
   plugin
     .command("build [path]")
     .description(
-      "Compile the plugin into dist/: the bb.server backend bundle (server.js, server.meta.json) and, when bb.app is declared, the frontend bundle (app.js, app.css, app.meta.json); each *.meta.json stamps SDK/identity metadata; no server required",
+      "Compile the plugin into dist/: the patcher.server backend bundle (server.js, server.meta.json) and, when patcher.app is declared, the frontend bundle (app.js, app.css, app.meta.json); each *.meta.json stamps SDK/identity metadata; no server required",
     )
     .action(
       action(async (path: string | undefined) => {
         const rootDir = resolve(process.cwd(), path ?? ".");
-        const bbVersion = resolveBbCliVersion();
+        const patcherVersion = resolvePatcherCliVersion();
         // Read the manifest before building: buildPluginServer errors legibly
-        // on a missing/invalid bb.server, so a null manifest here is only the
+        // on a missing/invalid patcher.server, so a null manifest here is only the
         // unreachable case where that read also fails.
         const manifest = await readPluginManifest(rootDir);
-        const hasApp = typeof manifest?.bb?.app === "string";
-        // Keep the local declarations tracking the bb doing the build, so a
+        const hasApp = typeof manifest?.patcher?.app === "string";
+        // Keep the local declarations tracking the Patcher doing the build, so a
         // plugin scaffolded against an older SDK never typechecks green
-        // against an API this bb no longer has. Gate on bb.server so a
+        // against an API this Patcher no longer has. Gate on patcher.server so a
         // directory this command is about to reject is never written to first.
-        if (typeof manifest?.bb?.server === "string") {
+        if (typeof manifest?.patcher?.server === "string") {
           await refreshPluginTypes(rootDir, hasApp);
         }
         const toolchain = await cliBuildToolchain();
-        const server = await buildPluginServer(rootDir, bbVersion, toolchain);
+        const server = await buildPluginServer(
+          rootDir,
+          patcherVersion,
+          toolchain,
+        );
         const files = [server.jsPath, server.mapPath, server.metaPath];
         if (hasApp) {
-          const app = await buildPluginApp(rootDir, bbVersion, toolchain);
+          const app = await buildPluginApp(rootDir, patcherVersion, toolchain);
           files.push(app.jsPath, app.cssPath, app.metaPath);
         }
         for (const file of files) {
@@ -1047,13 +1060,13 @@ export function registerPluginCommands(
           );
           process.exit(1);
         }
-        if (typeof manifest.bb?.server !== "string") {
+        if (typeof manifest.patcher?.server !== "string") {
           console.error(
-            `${rootDir} is not a bb plugin — package.json has no "bb.server" entry.`,
+            `${rootDir} is not a Patcher plugin — package.json has no "patcher.server" entry.`,
           );
           process.exit(1);
         }
-        const hasApp = typeof manifest.bb.app === "string";
+        const hasApp = typeof manifest.patcher.app === "string";
         // Refresh before the watcher starts, so writing types/ cannot feed
         // the loop its own change event.
         await refreshPluginTypes(rootDir, hasApp);
@@ -1061,14 +1074,14 @@ export function registerPluginCommands(
         // against the server's installed rows (realpath tolerates symlinked
         // checkouts).
         const realDir = await realpath(rootDir).catch(() => rootDir);
-        const list = await createCliBbSdk(getUrl()).plugins.list();
+        const list = await createCliPatcherSdk(getUrl()).plugins.list();
         const entry = list.plugins.find(
           (candidate) =>
             candidate.rootDir === rootDir || candidate.rootDir === realDir,
         );
         if (!entry) {
           console.error(
-            `This directory is not installed as a plugin — run \`bb plugin install ${path ?? "."}\` first, then re-run \`bb plugin dev\`.`,
+            `This directory is not installed as a plugin — run \`patcher plugin install ${path ?? "."}\` first, then re-run \`patcher plugin dev\`.`,
           );
           process.exit(1);
         }
@@ -1078,7 +1091,7 @@ export function registerPluginCommands(
           buildApp: async () => {
             await buildPluginApp(
               rootDir,
-              resolveBbCliVersion(),
+              resolvePatcherCliVersion(),
               await cliBuildToolchain(),
             );
           },
@@ -1221,15 +1234,17 @@ export function registerPluginCommands(
           ) {
             console.error(
               actionName === "set"
-                ? "Usage: bb plugin config <id> set <key> <value>"
-                : "Usage: bb plugin config <id> unset <key>",
+                ? "Usage: patcher plugin config <id> set <key> <value>"
+                : "Usage: patcher plugin config <id> unset <key>",
             );
             process.exit(1);
           }
           let parsedValue: string | boolean | null = null;
           if (actionName === "set") {
             if (value === undefined) {
-              console.error("Usage: bb plugin config <id> set <key> <value>");
+              console.error(
+                "Usage: patcher plugin config <id> set <key> <value>",
+              );
               process.exit(1);
             }
             // Fetch the schema first so booleans/selects are parsed and
@@ -1296,7 +1311,7 @@ export function registerPluginCommands(
   plugin
     .command("run <id> [args...]")
     .description(
-      "Run a plugin's CLI command (explicit form of `bb <command> ...`)",
+      "Run a plugin's CLI command (explicit form of `patcher <command> ...`)",
     )
     // Flags after <id> belong to the plugin command; parsing is plugin-owned.
     .passThroughOptions()
@@ -1310,7 +1325,7 @@ export function registerPluginCommands(
 
   plugin
     .command("logs <id>")
-    .description("Print a plugin's log (bb.log output)")
+    .description("Print a plugin's log (patcher.log output)")
     .option("-n, --lines <count>", "Number of lines to show", "100")
     .option("-f, --follow", "Poll for new lines every second (Ctrl+C to stop)")
     .action(

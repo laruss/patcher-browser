@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PLUGIN_PERMISSIONS } from "@bb/domain";
+import { PLUGIN_PERMISSIONS } from "@patcher/domain";
 import {
   ANSWERED_IN_THE_PLUGIN_PROCESS,
   createPluginHostCallServer,
@@ -33,15 +33,6 @@ function capabilities() {
     reportAgentToolProblem: vi.fn(),
     requestInteraction: vi.fn(async () => ({ ok: true })),
     requestBrowserCommand: vi.fn(async () => ({ tabs: [] })),
-    ensureSharedPortTunnel: vi.fn(async () => ({
-      label: "l",
-      baseDomain: "d",
-    })),
-    validateSharedPortDeclaration: vi.fn(
-      (_hostId: string, ports: readonly number[]) => ports,
-    ),
-    declareSharedPorts: vi.fn(),
-    replaceDeclaredSharedPorts: vi.fn(),
   };
   const caps = {
     pluginId: "probe",
@@ -69,10 +60,6 @@ function capabilities() {
     requestInteraction: spies.requestInteraction,
     requestBrowserCommand: spies.requestBrowserCommand,
     getBrowserHostStatus: () => ({ connected: false, hostCount: 0 }),
-    ensureSharedPortTunnel: spies.ensureSharedPortTunnel,
-    validateSharedPortDeclaration: spies.validateSharedPortDeclaration,
-    declareSharedPorts: spies.declareSharedPorts,
-    replaceDeclaredSharedPorts: spies.replaceDeclaredSharedPorts,
   } as unknown as PluginHostCapabilities;
   return { caps, spies, server: createPluginHostCallServer(caps) };
 }
@@ -200,61 +187,6 @@ describe("calls land on the capability the in-process object would use", () => {
       }),
     ).resolves.toBeNull();
     expect(spies.info).toHaveBeenCalledWith("hello");
-  });
-});
-
-describe("shared ports, whose validation could not travel", () => {
-  it("validates on the host before declaring", () => {
-    const { server, spies } = capabilities();
-
-    server.onNotify({
-      method: "hosts.declareSharedPorts",
-      payload: { hostId: "h1", ports: [3000] },
-    });
-
-    expect(spies.validateSharedPortDeclaration).toHaveBeenCalledWith(
-      "h1",
-      [3000],
-    );
-    expect(spies.declareSharedPorts).toHaveBeenCalledWith("h1", [3000]);
-  });
-
-  // The plugin cannot catch this — the member is synchronous and returns void
-  // — so it has to surface where the channel can log it, not vanish.
-  it("lets a refusal out rather than swallowing it", () => {
-    const { caps, server } = capabilities();
-    (
-      caps.validateSharedPortDeclaration as ReturnType<typeof vi.fn>
-    ).mockImplementation(() => {
-      throw new Error("port 22 is not yours to share");
-    });
-
-    expect(() =>
-      server.onNotify({
-        method: "hosts.declareSharedPorts",
-        payload: { hostId: "h1", ports: [22] },
-      }),
-    ).toThrow(/not yours to share/);
-  });
-
-  it("validates every entry of a replace", () => {
-    const { server, spies } = capabilities();
-
-    server.onNotify({
-      method: "hosts.declareSharedPorts",
-      payload: {
-        replace: [
-          { hostId: "h1", ports: [1] },
-          { hostId: "h2", ports: [2] },
-        ],
-      },
-    });
-
-    expect(spies.validateSharedPortDeclaration).toHaveBeenCalledTimes(2);
-    expect(spies.replaceDeclaredSharedPorts).toHaveBeenCalledWith([
-      { hostId: "h1", ports: [1] },
-      { hostId: "h2", ports: [2] },
-    ]);
   });
 });
 

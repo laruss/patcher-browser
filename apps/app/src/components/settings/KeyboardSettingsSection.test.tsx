@@ -16,7 +16,7 @@ import {
   type AppDefaultKeybindings,
   type AppKeybindingOverrides,
   type AppKeybindings,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { KeyboardSettingsSection } from "./KeyboardSettingsSection";
 
 const testState = vi.hoisted(() => {
@@ -143,7 +143,7 @@ const testState = vi.hoisted(() => {
         shift: boolean;
       };
     }[],
-    /** bb's *effective* bindings, which is what a plugin chord can collide with. */
+    /** Patcher's *effective* bindings, which is what a plugin chord can collide with. */
     effectiveKeybindings: [] as AppKeybindings,
     recorderButtonCalls: new Map<string, number>(),
     mutate:
@@ -184,8 +184,9 @@ vi.mock("@/hooks/mutations/settings-mutations", () => ({
   }),
 }));
 
-vi.mock("@bb/shared-ui/button", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@bb/shared-ui/button")>();
+vi.mock("@patcher/shared-ui/button", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@patcher/shared-ui/button")>();
   return {
     ...actual,
     Button: (props: ComponentProps<typeof actual.Button>) => {
@@ -221,8 +222,8 @@ vi.mock("@/lib/app-command-metadata", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/bb-desktop", () => ({
-  getBbDesktopInfo: () => (testState.isDesktop ? {} : null),
+vi.mock("@/lib/patcher-desktop", () => ({
+  getPatcherDesktopInfo: () => (testState.isDesktop ? {} : null),
 }));
 
 afterEach(() => {
@@ -566,7 +567,7 @@ describe("KeyboardSettingsSection", () => {
     expect(within(defaults).queryByText("Web")).toBeNull();
     expect(within(defaults).queryByText("Desktop")).toBeNull();
   });
-  // Plugin commands (`app.commands`) are listed here read-only: bb's rows are
+  // Plugin commands (`app.commands`) are listed here read-only: Patcher's rows are
   // editable because their ids are a closed set the override store keys on, and a
   // plugin's are not. What the group exists for is a chord nobody could otherwise
   // find.
@@ -592,10 +593,10 @@ describe("KeyboardSettingsSection", () => {
     expect(screen.getByText("Added by bookmarks")).toBeDefined();
   });
 
-  // bb's own bindings are matched first, so where both apply bb's wins. The row
-  // says exactly that and no more: bb's bindings are scoped, so "will not run"
-  // would be false for a chord bb only uses outside the browser.
-  it("names bb's own command when it shares a plugin's chord", () => {
+  // Patcher's own bindings are matched first, so where both apply Patcher's wins. The row
+  // says exactly that and no more: Patcher's bindings are scoped, so "will not run"
+  // would be false for a chord Patcher only uses outside the browser.
+  it("names Patcher's own command when it shares a plugin's chord", () => {
     testState.effectiveKeybindings = [
       {
         command: "thread.search",
@@ -628,11 +629,11 @@ describe("KeyboardSettingsSection", () => {
     render(<KeyboardSettingsSection />);
 
     expect(screen.getByText(/Also used by/u)).toBeDefined();
-    expect(screen.getByText(/bb’s own shortcut wins/u)).toBeDefined();
+    expect(screen.getByText(/Patcher’s own shortcut wins/u)).toBeDefined();
   });
 
   // `mod` is Command on a Mac and Control everywhere else, so on this platform a
-  // plugin writing `control: true` has claimed the very chord bb wrote as `mod`.
+  // plugin writing `control: true` has claimed the very chord Patcher wrote as `mod`.
   // Comparing the fields literally would miss it and leave the row looking free.
   it("spots a collision a plugin spelled with an explicit modifier", () => {
     testState.effectiveKeybindings = [
@@ -657,7 +658,7 @@ describe("KeyboardSettingsSection", () => {
       shortcut: {
         key: "k",
         alt: false,
-        // The same keystroke as bb's `mod: true` wherever Control is the modifier.
+        // The same keystroke as Patcher's `mod: true` wherever Control is the modifier.
         control: true,
         meta: false,
         mod: false,

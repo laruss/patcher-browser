@@ -3,7 +3,7 @@ import {
   experimental_useSidebarThreadSplit as useSidebarThreadSplit,
   experimental_useSidebarThreadActions as useSidebarThreadActions,
   type PluginSidebarThread,
-} from "@bb/plugin-sdk/app";
+} from "@patcher/plugin-sdk/app";
 import { Icon, type IconName } from "./components/Icon";
 import { cn } from "./lib/utils";
 import { RowContextMenu } from "./RowContextMenu";
@@ -18,7 +18,7 @@ import { resolveSnoozePresets } from "./lifecycle";
  * row instead of in its position, which is what lets the list stay still.
  *
  * The row is a positioned container with a full-bleed anchor UNDER the
- * controls, the way bb's own thread row does it: a `<button>` inside an `<a>`
+ * controls, the way Patcher's own thread row does it: a `<button>` inside an `<a>`
  * is invalid interactive nesting and breaks keyboard behaviour.
  */
 export function ThreadCard({
@@ -61,7 +61,7 @@ export function ThreadCard({
           )}
         >
           <a
-            // Both attributes, or bb's nine thread shortcuts stop finding rows.
+            // Both attributes, or Patcher's nine thread shortcuts stop finding rows.
             data-sidebar-thread-shortcut-target=""
             data-sidebar-thread-id={thread.id}
             href="#"

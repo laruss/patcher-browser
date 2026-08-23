@@ -135,7 +135,7 @@ function contrastRatio(foreground: OklchColor, background: OklchColor): number {
 describe("theme.css neutral ramp", () => {
   it("backs selected sticky sidebar rows with an opaque sidebar layer", () => {
     const rule = css.match(
-      /\[data-sidebar-sticky-tier\]\.bb-sidebar-selected-row\s*\{([^}]*)\}/s,
+      /\[data-sidebar-sticky-tier\]\.patcher-sidebar-selected-row\s*\{([^}]*)\}/s,
     )?.[1];
 
     expect(rule).toContain(
@@ -289,7 +289,7 @@ describe("theme.css semantic update surfaces", () => {
 
 describe("theme.css desktop portal hit testing", () => {
   it("carves portaled overlays out of native window drag regions", () => {
-    const rule = css.match(/\[data-bb-portaled-overlay\]\s*\{([^}]*)\}/)?.[1];
+    const rule = css.match(/\[data-patcher-portaled-overlay\]\s*\{([^}]*)\}/)?.[1];
 
     expect(rule).toBeDefined();
     expect(rule).toMatch(/(?:^|\s)app-region:\s*no-drag;/);

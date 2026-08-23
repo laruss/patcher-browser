@@ -1,5 +1,5 @@
-import { toPositiveNumber } from "@bb/domain";
-import type { ThreadContextWindowUsage } from "@bb/server-contract";
+import { toPositiveNumber } from "@patcher/domain";
+import type { ThreadContextWindowUsage } from "@patcher/server-contract";
 import type { ThreadEventWithMeta } from "./build-event-projection.js";
 
 interface ThreadContextWindowSignal {

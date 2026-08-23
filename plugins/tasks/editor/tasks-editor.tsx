@@ -19,9 +19,9 @@ import {
   TextItalicIcon,
 } from "@hugeicons/core-free-icons";
 import type { SuggestionProps } from "@tiptap/suggestion";
-import { Button } from "@bb/shared-ui/button";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Button } from "@patcher/shared-ui/button";
+import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   createEditorExtensions,
   type MentionItem,
@@ -33,70 +33,70 @@ function isImeComposing(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 
-const STYLE_MARKER = "data-bb-tasks-editor-styles";
+const STYLE_MARKER = "data-patcher-tasks-editor-styles";
 const EDITOR_CSS = `
-.bb-tasks-editor .tiptap {
+.patcher-tasks-editor .tiptap {
   outline: none; width: 100%; font-size: 14px; line-height: 1.65;
   color: var(--foreground); caret-color: var(--foreground);
   overflow-wrap: break-word; -webkit-font-smoothing: antialiased;
 }
-.bb-tasks-editor[data-variant="comment"] .tiptap { font-size: 13px; line-height: 1.55; }
+.patcher-tasks-editor[data-variant="comment"] .tiptap { font-size: 13px; line-height: 1.55; }
 /* Doc variant: let the ProseMirror surface fill the wrapper's min-height so
    the whole area is editable. Otherwise a short document (e.g. a single block
    image) leaves a non-editable dead zone below it that swallows clicks, and a
    lone image atom offers no text caret — the description looks unfocusable. */
-.bb-tasks-editor[data-variant="doc"] { display: flex; flex-direction: column; }
-.bb-tasks-editor[data-variant="doc"] .bb-tasks-editor-surface { display: flex; flex: 1 1 auto; flex-direction: column; }
-.bb-tasks-editor[data-variant="doc"] .bb-tasks-editor-surface .tiptap { flex: 1 1 auto; }
-.bb-tasks-editor .tiptap > :first-child,
-.bb-tasks-editor .tiptap li > :first-child,
-.bb-tasks-editor .tiptap blockquote > :first-child { margin-top: 0; }
-.bb-tasks-editor .tiptap p { margin: 0.75em 0 0; }
-.bb-tasks-editor[data-variant="comment"] .tiptap p { margin: 0.5em 0 0; }
-.bb-tasks-editor .tiptap h1,
-.bb-tasks-editor .tiptap h2,
-.bb-tasks-editor .tiptap h3,
-.bb-tasks-editor .tiptap h4,
-.bb-tasks-editor .tiptap h5,
-.bb-tasks-editor .tiptap h6 { margin: 1.25em 0 0; color: var(--foreground); font-weight: 600; }
-.bb-tasks-editor .tiptap h1 { font-size: 1.45em; line-height: 1.3; }
-.bb-tasks-editor .tiptap h2 { font-size: 1.2em; line-height: 1.4; }
-.bb-tasks-editor .tiptap h3 { font-size: 1.08em; line-height: 1.45; }
-.bb-tasks-editor .tiptap :is(h1, h2, h3, h4, h5, h6) + * { margin-top: 0.5em; }
-.bb-tasks-editor .tiptap ul, .bb-tasks-editor .tiptap ol { margin: 0.75em 0 0; padding-left: 1.5em; }
-.bb-tasks-editor .tiptap ul { list-style: disc; }
-.bb-tasks-editor .tiptap ol { list-style: decimal; }
-.bb-tasks-editor .tiptap li { margin-top: 0.3em; padding-left: 0.3em; }
-.bb-tasks-editor .tiptap li > p, .bb-tasks-editor .tiptap li > ul, .bb-tasks-editor .tiptap li > ol { margin-top: 0.3em; }
-.bb-tasks-editor .tiptap li::marker { color: var(--muted-foreground); }
-.bb-tasks-editor .tiptap a { color: inherit; font-weight: 500; text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 30%, transparent); cursor: pointer; }
-.bb-tasks-editor .tiptap a:hover { text-decoration-color: currentColor; }
-.bb-tasks-editor .tiptap strong { font-weight: 600; }
-.bb-tasks-editor .tiptap code { background: var(--muted); border-radius: min(calc(var(--radius) * 0.6), 0.35em); padding: 0.125em 0.3em; font-size: 0.85em; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
-.bb-tasks-editor .tiptap pre { background: var(--muted); border-radius: var(--radius); padding: 0.65em 0.85em; overflow-x: auto; font-size: 0.875em; line-height: 1.5; margin: 0.9em 0 0; tab-size: 2; }
-.bb-tasks-editor .tiptap pre code { background: none; padding: 0; font-size: inherit; }
-.bb-tasks-editor .tiptap blockquote { border-left: 2px solid var(--border); padding-left: 0.85em; margin: 0.75em 0 0; color: var(--muted-foreground); }
-.bb-tasks-editor .tiptap hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0 0; }
-.bb-tasks-editor .tiptap img { display: block; max-width: 100%; max-height: 24rem; margin: 0.9em 0 0; border-radius: var(--radius); border: 1px solid var(--border); }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0.25em; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] ul[data-type="taskList"] { margin-top: 0; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; margin-top: 0.3em; padding-left: 0; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] li > label { flex: 0 0 auto; display: inline-flex; align-items: center; height: 1.6em; user-select: none; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] li > div { flex: 1 1 auto; min-width: 0; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] li > div > p:first-child { margin-top: 0; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] input[type="checkbox"] { display: block; width: 14px; height: 14px; accent-color: var(--primary); cursor: pointer; margin: 0; }
-.bb-tasks-editor .tiptap ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--muted-foreground); text-decoration: line-through; }
-.bb-tasks-editor .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--muted-foreground); }
-.bb-tasks-editor .tiptap ::selection { background: color-mix(in oklab, var(--primary) 22%, transparent); }
-.bb-tasks-editor .bb-tasks-mention {
+.patcher-tasks-editor[data-variant="doc"] { display: flex; flex-direction: column; }
+.patcher-tasks-editor[data-variant="doc"] .patcher-tasks-editor-surface { display: flex; flex: 1 1 auto; flex-direction: column; }
+.patcher-tasks-editor[data-variant="doc"] .patcher-tasks-editor-surface .tiptap { flex: 1 1 auto; }
+.patcher-tasks-editor .tiptap > :first-child,
+.patcher-tasks-editor .tiptap li > :first-child,
+.patcher-tasks-editor .tiptap blockquote > :first-child { margin-top: 0; }
+.patcher-tasks-editor .tiptap p { margin: 0.75em 0 0; }
+.patcher-tasks-editor[data-variant="comment"] .tiptap p { margin: 0.5em 0 0; }
+.patcher-tasks-editor .tiptap h1,
+.patcher-tasks-editor .tiptap h2,
+.patcher-tasks-editor .tiptap h3,
+.patcher-tasks-editor .tiptap h4,
+.patcher-tasks-editor .tiptap h5,
+.patcher-tasks-editor .tiptap h6 { margin: 1.25em 0 0; color: var(--foreground); font-weight: 600; }
+.patcher-tasks-editor .tiptap h1 { font-size: 1.45em; line-height: 1.3; }
+.patcher-tasks-editor .tiptap h2 { font-size: 1.2em; line-height: 1.4; }
+.patcher-tasks-editor .tiptap h3 { font-size: 1.08em; line-height: 1.45; }
+.patcher-tasks-editor .tiptap :is(h1, h2, h3, h4, h5, h6) + * { margin-top: 0.5em; }
+.patcher-tasks-editor .tiptap ul, .patcher-tasks-editor .tiptap ol { margin: 0.75em 0 0; padding-left: 1.5em; }
+.patcher-tasks-editor .tiptap ul { list-style: disc; }
+.patcher-tasks-editor .tiptap ol { list-style: decimal; }
+.patcher-tasks-editor .tiptap li { margin-top: 0.3em; padding-left: 0.3em; }
+.patcher-tasks-editor .tiptap li > p, .patcher-tasks-editor .tiptap li > ul, .patcher-tasks-editor .tiptap li > ol { margin-top: 0.3em; }
+.patcher-tasks-editor .tiptap li::marker { color: var(--muted-foreground); }
+.patcher-tasks-editor .tiptap a { color: inherit; font-weight: 500; text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 30%, transparent); cursor: pointer; }
+.patcher-tasks-editor .tiptap a:hover { text-decoration-color: currentColor; }
+.patcher-tasks-editor .tiptap strong { font-weight: 600; }
+.patcher-tasks-editor .tiptap code { background: var(--muted); border-radius: min(calc(var(--radius) * 0.6), 0.35em); padding: 0.125em 0.3em; font-size: 0.85em; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+.patcher-tasks-editor .tiptap pre { background: var(--muted); border-radius: var(--radius); padding: 0.65em 0.85em; overflow-x: auto; font-size: 0.875em; line-height: 1.5; margin: 0.9em 0 0; tab-size: 2; }
+.patcher-tasks-editor .tiptap pre code { background: none; padding: 0; font-size: inherit; }
+.patcher-tasks-editor .tiptap blockquote { border-left: 2px solid var(--border); padding-left: 0.85em; margin: 0.75em 0 0; color: var(--muted-foreground); }
+.patcher-tasks-editor .tiptap hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0 0; }
+.patcher-tasks-editor .tiptap img { display: block; max-width: 100%; max-height: 24rem; margin: 0.9em 0 0; border-radius: var(--radius); border: 1px solid var(--border); }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0.25em; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] ul[data-type="taskList"] { margin-top: 0; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5em; margin-top: 0.3em; padding-left: 0; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] li > label { flex: 0 0 auto; display: inline-flex; align-items: center; height: 1.6em; user-select: none; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] li > div { flex: 1 1 auto; min-width: 0; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] li > div > p:first-child { margin-top: 0; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] input[type="checkbox"] { display: block; width: 14px; height: 14px; accent-color: var(--primary); cursor: pointer; margin: 0; }
+.patcher-tasks-editor .tiptap ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--muted-foreground); text-decoration: line-through; }
+.patcher-tasks-editor .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--muted-foreground); }
+.patcher-tasks-editor .tiptap ::selection { background: color-mix(in oklab, var(--primary) 22%, transparent); }
+.patcher-tasks-editor .patcher-tasks-mention {
   display: inline; border-radius: calc(var(--radius) * 0.75);
   background: color-mix(in oklab, var(--primary) 12%, transparent);
   color: var(--primary); padding: 0.05em 0.35em;
   font-size: 0.9em; font-weight: 500; white-space: nowrap;
 }
-.bb-tasks-editor .bb-tasks-thread-mention { cursor: pointer; }
-.bb-tasks-editor .bb-tasks-thread-mention:hover { background: color-mix(in oklab, var(--primary) 20%, transparent); }
-.bb-tasks-editor .bb-tasks-mention-icon {
+.patcher-tasks-editor .patcher-tasks-thread-mention { cursor: pointer; }
+.patcher-tasks-editor .patcher-tasks-thread-mention:hover { background: color-mix(in oklab, var(--primary) 20%, transparent); }
+.patcher-tasks-editor .patcher-tasks-mention-icon {
   display: inline-block; width: 0.95em; height: 0.95em;
   vertical-align: -0.12em; margin-right: 0.3em;
 }
@@ -571,7 +571,7 @@ export function TasksEditor({
   return (
     <div
       ref={wrapperRef}
-      className={cn("bb-tasks-editor relative min-w-0", className)}
+      className={cn("patcher-tasks-editor relative min-w-0", className)}
       data-variant={variant}
       onMouseDown={variant === "doc" ? focusOnEmptyMouseDown : undefined}
     >
@@ -611,7 +611,7 @@ export function TasksEditor({
           ))}
         </div>
       ) : null}
-      <div ref={rootRef} className="bb-tasks-editor-surface min-w-0" />
+      <div ref={rootRef} className="patcher-tasks-editor-surface min-w-0" />
       {mention && mention.items.length > 0 ? (
         <div
           role="listbox"

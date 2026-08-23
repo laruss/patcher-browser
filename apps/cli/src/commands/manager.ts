@@ -3,9 +3,9 @@ import { action, CliExitError } from "../action.js";
 
 const REMOVED_MANAGER_COMMAND_MESSAGE = [
   "Manager threads were replaced by parent threads.",
-  "Use `bb thread spawn --parent-thread <id>` to delegate work,",
-  "`bb thread list --parent-thread <id>` to list child threads,",
-  "and `bb thread show <id>` to inspect a thread.",
+  "Use `patcher thread spawn --parent-thread <id>` to delegate work,",
+  "`patcher thread list --parent-thread <id>` to list child threads,",
+  "and `patcher thread show <id>` to inspect a thread.",
 ].join(" ");
 
 interface RemovedManagerCommandOptions {
@@ -25,9 +25,11 @@ function registerRemovedManagerSubcommand(
     .command(nameAndArgs)
     .description(description)
     .option("--json", "Print machine-readable JSON output")
-    .action(action(async (_opts: RemovedManagerCommandOptions) => {
-      throwRemovedManagerCommand();
-    }));
+    .action(
+      action(async (_opts: RemovedManagerCommandOptions) => {
+        throwRemovedManagerCommand();
+      }),
+    );
 }
 
 export function registerManagerCommands(
@@ -37,9 +39,11 @@ export function registerManagerCommands(
   const manager = program
     .command("manager")
     .description("Compatibility notice for removed manager commands")
-    .action(action(async () => {
-      throwRemovedManagerCommand();
-    }));
+    .action(
+      action(async () => {
+        throwRemovedManagerCommand();
+      }),
+    );
 
   registerRemovedManagerSubcommand(
     manager,

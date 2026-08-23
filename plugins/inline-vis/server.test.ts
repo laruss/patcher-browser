@@ -1,10 +1,10 @@
-// Backend tests for inline-vis path confinement and bb.sdk.files reads.
+// Backend tests for inline-vis path confinement and patcher.sdk.files reads.
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import plugin, {
   MAX_HTML_BYTES,
   requireWorkspaceHtmlFile,
@@ -34,7 +34,7 @@ async function load(sdk: {
     pluginId: "inline-vis",
     sdk,
   });
-  await plugin(host.bb);
+  await plugin(host.patcher);
   return host;
 }
 
@@ -132,7 +132,7 @@ describe("prepareHtmlPreview rpc", () => {
     ).rejects.toThrow(/no workspace path/);
   });
 
-  it("reads through bb.sdk.files with hostId + rootPath confinement", async () => {
+  it("reads through patcher.sdk.files with hostId + rootPath confinement", async () => {
     const { harness } = await load({
       threads: {
         get: (args) => {

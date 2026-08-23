@@ -1,17 +1,17 @@
-import type { ApiClient } from "@bb/server-contract";
+import type { ApiClient } from "@patcher/server-contract";
 import type {
   FetchImplementation,
   JsonBodyOf,
 } from "./response.js";
 
-export type BbSdkRuntime = "node" | "browser";
+export type PatcherSdkRuntime = "node" | "browser";
 
-export interface BbSdkTransport {
+export interface PatcherSdkTransport {
   api: ApiClient["api"];
   baseUrl: string;
   fetch: FetchImplementation;
   realtimeUrl?: string;
-  runtime: BbSdkRuntime;
+  runtime: PatcherSdkRuntime;
   readJson<TResponse extends Response>(
     response: Promise<TResponse>,
   ): Promise<JsonBodyOf<TResponse>>;
@@ -21,14 +21,14 @@ export interface BbSdkTransport {
   resolve<TResponse extends Response>(
     response: Promise<TResponse>,
   ): Promise<TResponse>;
-  websocket?: BbRealtimeSocketFactory;
+  websocket?: PatcherRealtimeSocketFactory;
 }
 
 /**
  * Raw socket payload. Treated as opaque until decoded — realtime ignores
  * non-string frames.
  */
-export interface BbRealtimeSocketMessageEvent {
+export interface PatcherRealtimeSocketMessageEvent {
   data: unknown;
 }
 
@@ -38,24 +38,24 @@ export interface BbRealtimeSocketMessageEvent {
  * or the `ws` package on older Node) to this interface; custom `websocket`
  * factories can wrap any implementation the same way.
  */
-export interface BbRealtimeSocket {
+export interface PatcherRealtimeSocket {
   close(): void;
   onclose: (() => void) | null;
   onerror: (() => void) | null;
-  onmessage: ((event: BbRealtimeSocketMessageEvent) => void) | null;
+  onmessage: ((event: PatcherRealtimeSocketMessageEvent) => void) | null;
   onopen: (() => void) | null;
   readyState: number;
   send(data: string): void;
 }
 
-export type BbRealtimeSocketFactory = (url: string) => BbRealtimeSocket;
+export type PatcherRealtimeSocketFactory = (url: string) => PatcherRealtimeSocket;
 
-export interface BbSdkContext {}
+export interface PatcherSdkContext {}
 
 export interface CreateHttpTransportArgs {
   baseUrl?: string;
   fetch?: FetchImplementation;
   realtimeUrl?: string;
-  runtime: BbSdkRuntime;
-  websocket?: BbRealtimeSocketFactory;
+  runtime: PatcherSdkRuntime;
+  websocket?: PatcherRealtimeSocketFactory;
 }

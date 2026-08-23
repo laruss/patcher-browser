@@ -1,16 +1,16 @@
 /*
  * Syntax-highlight palette for fenced code blocks (sugar-high output).
  *
- * Scoped to `.bb-code-highlight` so the `--sh-*` token colors never leak past a
+ * Scoped to `.patcher-code-highlight` so the `--sh-*` token colors never leak past a
  * code block. Intentionally NOT in theme.css/app.css: this is a self-contained,
  * code-only palette, not part of the shared neutral ramp guarded by theme.test.
  *
- * Restrained and achromatic-leaning to match bb's calm chroma - identifiers ride
+ * Restrained and achromatic-leaning to match Patcher's calm chroma - identifiers ride
  * the neutral foreground and punctuation/comments ride the existing muted/subtle
  * tiers; only keywords, strings, types/numbers, and entities carry a low-chroma
  * hue, lifted in dark mode the same way the app's neutral ramp is.
  */
-.bb-code-highlight {
+.patcher-code-highlight {
   --sh-space: inherit;
   --sh-identifier: var(--foreground);
   --sh-sign: var(--muted-foreground);
@@ -23,7 +23,7 @@
   --sh-jsxliterals: oklch(0.47 0.13 292);
 }
 
-.dark .bb-code-highlight {
+.dark .patcher-code-highlight {
   --sh-keyword: oklch(0.74 0.14 18);
   --sh-string: oklch(0.78 0.12 150);
   --sh-class: oklch(0.76 0.11 250);

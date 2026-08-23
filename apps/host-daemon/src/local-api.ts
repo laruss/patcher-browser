@@ -3,15 +3,15 @@ import { serve } from "@hono/node-server";
 import {
   buildLocalAppOrigins,
   type BuildLocalAppOriginsArgs,
-} from "@bb/config/local-app-origins";
+} from "@patcher/config/local-app-origins";
 import {
   formatClientConfigPath,
   normalizeClientServerOrigin,
   parseClientConfig,
   resolveClientSshAuthority,
   type ClientConfig,
-} from "@bb/config/client-config";
-import { assignIfDefined } from "@bb/config/objects";
+} from "@patcher/config/client-config";
+import { assignIfDefined } from "@patcher/config/objects";
 import {
   healthResponseSchema,
   HOST_DAEMON_PROTOCOL_VERSION,
@@ -22,13 +22,13 @@ import {
   type OpenInTargetRequest,
   type WorkspaceOpenTarget,
   type WorkspaceOpenTargetsQuery,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   listWorkspaceOpenTargets,
   openPathInTarget,
   type OpenPathInTargetArgs,
   WorkspaceOpenTargetError,
-} from "@bb/local-open-targets";
+} from "@patcher/local-open-targets";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -46,7 +46,7 @@ export type OpenInTargetHandler = (
 /**
  * Browser-reachable local HTTP API for colocated setups.
  *
- * Route ownership is documented in `@bb/host-daemon-contract/src/local.ts`.
+ * Route ownership is documented in `@patcher/host-daemon-contract/src/local.ts`.
  * Some routes describe the UI/client machine, while others describe the
  * work-host machine. Remote-client support should route work-host operations
  * through the server and connected work host daemon instead of adding them to a
@@ -57,11 +57,11 @@ export interface StartLocalApiServerOptions {
   hostId: string;
   localApiConfig: HostDaemonLocalApiConfig;
   serverUrl: string;
-  /** Port the BB server binds on (parsed from `serverUrl` upstream so the
+  /** Port the Patcher server binds on (parsed from `serverUrl` upstream so the
    * daemon doesn't need to depend on server config). Used to build the CORS
    * allowlist. */
   serverPort: number;
-  /** Vite dev port for the BB app frontend; allowed origin for CORS when set. */
+  /** Vite dev port for the Patcher app frontend; allowed origin for CORS when set. */
   devAppPort?: number;
   /** Optional public app origin (e.g. `https://app.example.com`); allowed
    * origin for CORS when the frontend is served from a non-localhost domain. */
@@ -171,7 +171,7 @@ async function resolveOpenPathInTargetArgs({
   if (sshAuthority === null) {
     throw new WorkspaceOpenTargetError({
       code: "remote_mapping_missing",
-      message: `No SSH target configured for host ${request.context.hostId} on ${serverOrigin}. Run: bb-app client ssh-target set ${serverOrigin} <ssh-target>`,
+      message: `No SSH target configured for host ${request.context.hostId} on ${serverOrigin}. Run: patcher-app client ssh-target set ${serverOrigin} <ssh-target>`,
     });
   }
 

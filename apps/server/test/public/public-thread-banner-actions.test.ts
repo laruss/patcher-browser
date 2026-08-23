@@ -1,9 +1,9 @@
-import { getThread, listEvents } from "@bb/db";
+import { getThread, listEvents } from "@patcher/db";
 import {
   encodeClientTurnRequestIdNumber,
   threadScope,
   turnScope,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { registerHostRpcResponder } from "../helpers/host-rpc.js";
 import { readJson } from "../helpers/json.js";

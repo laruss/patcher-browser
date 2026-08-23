@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRealtime, useRpc } from "@bb/plugin-sdk/app";
+import { useRealtime, useRpc } from "@patcher/plugin-sdk/app";
 import type { TasksRpcContract } from "../shared/contract.js";
 import type { Task, TaskPriority, TaskStatus } from "../shared/contract.js";
 import { TASKS_PAGE_MAX_LIMIT, type TaskSort } from "../shared/pagination.js";
@@ -173,7 +173,7 @@ export function useSidebarSummary() {
 
 /**
  * @-mention source for TasksEditor: tasks matched by key/title/description
- * via the server-side `listTasks` search, followed by bb threads from
+ * via the server-side `listTasks` search, followed by Patcher threads from
  * `searchThreads`. A thread-search failure must not take task mentions down
  * with it, so it degrades to an empty section.
  */

@@ -14,7 +14,7 @@
  * still cannot invent one.
  */
 
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 import type { PluginCancelMessage } from "./plugin-cancellation.js";
 
 /** A request expecting exactly one response. */
@@ -62,7 +62,7 @@ export type PluginMessage =
  *
  * Reducing an error is usually lossy in a way that matters, and here it is
  * not — because this codebase already decided that error *identity is the
- * name*. `@bb/plugin-sdk`'s contract says so in as many words ("Runtime classes
+ * name*. `@patcher/plugin-sdk`'s contract says so in as many words ("Runtime classes
  * stay host-side. NeedsConfigurationError in particular is matched by NAME"),
  * `isNeedsConfigurationError` tests `error.name`, and plugin code is told to
  * throw `Object.assign(new Error(msg), { name: "..." })`. So a rebuilt error is

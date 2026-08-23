@@ -4,11 +4,11 @@ import {
   listBrowserHistoryEntries as listBrowserHistoryEntryRows,
   recordBrowserHistoryVisit as recordBrowserHistoryVisitRow,
   type BrowserHistoryEntryRow,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   BrowserHistoryEntry,
   RecordBrowserHistoryVisitRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../../errors.js";
 import type { PluginService } from "../plugins/plugin-service.js";
 import type { AppDeps } from "../../types.js";

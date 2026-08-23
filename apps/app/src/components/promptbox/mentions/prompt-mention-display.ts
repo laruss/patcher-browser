@@ -1,6 +1,6 @@
-import type { PromptMentionResource } from "@bb/domain";
-import type { IconName } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import type { PromptMentionResource } from "@patcher/domain";
+import type { IconName } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 type PromptCommandLike = Pick<
   Extract<PromptMentionResource, { kind: "command" }>,
@@ -43,7 +43,7 @@ export function promptMentionIconLabel(
 
 /**
  * Named-icon fallback for a mention. React render paths use
- * `PromptMentionIcon` so plugin mentions can prefer `bb.branding.icon`.
+ * `PromptMentionIcon` so plugin mentions can prefer `patcher.branding.icon`.
  */
 export function promptMentionIconName(
   resource: PromptMentionResource,

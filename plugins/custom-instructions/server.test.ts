@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import plugin, { MAX_CUSTOM_INSTRUCTIONS_LENGTH } from "./server";
 
 describe("custom instructions plugin", () => {
   it("loads persisted instructions and contributes them to agent tasks", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "custom-instructions",
     });
-    await bb.storage.kv.set("customInstructions", "Use concise answers.");
+    await patcher.storage.kv.set("customInstructions", "Use concise answers.");
 
-    await plugin(bb);
+    await plugin(patcher);
 
     expect(await harness.callRpc("getInstructions")).toEqual({
       instructions: "Use concise answers.",
@@ -28,11 +28,11 @@ describe("custom instructions plugin", () => {
   });
 
   it("persists saves and applies them immediately", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "custom-instructions",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     await expect(
       harness.callRpc("saveInstructions", {
@@ -42,7 +42,7 @@ describe("custom instructions plugin", () => {
       instructions: "Always run focused tests.",
       maxLength: MAX_CUSTOM_INSTRUCTIONS_LENGTH,
     });
-    await expect(bb.storage.kv.get("customInstructions")).resolves.toBe(
+    await expect(patcher.storage.kv.get("customInstructions")).resolves.toBe(
       "Always run focused tests.",
     );
     expect(
@@ -54,11 +54,11 @@ describe("custom instructions plugin", () => {
   });
 
   it("provides CLI parity for reading and updating instructions", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "custom-instructions",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     await expect(
       harness.runCli(["set", "Prefer", "small", "commits.", "--json"]),
@@ -70,17 +70,17 @@ describe("custom instructions plugin", () => {
       exitCode: 0,
       stdout: "Prefer small commits.",
     });
-    await expect(bb.storage.kv.get("customInstructions")).resolves.toBe(
+    await expect(patcher.storage.kv.get("customInstructions")).resolves.toBe(
       "Prefer small commits.",
     );
   });
 
   it("contributes nothing for blank text and rejects malformed or oversized saves", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "custom-instructions",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     expect(
       harness.registrations.instructionProvider?.({

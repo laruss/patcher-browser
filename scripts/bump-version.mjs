@@ -7,11 +7,11 @@ const scriptPath = fileURLToPath(import.meta.url);
 const defaultRepoRoot = resolve(dirname(scriptPath), "..");
 const packageTargets = [
   {
-    label: "bb-app",
-    path: "packages/bb-app/package.json",
+    label: "patcher-app",
+    path: "packages/patcher-app/package.json",
   },
   {
-    label: "@bb/desktop",
+    label: "@patcher/desktop",
     path: "apps/desktop/package.json",
   },
 ];
@@ -332,11 +332,12 @@ export async function bumpVersion(options) {
   }));
 
   await writePackageTargetsAtomically({ fileSystem, updates });
-  log(`Bumped: bb-app + @bb/desktop → ${newVersion}`);
+  log(`Bumped: patcher-app + @patcher/desktop → ${newVersion}`);
 }
 
 async function main() {
-  const repoRoot = process.env.BB_BUMP_VERSION_REPO_ROOT ?? defaultRepoRoot;
+  const repoRoot =
+    process.env.PATCHER_BUMP_VERSION_REPO_ROOT ?? defaultRepoRoot;
 
   await bumpVersion({
     args: process.argv.slice(2),

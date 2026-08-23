@@ -3,8 +3,8 @@ import {
   assertNever,
   buildPendingInteractionApprovalResolution,
   formatPendingInteractionSubjectDetailLines,
-} from "@bb/core-ui";
-import { extractShellCommandFromString } from "@bb/thread-view";
+} from "@patcher/core-ui";
+import { extractShellCommandFromString } from "@patcher/thread-view";
 import {
   isApprovalPendingInteractionPayload,
   isUserQuestionPendingInteractionPayload,
@@ -14,16 +14,16 @@ import {
   type PendingInteractionApprovalSubject,
   type PendingInteractionResolution,
   type UserQuestionPendingInteractionPayload,
-} from "@bb/domain";
-import { Button } from "@bb/shared-ui/button";
+} from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
 import { ExpandableLine } from "@/components/ui/expandable-line.js";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import { MarkdownPreview } from "@/components/ui/markdown-preview.js";
 import { getDetailScrollMaxHeightClass } from "@/components/ui/detail-scroll-size.js";
 import { UserQuestionAnswerForm } from "@/components/thread/user-questions/UserQuestionInteractionContent.js";
 import { useResolveThreadPendingInteraction } from "@/hooks/mutations/thread-interaction-mutations";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 interface ThreadPendingInteractionBannerProps {
   interaction: PendingInteraction;

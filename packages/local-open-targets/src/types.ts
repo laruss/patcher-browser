@@ -3,7 +3,7 @@ import type {
   WorkspaceOpenTargetIcon,
   WorkspaceOpenTargetId,
   WorkspaceOpenTargetKind,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 export interface LocalOpenTargetContext {
   kind: "local";

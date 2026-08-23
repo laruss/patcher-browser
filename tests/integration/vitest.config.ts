@@ -3,7 +3,7 @@ import {
   defineWorkspaceTestConfig,
 } from "../../vitest.shared.js";
 
-const parsedTimeoutScale = Number(process.env.BB_TEST_TIMEOUT_SCALE ?? 1);
+const parsedTimeoutScale = Number(process.env.PATCHER_TEST_TIMEOUT_SCALE ?? 1);
 const timeoutScale =
   Number.isFinite(parsedTimeoutScale) && parsedTimeoutScale > 0
     ? parsedTimeoutScale
@@ -25,12 +25,12 @@ export default defineWorkspaceTestConfig({
     globalSetup: ["./global-setup.ts"],
     hookTimeout: Math.ceil(60_000 * timeoutScale),
     include: ["fake/**/*.test.ts"],
-    name: "@bb/integration-tests",
+    name: "@patcher/integration-tests",
     env: {
-      BB_DATA_DIR: "/tmp/bb-integration-test",
-      BB_SERVER_PORT: "49161",
-      BB_SERVER_URL: "http://127.0.0.1:49161",
-      BB_HOST_DAEMON_PORT: "49162",
+      PATCHER_DATA_DIR: "/tmp/patcher-integration-test",
+      PATCHER_SERVER_PORT: "49161",
+      PATCHER_SERVER_URL: "http://127.0.0.1:49161",
+      PATCHER_HOST_DAEMON_PORT: "49162",
     },
     silent: "passed-only",
     testTimeout: Math.ceil(60_000 * timeoutScale),

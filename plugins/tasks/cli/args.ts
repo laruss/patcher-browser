@@ -20,7 +20,7 @@ const VALUELESS_FLAGS = new Set([
   "no-parent",
   "notify",
   "remove-references",
-  "unlink-bb-project",
+  "unlink-patcher-project",
   "yes",
 ]);
 

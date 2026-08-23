@@ -1,11 +1,11 @@
 import semver from "semver";
 import {
-  bbDesktopVersionFeedSchema,
-  type BbDesktopInfo,
-  type BbDesktopInfoChangeHandler,
-  type BbDesktopInfoUnsubscribe,
-  type BbDesktopVersionFeed,
-} from "@bb/desktop-contract";
+  patcherDesktopVersionFeedSchema,
+  type PatcherDesktopInfo,
+  type PatcherDesktopInfoChangeHandler,
+  type PatcherDesktopInfoUnsubscribe,
+  type PatcherDesktopVersionFeed,
+} from "@patcher/desktop-contract";
 
 export { DESKTOP_UPDATE_FEED_URL } from "./desktop-update-provider.js";
 export const DESKTOP_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -25,8 +25,8 @@ export interface ParseDesktopVersionFeedArgs {
 }
 
 interface ValidDesktopVersionFeedParseResult {
-  feed: BbDesktopVersionFeed;
-  info: BbDesktopInfo;
+  feed: PatcherDesktopVersionFeed;
+  info: PatcherDesktopInfo;
   kind: "valid";
 }
 
@@ -49,12 +49,14 @@ export interface CreateDesktopUpdateServiceArgs {
 }
 
 export interface DesktopUpdateService {
-  checkAfterActive(): Promise<BbDesktopInfo | null>;
-  checkForUpdates(): Promise<BbDesktopInfo>;
-  getInfo(): BbDesktopInfo;
+  checkAfterActive(): Promise<PatcherDesktopInfo | null>;
+  checkForUpdates(): Promise<PatcherDesktopInfo>;
+  getInfo(): PatcherDesktopInfo;
   start(): void;
   stop(): void;
-  subscribe(listener: BbDesktopInfoChangeHandler): BbDesktopInfoUnsubscribe;
+  subscribe(
+    listener: PatcherDesktopInfoChangeHandler,
+  ): PatcherDesktopInfoUnsubscribe;
 }
 
 interface FetchDesktopVersionFeedArgs {
@@ -67,7 +69,7 @@ interface ApplyFailureArgs {
   message: string;
 }
 
-function createBaseInfo(currentVersion: string): BbDesktopInfo {
+function createBaseInfo(currentVersion: string): PatcherDesktopInfo {
   return {
     lastCheckedAt: null,
     latestVersion: null,
@@ -84,8 +86,8 @@ function formatErrorMessage(error: unknown): string {
 }
 
 function areDesktopInfoValuesEqual(
-  left: BbDesktopInfo,
-  right: BbDesktopInfo,
+  left: PatcherDesktopInfo,
+  right: PatcherDesktopInfo,
 ): boolean {
   return (
     left.lastCheckedAt === right.lastCheckedAt &&
@@ -117,7 +119,7 @@ export function parseDesktopVersionFeed(
     };
   }
 
-  const parsedFeed = bbDesktopVersionFeedSchema.safeParse(payload);
+  const parsedFeed = patcherDesktopVersionFeedSchema.safeParse(payload);
   if (!parsedFeed.success) {
     return {
       kind: "malformed",
@@ -180,12 +182,12 @@ export function createDesktopUpdateService(
   const now = args.now ?? (() => Date.now());
 
   let currentInfo = createBaseInfo(args.currentVersion);
-  let inflight: Promise<BbDesktopInfo> | null = null;
+  let inflight: Promise<PatcherDesktopInfo> | null = null;
   let intervalHandle: DesktopUpdateIntervalHandle | null = null;
   let lastAttemptedAt: number | null = null;
-  const listeners = new Set<BbDesktopInfoChangeHandler>();
+  const listeners = new Set<PatcherDesktopInfoChangeHandler>();
 
-  function updateInfo(nextInfo: BbDesktopInfo): void {
+  function updateInfo(nextInfo: PatcherDesktopInfo): void {
     if (areDesktopInfoValuesEqual(currentInfo, nextInfo)) {
       return;
     }
@@ -195,7 +197,7 @@ export function createDesktopUpdateService(
     }
   }
 
-  function applyFailure(failureArgs: ApplyFailureArgs): BbDesktopInfo {
+  function applyFailure(failureArgs: ApplyFailureArgs): PatcherDesktopInfo {
     logger.warn(failureArgs.message);
     updateInfo({
       ...currentInfo,
@@ -204,7 +206,7 @@ export function createDesktopUpdateService(
     return currentInfo;
   }
 
-  async function checkForUpdates(): Promise<BbDesktopInfo> {
+  async function checkForUpdates(): Promise<PatcherDesktopInfo> {
     if (!args.enabled) {
       return currentInfo;
     }
@@ -263,7 +265,7 @@ export function createDesktopUpdateService(
   }
 
   return {
-    async checkAfterActive(): Promise<BbDesktopInfo | null> {
+    async checkAfterActive(): Promise<PatcherDesktopInfo | null> {
       if (!args.enabled) {
         return null;
       }
@@ -277,7 +279,7 @@ export function createDesktopUpdateService(
       return checkForUpdates();
     },
     checkForUpdates,
-    getInfo(): BbDesktopInfo {
+    getInfo(): PatcherDesktopInfo {
       return currentInfo;
     },
     start(): void {
@@ -296,7 +298,9 @@ export function createDesktopUpdateService(
       clearInterval(intervalHandle);
       intervalHandle = null;
     },
-    subscribe(listener: BbDesktopInfoChangeHandler): BbDesktopInfoUnsubscribe {
+    subscribe(
+      listener: PatcherDesktopInfoChangeHandler,
+    ): PatcherDesktopInfoUnsubscribe {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);

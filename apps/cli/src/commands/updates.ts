@@ -1,8 +1,8 @@
 import { Command } from "commander";
-import type { Host } from "@bb/domain";
-import type { HostProviderCliStatusResponse } from "@bb/server-contract";
+import type { Host } from "@patcher/domain";
+import type { HostProviderCliStatusResponse } from "@patcher/server-contract";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { renderBorderlessTable } from "../table.js";
 import { outputJson } from "./helpers.js";
 import { resolveMachineId } from "./machine.js";
@@ -58,7 +58,7 @@ function isActionableProviderStatus(status: ProviderCliStatus): boolean {
 }
 
 async function collectMachineUpdates(
-  sdk: ReturnType<typeof createCliBbSdk>,
+  sdk: ReturnType<typeof createCliPatcherSdk>,
   hosts: readonly Host[],
 ): Promise<MachineUpdatesEntry[]> {
   return Promise.all(
@@ -149,16 +149,16 @@ export function registerUpdatesCommands(
 ): void {
   const updates = program
     .command("updates")
-    .description("Inspect and apply bb and provider CLI updates");
+    .description("Inspect and apply Patcher and provider CLI updates");
 
   updates
     .command("status", { isDefault: true })
-    .description("Show bb and provider CLI update status across machines")
+    .description("Show Patcher and provider CLI update status across machines")
     .option("--machine <id-or-name>", "Limit to one machine")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: UpdatesCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const [version, hosts] = await Promise.all([
           sdk.system.version(),
           sdk.hosts.list(),
@@ -194,7 +194,7 @@ export function registerUpdatesCommands(
             ? `${version.currentVersion} -> ${version.latestVersion}`
             : version.currentVersion;
         printUpdatesTable({
-          appRow: ["bb-app", appVersionLabel, appState],
+          appRow: ["patcher-app", appVersionLabel, appState],
           entries,
         });
       }),
@@ -207,7 +207,7 @@ export function registerUpdatesCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: UpdatesCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const hosts = await sdk.hosts.list();
         const selectedHosts =
           opts.machine === undefined
@@ -234,7 +234,7 @@ export function registerUpdatesCommands(
           );
           console.log(
             hasManualUpdates
-              ? "No updates bb can apply. Run bb updates status for manual updates."
+              ? "No updates Patcher can apply. Run patcher updates status for manual updates."
               : "Everything is up to date.",
           );
           return;
@@ -271,8 +271,7 @@ export function registerUpdatesCommands(
               hostName: target.host.name,
               provider: target.provider,
               success,
-              message:
-                errorEvent?.type === "error" ? errorEvent.message : null,
+              message: errorEvent?.type === "error" ? errorEvent.message : null,
             });
             if (!opts.json) {
               console.log(

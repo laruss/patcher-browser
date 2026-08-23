@@ -8,8 +8,8 @@ import {
   projects,
   threads,
   type DbQueryConnection,
-} from "@bb/db";
-import type { Environment, Thread, ThreadStatus } from "@bb/domain";
+} from "@patcher/db";
+import type { Environment, Thread, ThreadStatus } from "@patcher/domain";
 import type {
   AppDeps,
   LoggedPendingInteractionWorkSessionDeps,

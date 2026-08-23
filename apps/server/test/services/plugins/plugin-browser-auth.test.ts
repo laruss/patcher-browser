@@ -21,17 +21,17 @@ const CHALLENGE = {
  */
 function decliningSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerAuthProvider(() => null);
-    bb.browser.registerAuthProvider(() => ({ username: 42 }));
+  export default function plugin(patcher: any) {
+    patcher.browser.registerAuthProvider(() => null);
+    patcher.browser.registerAuthProvider(() => ({ username: 42 }));
   }
 `;
 }
 
 function answeringSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerAuthProvider((challenge: any) =>
+  export default function plugin(patcher: any) {
+    patcher.browser.registerAuthProvider((challenge: any) =>
       challenge.host === "example.com"
         ? { username: "ada", password: "hunter2" }
         : null,
@@ -42,8 +42,8 @@ function answeringSource(): string {
 
 function throwingSource(): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerAuthProvider(() => {
+  export default function plugin(patcher: any) {
+    patcher.browser.registerAuthProvider(() => {
       throw new Error("keychain locked");
     });
   }
@@ -61,7 +61,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Auth fixture",
         description: "Auth provider fixture.",
         branding: { icon: "Zap" },
@@ -74,7 +74,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin auth providers (bb.browser.registerAuthProvider)", () => {
+describe("plugin auth providers (patcher.browser.registerAuthProvider)", () => {
   let harness: TestAppHarness;
 
   async function install(name: string, serverSource: string): Promise<void> {
@@ -114,7 +114,7 @@ describe("plugin auth providers (bb.browser.registerAuthProvider)", () => {
   });
 
   it("answers with the credentials a provider supplied", async () => {
-    await install("bb-plugin-vault", answeringSource());
+    await install("patcher-plugin-vault", answeringSource());
 
     const result = await resolve(CHALLENGE);
 
@@ -127,7 +127,7 @@ describe("plugin auth providers (bb.browser.registerAuthProvider)", () => {
   // Nobody answering is not a failure: it is what sends the question to the
   // user, which is where it started.
   it("answers null when no provider has credentials", async () => {
-    await install("bb-plugin-vault", answeringSource());
+    await install("patcher-plugin-vault", answeringSource());
 
     const result = await resolve({ ...CHALLENGE, host: "other.test" });
 
@@ -149,9 +149,9 @@ describe("plugin auth providers (bb.browser.registerAuthProvider)", () => {
   // Declining, answering with the wrong shape, and throwing all mean the same
   // thing here: ask the next one.
   it("walks past providers that decline, malform or throw", async () => {
-    await install("bb-plugin-aaa", decliningSource());
-    await install("bb-plugin-bbb", throwingSource());
-    await install("bb-plugin-vault", answeringSource());
+    await install("patcher-plugin-aaa", decliningSource());
+    await install("patcher-plugin-bbb", throwingSource());
+    await install("patcher-plugin-vault", answeringSource());
 
     const result = await resolve(CHALLENGE);
 
@@ -169,7 +169,7 @@ describe("plugin auth providers (bb.browser.registerAuthProvider)", () => {
 
   // This route's answer is a credential, so it takes the same guard as the rest.
   it("refuses a cross-origin caller", async () => {
-    await install("bb-plugin-vault", answeringSource());
+    await install("patcher-plugin-vault", answeringSource());
 
     const result = await resolve(CHALLENGE, EVIL_ORIGIN);
 

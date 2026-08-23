@@ -5,7 +5,7 @@ import {
   renderTimelineFixture,
 } from "./timeline-test-harness.js";
 import { formatThreadTimelineText } from "../src/format-timeline-text.js";
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 import type { TimelineEventFactory } from "./timeline-test-harness.js";
 
 type TimelineFixtureEvent = ReturnType<
@@ -493,7 +493,7 @@ describe("timeline CLI rendering snapshots", () => {
       }),
       event.commandCompleted({
         itemId: "tool-after-steer",
-        command: "sqlite3 ~/.bb-dev/bb.db '.tables'",
+        command: "sqlite3 ~/.patcher-dev/patcher.db '.tables'",
       }),
       event.assistantCompleted({ itemId: "assistant-1", text: "Done." }),
       event.turnCompleted(),
@@ -536,8 +536,8 @@ describe("timeline CLI rendering snapshots", () => {
         ── Ran 2 commands
           ── Ran pnpm test
             $ pnpm test
-          ── Ran sqlite3 ~/.bb-dev/bb.db '.tables'
-            $ sqlite3 ~/.bb-dev/bb.db '.tables'
+          ── Ran sqlite3 ~/.patcher-dev/patcher.db '.tables'
+            $ sqlite3 ~/.patcher-dev/patcher.db '.tables'
 
       ── Assistant ───────────────────────────────────────────────
       Done.
@@ -566,7 +566,7 @@ describe("timeline CLI rendering snapshots", () => {
       }),
       event.commandCompleted({
         itemId: "tool-after-steer",
-        command: "sqlite3 ~/.bb-dev/bb.db '.tables'",
+        command: "sqlite3 ~/.patcher-dev/patcher.db '.tables'",
       }),
       event.assistantCompleted({ itemId: "assistant-1", text: "Done." }),
       event.turnCompleted(),
@@ -615,8 +615,8 @@ describe("timeline CLI rendering snapshots", () => {
       steer
 
       ── Worked for (0ms) ────────────────────────────────────────
-        ── Ran sqlite3 ~/.bb-dev/bb.db '.tables'
-          $ sqlite3 ~/.bb-dev/bb.db '.tables'
+        ── Ran sqlite3 ~/.patcher-dev/patcher.db '.tables'
+          $ sqlite3 ~/.patcher-dev/patcher.db '.tables'
 
       ── Assistant ───────────────────────────────────────────────
       Done."
@@ -2375,13 +2375,13 @@ describe("timeline CLI rendering snapshots", () => {
       event.commandStarted({
         itemId: "call-empty-success",
         command:
-          "pnpm exec turbo run typecheck --filter=@bb/app > /tmp/typecheck.txt 2>&1",
+          "pnpm exec turbo run typecheck --filter=@patcher/app > /tmp/typecheck.txt 2>&1",
         createdAt: 1,
       }),
       event.commandCompleted({
         itemId: "call-empty-success",
         command:
-          "pnpm exec turbo run typecheck --filter=@bb/app > /tmp/typecheck.txt 2>&1",
+          "pnpm exec turbo run typecheck --filter=@patcher/app > /tmp/typecheck.txt 2>&1",
         aggregatedOutput: "",
         exitCode: 0,
         createdAt: 4001,
@@ -2389,8 +2389,8 @@ describe("timeline CLI rendering snapshots", () => {
     ]);
 
     expect(timeline.text).toMatchInlineSnapshot(`
-      "── Ran pnpm exec turbo run typecheck --filter=@bb/app > /tmp/typecheck.txt 2>&1 (4s)
-        $ pnpm exec turbo run typecheck --filter=@bb/app > /tmp/typecheck.txt 2>&1
+      "── Ran pnpm exec turbo run typecheck --filter=@patcher/app > /tmp/typecheck.txt 2>&1 (4s)
+        $ pnpm exec turbo run typecheck --filter=@patcher/app > /tmp/typecheck.txt 2>&1
         exit code 0"
     `);
   });

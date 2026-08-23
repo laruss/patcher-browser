@@ -1,4 +1,4 @@
-import type { Environment } from "@bb/domain";
+import type { Environment } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { requireEnvironmentMergeBaseBranch } from "../../helpers/api.js";
 
@@ -7,7 +7,7 @@ type EnvironmentOverrides = Partial<Environment>;
 function makeEnvironment(overrides: EnvironmentOverrides = {}): Environment {
   return {
     baseBranch: null,
-    branchName: "bb/thread",
+    branchName: "patcher/thread",
     createdAt: 1,
     defaultBranch: "main",
     hostId: "host-1",

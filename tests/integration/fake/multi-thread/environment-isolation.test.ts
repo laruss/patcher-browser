@@ -176,7 +176,7 @@ describe.sequential(
               cwd: harness.repoDir,
             })
           ).trim(),
-        ).toBe("bb: automated commit");
+        ).toBe("Patcher: automated commit");
         expect(
           (
             await runGit({
@@ -184,10 +184,10 @@ describe.sequential(
               cwd: secondRepoDir,
             })
           ).trim(),
-        ).toBe("bb: automated commit");
+        ).toBe("Patcher: automated commit");
       }));
 
-    it("runs two isolated bb instances concurrently without cross-contamination", async () => {
+    it("runs two isolated Patcher instances concurrently without cross-contamination", async () => {
       const harnessA = await createIntegrationHarness();
       const harnessB = await createIntegrationHarness();
 
@@ -275,7 +275,7 @@ describe.sequential(
               cwd: harnessA.repoDir,
             })
           ).trim(),
-        ).toBe("bb: automated commit");
+        ).toBe("Patcher: automated commit");
         expect(
           (
             await runGit({
@@ -283,7 +283,7 @@ describe.sequential(
               cwd: harnessB.repoDir,
             })
           ).trim(),
-        ).toBe("bb: automated commit");
+        ).toBe("Patcher: automated commit");
         await expect(
           fs.access(path.join(harnessB.repoDir, "instance-a.txt")),
         ).rejects.toThrow();

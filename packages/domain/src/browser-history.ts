@@ -6,8 +6,8 @@
  * localStorage, small enough that nothing needed a policy. A durable store
  * needs one, because nobody prunes their own browsing history.
  *
- * Here rather than in the wire contract because `@bb/db` enforces the cap on
- * insert and cannot see `@bb/server-contract`.
+ * Here rather than in the wire contract because `@patcher/db` enforces the cap on
+ * insert and cannot see `@patcher/server-contract`.
  */
 
 /**

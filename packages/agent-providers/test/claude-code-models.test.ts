@@ -8,7 +8,7 @@ import {
 describe("Claude Code curated catalog", () => {
   // Moving aliases resolve per account, which reads as safer, but they are not
   // what this list is for: it is the always-offered base set, and it must carry
-  // BB's real labels and reasoning ladders. Aliases belong in the daemon's
+  // Patcher's real labels and reasoning ladders. Aliases belong in the daemon's
   // selected-only catalog, which exists to label an already-stored selection.
   it("names version-pinned models rather than moving aliases", () => {
     for (const entry of CLAUDE_CODE_ACTIVE_CATALOG) {

@@ -1,4 +1,4 @@
-import { fuzzyMatchText } from "@bb/fuzzy-match";
+import { fuzzyMatchText } from "@patcher/fuzzy-match";
 import type { PromptMentionSuggestion } from "@/components/promptbox/mentions/types";
 import { compareCodepoint } from "@/lib/codepoint-compare";
 

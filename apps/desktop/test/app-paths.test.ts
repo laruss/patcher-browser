@@ -6,35 +6,35 @@ import {
 } from "../src/app-paths.js";
 
 describe("desktop app paths", () => {
-  it("resolves the packaged bb-app bridge beside the active asar", () => {
+  it("resolves the packaged patcher-app bridge beside the active asar", () => {
     const paths: DesktopPathContext = {
-      appPath: "/Applications/bb.app/Contents/Resources/app.asar",
+      appPath: "/Applications/Patcher.app/Contents/Resources/app.asar",
       isPackaged: true,
-      resourcesPath: "/Applications/bb.app/Contents/Resources",
+      resourcesPath: "/Applications/Patcher.app/Contents/Resources",
     };
 
     expect(resolveDesktopBridgePath({ paths })).toBe(
-      "/Applications/bb.app/Contents/Resources/app.asar.unpacked/dist/bb-app-bridge.mjs",
+      "/Applications/Patcher.app/Contents/Resources/app.asar.unpacked/dist/patcher-app-bridge.mjs",
     );
   });
 
-  it("resolves the universal packaged bb-app bridge beside the selected arch asar", () => {
+  it("resolves the universal packaged patcher-app bridge beside the selected arch asar", () => {
     const paths: DesktopPathContext = {
-      appPath: "/Applications/bb.app/Contents/Resources/app-arm64.asar",
+      appPath: "/Applications/Patcher.app/Contents/Resources/app-arm64.asar",
       isPackaged: true,
-      resourcesPath: "/Applications/bb.app/Contents/Resources",
+      resourcesPath: "/Applications/Patcher.app/Contents/Resources",
     };
 
     expect(resolveDesktopBridgePath({ paths })).toBe(
-      "/Applications/bb.app/Contents/Resources/app-arm64.asar.unpacked/dist/bb-app-bridge.mjs",
+      "/Applications/Patcher.app/Contents/Resources/app-arm64.asar.unpacked/dist/patcher-app-bridge.mjs",
     );
   });
 
   it("uses the release-specific icon inside packaged apps", () => {
     const paths: DesktopPathContext = {
-      appPath: "/Applications/bb Nightly.app/Contents/Resources/app.asar",
+      appPath: "/Applications/Patcher Nightly.app/Contents/Resources/app.asar",
       isPackaged: true,
-      resourcesPath: "/Applications/bb Nightly.app/Contents/Resources",
+      resourcesPath: "/Applications/Patcher Nightly.app/Contents/Resources",
     };
 
     expect(
@@ -43,7 +43,7 @@ describe("desktop app paths", () => {
         paths,
       }),
     ).toBe(
-      "/Applications/bb Nightly.app/Contents/Resources/app.asar/assets/icon-nightly.png",
+      "/Applications/Patcher Nightly.app/Contents/Resources/app.asar/assets/icon-nightly.png",
     );
   });
 

@@ -3,7 +3,7 @@ import {
   environmentStatusSchema,
   hostStatusSchema,
   threadStatusSchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 /** Closed set of well-known error codes emitted by server-side logic.
  *  The base public ApiError envelope keeps `code` open as a string so routes

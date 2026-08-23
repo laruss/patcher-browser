@@ -4,7 +4,7 @@ import {
   threads,
   type DbQueryConnection,
   type DbTransaction,
-} from "@bb/db";
+} from "@patcher/db";
 
 export interface EnvironmentProvisionCancellationReadDeps {
   db: DbQueryConnection;

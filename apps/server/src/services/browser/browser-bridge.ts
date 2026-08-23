@@ -4,7 +4,7 @@ import {
   type BrowserCommand,
   type BrowserCommandErrorCode,
   type BrowserCommandValue,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   BrowserHostSnapshot,
   NotificationHub,

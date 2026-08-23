@@ -32,7 +32,7 @@ function parseArgs() {
       const nextArg = process.argv[index + 1];
       if (nextArg !== "env" && nextArg !== "json") {
         throw new Error(
-          "Usage: bun run --filter @bb/qa standalone:start --format json|env",
+          "Usage: bun run --filter @patcher/qa standalone:start --format json|env",
         );
       }
       format = nextArg;
@@ -41,7 +41,7 @@ function parseArgs() {
     }
 
     throw new Error(
-      "Usage: bun run --filter @bb/qa standalone:start --format json|env",
+      "Usage: bun run --filter @patcher/qa standalone:start --format json|env",
     );
   }
 
@@ -57,9 +57,9 @@ async function main() {
     fallbackPid: process.ppid,
   });
 
-  const tmpRoot = await fs.mkdtemp(path.join(tmpdir(), "bb-standalone-"));
+  const tmpRoot = await fs.mkdtemp(path.join(tmpdir(), "patcher-standalone-"));
   const logsDir = path.join(tmpRoot, "logs");
-  const bbRoot = path.join(tmpRoot, "bb-root");
+  const patcherRoot = path.join(tmpRoot, "patcher-root");
   const serverDataDir = path.join(tmpRoot, "server-data");
   const projectRoot = path.join(tmpRoot, "repos", "test-project");
   const statePath = path.join(tmpRoot, "standalone-state.json");
@@ -107,11 +107,11 @@ async function main() {
       env: buildStandaloneRuntimeEnv({
         baseEnv: standaloneBaseEnv,
         overrides: {
-          BB_DATA_DIR: bbRoot,
-          BB_HOST_DAEMON_PORT: String(daemonPort),
-          BB_HOST_ENROLL_KEY: enrollKey.enrollKey,
-          BB_HOST_ID: enrollKey.hostId,
-          BB_SERVER_URL: serverUrl,
+          PATCHER_DATA_DIR: patcherRoot,
+          PATCHER_HOST_DAEMON_PORT: String(daemonPort),
+          PATCHER_HOST_ENROLL_KEY: enrollKey.enrollKey,
+          PATCHER_HOST_ID: enrollKey.hostId,
+          PATCHER_SERVER_URL: serverUrl,
           [STANDALONE_INSTANCE_ENV]: instanceId,
           [STANDALONE_PARENT_PID_ENV]: String(parentPid),
         },
@@ -129,14 +129,14 @@ async function main() {
     // cleanup command cds into the repo once and chains both scripts from there.
     const cleanupCommand =
       `cd ${shellQuote(repoRoot)} && ` +
-      `bun run --silent --filter @bb/qa --elide-lines=0 standalone:stop ` +
+      `bun run --silent --filter @patcher/qa --elide-lines=0 standalone:stop ` +
       `--state ${shellQuote(statePath)} && ` +
-      `bun run --silent --filter @bb/qa --elide-lines=0 standalone:cleanup`;
+      `bun run --silent --filter @patcher/qa --elide-lines=0 standalone:cleanup`;
     const restartDaemonCommand = buildDaemonRestartCommand({
       cwd: repoRoot,
       daemonPid: daemonProcess.pid,
       daemonPort,
-      dataDir: bbRoot,
+      dataDir: patcherRoot,
       entrypoint: path.join(repoRoot, "apps/host-daemon/dist/index.js"),
       envFilePath: envFile.path,
       hostId: host.id,
@@ -148,9 +148,9 @@ async function main() {
     });
 
     const cliEnv = {
-      BB_HOST_DAEMON_PORT: String(daemonPort),
-      BB_PROJECT_ID: project.id,
-      BB_SERVER_URL: serverUrl,
+      PATCHER_HOST_DAEMON_PORT: String(daemonPort),
+      PATCHER_PROJECT_ID: project.id,
+      PATCHER_SERVER_URL: serverUrl,
     };
 
     const setupEnv = {
@@ -172,7 +172,7 @@ async function main() {
         restartDaemon: restartDaemonCommand,
       },
       daemon: {
-        dataDir: bbRoot,
+        dataDir: patcherRoot,
         logPath: daemonLogPath,
         pid: daemonProcess.pid,
         port: daemonPort,
@@ -181,7 +181,7 @@ async function main() {
       instanceId,
       parentPid,
       paths: {
-        bbRoot,
+        patcherRoot,
         daemonRestartPidPath,
         envFilePath: envFile.path,
         logsDir,

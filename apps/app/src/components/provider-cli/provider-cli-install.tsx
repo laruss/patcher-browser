@@ -4,7 +4,7 @@ import type {
   ProviderCliKey,
   ProviderCliStatus,
   ProviderCliStatusResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { ProviderCliInstallLogDialog } from "@/components/dialogs/ProviderCliInstallLogDialog";
 import {
   closeProviderCliInstallLog,
@@ -55,7 +55,7 @@ export function buildProviderCliIssue(
       status,
       action: status.installAction,
       title: `${status.displayName} CLI not installed`,
-      description: `Install ${status.displayName} so bb can start ${status.displayName} sessions.`,
+      description: `Install ${status.displayName} so Patcher can start ${status.displayName} sessions.`,
       fingerprint: `${provider}:missing:${status.latestVersion ?? "latest"}`,
     };
   }

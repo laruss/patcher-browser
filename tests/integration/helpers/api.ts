@@ -7,7 +7,7 @@ import type {
   ThreadExecutionOptions,
   ThreadEventRow,
   ThreadGitDiffResponse,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   environmentSchema,
   hostSchema,
@@ -15,8 +15,8 @@ import {
   resolveEnvironmentMergeBaseBranch,
   threadEventRowSchema,
   threadSchema,
-} from "@bb/domain";
-import { listPreferredTestModels } from "@bb/test-helpers";
+} from "@patcher/domain";
+import { listPreferredTestModels } from "@patcher/test-helpers";
 import type {
   CreateProjectRequest,
   CreateThreadRequest,
@@ -35,7 +35,7 @@ import type {
   UpdateEnvironmentRequest,
   UpdateThreadRequest,
   WorkspaceArgs,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   createPublicApiClient,
   environmentActionResponseSchema,
@@ -49,7 +49,7 @@ import {
   threadPendingInteractionsResponseSchema,
   threadResponseSchema,
   threadTimelineResponseSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 export interface CreateHostThreadOptions {
   execution?: ThreadExecutionRequestOptions;

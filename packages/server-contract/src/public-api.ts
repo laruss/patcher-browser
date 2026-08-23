@@ -14,17 +14,17 @@ import type {
   ResolvedThreadExecutionOptions,
   ThreadEventRow,
   ThreadQueuedMessage,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   appSettingsSchema,
   appKeybindingOverridesSchema,
   appThemeSelectionSchema,
   experimentsSchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   DiscoverReposResult,
   ProviderUsageResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   binaryResponse,
   defineRoute,
@@ -36,7 +36,7 @@ import {
   queryRequest,
   textResponse,
   type ApiSchemaFromRouteDescriptors,
-} from "@bb/hono-typed-routes";
+} from "@patcher/hono-typed-routes";
 import type {
   BrowserHistoryQuery,
   BrowserHistoryResponse,

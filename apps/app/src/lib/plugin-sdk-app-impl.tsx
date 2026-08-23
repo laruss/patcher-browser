@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { MarkdownProps, PluginSdkApp } from "@bb/plugin-sdk";
+import type { MarkdownProps, PluginSdkApp } from "@patcher/plugin-sdk";
 import { PluginNewThreadComposer } from "@/components/plugin/PluginNewThreadComposer";
 import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
 import { MarkdownPreview } from "@/components/ui/markdown-preview";
@@ -10,8 +10,8 @@ import type {
 import { useThreadTimelineNavigation } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
 import { definePluginApp } from "./plugin-app-definition";
 import {
-  useBbContext,
-  useBbNavigate,
+  usePatcherContext,
+  usePatcherNavigate,
   useComposer,
   useComposerView,
   useRealtime,
@@ -27,24 +27,24 @@ import {
 import { useSidebarThreadSplit } from "./plugin-sidebar-split";
 
 /**
- * The real `@bb/plugin-sdk/app` surface (plugin design §5.2), assigned to
- * `globalThis.__bbPluginRuntime.pluginSdkApp` by installPluginRuntime() so
- * `bb plugin build` shims resolve it inside plugin bundles. `satisfies
+ * The real `@patcher/plugin-sdk/app` surface (plugin design §5.2), assigned to
+ * `globalThis.__patcherPluginRuntime.pluginSdkApp` by installPluginRuntime() so
+ * `patcher plugin build` shims resolve it inside plugin bundles. `satisfies
  * PluginSdkApp` keeps it in type-sync with the facade package; the plugin SDK
  * parity test compares the facade's actual runtime exports with its bundled
  * declarations so declaration-only values cannot leak into the contract.
  *
  * Deliberately hooks-only (the 65-component host-provided UI kit was removed
  * 2026-07-03, plugin design §5.5): plugins vendor shadcn-style component
- * source from the BB registry and own it; the shared-singleton packages
+ * source from the Patcher registry and own it; the shared-singleton packages
  * (portal radix families, sonner, vaul) reach plugins through their own
  * runtime shims in plugin-frontend.ts, so `import { toast } from "sonner"`
  * hits the host toaster without an SDK member.
  */
 export const pluginSdkAppImplementation = {
   definePluginApp,
-  useBbContext,
-  useBbNavigate,
+  usePatcherContext,
+  usePatcherNavigate,
   useComposer,
   useComposerView,
   useRealtime,

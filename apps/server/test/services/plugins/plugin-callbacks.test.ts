@@ -163,7 +163,7 @@ describe("the callback table", () => {
 
 /**
  * The kind is the transport's word; the label is the user's. These are the
- * strings that reach `bb plugin list` as a plugin's status detail, and they
+ * strings that reach `patcher plugin list` as a plugin's status detail, and they
  * predate this file — a rename here must not rewrite them.
  */
 describe("what a user reads", () => {

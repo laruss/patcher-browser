@@ -1,4 +1,4 @@
-import { jsonValueSchema, pluginPermissionSchema } from "@bb/domain";
+import { jsonValueSchema, pluginPermissionSchema } from "@patcher/domain";
 import { z } from "zod";
 
 export const pluginRuntimeStatusSchema = z.enum([
@@ -86,8 +86,8 @@ export const pluginSourceDetailSchema = z.object({
   integrity: z.string().optional(),
   registry: z.string().optional(),
   engines: z.object({
-    bb: z.string().optional(),
-    bbPluginSdk: z.string().optional(),
+    patcher: z.string().optional(),
+    patcherPluginSdk: z.string().optional(),
   }),
   installedAt: z.number().optional(),
   history: z.array(pluginSourceHistoryEntrySchema),
@@ -144,7 +144,7 @@ export const pluginAppStateSchema = z.object({
 });
 
 /**
- * A user-recognizable thing a plugin contributes to bb, as shown in the plugin
+ * A user-recognizable thing a plugin contributes to Patcher, as shown in the plugin
  * detail "Includes" section. These are product facts, not server internals:
  * RPC methods, HTTP routes, event handlers, and databases are deliberately
  * absent.
@@ -204,13 +204,13 @@ export const installedPluginSchema = z.object({
   cliCommand: z.object({ name: z.string(), summary: z.string() }).nullable(),
   capabilities: pluginCapabilitySummarySchema.default([]),
   /**
-   * What the manifest's `bb.permissions` declared, sorted. Manifest-declared,
+   * What the manifest's `patcher.permissions` declared, sorted. Manifest-declared,
    * so it stays accurate while the plugin is disabled — unlike `capabilities`,
    * whose runtime half needs a loaded plugin.
    */
   permissions: z.array(pluginPermissionSchema).default([]),
   /**
-   * What the manifest's `bb.sites` declared: the websites this plugin's page
+   * What the manifest's `patcher.sites` declared: the websites this plugin's page
    * contributions may reach. Manifest-declared for the same reason as
    * `permissions`, and shown beside them — a permission whose answer is a list of
    * sites is only honest if the list is on screen.

@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useIntersectionObserver } from "usehooks-ts";
-import type { DiffFileEntry } from "@bb/server-contract";
+import type { DiffFileEntry } from "@patcher/server-contract";
 import {
   getGitDiffCardImageSizeStat,
   GitDiffCardBody,
@@ -25,11 +25,11 @@ import {
   parseGitDiffFiles,
   type ParsedGitDiffFile,
 } from "@/components/git-diff/git-diff-parsing";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import { FilePathLink } from "@/components/ui/file-path-link.js";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import type { DiffPatchState } from "@/hooks/queries/use-environment-diff-patches";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 /**
  * Build the file label for a TOC entry. Renames/copies read as `old -> new`;

@@ -1,6 +1,6 @@
-import { extractErrorMessage } from "@bb/core-ui";
+import { extractErrorMessage } from "@patcher/core-ui";
 
-export const DEFAULT_BB_REQUEST_TIMEOUT_MS = 75_000;
+export const DEFAULT_PATCHER_REQUEST_TIMEOUT_MS = 75_000;
 
 export type FetchImplementation = typeof fetch;
 
@@ -58,16 +58,16 @@ function formatRequestTimeoutDuration(timeoutMs: number): string {
   return seconds === 1 ? "1 second" : `${seconds} seconds`;
 }
 
-export class BbRequestTimeoutError extends Error {
+export class PatcherRequestTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(
-      `BB request timed out after ${formatRequestTimeoutDuration(timeoutMs)}.`,
+      `Patcher request timed out after ${formatRequestTimeoutDuration(timeoutMs)}.`,
     );
-    this.name = "BbRequestTimeoutError";
+    this.name = "PatcherRequestTimeoutError";
   }
 }
 
-export interface BbHttpErrorArgs {
+export interface PatcherHttpErrorArgs {
   body: unknown;
   code: string | null;
   message: string;
@@ -82,14 +82,14 @@ export interface BbHttpErrorArgs {
  * (null when the body was empty or not JSON) for callers that need
  * structured error details beyond `code`.
  */
-export class BbHttpError extends Error {
+export class PatcherHttpError extends Error {
   readonly body: unknown;
   readonly code: string | null;
   readonly status: number;
 
-  constructor(args: BbHttpErrorArgs) {
+  constructor(args: PatcherHttpErrorArgs) {
     super(`HTTP ${args.status}: ${args.message}`);
-    this.name = "BbHttpError";
+    this.name = "PatcherHttpError";
     this.body = args.body;
     this.code = args.code;
     this.status = args.status;
@@ -117,7 +117,7 @@ export function createRequestTimeoutFetch(
       return wrapRequestTimeoutResponse({ context, response });
     } catch (error) {
       if (isRequestTimeoutError(context, error)) {
-        throw new BbRequestTimeoutError(options.timeoutMs);
+        throw new PatcherRequestTimeoutError(options.timeoutMs);
       }
       throw error;
     }
@@ -146,14 +146,19 @@ export async function resolveResponse<TResponse extends Response>(
   } catch (error) {
     if (isTypeErrorWithCauseCode(error, "ECONNREFUSED")) {
       throw new Error(
-        "Cannot connect to BB server. Ensure it is running and BB_SERVER_URL is correct.",
+        "Cannot connect to Patcher server. Ensure it is running and PATCHER_SERVER_URL is correct.",
       );
     }
     throw error;
   }
   if (!response.ok) {
     const { body, code, message } = await readHttpErrorInfo(response);
-    throw new BbHttpError({ body, code, message, status: response.status });
+    throw new PatcherHttpError({
+      body,
+      code,
+      message,
+      status: response.status,
+    });
   }
   return response;
 }
@@ -165,7 +170,7 @@ async function readResponseBodyWithTimeoutMapping<TBody>(
     return await args.read();
   } catch (error) {
     if (isRequestTimeoutError(args.context, error)) {
-      throw new BbRequestTimeoutError(args.context.timeoutMs);
+      throw new PatcherRequestTimeoutError(args.context.timeoutMs);
     }
     throw error;
   }
@@ -235,7 +240,9 @@ function wrapRequestTimeoutBody(
         controller.enqueue(result.value);
       } catch (error) {
         if (isRequestTimeoutError(args.context, error)) {
-          controller.error(new BbRequestTimeoutError(args.context.timeoutMs));
+          controller.error(
+            new PatcherRequestTimeoutError(args.context.timeoutMs),
+          );
           return;
         }
         controller.error(error);
@@ -269,7 +276,7 @@ function validateRequestTimeoutMs(timeoutMs: number): void {
   // timeoutMs=0 is an effectively immediate abort knob for tests and callers.
   if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
     throw new RangeError(
-      "BB request timeout must be a non-negative finite number.",
+      "Patcher request timeout must be a non-negative finite number.",
     );
   }
 }
@@ -310,7 +317,7 @@ async function readHttpErrorInfo(response: Response): Promise<HttpErrorInfo> {
   try {
     rawBody = await response.text();
   } catch (error) {
-    if (error instanceof BbRequestTimeoutError) {
+    if (error instanceof PatcherRequestTimeoutError) {
       throw error;
     }
     rawBody = "";

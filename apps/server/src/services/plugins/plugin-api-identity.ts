@@ -3,10 +3,10 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 /**
  * Who is calling `/api/v1`.
  *
- * `bb.sdk` is an HTTP client for bb's own API and every plugin is handed the
- * loopback URL in `bb.server.loopbackBaseUrl`, so the API sees plugin traffic
+ * `patcher.sdk` is an HTTP client for Patcher's own API and every plugin is handed the
+ * loopback URL in `patcher.server.loopbackBaseUrl`, so the API sees plugin traffic
  * and app traffic as the same thing: a local request from a trusted origin.
- * Gating the `bb.sdk` object therefore gates the polite way in and nothing
+ * Gating the `patcher.sdk` object therefore gates the polite way in and nothing
  * else. This is how a request says which plugin it belongs to, so the same
  * permissions can be enforced where the traffic actually is.
  *
@@ -19,7 +19,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
  *
  * What it buys before then:
  *
- * - `bb.sdk` traffic is identified and gated at the HTTP layer, so a plugin
+ * - `patcher.sdk` traffic is identified and gated at the HTTP layer, so a plugin
  *   gets the same answer whichever way it asks — through the SDK object or
  *   through `fetch` at the loopback URL, which is a supported thing to do.
  * - The mechanism, the header shape and the path→permission map are the parts
@@ -31,9 +31,9 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
  */
 
 /** Names the plugin; meaningless without the key. */
-export const PLUGIN_API_ID_HEADER = "x-bb-plugin-id";
+export const PLUGIN_API_ID_HEADER = "x-patcher-plugin-id";
 /** Proves the request came from where that plugin's key was handed out. */
-export const PLUGIN_API_KEY_HEADER = "x-bb-plugin-key";
+export const PLUGIN_API_KEY_HEADER = "x-patcher-plugin-key";
 
 export interface PluginApiIdentities {
   /** This plugin's key, minted on first use and stable until restart. */
@@ -72,7 +72,7 @@ export function pluginApiHeaders(args: {
  * listening socket.
  *
  * Caller headers are preserved and then overridden: a plugin cannot present
- * itself as another by setting these itself, at least not through `bb.sdk`.
+ * itself as another by setting these itself, at least not through `patcher.sdk`.
  */
 export function createPluginApiFetch(args: {
   pluginId: string;

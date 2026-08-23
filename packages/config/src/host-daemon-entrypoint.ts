@@ -1,32 +1,28 @@
-import type { HostType } from "@bb/domain";
+import type { HostType } from "@patcher/domain";
 import {
   readOptionalEnvVar,
   resolveEnvLoader,
   type EnvLoaderArgs,
 } from "./env.js";
 import {
-  BB_BRIDGE_DIR_ENV,
-  BB_CLI_DIR_ENV,
-  BB_CONNECT_MACHINE_CREDENTIAL_ENV,
-  BB_CONNECT_MACHINE_ID_ENV,
-  BB_HOST_ENROLL_KEY_ENV,
-  BB_HOST_DAEMON_AUTO_UPDATE_ENV,
-  BB_HOST_ID_ENV,
-  BB_HOST_NAME_ENV,
-  BB_HOST_TYPE_ENV,
+  PATCHER_BRIDGE_DIR_ENV,
+  PATCHER_CLI_DIR_ENV,
+  PATCHER_HOST_ENROLL_KEY_ENV,
+  PATCHER_HOST_DAEMON_AUTO_UPDATE_ENV,
+  PATCHER_HOST_ID_ENV,
+  PATCHER_HOST_NAME_ENV,
+  PATCHER_HOST_TYPE_ENV,
 } from "./env-vars.js";
 import { assignIfDefined } from "./objects.js";
 
 export interface HostDaemonEntrypointConfig {
-  BB_BRIDGE_DIR?: string;
-  BB_CLI_DIR?: string;
-  BB_CONNECT_MACHINE_CREDENTIAL?: string;
-  BB_CONNECT_MACHINE_ID?: string;
-  BB_HOST_ENROLL_KEY?: string;
-  BB_HOST_DAEMON_AUTO_UPDATE?: boolean;
-  BB_HOST_ID?: string;
-  BB_HOST_NAME?: string;
-  BB_HOST_TYPE?: HostType;
+  PATCHER_BRIDGE_DIR?: string;
+  PATCHER_CLI_DIR?: string;
+  PATCHER_HOST_ENROLL_KEY?: string;
+  PATCHER_HOST_DAEMON_AUTO_UPDATE?: boolean;
+  PATCHER_HOST_ID?: string;
+  PATCHER_HOST_NAME?: string;
+  PATCHER_HOST_TYPE?: HostType;
 }
 
 export type LoadHostDaemonEntrypointConfigArgs = EnvLoaderArgs;
@@ -38,92 +34,72 @@ export function loadHostDaemonEntrypointConfig(
   const config: HostDaemonEntrypointConfig = {};
   const bridgeDir = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_BRIDGE_DIR_ENV,
+    definition: PATCHER_BRIDGE_DIR_ENV,
     env: loader.env,
   });
   const cliDir = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_CLI_DIR_ENV,
+    definition: PATCHER_CLI_DIR_ENV,
     env: loader.env,
   });
   const enrollKey = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_HOST_ENROLL_KEY_ENV,
+    definition: PATCHER_HOST_ENROLL_KEY_ENV,
     env: loader.env,
   });
   const autoUpdate = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_HOST_DAEMON_AUTO_UPDATE_ENV,
-    env: loader.env,
-  });
-  const machineCredential = readOptionalEnvVar({
-    context: loader.context,
-    definition: BB_CONNECT_MACHINE_CREDENTIAL_ENV,
-    env: loader.env,
-  });
-  const connectMachineId = readOptionalEnvVar({
-    context: loader.context,
-    definition: BB_CONNECT_MACHINE_ID_ENV,
+    definition: PATCHER_HOST_DAEMON_AUTO_UPDATE_ENV,
     env: loader.env,
   });
   const hostId = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_HOST_ID_ENV,
+    definition: PATCHER_HOST_ID_ENV,
     env: loader.env,
   });
   const hostName = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_HOST_NAME_ENV,
+    definition: PATCHER_HOST_NAME_ENV,
     env: loader.env,
   });
   const hostType = readOptionalEnvVar({
     context: loader.context,
-    definition: BB_HOST_TYPE_ENV,
+    definition: PATCHER_HOST_TYPE_ENV,
     env: loader.env,
   });
 
   assignIfDefined({
-    key: "BB_BRIDGE_DIR",
+    key: "PATCHER_BRIDGE_DIR",
     target: config,
     value: bridgeDir,
   });
   assignIfDefined({
-    key: "BB_CONNECT_MACHINE_ID",
-    target: config,
-    value: connectMachineId,
-  });
-  assignIfDefined({
-    key: "BB_CLI_DIR",
+    key: "PATCHER_CLI_DIR",
     target: config,
     value: cliDir,
   });
   assignIfDefined({
-    key: "BB_CONNECT_MACHINE_CREDENTIAL",
-    target: config,
-    value: machineCredential,
-  });
-  assignIfDefined({
-    key: "BB_HOST_DAEMON_AUTO_UPDATE",
+    key: "PATCHER_HOST_DAEMON_AUTO_UPDATE",
     target: config,
     value: autoUpdate,
   });
   assignIfDefined({
-    key: "BB_HOST_ENROLL_KEY",
+    key: "PATCHER_HOST_ENROLL_KEY",
     target: config,
     value: enrollKey,
   });
   assignIfDefined({
-    key: "BB_HOST_ID",
+    key: "PATCHER_HOST_ID",
     target: config,
     value: hostId,
   });
   assignIfDefined({
-    key: "BB_HOST_NAME",
+    key: "PATCHER_HOST_NAME",
     target: config,
     value: hostName,
   });
   assignIfDefined({
-    key: "BB_HOST_TYPE",
+    key: "PATCHER_HOST_TYPE",
     target: config,
     value: hostType,
   });

@@ -4,7 +4,7 @@ import {
   ThreadEvent,
   ThreadEventItemApprovalStatus,
   ThreadEventItemStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { getEventParentToolCallId, type EventMeta } from "./event-decode.js";
 import type {
   EventProjectionApprovalLifecycleStatus,

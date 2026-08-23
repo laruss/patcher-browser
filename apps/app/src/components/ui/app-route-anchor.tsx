@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { isRoutePath, resolveRouteHref } from "@/lib/route-paths";
-import { getDesktopBrowserApi } from "@/lib/bb-desktop";
+import { getDesktopBrowserApi } from "@/lib/patcher-desktop";
 
 export interface RouteNavigationProviderProps {
   children: ReactNode;

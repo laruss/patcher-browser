@@ -1,7 +1,7 @@
 import type {
   TimelinePaginationCursor,
   TimelineRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../../errors.js";
 
 export type ThreadTimelinePageKind = "latest" | "older";

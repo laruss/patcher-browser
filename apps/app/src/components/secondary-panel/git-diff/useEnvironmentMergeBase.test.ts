@@ -1,4 +1,4 @@
-import type { Environment, WorkspaceStatus } from "@bb/domain";
+import type { Environment, WorkspaceStatus } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   resolveEffectiveMergeBaseBranch,
@@ -12,7 +12,7 @@ type WorkspaceStatusOverrides = Partial<WorkspaceStatus>;
 function makeEnvironment(overrides: EnvironmentOverrides = {}): Environment {
   return {
     baseBranch: null,
-    branchName: "bb/thread",
+    branchName: "patcher/thread",
     createdAt: 1,
     defaultBranch: "main",
     hostId: "host-1",
@@ -36,12 +36,12 @@ function makeWorkspaceStatus(
 ): WorkspaceStatus {
   return {
     branch: {
-      currentBranch: "bb/thread",
+      currentBranch: "patcher/thread",
       defaultBranch: "main",
     },
     checkout: {
       kind: "branch",
-      branchName: "bb/thread",
+      branchName: "patcher/thread",
       headSha: null,
     },
     mergeBase: null,
@@ -126,7 +126,7 @@ describe("resolveEffectiveMergeBaseBranch", () => {
         environment: makeEnvironment({ baseBranch: "release" }),
         workspaceStatus: makeWorkspaceStatus({
           branch: {
-            currentBranch: "bb/thread",
+            currentBranch: "patcher/thread",
             defaultBranch: "main",
           },
         }),
@@ -140,7 +140,7 @@ describe("resolveEffectiveMergeBaseBranch", () => {
         environment: makeEnvironment({ defaultBranch: "master" }),
         workspaceStatus: makeWorkspaceStatus({
           branch: {
-            currentBranch: "bb/thread",
+            currentBranch: "patcher/thread",
             defaultBranch: "main",
           },
         }),

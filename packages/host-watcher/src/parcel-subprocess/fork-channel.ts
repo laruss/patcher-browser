@@ -7,14 +7,14 @@ import type { ChildChannel } from "./parcel-watcher-proxy.js";
 
 // Resolve the watcher child entry relative to this module's runtime location.
 // In the packaged app this file is bundled into the daemon bundle, so the
-// emitted child bundle (bb-parcel-watcher-child.mjs, see bundle-manifest.mjs)
+// emitted child bundle (patcher-parcel-watcher-child.mjs, see bundle-manifest.mjs)
 // sits beside it in dist/. In dev this file runs from source, so the child is
 // its `.ts` sibling — forked children inherit `--import tsx` via execArgv, so a
 // `.ts` entry runs without extra wiring.
 function resolveChildEntry(): string {
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    "bb-parcel-watcher-child.mjs", // packaged: sibling of the daemon bundle
+    "patcher-parcel-watcher-child.mjs", // packaged: sibling of the daemon bundle
     "parcel-child-entry.js", // built (unbundled tsc output)
     "parcel-child-entry.ts", // dev source
   ];

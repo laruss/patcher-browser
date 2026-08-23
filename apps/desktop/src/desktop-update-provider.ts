@@ -1,7 +1,7 @@
 export type DesktopReleaseChannel = "latest" | "nightly";
 
 export interface DesktopReleaseInfo {
-  applicationName: "bb" | "bb Nightly";
+  applicationName: "Patcher" | "Patcher Nightly";
   channel: DesktopReleaseChannel;
   iconFileName: "icon.png" | "icon-nightly.png";
   releaseTag: "desktop-latest" | "desktop-nightly";
@@ -15,11 +15,11 @@ export function createDesktopReleaseInfo(
   const releaseTag = nightly ? "desktop-nightly" : "desktop-latest";
 
   return {
-    applicationName: nightly ? "bb Nightly" : "bb",
+    applicationName: nightly ? "Patcher Nightly" : "Patcher",
     channel,
     iconFileName: nightly ? "icon-nightly.png" : "icon.png",
     releaseTag,
-    updateReleaseBaseUrl: `https://github.com/get-bb/bb/releases/download/${releaseTag}/`,
+    updateReleaseBaseUrl: `https://github.com/laruss/patcher-browser/releases/download/${releaseTag}/`,
   };
 }
 
@@ -39,7 +39,7 @@ function resolveBuiltDesktopReleaseChannel(
 }
 
 export const DESKTOP_RELEASE_CHANNEL = resolveBuiltDesktopReleaseChannel(
-  process.env.BB_DESKTOP_RELEASE_CHANNEL,
+  process.env.PATCHER_DESKTOP_RELEASE_CHANNEL,
 );
 export const DESKTOP_RELEASE_INFO = createDesktopReleaseInfo(
   DESKTOP_RELEASE_CHANNEL,

@@ -6,7 +6,7 @@ import {
   type AppCommandContext,
   type AppKeybinding,
   type AppShortcut,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   formatAppShortcut,
   formatAppShortcutAria,

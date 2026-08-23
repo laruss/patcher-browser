@@ -1,8 +1,8 @@
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginCliContext,
   PluginCliResult,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import type { JsonValue } from "./types.js";
 import type {
   WorkflowCallInspection,
@@ -43,7 +43,7 @@ function requireContext(ctx: PluginCliContext): {
   threadId: string;
 } {
   if (ctx.projectId === undefined || ctx.threadId === undefined) {
-    throw new Error("This command must run inside a BB project thread");
+    throw new Error("This command must run inside a Patcher project thread");
   }
   return { projectId: ctx.projectId, threadId: ctx.threadId };
 }
@@ -267,8 +267,8 @@ function statusSummary(page: WorkflowRunInspectionPage) {
     finishedAt: run.finishedAt,
     history: {
       format: "jsonl",
-      pageUsage: `bb workflows history ${run.id} --cursor 0 --limit ${DEFAULT_HISTORY_LIMIT}`,
-      fileUsage: `mkdir -p "$BB_THREAD_STORAGE/workflows" && bb workflows history ${run.id} --cursor 0 --limit ${DEFAULT_HISTORY_LIMIT} > "$BB_THREAD_STORAGE/workflows/${run.id}.jsonl"`,
+      pageUsage: `patcher workflows history ${run.id} --cursor 0 --limit ${DEFAULT_HISTORY_LIMIT}`,
+      fileUsage: `mkdir -p "$PATCHER_THREAD_STORAGE/workflows" && patcher workflows history ${run.id} --cursor 0 --limit ${DEFAULT_HISTORY_LIMIT} > "$PATCHER_THREAD_STORAGE/workflows/${run.id}.jsonl"`,
     },
   };
 }
@@ -347,45 +347,45 @@ function callLogRecord(call: WorkflowCallInspection, exportedAt: number) {
 }
 
 export function registerWorkflowCli(
-  bb: BbPluginApi,
+  patcher: PatcherPluginApi,
   service: WorkflowService,
 ): void {
-  bb.cli.register({
+  patcher.cli.register({
     name: "workflows",
-    summary: "Run and inspect durable BB workflows",
+    summary: "Run and inspect durable Patcher workflows",
     commands: [
       {
         name: "run",
         summary: "Start a workflow and return immediately",
         usage:
-          "bb workflows run (--script '<javascript>'|--file <path>|--name <name>) [--args '<json>'] [--resume <run-id>]",
+          "patcher workflows run (--script '<javascript>'|--file <path>|--name <name>) [--args '<json>'] [--resume <run-id>]",
       },
       {
         name: "validate",
         summary: "Validate workflow source and literal model selections",
         usage:
-          "bb workflows validate (--script '<javascript>'|--file <path>|--name <name>)",
+          "patcher workflows validate (--script '<javascript>'|--file <path>|--name <name>)",
       },
       {
         name: "status",
         summary: "Show a compact workflow run summary",
-        usage: "bb workflows status <run-id>",
+        usage: "patcher workflows status <run-id>",
       },
       {
         name: "history",
         summary: "Read one JSONL page of workflow run and call history",
         usage:
-          "bb workflows history <run-id> [--cursor <call-index>] [--limit <1-100>]",
+          "patcher workflows history <run-id> [--cursor <call-index>] [--limit <1-100>]",
       },
       {
         name: "list",
         summary: "List recent project workflow runs",
-        usage: "bb workflows list [--limit <1-50>]",
+        usage: "patcher workflows list [--limit <1-50>]",
       },
       {
         name: "stop",
         summary: "Cancel a workflow run",
-        usage: "bb workflows stop <run-id>",
+        usage: "patcher workflows stop <run-id>",
       },
     ],
     async run(argv, ctx) {
@@ -402,7 +402,7 @@ export function registerWorkflowCli(
           ]);
           const context = requireContext(ctx);
           const prepared = await prepareWorkflowSource(
-            bb,
+            patcher,
             context,
             sourceInput(options, ctx.cwd),
           );
@@ -424,7 +424,7 @@ export function registerWorkflowCli(
           ]);
           const context = requireContext(ctx);
           const prepared = await prepareWorkflowSource(
-            bb,
+            patcher,
             context,
             sourceInput(options, ctx.cwd),
           );
@@ -517,7 +517,7 @@ export function registerWorkflowCli(
           return success({ runId, stopped: await service.stop(runId) });
         }
         return failure(
-          "Usage: bb workflows <run|validate|status|history|list|stop> [options]",
+          "Usage: patcher workflows <run|validate|status|history|list|stop> [options]",
         );
       } catch (error) {
         return failure(error instanceof Error ? error.message : String(error));

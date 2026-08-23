@@ -5,9 +5,9 @@ import {
   type AppCommandId,
   type AppKeybindings,
   type AppShortcut,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { AppCommandShortcutPill } from "@/components/commands/AppCommandShortcutHint";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import { getPatcherDesktopInfo } from "@/lib/patcher-desktop";
 import {
   formatAppShortcut,
   formatAppShortcutAria,
@@ -43,7 +43,7 @@ export function filterPluginCommands(
  * The chord as the keyboard will actually see it, so two shortcuts can be
  * compared the way `matchesAppShortcut` matches them: `mod` is meta on a
  * Mac and control everywhere else, and a plugin that wrote `control: true` where
- * bb wrote `mod: true` is claiming the same keystroke on Windows.
+ * Patcher wrote `mod: true` is claiming the same keystroke on Windows.
  */
 function resolveShortcutModifiers(
   shortcut: AppShortcut,
@@ -58,21 +58,21 @@ function resolveShortcutModifiers(
 }
 
 export interface PluginShortcutsGroupProps {
-  /** bb's effective bindings, for spotting a chord a plugin cannot have. */
+  /** Patcher's effective bindings, for spotting a chord a plugin cannot have. */
   keybindings: AppKeybindings;
   platform: string;
-  /** The section's search box, matched against the same fields bb's rows are. */
+  /** The section's search box, matched against the same fields Patcher's rows are. */
   search: string;
 }
 
 /**
- * Plugin commands and their chords (`app.commands`), listed after bb's own
+ * Plugin commands and their chords (`app.commands`), listed after Patcher's own
  * groups.
  *
- * Read-only, deliberately for now: bb's rows are editable because their command
+ * Read-only, deliberately for now: Patcher's rows are editable because their command
  * ids are a closed set the override store keys on, and a plugin's are not. What
  * this group exists to prevent is a chord nobody can find — a shortcut that runs
- * something with no way to see what, or that bb's own binding quietly takes.
+ * something with no way to see what, or that Patcher's own binding quietly takes.
  */
 export function PluginShortcutsGroup({
   keybindings,
@@ -80,7 +80,7 @@ export function PluginShortcutsGroup({
   search,
 }: PluginShortcutsGroupProps) {
   const contributed = usePluginContributions().data?.commands;
-  const isDesktop = getBbDesktopInfo() !== null;
+  const isDesktop = getPatcherDesktopInfo() !== null;
   const isMac = isMacKeyboardPlatform(platform);
   const rows = useMemo(
     () =>
@@ -89,9 +89,9 @@ export function PluginShortcutsGroup({
           const chord = resolveShortcutModifiers(command.shortcut, isMac);
           return {
             command,
-            // bb's own bindings are matched first, so where both apply bb's wins.
-            // Not "will not run", which would be a false claim: bb's bindings are
-            // scoped, and a chord bb uses only outside the browser (Mod+D is
+            // Patcher's own bindings are matched first, so where both apply Patcher's wins.
+            // Not "will not run", which would be a false claim: Patcher's bindings are
+            // scoped, and a chord Patcher uses only outside the browser (Mod+D is
             // `diff.toggle`, excluded on `browserFocus`) leaves the plugin's
             // command working exactly where a browser-shaped command wants to
             // work.
@@ -153,7 +153,7 @@ function PluginShortcutRow({
         {sharedWith === undefined ? null : (
           <p className="mt-1 text-xs text-warning-text">
             Also used by {getAppCommandMetadata(sharedWith).label}. Where both
-            apply, bb’s own shortcut wins.
+            apply, Patcher’s own shortcut wins.
           </p>
         )}
       </div>

@@ -14,8 +14,8 @@ const EVIL_ORIGIN = "https://evil.example";
 function commandSource(observedPath: string): string {
   return `
   import { appendFileSync } from "node:fs";
-  export default function plugin(bb: any) {
-    bb.ui.registerCommand({
+  export default function plugin(patcher: any) {
+    patcher.ui.registerCommand({
       id: "save-page",
       title: "Save this page",
       shortcut: { key: "d", mod: true },
@@ -23,7 +23,7 @@ function commandSource(observedPath: string): string {
         appendFileSync(${JSON.stringify(observedPath)}, "ran\\n");
       },
     });
-    bb.ui.registerCommand({
+    patcher.ui.registerCommand({
       id: "boom",
       title: "Explodes",
       shortcut: { key: "d", mod: true, shift: true },
@@ -36,15 +36,15 @@ function commandSource(observedPath: string): string {
 }
 
 const NO_SHORTCUT_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.ui.registerCommand({ id: "orphan", title: "Nowhere", run() {} });
+  export default function plugin(patcher: any) {
+    patcher.ui.registerCommand({ id: "orphan", title: "Nowhere", run() {} });
   }
 `;
 
 const SAME_CHORD_TWICE_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.ui.registerCommand({ id: "one", title: "One", shortcut: { key: "j", mod: true }, run() {} });
-    bb.ui.registerCommand({ id: "two", title: "Two", shortcut: { key: "j", mod: true }, run() {} });
+  export default function plugin(patcher: any) {
+    patcher.ui.registerCommand({ id: "one", title: "One", shortcut: { key: "j", mod: true }, run() {} });
+    patcher.ui.registerCommand({ id: "two", title: "Two", shortcut: { key: "j", mod: true }, run() {} });
   }
 `;
 
@@ -59,7 +59,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Command fixture",
         description: "Plugin command fixture.",
         branding: { icon: "Zap" },
@@ -71,7 +71,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin commands (bb.ui.registerCommand)", () => {
+describe("plugin commands (patcher.ui.registerCommand)", () => {
   let harness: TestAppHarness;
   let observedPath: string;
 
@@ -99,7 +99,7 @@ describe("plugin commands (bb.ui.registerCommand)", () => {
     observedPath = join(harness.config.dataDir, "observed-command.log");
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-cmd",
+        name: "patcher-plugin-cmd",
         source: commandSource(observedPath),
       }),
     );
@@ -186,12 +186,12 @@ describe("plugin commands (bb.ui.registerCommand)", () => {
     ).toBe(403);
   });
 
-  // bb has no command palette, so a command with no chord could never be run —
+  // Patcher has no command palette, so a command with no chord could never be run —
   // saying so at load beats a registration that quietly does nothing.
   it("refuses to load a plugin whose command has no chord", async () => {
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-orphan",
+        name: "patcher-plugin-orphan",
         source: NO_SHORTCUT_SOURCE,
       }),
     );
@@ -206,7 +206,7 @@ describe("plugin commands (bb.ui.registerCommand)", () => {
   it("refuses to load a plugin that binds one chord twice", async () => {
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-twice",
+        name: "patcher-plugin-twice",
         source: SAME_CHORD_TWICE_SOURCE,
       }),
     );

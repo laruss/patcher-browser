@@ -6,8 +6,8 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { deriveProjectNameFromPath, type Host } from "@bb/domain";
-import type { HostPlatform } from "@bb/host-daemon-contract";
+import { deriveProjectNameFromPath, type Host } from "@patcher/domain";
+import type { HostPlatform } from "@patcher/host-daemon-contract";
 import { useCreateProject } from "@/hooks/mutations/project-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
 import {

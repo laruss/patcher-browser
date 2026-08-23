@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import type { Host, ProjectSource } from "@bb/domain";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { findLocalPathProjectSourceForHost } from "@bb/domain";
-import { Button } from "@bb/shared-ui/button";
+import type { Host, ProjectSource } from "@patcher/domain";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { findLocalPathProjectSourceForHost } from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,19 +11,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import {
   COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
   COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { getEnvironmentWorkspaceLabelIconName } from "@/lib/environment-workspace-display";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { formatHostUpdateStatus } from "@/lib/host-update-status";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -66,7 +66,7 @@ export interface EnvironmentPickerUIProps {
   value: string;
   onChange: (value: string) => void;
   sources: readonly ProjectSource[];
-  /** The host bb runs work on, or null while it loads / before one connects. */
+  /** The host Patcher runs work on, or null while it loads / before one connects. */
   host: Host | null;
   /** Whether `host` is the machine this browser runs on. When false (e.g. a
    * phone on the tailnet), the picker surfaces the host name so it's clear work

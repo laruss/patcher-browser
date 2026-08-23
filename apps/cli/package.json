@@ -1,9 +1,9 @@
 {
-  "name": "@bb/cli",
+  "name": "@patcher/cli",
   "version": "0.0.1",
   "type": "module",
   "bin": {
-    "bb": "./bin/bb",
+    "patcher": "./bin/patcher",
     "title": "./bin/title"
   },
   "scripts": {
@@ -14,21 +14,21 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bb/config": "workspace:*",
-    "@bb/core-ui": "workspace:*",
-    "@bb/domain": "workspace:*",
-    "@bb/plugin-build": "workspace:*",
-    "@bb/sdk": "workspace:*",
-    "@bb/server-contract": "workspace:*",
-    "@bb/templates": "workspace:*",
-    "@bb/thread-view": "workspace:*",
+    "@patcher/config": "workspace:*",
+    "@patcher/core-ui": "workspace:*",
+    "@patcher/domain": "workspace:*",
+    "@patcher/plugin-build": "workspace:*",
+    "@patcher/sdk": "workspace:*",
+    "@patcher/server-contract": "workspace:*",
+    "@patcher/templates": "workspace:*",
+    "@patcher/thread-view": "workspace:*",
     "cli-table3": "^0.6.5",
     "commander": "^13.0.0",
     "mime-types": "^3.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@tailwindcss/node": "^4.3.0",
     "@tailwindcss/oxide": "^4.3.0",
     "@types/mime-types": "^3.0.1",

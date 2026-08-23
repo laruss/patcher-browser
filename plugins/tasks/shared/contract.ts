@@ -1,4 +1,4 @@
-import { defineRpcContract } from "@bb/plugin-sdk";
+import { defineRpcContract } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import {
   TASK_SORTS,
@@ -102,7 +102,7 @@ export const projectSchema = z
     nextTaskNumber: z.number().int().positive(),
     color: z.string(),
     folderId: idSchema.nullable(),
-    linkedBbProjectId: z.string().startsWith("proj_").nullable(),
+    linkedPatcherProjectId: z.string().startsWith("proj_").nullable(),
     createdAt: z.string(),
   })
   .strict();
@@ -333,7 +333,11 @@ const updateProjectInputSchema = z
     name: nonBlankStringSchema.optional(),
     color: nonBlankStringSchema.optional(),
     folderId: idSchema.nullable().optional(),
-    linkedBbProjectId: z.string().startsWith("proj_").nullable().optional(),
+    linkedPatcherProjectId: z
+      .string()
+      .startsWith("proj_")
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine(
@@ -341,7 +345,7 @@ const updateProjectInputSchema = z
       input.name !== undefined ||
       input.color !== undefined ||
       input.folderId !== undefined ||
-      input.linkedBbProjectId !== undefined,
+      input.linkedPatcherProjectId !== undefined,
     { message: "at least one project field must be updated" },
   );
 
@@ -445,7 +449,7 @@ export const tasksRpcContract = defineRpcContract({
         prefix: projectPrefixSchema,
         color: nonBlankStringSchema,
         folderId: idSchema.nullable().default(null),
-        linkedBbProjectId: z
+        linkedPatcherProjectId: z
           .string()
           .startsWith("proj_")
           .nullable()
@@ -746,13 +750,13 @@ export const tasksRpcContract = defineRpcContract({
       })
       .strict(),
   },
-  // BB workspace projects (proj_…) for the linked-project picker; distinct
+  // Patcher workspace projects (proj_…) for the linked-project picker; distinct
   // from this plugin's own task projects.
-  listBbProjects: {
+  listPatcherProjects: {
     input: z.null(),
     output: z
       .object({
-        bbProjects: z.array(
+        patcherProjects: z.array(
           z
             .object({ id: z.string().startsWith("proj_"), name: z.string() })
             .strict(),
@@ -801,9 +805,9 @@ export type Preset = z.infer<typeof presetSchema>;
 export type TasksDomainError = z.infer<typeof tasksDomainErrorSchema>;
 export type TaskMutationResult = z.infer<typeof taskMutationResultSchema>;
 export type ProjectMutationResult = z.infer<typeof projectMutationResultSchema>;
-export type BbProjectOption = z.infer<
-  (typeof tasksRpcContract)["listBbProjects"]["output"]
->["bbProjects"][number];
+export type PatcherProjectOption = z.infer<
+  (typeof tasksRpcContract)["listPatcherProjects"]["output"]
+>["patcherProjects"][number];
 export type SidebarProjectSummary = z.infer<
   (typeof tasksRpcContract)["sidebarSummary"]["output"]
 >["projects"][number];

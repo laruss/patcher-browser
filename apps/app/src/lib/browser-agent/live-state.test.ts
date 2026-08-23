@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
-  BbDesktopBrowserApi,
-  BbDesktopBrowserState,
-  BbDesktopBrowserStateHandler,
-} from "@bb/desktop-contract";
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserState,
+  PatcherDesktopBrowserStateHandler,
+} from "@patcher/desktop-contract";
 import {
   getBrowserLiveState,
   resetBrowserLiveState,
@@ -12,20 +12,20 @@ import {
 } from "./live-state";
 
 function createDesktopBrowser(): {
-  api: BbDesktopBrowserApi;
-  push: (state: BbDesktopBrowserState) => void;
+  api: PatcherDesktopBrowserApi;
+  push: (state: PatcherDesktopBrowserState) => void;
   listenerCount: () => number;
 } {
-  const listeners = new Set<BbDesktopBrowserStateHandler>();
+  const listeners = new Set<PatcherDesktopBrowserStateHandler>();
   return {
     api: {
-      onState(listener: BbDesktopBrowserStateHandler) {
+      onState(listener: PatcherDesktopBrowserStateHandler) {
         listeners.add(listener);
         return () => {
           listeners.delete(listener);
         };
       },
-    } as unknown as BbDesktopBrowserApi,
+    } as unknown as PatcherDesktopBrowserApi,
     push(state) {
       for (const listener of listeners) {
         listener(state);
@@ -37,8 +37,8 @@ function createDesktopBrowser(): {
 
 function state(
   tabId: string,
-  overrides: Partial<BbDesktopBrowserState> = {},
-): BbDesktopBrowserState {
+  overrides: Partial<PatcherDesktopBrowserState> = {},
+): PatcherDesktopBrowserState {
   return {
     tabId,
     url: "https://example.com/",

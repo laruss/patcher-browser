@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { PluginComposerThreadRowStatus } from "@bb/plugin-sdk";
+import type { PluginComposerThreadRowStatus } from "@patcher/plugin-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { definePluginApp } from "./plugin-app-definition";
 import {
@@ -736,7 +736,7 @@ describe("reconcilePluginFrontends", () => {
 describe("applyPluginCss", () => {
   afterEach(() => {
     for (const link of [
-      ...document.head.querySelectorAll("link[data-bb-plugin-css]"),
+      ...document.head.querySelectorAll("link[data-patcher-plugin-css]"),
     ]) {
       link.remove();
     }
@@ -745,7 +745,7 @@ describe("applyPluginCss", () => {
   function links(pluginId: string): HTMLLinkElement[] {
     return [
       ...document.head.querySelectorAll<HTMLLinkElement>(
-        `link[data-bb-plugin-css="${pluginId}"]`,
+        `link[data-patcher-plugin-css="${pluginId}"]`,
       ),
     ];
   }

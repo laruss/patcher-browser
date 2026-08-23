@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { PermissionMode, PromptTextMention } from "@bb/domain";
-import type { SystemExecutionOptionsModelLoadError } from "@bb/server-contract";
+import type { PermissionMode, PromptTextMention } from "@patcher/domain";
+import type { SystemExecutionOptionsModelLoadError } from "@patcher/server-contract";
 import {
   NewThreadPromptBoxUI,
   type NewThreadBranchConfig,
@@ -79,7 +79,7 @@ const baseWorktree: NewThreadWorktreeConfig = {
 
 const baseProject: NewThreadProjectConfig = {
   projects: STORY_PROJECTS,
-  value: PROJECT_IDS.bb,
+  value: PROJECT_IDS.patcher,
   onChange: noop,
 };
 
@@ -164,7 +164,7 @@ function DefaultRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled={false}
-        zenModeStorageKey="bb.story.new-thread.default"
+        zenModeStorageKey="patcher.story.new-thread.default"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -191,7 +191,7 @@ function SubmittingRow() {
         onSubmit={noop}
         isSubmitting
         disabled
-        zenModeStorageKey="bb.story.new-thread.submitting"
+        zenModeStorageKey="patcher.story.new-thread.submitting"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -217,7 +217,7 @@ function LoadingModelsRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled
-        zenModeStorageKey="bb.story.new-thread.loading-models"
+        zenModeStorageKey="patcher.story.new-thread.loading-models"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -252,7 +252,7 @@ function ModelLoadFailedRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled
-        zenModeStorageKey="bb.story.new-thread.model-load-failed"
+        zenModeStorageKey="patcher.story.new-thread.model-load-failed"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -290,7 +290,7 @@ function UnsupportedCodexCliRow() {
         isSubmitting={false}
         disabled
         autoFocus={false}
-        zenModeStorageKey="bb.story.new-thread.unsupported-codex-cli"
+        zenModeStorageKey="patcher.story.new-thread.unsupported-codex-cli"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -328,7 +328,7 @@ function MissingCodexCliRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled
-        zenModeStorageKey="bb.story.new-thread.missing-codex-cli"
+        zenModeStorageKey="patcher.story.new-thread.missing-codex-cli"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -365,7 +365,7 @@ function GenericModelRequestFailedRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled
-        zenModeStorageKey="bb.story.new-thread.model-request-failed"
+        zenModeStorageKey="patcher.story.new-thread.model-request-failed"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -408,7 +408,7 @@ function NoModelsAvailableRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled
-        zenModeStorageKey="bb.story.new-thread.no-models"
+        zenModeStorageKey="patcher.story.new-thread.no-models"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -443,7 +443,7 @@ function CustomModelAfterLoadErrorRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled={false}
-        zenModeStorageKey="bb.story.new-thread.custom-model-after-load-error"
+        zenModeStorageKey="patcher.story.new-thread.custom-model-after-load-error"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -483,7 +483,7 @@ function ClaudeProviderRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled={false}
-        zenModeStorageKey="bb.story.new-thread.claude"
+        zenModeStorageKey="patcher.story.new-thread.claude"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -524,7 +524,7 @@ function FullAccessRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled={false}
-        zenModeStorageKey="bb.story.new-thread.full-access"
+        zenModeStorageKey="patcher.story.new-thread.full-access"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -551,7 +551,7 @@ function ProjectlessThreadRow() {
         onSubmit={noop}
         isSubmitting={false}
         disabled={false}
-        zenModeStorageKey="bb.story.new-thread.projectless"
+        zenModeStorageKey="patcher.story.new-thread.projectless"
         history={baseHistory}
         typeahead={makeTypeahead()}
         attachments={makeAttachments()}
@@ -645,7 +645,7 @@ export function UnsupportedCodexCli() {
       <StoryCard>
         <StoryRow
           label="unsupported Codex CLI"
-          hint="Codex is installed but below bb's minimum supported version"
+          hint="Codex is installed but below Patcher's minimum supported version"
         >
           <UnsupportedCodexCliRow />
         </StoryRow>

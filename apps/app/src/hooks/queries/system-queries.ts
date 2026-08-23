@@ -2,21 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import {
   listBuiltInAgentProviderInfos,
   listClaudeCodeFallbackModels,
-} from "@bb/agent-providers";
-import { toRecord } from "@bb/core-ui";
+} from "@patcher/agent-providers";
+import { toRecord } from "@patcher/core-ui";
 import type {
   SystemCliSkillsStatusResponse,
   SystemConfigResponse,
   SystemExecutionOptionsResponse,
   OnboardingAgentOverview,
   SystemVersionResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   DiscoverReposResult,
   ProviderCliStatusResponse,
-} from "@bb/host-daemon-contract";
-import type { ProviderUsageResponse } from "@bb/host-daemon-contract";
-import { BbHttpError, sdk } from "@/lib/sdk";
+} from "@patcher/host-daemon-contract";
+import type { ProviderUsageResponse } from "@patcher/host-daemon-contract";
+import { PatcherHttpError, sdk } from "@/lib/sdk";
 import {
   claudeModelCatalogCacheKey,
   readCachedClaudeModelCatalog,
@@ -103,7 +103,7 @@ function shouldRetrySystemExecutionOptions(
     return false;
   }
 
-  if (error instanceof BbHttpError) {
+  if (error instanceof PatcherHttpError) {
     return error.status === 408 || error.status === 429 || error.status >= 500;
   }
 
@@ -174,7 +174,7 @@ export function useSystemConfig(options?: QueryOptions) {
 }
 
 /**
- * Per-machine install state of bb's built-in CLI skills. Each read asks every
+ * Per-machine install state of Patcher's built-in CLI skills. Each read asks every
  * enrolled machine's daemon, so it is fetched on demand (the settings section)
  * rather than kept fresh in the background.
  */

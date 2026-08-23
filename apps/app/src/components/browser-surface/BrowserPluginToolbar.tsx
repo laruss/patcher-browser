@@ -1,11 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@bb/shared-ui/tooltip";
+} from "@patcher/shared-ui/tooltip";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import { invalidatePluginToolbarStates } from "@/hooks/cache-owners/plugin-cache-owner";
 import {
@@ -27,8 +27,8 @@ export interface BrowserPluginToolbarProps {
 /**
  * Plugin controls on the browser's toolbar row (`browser.toolbar.items`).
  *
- * Between the address bar and bb's own buttons, which is where a browser keeps
- * what other people added — bb's controls stay where the user learned them.
+ * Between the address bar and Patcher's own buttons, which is where a browser keeps
+ * what other people added — Patcher's controls stay where the user learned them.
  *
  * Two things are asked of the server here and they are deliberately unequal: the
  * *declarations* come with every other contribution, once, and the per-page
@@ -49,7 +49,7 @@ export function BrowserPluginToolbar({
     { enabled: wantsStates && url.length > 0 },
   );
   // No page means nothing for a control to be about, and a press would be
-  // refused by the server anyway — so the row is not drawn over bb's own
+  // refused by the server anyway — so the row is not drawn over Patcher's own
   // screens, which is what `PluginBrowserToolbarContext.url` promises.
   if (items.length === 0 || url.length === 0) {
     return null;
@@ -103,7 +103,7 @@ function BrowserPluginToolbarButton({
   const label = state?.title ?? item.title;
   const isActive = state?.active === true;
   return (
-    // bb's own chrome buttons carry conventional glyphs — back, reload — and need
+    // Patcher's own chrome buttons carry conventional glyphs — back, reload — and need
     // no tooltip. A plugin's icon is not conventional, so this one says what it is
     // on hover, through the design system rather than a native `title`.
     <Tooltip>

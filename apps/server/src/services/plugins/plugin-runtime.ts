@@ -6,16 +6,20 @@ import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createJiti } from "jiti";
 import semver from "semver";
-import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION, type Thread } from "@bb/domain";
-import { buildPluginApp } from "@bb/plugin-build";
+import {
+  PLUGIN_SDK_MAJOR,
+  PLUGIN_SDK_VERSION,
+  type Thread,
+} from "@patcher/domain";
+import { buildPluginApp } from "@patcher/plugin-build";
 import { getPluginBuildToolchain } from "./build-toolchain.js";
 import {
-  createNodeBbSdk,
+  createNodePatcherSdk,
   createNodeWebsocketFactory,
   createRequestTimeoutFetch,
-  DEFAULT_BB_REQUEST_TIMEOUT_MS,
-  type BbSdk,
-} from "@bb/sdk";
+  DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
+  type PatcherSdk,
+} from "@patcher/sdk";
 import {
   createPluginApiFetch,
   createPluginApiIdentities,
@@ -45,7 +49,7 @@ import {
   setPluginKvValue,
   upsertPluginSchedule,
   type InstalledPluginRow,
-} from "@bb/db";
+} from "@patcher/db";
 import { toThreadResponseFromThread } from "../threads/thread-runtime-display.js";
 import {
   loadPluginAppBundle,
@@ -61,7 +65,7 @@ import { readPluginManifest, type PluginManifest } from "./manifest.js";
 import {
   createPluginApi,
   isNeedsConfigurationError,
-  type BbPluginApi,
+  type PatcherPluginApi,
   type PluginApiHandle,
   type PluginThreadEventName,
   type PluginThreadEventPayloads,
@@ -79,7 +83,7 @@ import type {
  * Per-root reload generation for mutable (path:/source-builtin) plugin trees.
  * `jiti.import` hands a `"type": "module"` entry to native `import()`, and
  * Node's ESM registry keys modules by resolved URL forever — so a re-import
- * after an edit returns the first-evaluated module and `bb plugin reload`
+ * after an edit returns the first-evaluated module and `patcher plugin reload`
  * silently keeps the old code. A resolve hook stamps the current generation
  * onto every URL inside a mutable plugin root, which makes each reload a
  * distinct URL for the entry AND every file it imports.
@@ -93,7 +97,7 @@ interface MutableRoot {
 
 const mutableRoots = new Map<string, MutableRoot>();
 /** Marker shape: `<root id>.<epoch>`. */
-const MUTABLE_ROOT_MARKER = /[?&]bbPluginLoad=(\d+)\.(\d+)/;
+const MUTABLE_ROOT_MARKER = /[?&]patcherPluginLoad=(\d+)\.(\d+)/;
 let nextMutableRootId = 1;
 let nextMutableRootEpoch = 1;
 let mutableRootHooks: { deregister: () => void } | null = null;
@@ -129,7 +133,7 @@ function registerMutableRootHooks(): void {
       const separator = resolved.url.includes("?") ? "&" : "?";
       return {
         ...resolved,
-        url: `${resolved.url}${separator}bbPluginLoad=${match.id}.${epoch}`,
+        url: `${resolved.url}${separator}patcherPluginLoad=${match.id}.${epoch}`,
         shortCircuit: true,
       };
     },
@@ -360,14 +364,14 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   // Cumulative per plugin for this server session (kept across reloads so a
   // reload cannot hide cost); removed with the plugin registration.
   const handlerStats = new Map<string, PluginHandlerStats>();
-  // Bound once the HTTP listener is up; bb.sdk is gated on it (design §3
+  // Bound once the HTTP listener is up; patcher.sdk is gated on it (design §3
   // two-phase load/bind).
   //
   // One client per plugin rather than one shared: each carries that plugin's
   // identity headers, so the API can apply its permissions to traffic that
-  // arrives as HTTP — which is what `bb.sdk` is. See plugin-api-identity.ts.
+  // arrives as HTTP — which is what `patcher.sdk` is. See plugin-api-identity.ts.
   let boundLoopbackBaseUrl: string | undefined;
-  const pluginSdks = new Map<string, BbSdk>();
+  const pluginSdks = new Map<string, PatcherSdk>();
   // Owned here rather than injected: it is the loader that knows which plugins
   // exist, and a dep would have to be threaded through every hand-built test
   // deps object for something none of them exercise.
@@ -375,12 +379,12 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   /** Correlates a cancel message with the call it cancels. */
   let callSequence = 0;
 
-  function sdkFor(pluginId: string): BbSdk | undefined {
+  function sdkFor(pluginId: string): PatcherSdk | undefined {
     if (boundLoopbackBaseUrl === undefined) return undefined;
     let sdk = pluginSdks.get(pluginId);
     if (sdk === undefined) {
       const key = apiIdentities.keyFor(pluginId);
-      sdk = createNodeBbSdk({
+      sdk = createNodePatcherSdk({
         baseUrl: boundLoopbackBaseUrl,
         // Wrapped around the timeout fetch, not instead of it: supplying
         // `fetch` opts out of the one createNodeTransport would have added,
@@ -389,7 +393,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           pluginId,
           key,
           fetch: createRequestTimeoutFetch({
-            timeoutMs: DEFAULT_BB_REQUEST_TIMEOUT_MS,
+            timeoutMs: DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
           }),
         }),
         // The realtime socket identifies itself too. `/ws` is not under
@@ -819,7 +823,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   }
 
   function checkEngineRange(manifest: PluginManifest): string | undefined {
-    if (!manifest.bbEngineRange) return undefined;
+    if (!manifest.patcherEngineRange) return undefined;
     const version = semver.coerce(deps.appVersion);
     if (!version) {
       // Dev builds may carry a non-semver version; do not block on it.
@@ -834,16 +838,16 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       // incompatible in development.
       return undefined;
     }
-    if (!semver.satisfies(version, manifest.bbEngineRange)) {
-      return `requires bb ${manifest.bbEngineRange}, this is ${version.version}`;
+    if (!semver.satisfies(version, manifest.patcherEngineRange)) {
+      return `requires Patcher ${manifest.patcherEngineRange}, this is ${version.version}`;
     }
     return undefined;
   }
 
   function checkPluginSdkRange(manifest: PluginManifest): string | undefined {
-    if (!manifest.bbPluginSdkRange) return undefined;
-    if (!semver.satisfies(PLUGIN_SDK_VERSION, manifest.bbPluginSdkRange)) {
-      return `requires bb plugin SDK ${manifest.bbPluginSdkRange}, running SDK is ${PLUGIN_SDK_VERSION}`;
+    if (!manifest.patcherPluginSdkRange) return undefined;
+    if (!semver.satisfies(PLUGIN_SDK_VERSION, manifest.patcherPluginSdkRange)) {
+      return `requires patcher plugin SDK ${manifest.patcherPluginSdkRange}, running SDK is ${PLUGIN_SDK_VERSION}`;
     }
     return undefined;
   }
@@ -873,8 +877,8 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   }
 
   async function runFactoryTimeBoxed(
-    factory: (api: BbPluginApi) => unknown,
-    api: BbPluginApi,
+    factory: (api: PatcherPluginApi) => unknown,
+    api: PatcherPluginApi,
   ): Promise<void> {
     await withLoadTimeout(Promise.resolve(factory(api)));
   }
@@ -964,27 +968,45 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     meta: { sdkMajor: number; sdkVersion: string } | null,
   ): boolean {
     if (meta === null) return false;
-    if (meta.sdkMajor !== PLUGIN_SDK_MAJOR) return false;
-    if (PLUGIN_SDK_MAJOR === 0) return meta.sdkVersion === PLUGIN_SDK_VERSION;
-    return true;
+    return meta.sdkMajor === PLUGIN_SDK_MAJOR;
   }
+
+  /**
+   * A same-major artifact built against a *newer* SDK than this host runs is
+   * accepted above, deliberately: semver says a 1.4 bundle runs on a 1.x host,
+   * and `engines.patcherPluginSdk` is where an author states otherwise. What
+   * semver cannot promise is that every export the bundle imports exists here —
+   * a 1.4-only export resolves to `undefined` through the runtime shim, and the
+   * factory dies on a TypeError that names a property and not the reason. This
+   * records the version gap so the load failure can say it.
+   */
+  const prebuiltServerSdkAhead = new Map<string, string>();
 
   /**
    * The backend entry to import for this load. Managed (git:/npm:) installs
    * prefer a fresh, SDK-compatible prebuilt `dist/server.js` (design
    * §3 loader amendment, §6 prebuilt distribution) so consumers never need
    * npm or node_modules. Path installs and source-layout builtins ALWAYS load
-   * from source, so author iteration via `bb plugin reload` and the builtin
+   * from source, so author iteration via `patcher plugin reload` and the builtin
    * dev watcher sees edited files; packaged builtins declare dist/server.js
    * as their manifest entry and still load that artifact. A present-but-stale
-   * or meta-less managed dist falls back to source with one warning. While
-   * the SDK is pre-1.0, minor bumps are breaking (semver), so compatibility
-   * requires the exact SDK version, not just a matching major.
+   * or meta-less managed dist falls back to source with one warning. Now that
+   * the SDK is past 1.0 a matching major is the whole test; before it, minor
+   * bumps were breaking, so compatibility demanded the exact SDK version — and
+   * because the major was 0, the effective rule was an exact match. Widening it
+   * gave up the fall-back-to-source safety net for same-major artifacts, so a
+   * newer-minor dist that reaches an export this host lacks now dies at load
+   * instead. `prebuiltServerSdkAhead` below is what makes that failure legible.
    */
   async function resolveServerEntry(
     row: InstalledPluginRow,
     manifest: PluginManifest,
   ): Promise<string> {
+    // Every path that does not end up loading a prebuilt bundle clears the note,
+    // including these two: a plugin reinstalled from a path, or updated to a
+    // version that ships no `dist/server.js`, otherwise keeps the version gap
+    // recorded for the artifact it no longer loads, and the next unrelated load
+    // failure is reported as an SDK mismatch.
     if (
       row.sourceKind === "path" ||
       (row.sourceKind === "builtin" &&
@@ -994,12 +1016,14 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           rootDir: row.rootDir,
         }))
     ) {
+      prebuiltServerSdkAhead.delete(row.id);
       return manifest.serverEntry;
     }
     const distJsPath = join(row.rootDir, "dist", "server.js");
     try {
       await stat(distJsPath);
     } catch {
+      prebuiltServerSdkAhead.delete(row.id);
       return manifest.serverEntry; // no prebuilt bundle shipped — normal
     }
     let meta: { sdkMajor: number; sdkVersion: string } | null = null;
@@ -1014,7 +1038,13 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       logger.warn(
         `plugin ${row.id}: ignoring prebuilt dist/server.js (built with SDK ${meta?.sdkVersion ?? "unknown"}, running SDK is ${PLUGIN_SDK_VERSION}) — loading from source`,
       );
+      prebuiltServerSdkAhead.delete(row.id);
       return manifest.serverEntry;
+    }
+    if (meta !== null && semver.gt(meta.sdkVersion, PLUGIN_SDK_VERSION)) {
+      prebuiltServerSdkAhead.set(row.id, meta.sdkVersion);
+    } else {
+      prebuiltServerSdkAhead.delete(row.id);
     }
     return distJsPath;
   }
@@ -1153,13 +1183,13 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     // Build candidate assets without publishing them; a failed reload keeps
     // the previous backend and frontend registration sets together.
     const appBundleCandidate = await loadAppBundleCandidate(row, manifest);
-    // Branding refresh rides every load too, so `bb plugin reload` picks up a
+    // Branding refresh rides every load too, so `patcher plugin reload` picks up a
     // changed compact icon or logo file.
     const brandingAssetCandidate = await loadPluginBrandingAssets(
       row.id,
       manifest,
     );
-    // One capability object, two consumers: `createPluginApi` builds `bb` from
+    // One capability object, two consumers: `createPluginApi` builds `patcher` from
     // it in-process, and `createPluginHostCallServer` performs the same calls
     // for a plugin that lives elsewhere. Constructing it once is what stops
     // the two placements drifting.
@@ -1168,7 +1198,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       permissions: manifest.permissions,
       sites: manifest.sites,
       logger: deps.logger,
-      // The server's own implementation of the two stores `bb` reads through.
+      // The server's own implementation of the two stores `patcher` reads through.
       // A plugin process supplies the same shape backed by its channel; both
       // sit under one copy of the semantics in plugin-api.ts.
       kvStore: {
@@ -1228,34 +1258,6 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           pluginId: row.id,
         });
       },
-      ensureSharedPortTunnel: (hostId) => {
-        if (!deps.ensureSharedPortTunnel) {
-          throw new Error("host shared-port control plane is unavailable");
-        }
-        return deps.ensureSharedPortTunnel(hostId);
-      },
-      validateSharedPortDeclaration: (hostId, ports) => {
-        if (!deps.sharedPorts) {
-          throw new Error("host shared-port control plane is unavailable");
-        }
-        return deps.sharedPorts.validateSharedPortDeclaration(hostId, ports);
-      },
-      declareSharedPorts: (hostId, ports) => {
-        if (!deps.sharedPorts) {
-          throw new Error("host shared-port control plane is unavailable");
-        }
-        deps.sharedPorts.declareSharedPorts({
-          ownerId: row.id,
-          hostId,
-          ports,
-        });
-      },
-      replaceDeclaredSharedPorts: (declarations) => {
-        if (declarations.length > 0 && !deps.sharedPorts) {
-          throw new Error("host shared-port control plane is unavailable");
-        }
-        deps.sharedPorts?.replaceDeclarationsForOwner(row.id, declarations);
-      },
     } satisfies Parameters<typeof createPluginApi>[0];
 
     // Everything from here is shared: whichever way the handle was built, the
@@ -1299,7 +1301,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
             : { alias: pluginExternalsAlias }),
         });
         // Same jiti instance for source and prebuilt dist/server.js, so the
-        // @bb/plugin-sdk resolution applies identically to both.
+        // @patcher/plugin-sdk resolution applies identically to both.
         const mod = (await jiti.import(
           await resolveServerEntry(row, manifest),
         )) as {
@@ -1308,11 +1310,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         const factory = mod.default;
         if (typeof factory !== "function") {
           throw new Error(
-            `server entry must default-export a factory (bb) => void, got ${typeof factory}`,
+            `server entry must default-export a factory (patcher) => void, got ${typeof factory}`,
           );
         }
         await runFactoryTimeBoxed(
-          factory as (api: BbPluginApi) => unknown,
+          factory as (api: PatcherPluginApi) => unknown,
           handle.api,
         );
       } catch (error) {
@@ -1332,7 +1334,12 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         // --ignore-scripts already prevents gyp builds at install; a .node
         // addon that slipped through dies here under Electron's ABI.
         if (/ERR_DLOPEN_FAILED|\.node/.test(message)) {
-          message += " (native dependencies are not supported in BB plugins)";
+          message +=
+            " (native dependencies are not supported in Patcher plugins)";
+        }
+        const aheadSdkVersion = prebuiltServerSdkAhead.get(row.id);
+        if (aheadSdkVersion !== undefined) {
+          message += ` (its prebuilt dist/server.js was built against plugin SDK ${aheadSdkVersion}, and this server runs ${PLUGIN_SDK_VERSION} — an export added after ${PLUGIN_SDK_VERSION} is undefined here)`;
         }
         if (previous !== undefined) {
           setStatus(row.id, "running", `reload failed: ${message}`);
@@ -1367,7 +1374,6 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       await disposePluginInstance(row.id, previous);
       if ((hungServices.get(row.id)?.size ?? 0) > 0) {
         loaded.delete(row.id);
-        deps.sharedPorts?.clearDeclarationsForOwner(row.id);
         for (const database of handle.databaseHandles.splice(0)) {
           try {
             database.close();
@@ -1533,7 +1539,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
    *
    * What a restart does *not* refresh is the registration snapshot: the
    * reinstated process runs the same entry file and registers the same things,
-   * and picking up an edited plugin is what `bb plugin reload` is for.
+   * and picking up an edited plugin is what `patcher plugin reload` is for.
    */
   function liveRemoteChannel(
     pluginId: string,
@@ -1593,7 +1599,6 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     if (!plugin) return;
     loaded.delete(id);
     await disposePluginInstance(id, plugin);
-    deps.sharedPorts?.clearDeclarationsForOwner(id);
     // Its tool names are free again, and the processes still running hold a
     // copy of who owns what.
     pushHostFacts();
@@ -1634,10 +1639,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     agentToolProblems.delete(id);
     placementFallbacks.delete(id);
     placementQuarantine.delete(id);
+    prebuiltServerSdkAhead.delete(id);
   }
 
   /**
-   * Let a plugin be moved out again. An explicit `bb plugin reload` is an
+   * Let a plugin be moved out again. An explicit `patcher plugin reload` is an
    * operator saying they fixed whatever kept killing the process; without this
    * the only way back out is a server restart.
    */
@@ -1709,7 +1715,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
    * below is a loop: the plugin comes back, `runPluginOutOfProcess` still says
    * yes, and it walks into the same crashloop. Held in memory only — a
    * restarted server is a fresh chance — and cleared by an explicit
-   * `bb plugin reload`, which is an operator saying they fixed something.
+   * `patcher plugin reload`, which is an operator saying they fixed something.
    */
   const placementQuarantine = new Map<string, string>();
 
@@ -1774,7 +1780,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
    *
    * The cost is that the factory may run twice — once out there and once here.
    * That is survivable only because a factory has always had to be
-   * re-runnable: `bb plugin reload` re-runs it on every reload.
+   * re-runnable: `patcher plugin reload` re-runs it on every reload.
    */
   async function loadOutOfProcess(
     row: InstalledPluginRow,
@@ -1835,7 +1841,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   function bindSdk(args: { baseUrl: string }): void {
     boundLoopbackBaseUrl = args.baseUrl;
     // Any clients built before the bind pointed nowhere useful; drop them so
-    // the next `bb.sdk` read builds one against the URL that is now real.
+    // the next `patcher.sdk` read builds one against the URL that is now real.
     pluginSdks.clear();
     // Plugin processes hold their own bind-gate, so they are told too. A
     // plugin loaded before the server was listening is the case this exists

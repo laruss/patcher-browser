@@ -1,12 +1,15 @@
-import { getEnvironment, getThread } from "@bb/db";
+import { getEnvironment, getThread } from "@patcher/db";
 import {
   PERSONAL_PROJECT_ID,
   type Environment,
   type PromptInput,
   type Thread,
-} from "@bb/domain";
-import { supportsNativeFork } from "@bb/agent-providers";
-import type { EnvironmentArgs, ForkThreadRequest } from "@bb/server-contract";
+} from "@patcher/domain";
+import { supportsNativeFork } from "@patcher/agent-providers";
+import type {
+  EnvironmentArgs,
+  ForkThreadRequest,
+} from "@patcher/server-contract";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { resolveExistingThreadPermissionMode } from "./thread-execution-plan.js";

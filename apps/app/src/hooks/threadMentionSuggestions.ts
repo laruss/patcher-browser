@@ -1,5 +1,5 @@
-import { fuzzyMatchText } from "@bb/fuzzy-match";
-import { PERSONAL_PROJECT_ID, type Thread } from "@bb/domain";
+import { fuzzyMatchText } from "@patcher/fuzzy-match";
+import { PERSONAL_PROJECT_ID, type Thread } from "@patcher/domain";
 import type { PromptMentionSuggestion } from "@/components/promptbox/mentions/types";
 import { compareCodepoint } from "@/lib/codepoint-compare";
 

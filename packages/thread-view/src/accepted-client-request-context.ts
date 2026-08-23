@@ -1,8 +1,8 @@
 import type {
   ClientTurnRequestId,
   ThreadEvent,
-} from "@bb/domain";
-import { requireThreadEventScopeTurnId } from "@bb/domain";
+} from "@patcher/domain";
+import { requireThreadEventScopeTurnId } from "@patcher/domain";
 import type { EventMeta } from "./event-decode.js";
 
 export interface ThreadEventWithMetaLike {

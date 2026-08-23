@@ -18,7 +18,7 @@ describe("normalizeExternalUrl", () => {
   it("refuses everything the browsed view would refuse", () => {
     expect(normalizeExternalUrl("file:///etc/passwd")).toBeNull();
     expect(normalizeExternalUrl("javascript:alert(1)")).toBeNull();
-    expect(normalizeExternalUrl("bb://open")).toBeNull();
+    expect(normalizeExternalUrl("patcher://open")).toBeNull();
     expect(normalizeExternalUrl("not a url")).toBeNull();
   });
 });

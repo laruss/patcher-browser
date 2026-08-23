@@ -1,14 +1,14 @@
 import type {
   BrowserCommandResponseMessage,
   BrowserCommandValue,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   BROWSER_COMMAND_MAX_TIMEOUT_MS,
   BrowserCommandAbortedError,
   createBrowserBridge,
 } from "../../../src/services/browser/browser-bridge.js";
-import type { BrowserCommandRequestSignal } from "@bb/server-contract";
+import type { BrowserCommandRequestSignal } from "@patcher/server-contract";
 
 /**
  * The bridge is what a plugin's browser call actually goes through, so these

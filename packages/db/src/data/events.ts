@@ -26,7 +26,7 @@ import type {
   ThreadEventScope,
   ThreadEventScopeKind,
   ThreadEventType,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   LOCAL_AGENT_TASK_TYPE,
   LOCAL_BASH_TASK_TYPE,
@@ -36,7 +36,7 @@ import {
   getThreadEventScopeTurnId,
   parseStoredThreadEvent,
   systemThreadInterruptedReasonSchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   DbConnection,
   DbQueryConnection,
@@ -386,7 +386,7 @@ function listStoredTurnStartedKeySet(
 // fork's identity + turn events and retry forever).
 //
 // provider/unhandled is here for the same reason: it is a diagnostic
-// passthrough for provider traffic bb has no translation for, and the provider
+// passthrough for provider traffic Patcher has no translation for, and the provider
 // can label that traffic with a turn id of its own making (Codex tags
 // automatic-compaction events "auto-compact-N"). Losing one is a non-event;
 // failing the batch it rode in with is not.

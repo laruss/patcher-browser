@@ -8,7 +8,7 @@ import type {
   TimelineRowBase,
   TimelineRowStatus,
   TimelineToolWorkRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   buildTimelineWorkSummaryLabel,
   buildTimelineViewRows,

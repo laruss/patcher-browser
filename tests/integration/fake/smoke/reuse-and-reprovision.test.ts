@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { environments } from "@bb/db";
+import { environments } from "@patcher/db";
 import { describe, expect, it } from "vitest";
 import {
   createHostThread,

@@ -5,7 +5,7 @@ import {
 import { cliFetch } from "./client.js";
 
 /**
- * Plugin-contributed `bb` subcommands (server design §4.4). The CLI fetches
+ * Plugin-contributed `patcher` subcommands (server design §4.4). The CLI fetches
  * metadata from GET /api/v1/plugins/contributions and proxies invocations to
  * POST /api/v1/plugins/:id/cli — plugin code only ever runs server-side.
  */
@@ -22,8 +22,8 @@ const CONTRIBUTIONS_TIMEOUT_MS = 2000;
  * Result of asking the server for plugin CLI contributions. "unreachable"
  * (fetch threw: server down, blocked, timeout) is distinguished from
  * "invalid" (an old server without the route, or a malformed payload) so
- * unknown-command handling can tell the user to start bb instead of printing
- * a misleading "unknown command" for a plugin command that would exist if bb
+ * unknown-command handling can tell the user to start Patcher instead of printing
+ * a misleading "unknown command" for a plugin command that would exist if Patcher
  * were up. The thrown error is kept: EPERM (blocked shell) and a timeout mean
  * something very different from ECONNREFUSED (nothing listening).
  */
@@ -34,10 +34,10 @@ export type PluginCliContributionsResult =
 
 /**
  * Diagnose a failed probe of the server without overclaiming: only when every
- * connection attempt reports ECONNREFUSED is there evidence that bb is not
+ * connection attempt reports ECONNREFUSED is there evidence that Patcher is not
  * running. Blocked connections (sandboxed agent shells) and timeouts name the
  * address and errno so the reader — often an agent — does not declare a
- * running bb dead.
+ * running Patcher dead.
  */
 export function describeUnreachableServer(
   baseUrl: string,
@@ -98,20 +98,20 @@ export function describeUnreachableServer(
 
   if (blockedCode !== undefined) {
     return (
-      `Cannot reach bb at ${baseUrl}: ${blockedCode} — the connection was blocked. ` +
-      `bb may still be running; check sandbox or firewall rules for this shell.`
+      `Cannot reach Patcher at ${baseUrl}: ${blockedCode} — the connection was blocked. ` +
+      `Patcher may still be running; check sandbox or firewall rules for this shell.`
     );
   }
   if (timedOut) {
-    return `bb did not respond at ${baseUrl} within ${timeoutMs}ms — it may be busy or unreachable.`;
+    return `Patcher did not respond at ${baseUrl} within ${timeoutMs}ms — it may be busy or unreachable.`;
   }
   if (
     terminalCodes.length > 0 &&
     terminalCodes.every((code) => code === "ECONNREFUSED")
   ) {
-    return `bb is not running at ${baseUrl} — open the bb app, then re-run this command.`;
+    return `Patcher is not running at ${baseUrl} — open the Patcher app, then re-run this command.`;
   }
-  return `Cannot reach bb at ${baseUrl}: ${
+  return `Cannot reach Patcher at ${baseUrl}: ${
     messages.length > 0 ? messages.join(": ") : String(cause)
   }`;
 }
@@ -153,8 +153,8 @@ export async function fetchPluginCliContributions(
 
 /**
  * Look up an installed-but-disabled plugin whose id matches the unknown
- * command name (the `bb <id>` convention builtins follow), so `bb connect`
- * with the connect plugin disabled explains itself instead of erroring with
+ * command name (the `patcher <id>` convention builtins follow), so `patcher <id>` with
+ * that plugin disabled explains itself instead of erroring with
  * "unknown command". Best effort: any failure returns null.
  */
 export async function findDisabledPluginForCommand(

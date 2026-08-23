@@ -26,7 +26,7 @@ import {
   type PendingInteractionGrantedPermissionProfile,
   type PermissionEscalation,
   type ReasoningLevel,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   forkSession,
   type CanUseTool,
@@ -803,7 +803,7 @@ function buildPermissionEscalationTrackingHooks(
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
             permissionDecisionReason:
-              "bb has disabled Claude Code native subagents; use bb delegation instead.",
+              "Patcher has disabled Claude Code native subagents; use Patcher delegation instead.",
           },
         };
       }
@@ -817,7 +817,7 @@ function buildPermissionEscalationTrackingHooks(
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
             permissionDecisionReason:
-              "bb has disabled the Claude Code Workflow tool.",
+              "Patcher has disabled the Claude Code Workflow tool.",
           },
         };
       }
@@ -1508,7 +1508,7 @@ function restoreApprovedPlanPermissionMode(threadSession: ThreadSession): void {
   void threadSession.session
     .setPermissionMode(threadSession.approvedPlanPermissionMode)
     .catch((error: unknown) => {
-      // bb's own canUseTool gate already follows the restored mode, so a
+      // Patcher's own canUseTool gate already follows the restored mode, so a
       // refused control request costs the session Claude's native gating
       // alignment, not the user's preset.
       logBridgeError(

@@ -5,8 +5,8 @@ import {
   compactThreadTimelineSummaryEvents,
   type AcceptedClientRequestContext,
   type ThreadEventWithMeta,
-} from "@bb/thread-view";
-import type { ClientTurnRequestId, Thread } from "@bb/domain";
+} from "@patcher/thread-view";
+import type { ClientTurnRequestId, Thread } from "@patcher/domain";
 import type {
   ThreadConversationOutlineItem,
   ThreadConversationOutlineResponse,
@@ -16,7 +16,7 @@ import type {
   TimelineSystemRow,
   ThreadTimelineResponse,
   TimelineTurnSummaryDetailsResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   findStoredTimelineWindowByteBudgetFloor,
   findTimelineWindowBudgetFloorSequence,
@@ -45,14 +45,14 @@ import {
   listStoredTurnStartedRowsByTurnIdsUpToSequence,
   listTimelineSegmentAnchorsDescending,
   scopedItemRefKey,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   DbConnection,
   InlineOutputCharLimit,
   ScopedItemRef,
   StandardTimelineSegmentAnchorRow,
   StoredEventRow,
-} from "@bb/db";
+} from "@patcher/db";
 import { ApiError } from "../../errors.js";
 import { roundDurationMs } from "../lib/duration.js";
 import { parseStoredEvent } from "./thread-data.js";
@@ -143,7 +143,7 @@ interface BuildThreadTimelineOptions {
    * fields (`activeThinking`, `activeWorkflows`, `pendingTodos`,
    * `contextWindowUsage`) are still populated. Saves the row-generation work +
    * serialization bytes for
-   * consumers that only need tail state (e.g. `bb status` / `bb thread show`).
+   * consumers that only need tail state (e.g. `patcher status` / `patcher thread show`).
    */
   summaryOnly?: boolean;
   providerDisplayName?: string;
@@ -1034,7 +1034,7 @@ function applyTimelineWindowByteBudget(
         kind: "system",
         systemKind: "error",
         title: "Timeline event is too large to display",
-        detail: `Event ${floor.sequenceStart} contains ${floor.eventDataBytes} bytes. BB omitted its content to keep this thread available.`,
+        detail: `Event ${floor.sequenceStart} contains ${floor.eventDataBytes} bytes. Patcher omitted its content to keep this thread available.`,
         status: "error",
       },
       sequenceStart: floor.sequenceStart + 1,

@@ -8,17 +8,17 @@ import {
   listIdleThreadsWithQueuedMessages,
   releaseQueuedMessageClaim,
   releaseStaleQueuedMessageClaims,
-} from "@bb/db";
+} from "@patcher/db";
 import type {
   PromptInput,
   Thread,
   ThreadQueuedMessage,
   ThreadTurnInitiator,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   SendMessageRequest,
   SendQueuedMessageMode,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   AppDeps,
   LoggedPendingInteractionWorkSessionDeps,

@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-thread-chat-demo",
+  "name": "patcher-plugin-thread-chat-demo",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
-    "bb": ">=0.0",
-    "bbPluginSdk": "^0.4.0"
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "ThreadChat demo",
     "description": "Demonstrate the SDK ThreadChat component and the messageAction slot.",
     "branding": {
@@ -17,10 +17,10 @@
     "server": "./server.ts"
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
     "typescript": "^5.7.0"

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
-import { Button } from "@bb/shared-ui/button";
-import { EmptyState } from "@bb/shared-ui/empty-state";
-import { Icon } from "@bb/shared-ui/icon";
-import { Input } from "@bb/shared-ui/input";
+import { Button } from "@patcher/shared-ui/button";
+import { EmptyState } from "@patcher/shared-ui/empty-state";
+import { Icon } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
 import { pluginIconName } from "@/components/plugin/PluginIcon";
 import {
   usePluginCatalogSearch,
@@ -16,7 +16,7 @@ import {
   UPDATE_TINT_STYLE,
 } from "./plugin-ui";
 
-/** Browse BB's official plugins, bundled with the app. */
+/** Browse Patcher's official plugins, bundled with the app. */
 export function BrowsePluginsTab({
   onInstall,
 }: {
@@ -65,7 +65,7 @@ export function BrowsePluginsTab({
         <EmptyState
           message={
             searchQuery.isError
-              ? "BB's official plugins are unavailable."
+              ? "Patcher's official plugins are unavailable."
               : "No plugins match this search."
           }
         />

@@ -22,12 +22,12 @@
  */
 
 import {
-  BB_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
-  type BbDesktopBrowserConsoleEntry,
-  type BbDesktopBrowserNetworkEntry,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+  type PatcherDesktopBrowserConsoleEntry,
+  type PatcherDesktopBrowserNetworkEntry,
+} from "@patcher/desktop-contract";
 
 /**
  * Entries kept per tab, per log. Sized to cover a page load's worth of requests
@@ -35,7 +35,7 @@ import {
  * this is page-controlled content, so an unbounded log is a page-controlled
  * allocation.
  */
-export const BB_BROWSER_OBSERVATION_BUFFER_SIZE = 200;
+export const PATCHER_BROWSER_OBSERVATION_BUFFER_SIZE = 200;
 
 /**
  * A fixed-size ring that counts what it threw away.
@@ -79,7 +79,7 @@ function truncate(value: string, max: number): string {
 }
 
 /** Chromium's four levels; anything else is treated as ordinary output. */
-function consoleLevel(raw: unknown): BbDesktopBrowserConsoleEntry["level"] {
+function consoleLevel(raw: unknown): PatcherDesktopBrowserConsoleEntry["level"] {
   return raw === "debug" || raw === "warning" || raw === "error" ? raw : "info";
 }
 
@@ -94,17 +94,17 @@ export interface BrowserConsoleMessageDetails {
 export function toBrowserConsoleEntry(
   details: BrowserConsoleMessageDetails,
   now: number,
-): BbDesktopBrowserConsoleEntry {
+): PatcherDesktopBrowserConsoleEntry {
   const line = details.lineNumber;
   return {
     level: consoleLevel(details.level),
     text: truncate(
       typeof details.message === "string" ? details.message : "",
-      BB_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_CONSOLE_TEXT_LENGTH,
     ),
     source: truncate(
       typeof details.sourceId === "string" ? details.sourceId : "",
-      BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
     ),
     line:
       typeof line === "number" && Number.isFinite(line) && line > 0
@@ -128,7 +128,7 @@ export interface BrowserNetworkRequestDetails {
 export function toBrowserNetworkEntry(
   details: BrowserNetworkRequestDetails,
   now: number,
-): BbDesktopBrowserNetworkEntry {
+): PatcherDesktopBrowserNetworkEntry {
   const status = details.statusCode;
   const timestamp = details.timestamp;
   // A `webRequest` error string is the raw `net::ERR_*` name. Left as it is:
@@ -142,7 +142,7 @@ export function toBrowserNetworkEntry(
     ),
     url: truncate(
       typeof details.url === "string" ? details.url : "",
-      BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
+      PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
     ),
     resourceType: truncate(
       typeof details.resourceType === "string" ? details.resourceType : "other",
@@ -156,7 +156,7 @@ export function toBrowserNetworkEntry(
     error:
       error.length === 0
         ? null
-        : truncate(error, BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+        : truncate(error, PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
     timestamp:
       typeof timestamp === "number" && Number.isFinite(timestamp) && timestamp > 0
         ? Math.floor(timestamp)

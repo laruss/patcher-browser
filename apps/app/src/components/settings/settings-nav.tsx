@@ -1,5 +1,5 @@
 import { matchPath, useLocation } from "react-router-dom";
-import type { IconName } from "@bb/shared-ui/icon";
+import type { IconName } from "@patcher/shared-ui/icon";
 import {
   usePluginList,
   type PluginListItem,

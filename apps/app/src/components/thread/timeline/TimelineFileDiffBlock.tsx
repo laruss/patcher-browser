@@ -1,11 +1,11 @@
 import { memo, useMemo } from "react";
 import { parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs";
-import type { TimelineFileChange } from "@bb/server-contract";
+import type { TimelineFileChange } from "@patcher/server-contract";
 import {
   getFileChangeAction,
   isPatchMetadataLine,
   type FileChangeAction,
-} from "@bb/thread-view";
+} from "@patcher/thread-view";
 import { GitDiffCard } from "../../git-diff/GitDiffCard.js";
 import { EventCodeBlock } from "../../ui/event-code-block.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";

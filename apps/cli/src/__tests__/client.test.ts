@@ -11,9 +11,9 @@ describe("cliFetch", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const init = { headers: { "content-type": "application/json" } };
-    await cliFetch("http://127.0.0.1:38886/api/v1/threads", init);
+    await cliFetch("http://127.0.0.1:38986/api/v1/threads", init);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:38886/api/v1/threads",
+      "http://127.0.0.1:38986/api/v1/threads",
       init,
     );
   });

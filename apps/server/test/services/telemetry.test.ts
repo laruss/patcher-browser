@@ -1,7 +1,7 @@
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULTS } from "@bb/config/defaults";
+import { DEFAULTS } from "@patcher/config/defaults";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTelemetryService,
@@ -22,7 +22,7 @@ describe("telemetry service", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    dataDir = await mkdtemp(join(tmpdir(), "bb-telemetry-test-"));
+    dataDir = await mkdtemp(join(tmpdir(), "patcher-telemetry-test-"));
     fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
   });

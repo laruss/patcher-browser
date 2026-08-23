@@ -1,11 +1,11 @@
 import { useState } from "react";
-import type { Host } from "@bb/domain";
+import type { Host } from "@patcher/domain";
 import type {
   CliSkillMachineStatus,
   SystemCliSkillsStatusResponse,
   SystemInstallCliSkillsResponse,
-} from "@bb/server-contract";
-import { Button } from "@bb/shared-ui/button";
+} from "@patcher/server-contract";
+import { Button } from "@patcher/shared-ui/button";
 import {
   SettingsSection,
   SettingsWithControl,
@@ -16,7 +16,7 @@ import { useInstallCliSkills } from "@/hooks/mutations/settings-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useCliSkillsStatus } from "@/hooks/queries/system-queries";
 
-const CLI_SKILLS_SETTING_LABEL = "bb CLI skills";
+const CLI_SKILLS_SETTING_LABEL = "Patcher CLI skills";
 
 export interface CliSkillsSettingsSectionContentProps {
   /** False while no machine is connected, so nothing could receive the files. */
@@ -29,7 +29,7 @@ export interface CliSkillsSettingsSectionContentProps {
 
 function installDescription(hasConnectedMachine: boolean): string {
   return hasConnectedMachine
-    ? "Install them into ~/.agents/skills and ~/.claude/skills so agents outside bb can use the bb CLI."
+    ? "Install them into ~/.agents/skills and ~/.claude/skills so agents outside Patcher can use the Patcher CLI."
     : "Connect a machine to install them into ~/.agents/skills and ~/.claude/skills.";
 }
 
@@ -96,7 +96,7 @@ export function reportInstallResults(
   const failed = result.results.filter((entry) => !entry.ok);
   if (installed.length > 0) {
     appToast.success(
-      `Installed the bb CLI skills on ${installed
+      `Installed the Patcher CLI skills on ${installed
         .map((entry) => entry.hostName)
         .join(", ")}`,
     );
@@ -115,9 +115,9 @@ function statusByHostId(
 }
 
 /**
- * Publish bb's built-in CLI skills to chosen machines' global agent skill roots
- * so agents running outside bb can drive it. Gated on a connected machine, not
- * on whether this browser can reach a daemon itself (it cannot when bb is open
+ * Publish Patcher's built-in CLI skills to chosen machines' global agent skill roots
+ * so agents running outside Patcher can drive it. Gated on a connected machine, not
+ * on whether this browser can reach a daemon itself (it cannot when Patcher is open
  * remotely) — the install runs server-side over each machine's daemon session.
  */
 export function CliSkillsSettingsSection() {

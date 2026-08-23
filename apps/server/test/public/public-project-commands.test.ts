@@ -1,12 +1,12 @@
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   DiscoveredSkill,
   HostProviderCommand,
   HostDaemonOnlineRpcRequestMessage,
-} from "@bb/host-daemon-contract";
-import { commandListResponseSchema } from "@bb/server-contract";
+} from "@patcher/host-daemon-contract";
+import { commandListResponseSchema } from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import { registerHostRpcResponder } from "../helpers/host-rpc.js";
 import { readJson } from "../helpers/json.js";
@@ -144,7 +144,7 @@ describe("public project command typeahead route", () => {
         });
         expect(stub.skillRequests[0]?.command).toEqual({
           type: "host.list_skills",
-          providerId: "bb-shared",
+          providerId: "patcher-shared",
           cwd: "/tmp/shared-skills",
           nativeSkillRoots: {
             user: [".agents/skills"],
@@ -395,10 +395,10 @@ describe("public project command typeahead route", () => {
     });
   });
 
-  it("keeps inherited bb skill roots out of provider-native discovery", async () => {
+  it("keeps inherited patcher skill roots out of provider-native discovery", async () => {
     await withTestHarness(
       {
-        inheritedSkillsRootPaths: ["/tmp/bb-parent-skills"],
+        inheritedSkillsRootPaths: ["/tmp/patcher-parent-skills"],
       },
       async (harness) => {
         const { host, session } = seedHostSession(harness.deps, {
@@ -523,7 +523,9 @@ describe("public project command typeahead route", () => {
       const stub = registerCommandRpc(harness, {
         hostId: host.id,
         sessionId: session.id,
-        commands: [skill("bb-cli", "user", { description: "Use the bb CLI" })],
+        commands: [
+          skill("patcher-cli", "user", { description: "Use the Patcher CLI" }),
+        ],
       });
 
       const response = await harness.app.request(
@@ -534,7 +536,7 @@ describe("public project command typeahead route", () => {
       const body = commandListResponseSchema.parse(await readJson(response));
       expect(body.commands.map((command) => command.name)).toEqual([
         "compact",
-        "bb-cli",
+        "patcher-cli",
       ]);
       expect(stub.requests[0]?.command).toEqual({
         type: "host.list_commands",

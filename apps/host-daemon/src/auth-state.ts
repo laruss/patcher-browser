@@ -5,7 +5,7 @@ import {
   hostAuthStateSchema,
   normalizeServerUrl,
   type HostAuthState,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 function getAuthStatePath(dataDir: string): string {
   return path.join(dataDir, HOST_AUTH_FILE_NAME);

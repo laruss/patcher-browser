@@ -10,8 +10,8 @@ import {
   isAcpProviderId,
   isAgentProviderId,
   listBuiltInAgentProviderInfos,
-} from "@bb/agent-providers";
-import type { ProviderInfo } from "@bb/domain";
+} from "@patcher/agent-providers";
+import type { ProviderInfo } from "@patcher/domain";
 import { createAcpProviderAdapter } from "./acp/adapter.js";
 import {
   acpProfileFromLaunchSpec,
@@ -40,7 +40,7 @@ interface BuiltInProviderDescriptor {
 const builtInProviders = [
   {
     // Codex app-server events already carry Codex-owned turn ids; the
-    // runtime-generated prefix is only for adapters that synthesize bb turn ids.
+    // runtime-generated prefix is only for adapters that synthesize Patcher turn ids.
     createAdapter: (options) => createCodexProviderAdapter(options),
     info: getBuiltInAgentProviderInfo("codex"),
   },

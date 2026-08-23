@@ -2,7 +2,7 @@ import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ThreadEvent } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
 import { createAgentRuntimeWithAdapters } from "./runtime.js";
 import { fakeProviderScriptPath } from "./test/index.js";
 import type { AgentRuntime } from "./types.js";
@@ -54,7 +54,7 @@ describe("createAgentRuntime multi-thread routing", () => {
   let scriptPath: string;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "bb-runtime-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "patcher-runtime-test-"));
     scriptPath = fakeProviderScriptPath;
   });
 
@@ -222,7 +222,7 @@ describe("createAgentRuntime multi-thread routing", () => {
     await runtime.shutdown();
   });
 
-  it("stamps all events with bb threadId and providerThreadId", async () => {
+  it("stamps all events with Patcher threadId and providerThreadId", async () => {
     const events: ThreadEvent[] = [];
     const runtime = createAgentRuntimeWithAdapters({
       workspacePath: tmpDir,
@@ -254,7 +254,7 @@ describe("createAgentRuntime multi-thread routing", () => {
       threadId: "my-thread",
     });
 
-    // Every event with a threadId should have the bb threadId, not the provider's
+    // Every event with a threadId should have the Patcher threadId, not the provider's
     const threadEvents = events.filter((e) => "threadId" in e);
     expect(threadEvents.length).toBeGreaterThan(0);
     for (const e of threadEvents) {

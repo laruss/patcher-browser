@@ -3,26 +3,26 @@
  * ./plugin-callbacks.ts.
  *
  * That file names what the server calls in a plugin and found three shapes
- * that could not cross. This one names what the plugin calls on `bb`, for the
+ * that could not cross. This one names what the plugin calls on `patcher`, for the
  * same reason and with the same discipline: the boundary is easier to build
  * from a list than to discover one refusal at a time.
  *
  * Two parts of the surface are deliberately absent, because they already cross
  * and do not belong to this transport:
  *
- * - `bb.sdk` is a loopback HTTP client that identifies itself
+ * - `patcher.sdk` is a loopback HTTP client that identifies itself
  *   (./plugin-api-identity.ts). A plugin in another process makes the same
  *   requests to the same port; nothing about it changes.
- * - `bb.browser`'s six command namespaces are one serialisable command union on
+ * - `patcher.browser`'s six command namespaces are one serialisable command union on
  *   a message bus already. They appear here as a single entry rather than
  *   ~40 near-identical ones; the per-command list that matters is
- *   `permissionForBrowserCommand` in @bb/domain.
+ *   `permissionForBrowserCommand` in @patcher/domain.
  *
  * What is left is the part with no described shape yet, and it has its own
  * obstacles — recorded as `argsCross: false` with a `note`, exactly as the
  * callback catalogue records its own.
  *
- * **Nothing here changes how a call runs today.** `bb` is still the in-process
+ * **Nothing here changes how a call runs today.** `patcher` is still the in-process
  * object; this is the description a transport will implement.
  */
 
@@ -81,12 +81,12 @@ export interface PluginHostCallShape {
 
 /**
  * The complete set, keyed by the path a transport would route on —
- * `bb.storage.kv.get` is `"storage.kv.get"`.
+ * `patcher.storage.kv.get` is `"storage.kv.get"`.
  *
  * The keys are exact paths rather than a nested shape because that is what a
  * message carries. `settings.<handle>.*` is the one exception: those members
  * exist only on the object `settings.define` returns, so they have no path on
- * `bb` and the placeholder segment says so.
+ * `patcher` and the placeholder segment says so.
  */
 export const PLUGIN_HOST_CALLS = {
   // -- Identity and facts ---------------------------------------------------
@@ -295,7 +295,7 @@ export const PLUGIN_HOST_CALLS = {
     argsCross: true,
     resultCrosses: true,
     callbacks: ["uiCommand"],
-    note: "A command of the plugin's own rather than a rebinding of one of bb's, so the chord and the title cross with the registration and the press comes back as a callback. Context-free by design — what the command reads, it reads through the gated browser calls.",
+    note: "A command of the plugin's own rather than a rebinding of one of Patcher's, so the chord and the title cross with the registration and the press comes back as a callback. Context-free by design — what the command reads, it reads through the gated browser calls.",
   },
   "browser.registerNewTabWidget": {
     category: "register",
@@ -339,14 +339,14 @@ export const PLUGIN_HOST_CALLS = {
     argsCross: true,
     resultCrosses: true,
     synchronousHostState: true,
-    note: "Synchronous, because a plugin reads it from `bb.agents.configure()` which cannot await. The plugin process holds a pushed copy rather than asking. Safe to be stale: it reports only whether a browser window is connected, and every command through it already fails with BrowserHostUnavailableError when one is not.",
+    note: "Synchronous, because a plugin reads it from `patcher.agents.configure()` which cannot await. The plugin process holds a pushed copy rather than asking. Safe to be stale: it reports only whether a browser window is connected, and every command through it already fails with BrowserHostUnavailableError when one is not.",
   },
   "browser.<command>": {
     category: "call",
     argsCross: true,
     resultCrosses: true,
     cancellable: true,
-    note: "Stands for every method under browser.tabs / page / navigation / storage / control / recording. One entry because they are one thing: a `BrowserCommand` union already travelling over a message bus to the app window. The per-command list is `permissionForBrowserCommand` in @bb/domain, which is also what gates them.",
+    note: "Stands for every method under browser.tabs / page / navigation / storage / control / recording. One entry because they are one thing: a `BrowserCommand` union already travelling over a message bus to the app window. The per-command list is `permissionForBrowserCommand` in @patcher/domain, which is also what gates them.",
   },
 
   // -- Events, status, hosts ------------------------------------------------
@@ -360,18 +360,6 @@ export const PLUGIN_HOST_CALLS = {
     category: "notify",
     argsCross: true,
     resultCrosses: true,
-  },
-  "hosts.ensureSharedPortTunnel": {
-    category: "call",
-    argsCross: true,
-    resultCrosses: true,
-  },
-  "hosts.declareSharedPorts": {
-    category: "notify",
-    argsCross: true,
-    resultCrosses: true,
-    synchronousHostState: true,
-    note: "The arguments cross fine; the check does not. `validateSharedPortDeclaration` consults the host's shared-port control plane and the member returns void, so a plugin cannot await a rejection. Unlike the other two this one must not be answered from a pushed copy — it is a policy decision, not a fact — so the host validates what it is told and a refusal reaches the plugin as a log line instead of a throw. That is a real behaviour change and the one place this boundary is not transparent.",
   },
   onDispose: {
     category: "register",

@@ -61,7 +61,7 @@ function pluginSiteInfoHost(url: string): string {
 
 /**
  * A picked tab-menu entry. The URL and title came from a page, so both are
- * capped; a null url is a bb screen rather than a web page, which is what tells
+ * capped; a null url is a Patcher screen rather than a web page, which is what tells
  * an action the two kinds apart.
  */
 const pluginTabActionInvokeSchema = z
@@ -79,7 +79,7 @@ const pluginTabActionInvokeSchema = z
 
 /**
  * A pressed toolbar control. Unlike a tab action, the url is not nullable: the
- * toolbar is not drawn over bb's own screens, so a press without a page is a
+ * toolbar is not drawn over Patcher's own screens, so a press without a page is a
  * client that has invented one.
  */
 const pluginToolbarInvokeSchema = z
@@ -143,7 +143,7 @@ const pluginBrowserPdfDocumentSchema = z
   .strict();
 
 /**
- * A link the system handed bb because it is the user's default browser. Capped
+ * A link the system handed Patcher because it is the user's default browser. Capped
  * like the rest, and validated as its own schema rather than borrowed from the
  * desktop contract: the server does not depend on that boundary, and the route
  * has to defend itself against any caller.
@@ -185,12 +185,12 @@ import {
   pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
   pluginUpdateCheckRequestSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 
 /** The slice of server deps the "local" auth checks need (origin allowlist). */
 export interface PluginRoutesDeps {
   config: Pick<ServerRuntimeConfig, "serverPort" | "appUrl" | "devAppPort">;
-  db: import("@bb/db").DbConnection;
+  db: import("@patcher/db").DbConnection;
 }
 
 type WireAuthProblem = BrowserRequestProblem | { status: 401; error: string };
@@ -276,10 +276,10 @@ function parsePluginMentionTrigger(
 }
 
 /**
- * "local" auth (design §4.6): the request must come from the BB app itself.
+ * "local" auth (design §4.6): the request must come from the Patcher app itself.
  * The load-bearing CSRF defense is the JSON-only rule below — a cross-origin
  * JSON POST always triggers a CORS preflight, which the server's allowlist
- * denies. The shared Origin check also tolerates BB being served over
+ * denies. The shared Origin check also tolerates Patcher being served over
  * LAN/Tailscale addresses the server cannot enumerate, but only when the
  * origin hostname is bound to the request hostname.
  */
@@ -304,14 +304,14 @@ function timingSafeEqualStrings(a: string, b: string): boolean {
   return bufferA.length === bufferB.length && timingSafeEqual(bufferA, bufferB);
 }
 
-/** "token" auth: x-bb-plugin-token header or ?token= must match the plugin's secret. */
+/** "token" auth: x-patcher-plugin-token header or ?token= must match the plugin's secret. */
 async function tokenAuthProblem(
   context: Context,
   plugins: PluginService,
   id: string,
 ): Promise<WireAuthProblem | null> {
   const presented =
-    context.req.header("x-bb-plugin-token") ?? context.req.query("token");
+    context.req.header("x-patcher-plugin-token") ?? context.req.query("token");
   const expected = await plugins.httpToken(id);
   if (
     expected === undefined ||
@@ -321,8 +321,8 @@ async function tokenAuthProblem(
     return {
       status: 401,
       error:
-        'missing or invalid plugin token — send it as the "x-bb-plugin-token" header ' +
-        "or ?token=; print it with `bb plugin token " +
+        'missing or invalid plugin token — send it as the "x-patcher-plugin-token" header ' +
+        "or ?token=; print it with `patcher plugin token " +
         `${id}\``,
     };
   }
@@ -355,7 +355,7 @@ export function registerPluginRoutes(
 
   app.get("/plugins", (context) => context.json({ plugins: plugins.list() }));
 
-  // Fast metadata for the bb CLI's help/proxy path and the app's
+  // Fast metadata for the Patcher CLI's help/proxy path and the app's
   // host-rendered UI contributions: no plugin code runs; empty (not an
   // error) while the experiment is off.
   app.get("/plugins/contributions", (context) =>
@@ -761,7 +761,7 @@ export function registerPluginRoutes(
   // the same local-origin guard as the rest, and is registered before the
   // /plugins/:id/* routes so "browser" cannot be captured as a plugin id.
   //
-  // The app reports; it does not ask. bb has already written the file and told
+  // The app reports; it does not ask. Patcher has already written the file and told
   // the user, so a failure here costs the hand-over and nothing else — which is
   // why the response says how many handlers ran rather than what they did.
   app.post("/plugins/browser/downloads", async (context) => {
@@ -785,13 +785,13 @@ export function registerPluginRoutes(
     return context.json({ ok: true, handlerCount });
   });
 
-  // Proxied `bb <plugin-command>` / `bb plugin run` invocation (design §4.4).
+  // Proxied `patcher <plugin-command>` / `patcher plugin run` invocation (design §4.4).
   // Dispatch problems come back as { exitCode: 1, stderr } rather than HTTP
   // errors so the CLI can uniformly print stderr and exit with exitCode.
   app.post("/plugins/:id/cli", async (context) => {
     // Same local-origin/CSRF guard as the rpc dispatcher: this route executes
     // plugin code with full server capabilities, so a cross-origin simple
-    // POST must not reach it. The bb CLI sends application/json from
+    // POST must not reach it. The Patcher CLI sends application/json from
     // loopback, which passes.
     const authProblem = localAuthProblem(context, deps);
     if (authProblem) {
@@ -1089,7 +1089,7 @@ export function registerPluginRoutes(
     return context.json({ ok: true, token });
   });
 
-  // Boot-time dispatcher for bb.http routes (design §4.6): Hono routes
+  // Boot-time dispatcher for patcher.http routes (design §4.6): Hono routes
   // cannot be added or removed after boot, so one wildcard route dispatches
   // through the live per-plugin route table (exact method+path match).
   app.all("/plugins/:id/http/*", async (context) => {
@@ -1147,7 +1147,7 @@ export function registerPluginRoutes(
     return plugins.invokeHttpRoute(id, fresh.value, context);
   });
 
-  // bb.rpc dispatcher (design §4.6): always "local" auth semantics —
+  // patcher.rpc dispatcher (design §4.6): always "local" auth semantics —
   // JSON-only body plus the Origin/Host check.
   app.post("/plugins/:id/rpc/:method", async (context) => {
     const id = context.req.param("id");

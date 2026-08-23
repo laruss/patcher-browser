@@ -4,12 +4,15 @@ import {
   listTerminalSessions,
   updateTerminalSession,
   updateTerminalSessions,
-} from "@bb/db";
-import type { EnvironmentStatus, TerminalSessionCloseReason } from "@bb/domain";
+} from "@patcher/db";
+import type {
+  EnvironmentStatus,
+  TerminalSessionCloseReason,
+} from "@patcher/domain";
 import {
   hostDaemonServerWsMessageSchema,
   type HostDaemonServerWsMessage,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   apiErrorSchema,
   terminalListResponseSchema,
@@ -17,7 +20,7 @@ import {
   terminalOutputResponseSchema,
   type TerminalServerMessage,
   terminalSessionSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readJson } from "../helpers/json.js";
 import {
@@ -628,7 +631,7 @@ describe("public terminal routes", () => {
       kind: "host_path",
       cwd: null,
     });
-    acknowledgeTerminalOpen(fixture, openMessage, "/home/bb");
+    acknowledgeTerminalOpen(fixture, openMessage, "/home/patcher");
 
     const response = await responsePromise;
     expect(response.status).toBe(201);
@@ -636,7 +639,7 @@ describe("public terminal routes", () => {
       {
         environmentId: null,
         hostId: fixture.host.id,
-        initialCwd: "/home/bb",
+        initialCwd: "/home/patcher",
         threadId: null,
         status: "running",
       },
@@ -1290,12 +1293,7 @@ describe("public terminal routes", () => {
       socket: replacementSocket,
     });
 
-    expect(await waitForDaemonMessage(replacementSocket)).toEqual({
-      type: "connect-shares.replace",
-      generation: 0,
-      ports: [],
-    });
-    const closeMessage = await waitForDaemonMessage(replacementSocket, 1);
+    const closeMessage = await waitForDaemonMessage(replacementSocket);
     expect(closeMessage).toMatchObject({
       type: "terminal.close",
       terminalId: stored.id,
@@ -1368,12 +1366,7 @@ describe("public terminal routes", () => {
       socket: replacementSocket,
     });
 
-    expect(await waitForDaemonMessage(replacementSocket)).toEqual({
-      type: "connect-shares.replace",
-      generation: 0,
-      ports: [],
-    });
-    const closeMessage = await waitForDaemonMessage(replacementSocket, 1);
+    const closeMessage = await waitForDaemonMessage(replacementSocket);
     expect(closeMessage).toMatchObject({
       type: "terminal.close",
       terminalId: stored.id,
@@ -1827,13 +1820,8 @@ describe("public terminal routes", () => {
       socket: replacementSocket,
     });
 
-    expect(await waitForDaemonMessage(replacementSocket)).toEqual({
-      type: "connect-shares.replace",
-      generation: 0,
-      ports: [],
-    });
     await expect(
-      waitForDaemonMessage(replacementSocket, 1),
+      waitForDaemonMessage(replacementSocket),
     ).resolves.toMatchObject({
       type: "terminal.close",
       terminalId: stored.id,

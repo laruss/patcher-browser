@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CreateThreadEnvironmentArgs } from "@bb/server-contract";
+import type { CreateThreadEnvironmentArgs } from "@patcher/server-contract";
 import { resolveRootComposeThreadEnvironment } from "@/views/root-compose-thread-environment";
 import { newThreadEnvironmentArgsToSeed } from "./new-thread-environment-seed";
 

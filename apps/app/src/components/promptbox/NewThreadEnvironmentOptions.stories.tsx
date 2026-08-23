@@ -63,7 +63,7 @@ function EnvironmentOptionsStrip({
   worktreeValue = null,
 }: EnvironmentOptionsStripProps) {
   const [projectValue, setProjectValue] = useState<string | null>(
-    project?.value ?? PROJECT_IDS.bb,
+    project?.value ?? PROJECT_IDS.patcher,
   );
   const environmentValue = environment?.value ?? `host:${HOST_IDS.local}:local`;
   const showWorktreePicker = environmentValue === "reuse";

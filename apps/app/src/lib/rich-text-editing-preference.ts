@@ -1,7 +1,8 @@
 import { useAtom } from "jotai";
 import { createBooleanPreferenceAtom } from "./browser-storage";
 
-export const RICH_TEXT_EDITING_STORAGE_KEY = "bb.promptbox.rich-text-editing";
+export const RICH_TEXT_EDITING_STORAGE_KEY =
+  "patcher.promptbox.rich-text-editing";
 
 /**
  * Default OFF: the prompt box behaves as a plain-text editor. When ON, typing

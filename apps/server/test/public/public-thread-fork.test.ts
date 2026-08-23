@@ -1,6 +1,9 @@
-import { ensurePersonalProject, getThread, listEvents } from "@bb/db";
-import { PERSONAL_PROJECT_ID, turnRequestEventDataSchema } from "@bb/domain";
-import { threadResponseSchema } from "@bb/server-contract";
+import { ensurePersonalProject, getThread, listEvents } from "@patcher/db";
+import {
+  PERSONAL_PROJECT_ID,
+  turnRequestEventDataSchema,
+} from "@patcher/domain";
+import { threadResponseSchema } from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import {
   reportQueuedCommandSuccess,

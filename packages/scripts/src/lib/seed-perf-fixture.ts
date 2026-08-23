@@ -8,7 +8,7 @@ import {
   threadSearchSegments,
   threads,
   type DbConnection,
-} from "@bb/db";
+} from "@patcher/db";
 
 export interface SeedPerfFixtureOptions {
   /** Host id the seeded environments attach to. */
@@ -919,7 +919,7 @@ export function seedPerfFixture(
           managed: true,
           isGitRepo: true,
           isWorktree: true,
-          branchName: `bb/${title
+          branchName: `patcher/${title
             .toLowerCase()
             .slice(0, 24)
             .replace(/[^a-z0-9]+/gu, "-")}-${threadId}`,

@@ -7,7 +7,7 @@ import {
   formatPendingInteractionSummary,
   formatPendingInteractionUserQuestionOptionLabel,
   summarizePendingInteractionRequestedPermissions,
-} from "@bb/core-ui";
+} from "@patcher/core-ui";
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
@@ -24,9 +24,9 @@ import {
   PendingInteractionResolution,
   type UserQuestionPendingInteractionPayload,
   type UserQuestionPendingInteractionResolution,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import { renderBorderlessTable } from "../../table.js";
 import {
   outputJson,
@@ -317,7 +317,7 @@ function printInteraction(interaction: PendingInteraction): void {
 async function fetchInteraction(
   args: FetchInteractionArgs,
 ): Promise<PendingInteraction> {
-  const sdk = createCliBbSdk(args.getUrl());
+  const sdk = createCliPatcherSdk(args.getUrl());
   return sdk.threads.interactions.get({
     interactionId: args.interactionId,
     threadId: args.threadId,
@@ -549,7 +549,7 @@ async function resolveInteraction(args: ResolveInteractionArgs): Promise<void> {
     threadId: args.threadId,
   });
   const resolution = args.buildResolution(interaction);
-  const sdk = createCliBbSdk(args.getUrl());
+  const sdk = createCliPatcherSdk(args.getUrl());
   const updated = await sdk.threads.interactions
     .resolve({
       interactionId: args.interactionId,
@@ -611,7 +611,7 @@ function buildBinaryResolution(
     approvalInteraction.payload.subject.kind === "permission_grant"
   ) {
     throw new Error(
-      `Interaction ${interaction.id} is a permission grant; use bb thread interactions grant.`,
+      `Interaction ${interaction.id} is a permission grant; use patcher thread interactions grant.`,
     );
   }
   const decision = pickApprovalDecision(approvalInteraction, action);
@@ -680,7 +680,7 @@ export function registerInteractionCommands(
   interactions
     .command("list [id]")
     .description("List interactions for a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(
@@ -689,7 +689,7 @@ export function registerInteractionCommands(
           opts: ThreadInteractionTargetOptions,
         ) => {
           const threadId = requireThreadIdOrSelf(id, opts);
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
 
           const items = await sdk.threads.interactions.list({
             threadId,
@@ -729,7 +729,7 @@ export function registerInteractionCommands(
   interactions
     .command("show <interactionId> [id]")
     .description("Show an interaction")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(
@@ -758,7 +758,7 @@ export function registerInteractionCommands(
     .description(
       "Approve a command, file-change, or plan interaction for this turn",
     )
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(
@@ -790,7 +790,7 @@ export function registerInteractionCommands(
   interactions
     .command("grant <interactionId> [id]")
     .description("Grant a permission interaction")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .option("--scope <scope>", "Grant scope: turn or session")
     .action(
@@ -824,7 +824,7 @@ export function registerInteractionCommands(
   interactions
     .command("answer <interactionId> [id]")
     .description("Answer a user-question interaction")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .option(
       "--choice <questionId=value>",
@@ -871,7 +871,7 @@ export function registerInteractionCommands(
   interactions
     .command("deny <interactionId> [id]")
     .description("Deny a command, file-change, plan, or permission interaction")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(

@@ -15,14 +15,14 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from "@bb/shared-ui/dialog";
-import { Button } from "@bb/shared-ui/button";
+} from "@patcher/shared-ui/dialog";
+import { Button } from "@patcher/shared-ui/button";
 import { CopyButton } from "./copy-button.js";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import { loadMermaid } from "./markdown-mermaid-loader.js";
 import { useAppThemeEpoch } from "@/hooks/useAppTheme";
 import type { Theme } from "@/hooks/useTheme";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 export interface MarkdownMermaidDiagramProps {
   preferredTheme: Theme;
@@ -209,7 +209,7 @@ type MermaidDiagramContainerProps = ComponentPropsWithoutRef<"div">;
 type MermaidDiagramPointerHandler = PointerEventHandler<HTMLDivElement>;
 
 const MERMAID_THEME: MermaidTheme = "base";
-const MERMAID_RENDER_ID_PREFIX = "bb-mermaid";
+const MERMAID_RENDER_ID_PREFIX = "patcher-mermaid";
 const MERMAID_RENDER_ID_SAFE_CHARACTER_PATTERN = /[^a-zA-Z0-9_-]/gu;
 const MERMAID_DIAGRAM_MIN_SCALE = 0.5;
 const MERMAID_DIAGRAM_MAX_SCALE = 4;

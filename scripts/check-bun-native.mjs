@@ -54,7 +54,7 @@ function checkSqlite() {
     );
     record("require", "ok", typeof Database);
 
-    dir = mkdtempSync(join(tmpdir(), "bb-native-check-"));
+    dir = mkdtempSync(join(tmpdir(), "patcher-native-check-"));
     const db = new Database(join(dir, "probe.db"));
     record(
       "open + WAL",
@@ -89,7 +89,7 @@ function checkSqlite() {
 
 async function checkPty() {
   console.log("node-pty");
-  const marker = join(tmpdir(), `bb-native-check-pty-${process.pid}.txt`);
+  const marker = join(tmpdir(), `patcher-native-check-pty-${process.pid}.txt`);
   rmSync(marker, { force: true });
   let term;
   try {

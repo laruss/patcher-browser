@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
-  BbDesktopBrowserApi,
-  BbDesktopBrowserCaptureFullPageResult,
-  BbDesktopBrowserInteractResult,
-  BbDesktopBrowserObserveResult,
-  BbDesktopBrowserPageReadResult,
-  BbDesktopBrowserSnapshotResult,
-  BbDesktopBrowserState,
-  BbDesktopBrowserControlResult,
-  BbDesktopBrowserRecordResult,
-  BbDesktopBrowserStorageResult,
-} from "@bb/desktop-contract";
-import type { BrowserCommandOutcome } from "@bb/domain";
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserCaptureFullPageResult,
+  PatcherDesktopBrowserInteractResult,
+  PatcherDesktopBrowserObserveResult,
+  PatcherDesktopBrowserPageReadResult,
+  PatcherDesktopBrowserSnapshotResult,
+  PatcherDesktopBrowserState,
+  PatcherDesktopBrowserControlResult,
+  PatcherDesktopBrowserRecordResult,
+  PatcherDesktopBrowserStorageResult,
+} from "@patcher/desktop-contract";
+import type { BrowserCommandOutcome } from "@patcher/domain";
 import { createBrowserFixedPanelTab } from "../fixed-panel-tabs-state";
 import {
   EMPTY_BROWSER_SURFACE_TABS_STATE,
@@ -37,8 +37,8 @@ function tab(id: string, url = "", title: string | null = null) {
 
 function liveState(
   tabId: string,
-  overrides: Partial<BbDesktopBrowserState> = {},
-): BbDesktopBrowserState {
+  overrides: Partial<PatcherDesktopBrowserState> = {},
+): PatcherDesktopBrowserState {
   return {
     tabId,
     url: "https://example.com/",
@@ -53,28 +53,28 @@ function liveState(
 
 interface HarnessArgs {
   state?: BrowserSurfaceTabsState;
-  live?: Record<string, BbDesktopBrowserState>;
-  readPage?: BbDesktopBrowserPageReadResult;
+  live?: Record<string, PatcherDesktopBrowserState>;
+  readPage?: PatcherDesktopBrowserPageReadResult;
   omitReadPage?: boolean;
   resolvePdfText?: (args: {
     pageUrl: string;
     tabId: string;
     title: string | null;
   }) => Promise<string | null>;
-  snapshot?: BbDesktopBrowserSnapshotResult;
+  snapshot?: PatcherDesktopBrowserSnapshotResult;
   omitSnapshot?: boolean;
   omitSnapshotIn?: boolean;
-  interact?: BbDesktopBrowserInteractResult;
+  interact?: PatcherDesktopBrowserInteractResult;
   omitInteract?: boolean;
-  observe?: BbDesktopBrowserObserveResult;
+  observe?: PatcherDesktopBrowserObserveResult;
   omitObserve?: boolean;
-  captureFullPage?: BbDesktopBrowserCaptureFullPageResult;
+  captureFullPage?: PatcherDesktopBrowserCaptureFullPageResult;
   omitCaptureFullPage?: boolean;
-  storage?: BbDesktopBrowserStorageResult;
+  storage?: PatcherDesktopBrowserStorageResult;
   omitStorage?: boolean;
-  control?: BbDesktopBrowserControlResult;
+  control?: PatcherDesktopBrowserControlResult;
   omitControl?: boolean;
-  record?: BbDesktopBrowserRecordResult;
+  record?: PatcherDesktopBrowserRecordResult;
   omitRecord?: boolean;
   omitSetZoom?: boolean;
   omitSetMuted?: boolean;
@@ -285,7 +285,7 @@ function createHarness(args: HarnessArgs = {}) {
               },
             ),
         }),
-  } as unknown as BbDesktopBrowserApi;
+  } as unknown as PatcherDesktopBrowserApi;
 
   const deps: BrowserCommandDeps = {
     getState: () => state,
@@ -620,7 +620,7 @@ describe("executeBrowserCommand — page reads", () => {
   });
 
   it("translates each shell refusal into an actionable code", async () => {
-    const cases: Array<[BbDesktopBrowserPageReadResult, string]> = [
+    const cases: Array<[PatcherDesktopBrowserPageReadResult, string]> = [
       [{ ok: false, reason: "no-view" }, "tab_not_live"],
       [{ ok: false, reason: "no-page" }, "tab_not_live"],
       [{ ok: false, reason: "timeout" }, "page_read_timeout"],

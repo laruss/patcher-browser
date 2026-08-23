@@ -5,7 +5,7 @@ import type {
   ThreadTimelinePendingTodoItem,
   ThreadTimelinePendingTodoItemStatus,
   ThreadTimelinePendingTodos,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   claudeTaskCreateArgsSchema,
   claudeTaskCreateOutputSchema,
@@ -15,7 +15,7 @@ import {
   claudeTaskListOutputSchema,
   claudeTaskUpdateArgsSchema,
   claudeTaskUpdateOutputSchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { ThreadEventWithMeta } from "./build-event-projection.js";
 import { getOrderedThreadEvents } from "./group-event-projection-turns.js";
 

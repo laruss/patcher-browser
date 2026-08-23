@@ -88,7 +88,7 @@ describe("useBrowserSurfaceRouteSync", () => {
     const web = createBrowserSurfaceTab("https://example.com");
     const harness = renderSync({
       state: { activeTabId: web.id, tabs: [web] },
-      target: { path: "/plugins/helm/wiki", title: "BB" },
+      target: { path: "/plugins/helm/wiki", title: "Patcher" },
     });
 
     act(() => {

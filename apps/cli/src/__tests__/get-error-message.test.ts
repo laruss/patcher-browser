@@ -4,24 +4,24 @@ import { getErrorMessage } from "../commands/helpers.js";
 describe("getErrorMessage", () => {
   it("unwraps the cause chain so connect errors survive fetch failed", () => {
     const err = new TypeError("fetch failed", {
-      cause: new Error("connect EPERM 127.0.0.1:38886"),
+      cause: new Error("connect EPERM 127.0.0.1:38986"),
     });
 
     expect(getErrorMessage(err)).toBe(
-      "fetch failed: connect EPERM 127.0.0.1:38886",
+      "fetch failed: connect EPERM 127.0.0.1:38986",
     );
   });
 
   it("unwraps every connection error in an aggregate cause", () => {
     const err = new TypeError("fetch failed", {
       cause: new AggregateError([
-        new Error("connect EPERM ::1:38886"),
-        new Error("connect ECONNREFUSED 127.0.0.1:38886"),
+        new Error("connect EPERM ::1:38986"),
+        new Error("connect ECONNREFUSED 127.0.0.1:38986"),
       ]),
     });
 
     expect(getErrorMessage(err)).toBe(
-      "fetch failed: connect EPERM ::1:38886: connect ECONNREFUSED 127.0.0.1:38886",
+      "fetch failed: connect EPERM ::1:38986: connect ECONNREFUSED 127.0.0.1:38986",
     );
   });
 

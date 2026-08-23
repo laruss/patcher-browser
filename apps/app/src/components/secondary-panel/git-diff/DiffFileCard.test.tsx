@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DiffFileEntry } from "@bb/server-contract";
+import type { DiffFileEntry } from "@patcher/server-contract";
 import type {
   DiffFileContentsResult,
   RequestDiffFileContents,

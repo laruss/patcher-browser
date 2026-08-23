@@ -1,5 +1,5 @@
-import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import {
   usePluginContributions,
@@ -21,7 +21,7 @@ export interface BrowserNewTabPluginSectionsProps {
 }
 
 /**
- * Plugin sections on the new-tab screen (`browser.newTab.widgets`), after bb's
+ * Plugin sections on the new-tab screen (`browser.newTab.widgets`), after Patcher's
  * own recently-visited list.
  *
  * Rows are links the plugin already resolved, so clicking one navigates without

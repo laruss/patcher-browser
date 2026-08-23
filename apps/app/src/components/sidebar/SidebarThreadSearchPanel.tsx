@@ -1,15 +1,15 @@
 import { useEffect, useMemo } from "react";
-import type { ThreadListEntry } from "@bb/domain";
-import type { ThreadSearchMatch } from "@bb/server-contract";
+import type { ThreadListEntry } from "@patcher/domain";
+import type { ThreadSearchMatch } from "@patcher/server-contract";
 import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chromeStyleTokens";
 import {
   COARSE_POINTER_TEXT_SM_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+} from "@patcher/shared-ui/coarse-pointer-sizing";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import { useThreadSearch } from "@/hooks/queries/thread-queries";
 import { hasThreadSearchableQuery } from "@/hooks/queries/thread-queries";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   getSidebarThreadSearchOptionId,
   isSidebarThreadTitleMatch,

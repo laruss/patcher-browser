@@ -23,7 +23,7 @@ import {
   type DbConnection,
   type InstalledPluginRow,
   type PluginStateSnapshotRow,
-} from "@bb/db";
+} from "@patcher/db";
 
 const kvRowSchema = z.object({
   pluginId: z.string(),
@@ -156,7 +156,7 @@ export async function createPluginStateSnapshotOnDisk(args: {
     status: "pending",
     rollbackCandidateVersion: null,
     rollbackSourceFingerprint: null,
-    rollbackBbVersion: null,
+    rollbackPatcherVersion: null,
     rollbackSdkVersion: null,
     rollbackDetail: null,
     createdAt: args.now,
@@ -266,6 +266,10 @@ export async function readPluginSnapshotRegistration(args: {
   const installed = getInstalledPlugin(args.db, legacy.id);
   if (
     legacy.provenance === "marketplace" &&
+    // Not renamed: this is read out of a registration file an *older* build
+    // wrote, and the only build that ever wrote a `marketplace` provenance
+    // wrote `bb-official` with it. Renaming the literal makes the branch
+    // unreachable, which is not the same thing as removing it.
     marketplaceId === "bb-official" &&
     marketplaceEntryId !== null &&
     installed?.provenance === "catalog" &&

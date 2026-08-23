@@ -2,8 +2,8 @@ import {
   getEnvironment,
   getThread,
   requireThreadLifecycleEventApplied,
-} from "@bb/db";
-import type { DbConnection, DbTransaction } from "@bb/db";
+} from "@patcher/db";
+import type { DbConnection, DbTransaction } from "@patcher/db";
 import type {
   ClientTurnRequestId,
   Environment,
@@ -12,9 +12,9 @@ import type {
   Thread,
   ThreadTurnInitiator,
   TurnRequestTarget,
-} from "@bb/domain";
-import type { SendMessageRequest } from "@bb/server-contract";
-import { renderTemplate } from "@bb/templates";
+} from "@patcher/domain";
+import type { SendMessageRequest } from "@patcher/server-contract";
+import { renderTemplate } from "@patcher/templates";
 import type {
   AppDeps,
   LoggedPendingInteractionWorkSessionDeps,
@@ -254,7 +254,7 @@ export function resolveMessageSenderThreadId(
   }
   // Sender attribution is allowed across projects: the cross-thread message
   // template tells the receiving agent to reply via
-  // `bb thread tell {{senderThreadId}}`, which is how coordinator/worker
+  // `patcher thread tell {{senderThreadId}}`, which is how coordinator/worker
   // threads in different projects message each other. Existence and not-deleted
   // are still required so the reply target is a live thread.
 

@@ -6,12 +6,12 @@ import { ApiError } from "../../errors.js";
 import type { LoggedWorkSessionDeps, ServerLogger } from "../../types.js";
 import { callHostRetryableOnlineRpc } from "../hosts/online-rpc.js";
 
-/** Data-dir-relative path bb reads user agent instructions from. */
+/** Data-dir-relative path Patcher reads user agent instructions from. */
 export const DATA_DIR_AGENT_INSTRUCTIONS_RELATIVE_PATH = "AGENTS.md";
 
-/** Workspace-relative path bb reads project agent instructions from. */
+/** Workspace-relative path Patcher reads project agent instructions from. */
 export const WORKSPACE_AGENT_INSTRUCTIONS_RELATIVE_PATH = path.join(
-  ".bb",
+  ".patcher",
   "AGENTS.md",
 );
 
@@ -61,7 +61,7 @@ export function readDataDirAgentInstructions(
 }
 
 /**
- * Reads workspace-level agent instructions from `<workspacePath>/.bb/AGENTS.md`.
+ * Reads workspace-level agent instructions from `<workspacePath>/.patcher/AGENTS.md`.
  * Returns the trimmed contents, or `null` when the file is missing or empty.
  * Other host RPC failures propagate so an unavailable target host fails the
  * turn instead of silently dropping its workspace instructions.

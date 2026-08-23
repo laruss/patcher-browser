@@ -1,5 +1,5 @@
-import type { ThreadEvent } from "@bb/domain";
-import { turnScope } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
+import { turnScope } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   RuntimeThreadIdentityRegistry,
@@ -33,7 +33,7 @@ describe("RuntimeThreadIdentityRegistry", () => {
     expect(registry.resolveProviderForThread("thread-1")).toBe("codex");
     expect(registry.getProviderThreadId("thread-1")).toBe("provider-thread-1");
     expect(
-      registry.resolveBbThreadIdForProviderThread({
+      registry.resolvePatcherThreadIdForProviderThread({
         providerState,
         providerThreadId: "provider-thread-1",
       }),
@@ -128,7 +128,7 @@ describe("RuntimeThreadIdentityRegistry", () => {
     await expect(identityPromise).resolves.toBeNull();
   });
 
-  it("stamps projected events with the resolved bb thread id", () => {
+  it("stamps projected events with the resolved patcher thread id", () => {
     const event: ThreadEvent = {
       type: "turn/started",
       threadId: "provider-thread-1",

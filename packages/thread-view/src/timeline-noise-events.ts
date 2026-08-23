@@ -1,4 +1,4 @@
-import type { ThreadEventType } from "@bb/domain";
+import type { ThreadEventType } from "@patcher/domain";
 
 /**
  * Event types a timeline window must not spend anything on: none of them

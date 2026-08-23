@@ -4,7 +4,7 @@ import {
   ResourcePagination,
   useResourcePagination,
   useResourceViewportPageSize,
-} from "@bb/shared-ui/resource-pagination";
+} from "@patcher/shared-ui/resource-pagination";
 import {
   ResourceCollectionPage,
   ResourceCollectionViewport,
@@ -13,7 +13,7 @@ import {
   ResourceSortMenu,
   ResourceToolbar,
   type ResourceCollectionMode,
-} from "@bb/shared-ui/resource-list";
+} from "@patcher/shared-ui/resource-list";
 import {
   CREATE_PLUGIN_PROMPT,
   CreateWithTemplatesButton,
@@ -37,20 +37,20 @@ import {
 type PluginsCollectionMode = "installed" | "browse";
 
 /** Where an installed plugin came from, as the collection filter presents it. */
-type PluginTypeFilter = "bb-official" | "user";
+type PluginTypeFilter = "patcher-official" | "user";
 
 const PLUGIN_TYPE_FILTERS: readonly PluginTypeFilter[] = [
-  "bb-official",
+  "patcher-official",
   "user",
 ];
 
 const PLUGIN_TYPE_FILTER_OPTIONS = PLUGIN_TYPE_FILTERS.map((type) => ({
   id: type,
-  label: type === "bb-official" ? "BB Official" : "User",
+  label: type === "patcher-official" ? "Patcher Official" : "User",
 }));
 
 function pluginTypeFilterId(provenance: PluginProvenance): PluginTypeFilter {
-  return isOfficialProvenance(provenance) ? "bb-official" : "user";
+  return isOfficialProvenance(provenance) ? "patcher-official" : "user";
 }
 
 // Membership, not repeated literals: a new entry in PLUGIN_TYPE_FILTERS is
@@ -66,7 +66,7 @@ function modeFromSearchParams(value: string | null): PluginsCollectionMode {
 
 /**
  * The canonical Plugins collection: installed resources, discoverable
- * resources from BB's official catalog.
+ * resources from Patcher's official catalog.
  * Modes are URL-backed projections of one collection, not separate settings
  * pages; plugin configuration and lifecycle depth remain on the detail route.
  */
@@ -286,7 +286,7 @@ export function PluginsOverview() {
   return (
     <ResourceCollectionPage
       id="plugins-collection"
-      description="Customize bb with plugins. Plugins can add app surfaces, commands, services, schedules, and skills."
+      description="Customize Patcher with plugins. Plugins can add app surfaces, commands, services, schedules, and skills."
       modes={modes}
       activeMode={activeMode}
       onModeChange={changeMode}

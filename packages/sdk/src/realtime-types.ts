@@ -1,8 +1,8 @@
-import type { ChangedMessage } from "@bb/domain";
+import type { ChangedMessage } from "@patcher/domain";
 
-export type BbRealtimeUnsubscribe = () => void;
+export type PatcherRealtimeUnsubscribe = () => void;
 
-export type BbRealtimeEventName =
+export type PatcherRealtimeEventName =
   | "thread:changed"
   | "project:changed"
   | "environment:changed"
@@ -29,15 +29,15 @@ export type SystemRealtimeEvent = Extract<
   { entity: "system" }
 >;
 
-export type BbRealtimeConnectionState =
+export type PatcherRealtimeConnectionState =
   | "connecting"
   | "connected"
   | "disconnected";
 
-export interface BbRealtimeConnectionEvent {
+export interface PatcherRealtimeConnectionEvent {
   reconnectDelayMs: number | null;
   reconnected: boolean;
-  state: BbRealtimeConnectionState;
+  state: PatcherRealtimeConnectionState;
 }
 
 /**
@@ -45,51 +45,51 @@ export interface BbRealtimeConnectionEvent {
  * listener; their payload types are readonly so a listener cannot mutate what
  * the next listener receives.
  */
-export interface BbRealtimeEventMap {
+export interface PatcherRealtimeEventMap {
   "thread:changed": ThreadRealtimeEvent;
   "project:changed": ProjectRealtimeEvent;
   "environment:changed": EnvironmentRealtimeEvent;
   "host:changed": HostRealtimeEvent;
   "system:changed": SystemRealtimeEvent;
   "system:config-changed": SystemRealtimeEvent;
-  "realtime:connection": BbRealtimeConnectionEvent;
+  "realtime:connection": PatcherRealtimeConnectionEvent;
 }
 
-export type BbRealtimeCallback<TEventName extends BbRealtimeEventName> = (
-  event: BbRealtimeEventMap[TEventName],
+export type PatcherRealtimeCallback<TEventName extends PatcherRealtimeEventName> = (
+  event: PatcherRealtimeEventMap[TEventName],
 ) => void;
 
 export interface ThreadRealtimeSubscribeArgs {
-  callback: BbRealtimeCallback<"thread:changed">;
+  callback: PatcherRealtimeCallback<"thread:changed">;
   event: "thread:changed";
   threadId?: string;
 }
 
 export interface ProjectRealtimeSubscribeArgs {
-  callback: BbRealtimeCallback<"project:changed">;
+  callback: PatcherRealtimeCallback<"project:changed">;
   event: "project:changed";
   projectId?: string;
 }
 
 export interface EnvironmentRealtimeSubscribeArgs {
-  callback: BbRealtimeCallback<"environment:changed">;
+  callback: PatcherRealtimeCallback<"environment:changed">;
   environmentId?: string;
   event: "environment:changed";
 }
 
 export interface HostRealtimeSubscribeArgs {
-  callback: BbRealtimeCallback<"host:changed">;
+  callback: PatcherRealtimeCallback<"host:changed">;
   event: "host:changed";
   hostId?: string;
 }
 
 export interface SystemRealtimeSubscribeArgs {
-  callback: BbRealtimeCallback<"system:changed">;
+  callback: PatcherRealtimeCallback<"system:changed">;
   event: "system:changed";
 }
 
 export interface SystemConfigRealtimeSubscribeArgs {
-  callback: BbRealtimeCallback<"system:config-changed">;
+  callback: PatcherRealtimeCallback<"system:config-changed">;
   event: "system:config-changed";
 }
 
@@ -100,11 +100,11 @@ export interface SystemConfigRealtimeSubscribeArgs {
  * UI mounted after connect still learns the current state.
  */
 export interface RealtimeConnectionSubscribeArgs {
-  callback: BbRealtimeCallback<"realtime:connection">;
+  callback: PatcherRealtimeCallback<"realtime:connection">;
   event: "realtime:connection";
 }
 
-export type BbRealtimeSubscribeArgsUnion =
+export type PatcherRealtimeSubscribeArgsUnion =
   | ThreadRealtimeSubscribeArgs
   | ProjectRealtimeSubscribeArgs
   | EnvironmentRealtimeSubscribeArgs
@@ -113,12 +113,12 @@ export type BbRealtimeSubscribeArgsUnion =
   | SystemConfigRealtimeSubscribeArgs
   | RealtimeConnectionSubscribeArgs;
 
-export type BbRealtimeSubscribeArgs<
-  TEventName extends BbRealtimeEventName = BbRealtimeEventName,
-> = Extract<BbRealtimeSubscribeArgsUnion, { event: TEventName }>;
+export type PatcherRealtimeSubscribeArgs<
+  TEventName extends PatcherRealtimeEventName = PatcherRealtimeEventName,
+> = Extract<PatcherRealtimeSubscribeArgsUnion, { event: TEventName }>;
 
-export interface BbRealtime {
-  subscribe<TEventName extends BbRealtimeEventName>(
-    args: BbRealtimeSubscribeArgs<TEventName>,
-  ): BbRealtimeUnsubscribe;
+export interface PatcherRealtime {
+  subscribe<TEventName extends PatcherRealtimeEventName>(
+    args: PatcherRealtimeSubscribeArgs<TEventName>,
+  ): PatcherRealtimeUnsubscribe;
 }

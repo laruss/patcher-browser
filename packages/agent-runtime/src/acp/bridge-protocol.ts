@@ -16,7 +16,7 @@ import {
   promptInputSchema,
   reasoningLevelSchema,
   serviceTierSchema,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 import {
   acpPermissionOptionSchema,

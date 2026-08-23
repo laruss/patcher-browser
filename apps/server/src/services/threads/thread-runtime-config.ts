@@ -1,4 +1,4 @@
-import { getEnvironment, getHost, getProject } from "@bb/db";
+import { getEnvironment, getHost, getProject } from "@patcher/db";
 import type {
   DynamicTool,
   InstructionMode,
@@ -11,9 +11,9 @@ import type {
   ThreadTurnInitiator,
   WorkspaceProvisionType,
   EnvironmentStatus,
-} from "@bb/domain";
-import type { HostDaemonInjectedSkillSource } from "@bb/host-daemon-contract";
-import { renderTemplate } from "@bb/templates";
+} from "@patcher/domain";
+import type { HostDaemonInjectedSkillSource } from "@patcher/host-daemon-contract";
+import { renderTemplate } from "@patcher/templates";
 import { ApiError } from "../../errors.js";
 import type { AppDeps, LoggedWorkSessionDeps } from "../../types.js";
 import { throwEnvironmentNotReady } from "../lib/lifecycle-api-errors.js";
@@ -112,7 +112,7 @@ interface DynamicToolContribution {
 
 /**
  * The session's dynamic tool set: built-ins first, then native plugin tools
- * (bb.agents.registerTool), resolved live at thread.start/turn.submit — so
+ * (patcher.agents.registerTool), resolved live at thread.start/turn.submit — so
  * tool-set changes apply on the next session start, never mid-session.
  * Conditionally selected plugin tools follow configure() like any thread.
  */
@@ -252,7 +252,7 @@ export async function resolveThreadRuntimeCommandConfig(
       instructionSections.push(contribution.instructions);
     } else {
       instructionSections.push(
-        `The following instructions come from the BB plugin "${contribution.pluginId}" for its tool "${contribution.tool.name}":`,
+        `The following instructions come from the Patcher plugin "${contribution.pluginId}" for its tool "${contribution.tool.name}":`,
         contribution.instructions,
       );
     }
@@ -282,7 +282,7 @@ export async function resolveThreadRuntimeCommandConfig(
       text = text.slice(0, PLUGIN_INSTRUCTION_CONTRIBUTION_MAX_CHARS);
     }
     instructionSections.push(
-      `The following instructions come from the BB plugin "${contribution.pluginId}":`,
+      `The following instructions come from the Patcher plugin "${contribution.pluginId}":`,
       text,
     );
   }
@@ -292,7 +292,7 @@ export async function resolveThreadRuntimeCommandConfig(
   // user/data-dir/workspace instructions still follow.
   for (const contribution of conditionalConfiguration.dynamicInstructions) {
     instructionSections.push(
-      `The following dynamic instructions come from the BB plugin "${contribution.pluginId}":`,
+      `The following dynamic instructions come from the Patcher plugin "${contribution.pluginId}":`,
       contribution.text,
     );
   }

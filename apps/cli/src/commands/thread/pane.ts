@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import { threadPaneActionSchema } from "@bb/server-contract";
+import { threadPaneActionSchema } from "@patcher/server-contract";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import {
   resolveContextThreadId,
   resolveExplicitIdFlag,
@@ -25,7 +25,7 @@ function resolveThreadPaneTarget(id: string | undefined): ResolvedId {
     return { id: context, source: "env" };
   }
   throw new Error(
-    "Missing thread ID. Pass <threadId> or run inside a BB thread.",
+    "Missing thread ID. Pass <threadId> or run inside a Patcher thread.",
   );
 }
 
@@ -35,10 +35,10 @@ export function registerPaneCommand(
 ): void {
   parent
     .command("pane")
-    .description("Maximize or restore a thread pane in connected BB apps")
+    .description("Maximize or restore a thread pane in connected Patcher apps")
     .usage("<maximize|restore|toggle> [id] [options]")
     .argument("<action>", "Pane action: maximize, restore, or toggle")
-    .argument("[id]", "Thread ID. Omit inside a BB thread.")
+    .argument("[id]", "Thread ID. Omit inside a Patcher thread.")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(
@@ -49,10 +49,12 @@ export function registerPaneCommand(
         ) => {
           const paneAction = threadPaneActionSchema.parse(actionInput);
           const target = resolveThreadPaneTarget(id);
-          const result = await createCliBbSdk(getUrl()).threads.paneAction({
-            action: paneAction,
-            threadId: target.id,
-          });
+          const result = await createCliPatcherSdk(getUrl()).threads.paneAction(
+            {
+              action: paneAction,
+              threadId: target.id,
+            },
+          );
           if (
             outputJson(opts, {
               threadId: target.id,
@@ -62,7 +64,7 @@ export function registerPaneCommand(
           ) {
             return;
           }
-          printContextLabel(target, "Thread", "BB_THREAD_ID", opts);
+          printContextLabel(target, "Thread", "PATCHER_THREAD_ID", opts);
           console.log(`Thread: ${target.id}`);
           console.log(`Pane action: ${paneAction}`);
           console.log(`Delivered: ${result.delivered}`);

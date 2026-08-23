@@ -1,11 +1,11 @@
 // Backend tests for the explain-selection example, written against the official
-// harness (`@bb/plugin-sdk/testing`) — no bb server, no browser.
+// harness (`@patcher/plugin-sdk/testing`) — no Patcher server, no browser.
 import { describe, expect, it } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   type FakePluginHost,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import explainSelection from "./server";
 
 const PROJECT_ID = "proj-1";
@@ -24,11 +24,11 @@ async function load(
   const host = createFakePluginHost({
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "explain-selection",
-    loopbackBaseUrl: "http://127.0.0.1:38886",
+    loopbackBaseUrl: "http://127.0.0.1:38986",
     settings,
     sdk: { threads: { spawn: async () => ({ id: "th_1" }) } },
   });
-  await explainSelection(host.bb);
+  await explainSelection(host.patcher);
   return host;
 }
 
@@ -81,7 +81,7 @@ describe("explain-selection", () => {
 
     expect(host.harness.registrations.contextMenuItems).toEqual([]);
     expect(host.harness.needsConfigurationMessages).toEqual([
-      expect.stringContaining("bb plugin reload explain-selection"),
+      expect.stringContaining("patcher plugin reload explain-selection"),
     ]);
   });
 
@@ -127,7 +127,7 @@ describe("explain-selection", () => {
     expect(host.harness.browserCalls).toEqual([
       {
         type: "tabs.open",
-        args: { url: "http://127.0.0.1:38886/threads/th_1", activate: true },
+        args: { url: "http://127.0.0.1:38986/threads/th_1", activate: true },
       },
     ]);
   });
@@ -141,7 +141,7 @@ describe("explain-selection", () => {
 
     expect(host.harness.sdk.callsTo("threads.spawn")).toHaveLength(1);
     expect(host.harness.logEntries.at(-1)?.message).toContain(
-      "could not open http://127.0.0.1:38886/threads/th_1",
+      "could not open http://127.0.0.1:38986/threads/th_1",
     );
   });
 
@@ -183,7 +183,7 @@ describe("explain-selection", () => {
   });
 
   // A tab action is offered on every tab, so the entry itself has to refuse the
-  // ones with nothing to explain: a bb screen (null url) and a tab with no page
+  // ones with nothing to explain: a Patcher screen (null url) and a tab with no page
   // yet (empty url).
   it("refuses a tab with no page", async () => {
     const host = await load({ project: PROJECT_ID });

@@ -38,7 +38,7 @@ describe("provider unhandled events", () => {
     const event = createUnhandledProviderEvent({
       providerId: "codex",
       rawType: "sdk/custom",
-      turnId: "turn_bb_owned",
+      turnId: "turn_patcher_owned",
       rawEvent: {
         jsonrpc: "2.0",
         method: "sdk/message",
@@ -46,12 +46,12 @@ describe("provider unhandled events", () => {
       },
     });
 
-    expect(event.scope).toEqual({ kind: "turn", turnId: "turn_bb_owned" });
+    expect(event.scope).toEqual({ kind: "turn", turnId: "turn_patcher_owned" });
   });
 
   it("ignores a provider-supplied turn id the caller did not vouch for", () => {
     // Codex labels its automatic-compaction traffic with a `turnId` of its own
-    // making ("auto-compact-1"). bb never started that turn, so scoping to it
+    // making ("auto-compact-1"). Patcher never started that turn, so scoping to it
     // produces an event the server can never store: it rejects the whole batch
     // with 409 MissingStoredTurnStartedError, and the daemon then retries that
     // same batch forever, wedging every thread on the host.

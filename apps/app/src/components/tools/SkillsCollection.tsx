@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { SkillProvider, SkillSummary } from "@bb/server-contract";
-import bbLogoUrl from "../../../../../assets/bb-logo.svg";
+import type { SkillProvider, SkillSummary } from "@patcher/server-contract";
+import patcherLogoUrl from "../../../../../assets/patcher-logo.svg";
 import {
   ResourcePagination,
   useResourcePagination,
   useResourceViewportPageSize,
-} from "@bb/shared-ui/resource-pagination";
+} from "@patcher/shared-ui/resource-pagination";
 import {
   ResourceCollectionPage,
   ResourceCollectionViewport,
@@ -18,8 +18,8 @@ import {
   ResourceRowDetailChevron,
   ResourceSortMenu,
   ResourceToolbar,
-} from "@bb/shared-ui/resource-list";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/shared-ui/resource-list";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { TOOLS_OWNED_COLLECTION_LABEL } from "@/components/tools/tools-navigation";
 import {
   ConfirmDeleteDialog,
@@ -34,8 +34,8 @@ import {
   getProviderIconInfo,
 } from "@/lib/provider-icon";
 
-type ResourceProviderFilter = "bb" | SkillProvider;
-type ResourceSkillSourceFilter = "included" | "bb-official" | "user";
+type ResourceProviderFilter = "patcher" | SkillProvider;
+type ResourceSkillSourceFilter = "included" | "patcher-official" | "user";
 type ResourceSortMode = "provider" | "alpha";
 type ResourceSortDirection = "asc" | "desc";
 
@@ -46,7 +46,7 @@ type ResourceSortDirection = "asc" | "desc";
 // while still compiling. The Type side gets the same guarantee from
 // `skillSourceFilterLabel`'s exhaustive switch.
 const RESOURCE_PROVIDER_FILTER_ORDER: Record<ResourceProviderFilter, number> = {
-  bb: 0,
+  patcher: 0,
   "claude-code": 1,
   codex: 2,
   "acp-cursor": 3,
@@ -56,31 +56,32 @@ const RESOURCE_PROVIDER_FILTERS: readonly ResourceProviderFilter[] = (
   Object.keys(RESOURCE_PROVIDER_FILTER_ORDER) as ResourceProviderFilter[]
 ).sort(
   (left, right) =>
-    RESOURCE_PROVIDER_FILTER_ORDER[left] - RESOURCE_PROVIDER_FILTER_ORDER[right],
+    RESOURCE_PROVIDER_FILTER_ORDER[left] -
+    RESOURCE_PROVIDER_FILTER_ORDER[right],
 );
 
 const RESOURCE_SKILL_SOURCE_FILTERS: readonly ResourceSkillSourceFilter[] = [
   "included",
-  "bb-official",
+  "patcher-official",
   "user",
 ];
 
 function providerLabel(provider: SkillProvider | null): string {
   return provider === null
-    ? "bb"
+    ? "Patcher"
     : (getProviderIconInfo(provider)?.ariaLabel ?? provider);
 }
 
 function skillProviderFilterId(skill: SkillSummary): ResourceProviderFilter {
-  return skill.provider ?? "bb";
+  return skill.provider ?? "patcher";
 }
 
 function providerFilterLabel(provider: ResourceProviderFilter): string {
-  return provider === "bb" ? "bb" : providerLabel(provider);
+  return provider === "patcher" ? "Patcher" : providerLabel(provider);
 }
 
 function skillSourceFilterId(skill: SkillSummary): ResourceSkillSourceFilter {
-  if (skill.scope === "bb-builtin") return "bb-official";
+  if (skill.scope === "patcher-builtin") return "patcher-official";
   if (skill.scope === "plugin") return "included";
   // Every remaining scope is authored by the user, so the bucket is total and
   // the filter can never strand a skill.
@@ -89,8 +90,8 @@ function skillSourceFilterId(skill: SkillSummary): ResourceSkillSourceFilter {
 
 function skillSourceFilterLabel(source: ResourceSkillSourceFilter): string {
   switch (source) {
-    case "bb-official":
-      return "BB Official";
+    case "patcher-official":
+      return "Patcher Official";
     case "included":
       return "Included in plugin";
     case "user":
@@ -101,7 +102,9 @@ function skillSourceFilterLabel(source: ResourceSkillSourceFilter): string {
 function isResourceSkillSourceFilter(
   value: string,
 ): value is ResourceSkillSourceFilter {
-  return value === "included" || value === "bb-official" || value === "user";
+  return (
+    value === "included" || value === "patcher-official" || value === "user"
+  );
 }
 
 // The filter menu hands back plain strings, so both selections are narrowed on
@@ -134,10 +137,10 @@ export function ProviderLogo({
   );
 }
 
-export function BbLogo({ className = "size-4" }: { className?: string }) {
+export function PatcherLogo({ className = "size-4" }: { className?: string }) {
   return (
     <img
-      src={bbLogoUrl}
+      src={patcherLogoUrl}
       alt=""
       aria-hidden="true"
       className={cn(className, "object-contain dark:invert")}
@@ -157,9 +160,9 @@ export function SkillProvenanceTooltip({
   return (
     <span className="inline-flex items-center gap-1.5">
       <span>{prefix}</span>
-      <span data-provider-icon={providerId ?? "bb"} aria-hidden="true">
+      <span data-provider-icon={providerId ?? "patcher"} aria-hidden="true">
         {providerId === null ? (
-          <BbLogo className="size-3.5 brightness-0 invert" />
+          <PatcherLogo className="size-3.5 brightness-0 invert" />
         ) : (
           <ProviderLogo
             providerId={providerId}
@@ -176,7 +179,7 @@ function SkillLeading({ skill }: { skill: SkillSummary }) {
   if (skill.provider !== null) {
     return <ProviderLogo providerId={skill.provider} className="size-6" />;
   }
-  return <BbLogo className="size-6" />;
+  return <PatcherLogo className="size-6" />;
 }
 
 function skillDescription(skill: SkillSummary): string {
@@ -199,7 +202,7 @@ function includedPluginDescription(skill: SkillSummary): string {
 }
 
 function skillMutationDisabledReason(skill: SkillSummary): string {
-  if (skill.scope === "bb-builtin") return "Built-in skill";
+  if (skill.scope === "patcher-builtin") return "Built-in skill";
   if (skill.scope === "plugin") return "Bundled with plugin";
   return `Bundled with ${skill.provider === "claude-code" ? "Claude Code" : "Codex"}`;
 }
@@ -217,8 +220,8 @@ function SkillRow({
       leading={<SkillLeading skill={skill} />}
       title={skill.name}
       titleMeta={
-        skill.scope === "bb-builtin" ? (
-          <ProvenancePill label="BB Official" />
+        skill.scope === "patcher-builtin" ? (
+          <ProvenancePill label="Patcher Official" />
         ) : skill.scope === "plugin" ? (
           <ProvenancePill
             label="Included"
@@ -277,7 +280,7 @@ export function SkillsOverview({
 }: SkillsOverviewProps) {
   const [providerFilters, setProviderFilters] = useState<
     ResourceProviderFilter[]
-  >(["bb"]);
+  >(["patcher"]);
   // Empty means unfiltered: the menu has no explicit "All" row.
   const [sourceFilters, setSourceFilters] = useState<
     ResourceSkillSourceFilter[]
@@ -304,8 +307,8 @@ export function SkillsOverview({
       id: provider,
       label: providerFilterLabel(provider),
       leading:
-        provider === "bb" ? (
-          <BbLogo className="size-4" />
+        provider === "patcher" ? (
+          <PatcherLogo className="size-4" />
         ) : (
           <ProviderLogo providerId={provider} className="size-4" />
         ),
@@ -353,10 +356,10 @@ export function SkillsOverview({
       );
     });
     return [...filtered].sort((left, right) => {
-      if (providerFilters.length === 1 && providerFilters[0] === "bb") {
+      if (providerFilters.length === 1 && providerFilters[0] === "patcher") {
         const officialResult =
-          Number(left.scope !== "bb-builtin") -
-          Number(right.scope !== "bb-builtin");
+          Number(left.scope !== "patcher-builtin") -
+          Number(right.scope !== "patcher-builtin");
         if (officialResult !== 0) return officialResult;
       }
       const base =
@@ -431,7 +434,7 @@ export function SkillsOverview({
     <ResourceListPanel>
       {libraryPagination.items.map((skill) => (
         <SkillRow
-          key={`${skill.scope}-${skill.provider ?? "bb"}-${skill.name}-${skill.filePath}`}
+          key={`${skill.scope}-${skill.provider ?? "patcher"}-${skill.name}-${skill.filePath}`}
           skill={skill}
           onSelect={() => onSelectSkill(skill)}
         />
@@ -442,7 +445,7 @@ export function SkillsOverview({
   return (
     <ResourceCollectionPage
       id="skills-collection"
-      description="Create and manage agent skills. bb skills work across every agent you use in bb."
+      description="Create and manage agent skills. Patcher skills work across every agent you use in Patcher."
       modes={[
         { id: "browse", label: "Browse" },
         {
@@ -456,7 +459,7 @@ export function SkillsOverview({
       actions={
         <CreateWithTemplatesButton
           kind="skill"
-          label="New bb skill"
+          label="New Patcher skill"
           onCreate={onCreateSkill}
         />
       }
@@ -634,11 +637,11 @@ export function SkillDetailDialogView({
       title={skill.name}
       path={skill.filePath}
       titleBadge={
-        skill.scope === "bb-builtin"
+        skill.scope === "patcher-builtin"
           ? {
-              label: "BB Official",
-              tooltip: "Ships with bb",
-              accessibleLabel: `${skill.name} is BB Official`,
+              label: "Patcher Official",
+              tooltip: "Ships with Patcher",
+              accessibleLabel: `${skill.name} is Patcher Official`,
             }
           : bundledPluginName !== null
             ? {

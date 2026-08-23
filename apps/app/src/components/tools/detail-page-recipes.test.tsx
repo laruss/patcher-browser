@@ -24,11 +24,11 @@ import type {
   AutomationExecutionOptionsResponse,
   AutomationResponse,
   AutomationRunResponse,
-} from "bb-plugin-automations/rpc-types";
+} from "patcher-plugin-automations/rpc-types";
 import {
   AutomationDetailView as AutomationDetailViewBase,
   AutomationRunStatusIndicator,
-} from "bb-plugin-automations/detail-view";
+} from "patcher-plugin-automations/detail-view";
 import {
   EMPTY_PLUGIN_UPDATE_STATE,
   type PluginListItem,
@@ -64,7 +64,7 @@ const PLUGIN: PluginListItem = {
   enabled: true,
   status: "running",
   statusDetail: null,
-  description: "Browse GitHub issues and pull requests in BB.",
+  description: "Browse GitHub issues and pull requests in Patcher.",
   name: "GitHub",
   icon: "Github",
   compactIconUrl: null,
@@ -80,7 +80,7 @@ const PLUGIN: PluginListItem = {
   provenance: "catalog",
   isOrphanedBuiltin: false,
   catalogEntryId: "github",
-  sourceDisplay: "BB Official · GitHub",
+  sourceDisplay: "Patcher Official · GitHub",
   updateState: EMPTY_PLUGIN_UPDATE_STATE,
 };
 
@@ -241,7 +241,7 @@ describe("Plugin detail recipe", () => {
     ).toBeNull();
 
     for (const item of [
-      "bb gh",
+      "patcher gh",
       "review",
       "gh_search",
       "Pull requests",
@@ -1092,7 +1092,7 @@ describe("Automation detail recipe", () => {
         <AutomationDetailView
           automation={{
             ...AUTOMATION,
-            projectId: "proj_bb",
+            projectId: "proj_patcher",
             execution: {
               mode: "agent",
               prompt: "Summarize yesterday's commits.",
@@ -1104,7 +1104,7 @@ describe("Automation detail recipe", () => {
                 hostId: "host_local",
                 workspace: {
                   type: "unmanaged",
-                  path: "/Users/you/Code/bb",
+                  path: "/Users/you/Code/patcher",
                   branch: {
                     kind: "existing",
                     name: "agent/tools-hub-schedules",
@@ -1113,7 +1113,7 @@ describe("Automation detail recipe", () => {
               },
             },
           }}
-          projectLabel="bb"
+          projectLabel="Patcher"
           runsState={{
             runs: [],
             nextCursor: null,
@@ -1141,8 +1141,8 @@ describe("Automation detail recipe", () => {
     ) as HTMLElement;
     expect(promptShell.textContent).toContain("Claude");
     expect(promptShell.textContent).toContain("Opus 5");
-    expect(promptFooter.textContent).toContain("bb");
-    expect(promptFooter.textContent).toContain("~/Code/bb");
+    expect(promptFooter.textContent).toContain("Patcher");
+    expect(promptFooter.textContent).toContain("~/Code/patcher");
     expect(promptFooter.textContent).toContain("Approve for me");
     expect(promptShell.textContent).not.toContain("Reasoning");
     expect(

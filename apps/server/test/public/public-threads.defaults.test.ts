@@ -9,9 +9,9 @@ import {
   listThreads,
   setExperiments,
   upsertProjectExecutionDefaults,
-} from "@bb/db";
-import { defaultExperiments, threadSchema } from "@bb/domain";
-import { sidebarBootstrapResponseSchema } from "@bb/server-contract";
+} from "@patcher/db";
+import { defaultExperiments, threadSchema } from "@patcher/domain";
+import { sidebarBootstrapResponseSchema } from "@patcher/server-contract";
 import { waitForQueuedCommand } from "../helpers/commands.js";
 import { availableModelFixture } from "../helpers/available-models.js";
 import { registerProviderHostRpcResponder } from "../helpers/host-rpc.js";

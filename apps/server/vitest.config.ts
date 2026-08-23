@@ -9,15 +9,15 @@ export default defineWorkspaceTestConfig({
   test: {
     silent: "passed-only",
     env: {
-      BB_DATA_DIR: "/tmp/bb-server-test",
-      BB_SERVER_PORT: "49161",
-      BB_HOST_DAEMON_PORT: "49162",
+      PATCHER_DATA_DIR: "/tmp/patcher-server-test",
+      PATCHER_SERVER_PORT: "49161",
+      PATCHER_HOST_DAEMON_PORT: "49162",
     },
     projects: [
       {
         extends: true,
         test: {
-          name: "@bb/server",
+          name: "@patcher/server",
           include: ["src/**/*.test.ts", "test/**/*.test.ts"],
           exclude: ["dist/**", "node_modules/**", ...isolationTests],
           isolate: false,
@@ -26,7 +26,7 @@ export default defineWorkspaceTestConfig({
       {
         extends: true,
         test: {
-          name: "@bb/server:isolated",
+          name: "@patcher/server:isolated",
           include: isolationTests,
         },
       },

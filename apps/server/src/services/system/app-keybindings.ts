@@ -6,13 +6,13 @@ import type {
   AppKeybinding,
   AppKeybindings,
   AppShortcut,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   BROWSER_SELECT_TAB_APP_COMMAND_IDS,
   QUESTION_SELECT_APP_COMMAND_IDS,
   PANE_FOCUS_APP_COMMAND_IDS,
   THREAD_JUMP_APP_COMMAND_IDS,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 interface ShortcutModifiers {
   mod?: boolean;
@@ -125,7 +125,7 @@ const splitWithoutModal = {
 } as const;
 
 export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
-  // Mod+N is the browser's, not the thread's: bb is one, and in every other
+  // Mod+N is the browser's, not the thread's: Patcher is one, and in every other
   // browser that chord opens a window. So the t3code-style alias is the whole
   // of this binding now, on desktop as well as on the web, where browsers
   // reserve Mod+N before the page ever sees the key.
@@ -250,9 +250,9 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   ),
   // Rotate the composer's model and reasoning level without opening the picker,
   // scoped exactly like `modelPicker.toggle` above. Alt is otherwise unused by
-  // bb, the browser, and both desktop menus, so these chords shadow nothing.
+  // Patcher, the browser, and both desktop menus, so these chords shadow nothing.
   // macOS composes Option+<letter> into another character, so they match on the
-  // physical key — see `normalizeAppShortcutInputKey` in @bb/domain.
+  // physical key — see `normalizeAppShortcutInputKey` in @patcher/domain.
   binding(
     "modelPicker.cycleModel",
     "m",
@@ -405,7 +405,7 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   // rather than sharing it.
   binding("browser.print", "p", { mod: true }, browserWithoutModal),
   // Mod+Shift+N is deliberately left alone: it is the incognito window
-  // everywhere else, and bb has not built one yet (see browser-gaps.md).
+  // everywhere else, and Patcher has not built one yet (see browser-gaps.md).
   binding(
     "window.new",
     "n",

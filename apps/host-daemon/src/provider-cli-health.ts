@@ -1,6 +1,6 @@
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
-import { spawnPortableOutputProcess } from "@bb/process-utils";
+import { spawnPortableOutputProcess } from "@patcher/process-utils";
 import { spawn as spawnPty } from "node-pty";
 import semver from "semver";
 import { z } from "zod";
@@ -13,7 +13,7 @@ import {
   type ProviderCliKey,
   type ProviderCliStatus,
   type ProviderCliStatusResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { HostDaemonLogger } from "./logger.js";
 import { ensureNodePtySpawnHelperExecutable } from "./terminals/terminal-manager.js";
 

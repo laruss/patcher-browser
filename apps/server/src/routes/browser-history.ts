@@ -2,12 +2,12 @@ import type { Hono } from "hono";
 import {
   BROWSER_HISTORY_DEFAULT_LIMIT,
   BROWSER_HISTORY_LIMIT_MAX,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   publicApiRoutes,
   typedRoutes,
   type PublicApiSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../errors.js";
 import {
   clearBrowserHistory,

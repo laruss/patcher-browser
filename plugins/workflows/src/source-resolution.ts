@@ -146,7 +146,7 @@ function workflowNamePath(rootPath: string, name: string): string {
   const flavor = pathFlavor(rootPath);
   return resolveConfinedWorkflowPath(
     rootPath,
-    flavor.join(".bb", "workflows", `${name}.js`),
+    flavor.join(".patcher", "workflows", `${name}.js`),
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Environment } from "@bb/domain";
+import type { Environment } from "@patcher/domain";
 import { createAppQueryClient } from "@/lib/query-client";
 import { threadSearchQueryKey } from "../queries/query-keys";
 import { applyEnvironmentUpdateResult } from "./environment-workspace-cache-owner";

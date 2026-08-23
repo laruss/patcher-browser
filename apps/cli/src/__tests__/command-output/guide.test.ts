@@ -6,10 +6,10 @@ import {
 } from "../helpers/command-output-harness.js";
 import { registerGuideCommand } from "../../commands/guide.js";
 
-describe("bb guide command output", () => {
+describe("patcher guide command output", () => {
   setupCommandOutputTestEnvironment();
 
-  it("bb guide unknown chapter lists available chapters", async () => {
+  it("patcher guide unknown chapter lists available chapters", async () => {
     await expect(
       runCommand(["guide", "missing"], registerGuideCommand),
     ).rejects.toThrow("process.exit:1");
@@ -21,12 +21,12 @@ describe("bb guide command output", () => {
     );
   });
 
-  it("bb guide terminals documents explicit scopes and ID-only mutations", async () => {
+  it("patcher guide terminals documents explicit scopes and ID-only mutations", async () => {
     await runCommand(["guide", "terminals"], registerGuideCommand);
 
     const output = collectLogLines(vi.mocked(console.log)).join("\n");
     expect(output).toContain("exactly one explicit scope");
-    expect(output).toContain("bb terminal list --thread <thread-id>");
-    expect(output).toContain("bb terminal rename <terminal-id> <title>");
+    expect(output).toContain("patcher terminal list --thread <thread-id>");
+    expect(output).toContain("patcher terminal rename <terminal-id> <title>");
   });
 });

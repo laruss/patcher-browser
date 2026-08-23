@@ -2,7 +2,7 @@ import type {
   PendingInteractionUserAnswer,
   PendingInteractionUserQuestionQuestion,
   UserQuestionPendingInteractionResolution,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 /**
  * Per-question answer state for the user-question form.

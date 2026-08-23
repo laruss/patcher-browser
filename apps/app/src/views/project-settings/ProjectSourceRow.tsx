@@ -1,17 +1,20 @@
-import { type LocalPathProjectSource, type ProjectSource } from "@bb/domain";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  type LocalPathProjectSource,
+  type ProjectSource,
+} from "@patcher/domain";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { SettingsRow } from "@/components/ui/settings-section.js";
-import { Pill } from "@bb/shared-ui/pill";
+import { Pill } from "@patcher/shared-ui/pill";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { PersistentHostIconName } from "@/lib/host-display";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 
 /** The machine a source lives on, for the machine-aware sources list
  * Null keeps the plain path-only row. */

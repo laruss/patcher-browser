@@ -1,12 +1,12 @@
-import type { ThreadTimelineGoal } from "@bb/domain";
+import type { ThreadTimelineGoal } from "@patcher/domain";
 import { PromptStackCard } from "@/components/promptbox/banner/PromptStackCard";
 import {
   activityIconClass,
   activityRowClass,
   activityTextClass,
 } from "@/components/ui/activity-row-styles";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 const GOAL_CARD_ROW_HEIGHT = 32;
 const GOAL_HEADER_GROUP_CLASS = activityRowClass(

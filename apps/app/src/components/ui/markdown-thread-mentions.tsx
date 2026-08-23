@@ -4,8 +4,8 @@ import type { Nodes, Parent, PhrasingContent, Text } from "mdast";
 // plain `text` node can carry the custom element instructions below.
 import type {} from "mdast-util-to-hast";
 import { visit } from "unist-util-visit";
-import type { PromptTextMention } from "@bb/domain";
-import type { TimelineTitleLink } from "@bb/thread-view";
+import type { PromptTextMention } from "@patcher/domain";
+import type { TimelineTitleLink } from "@patcher/thread-view";
 import {
   PromptMentionPill,
   resolveThreadMentionResource,
@@ -25,7 +25,7 @@ const THREAD_MENTION_ID_PATTERN = /^[A-Za-z0-9_-]+$/u;
 // Custom hast element the remark plugin emits for each token; mapped back to a
 // React pill via the `components` entry below. Lowercase + hyphenated so it is a
 // valid custom-element tag name in the hast tree.
-const THREAD_MENTION_HAST_NAME = "bb-thread-mention";
+const THREAD_MENTION_HAST_NAME = "patcher-thread-mention";
 // hast property key — `mdast-util-to-hast` lowercases it into the
 // `data-thread-id` DOM attribute that the component reads back.
 const THREAD_MENTION_THREAD_ID_PROPERTY = "dataThreadId";
@@ -238,7 +238,7 @@ interface ThreadMentionElementProps {
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "bb-thread-mention": ThreadMentionElementProps;
+      "patcher-thread-mention": ThreadMentionElementProps;
     }
   }
 }

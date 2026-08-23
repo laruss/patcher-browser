@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ThreadQueuedMessage } from "@bb/domain";
+import type { ThreadQueuedMessage } from "@patcher/domain";
 import type { Active, DroppableContainer } from "@dnd-kit/core";
 import {
   QueuedMessagesList,

@@ -79,12 +79,12 @@ export function resolvePersonalTargetPath(
 }
 
 /**
- * Whether a path lies inside a workspace root bb creates and destroys on a
+ * Whether a path lies inside a workspace root Patcher creates and destroys on a
  * host. A managed environment stores its path only once the host reports
  * provisioning success, so an environment row is not a reliable claim during
- * that window. The roots are, because bb derives every managed path from them.
+ * that window. The roots are, because Patcher derives every managed path from them.
  */
-export function isBbManagedWorkspacePath(args: {
+export function isPatcherManagedWorkspacePath(args: {
   dataDir: string;
   path: string;
 }): boolean {

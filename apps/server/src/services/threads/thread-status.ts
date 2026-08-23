@@ -1,4 +1,4 @@
-import type { ThreadStatus } from "@bb/domain";
+import type { ThreadStatus } from "@patcher/domain";
 
 export type PreStartThreadStatus = Extract<
   ThreadStatus,

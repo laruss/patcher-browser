@@ -8,14 +8,14 @@ import {
   screen,
 } from "@testing-library/react";
 import type {
-  BbDesktopBrowserApi,
-  BbDesktopBrowserState,
-} from "@bb/desktop-contract";
+  PatcherDesktopBrowserApi,
+  PatcherDesktopBrowserState,
+} from "@patcher/desktop-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { BrowserTabContent } from "./BrowserTabContent";
 
@@ -30,17 +30,17 @@ const desktopInfo = {
 };
 
 interface BrowserChromeHarness {
-  api: BbDesktopBrowserApi;
-  emitState: (state: BbDesktopBrowserState) => void;
+  api: PatcherDesktopBrowserApi;
+  emitState: (state: PatcherDesktopBrowserState) => void;
   goBack: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
 }
 
 function createBrowserChromeHarness(): BrowserChromeHarness {
-  const stateListeners = new Set<(state: BbDesktopBrowserState) => void>();
+  const stateListeners = new Set<(state: PatcherDesktopBrowserState) => void>();
   const goBack = vi.fn();
   const stop = vi.fn();
-  const api: BbDesktopBrowserApi = {
+  const api: PatcherDesktopBrowserApi = {
     ...createNoopDesktopBrowserApi(),
     goBack,
     stop,
@@ -60,8 +60,8 @@ function createBrowserChromeHarness(): BrowserChromeHarness {
 }
 
 function browserState(
-  overrides: Partial<BbDesktopBrowserState> = {},
-): BbDesktopBrowserState {
+  overrides: Partial<PatcherDesktopBrowserState> = {},
+): PatcherDesktopBrowserState {
   return {
     tabId: "browser:test",
     url: "https://example.com/docs",
@@ -75,7 +75,7 @@ function browserState(
 }
 
 function renderBrowserChrome(harness: BrowserChromeHarness, initialUrl = "") {
-  window.bbDesktop = createBbDesktopApi(desktopInfo, harness.api);
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, harness.api);
   // The tab records what it visits in the server-backed history store, so it
   // needs a query client even when the test is only about its chrome.
   const { wrapper } = createQueryClientTestHarness();
@@ -112,7 +112,7 @@ describe("BrowserTabContent persistent navigation", () => {
     cleanup();
     vi.restoreAllMocks();
     window.localStorage.clear();
-    delete window.bbDesktop;
+    delete window.patcherDesktop;
   });
 
   it("keeps the top navigation visible through pointer and focus changes", () => {

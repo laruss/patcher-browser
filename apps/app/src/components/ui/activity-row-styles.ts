@@ -4,4 +4,4 @@ export {
   activityRowClass,
   activityTextClass,
   type ActivityRowState,
-} from "@bb/shared-ui/activity-row-styles";
+} from "@patcher/shared-ui/activity-row-styles";

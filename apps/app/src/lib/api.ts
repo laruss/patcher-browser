@@ -1,6 +1,6 @@
 // Legacy raw-HTTP escape hatch. New call sites must use @/lib/sdk.
-import { extractErrorMessage, toRecord } from "@bb/core-ui";
-import type { SystemVoiceTranscriptionResponse } from "@bb/server-contract";
+import { extractErrorMessage, toRecord } from "@patcher/core-ui";
+import type { SystemVoiceTranscriptionResponse } from "@patcher/server-contract";
 import { apiClient, toRelativeUrl } from "./api-server";
 import { appSurfaceRequestInit } from "./app-surface";
 import {

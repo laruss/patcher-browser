@@ -1,10 +1,10 @@
-import { createConnection, migrate } from "@bb/db";
+import { createConnection, migrate } from "@patcher/db";
 import type {
   DbConnection,
   MigrationWarningLogger,
   SlowDbQueryLogger,
-} from "@bb/db";
-import type { Logger } from "@bb/logger";
+} from "@patcher/db";
+import type { Logger } from "@patcher/logger";
 import { ensurePersonalProjectBootstrap } from "./services/projects/personal-project.js";
 import {
   exportLegacyAutomationsForPluginImport,

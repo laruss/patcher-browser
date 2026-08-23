@@ -48,7 +48,7 @@ describe("buildClaudeCodeModels", () => {
     const result = buildClaudeCodeModels(DISCOVERED_MODELS);
 
     // Discovery is additive: every curated row survives, and only the reported
-    // model BB has no curated entry for (Haiku's dated id) is appended.
+    // model Patcher has no curated entry for (Haiku's dated id) is appended.
     expect(result.models.map((model) => model.model)).toEqual([
       ...CURATED_MODELS,
       "claude-haiku-4-5-20251001",
@@ -108,7 +108,7 @@ describe("buildClaudeCodeModels", () => {
     );
   });
 
-  // The account's own default wins over BB's product default when the probe
+  // The account's own default wins over Patcher's product default when the probe
   // reports one, so a curated row can never override the provider's choice.
   it("prefers the discovered default model", () => {
     const result = buildClaudeCodeModels([

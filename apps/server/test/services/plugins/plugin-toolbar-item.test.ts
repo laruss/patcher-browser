@@ -12,17 +12,17 @@ const EVIL_ORIGIN = "https://evil.example";
 const PAGE_URL = "https://example.test/article?ref=1";
 
 /**
- * Two plugins, because a plugin may contribute one control: `bb-plugin-star`
- * answers what its control looks like for the page, and `bb-plugin-plain` offers
+ * Two plugins, because a plugin may contribute one control: `patcher-plugin-star`
+ * answers what its control looks like for the page, and `patcher-plugin-plain` offers
  * no `state` at all — which is the case worth pinning, since nothing should be
  * asked of it as the user browses.
  */
 function starSource(observedPath: string): string {
   return `
   import { appendFileSync } from "node:fs";
-  export default function plugin(bb: any) {
+  export default function plugin(patcher: any) {
     let saved = false;
-    bb.browser.registerToolbarItem({
+    patcher.browser.registerToolbarItem({
       id: "star",
       title: "Save this page",
       icon: "Star",
@@ -43,8 +43,8 @@ function starSource(observedPath: string): string {
 }
 
 const PLAIN_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerToolbarItem({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerToolbarItem({
       id: "open-elsewhere",
       title: "Open in the other browser",
       run() {},
@@ -53,9 +53,9 @@ const PLAIN_SOURCE = `
 `;
 
 const TWO_CONTROLS_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerToolbarItem({ id: "one", title: "One", run() {} });
-    bb.browser.registerToolbarItem({ id: "two", title: "Two", run() {} });
+  export default function plugin(patcher: any) {
+    patcher.browser.registerToolbarItem({ id: "one", title: "One", run() {} });
+    patcher.browser.registerToolbarItem({ id: "two", title: "Two", run() {} });
   }
 `;
 
@@ -74,7 +74,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Toolbar fixture",
         description: "Toolbar plugin fixture.",
         branding: { icon: "Zap" },
@@ -87,7 +87,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin toolbar items (bb.browser.registerToolbarItem)", () => {
+describe("plugin toolbar items (patcher.browser.registerToolbarItem)", () => {
   let harness: TestAppHarness;
   let observedPath: string;
 
@@ -126,8 +126,8 @@ describe("plugin toolbar items (bb.browser.registerToolbarItem)", () => {
     observedPath = join(harness.config.dataDir, "observed-toolbar.log");
     const fixtures = join(harness.config.dataDir, "fixtures");
     for (const options of [
-      { name: "bb-plugin-star", serverSource: starSource(observedPath) },
-      { name: "bb-plugin-plain", serverSource: PLAIN_SOURCE },
+      { name: "patcher-plugin-star", serverSource: starSource(observedPath) },
+      { name: "patcher-plugin-plain", serverSource: PLAIN_SOURCE },
     ]) {
       const entry = await harness.pluginService.installPath(
         await writePlugin(fixtures, options),
@@ -272,7 +272,7 @@ describe("plugin toolbar items (bb.browser.registerToolbarItem)", () => {
   it("refuses to load a plugin that wants two controls", async () => {
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-greedy",
+        name: "patcher-plugin-greedy",
         serverSource: TWO_CONTROLS_SOURCE,
       }),
     );
@@ -284,7 +284,7 @@ describe("plugin toolbar items (bb.browser.registerToolbarItem)", () => {
   it("refuses the surface to a plugin that did not declare it", async () => {
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-undeclared",
+        name: "patcher-plugin-undeclared",
         permissions: [],
         serverSource: PLAIN_SOURCE,
       }),

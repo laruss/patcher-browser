@@ -2,11 +2,11 @@ import {
   findLocalPathProjectSourceForHost,
   type ProjectSource,
   type ThreadListEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ProjectBranchesResponse,
   SystemProvidersQuery,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   encodeHostValue,
   parseEnvironmentValue,

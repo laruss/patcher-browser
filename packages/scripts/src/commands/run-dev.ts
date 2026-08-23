@@ -6,7 +6,7 @@ import {
   resolveCurrentDevInstanceConfig,
   toDevProcessEnv,
   type DevInstanceConfig,
-} from "@bb/config/runtime";
+} from "@patcher/config/runtime";
 import { migrateLegacyDevData } from "../lib/legacy-dev-data-migration.js";
 import { runScriptProcess } from "../lib/process-helpers.js";
 
@@ -32,9 +32,9 @@ export function createDevTurboCommand(): DevTurboCommand {
       "turbo",
       "run",
       "dev",
-      "--filter=@bb/app",
-      "--filter=@bb/server",
-      "--filter=@bb/host-daemon",
+      "--filter=@patcher/app",
+      "--filter=@patcher/server",
+      "--filter=@patcher/host-daemon",
       "--ui",
       "tui",
       "--concurrency",
@@ -102,7 +102,7 @@ export async function main(): Promise<void> {
   });
   if (migration.skippedReason === "legacy-dev-process-running") {
     throw new Error(
-      "[dev] Legacy ~/.bb-dev data was found, but an old dev server or host-daemon is still running. Stop the old dev process and rerun bun run dev to migrate it.",
+      "[dev] Legacy ~/.patcher-dev data was found, but an old dev server or host-daemon is still running. Stop the old dev process and rerun bun run dev to migrate it.",
     );
   }
   await assertPortsAvailable(config);

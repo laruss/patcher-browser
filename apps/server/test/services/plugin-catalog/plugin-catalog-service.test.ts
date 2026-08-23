@@ -7,7 +7,7 @@ import {
   migrate,
   upsertInstalledPlugin,
   type DbConnection,
-} from "@bb/db";
+} from "@patcher/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPluginCatalogService } from "../../../src/services/plugin-catalog/plugin-catalog-service.js";
 import {
@@ -88,9 +88,9 @@ describe("bundled plugin catalog service", () => {
       BUNDLED_PLUGINS.map((plugin) => plugin.name).sort(),
     );
     expect(results).toHaveLength(catalog.status().pluginCount);
-    expect(results.some((entry) => entry.category === "Included with BB")).toBe(
-      false,
-    );
+    expect(
+      results.some((entry) => entry.category === "Included with Patcher"),
+    ).toBe(false);
     expect([...new Set(results.map((entry) => entry.category))]).toEqual(
       PLUGIN_CATALOG_CATEGORIES,
     );
@@ -152,7 +152,9 @@ describe("bundled plugin catalog service", () => {
   });
 
   it("drops entries whose bundled manifest is unreadable", async () => {
-    const missingRoot = await mkdtemp(join(tmpdir(), "bb-missing-plugin-"));
+    const missingRoot = await mkdtemp(
+      join(tmpdir(), "patcher-missing-plugin-"),
+    );
     await rm(missingRoot, { recursive: true, force: true });
     const warnings: string[] = [];
     const [github] = listBundledPluginRegistrations().filter(

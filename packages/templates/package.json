@@ -1,5 +1,5 @@
 {
-  "name": "@bb/templates",
+  "name": "@patcher/templates",
   "version": "0.0.1",
   "type": "module",
   "exports": {
@@ -26,12 +26,12 @@
     "test": "node ./scripts/generate-templates.mjs --check && vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/domain": "workspace:*",
+    "@patcher/domain": "workspace:*",
     "gray-matter": "^4.0.3",
     "handlebars": "^4.7.8"
   },
   "devDependencies": {
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.2",
     "typescript-7": "npm:typescript@^7.0.2",

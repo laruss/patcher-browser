@@ -1,8 +1,8 @@
-import { heartbeatSession } from "@bb/db";
+import { heartbeatSession } from "@patcher/db";
 import {
   hasHostDaemonWebSocketProtocol,
   hostDaemonDaemonWsMessageSchema,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { ApiError } from "../errors.js";
 import { verifyAuthenticatedDaemon } from "../internal/auth.js";
 import type { AppDeps } from "../types.js";
@@ -77,7 +77,6 @@ export function onDaemonSocketOpen(
     | "machineAuth"
     | "pendingInteractions"
     | "skillTreeRegistry"
-    | "sharedPorts"
     | "telemetry"
     | "terminalSessions"
   >,
@@ -88,7 +87,6 @@ export function onDaemonSocketOpen(
     "Daemon WebSocket opened",
   );
   deps.hub.registerDaemon(args.sessionId, args.hostId, args.socket);
-  deps.sharedPorts.pushCurrentSharedPortsForHost(args.hostId);
   deps.terminalSessions.expireDisconnectedHostTerminals({
     daemonSessionId: args.sessionId,
     hostId: args.hostId,
@@ -99,10 +97,7 @@ export function onDaemonSocketOpen(
 }
 
 export function onDaemonSocketMessage(
-  deps: Pick<
-    AppDeps,
-    "config" | "db" | "hub" | "logger" | "sharedPorts" | "terminalSessions"
-  >,
+  deps: Pick<AppDeps, "config" | "db" | "hub" | "logger" | "terminalSessions">,
   args: DaemonSocketMessageArgs,
 ): void {
   let decoded: unknown;
@@ -172,10 +167,6 @@ export function onDaemonSocketMessage(
       }
       return;
     }
-    if (result.data.type === "connect-tunnel.identity") {
-      deps.sharedPorts.recordTunnelIdentity(args.hostId, result.data.identity);
-      return;
-    }
     if (result.data.type !== "heartbeat") {
       deps.terminalSessions.handleDaemonTerminalMessage({
         hostId: args.hostId,
@@ -223,12 +214,7 @@ export function onDaemonSocketMessage(
 export function onDaemonSocketClose(
   deps: Pick<
     AppDeps,
-    | "db"
-    | "hub"
-    | "logger"
-    | "pendingInteractions"
-    | "sharedPorts"
-    | "terminalSessions"
+    "db" | "hub" | "logger" | "pendingInteractions" | "terminalSessions"
   >,
   sessionId: string,
 ): void {

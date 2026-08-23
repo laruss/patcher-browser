@@ -1,9 +1,9 @@
-import type { HostType } from "@bb/domain";
+import type { HostType } from "@patcher/domain";
 import {
   DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST,
   DEFAULT_HOST_DAEMON_LOCAL_HEALTH_PATH,
   DEFAULT_HOST_DAEMON_LOCAL_HEALTH_VALUE,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 export type HostDaemonLocalApiMode = "full" | "health-only";
 

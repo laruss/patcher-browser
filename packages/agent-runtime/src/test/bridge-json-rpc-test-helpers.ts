@@ -1,4 +1,4 @@
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 import { vi } from "vitest";
 import { z } from "zod";
 

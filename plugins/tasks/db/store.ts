@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import { initializeTasksSchema } from "./schema";
 import {
@@ -42,7 +42,7 @@ import type {
   UpsertTaskThreadInput,
 } from "./types";
 
-type PluginDatabase = ReturnType<BbPluginApi["storage"]["database"]>;
+type PluginDatabase = ReturnType<PatcherPluginApi["storage"]["database"]>;
 type SqlParameter = string | number;
 
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -303,9 +303,9 @@ function validateDueDate(dueDate: string | null): string | null {
   return dueDate;
 }
 
-function validateLinkedBbProjectId(id: string | null): string | null {
+function validateLinkedPatcherProjectId(id: string | null): string | null {
   if (id !== null && !id.startsWith("proj_")) {
-    throw new Error("linkedBbProjectId must be a bb proj_* id");
+    throw new Error("linkedPatcherProjectId must be a Patcher proj_* id");
   }
   return id;
 }
@@ -315,7 +315,7 @@ function validateThreadId(id: null): null;
 function validateThreadId(id: string | null): string | null;
 function validateThreadId(id: string | null): string | null {
   if (id !== null && !id.startsWith("thr_")) {
-    throw new Error("threadId must be a bb thr_* id");
+    throw new Error("threadId must be a Patcher thr_* id");
   }
   return id;
 }
@@ -353,7 +353,7 @@ function projectFromRow(row: ProjectRow): Project {
     nextTaskNumber: row.next_task_number,
     color: row.color,
     folderId: row.folder_id,
-    linkedBbProjectId: row.linked_bb_project_id,
+    linkedPatcherProjectId: row.linked_bb_project_id,
     createdAt: row.created_at,
   };
 }
@@ -626,7 +626,7 @@ export function createTasksStore(db: PluginDatabase) {
       validatePrefix(input.prefix),
       requireNonEmpty(input.color, "Project color"),
       folderId,
-      validateLinkedBbProjectId(input.linkedBbProjectId ?? null),
+      validateLinkedPatcherProjectId(input.linkedPatcherProjectId ?? null),
       nowIso(),
     );
     return requireProject(id);
@@ -681,9 +681,9 @@ export function createTasksStore(db: PluginDatabase) {
         ? current.color
         : requireNonEmpty(input.color, "Project color"),
       folderId,
-      input.linkedBbProjectId === undefined
-        ? current.linkedBbProjectId
-        : validateLinkedBbProjectId(input.linkedBbProjectId),
+      input.linkedPatcherProjectId === undefined
+        ? current.linkedPatcherProjectId
+        : validateLinkedPatcherProjectId(input.linkedPatcherProjectId),
       id,
     );
     return requireProject(id);

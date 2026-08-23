@@ -1,4 +1,7 @@
-import type { ThreadTimelineResponse, TimelineRow } from "@bb/server-contract";
+import type {
+  ThreadTimelineResponse,
+  TimelineRow,
+} from "@patcher/server-contract";
 
 /**
  * Caps the largest inline strings in a timeline window. A handful of tool/

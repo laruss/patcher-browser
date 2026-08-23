@@ -1,15 +1,15 @@
-// bb-plugin-memory — durable, progressively disclosed memory for BB agents.
+// patcher-plugin-memory — durable, progressively disclosed memory for Patcher agents.
 //
 // The model sees a compact global + current-project catalog in its standing
 // instructions. Full records stay in SQLite and are read or changed through
-// the `bb memory` CLI command; this plugin intentionally registers no native
+// the `patcher memory` CLI command; this plugin intentionally registers no native
 // agent tools.
 import { randomBytes } from "node:crypto";
 import {
   defineRpcContract,
-  type BbPluginApi,
+  type PatcherPluginApi,
   type PluginCliContext,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 import { z } from "zod";
 
 const CATALOG_MAX_CHARS = 3_900;
@@ -29,7 +29,7 @@ const MEMORY_KINDS = [
 type MemoryKind = (typeof MEMORY_KINDS)[number];
 type MemoryScope = "global" | "project";
 type ReadScope = MemoryScope | "all";
-type PluginDatabase = ReturnType<BbPluginApi["storage"]["database"]>;
+type PluginDatabase = ReturnType<PatcherPluginApi["storage"]["database"]>;
 
 interface MemoryRecord {
   id: string;
@@ -383,7 +383,7 @@ function writeScope(
     throw new CliError("write scope must be project or global");
   if (!ctx.projectId) {
     throw new CliError(
-      "project-scoped memory requires a BB project context; run inside a project thread",
+      "project-scoped memory requires a Patcher project context; run inside a project thread",
     );
   }
   return { scope: "project", projectId: ctx.projectId };
@@ -399,7 +399,7 @@ function scopeSql(
   }
   if (scope === "project") {
     if (!projectId)
-      throw new CliError("project scope requires a BB project context");
+      throw new CliError("project scope requires a Patcher project context");
     return {
       sql: `${columnPrefix}scope = 'project' AND ${columnPrefix}project_id = ?`,
       params: [projectId],
@@ -784,8 +784,8 @@ function renderCatalog(store: MemoryStore, projectId: string): string {
   const { memories, total } = store.list("all", projectId, MAX_RESULT_LIMIT);
   const header = [
     "Memory index",
-    "The entries below are summaries, not full records. Use `bb memory search <query> --scope all --json` and `bb memory get <id> --json` to progressively disclose details.",
-    "You may proactively save durable learning with `bb memory add`. Use project scope for repository-specific facts and global scope only for broadly applicable user preferences or workflows. Never store secrets, transient status, guesses, or rules already guaranteed by AGENTS.md.",
+    "The entries below are summaries, not full records. Use `patcher memory search <query> --scope all --json` and `patcher memory get <id> --json` to progressively disclose details.",
+    "You may proactively save durable learning with `patcher memory add`. Use project scope for repository-specific facts and global scope only for broadly applicable user preferences or workflows. Never store secrets, transient status, guesses, or rules already guaranteed by AGENTS.md.",
     "",
   ].join("\n");
   if (memories.length === 0) return `${header}No memories are stored yet.`;
@@ -806,7 +806,7 @@ function renderCatalog(store: MemoryStore, projectId: string): string {
     const finalShown = finalLines.length;
     footer =
       finalShown < total
-        ? `\nShowing ${finalShown} of ${total}; run \`bb memory catalog --scope all --json\` for the rest.`
+        ? `\nShowing ${finalShown} of ${total}; run \`patcher memory catalog --scope all --json\` for the rest.`
         : "";
     if (
       `${header}${finalLines.join("\n")}${footer}`.length <= CATALOG_MAX_CHARS
@@ -820,13 +820,13 @@ function renderCatalog(store: MemoryStore, projectId: string): string {
 
 const USAGE = [
   "Usage:",
-  "  bb memory catalog [--scope all|project|global] [--limit N] [--json]",
-  "  bb memory search <query...> [--scope all|project|global] [--limit N] [--json]",
-  "  bb memory get <id-or-name> [--scope all|project|global] [--json]",
-  "  bb memory add --scope project|global --name NAME --summary TEXT --details TEXT --reason TEXT [--kind KIND] [--tag TAG]... [--importance 0-100] [--pinned] [--json]",
-  "  bb memory update <id> --expected-version N --reason TEXT [--summary TEXT] [--details TEXT] [--kind KIND] [--tag TAG]... [--importance 0-100] [--pinned true|false] [--json]",
-  "  bb memory forget <id> --expected-version N --reason TEXT [--json]",
-  "  bb memory history <id> [--limit N] [--json]",
+  "  patcher memory catalog [--scope all|project|global] [--limit N] [--json]",
+  "  patcher memory search <query...> [--scope all|project|global] [--limit N] [--json]",
+  "  patcher memory get <id-or-name> [--scope all|project|global] [--json]",
+  "  patcher memory add --scope project|global --name NAME --summary TEXT --details TEXT --reason TEXT [--kind KIND] [--tag TAG]... [--importance 0-100] [--pinned] [--json]",
+  "  patcher memory update <id> --expected-version N --reason TEXT [--summary TEXT] [--details TEXT] [--kind KIND] [--tag TAG]... [--importance 0-100] [--pinned true|false] [--json]",
+  "  patcher memory forget <id> --expected-version N --reason TEXT [--json]",
+  "  patcher memory history <id> [--limit N] [--json]",
 ].join("\n");
 
 function jsonOutput(value: unknown): string {
@@ -871,9 +871,9 @@ function parseRpcTags(record: Record<string, unknown>): string[] {
   return value;
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, [
+export default async function plugin(patcher: PatcherPluginApi) {
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, [
     `CREATE TABLE IF NOT EXISTS memories (
        id TEXT PRIMARY KEY,
        scope TEXT NOT NULL CHECK (scope IN ('global', 'project')),
@@ -932,7 +932,7 @@ export default async function plugin(bb: BbPluginApi) {
   ]);
   const store = new MemoryStore(db);
 
-  bb.rpc.register(memoryRpcContract, {
+  patcher.rpc.register(memoryRpcContract, {
     listMemories() {
       return { memories: store.listAll() };
     },
@@ -976,11 +976,11 @@ export default async function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.agents.contributeInstructions(({ projectId }) =>
+  patcher.agents.contributeInstructions(({ projectId }) =>
     renderCatalog(store, projectId),
   );
 
-  bb.cli.register({
+  patcher.cli.register({
     name: "memory",
     summary: "Read and maintain durable global and project memories",
     commands: [
@@ -988,41 +988,41 @@ export default async function plugin(bb: BbPluginApi) {
         name: "catalog",
         summary: "List compact memory summaries",
         usage:
-          "bb memory catalog [--scope all|project|global] [--limit N] [--json]",
+          "patcher memory catalog [--scope all|project|global] [--limit N] [--json]",
       },
       {
         name: "search",
         summary: "Search memory summaries and details",
         usage:
-          "bb memory search <query...> [--scope all|project|global] [--limit N] [--json]",
+          "patcher memory search <query...> [--scope all|project|global] [--limit N] [--json]",
       },
       {
         name: "get",
         summary: "Read one complete memory",
         usage:
-          "bb memory get <id-or-name> [--scope all|project|global] [--json]",
+          "patcher memory get <id-or-name> [--scope all|project|global] [--json]",
       },
       {
         name: "add",
         summary: "Save a project or global memory",
         usage:
-          "bb memory add --scope project|global --name NAME --summary TEXT --details TEXT --reason TEXT [options]",
+          "patcher memory add --scope project|global --name NAME --summary TEXT --details TEXT --reason TEXT [options]",
       },
       {
         name: "update",
         summary: "Update a memory with version checking",
         usage:
-          "bb memory update <id> --expected-version N --reason TEXT [options]",
+          "patcher memory update <id> --expected-version N --reason TEXT [options]",
       },
       {
         name: "forget",
         summary: "Soft-delete a memory with version checking",
-        usage: "bb memory forget <id> --expected-version N --reason TEXT",
+        usage: "patcher memory forget <id> --expected-version N --reason TEXT",
       },
       {
         name: "history",
         summary: "Show a memory's version history",
-        usage: "bb memory history <id> [--limit N] [--json]",
+        usage: "patcher memory history <id> [--limit N] [--json]",
       },
     ],
     async run(argv, ctx) {

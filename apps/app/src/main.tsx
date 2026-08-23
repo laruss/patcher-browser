@@ -11,9 +11,14 @@ import {
   createAppQueryClient,
   installAppQueryClientBrowserEvents,
 } from "./lib/query-client";
+import { adoptLegacyBrowserStorage } from "./lib/legacy-storage-adoption";
 import { takeOverPanelResizeCursor } from "./lib/resizeCursor";
 import { applyCachedAppThemeCss } from "./lib/themes";
 import "./app.css";
+
+// Before anything reads a preference: on an origin the rename did not move,
+// every stored key is still under its pre-rename name.
+adoptLegacyBrowserStorage();
 
 const queryClient = createAppQueryClient();
 installAppQueryClientBrowserEvents(queryClient);

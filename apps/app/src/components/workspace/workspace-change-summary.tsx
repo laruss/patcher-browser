@@ -4,8 +4,8 @@ import type {
   WorkspaceCommitSummary,
   WorkspaceFileStatus,
   WorkspaceStatus,
-} from "@bb/domain";
-import { formatDiffStatsText } from "@bb/thread-view";
+} from "@patcher/domain";
+import { formatDiffStatsText } from "@patcher/thread-view";
 import { DiffStatsTally } from "@/components/ui/diff-stats-tally.js";
 
 export interface ChangeTally {

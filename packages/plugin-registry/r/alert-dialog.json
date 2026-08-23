@@ -3,14 +3,14 @@
   "name": "alert-dialog",
   "type": "registry:ui",
   "title": "alert-dialog",
-  "description": "BB ui \"alert-dialog\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"alert-dialog\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-alert-dialog"
   ],
   "registryDependencies": [
-    "@bb/button",
-    "@bb/portal-scope",
-    "@bb/utils"
+    "@patcher/button",
+    "@patcher/portal-scope",
+    "@patcher/utils"
   ],
   "files": [
     {

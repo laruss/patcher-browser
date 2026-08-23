@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-workflows",
+  "name": "patcher-plugin-workflows",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Run durable, provider-independent agent workflows.",
   "engines": {
-    "bb": ">=0.0"
+    "patcher": ">=0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Workflows",
     "description": "Run durable, provider-independent agent workflows.",
     "branding": {
@@ -25,14 +25,14 @@
     ]
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bb/shared-ui": "workspace:*",
+    "@patcher/shared-ui": "workspace:*",
     "@jitl/quickjs-singlefile-cjs-release-sync": "^0.32.0",
     "acorn": "8.16.0",
     "acorn-walk": "^8.3.5",
@@ -41,7 +41,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",

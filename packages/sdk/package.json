@@ -1,5 +1,5 @@
 {
-  "name": "@bb/sdk",
+  "name": "@patcher/sdk",
   "version": "0.0.1",
   "type": "module",
   "exports": {
@@ -44,18 +44,18 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/config": "workspace:*",
-    "@bb/core-ui": "workspace:*",
-    "@bb/domain": "workspace:*",
-    "@bb/host-daemon-contract": "workspace:*",
-    "@bb/server-contract": "workspace:*",
-    "@bb/templates": "workspace:*",
+    "@patcher/config": "workspace:*",
+    "@patcher/core-ui": "workspace:*",
+    "@patcher/domain": "workspace:*",
+    "@patcher/host-daemon-contract": "workspace:*",
+    "@patcher/server-contract": "workspace:*",
+    "@patcher/templates": "workspace:*",
     "hono": "^4.7.0",
     "ws": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.28.0",

@@ -3,7 +3,7 @@ name: workflows
 description: Execute a workflow script that orchestrates multiple subagents deterministically. Use for multi-agent orchestration, parallel or sequential agent pipelines, structured outputs, and durable background workflow runs.
 ---
 
-# BB workflows
+# Patcher workflows
 
 A workflow structures work across many agents — to be comprehensive (decompose
 and cover in parallel), to be confident (independent perspectives and
@@ -15,8 +15,8 @@ ONLY run a workflow when the user has explicitly opted into multi-agent
 orchestration. The user directly asking you to run a workflow, use multi-agent
 orchestration, fan out agents, invoke this skill, or run a specific named or
 saved workflow counts as explicit opt-in. For any other task — even one that
-would clearly benefit from parallelism — do not call `bb_workflow_run`. Use
-ordinary BB delegation, or briefly describe what a multi-agent workflow could
+would clearly benefit from parallelism — do not call `patcher_workflow_run`. Use
+ordinary Patcher delegation, or briefly describe what a multi-agent workflow could
 do and how much it would roughly cost, and ask the user whether to run it.
 
 When you do call it, the right move is often **hybrid**: scout inline first
@@ -24,15 +24,15 @@ When you do call it, the right move is often **hybrid**: scout inline first
 then run a workflow to pipeline over it. You don't need to know the shape before
 the _task_ — only before the _orchestration step_.
 
-`bb_workflow_run` returns immediately. After a successful call, copy its
+`patcher_workflow_run` returns immediately. After a successful call, copy its
 `previewDirective` into your response exactly once as a standalone line. Do not
-wrap it in backticks or a code fence, and do not invent or edit the run ID. BB
+wrap it in backticks or a code fence, and do not invent or edit the run ID. Patcher
 replaces that line with a live progress card; its action opens the matching
 phase and worker inspector in the thread's right panel. The completion
 notification still arrives in the origin thread, and
-`bb workflows status <run-id>` remains the authoritative compact polling
-surface. For detailed history, redirect a bounded `bb workflows history` JSONL
-page into `$BB_THREAD_STORAGE` before reading it with filesystem tools.
+`patcher workflows status <run-id>` remains the authoritative compact polling
+surface. For detailed history, redirect a bounded `patcher workflows history` JSONL
+page into `$PATCHER_THREAD_STORAGE` before reading it with filesystem tools.
 
 Common single-phase workflows you can chain across turns:
 
@@ -45,18 +45,18 @@ Common single-phase workflows you can chain across turns:
 For larger work, run several in sequence — read each result before deciding the
 next phase. You stay in the loop; each workflow is one well-scoped fan-out.
 
-Before writing explicit provider selections, use BB's built-in provider CLI:
+Before writing explicit provider selections, use Patcher's built-in provider CLI:
 
 ```bash
-bb provider list --environment "$BB_ENVIRONMENT_ID" --json
-bb provider models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json
+patcher provider list --environment "$PATCHER_ENVIRONMENT_ID" --json
+patcher provider models <provider-id> --environment "$PATCHER_ENVIRONMENT_ID" --json
 ```
 
 Query only the provider you intend to use. Do not guess identifiers from
 memory, especially for ACP providers: their advertised model IDs and reasoning
 options are not derivable from the provider ID.
 
-Before running authored or edited source, run `bb workflows validate` with the
+Before running authored or edited source, run `patcher workflows validate` with the
 same source selector. It checks source size, hidden control characters, syntax,
 unsafe constructs, literal metadata and schemas, partial selection tuples, and
 all safely discoverable literal provider/model/reasoning tuples against that
@@ -106,9 +106,9 @@ and per-agent result schemas; rejection errors identify the unsafe schema path.
 
 ## Script body hooks
 
-- `agent(prompt: string, opts?)`: spawn a BB worker. Without `schema`, returns
+- `agent(prompt: string, opts?)`: spawn a Patcher worker. Without `schema`, returns
   its final text as a string. With `schema` (a JSON Schema), the worker is forced
-  to call `bb_workflow_result` and `agent()` returns the validated value — no
+  to call `patcher_workflow_result` and `agent()` returns the validated value — no
   parsing needed. `opts.label` overrides the display label. `opts.phase`
   explicitly assigns this agent to a progress group; use this inside
   `pipeline()`/`parallel()` stages to avoid races on the global `phase()` state —
@@ -130,7 +130,7 @@ and per-agent result schemas; rejection errors identify the unsafe schema path.
 - `phase(title: string)`: start a new phase; subsequent `agent()` calls are
   grouped under this title. An agent-level `phase` overrides only that call and
   does not change the current phase.
-- `args`: the value passed as `bb_workflow_run`'s `args` input, verbatim. Pass
+- `args`: the value passed as `patcher_workflow_run`'s `args` input, verbatim. Pass
   arrays/objects as actual JSON values, NOT as a JSON-encoded string. Use this to
   parameterize named workflows — for example, pass a research question, target
   path, or config object directly instead of via a side-channel file.
@@ -157,8 +157,8 @@ stamp results after the workflow returns, and for randomness vary the agent
 prompt/label by index. No filesystem, shell, network, imports, or Node.js API
 access.
 
-Workers spawned by `agent()` are normal BB threads and retain the tools and
-workspace access allowed by their BB permission mode. The QuickJS script itself
+Workers spawned by `agent()` are normal Patcher threads and retain the tools and
+workspace access allowed by their Patcher permission mode. The QuickJS script itself
 never receives that access.
 
 ## Agent selection
@@ -180,7 +180,7 @@ await agent("Inspect the implementation", {
 });
 ```
 
-BB validates the tuple against the live provider/model catalog immediately
+Patcher validates the tuple against the live provider/model catalog immediately
 before spawning the worker. A provider disappearing between authoring and
 execution fails the call instead of silently substituting another model.
 
@@ -213,16 +213,16 @@ const review = await agent("Return a severity-ranked review", {
 });
 ```
 
-Native `label` is an alias for BB's existing `title`, and native `schema` is an
-alias for BB's existing `outputSchema`. Either spelling remains supported.
+Native `label` is an alias for Patcher's existing `title`, and native `schema` is an
+alias for Patcher's existing `outputSchema`. Either spelling remains supported.
 `label` and `title` must match exactly when both are present; `schema` and
 `outputSchema` must be structurally identical, with object key order ignored.
 The canonical structured-result field is `outputSchema`. `phase`, `label`, and
 `title` are display-only.
 
-That worker receives only the `bb_workflow_result` plugin tool. It MUST call the
+That worker receives only the `patcher_workflow_result` plugin tool. It MUST call the
 tool exactly once at the end of its response with `{ value: ... }` to provide
-the structured output. BB validates the value with Ajv. The initial invalid
+the structured output. Patcher validates the value with Ajv. The initial invalid
 attempt gets at most two corrective retries; a third invalid submission fails
 the call. There is no hidden normalization-agent pass.
 
@@ -396,13 +396,13 @@ deterministic (loops, conditionals, fan-out) rather than model-driven.
 
 ## Running and resuming
 
-`bb_workflow_run` and `bb workflows validate` accept exactly one source mode:
+`patcher_workflow_run` and `patcher workflows validate` accept exactly one source mode:
 
 - `script`: inline JavaScript.
 - `scriptPath`: a relative path or an absolute path confined to the workflow
   origin environment's workspace.
 - `name`: a lowercase kebab-case name resolved as
-  `.bb/workflows/<name>.js` in the current project workspace.
+  `.patcher/workflows/<name>.js` in the current project workspace.
 
 The existing `source` field remains a supported alias for inline `script`, but
 do not provide both. File and name resolution happens through the origin
@@ -411,10 +411,10 @@ paths, missing workspace roots, non-UTF-8 files, and sources over 512 KiB are
 rejected. QuickJS receives source text only; it never gets filesystem access.
 Plugin-bundled workflow discovery is not supported.
 
-`bb_workflow_run` also accepts optional JSON `args` and optional `resumeRunId`.
-It returns a durable run ID immediately. Use the compact `bb workflows status`
-summary, paged `bb workflows history`, `bb workflows list`, and
-`bb workflows stop` afterward. Completion is sent back as an agent-only input:
+`patcher_workflow_run` also accepts optional JSON `args` and optional `resumeRunId`.
+It returns a durable run ID immediately. Use the compact `patcher workflows status`
+summary, paged `patcher workflows history`, `patcher workflows list`, and
+`patcher workflows stop` afterward. Completion is sent back as an agent-only input:
 it steers an active origin immediately or starts a turn when the origin is idle,
 without rendering a user-facing message. Delivery is duplicate-tolerant
 at-least-once because `threads.send` has no idempotency key. CLI status polling
@@ -429,10 +429,10 @@ JSONL page on the execution host, then use normal file-navigation tools:
 
 ```bash
 run=<run-id>
-mkdir -p "$BB_THREAD_STORAGE/workflows"
-bb workflows history "$run" --cursor 0 --limit 100 \
-  > "$BB_THREAD_STORAGE/workflows/$run.jsonl"
-jq -c 'select(.type == "page")' "$BB_THREAD_STORAGE/workflows/$run.jsonl"
+mkdir -p "$PATCHER_THREAD_STORAGE/workflows"
+patcher workflows history "$run" --cursor 0 --limit 100 \
+  > "$PATCHER_THREAD_STORAGE/workflows/$run.jsonl"
+jq -c 'select(.type == "page")' "$PATCHER_THREAD_STORAGE/workflows/$run.jsonl"
 ```
 
 The last `page` record supplies `nextCursor`; fetch that cursor and append the
@@ -467,18 +467,18 @@ persisted and visible in workflow history.
 The CLI equivalents are:
 
 ```bash
-bb workflows validate --script '<javascript>'
-bb workflows validate --file .bb/workflows/review-change.js
-bb workflows validate --name review-change
-bb workflows run --script '<javascript>' --args '<json>'
-bb workflows run --file .bb/workflows/review-change.js --resume <run-id>
-bb workflows run --name review-change
-bb workflows status <run-id>
-bb workflows history <run-id> --cursor 0 --limit 100
-bb workflows list --limit 20
-bb workflows stop <run-id>
-bb provider list --environment "$BB_ENVIRONMENT_ID" --json
-bb provider models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json
+patcher workflows validate --script '<javascript>'
+patcher workflows validate --file .patcher/workflows/review-change.js
+patcher workflows validate --name review-change
+patcher workflows run --script '<javascript>' --args '<json>'
+patcher workflows run --file .patcher/workflows/review-change.js --resume <run-id>
+patcher workflows run --name review-change
+patcher workflows status <run-id>
+patcher workflows history <run-id> --cursor 0 --limit 100
+patcher workflows list --limit 20
+patcher workflows stop <run-id>
+patcher provider list --environment "$PATCHER_ENVIRONMENT_ID" --json
+patcher provider models <provider-id> --environment "$PATCHER_ENVIRONMENT_ID" --json
 ```
 
 The CLI's `--file` maps to the agent tool's `scriptPath`, but a relative CLI

@@ -1,4 +1,4 @@
-import { threadScope } from "@bb/domain";
+import { threadScope } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { extractThreadTimelineGoal } from "../src/goal-snapshot-extraction.js";
 import type { ThreadEventWithMeta } from "../src/build-event-projection.js";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { BbDesktopBrowserFindAction } from "@bb/desktop-contract";
-import { getDesktopBrowserApi } from "./bb-desktop";
+import type { PatcherDesktopBrowserFindAction } from "@patcher/desktop-contract";
+import { getDesktopBrowserApi } from "./patcher-desktop";
 
 // Find in page, as the browser surface drives it.
 //
@@ -69,7 +69,7 @@ export function useBrowserFind({
   const [matches, setMatches] = useState<BrowserFindMatches | null>(null);
 
   const send = useCallback(
-    (action: BbDesktopBrowserFindAction, text: string) => {
+    (action: PatcherDesktopBrowserFindAction, text: string) => {
       if (tabId === null || desktopBrowser?.find === undefined) {
         return;
       }

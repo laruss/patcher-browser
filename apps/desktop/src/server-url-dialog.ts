@@ -1,8 +1,8 @@
 import { BrowserWindow, ipcMain } from "electron";
-import { escapeHtmlText } from "@bb/domain";
+import { escapeHtmlText } from "@patcher/domain";
 import {
-  BB_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL,
-  BB_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
+  PATCHER_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL,
+  PATCHER_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
   serverUrlDialogSubmitRequestSchema,
   type ServerUrlDialogSubmitResponse,
 } from "./server-url-dialog-ipc.js";
@@ -96,9 +96,9 @@ function renderServerUrlDialogHtml(initialUrl: string | null): string {
 </head>
 <body>
   <h1>Set Server URL</h1>
-  <p>Point this app at a bb server. Leave empty to use only This Mac.</p>
+  <p>Point this app at a Patcher server. Leave empty to use only This Mac.</p>
   <form>
-    <input name="url" type="text" placeholder="https://example.com:38886" value="${escapeHtmlText(initialUrl ?? "")}" autocomplete="off" spellcheck="false">
+    <input name="url" type="text" placeholder="https://example.com:38986" value="${escapeHtmlText(initialUrl ?? "")}" autocomplete="off" spellcheck="false">
     <div data-error></div>
     <div class="actions">
       <button type="button" data-cancel>Cancel</button>
@@ -154,9 +154,9 @@ export function openServerUrlDialog(
         return;
       }
       settled = true;
-      ipcMain.removeHandler(BB_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL);
+      ipcMain.removeHandler(PATCHER_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL);
       ipcMain.removeListener(
-        BB_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL,
+        PATCHER_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL,
         handleCancel,
       );
       openDialog = null;
@@ -173,7 +173,7 @@ export function openServerUrlDialog(
     }
 
     ipcMain.handle(
-      BB_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
+      PATCHER_DESKTOP_SERVER_URL_DIALOG_SUBMIT_CHANNEL,
       (event, payload): ServerUrlDialogSubmitResponse => {
         if (event.sender.id !== dialogWindow.webContents.id) {
           return { ok: false, message: "Unexpected sender." };
@@ -194,7 +194,7 @@ export function openServerUrlDialog(
         return { ok: true };
       },
     );
-    ipcMain.on(BB_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL, handleCancel);
+    ipcMain.on(PATCHER_DESKTOP_SERVER_URL_DIALOG_CANCEL_CHANNEL, handleCancel);
     dialogWindow.on("closed", () => {
       finish({ kind: "cancelled" });
     });

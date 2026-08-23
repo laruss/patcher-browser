@@ -2,7 +2,7 @@ import type {
   GitCheckoutRef,
   ProjectSourceCheckout,
   WorkspaceGitOperation,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { RootComposeSelectedBranch } from "./root-compose-thread-environment";
 
 export type RootComposeBranchEnvironmentMode = "local" | "worktree" | "other";

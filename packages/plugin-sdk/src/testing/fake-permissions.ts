@@ -6,15 +6,15 @@ import {
   canonicalPermissions,
   pluginPermissionSchema,
   type PluginPermission,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 /**
- * The fake host's half of `bb.permissions`.
+ * The fake host's half of `patcher.permissions`.
  *
  * It exists so a plugin's unit tests cannot pass on a manifest the real host
  * would refuse. The default is the host's default — **declared nothing,
- * reaches nothing gated** — so a suite that exercises `bb.browser` or
- * `bb.sdk` must say what the plugin asks for, and saying it wrong fails here
+ * reaches nothing gated** — so a suite that exercises `patcher.browser` or
+ * `patcher.sdk` must say what the plugin asks for, and saying it wrong fails here
  * instead of on someone's machine.
  *
  * Say it by reading the plugin's own manifest, so the test cannot drift from
@@ -25,28 +25,29 @@ import {
  */
 
 /**
- * The `bb.permissions` of the plugin owning `from`, read off disk.
+ * The `patcher.permissions` of the plugin owning `from`, read off disk.
  *
  * Pass `import.meta.url` from the test. Reading the real manifest is the whole
  * point: a hand-written list in the test would be a second declaration, free
  * to say the plugin needs something it does not, or — worse — to keep passing
  * after the manifest drops an entry the code still uses.
  *
- * Walks up to the nearest `package.json` that declares `bb.server`, so tests
+ * Walks up to the nearest `package.json` that declares `patcher.server`, so tests
  * in subdirectories work without naming a path.
  */
 export function pluginPermissionsFromManifest(
   from: string,
 ): readonly PluginPermission[] {
-  const declared = (readPluginManifestBb(from) as { permissions?: unknown })
-    .permissions;
+  const declared = (
+    readPluginManifestPatcher(from) as { permissions?: unknown }
+  ).permissions;
   // Parsed rather than trusted: a manifest typo must fail the test the way it
   // fails the install, not silently grant nothing.
   return pluginPermissionSchema.array().parse(declared ?? []);
 }
 
 /**
- * The `bb.sites` of the plugin owning `from`, read off disk.
+ * The `patcher.sites` of the plugin owning `from`, read off disk.
  *
  * The companion to {@link pluginPermissionsFromManifest}, and needed for the
  * same reason plus one of its own: a page style names one of these patterns, so
@@ -54,17 +55,18 @@ export function pluginPermissionsFromManifest(
  * manifest never declared — which is the one thing an install refuses.
  */
 export function pluginSitesFromManifest(from: string): readonly string[] {
-  const declared = (readPluginManifestBb(from) as { sites?: unknown }).sites;
+  const declared = (readPluginManifestPatcher(from) as { sites?: unknown })
+    .sites;
   return pluginSitesSchema.parse(declared ?? []);
 }
 
 const pluginSitesSchema = z.array(z.string().min(1));
 
 /**
- * The `bb` block of the nearest `package.json` above `from` that declares
- * `bb.server`, so tests in subdirectories work without naming a path.
+ * The `patcher` block of the nearest `package.json` above `from` that declares
+ * `patcher.server`, so tests in subdirectories work without naming a path.
  */
-function readPluginManifestBb(from: string): object {
+function readPluginManifestPatcher(from: string): object {
   let dir = from.startsWith("file:")
     ? dirname(fileURLToPath(from))
     : resolve(from);
@@ -72,15 +74,15 @@ function readPluginManifestBb(from: string): object {
     const candidate = join(dir, "package.json");
     if (existsSync(candidate)) {
       const manifest: unknown = JSON.parse(readFileSync(candidate, "utf8"));
-      const bb = (manifest as { bb?: { server?: unknown } }).bb;
-      if (bb !== undefined && typeof bb.server === "string") {
-        return bb;
+      const patcher = (manifest as { patcher?: { server?: unknown } }).patcher;
+      if (patcher !== undefined && typeof patcher.server === "string") {
+        return patcher;
       }
     }
     const parent = dirname(dir);
     if (parent === dir) {
       throw new Error(
-        `no plugin package.json (one declaring "bb.server") above ${from}`,
+        `no plugin package.json (one declaring "patcher.server") above ${from}`,
       );
     }
     dir = parent;
@@ -95,8 +97,8 @@ export function createFakePermissionError(
   return Object.assign(
     new Error(
       `${what} needs the "${permission}" permission, which plugin ` +
-        `"${pluginId}" does not declare. Add it to "bb.permissions" in the ` +
-        `plugin's package.json, then run \`bb plugin reload ${pluginId}\`.`,
+        `"${pluginId}" does not declare. Add it to "patcher.permissions" in the ` +
+        `plugin's package.json, then run \`patcher plugin reload ${pluginId}\`.`,
     ),
     { name: "PluginPermissionError", permission, pluginId },
   );

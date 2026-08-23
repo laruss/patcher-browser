@@ -22,7 +22,7 @@ const INLINE_OUTPUT_JSON_PATHS = [
  * path is how a value is left untouched without repeating the whole expression
  * once per output field. Chosen to be a path no event payload can contain.
  */
-const NOOP_JSON_PATH = "$.__bb_timeline_truncation_noop__";
+const NOOP_JSON_PATH = "$.__patcher_timeline_truncation_noop__";
 
 /**
  * The marker appended in place of the removed characters. Kept identical to the

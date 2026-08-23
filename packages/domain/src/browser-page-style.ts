@@ -5,7 +5,7 @@
  * "remove that banner", "widen that column", "hide the feed" are one rule each,
  * they run no plugin code in the page, and they cannot read anything — so the
  * only question a user has to answer is *which sites*, which is the question
- * `bb.sites` exists to put in front of them.
+ * `patcher.sites` exists to put in front of them.
  *
  * What the browser guarantees about applying it is narrower than Chrome's
  * content scripts, and measured rather than assumed (Electron 41.7.0):
@@ -44,7 +44,7 @@ export const BROWSER_PAGE_STYLE_MAX_MATCHES = 16;
 export interface BrowserPageStyle {
   pluginId: string;
   styleId: string;
-  /** Site patterns, each one the plugin declared in `bb.sites`. */
+  /** Site patterns, each one the plugin declared in `patcher.sites`. */
   matches: string[];
   css: string;
 }

@@ -1,6 +1,6 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 
-type PluginDatabase = ReturnType<BbPluginApi["storage"]["database"]>;
+type PluginDatabase = ReturnType<PatcherPluginApi["storage"]["database"]>;
 
 const MIGRATIONS = [
   `

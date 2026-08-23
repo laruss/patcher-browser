@@ -8,9 +8,9 @@ import {
   isBuiltInThemeId,
   type AppTheme,
   type FaviconColorPreference,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { action } from "../action.js";
-import { createCliBbSdk } from "../client.js";
+import { createCliPatcherSdk } from "../client.js";
 import { outputJson, type JsonOutputOptions } from "./helpers.js";
 
 interface ThemeShowCommandOptions extends JsonOutputOptions {
@@ -56,7 +56,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOutputOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const catalog = await sdk.theme.catalog();
         if (
           outputJson(opts, {
@@ -113,7 +113,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string, opts: ThemeSetCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const updated =
           opts.faviconColor === undefined
             ? await sdk.theme.set(id)
@@ -132,7 +132,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOutputOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const catalog = await sdk.theme.catalog();
         if (outputJson(opts, { dir: catalog.dir })) return;
         console.log(catalog.dir);
@@ -151,7 +151,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (color: string, opts: JsonOutputOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const active = await sdk.theme.get();
         const updated = await sdk.theme.set({
           themeId: active.themeId,
@@ -168,7 +168,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOutputOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const active = await sdk.theme.get();
         const updated = await sdk.theme.set({
           themeId: active.themeId,
@@ -186,7 +186,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: ThemeShowCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const active = await sdk.theme.get();
         if (outputJson(opts, active)) return;
         if (opts.css) {
@@ -210,7 +210,7 @@ export function registerThemeCommands(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: JsonOutputOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         // The SDK's theme-id shorthand carries the current favicon tint forward.
         const updated = await sdk.theme.set(defaultAppTheme.themeId);
         if (outputJson(opts, updated)) return;

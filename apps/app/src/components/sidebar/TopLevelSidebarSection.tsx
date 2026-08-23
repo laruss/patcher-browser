@@ -6,9 +6,9 @@ import {
   type PointerEventHandler,
   type ReactNode,
 } from "react";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { Icon } from "@bb/shared-ui/icon";
-import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { Icon } from "@patcher/shared-ui/icon";
+import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chromeStyleTokens";
 import {
   SidebarStickyGroup,

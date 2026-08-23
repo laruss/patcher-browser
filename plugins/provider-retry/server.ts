@@ -1,4 +1,4 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { registerProviderRetryCli } from "./src/cli.js";
 import { providerRetryRpcContract } from "./src/contract.js";
 import {
@@ -30,14 +30,18 @@ function waitForAbort(signal: AbortSignal): Promise<void> {
   });
 }
 
-function logFailure(bb: BbPluginApi, operation: string, error: unknown): void {
-  bb.log.warn(
+function logFailure(
+  patcher: PatcherPluginApi,
+  operation: string,
+  error: unknown,
+): void {
+  patcher.log.warn(
     `${operation}: ${error instanceof Error ? error.message : String(error)}`,
   );
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  const settings = bb.settings.define({
+export default async function plugin(patcher: PatcherPluginApi) {
+  const settings = patcher.settings.define({
     maximumWait: {
       type: "select",
       label: "Maximum automatic wait",
@@ -49,16 +53,16 @@ export default async function plugin(bb: BbPluginApi) {
   });
   const initialSettings = await settings.get();
   const service = new ProviderRetryService(
-    bb,
+    patcher,
     undefined,
     maximumWaitMs(initialSettings.maximumWait),
   );
   settings.onChange((next) => {
     service.setMaximumWaitMs(maximumWaitMs(next.maximumWait));
   });
-  bb.onDispose(() => service.dispose());
+  patcher.onDispose(() => service.dispose());
 
-  bb.rpc.register(providerRetryRpcContract, {
+  patcher.rpc.register(providerRetryRpcContract, {
     providerRetryCancel({ threadId }) {
       return { cancelled: service.cancel(threadId) };
     },
@@ -66,27 +70,35 @@ export default async function plugin(bb: BbPluginApi) {
       return { view: service.status(threadId) };
     },
   });
-  registerProviderRetryCli(bb, service);
+  registerProviderRetryCli(patcher, service);
 
-  bb.events.on("thread.failed", async ({ thread }) => {
+  patcher.events.on("thread.failed", async ({ thread }) => {
     try {
       await service.reconcile(thread.id);
     } catch (error) {
       logFailure(
-        bb,
+        patcher,
         `Could not inspect provider retry for ${thread.id}`,
         error,
       );
     }
   });
-  bb.events.on("thread.active", ({ thread }) => service.supersede(thread.id));
-  bb.events.on("thread.idle", ({ thread }) => service.supersede(thread.id));
-  bb.events.on("thread.archived", ({ thread }) => service.supersede(thread.id));
-  bb.events.on("thread.deleted", ({ thread }) => service.supersede(thread.id));
+  patcher.events.on("thread.active", ({ thread }) =>
+    service.supersede(thread.id),
+  );
+  patcher.events.on("thread.idle", ({ thread }) =>
+    service.supersede(thread.id),
+  );
+  patcher.events.on("thread.archived", ({ thread }) =>
+    service.supersede(thread.id),
+  );
+  patcher.events.on("thread.deleted", ({ thread }) =>
+    service.supersede(thread.id),
+  );
 
-  bb.background.service("provider-retry-scheduler", {
+  patcher.background.service("provider-retry-scheduler", {
     async start(signal) {
-      const unsubscribeHost = bb.sdk.subscribe({
+      const unsubscribeHost = patcher.sdk.subscribe({
         event: "host:changed",
         callback: (event) => {
           if (

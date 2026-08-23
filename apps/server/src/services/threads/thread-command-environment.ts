@@ -1,5 +1,5 @@
-import type { Environment, Thread } from "@bb/domain";
-import type { DbConnection } from "@bb/db";
+import type { Environment, Thread } from "@patcher/domain";
+import type { DbConnection } from "@patcher/db";
 import type { WorkSessionDeps } from "../../types.js";
 import { requireEnvironment } from "../lib/entity-lookup.js";
 import {

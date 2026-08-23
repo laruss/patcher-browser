@@ -2,7 +2,7 @@ import type {
   ThreadTimelinePendingTodoItem,
   ThreadTimelinePendingTodoItemStatus,
   ThreadTimelinePendingTodos,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { PromptStackCard } from "@/components/promptbox/banner/PromptStackCard";
 import {
   activityIconClass,
@@ -10,8 +10,8 @@ import {
   activityTextClass,
   type ActivityRowState,
 } from "@/components/ui/activity-row-styles";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 const TODO_CARD_ROW_HEIGHT = 32;
 

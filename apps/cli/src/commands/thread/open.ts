@@ -4,9 +4,9 @@ import {
   threadOpenSplitSchema,
   type PanelFileSource,
   type ThreadOpenFile,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import {
   resolveContextThreadId,
   resolveExplicitIdFlag,
@@ -30,7 +30,7 @@ interface ThreadOpenFileRequest {
   path: string;
 }
 
-type CliBbSdk = ReturnType<typeof createCliBbSdk>;
+type CliPatcherSdk = ReturnType<typeof createCliPatcherSdk>;
 
 export function registerOpenCommand(
   parent: Command,
@@ -38,9 +38,9 @@ export function registerOpenCommand(
 ): void {
   parent
     .command("open")
-    .description("Open a BB thread, optionally with a file in its panel")
+    .description("Open a Patcher thread, optionally with a file in its panel")
     .usage("[id] [path] [options]")
-    .argument("[id]", "Thread ID. Omit inside a BB thread.")
+    .argument("[id]", "Thread ID. Omit inside a Patcher thread.")
     .argument("[path]", "Thread-relative or absolute file path to open")
     .option("--line <number>", "Line number to focus")
     .option(
@@ -69,7 +69,7 @@ export function registerOpenCommand(
           if (target.inputPath === null && lineNumber !== null) {
             throw new Error("--line requires a file path.");
           }
-          const sdk = createCliBbSdk(getUrl());
+          const sdk = createCliPatcherSdk(getUrl());
           const file: ThreadOpenFile | null =
             target.inputPath === null
               ? null
@@ -99,7 +99,12 @@ export function registerOpenCommand(
             return;
           }
 
-          printContextLabel(target.resolved, "Thread", "BB_THREAD_ID", opts);
+          printContextLabel(
+            target.resolved,
+            "Thread",
+            "PATCHER_THREAD_ID",
+            opts,
+          );
           console.log(`Thread: ${target.threadId}`);
           console.log(`Split: ${split}`);
           if (file !== null) {
@@ -140,7 +145,7 @@ function resolveThreadOpenTarget(
       }
       if (explicitThreadId !== contextThreadId && !allowsExplicitThreadTarget) {
         throw new Error(
-          "BB_THREAD_ID is set, so bb thread open targets the current thread. Omit the thread ID.",
+          "PATCHER_THREAD_ID is set, so patcher thread open targets the current thread. Omit the thread ID.",
         );
       }
       return {
@@ -178,7 +183,7 @@ function resolveThreadOpenTarget(
 
   if (first === undefined) {
     throw new Error(
-      "Missing thread ID. Pass <threadId> [path], or run inside a BB thread.",
+      "Missing thread ID. Pass <threadId> [path], or run inside a Patcher thread.",
     );
   }
 
@@ -210,7 +215,7 @@ function parseLineNumber(value: string | undefined): number | null {
 
 async function resolveThreadOpenFileRequest(args: {
   inputPath: string;
-  sdk: CliBbSdk;
+  sdk: CliPatcherSdk;
   threadId: string;
 }): Promise<ThreadOpenFileRequest> {
   const inputPath = args.inputPath.trim();
@@ -250,13 +255,13 @@ async function resolveThreadOpenFileRequest(args: {
   }
 
   const acceptedRoots = threadStorageRoot
-    ? "the target thread workspace or BB_THREAD_STORAGE"
+    ? "the target thread workspace or PATCHER_THREAD_STORAGE"
     : "the target thread workspace";
   throw new Error(`Absolute path must be inside ${acceptedRoots}.`);
 }
 
 async function resolveThreadWorkspaceRoot(
-  sdk: CliBbSdk,
+  sdk: CliPatcherSdk,
   threadId: string,
 ): Promise<string> {
   const thread = await sdk.threads.get({ threadId });
@@ -274,7 +279,7 @@ async function resolveThreadWorkspaceRoot(
 
 function resolveThreadStorageRoot(threadId: string): string | undefined {
   if (resolveContextThreadId() !== threadId) return undefined;
-  const rawRoot = process.env.BB_THREAD_STORAGE?.trim();
+  const rawRoot = process.env.PATCHER_THREAD_STORAGE?.trim();
   if (!rawRoot) return undefined;
   return path.resolve(rawRoot);
 }

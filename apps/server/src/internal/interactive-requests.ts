@@ -3,11 +3,11 @@ import {
   hostDaemonInteractiveRequestSchema,
   typedRoutes,
   type HostDaemonInternalSchema,
-} from "@bb/host-daemon-contract";
-import { formatPendingInteractionSubjectDetailLines } from "@bb/core-ui";
-import type { PendingInteraction } from "@bb/domain";
-import { isApprovalPendingInteractionPayload } from "@bb/domain";
-import { getThread, hasStoredTurnStarted } from "@bb/db";
+} from "@patcher/host-daemon-contract";
+import { formatPendingInteractionSubjectDetailLines } from "@patcher/core-ui";
+import type { PendingInteraction } from "@patcher/domain";
+import { isApprovalPendingInteractionPayload } from "@patcher/domain";
+import { getThread, hasStoredTurnStarted } from "@patcher/db";
 import { isParentNotifiableChildThread } from "../services/threads/thread-parent.js";
 import type { Hono } from "hono";
 import type { AppDeps } from "../types.js";

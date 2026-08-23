@@ -15,7 +15,7 @@ import {
   type ReorderPinnedThreadResult,
   type ReorderQueuedThreadMessageResult,
   type SetQueuedThreadMessageGroupBoundaryResult,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   publicApiRoutes,
   typedRoutes,
@@ -23,14 +23,14 @@ import {
   type ThreadListResponse,
   type PublicApiSchema,
   type SendMessageRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
 import {
   createStandaloneBuiltinCompactCommandInput,
   type Thread,
   type ThreadQueuedMessage,
-} from "@bb/domain";
-import { supportsManualCompaction } from "@bb/agent-providers";
+} from "@patcher/domain";
+import { supportsManualCompaction } from "@patcher/agent-providers";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { toThreadQueuedMessage } from "../../services/threads/thread-queued-messages.js";

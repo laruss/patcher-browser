@@ -3,14 +3,14 @@
   "name": "button",
   "type": "registry:ui",
   "title": "button",
-  "description": "BB ui \"button\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"button\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-slot",
     "class-variance-authority"
   ],
   "registryDependencies": [
-    "@bb/motion",
-    "@bb/utils"
+    "@patcher/motion",
+    "@patcher/utils"
   ],
   "files": [
     {

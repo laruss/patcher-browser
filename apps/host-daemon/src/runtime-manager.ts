@@ -7,32 +7,32 @@ import {
   type AgentRuntimeSkillRoot,
   type AgentRuntimeProcessExitInfo,
   type ReapedIdleProviderSession,
-} from "@bb/agent-runtime";
-import type { Logger } from "@bb/logger";
+} from "@patcher/agent-runtime";
+import type { Logger } from "@patcher/logger";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
   ThreadEvent,
   WorkspaceProvisionType,
-} from "@bb/domain";
-import { turnScope } from "@bb/domain";
+} from "@patcher/domain";
+import { turnScope } from "@patcher/domain";
 import type {
   HostDaemonActiveThread,
   HostDaemonEnvironmentChange,
   HostDaemonLoadedEnvironment,
   HostDaemonInjectedSkillSource,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type {
   DataDirSkillsWatchError,
   HostWatcher,
   InjectedSkillsObservedChange,
-} from "@bb/host-watcher";
+} from "@patcher/host-watcher";
 import {
   provisionWorkspace,
   WorkspaceError,
   type HostWorkspace,
   type ProvisionWorkspaceArgs,
-} from "@bb/host-workspace";
+} from "@patcher/host-workspace";
 import {
   cleanupInjectedSkillStagingDirs,
   EMPTY_SKILL_CATALOG_HASH,
@@ -281,9 +281,10 @@ function providerProcessEnvFromShellEnv(
     env.PATH = shellEnv.PATH;
   }
   // The Claude bridge resolves the CLI from its own process env; forward the
-  // documented override past the BB_* spawn sanitization.
-  if (shellEnv.BB_CLAUDE_CODE_EXECUTABLE) {
-    env.BB_CLAUDE_CODE_EXECUTABLE = shellEnv.BB_CLAUDE_CODE_EXECUTABLE;
+  // documented override past the PATCHER_* spawn sanitization.
+  if (shellEnv.PATCHER_CLAUDE_CODE_EXECUTABLE) {
+    env.PATCHER_CLAUDE_CODE_EXECUTABLE =
+      shellEnv.PATCHER_CLAUDE_CODE_EXECUTABLE;
   }
   return Object.keys(env).length > 0 ? env : null;
 }
@@ -333,7 +334,7 @@ export class RuntimeManager {
     const roots = [...args.workspaceRoots];
     if (args.threadStorageRootPath) {
       // Provider runtimes are environment-scoped and may host multiple threads.
-      // BB_THREAD_STORAGE still points agents at their own thread subdirectory;
+      // PATCHER_THREAD_STORAGE still points agents at their own thread subdirectory;
       // this root lets workspace-write sandboxes mutate that path.
       roots.push(args.threadStorageRootPath);
     }

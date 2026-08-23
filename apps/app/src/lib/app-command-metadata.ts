@@ -4,7 +4,7 @@ import {
   PANE_FOCUS_APP_COMMAND_IDS,
   THREAD_JUMP_APP_COMMAND_IDS,
   type AppCommandId,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export interface AppCommandMetadata {
   command: AppCommandId;
@@ -67,12 +67,16 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
   {
     label: "Window and layout",
     commands: [
-      command("window.new", "New window", "Open another bb desktop window."),
-      command("settings.open", "Open settings", "Open bb settings."),
+      command(
+        "window.new",
+        "New window",
+        "Open another Patcher desktop window.",
+      ),
+      command("settings.open", "Open settings", "Open Patcher settings."),
       command(
         "settings.openServers",
         "Open server settings",
-        "Open settings to add or manage bb servers.",
+        "Open settings to add or manage Patcher servers.",
       ),
       command(
         "sidebar.toggle",
@@ -243,7 +247,7 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
       command(
         id,
         `Choose answer ${index + 1}`,
-        `Choose visible answer ${index + 1} when bb asks a question.`,
+        `Choose visible answer ${index + 1} when Patcher asks a question.`,
       ),
     ),
   },

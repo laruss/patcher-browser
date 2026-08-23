@@ -1,11 +1,11 @@
-import { getEnvironment, getThread, listEvents } from "@bb/db";
+import { getEnvironment, getThread, listEvents } from "@patcher/db";
 import {
   encodeClientTurnRequestIdNumber,
   parseStoredThreadEvent,
   threadScope,
   turnScope,
   type ProviderRateLimitState,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { getProviderRateLimitRecoveryStatus } from "../../../src/services/threads/provider-rate-limit-recovery.js";
 import { listQueuedThreadCommands } from "../../helpers/commands.js";

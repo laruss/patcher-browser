@@ -9,7 +9,7 @@ import type {
   HostCommandSource,
   HostProviderCommand,
   SkillRootKind,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 const SKILL_FILE_NAME = "SKILL.md";
 const MARKDOWN_FILE_EXTENSION = ".md";

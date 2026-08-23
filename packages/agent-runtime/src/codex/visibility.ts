@@ -159,7 +159,7 @@ const CODEX_NOTIFICATION_COVERAGE = {
   // Codex has no model-facing "run in background" affordance. A model that
   // backgrounds a command with a trailing `&` produces an ordinary, immediately
   // completed commandExecution with no lifecycle. These process/* notifications
-  // belong to the client-initiated `process/spawn` API, which bb never calls, so
+  // belong to the client-initiated `process/spawn` API, which Patcher never calls, so
   // there is nothing to surface — left "unknown" intentionally.
   "process/exited": "unknown",
   "process/outputDelta": "unknown",

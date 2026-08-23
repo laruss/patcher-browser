@@ -3,7 +3,7 @@ import { useAtomValue } from "jotai";
 import { createJsonLocalStorage } from "@/lib/browser-storage";
 import { usePluginSlots, type PluginThreadListSlot } from "@/lib/plugin-slots";
 
-const THREAD_LIST_PROVIDER_STORAGE_KEY = "bb.sidebar.threadListProvider";
+const THREAD_LIST_PROVIDER_STORAGE_KEY = "patcher.sidebar.threadListProvider";
 
 /** The built-in list; also the value stored when the user picks it back. */
 export const BUILT_IN_THREAD_LIST_PROVIDER = "__builtin__";

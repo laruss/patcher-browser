@@ -2,7 +2,7 @@ import type {
   TimelineRow,
   TimelineRowStatus,
   TimelineToolWorkRow,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { ReactNode } from "react";
 import { ThreadTimelineRows } from "@/components/thread/timeline";
 import {
@@ -24,11 +24,7 @@ export default {
   title: "thread/timeline/rows/Bundle Summary",
 };
 
-function TimelineStage({
-  children,
-}: {
-  children: ReactNode;
-}) {
+function TimelineStage({ children }: { children: ReactNode }) {
   return <div className="w-full max-w-[760px]">{children}</div>;
 }
 
@@ -85,12 +81,12 @@ interface DelegationFixtureRowArgs {
 }
 
 // ---------------------------------------------------------------------------
-// Bundle summaries are NOT raw rows — they're produced by the @bb/thread-view
+// Bundle summaries are NOT raw rows — they're produced by the @patcher/thread-view
 // `buildTimelineViewRows` projection when consecutive same-workKind work rows
 // appear inside an open step. We feed real raw rows from
 // thr_zeb7z9afmw / turn 019dd185-ef12-7d50-aa48-47882e9c8aaf and let the
 // projection group them. Raw command outputs and file diffs are pulled from
-// ~/.bb-dev/bb.db sequence ranges 35700..35702 (turbo command run) and
+// ~/.patcher-dev/patcher.db sequence ranges 35700..35702 (turbo command run) and
 // 35564..35595 (file-change run during the same turn). Long outputs are
 // trimmed to keep the fixture readable.
 // ---------------------------------------------------------------------------
@@ -107,8 +103,8 @@ const buildDomainCoreUiCommand: TimelineRow = commandRow({
   status: "completed",
   callId: "call_buildDomainCoreUi",
   command:
-    "pnpm exec turbo run build --filter=@bb/domain --filter=@bb/core-ui --filter=@bb/server-contract --concurrency=1 > /tmp/bb-projection-refactor-build.log 2>&1",
-  cwd: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb",
+    "pnpm exec turbo run build --filter=@patcher/domain --filter=@patcher/core-ui --filter=@patcher/server-contract --concurrency=1 > /tmp/patcher-projection-refactor-build.log 2>&1",
+  cwd: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher",
   source: null,
   output: "",
   exitCode: 0,
@@ -128,8 +124,8 @@ const testServerCommand: TimelineRow = commandRow({
   status: "completed",
   callId: "call_testServer",
   command:
-    "pnpm exec turbo run test --filter=@bb/server --only --concurrency=1 -- --run test/threads/timeline-service.test.ts > /tmp/bb-projection-refactor-server.log 2>&1",
-  cwd: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb",
+    "pnpm exec turbo run test --filter=@patcher/server --only --concurrency=1 -- --run test/threads/timeline-service.test.ts > /tmp/patcher-projection-refactor-server.log 2>&1",
+  cwd: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher",
   source: null,
   output: "",
   exitCode: 0,
@@ -149,8 +145,8 @@ const testCoreUiCommand: TimelineRow = commandRow({
   status: "completed",
   callId: "call_testCoreUi",
   command:
-    "pnpm exec turbo run test --filter=@bb/core-ui --concurrency=1 -- --run test/to-view-messages.assistant-streams.test.ts test/to-view-messages.turn-lifecycle.test.ts test/to-view-messages.client-input.test.ts > /tmp/bb-projection-refactor-coreui.log 2>&1",
-  cwd: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb",
+    "pnpm exec turbo run test --filter=@patcher/core-ui --concurrency=1 -- --run test/to-view-messages.assistant-streams.test.ts test/to-view-messages.turn-lifecycle.test.ts test/to-view-messages.client-input.test.ts > /tmp/patcher-projection-refactor-coreui.log 2>&1",
+  cwd: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher",
   source: null,
   output: "",
   exitCode: 0,
@@ -170,8 +166,8 @@ const buildForceCommand: TimelineRow = commandRow({
   status: "completed",
   callId: "call_buildForce",
   command:
-    "pnpm exec turbo run build --filter=@bb/domain --filter=@bb/core-ui --force --concurrency=1 > /tmp/bb-projection-refactor-force-build.log 2>&1",
-  cwd: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb",
+    "pnpm exec turbo run build --filter=@patcher/domain --filter=@patcher/core-ui --force --concurrency=1 > /tmp/patcher-projection-refactor-force-build.log 2>&1",
+  cwd: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher",
   source: null,
   output: "",
   exitCode: 0,
@@ -191,8 +187,8 @@ const testCoreUiForceCommand: TimelineRow = commandRow({
   status: "completed",
   callId: "call_testCoreUiForce",
   command:
-    "pnpm exec turbo run test --filter=@bb/core-ui --force --concurrency=1 -- --run test/to-view-messages.assistant-streams.test.ts test/to-view-messages.turn-lifecycle.test.ts test/to-view-messages.client-input.test.ts > /tmp/bb-projection-refactor-force-coreui.log 2>&1",
-  cwd: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb",
+    "pnpm exec turbo run test --filter=@patcher/core-ui --force --concurrency=1 -- --run test/to-view-messages.assistant-streams.test.ts test/to-view-messages.turn-lifecycle.test.ts test/to-view-messages.client-input.test.ts > /tmp/patcher-projection-refactor-force-coreui.log 2>&1",
+  cwd: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher",
   source: null,
   output: "",
   exitCode: 0,
@@ -214,8 +210,8 @@ const testServerErrorCommand: TimelineRow = commandRow({
   status: "error",
   callId: "call_testServerError",
   command:
-    "pnpm exec turbo run test --filter=@bb/server --only --force --concurrency=1 -- --run test/threads/timeline-service.test.ts > /tmp/bb-projection-refactor-server.log 2>&1",
-  cwd: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb",
+    "pnpm exec turbo run test --filter=@patcher/server --only --force --concurrency=1 -- --run test/threads/timeline-service.test.ts > /tmp/patcher-projection-refactor-server.log 2>&1",
+  cwd: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher",
   source: null,
   output: "",
   exitCode: 1,
@@ -254,7 +250,7 @@ const fileChangeAssistantStream: TimelineRow = fileChangeRow({
   status: "completed",
   callId: "call_fjGvl1fFJU7cAcw46FcSnbjJ",
   change: {
-    path: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/assistant-stream-projection.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/assistant-stream-projection.ts",
     kind: "update",
     movePath: null,
     diff: `@@ -24,3 +24,3 @@
@@ -285,7 +281,7 @@ const fileChangeIndex: TimelineRow = fileChangeRow({
   status: "completed",
   callId: "call_BXK77XTyviYmWUVNOpPG5nwJ",
   change: {
-    path: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/index.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/index.ts",
     kind: "update",
     movePath: null,
     diff: `@@ -110,3 +110,2 @@
@@ -319,7 +315,7 @@ const fileChangeTimelineService: TimelineRow = fileChangeRow({
   status: "completed",
   callId: "call_v3QQJnCbGh2ErXIJdCf4hX4N",
   change: {
-    path: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/apps/server/src/services/threads/timeline.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/apps/server/src/services/threads/timeline.ts",
     kind: "update",
     movePath: null,
     diff: `@@ -6,2 +6,3 @@
@@ -366,7 +362,7 @@ const fileChangeActiveThinkingDelete: TimelineRow = fileChangeRow({
   status: "completed",
   callId: "call_1JWzaNZyTpVIrB8reX73YYUN",
   change: {
-    path: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/active-thinking.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/active-thinking.ts",
     kind: "delete",
     movePath: null,
     diff: null,
@@ -388,7 +384,7 @@ const fileChangeToViewMessages: TimelineRow = fileChangeRow({
   status: "completed",
   callId: "call_3qZxJB5I3kVdSM4pPiBCTm92",
   change: {
-    path: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/to-view-messages.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/to-view-messages.ts",
     kind: "update",
     movePath: null,
     diff: `@@ -497,2 +497,12 @@
@@ -424,7 +420,7 @@ const fileChangeInterrupted: TimelineRow = fileChangeRow({
   status: "interrupted",
   callId: "call_fileChangeInterrupted",
   change: {
-    path: "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/to-view-messages.ts",
+    path: "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/to-view-messages.ts",
     kind: "update",
     movePath: null,
     diff: null,
@@ -512,7 +508,7 @@ const explorationBundleRows: TimelineRow[] = [
     toolName: "Read",
     toolArgs: {
       file_path:
-        "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/assistant-stream-projection.ts",
+        "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/assistant-stream-projection.ts",
     },
     intentPath: "packages/core-ui/src/assistant-stream-projection.ts",
     intentType: "read",
@@ -524,7 +520,7 @@ const explorationBundleRows: TimelineRow[] = [
     toolName: "Read",
     toolArgs: {
       file_path:
-        "/Users/michael/.bb-dev/worktrees/env_33i22gvcqe/bb/packages/core-ui/src/index.ts",
+        "/Users/michael/.patcher-dev/worktrees/env_33i22gvcqe/patcher/packages/core-ui/src/index.ts",
     },
     intentPath: "packages/core-ui/src/index.ts",
     intentType: "read",

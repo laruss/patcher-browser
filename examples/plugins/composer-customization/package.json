@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-composer-customization",
+  "name": "patcher-plugin-composer-customization",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
-    "bb": ">=0.0",
-    "bbPluginSdk": "^0.4.0"
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Composer customization",
     "description": "Reference implementation for every composer customization region.",
     "branding": {
@@ -17,13 +17,13 @@
     "app": "./app.tsx"
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
     "typescript": "^6.0.2"

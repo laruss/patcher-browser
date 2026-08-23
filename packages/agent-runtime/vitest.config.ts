@@ -13,7 +13,7 @@ export default defineWorkspaceTestConfig({
       {
         extends: true,
         test: {
-          name: "@bb/agent-runtime",
+          name: "@patcher/agent-runtime",
           include: ["src/**/*.test.ts"],
           exclude: [...exclude, ...isolationTests],
           isolate: false,
@@ -22,7 +22,7 @@ export default defineWorkspaceTestConfig({
       {
         extends: true,
         test: {
-          name: "@bb/agent-runtime:isolated",
+          name: "@patcher/agent-runtime:isolated",
           include: isolationTests,
           exclude,
         },

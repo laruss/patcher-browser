@@ -3,7 +3,7 @@ import type {
   ProviderCliInstallActionKind,
   ProviderCliInstallEvent,
   ProviderCliKey,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type { ProviderCliInstallLogDialogState } from "@/components/dialogs/ProviderCliInstallLogDialog";
 import type { ProviderCliActionableIssue } from "@/components/provider-cli/provider-cli-install";
 import { appToast } from "@/components/ui/app-toast";

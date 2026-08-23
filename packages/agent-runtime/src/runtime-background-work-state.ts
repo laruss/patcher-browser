@@ -1,4 +1,4 @@
-import type { ThreadEvent } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
 
 /**
  * Tracks background tasks that are still open per thread, from the same

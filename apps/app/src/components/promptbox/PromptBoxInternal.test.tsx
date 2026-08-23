@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import {
   createRef,
   useLayoutEffect,
@@ -1466,7 +1466,7 @@ describe("PromptBoxInternal submit shortcuts", () => {
   it("keeps hardware Enter as a newline in zen mode", async () => {
     const restoreMatchMedia = mockPointerCoarse(true);
     const restoreNavigator = mockIPadOSWebKit();
-    const storageKey = "bb.test.promptbox.zen-submit-shortcut";
+    const storageKey = "patcher.test.promptbox.zen-submit-shortcut";
     window.localStorage.removeItem(storageKey);
     try {
       const onChange = vi.fn();
@@ -1504,7 +1504,7 @@ describe("PromptBoxInternal submit shortcuts", () => {
 
 describe("PromptBoxInternal zen mode layout", () => {
   it("animates the prompt box height when toggling zen mode", async () => {
-    const storageKey = "bb.test.promptbox.zen-height-animation";
+    const storageKey = "patcher.test.promptbox.zen-height-animation";
     window.localStorage.removeItem(storageKey);
 
     render(
@@ -1548,7 +1548,7 @@ describe("PromptBoxInternal zen mode layout", () => {
   });
 
   it("keeps long editor content constrained to the scroll area", async () => {
-    const storageKey = "bb.test.promptbox.zen-layout";
+    const storageKey = "patcher.test.promptbox.zen-layout";
     window.localStorage.removeItem(storageKey);
 
     render(

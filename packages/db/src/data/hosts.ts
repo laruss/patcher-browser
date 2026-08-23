@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { HostChangeKind, HostType, PermissionMode } from "@bb/domain";
+import type { HostChangeKind, HostType, PermissionMode } from "@patcher/domain";
 import type { DbConnection, DbTransaction } from "../connection.js";
 import type { DbNotifier } from "../notifier.js";
 import { hosts } from "../schema.js";
@@ -8,7 +8,6 @@ import { createHostId } from "../ids.js";
 type HostWriteConnection = DbConnection | DbTransaction;
 
 export interface UpsertHostInput {
-  connectMachineId?: string | null;
   id?: string;
   name: string;
   type: HostType;
@@ -69,10 +68,11 @@ export function upsertHost(
       .set({
         name: input.name,
         type: input.type,
-        connectMachineId:
-          input.connectMachineId !== undefined
-            ? input.connectMachineId
-            : existing.connectMachineId,
+        // The cloud that set this is gone. The column stays — dropping one
+        // costs a migration plus ~30 regenerated drizzle snapshots for no
+        // functional gain — but nothing writes it any more, so an update must
+        // preserve whatever an older build left behind.
+        connectMachineId: existing.connectMachineId,
         destroyedAt:
           input.destroyedAt !== undefined
             ? input.destroyedAt
@@ -93,7 +93,7 @@ export function upsertHost(
         id,
         name: input.name,
         type: input.type,
-        connectMachineId: input.connectMachineId ?? null,
+        connectMachineId: null,
         destroyedAt: input.destroyedAt ?? null,
         lastSeenAt: null,
         lastRejectedProtocolVersion: null,

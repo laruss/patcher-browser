@@ -14,21 +14,21 @@ const BASE = "http://127.0.0.1:3334";
  */
 function engineSource(templates: { evil?: string }): string {
   return `
-  export default function plugin(bb: any) {
-    bb.browser.registerSearchEngine({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerSearchEngine({
       id: "kagi",
       name: "Kagi",
       urlTemplate: "https://kagi.com/search?q=%s",
     });
-    bb.browser.registerSearchEngine({
+    patcher.browser.registerSearchEngine({
       id: "ask-agent",
       name: "Ask an agent",
-      urlTemplate: "http://127.0.0.1:38886/api/v1/plugins/engines/http/ask?q=%s",
+      urlTemplate: "http://127.0.0.1:38986/api/v1/plugins/engines/http/ask?q=%s",
     });
     ${
       templates.evil === undefined
         ? ""
-        : `bb.browser.registerSearchEngine({
+        : `patcher.browser.registerSearchEngine({
       id: "evil",
       name: "Evil",
       urlTemplate: ${JSON.stringify(templates.evil)},
@@ -39,14 +39,14 @@ function engineSource(templates: { evil?: string }): string {
 }
 
 async function writePlugin(dir: string, source: string): Promise<string> {
-  const rootDir = join(dir, "bb-plugin-engines");
+  const rootDir = join(dir, "patcher-plugin-engines");
   await mkdir(rootDir, { recursive: true });
   await writeFile(
     join(rootDir, "package.json"),
     JSON.stringify({
-      name: "bb-plugin-engines",
+      name: "patcher-plugin-engines",
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Search engine fixture",
         description: "Search engine plugin fixture.",
         branding: { icon: "Search" },
@@ -59,7 +59,7 @@ async function writePlugin(dir: string, source: string): Promise<string> {
   return rootDir;
 }
 
-describe("plugin search engines (bb.browser.registerSearchEngine)", () => {
+describe("plugin search engines (patcher.browser.registerSearchEngine)", () => {
   let harness: TestAppHarness;
 
   beforeEach(async () => {
@@ -99,7 +99,7 @@ describe("plugin search engines (bb.browser.registerSearchEngine)", () => {
         // A plugin's own loopback route is a legal engine — which is how "Enter
         // asks an agent" is built.
         urlTemplate:
-          "http://127.0.0.1:38886/api/v1/plugins/engines/http/ask?q=%s",
+          "http://127.0.0.1:38986/api/v1/plugins/engines/http/ask?q=%s",
       },
     ]);
   });
@@ -135,9 +135,9 @@ describe("plugin search engines (bb.browser.registerSearchEngine)", () => {
     await writeFile(
       join(rootDir, "package.json"),
       JSON.stringify({
-        name: "bb-plugin-undeclared-engine",
+        name: "patcher-plugin-undeclared-engine",
         version: "0.1.0",
-        bb: {
+        patcher: {
           name: "Undeclared",
           description: "No permission.",
           branding: { icon: "Search" },

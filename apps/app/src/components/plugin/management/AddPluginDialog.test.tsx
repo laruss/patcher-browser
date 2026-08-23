@@ -27,12 +27,12 @@ const INSTALLED_PLUGIN_RESPONSE = {
   ok: true,
   plugin: {
     id: "linear",
-    source: "npm:@bb-plugins/linear",
+    source: "npm:@patcher-plugins/linear",
     rootDir: "/plugins/linear",
     version: "1.6.2",
     provenance: "direct",
     isOrphanedBuiltin: false,
-    sourceDisplay: "npm · @bb-plugins/linear · pinned",
+    sourceDisplay: "npm · @patcher-plugins/linear · pinned",
     updateState: {},
     enabled: true,
     description: "Linear integration",
@@ -103,10 +103,12 @@ describe("AddPluginDialog", () => {
   it("leads with and submits a pasted GitHub repository URL", async () => {
     const requests = stubFetch();
     renderDialog();
-    const source = "https://github.com/acme/bb-plugin-usage";
+    const source = "https://github.com/acme/patcher-plugin-usage";
     const input = screen.getByLabelText("Plugin source") as HTMLInputElement;
 
-    expect(input.placeholder).toBe("https://github.com/owner/bb-plugin-name");
+    expect(input.placeholder).toBe(
+      "https://github.com/owner/patcher-plugin-name",
+    );
     expect(screen.getByText(/GitHub repository URL/)).toBeTruthy();
     fireEvent.change(input, { target: { value: source } });
     fireEvent.click(screen.getByRole("button", { name: /install plugin/i }));
@@ -245,13 +247,13 @@ describe("AddPluginDialog", () => {
   it("surfaces the server's install error (e.g. incompatible source) as a toast", async () => {
     const errorToast = vi.spyOn(appToast, "error").mockReturnValue("toast");
     stubFetch(
-      { ok: false, error: "requires bb >= 0.15 — you have 0.14.1" },
+      { ok: false, error: "requires Patcher >= 0.15 — you have 0.14.1" },
       422,
     );
     renderDialog();
 
     fireEvent.change(screen.getByLabelText("Plugin source"), {
-      target: { value: "npm:@bb-plugins/linear@2.0.0" },
+      target: { value: "npm:@patcher-plugins/linear@2.0.0" },
     });
     fireEvent.click(screen.getByRole("button", { name: /install plugin/i }));
 
@@ -259,7 +261,7 @@ describe("AddPluginDialog", () => {
       expect(errorToast).toHaveBeenCalledWith(
         "Installing the plugin failed",
         expect.objectContaining({
-          description: "requires bb >= 0.15 — you have 0.14.1",
+          description: "requires Patcher >= 0.15 — you have 0.14.1",
         }),
       );
     });
@@ -273,7 +275,7 @@ describe("AddPluginDialog", () => {
     render(<AddPluginDialog open onOpenChange={() => {}} />, { wrapper });
 
     fireEvent.change(screen.getByLabelText("Plugin source"), {
-      target: { value: "npm:@bb-plugins/linear" },
+      target: { value: "npm:@patcher-plugins/linear" },
     });
     fireEvent.click(screen.getByRole("button", { name: /install plugin/i }));
 

@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import type { Host } from "@bb/domain";
-import type { ProviderCliStatusResponse } from "@bb/host-daemon-contract";
-import type { SystemVersionResponse } from "@bb/server-contract";
-import type { BbDesktopInfo } from "@bb/desktop-contract";
+import type { Host } from "@patcher/domain";
+import type { ProviderCliStatusResponse } from "@patcher/host-daemon-contract";
+import type { SystemVersionResponse } from "@patcher/server-contract";
+import type { PatcherDesktopInfo } from "@patcher/desktop-contract";
 import {
   buildProviderCliIssue,
   isProviderCliIssue,
@@ -36,8 +36,8 @@ export interface UpdateInventoryMachine {
 export interface UpdateInventory {
   isLoading: boolean;
   systemVersion: SystemVersionResponse | undefined;
-  desktopInfo: BbDesktopInfo | null;
-  /** bb-app (web/npm) has a newer release on the registry. */
+  desktopInfo: PatcherDesktopInfo | null;
+  /** patcher-app (web/npm) has a newer release on the registry. */
   appUpdateAvailable: boolean;
   /** Desktop shell downloaded an update; a relaunch applies it. */
   desktopUpdateReady: boolean;
@@ -59,10 +59,10 @@ interface UseUpdateInventoryOptions {
 }
 
 /**
- * One consolidated view of every update bb knows about: the bb app itself
+ * One consolidated view of every update Patcher knows about: the Patcher app itself
  * (npm registry / desktop feed) plus provider CLIs on every connected
  * machine. Remote daemons follow the server version automatically via
- * protocol self-update, so per-machine bb rows only surface when a daemon is
+ * protocol self-update, so per-machine Patcher rows only surface when a daemon is
  * stuck and needs a manual retry.
  */
 export function useUpdateInventory(

@@ -14,13 +14,13 @@ const PACKAGED_NATIVE_PACKAGE_NAMES = [
 ];
 
 // better-sqlite3 must match the runtime that loads it. The packaged app runs
-// the bb server through Electron's bundled Node, so the packaged copy has to
+// the Patcher server through Electron's bundled Node, so the packaged copy has to
 // target Electron's ABI. electron-builder's `npmRebuild` would rebuild it for
 // us, but in this workspace better-sqlite3 resolves to the shared
 // content-addressed store (node_modules/.bun), so an in-place rebuild clobbers the node-ABI binary
 // every other workspace package (and the server test suite) relies on. Instead
 // `npmRebuild` is disabled and we fetch the Electron prebuild into the packaged
-// copy here, leaving the shared store untouched. Desktop dev runs bb-app with
+// copy here, leaving the shared store untouched. Desktop dev runs patcher-app with
 // the host Node executable so it can use the workspace's normal Node-ABI binary.
 const NATIVE_MODULE_PLATFORM = "darwin";
 

@@ -1,4 +1,4 @@
-import { renderTemplate } from "@bb/templates";
+import { renderTemplate } from "@patcher/templates";
 import type { LoggedWorkSessionDeps } from "../../types.js";
 import { Type } from "@earendil-works/pi-ai";
 import {

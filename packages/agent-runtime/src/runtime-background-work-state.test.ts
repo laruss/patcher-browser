@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ThreadEvent, ThreadEventBackgroundTaskItem } from "@bb/domain";
-import { threadScope, turnScope } from "@bb/domain";
+import type {
+  ThreadEvent,
+  ThreadEventBackgroundTaskItem,
+} from "@patcher/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import { RuntimeBackgroundWorkState } from "./runtime-background-work-state.js";
 
 interface TaskOptions {

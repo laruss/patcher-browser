@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { threadScope, turnScope } from "@bb/domain";
+import { threadScope, turnScope } from "@patcher/domain";
 import {
   createConnection,
   createProject,
@@ -9,7 +9,7 @@ import {
   noopNotifier,
   upsertHost,
   type SlowDbQueryLogFields,
-} from "@bb/db";
+} from "@patcher/db";
 import { buildThreadConversationOutline } from "../../../src/services/threads/timeline.js";
 
 function setup() {

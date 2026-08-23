@@ -1,15 +1,15 @@
 {
-  "name": "@bb/scripts",
+  "name": "@patcher/scripts",
   "version": "0.0.1",
   "type": "module",
   "private": true,
   "bin": {
-    "bb-script-archive-codex-tmp-bb-sessions": "./dist/commands/archive-codex-tmp-bb-sessions.js",
-    "bb-script-request-dev-restart": "./dist/commands/request-dev-restart.js",
-    "bb-script-reset-bb-data": "./dist/commands/reset-bb-data.js",
-    "bb-script-run-cli": "./dist/commands/run-cli.js",
-    "bb-script-run-host-daemon": "./dist/commands/run-host-daemon.js",
-    "bb-script-seed-perf-db": "./dist/commands/seed-perf-db.js"
+    "patcher-script-archive-codex-tmp-patcher-sessions": "./dist/commands/archive-codex-tmp-patcher-sessions.js",
+    "patcher-script-request-dev-restart": "./dist/commands/request-dev-restart.js",
+    "patcher-script-reset-patcher-data": "./dist/commands/reset-patcher-data.js",
+    "patcher-script-run-cli": "./dist/commands/run-cli.js",
+    "patcher-script-run-host-daemon": "./dist/commands/run-host-daemon.js",
+    "patcher-script-seed-perf-db": "./dist/commands/seed-perf-db.js"
   },
   "exports": {
     "./lib/run-dev-supervisor": {
@@ -31,19 +31,19 @@
     "dev:restart": "node dist/commands/request-dev-restart.js both",
     "dev:restart-host-daemon": "node dist/commands/request-dev-restart.js host-daemon",
     "dev:restart-server": "node dist/commands/request-dev-restart.js server",
-    "reset": "node dist/commands/reset-bb-data.js",
-    "codex:archive-tmp-bb-sessions": "node dist/commands/archive-codex-tmp-bb-sessions.js"
+    "reset": "node dist/commands/reset-patcher-data.js",
+    "codex:archive-tmp-patcher-sessions": "node dist/commands/archive-codex-tmp-patcher-sessions.js"
   },
   "dependencies": {
-    "@bb/config": "workspace:*",
-    "@bb/db": "workspace:*",
-    "@bb/domain": "workspace:*",
-    "@bb/host-daemon-contract": "workspace:*",
-    "@bb/process-utils": "workspace:*",
+    "@patcher/config": "workspace:*",
+    "@patcher/db": "workspace:*",
+    "@patcher/domain": "workspace:*",
+    "@patcher/host-daemon-contract": "workspace:*",
+    "@patcher/process-utils": "workspace:*",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.2",
     "typescript-7": "npm:typescript@^7.0.2",

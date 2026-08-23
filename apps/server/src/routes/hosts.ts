@@ -1,19 +1,17 @@
-import { getNonDestroyedHost, updateHost } from "@bb/db";
+import { getNonDestroyedHost, updateHost } from "@patcher/db";
 import {
   publicApiRoutes,
   typedRoutes,
   type PublicApiSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+import {
+  FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION,
+  HOST_DAEMON_PROTOCOL_VERSION,
+} from "@patcher/host-daemon-contract";
 import type { AppDeps } from "../types.js";
-import type { PluginService } from "../services/plugins/plugin-service.js";
 import { COMMAND_TIMEOUT_MS } from "../constants.js";
 import { ApiError } from "../errors.js";
-import {
-  getGateAuthKind,
-  type GateAuthHeaderReader,
-} from "../request-context.js";
 import {
   listPublicHostsWithStatus,
   requireNonDestroyedHostWithStatus,
@@ -46,60 +44,14 @@ function requireMutableHost(deps: AppDeps, hostId: string) {
 }
 
 /**
- * Host management is owner-only, and "owner" means anything that is not a
- * paired machine's credential: a browser session on this account, or a process
- * already running on the server machine. A local caller carries no gate header
- * and passes — deliberately, and identically to rename, remove, and join-code
- * minting. Anything running on the server machine can already read the data
- * directory and restart the server, so the permission limit defends against
- * *other* machines, not against local code. Reaching this route from another
- * machine requires the connect gate, which stamps `machine` and is refused
- * both there and here.
+ * Host management shares the public API's single trust boundary. The
+ * machine-credential distinction these routes used to enforce came in over the
+ * connect gate, which no longer exists in this fork — there is no longer any
+ * caller class the server can tell apart here, so the checks that split them
+ * were removed with it rather than left as no-ops. Anything that can reach the
+ * public API can already read the data directory and restart the server.
  */
-function assertHostManagementAllowed(context: GateAuthHeaderReader): void {
-  if (getGateAuthKind(context) === "machine") {
-    throw new ApiError(
-      403,
-      "machine_host_management_forbidden",
-      "Machine credentials cannot manage hosts",
-    );
-  }
-}
-
-async function revokeConnectMachineCredential(
-  deps: AppDeps,
-  plugins: PluginService,
-  machineId: string,
-): Promise<void> {
-  try {
-    const connectPlugin = plugins
-      .list()
-      .find((plugin) => plugin.source === "builtin:connect");
-    if (!connectPlugin) throw new Error("connect plugin is not installed");
-    const handler = plugins.getRpcHandler(connectPlugin.id, "revokeMachine");
-    if (handler.outcome !== "found") {
-      throw new Error(`connect plugin revoke handler is ${handler.outcome}`);
-    }
-    const result = await plugins.invokeRpcHandler(
-      connectPlugin.id,
-      "revokeMachine",
-      handler.value,
-      { machineId },
-    );
-    if (!result.ok) throw new Error(result.error.message);
-  } catch (error) {
-    deps.logger.error(
-      { err: error, machineId },
-      "Host was removed locally, but its bb connect machine credential could not be revoked. Revoke this machine manually from the getbb.app dashboard.",
-    );
-  }
-}
-
-export function registerHostRoutes(
-  app: Hono,
-  deps: AppDeps,
-  plugins: PluginService,
-): void {
+export function registerHostRoutes(app: Hono, deps: AppDeps): void {
   const { del, get, patch, post } = typedRoutes<PublicApiSchema>(app, {
     onValidationError: (message) =>
       new ApiError(400, "invalid_request", message),
@@ -109,7 +61,6 @@ export function registerHostRoutes(
   // UI-driven add-a-machine uses the same trust boundary as the rest of the
   // public API, so this route intentionally does not require loopback access.
   post(routes.createJoinCode, async (context) => {
-    assertHostManagementAllowed(context);
     const issued = await issuePersistentHostEnrollKey(deps, {
       enrollSource: "public-multi-machine",
     });
@@ -132,7 +83,6 @@ export function registerHostRoutes(
   );
 
   patch(routes.update, (context, payload) => {
-    assertHostManagementAllowed(context);
     const hostId = context.req.param("id");
     requireMutableHost(deps, hostId);
     const updated = updateHost(deps.db, deps.hub, hostId, {
@@ -146,11 +96,13 @@ export function registerHostRoutes(
     return context.json(requireNonDestroyedHostWithStatus(deps, updated.id));
   });
 
-  // Owner-session only, and deliberately absent from the SDK and the `bb` CLI:
-  // this ceiling is what stops one paired machine from running privileged work
-  // on another, so an agent on any machine must not be able to raise it.
+  // Deliberately absent from the SDK and the `patcher` CLI: this ceiling is what
+  // stops one paired machine from running privileged work on another, so nothing
+  // an agent can reach should raise it. The server-side half of that — refusing
+  // a machine credential here — went with the connect gate that stamped the
+  // caller kind, so this route now sits on the public API's single trust
+  // boundary like the rest of the file.
   patch(routes.updatePermissionCeiling, (context, payload) => {
-    assertHostManagementAllowed(context);
     const hostId = context.req.param("id");
     requireMutableHost(deps, hostId);
     const updated = updateHost(deps.db, deps.hub, hostId, {
@@ -164,7 +116,6 @@ export function registerHostRoutes(
   });
 
   post(routes.retryUpdate, (context) => {
-    assertHostManagementAllowed(context);
     const hostId = context.req.param("id");
     const host = requireMutableHost(deps, hostId);
     if (host.lastRejectedProtocolVersion === null) {
@@ -181,12 +132,25 @@ export function registerHostRoutes(
         "The machine daemon is not older than this server",
       );
     }
+    // Older than the artifact rename: the daemon fetches a path this server
+    // answers with 410, and there is nothing a retry can do about it (see
+    // FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION). Refusing here rather than
+    // queueing a retry keeps the API from promising what the UI already stopped
+    // offering.
+    if (
+      host.lastRejectedProtocolVersion < FIRST_PATCHER_ARTIFACT_PROTOCOL_VERSION
+    ) {
+      throw new ApiError(
+        409,
+        "host_must_re_enroll",
+        `The machine daemon speaks protocol ${host.lastRejectedProtocolVersion}, which predates this server's install artifact. Enrol the machine again.`,
+      );
+    }
     deps.hub.requestHostProtocolUpdateRetry(hostId);
     return context.json({ ok: true as const });
   });
 
   del(routes.delete, async (context) => {
-    assertHostManagementAllowed(context);
     const hostId = context.req.param("id");
     const host = requireMutableHost(deps, hostId);
     if (resolvePrimaryHostId(deps) === hostId) {
@@ -206,13 +170,6 @@ export function registerHostRoutes(
       handleHostRemoved(deps, { hostId, sessionId });
     }
     updateHost(deps.db, deps.hub, hostId, { destroyedAt: Date.now() });
-    if (host.connectMachineId !== null) {
-      await revokeConnectMachineCredential(
-        deps,
-        plugins,
-        host.connectMachineId,
-      );
-    }
     return context.json({ ok: true });
   });
 

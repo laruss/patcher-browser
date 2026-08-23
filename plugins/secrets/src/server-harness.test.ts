@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import plugin from "./server.js";
 
 describe("secrets plugin server", () => {
@@ -34,7 +34,7 @@ describe("secrets plugin server", () => {
         },
       },
     });
-    plugin(host.bb as unknown as Parameters<typeof plugin>[0]);
+    plugin(host.patcher as unknown as Parameters<typeof plugin>[0]);
 
     const command = host.harness.runCli(
       [
@@ -107,7 +107,7 @@ describe("secrets plugin server", () => {
         },
       },
     });
-    plugin(host.bb as unknown as Parameters<typeof plugin>[0]);
+    plugin(host.patcher as unknown as Parameters<typeof plugin>[0]);
 
     const command = host.harness.runCli(
       ["request", "API_KEY", "--write-env", "/var/plugin/.env"],
@@ -144,7 +144,7 @@ describe("secrets plugin server", () => {
         permissions: pluginPermissionsFromManifest(import.meta.url),
         pluginId: "secrets",
       });
-      plugin(host.bb as unknown as Parameters<typeof plugin>[0]);
+      plugin(host.patcher as unknown as Parameters<typeof plugin>[0]);
 
       const result = await host.harness.runCli(argv, {
         threadId: "thr-test",

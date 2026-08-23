@@ -10,8 +10,8 @@ import {
   updateThread,
   type ThreadSearchResultGroup as DbThreadSearchResultGroup,
   type UpdateThreadInput,
-} from "@bb/db";
-import type { Environment, Thread, ThreadListEntry } from "@bb/domain";
+} from "@patcher/db";
+import type { Environment, Thread, ThreadListEntry } from "@patcher/domain";
 import {
   threadIncludeOptionSchema,
   publicApiRoutes,
@@ -22,7 +22,7 @@ import {
   type ThreadSearchResponse,
   type ThreadWithIncludesResponse,
   type PublicApiSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";

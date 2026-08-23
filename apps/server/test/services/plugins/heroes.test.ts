@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getLatestThreadSequence, getThread } from "@bb/db";
-import { turnScope } from "@bb/domain";
-import { threadTimelineResponseSchema } from "@bb/server-contract";
+import { getLatestThreadSequence, getThread } from "@patcher/db";
+import { turnScope } from "@patcher/domain";
+import { threadTimelineResponseSchema } from "@patcher/server-contract";
 import {
   generatedSkillsRootPath,
   pluginCommandsSkillDir,
@@ -32,7 +32,7 @@ const EXAMPLES_DIR = fileURLToPath(
   new URL("../../../../../examples/plugins", import.meta.url),
 );
 
-// The examples pin engines.bb to ">=0.9"; the harness default app version
+// The examples pin engines.patcher to ">=0.9"; the harness default app version
 // ("0.0.0-test") would legitimately mark them incompatible.
 const APP_VERSION = "1.0.0";
 
@@ -91,13 +91,13 @@ describe("hero plugin: agent-enrichment", () => {
     };
   }
 
-  it("bb docs search returns excerpts from the bundled docs via the CLI endpoint", async () => {
+  it("patcher docs search returns excerpts from the bundled docs via the CLI endpoint", async () => {
     const result = await runDocs(["search", "conventional commits"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("conventions.md");
     expect(result.stdout).toContain("conventional commits");
 
-    // The kv cache backs `bb docs last`.
+    // The kv cache backs `patcher docs last`.
     const last = await runDocs(["last"]);
     expect(last.exitCode).toBe(0);
     expect(last.stdout).toContain('"conventional commits"');
@@ -121,8 +121,8 @@ describe("hero plugin: agent-enrichment", () => {
       "SKILL.md",
     );
     const content = await readFile(skillFile, "utf8");
-    expect(content).toContain("## bb docs —");
-    expect(content).toContain("bb docs search <query...>");
+    expect(content).toContain("## patcher docs —");
+    expect(content).toContain("patcher docs search <query...>");
 
     // Resolved the same way thread-runtime-config wires the generated root.
     const sources = resolveInjectedSkillSources(testLogger, {
@@ -174,7 +174,7 @@ describe("hero plugin: slack-bot", () => {
       });
 
       // Mock ONLY the outbound Slack Web API (the true external boundary);
-      // everything else — including the plugin's loopback bb.sdk calls —
+      // everything else — including the plugin's loopback patcher.sdk calls —
       // passes through to the real fetch.
       globalThis.fetch = (async (
         input: Parameters<typeof fetch>[0],
@@ -205,9 +205,9 @@ describe("hero plugin: slack-bot", () => {
       expect(entry.id).toBe("slack-bot");
       // Unconfigured: loaded, but honestly reporting what it needs.
       expect(entry.status).toBe("needs-configuration");
-      expect(entry.statusDetail).toContain("bb plugin config slack-bot");
+      expect(entry.statusDetail).toContain("patcher plugin config slack-bot");
 
-      // Configure (as `bb plugin config slack-bot set ...` would) + reload.
+      // Configure (as `patcher plugin config slack-bot set ...` would) + reload.
       const signingSecret = "test-signing-secret";
       await server.pluginService.updateSettings("slack-bot", {
         botToken: "xoxb-test-token",
@@ -249,8 +249,8 @@ describe("hero plugin: slack-bot", () => {
         challenge: "challenge-123",
       });
 
-      // An app_mention spawns an attributed BB thread and records the
-      // Slack-thread ↔ BB-thread mapping in kv.
+      // An app_mention spawns an attributed Patcher thread and records the
+      // Slack-thread ↔ Patcher-thread mapping in kv.
       const mentionBody = JSON.stringify({
         type: "event_callback",
         event: {
@@ -368,7 +368,9 @@ describe("hero plugin: omnibox-agent", () => {
       expect(entry.id).toBe("omnibox-agent");
       // Unconfigured: loaded, but honestly reporting what it needs.
       expect(entry.status).toBe("needs-configuration");
-      expect(entry.statusDetail).toContain("bb plugin config omnibox-agent");
+      expect(entry.statusDetail).toContain(
+        "patcher plugin config omnibox-agent",
+      );
 
       // The navigate row needs no configuration, so the plugin contributes to
       // the omnibox before anyone opens its settings.
@@ -379,7 +381,7 @@ describe("hero plugin: omnibox-agent", () => {
         "agent:github",
       ]);
 
-      // Configure (as `bb plugin config omnibox-agent set ...` would) + reload:
+      // Configure (as `patcher plugin config omnibox-agent set ...` would) + reload:
       // the omnibox gains a row with no browser-core change.
       await server.pluginService.updateSettings("omnibox-agent", {
         project: project.id,
@@ -399,7 +401,7 @@ describe("hero plugin: omnibox-agent", () => {
       // Below 1: the browser's own default action keeps the top row.
       expect(configured[0]?.items[0]?.score).toBeLessThan(1);
 
-      // Picking the ask row runs the plugin, which spawns a BB thread through
+      // Picking the ask row runs the plugin, which spawns a Patcher thread through
       // its loopback SDK and hands the browser the thread's URL to open.
       const run = await fetch(`${server.baseUrl}/api/v1/plugins/omnibox/run`, {
         method: "POST",
@@ -577,13 +579,13 @@ describe("hero plugin: explain-selection", () => {
       // would sit in the menu doing nothing when clicked.
       expect(entry.status).toBe("needs-configuration");
       expect(entry.statusDetail).toContain(
-        "bb plugin config explain-selection",
+        "patcher plugin config explain-selection",
       );
       expect(server.pluginService.listContextMenuItemContributions()).toEqual(
         [],
       );
 
-      // Configure (as `bb plugin config explain-selection set ...` would) and
+      // Configure (as `patcher plugin config explain-selection set ...` would) and
       // reload: the page's context menu gains an entry, with no browser-core
       // change and no restart.
       await server.pluginService.updateSettings("explain-selection", {

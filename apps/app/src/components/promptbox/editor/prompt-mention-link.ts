@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { PromptMentionResource } from "@bb/domain";
+import type { PromptMentionResource } from "@patcher/domain";
 
 /**
  * Resolves the click action for an inserted mention pill, or null when the

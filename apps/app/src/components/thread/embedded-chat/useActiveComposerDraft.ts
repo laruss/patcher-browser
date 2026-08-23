@@ -1,12 +1,12 @@
 import { useCallback, useMemo } from "react";
-import type { PromptTextMention } from "@bb/domain";
+import type { PromptTextMention } from "@patcher/domain";
 import {
   usePromptDraftStorage,
   type PromptDraftScope,
 } from "@/hooks/usePromptDraftStorage";
 import { promptDraftToInput } from "@/lib/prompt-draft";
 import type { PromptDraftState } from "@/lib/prompt-draft";
-import type { PromptInput } from "@bb/domain";
+import type { PromptInput } from "@patcher/domain";
 import type { InlineQueuedMessageEditState } from "./useInlineQueuedMessageEditing";
 
 interface UseActiveComposerDraftArgs {

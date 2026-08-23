@@ -1,19 +1,19 @@
 # Workflows built-in plugin
 
 Workflows is an opt-in built-in plugin (`builtin:workflows`) and is disabled on
-fresh BB installations. It runs provider-independent JavaScript orchestration
-inside QuickJS while delegating actual reasoning to ordinary BB threads.
+fresh Patcher installations. It runs provider-independent JavaScript orchestration
+inside QuickJS while delegating actual reasoning to ordinary Patcher threads.
 
 The author-facing native surface is intentionally one tool:
-`bb_workflow_run`. Validation, inspection, listing, and cancellation use the
-`bb workflows` CLI documented below. Provider and model discovery uses BB's
-built-in `bb provider` commands. Structured workers separately
-receive only `bb_workflow_result`; ordinary authoring agents never receive that
+`patcher_workflow_run`. Validation, inspection, listing, and cancellation use the
+`patcher workflows` CLI documented below. Provider and model discovery uses Patcher's
+built-in `patcher provider` commands. Structured workers separately
+receive only `patcher_workflow_result`; ordinary authoring agents never receive that
 worker tool.
 
 ## Progress UI
 
-A successful `bb_workflow_run` result includes a trusted
+A successful `patcher_workflow_run` result includes a trusted
 `previewDirective` such as:
 
 ```text
@@ -21,20 +21,20 @@ A successful `bb_workflow_run` result includes a trusted
 ```
 
 The authoring agent emits that returned value exactly once on a standalone
-line. BB replaces the directive with a compact live run card in chat. The card
+line. Patcher replaces the directive with a compact live run card in chat. The card
 shows run state, declared phases, the active phase's workers, elapsed time, and
 an action that opens the full workflow inspector in the thread's right panel.
 While a thread has queued or running workflows, the plugin also contributes a
 status card above that thread's composer. It lists every active run with its
 current phase and agent-call progress and lets the user stop a run in place;
 the card disappears when the thread has no active runs.
-The panel shows every phase and worker, links attached workers to their BB
+The panel shows every phase and worker, links attached workers to their Patcher
 threads, reports cache and result state, and can stop an active run. It may also
 be opened directly from the thread panel action, in which case it shows that
 thread's latest run.
 
-Both surfaces are implemented by the plugin app with `@bb/shared-ui` controls
-and BB theme tokens. Directive attributes and restored panel parameters are
+Both surfaces are implemented by the plugin app with `@patcher/shared-ui` controls
+and Patcher theme tokens. Directive attributes and restored panel parameters are
 treated as untrusted input. The backend additionally binds every requested run
 to the directive message or panel thread, so a run ID from another thread
 cannot be inspected or stopped through these UI RPCs. The composer status
@@ -69,10 +69,10 @@ Workflow input follows the native Claude source modes: provide exactly one of
 an inline `script`, a workspace `scriptPath`, or a workflow `name`. The older
 `source` field remains an explicit alias for inline `script`; `script` and
 `source` cannot be supplied together. Name lookup is project-local at
-`.bb/workflows/<name>.js`. There is no plugin-bundled workflow discovery.
+`.patcher/workflows/<name>.js`. There is no plugin-bundled workflow discovery.
 
 File and name sources are resolved on the workflow origin environment's host,
-not on the bb server machine. BB reads them through the environment `hostId`
+not on the Patcher server machine. Patcher reads them through the environment `hostId`
 with `rootPath` confinement to its workspace. Traversal and outside absolute or
 UNC paths, missing workspace roots, non-UTF-8 content, and sources larger than
 512 KiB are rejected. QuickJS receives only the resolved source text and never
@@ -98,10 +98,10 @@ schema, and other deterministic failures are not retried. Retry attempts are
 persisted on the call so a plugin restart cannot reset the retry budget.
 
 Worker output is either the final assistant text or an Ajv-validated value
-submitted through `bb_workflow_result`. Structured workers receive two
+submitted through `patcher_workflow_result`. Structured workers receive two
 corrective retries after their initial invalid attempt.
 
-Workflow workers use BB's generic hidden-thread visibility. They remain
+Workflow workers use Patcher's generic hidden-thread visibility. They remain
 out of sidebar organization without contributing unread/pending favicon
 attention. Ordinary search, prompt history,
 lifecycle, and direct operations remain available. Workers are root threads,
@@ -111,7 +111,7 @@ temporary Workflow folder.
 
 Workflows may invoke one child workflow level with
 `workflow(nameOrRef, args)`. A string and `{ name }` resolve under
-`.bb/workflows`, `{ scriptPath }` uses the same origin-workspace confinement as
+`.patcher/workflows`, `{ scriptPath }` uses the same origin-workspace confinement as
 top-level runs, and `{ script }` is inline source. Each child is parsed,
 schema-validated, and evaluated in a separate QuickJS VM. Parent and child VMs
 share one FIFO agent scheduler, call budget, cancellation signal, replay order,
@@ -149,26 +149,26 @@ capped exponential backoff. Status exposes notification outcome as `pending`,
 Useful checks:
 
 ```bash
-bunx turbo run typecheck --filter=bb-plugin-workflows
-bunx turbo run test --filter=bb-plugin-workflows --force
-bb plugin build plugins/workflows
+bunx turbo run typecheck --filter=patcher-plugin-workflows
+bunx turbo run test --filter=patcher-plugin-workflows --force
+patcher plugin build plugins/workflows
 ```
 
-User-facing commands (run these from a BB project thread) are:
+User-facing commands (run these from a Patcher project thread) are:
 
 ```bash
-bb workflows validate --script '<javascript>'
-bb workflows validate --file .bb/workflows/review.js
-bb workflows validate --name review
-bb workflows run --script '<javascript>' --args '<json>'
-bb workflows run --file .bb/workflows/review.js --resume <run-id>
-bb workflows run --name review
-bb workflows status <run-id>
-bb workflows history <run-id> --cursor 0 --limit 100
-bb workflows list --limit 20
-bb workflows stop <run-id>
-bb provider list --environment "$BB_ENVIRONMENT_ID" --json
-bb provider models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json
+patcher workflows validate --script '<javascript>'
+patcher workflows validate --file .patcher/workflows/review.js
+patcher workflows validate --name review
+patcher workflows run --script '<javascript>' --args '<json>'
+patcher workflows run --file .patcher/workflows/review.js --resume <run-id>
+patcher workflows run --name review
+patcher workflows status <run-id>
+patcher workflows history <run-id> --cursor 0 --limit 100
+patcher workflows list --limit 20
+patcher workflows stop <run-id>
+patcher provider list --environment "$PATCHER_ENVIRONMENT_ID" --json
+patcher provider models <provider-id> --environment "$PATCHER_ENVIRONMENT_ID" --json
 ```
 
 `status` is deliberately bounded: it returns run state, phase, call counts,
@@ -184,9 +184,9 @@ transcript:
 
 ```bash
 run=<run-id>
-mkdir -p "$BB_THREAD_STORAGE/workflows"
-bb workflows history "$run" --cursor 0 --limit 100 \
-  > "$BB_THREAD_STORAGE/workflows/$run.jsonl"
+mkdir -p "$PATCHER_THREAD_STORAGE/workflows"
+patcher workflows history "$run" --cursor 0 --limit 100 \
+  > "$PATCHER_THREAD_STORAGE/workflows/$run.jsonl"
 ```
 
 The final `page` record reports `hasMore` and `nextCursor`. Fetch the next page
@@ -199,12 +199,12 @@ detailed view is needed.
 
 This redirection intentionally happens in the invoking agent's shell. The
 canonical state remains in the plugin's server-side SQLite database, while the
-JSONL file lands in `$BB_THREAD_STORAGE` on that thread's execution host. The
+JSONL file lands in `$PATCHER_THREAD_STORAGE` on that thread's execution host. The
 same flow therefore works for local and remote environments without granting
 the server arbitrary filesystem-write access.
 
 Before selecting an explicit provider tuple, query only the relevant provider
-with BB's built-in commands above. Never infer ACP model IDs from a provider
+with Patcher's built-in commands above. Never infer ACP model IDs from a provider
 name: for example, an ACP provider can advertise `grok-4.5` even though neither
 that model ID nor its reasoning options can be derived from `acp-grok`.
 
@@ -221,7 +221,7 @@ directory. That directory and the final path must both remain inside the
 origin environment workspace; absolute and traversal escapes are rejected.
 Relative agent-tool `scriptPath` values remain rooted at the workspace root.
 
-Agent options accept native `label`, `phase`, and `schema` alongside BB's
+Agent options accept native `label`, `phase`, and `schema` alongside Patcher's
 existing `title` and `outputSchema`. `label` resolves to canonical `title`, and
 `schema` resolves to canonical `outputSchema`. Both spellings of an alias may
 be provided only when structurally identical; schema object key order is

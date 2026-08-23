@@ -1,6 +1,6 @@
-import { assertNever } from "@bb/core-ui";
-import type { EnvironmentActionRequest } from "@bb/server-contract";
-import { renderTemplate } from "@bb/templates";
+import { assertNever } from "@patcher/core-ui";
+import type { EnvironmentActionRequest } from "@patcher/server-contract";
+import { renderTemplate } from "@patcher/templates";
 
 type SquashMergeCommitFailureStage = "prep_commit" | "squash_commit";
 

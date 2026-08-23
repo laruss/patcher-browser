@@ -8,8 +8,8 @@ import {
   type ThreadEventRow,
   type ThreadQueuedMessage,
   type ThreadStatus,
-} from "@bb/domain";
-import { threadTabsResponseSchema } from "@bb/server-contract";
+} from "@patcher/domain";
+import { threadTabsResponseSchema } from "@patcher/server-contract";
 import type {
   CreateQueuedMessageRequest,
   ContinueAfterProviderRateLimitResponse,
@@ -58,7 +58,7 @@ import type {
   UpdateThreadTabsRequest,
   UpdateThreadRequest,
   UpdateQueuedMessageRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 export const DEFAULT_THREAD_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
@@ -366,7 +366,7 @@ export class ThreadWaitUnreachableError extends Error {
   }) {
     super(
       `Thread ${args.threadId} is in status ${args.currentStatus} and will not reach idle by waiting alone. ` +
-        `Inspect it with 'bb thread show ${args.threadId}' and recover by sending a follow-up.`,
+        `Inspect it with 'patcher thread show ${args.threadId}' and recover by sending a follow-up.`,
     );
     this.name = "ThreadWaitUnreachableError";
     this.currentStatus = args.currentStatus;

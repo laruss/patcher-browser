@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bbDesktopBrowserInteractionSchema } from "@bb/desktop-contract";
-import { browserInteractionSchema } from "@bb/domain";
+import { patcherDesktopBrowserInteractionSchema } from "@patcher/desktop-contract";
+import { browserInteractionSchema } from "@patcher/domain";
 
 /**
- * The interaction union is written twice — once in `@bb/domain` for the wire
- * between the server and this app, once in `@bb/desktop-contract` for the wire
+ * The interaction union is written twice — once in `@patcher/domain` for the wire
+ * between the server and this app, once in `@patcher/desktop-contract` for the wire
  * between this app and the Electron shell. They are separate because only the
  * second one carries version skew, not because they mean different things, and
  * the executor forwards a value parsed by the first straight into the second.
@@ -61,7 +61,7 @@ describe("the interaction union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(true);
       expect(
-        bbDesktopBrowserInteractionSchema.safeParse(value).success,
+        patcherDesktopBrowserInteractionSchema.safeParse(value).success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(true);
     }
@@ -74,7 +74,7 @@ describe("the interaction union, on both wires", () => {
         `domain: ${JSON.stringify(value)}`,
       ).toBe(false);
       expect(
-        bbDesktopBrowserInteractionSchema.safeParse(value).success,
+        patcherDesktopBrowserInteractionSchema.safeParse(value).success,
         `desktop: ${JSON.stringify(value)}`,
       ).toBe(false);
     }
@@ -91,12 +91,12 @@ describe("the interaction union, on both wires", () => {
       const atLimit = { action, ref: "e1", text: "x".repeat(limit) };
       const overLimit = { action, ref: "e1", text: "x".repeat(limit + 1) };
       expect(browserInteractionSchema.safeParse(atLimit).success).toBe(true);
-      expect(bbDesktopBrowserInteractionSchema.safeParse(atLimit).success).toBe(
-        true,
-      );
+      expect(
+        patcherDesktopBrowserInteractionSchema.safeParse(atLimit).success,
+      ).toBe(true);
       expect(browserInteractionSchema.safeParse(overLimit).success).toBe(false);
       expect(
-        bbDesktopBrowserInteractionSchema.safeParse(overLimit).success,
+        patcherDesktopBrowserInteractionSchema.safeParse(overLimit).success,
       ).toBe(false);
     }
   });

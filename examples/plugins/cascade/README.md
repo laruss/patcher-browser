@@ -1,4 +1,4 @@
-# bb-plugin-cascade
+# patcher-plugin-cascade
 
 A scrollable-tiling thread layout, [niri](https://github.com/YaLTeR/niri)-style:
 every live thread is a column in a horizontally scrolling strip, and rows group
@@ -14,7 +14,7 @@ to the host.
 ## What it demonstrates
 
 **`experimental_NewThreadComposer` — and the composer/plugin split.** The draft
-column at the end of each row renders bb's whole compose surface (prompt editor
+column at the end of each row renders Patcher's whole compose surface (prompt editor
 with @-mentions, attachments, model/reasoning picker, voice, project,
 environment, "Branch from:", permission mode). The composer resolves the user's
 selections; **the plugin creates the thread**:
@@ -31,17 +31,17 @@ selections; **the plugin creates the thread**:
 ```ts
 // server.ts — the plugin files and owns attribution.
 async createThread({ request, sectionId, parentThreadId, pinned }) {
-  const thread = await bb.sdk.threads.spawn({
+  const thread = await patcher.sdk.threads.spawn({
     ...request,
     ...(sectionId ? { sectionId } : {}),
     ...(parentThreadId ? { parentThreadId } : {}),
   });
-  if (pinned) await bb.sdk.threads.pin({ threadId: thread.id });
+  if (pinned) await patcher.sdk.threads.pin({ threadId: thread.id });
   return { threadId: thread.id };
 }
 ```
 
-That split is the point. `bb.sdk.threads.spawn` fills in `origin: "plugin"` and
+That split is the point. `patcher.sdk.threads.spawn` fills in `origin: "plugin"` and
 `originPluginId`, so threads Cascade creates stay attributed to Cascade. The row
 the user is on decides `sectionId` / `parentThreadId` / `pinned` — filing the
 composer has no opinion about. Note `startThread` **rethrows** on failure: the
@@ -51,7 +51,7 @@ resolves.
 Import it aliased — JSX reads a lowercase-initial name as an intrinsic element:
 
 ```tsx
-import { experimental_NewThreadComposer as NewThreadComposer } from "@bb/plugin-sdk/app";
+import { experimental_NewThreadComposer as NewThreadComposer } from "@patcher/plugin-sdk/app";
 ```
 
 **`ThreadChat` at scale.** Every column is a `<ThreadChat variant="compact" />`.
@@ -70,21 +70,21 @@ a `focusin` listener), which is what makes a bare-letter keymap safe next to a
 dozen live composers.
 
 **A thin backend.** `server.ts` owns an index built from four parallel SDK reads
-(`bb.sdk.threadSections.list`, `projects.list`, `hosts.list`, `threads.list`),
-layout state in `bb.storage.kv`, and a `bb.background.service` that publishes a
-`bb.realtime` signal when the index changes. Rows are a pure projection of that
+(`patcher.sdk.threadSections.list`, `projects.list`, `hosts.list`, `threads.list`),
+layout state in `patcher.storage.kv`, and a `patcher.background.service` that publishes a
+`patcher.realtime` signal when the index changes. Rows are a pure projection of that
 flat index (`lib/rows.ts`) — never stored.
 
 ## Install
 
 ```
-bb plugin install ./examples/plugins/cascade
+patcher plugin install ./examples/plugins/cascade
 ```
 
 Then open **Cascade** in the sidebar. After editing sources:
 
 ```
-bb plugin reload cascade
+patcher plugin reload cascade
 ```
 
 ## Keymap

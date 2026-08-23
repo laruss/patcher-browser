@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import type { Db } from "./data.js";
 import {
   automationOriginSchema,
@@ -133,8 +133,8 @@ export const legacyImportFileSchema = z
 export type LegacyImportFile = z.infer<typeof legacyImportFileSchema>;
 
 type LegacyImportApi = {
-  storage: { kv: Pick<BbPluginApi["storage"]["kv"], "get" | "set"> };
-  log: Pick<BbPluginApi["log"], "info">;
+  storage: { kv: Pick<PatcherPluginApi["storage"]["kv"], "get" | "set"> };
+  log: Pick<PatcherPluginApi["log"], "info">;
 };
 
 async function fileExists(path: string): Promise<boolean> {
@@ -169,11 +169,11 @@ function validateTriggerConfig(row: z.infer<typeof legacyAutomationRowSchema>): 
 }
 
 export async function ingestLegacyImport(args: {
-  bb: LegacyImportApi;
+  patcher: LegacyImportApi;
   db: Db;
   pluginDataDir: string;
 }): Promise<void> {
-  const done = await args.bb.storage.kv.get<boolean>(LEGACY_IMPORT_DONE_KEY);
+  const done = await args.patcher.storage.kv.get<boolean>(LEGACY_IMPORT_DONE_KEY);
   const importPath = join(args.pluginDataDir, "import", "legacy-automations.json");
   if (done === true || !(await fileExists(importPath))) return;
 
@@ -238,9 +238,9 @@ export async function ingestLegacyImport(args: {
     await writeFile(join(dir, script.fileName), script.content, { mode: 0o700 });
   }
 
-  await args.bb.storage.kv.set(LEGACY_IMPORT_DONE_KEY, true);
+  await args.patcher.storage.kv.set(LEGACY_IMPORT_DONE_KEY, true);
   await rename(importPath, `${importPath}.imported`);
-  args.bb.log.info(
+  args.patcher.log.info(
     `Imported ${payload.automations.length} legacy automations and ${payload.runs.length} runs`,
   );
 }

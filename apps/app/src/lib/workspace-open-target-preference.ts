@@ -5,11 +5,11 @@ import {
   type WorkspaceOpenTarget,
   type WorkspaceOpenTargetCapabilities,
   type WorkspaceOpenTargetId,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { createNullableLocalStorageEnumStorage } from "./browser-storage";
 
-export const WORKSPACE_OPEN_TARGET_STORAGE_KEY = "bb.workspaceOpenTarget";
-export const FILE_OPEN_TARGET_STORAGE_KEY = "bb.fileOpenTarget";
+export const WORKSPACE_OPEN_TARGET_STORAGE_KEY = "patcher.workspaceOpenTarget";
+export const FILE_OPEN_TARGET_STORAGE_KEY = "patcher.fileOpenTarget";
 
 export type StoredWorkspaceOpenTargetPreference = WorkspaceOpenTargetId | null;
 export type WorkspaceOpenTargetCapability =

@@ -1,4 +1,4 @@
-import { PERSONAL_PROJECT_ID, type Thread } from "@bb/domain";
+import { PERSONAL_PROJECT_ID, type Thread } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { buildThreadMentionSuggestions } from "./threadMentionSuggestions";
 

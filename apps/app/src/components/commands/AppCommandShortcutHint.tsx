@@ -1,4 +1,4 @@
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import { useIsAppCommandModifierHeld } from "./AppCommandProvider";
 

@@ -27,7 +27,7 @@ vi.mock("@/components/layout/AppPageHeader", () => ({
   ),
 }));
 
-vi.mock("@bb/shared-ui/hooks/use-compact-viewport", () => ({
+vi.mock("@patcher/shared-ui/hooks/use-compact-viewport", () => ({
   useIsCompactViewport: () => false,
 }));
 

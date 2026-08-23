@@ -1,4 +1,4 @@
-import { getHost } from "@bb/db";
+import { getHost } from "@patcher/db";
 import type { WorkSessionDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { requireConnectedHostSession } from "../lib/entity-lookup.js";

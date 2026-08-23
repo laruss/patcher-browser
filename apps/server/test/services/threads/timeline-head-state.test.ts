@@ -3,8 +3,8 @@ import {
   encodeClientTurnRequestIdNumber,
   threadScope,
   turnScope,
-} from "@bb/domain";
-import type { ClientTurnRequestId, Thread } from "@bb/domain";
+} from "@patcher/domain";
+import type { ClientTurnRequestId, Thread } from "@patcher/domain";
 import {
   createConnection,
   createProject,
@@ -13,8 +13,8 @@ import {
   migrate,
   noopNotifier,
   upsertHost,
-} from "@bb/db";
-import type { DbConnection } from "@bb/db";
+} from "@patcher/db";
+import type { DbConnection } from "@patcher/db";
 import { buildThreadTimeline } from "../../../src/services/threads/timeline.js";
 
 const providerThreadId = "provider-root";

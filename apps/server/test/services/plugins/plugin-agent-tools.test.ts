@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createConnection, migrate, type DbConnection } from "@bb/db";
-import { encodeClientTurnRequestIdNumber } from "@bb/domain";
-import type { Logger } from "@bb/logger";
+import { createConnection, migrate, type DbConnection } from "@patcher/db";
+import { encodeClientTurnRequestIdNumber } from "@patcher/domain";
+import type { Logger } from "@patcher/logger";
 import { RESERVED_AGENT_TOOL_NAMES } from "../../../src/services/plugins/plugin-api.js";
 import {
   createPluginService,
@@ -46,7 +46,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Agent tools fixture",
         description: "Agent tools plugin fixture.",
         branding: { icon: "Zap" },
@@ -58,7 +58,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("bb.agents.registerTool", () => {
+describe("patcher.agents.registerTool", () => {
   let db: DbConnection;
   let workDir: string;
   let service: PluginService;
@@ -66,7 +66,7 @@ describe("bb.agents.registerTool", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-tools-test-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-tools-test-"));
     service = createPluginService({
       db,
       hub: {
@@ -88,16 +88,16 @@ describe("bb.agents.registerTool", () => {
 
   it("rejects duplicate tool names within one factory execution", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-replacer",
+      name: "patcher-plugin-replacer",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "echo_tool",
             description: "first version",
             parameters: { type: "object", properties: { text: { type: "string" } } },
             execute: () => "first",
           });
-          bb.agents.registerTool({
+          patcher.agents.registerTool({
             name: "echo_tool",
             description: "second version",
             instructions: "Prefer echo_tool for echoing.",
@@ -117,11 +117,11 @@ describe("bb.agents.registerTool", () => {
 
   it("rejects duplicate configure registrations within one factory execution", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-double-configure",
+      name: "patcher-plugin-double-configure",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.configure(() => ({ tools: [], skills: [] }));
-          bb.agents.configure(() => ({ tools: [], skills: [] }));
+        export default function plugin(patcher: any) {
+          patcher.agents.configure(() => ({ tools: [], skills: [] }));
+          patcher.agents.configure(() => ({ tools: [], skills: [] }));
         }
       `,
     });
@@ -134,10 +134,10 @@ describe("bb.agents.registerTool", () => {
 
   it("two tools from different plugins dispatch by name (design §9 regression)", async () => {
     const a = await writePlugin(workDir, {
-      name: "bb-plugin-tool-a",
+      name: "patcher-plugin-tool-a",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "alpha_tool",
             description: "Alpha",
             parameters: { type: "object" },
@@ -147,10 +147,10 @@ describe("bb.agents.registerTool", () => {
       `,
     });
     const b = await writePlugin(workDir, {
-      name: "bb-plugin-tool-b",
+      name: "patcher-plugin-tool-b",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "beta_tool",
             description: "Beta",
             parameters: { type: "object" },
@@ -198,10 +198,10 @@ describe("bb.agents.registerTool", () => {
    */
   it("cancels a running tool through the relay", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-cancellable",
+      name: "patcher-plugin-cancellable",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "waits_for_abort",
             description: "Resolves when its call is cancelled",
             parameters: { type: "object" },
@@ -243,10 +243,10 @@ describe("bb.agents.registerTool", () => {
 
   it("cancels a tool whose call was aborted before it started", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-late",
+      name: "patcher-plugin-late",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "reads_abort",
             description: "Reports whether it was already cancelled",
             parameters: { type: "object" },
@@ -279,7 +279,7 @@ describe("bb.agents.registerTool", () => {
 
   it("zod parameters: converted to JSON schema, validated per call, bad input is not a plugin error", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-zodded",
+      name: "patcher-plugin-zodded",
       serverSource: "export default function plugin() {}",
     });
     await service.installPath(rootDir);
@@ -357,7 +357,7 @@ describe("bb.agents.registerTool", () => {
 
   it("keeps experimental status labels with a registered native tool", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-readable-tool",
+      name: "patcher-plugin-readable-tool",
       serverSource: "export default function plugin() {}",
     });
     await service.installPath(rootDir);
@@ -412,10 +412,10 @@ describe("bb.agents.registerTool", () => {
 
   it("cross-plugin name collision drops the later registration with a status detail", async () => {
     const first = await writePlugin(workDir, {
-      name: "bb-plugin-collide-a",
+      name: "patcher-plugin-collide-a",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "shared_tool",
             description: "First owner",
             parameters: { type: "object" },
@@ -425,16 +425,16 @@ describe("bb.agents.registerTool", () => {
       `,
     });
     const second = await writePlugin(workDir, {
-      name: "bb-plugin-collide-b",
+      name: "patcher-plugin-collide-b",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "shared_tool",
             description: "Second owner",
             parameters: { type: "object" },
             execute: () => "from collide-b",
           });
-          bb.agents.registerTool({
+          patcher.agents.registerTool({
             name: "unique_tool",
             description: "Unrelated",
             parameters: { type: "object" },
@@ -466,10 +466,10 @@ describe("bb.agents.registerTool", () => {
       UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME,
     );
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-shadower",
+      name: "patcher-plugin-shadower",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "update_environment_directory",
             description: "Shadow attempt",
             parameters: { type: "object" },
@@ -480,12 +480,12 @@ describe("bb.agents.registerTool", () => {
     });
     const entry = await service.installPath(rootDir);
     expect(entry.status).toBe("error");
-    expect(entry.statusDetail).toContain("built-in bb tool");
+    expect(entry.statusDetail).toContain("built-in Patcher tool");
     expect(service.listAgentTools()).toEqual([]);
   });
 });
 
-describe("bb.agents.contributeInstructions", () => {
+describe("patcher.agents.contributeInstructions", () => {
   let db: DbConnection;
   let workDir: string;
   let service: PluginService;
@@ -493,7 +493,7 @@ describe("bb.agents.contributeInstructions", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-instr-test-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-instr-test-"));
     service = createPluginService({
       db,
       hub: {
@@ -515,11 +515,11 @@ describe("bb.agents.contributeInstructions", () => {
 
   it("rejects duplicate instruction providers within one factory execution", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-advisor",
+      name: "patcher-plugin-advisor",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.contributeInstructions(() => "first");
-          bb.agents.contributeInstructions(() => "second");
+        export default function plugin(patcher: any) {
+          patcher.agents.contributeInstructions(() => "first");
+          patcher.agents.contributeInstructions(() => "second");
         }
       `,
     });
@@ -533,18 +533,18 @@ describe("bb.agents.contributeInstructions", () => {
 
   it("two plugins each contribute one provider, ordered by plugin id", async () => {
     const zebra = await writePlugin(workDir, {
-      name: "bb-plugin-zebra",
+      name: "patcher-plugin-zebra",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.contributeInstructions(() => "from zebra");
+        export default function plugin(patcher: any) {
+          patcher.agents.contributeInstructions(() => "from zebra");
         }
       `,
     });
     const alpha = await writePlugin(workDir, {
-      name: "bb-plugin-alpha",
+      name: "patcher-plugin-alpha",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.contributeInstructions(() => "from alpha");
+        export default function plugin(patcher: any) {
+          patcher.agents.contributeInstructions(() => "from alpha");
         }
       `,
     });
@@ -560,10 +560,10 @@ describe("bb.agents.contributeInstructions", () => {
 
   it("reload without contributeInstructions clears the previous provider", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-transient",
+      name: "patcher-plugin-transient",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.contributeInstructions(() => "present");
+        export default function plugin(patcher: any) {
+          patcher.agents.contributeInstructions(() => "present");
         }
       `,
     });
@@ -585,7 +585,7 @@ describe("plugin tools reach thread runtime config", () => {
 
   beforeEach(async () => {
     harness = await createTestAppHarness();
-    pluginsDir = await mkdtemp(join(tmpdir(), "bb-plugin-tools-runtime-"));
+    pluginsDir = await mkdtemp(join(tmpdir(), "patcher-plugin-tools-runtime-"));
   });
 
   afterEach(async () => {
@@ -596,17 +596,17 @@ describe("plugin tools reach thread runtime config", () => {
 
   it("thread.start dynamicTools include plugin tools with per-tool instructions", async () => {
     const rootDir = await writePlugin(pluginsDir, {
-      name: "bb-plugin-tooldemo",
+      name: "patcher-plugin-tooldemo",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "demo_lookup",
             description: "Look up demo data",
             instructions: "Call demo_lookup before guessing demo data.",
             parameters: { type: "object", properties: { key: { type: "string" } } },
             execute: () => "demo",
           });
-          bb.agents.registerTool({
+          patcher.agents.registerTool({
             name: "quiet_tool",
             description: "No instructions on purpose",
             parameters: { type: "object" },
@@ -666,7 +666,7 @@ describe("plugin tools reach thread runtime config", () => {
     // and nothing for the description-only tool.
     expect(command.instructions).toContain("update_environment_directory");
     expect(command.instructions).toContain(
-      'The following instructions come from the BB plugin "tooldemo" for its tool "demo_lookup":',
+      'The following instructions come from the Patcher plugin "tooldemo" for its tool "demo_lookup":',
     );
     expect(command.instructions).toContain(
       "Call demo_lookup before guessing demo data.",
@@ -676,15 +676,15 @@ describe("plugin tools reach thread runtime config", () => {
 
   it("resolves different conditional tools, skills, instructions, and context without rebuilding static registrations", async () => {
     const rootDir = await writePlugin(pluginsDir, {
-      name: "bb-plugin-conditional",
+      name: "patcher-plugin-conditional",
       serverSource: `
-        globalThis.__bbConditionalFactoryCount =
-          (globalThis.__bbConditionalFactoryCount ?? 0) + 1;
-        const factoryCount = globalThis.__bbConditionalFactoryCount;
+        globalThis.__patcherConditionalFactoryCount =
+          (globalThis.__patcherConditionalFactoryCount ?? 0) + 1;
+        const factoryCount = globalThis.__patcherConditionalFactoryCount;
         let configureCount = 0;
-        export default function plugin(bb: any) {
+        export default function plugin(patcher: any) {
           for (const name of ["alpha_tool", "beta_tool"]) {
-            bb.agents.registerTool({
+            patcher.agents.registerTool({
               name,
               description: name,
               instructions: "Static instructions for " + name,
@@ -692,7 +692,7 @@ describe("plugin tools reach thread runtime config", () => {
               execute: () => name,
             });
           }
-          bb.agents.configure((context: any) => {
+          patcher.agents.configure((context: any) => {
             configureCount += 1;
             if (
               context.origin.pluginId === "side-chat" &&
@@ -734,16 +734,16 @@ describe("plugin tools reach thread runtime config", () => {
       );
     }
     const brokenRoot = await writePlugin(pluginsDir, {
-      name: "bb-plugin-broken-conditional",
+      name: "patcher-plugin-broken-conditional",
       serverSource: `
-        export default function plugin(bb: any) {
-          bb.agents.registerTool({
+        export default function plugin(patcher: any) {
+          patcher.agents.registerTool({
             name: "broken_tool",
             description: "Must never leak from an invalid selection",
             parameters: { type: "object" },
             execute: () => "broken",
           });
-          bb.agents.configure((context: any) => {
+          patcher.agents.configure((context: any) => {
             if (context.provider.id === "claude-code") {
               throw new Error("conditional failure");
             }
@@ -917,7 +917,7 @@ describe("plugin tools reach thread runtime config", () => {
       sideCommand.injectedSkillSources.map((skill) => skill.name),
     ).not.toContain("beta-skill");
     expect(sideCommand.instructions).toContain(
-      'The following dynamic instructions come from the BB plugin "conditional":',
+      'The following dynamic instructions come from the Patcher plugin "conditional":',
     );
     expect(
       harness.pluginService.list().find((plugin) => plugin.id === "conditional")
@@ -959,13 +959,15 @@ describe("plugin tools reach thread runtime config", () => {
 describe("internal tool-call dispatch to plugin tools", () => {
   it("dispatches by name to plugin tools and keeps update_environment_directory working", async () => {
     await withTestHarness(async (harness) => {
-      const pluginsDir = await mkdtemp(join(tmpdir(), "bb-plugin-tools-wire-"));
+      const pluginsDir = await mkdtemp(
+        join(tmpdir(), "patcher-plugin-tools-wire-"),
+      );
       try {
         const rootDir = await writePlugin(pluginsDir, {
-          name: "bb-plugin-wired",
+          name: "patcher-plugin-wired",
           serverSource: `
-            export default function plugin(bb: any) {
-              bb.agents.registerTool({
+            export default function plugin(patcher: any) {
+              patcher.agents.registerTool({
                 name: "echo_context",
                 description: "Echo params and call context",
                 parameters: { type: "object" },

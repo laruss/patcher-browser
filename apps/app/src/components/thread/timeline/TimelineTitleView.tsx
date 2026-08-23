@@ -11,8 +11,8 @@ import {
   type TimelineTitleSegment,
   type TimelineTitleSegmentAccent,
   type TimelineTitleTone,
-} from "@bb/thread-view";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/thread-view";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { DiffStatsTally } from "@/components/ui/diff-stats-tally.js";
 import { RouteAnchor } from "@/components/ui/app-route-anchor.js";
 

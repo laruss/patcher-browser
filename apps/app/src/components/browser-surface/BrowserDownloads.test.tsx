@@ -10,13 +10,13 @@ import {
 import { Provider } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  BbDesktopBrowserDownload,
-  BbDesktopBrowserDownloadActionRequest,
-} from "@bb/desktop-contract";
+  PatcherDesktopBrowserDownload,
+  PatcherDesktopBrowserDownloadActionRequest,
+} from "@patcher/desktop-contract";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import { useBrowserDownloadNotifications } from "@/lib/browser-downloads";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { BrowserSurfaceChrome } from "./BrowserSurfaceChrome";
@@ -32,8 +32,8 @@ const desktopInfo = {
 };
 
 function completedDownload(
-  overrides: Partial<BbDesktopBrowserDownload> = {},
-): BbDesktopBrowserDownload {
+  overrides: Partial<PatcherDesktopBrowserDownload> = {},
+): PatcherDesktopBrowserDownload {
   return {
     id: "download-1",
     tabId: "tab-active",
@@ -72,8 +72,9 @@ function DownloadsHarness({
 function renderChrome() {
   const downloadAction = vi.fn(async () => ({ ok: true }) as const);
   const onPageOverlayChange = vi.fn();
-  const listeners: Array<(download: BbDesktopBrowserDownload) => void> = [];
-  window.bbDesktop = createBbDesktopApi(desktopInfo, {
+  const listeners: Array<(download: PatcherDesktopBrowserDownload) => void> =
+    [];
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, {
     ...createNoopDesktopBrowserApi(),
     downloadAction,
     onDownload(listener) {
@@ -97,7 +98,7 @@ function renderChrome() {
     downloadAction,
     onPageOverlayChange,
     unmount: view.unmount,
-    emit(download: BbDesktopBrowserDownload) {
+    emit(download: PatcherDesktopBrowserDownload) {
       act(() => {
         // The subscription is renewed as state changes, and this fake's
         // unsubscribe keeps the dead listeners, so only the last one is live.
@@ -195,7 +196,7 @@ describe("browser downloads chrome", () => {
     );
 
     const requests = downloadAction.mock.calls as unknown as Array<
-      [BbDesktopBrowserDownloadActionRequest]
+      [PatcherDesktopBrowserDownloadActionRequest]
     >;
     expect(requests.map((call) => call[0])).toEqual([
       { action: "open", savePath: "/Users/someone/Downloads/report.pdf" },

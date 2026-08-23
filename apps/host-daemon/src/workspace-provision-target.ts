@@ -1,6 +1,6 @@
-import type { WorkspaceProvisionType } from "@bb/domain";
-import type { WorkspaceContext } from "@bb/host-daemon-contract";
-import type { ProvisionWorkspaceArgs } from "@bb/host-workspace";
+import type { WorkspaceProvisionType } from "@patcher/domain";
+import type { WorkspaceContext } from "@patcher/host-daemon-contract";
+import type { ProvisionWorkspaceArgs } from "@patcher/host-workspace";
 
 interface ReconnectProvisionArgs {
   environmentId: string;

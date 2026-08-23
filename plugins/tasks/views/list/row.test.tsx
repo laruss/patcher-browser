@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadPluginApp, renderSlot } from "@bb/plugin-sdk/testing/app";
-import { COMPACT_VIEWPORT_QUERY } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
+import { COMPACT_VIEWPORT_QUERY } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import type { Task, TaskMutationResult } from "../../shared/contract.js";
 
 // jsdom lacks matchMedia/ResizeObserver. Reporting the compact query as
@@ -39,7 +39,7 @@ const project = {
   nextTaskNumber: 5,
   color: "blue",
   folderId: null,
-  linkedBbProjectId: null,
+  linkedPatcherProjectId: null,
   createdAt: "2026-07-15T00:00:00.000Z",
 };
 

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { Host, ProjectSource } from "@bb/domain";
-import { HOST_DAEMON_PROTOCOL_VERSION } from "@bb/host-daemon-contract";
+import type { Host, ProjectSource } from "@patcher/domain";
+import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EnvironmentPickerUI } from "./EnvironmentPicker";
 
@@ -89,8 +89,18 @@ describe("EnvironmentPickerUI multi-machine menu", () => {
   };
 
   const machineSources: readonly ProjectSource[] = [
-    { ...sources[0]!, id: "src_local", hostId: thisMachine.id, path: "~/bb" },
-    { ...sources[0]!, id: "src_studio", hostId: studio.id, path: "~/code/bb" },
+    {
+      ...sources[0]!,
+      id: "src_local",
+      hostId: thisMachine.id,
+      path: "~/patcher",
+    },
+    {
+      ...sources[0]!,
+      id: "src_studio",
+      hostId: studio.id,
+      path: "~/code/patcher",
+    },
   ];
 
   function renderMachineMenu(overrides?: {

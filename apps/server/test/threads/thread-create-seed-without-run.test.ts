@@ -3,12 +3,12 @@ import {
   getEnvironment,
   getThread,
   listEvents,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   PERSONAL_PROJECT_ID,
   turnRequestEventDataSchema,
   type PermissionMode,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../src/errors.js";
 import type { TelemetryService } from "../../src/services/system/telemetry.js";

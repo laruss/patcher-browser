@@ -1,5 +1,5 @@
-import type { ThreadTimelineResponse } from "@bb/server-contract";
-import type { ThreadStatus } from "@bb/domain";
+import type { ThreadTimelineResponse } from "@patcher/server-contract";
+import type { ThreadStatus } from "@patcher/domain";
 import type { ThreadTimelinePageRequest } from "./timeline-pagination.js";
 
 /**

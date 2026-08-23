@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-cascade",
+  "name": "patcher-plugin-cascade",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
-    "bb": ">=0.0",
-    "bbPluginSdk": "^0.4.1"
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Cascade",
     "description": "Scrollable-tiling thread layout — scroll columns horizontally, flip rows vertically.",
     "branding": {
@@ -21,7 +21,7 @@
     ]
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -31,7 +31,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
     "sonner": "^2.0.7",

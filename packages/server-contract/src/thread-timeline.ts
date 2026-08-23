@@ -11,7 +11,7 @@ import {
   threadTurnInitiatorSchema,
   workflowProgressSnapshotSchema,
   type JsonObject,
-} from "@bb/domain";
+} from "@patcher/domain";
 
 export const timelineRowStatusValues = [
   "pending",

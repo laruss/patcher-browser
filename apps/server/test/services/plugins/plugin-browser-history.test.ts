@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { BrowserHistoryEntry } from "@bb/server-contract";
+import type { BrowserHistoryEntry } from "@patcher/server-contract";
 import {
   createTestAppHarness,
   type TestAppHarness,
@@ -15,26 +15,26 @@ const BASE = "http://127.0.0.1:3334/api/v1/browser-history";
  * pinning: a plugin that rewrites and a plugin that drops must both get their
  * say, in a defined order, and a plugin that throws must lose only its own.
  *
- * `bb-plugin-history-a` sorts before `bb-plugin-history-b`, so the rewrite is
+ * `patcher-plugin-history-a` sorts before `patcher-plugin-history-b`, so the rewrite is
  * applied before the drop decides on it — which is what lets the drop match a
  * URL the rewrite produced.
  */
 const REWRITING_PLUGIN = `
-  export default function plugin(bb: any) {
-    bb.browser.registerHistoryFilter((visit: any) => {
+  export default function plugin(patcher: any) {
+    patcher.browser.registerHistoryFilter((visit: any) => {
       const url = new URL(visit.url);
       url.searchParams.delete("utm_source");
       return { url: url.toString(), title: visit.title ?? "Untitled" };
     });
-    bb.browser.registerHistoryFilter(() => {
+    patcher.browser.registerHistoryFilter(() => {
       throw new Error("filter boom");
     });
   }
 `;
 
 const DROPPING_PLUGIN = `
-  export default function plugin(bb: any) {
-    bb.browser.registerHistoryFilter((visit: any) =>
+  export default function plugin(patcher: any) {
+    patcher.browser.registerHistoryFilter((visit: any) =>
       visit.url.includes("secret.test") ? null : undefined,
     );
   }
@@ -55,7 +55,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "History filter fixture",
         description: "History filter plugin fixture.",
         branding: { icon: "Zap" },
@@ -68,7 +68,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin history filters (bb.browser.registerHistoryFilter)", () => {
+describe("plugin history filters (patcher.browser.registerHistoryFilter)", () => {
   let harness: TestAppHarness;
 
   async function record(
@@ -88,8 +88,8 @@ describe("plugin history filters (bb.browser.registerHistoryFilter)", () => {
   async function installFixtures(): Promise<void> {
     const fixtures = join(harness.config.dataDir, "fixtures");
     for (const [name, source] of [
-      ["bb-plugin-history-a", REWRITING_PLUGIN],
-      ["bb-plugin-history-b", DROPPING_PLUGIN],
+      ["patcher-plugin-history-a", REWRITING_PLUGIN],
+      ["patcher-plugin-history-b", DROPPING_PLUGIN],
     ] as const) {
       const entry = await harness.pluginService.installPath(
         await writePlugin(fixtures, { name, source }),
@@ -132,7 +132,7 @@ describe("plugin history filters (bb.browser.registerHistoryFilter)", () => {
     it("refuses a filter from a plugin that did not declare history", async () => {
       const entry = await harness.pluginService.installPath(
         await writePlugin(join(harness.config.dataDir, "fixtures"), {
-          name: "bb-plugin-history-undeclared",
+          name: "patcher-plugin-history-undeclared",
           permissions: [],
           source: DROPPING_PLUGIN,
         }),

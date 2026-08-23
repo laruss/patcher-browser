@@ -1,4 +1,4 @@
-import type { BbPluginApi, PluginMentionItem } from "@bb/plugin-sdk";
+import type { PatcherPluginApi, PluginMentionItem } from "@patcher/plugin-sdk";
 
 import type { TasksApiStore } from "../api";
 import type { Attachment, Comment, Task, TaskThread } from "../db";
@@ -6,7 +6,7 @@ import type { Attachment, Comment, Task, TaskThread } from "../db";
 const SEARCH_LIMIT = 10;
 const RECENT_COMMENT_LIMIT = 5;
 
-type PluginDatabase = ReturnType<BbPluginApi["storage"]["database"]>;
+type PluginDatabase = ReturnType<PatcherPluginApi["storage"]["database"]>;
 
 interface MentionTaskRow {
   id: string;
@@ -38,12 +38,15 @@ function displayName(value: string): string {
 function searchTasks(
   database: PluginDatabase,
   query: string,
-  bbProjectId: string | null,
+  patcherProjectId: string | null,
 ): PluginMentionItem[] {
   const normalizedQuery = query.trim();
   const search = `%${escapeLike(normalizedQuery)}%`;
   const rows = database
-    .prepare<{ bbProjectId: string | null; search: string }, MentionTaskRow>(
+    .prepare<
+      { patcherProjectId: string | null; search: string },
+      MentionTaskRow
+    >(
       `
         SELECT
           t.id,
@@ -59,8 +62,8 @@ function searchTasks(
           OR t.title LIKE @search ESCAPE '\\'
         ORDER BY
           CASE
-            WHEN @bbProjectId IS NOT NULL
-              AND p.linked_bb_project_id = @bbProjectId THEN 0
+            WHEN @patcherProjectId IS NOT NULL
+              AND p.linked_bb_project_id = @patcherProjectId THEN 0
             ELSE 1
           END,
           t.updated_at DESC,
@@ -68,7 +71,7 @@ function searchTasks(
         LIMIT ${SEARCH_LIMIT}
       `,
     )
-    .all({ bbProjectId, search });
+    .all({ patcherProjectId, search });
 
   return rows.map((row) => ({
     id: row.id,
@@ -112,7 +115,7 @@ function formatAttachments(
     .map(
       (attachment) =>
         `- ${attachment.id} · ${attachment.fileName}\n` +
-        `  Fetch with: bb tasks attachment get ${attachment.id} --out <path>`,
+        `  Fetch with: patcher tasks attachment get ${attachment.id} --out <path>`,
     )
     .join("\n");
 }
@@ -191,14 +194,17 @@ ${formatThreads(store.tasks.listTaskThreads(task.id))}
 
 ## Action contract
 
-You can act on this task with the bb tasks CLI. If you begin working on it, first run: bb tasks attach ${task.key} (attaches THIS thread so the task shows you as working). Comment substantive updates via bb tasks comment ${task.key} --body ... and set status via bb tasks update ${task.key} --status ...
+You can act on this task with the Patcher tasks CLI. If you begin working on it, first run: patcher tasks attach ${task.key} (attaches THIS thread so the task shows you as working). Comment substantive updates via patcher tasks comment ${task.key} --body ... and set status via patcher tasks update ${task.key} --status ...
 `;
 }
 
-export function registerMentions(bb: BbPluginApi, store: TasksApiStore): void {
-  const database = bb.storage.database();
+export function registerMentions(
+  patcher: PatcherPluginApi,
+  store: TasksApiStore,
+): void {
+  const database = patcher.storage.database();
 
-  bb.ui.registerMentionProvider({
+  patcher.ui.registerMentionProvider({
     id: "task",
     label: "Tasks",
     search({ query, projectId }) {

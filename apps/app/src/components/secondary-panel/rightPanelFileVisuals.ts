@@ -1,4 +1,4 @@
-import type { IconName } from "@bb/shared-ui/icon";
+import type { IconName } from "@patcher/shared-ui/icon";
 
 export interface RightPanelFileVisual {
   iconName: IconName;

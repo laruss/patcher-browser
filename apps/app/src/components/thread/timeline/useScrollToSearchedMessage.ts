@@ -28,7 +28,7 @@ interface SeqRange {
   max: number;
 }
 
-const FLASH_CLASS_NAME = "bb-search-flash";
+const FLASH_CLASS_NAME = "patcher-search-flash";
 const FLASH_DURATION_MS = 1700;
 
 function escapeTimelineRowId(rowId: string): string {

@@ -4,7 +4,7 @@ import type { ParentToChildMessage } from "./messages.js";
 import { createParcelChildHandler } from "./parcel-child-handler.js";
 
 // Child process entry: the ONLY place the native @parcel/watcher addon runs when
-// BB_WATCHER_SUBPROCESS=1. Any inotify EINTR leak/deadlock is contained here and
+// PATCHER_WATCHER_SUBPROCESS=1. Any inotify EINTR leak/deadlock is contained here and
 // reclaimed wholesale when the parent SIGKILLs and respawns us.
 const handler = createParcelChildHandler({
   parcel: realParcelWatcher,

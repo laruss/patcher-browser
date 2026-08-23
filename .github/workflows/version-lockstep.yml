@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   check:
-    name: Check bb-app and desktop versions
+    name: Check patcher-app and desktop versions
     runs-on: ubuntu-latest
     timeout-minutes: 5
 

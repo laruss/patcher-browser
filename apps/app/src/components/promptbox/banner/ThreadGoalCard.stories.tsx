@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ThreadTimelineGoal } from "@bb/domain";
+import type { ThreadTimelineGoal } from "@patcher/domain";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import { ThreadGoalCard } from "./ThreadGoalCard";
 

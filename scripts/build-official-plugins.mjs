@@ -19,7 +19,7 @@ const selected =
 
 // Resolves from this repo's own devDependencies; no download here.
 const toolchain = await resolvePluginBuildToolchain(
-  resolve(repositoryRoot, "node_modules/.bb-toolchain"),
+  resolve(repositoryRoot, "node_modules/.patcher-toolchain"),
 );
 
 for (const plugin of selected) {
@@ -30,14 +30,14 @@ for (const plugin of selected) {
   }
 }
 
-const bbPackage = JSON.parse(
+const patcherPackage = JSON.parse(
   await readFile(
-    resolve(repositoryRoot, "packages/bb-app/package.json"),
+    resolve(repositoryRoot, "packages/patcher-app/package.json"),
     "utf8",
   ),
 );
-if (typeof bbPackage.version !== "string") {
-  throw new Error("packages/bb-app/package.json is missing a version");
+if (typeof patcherPackage.version !== "string") {
+  throw new Error("packages/patcher-app/package.json is missing a version");
 }
 
 for (const plugin of selected) {
@@ -46,10 +46,14 @@ for (const plugin of selected) {
 
   const server = await buildPluginServer(
     rootDirectory,
-    bbPackage.version,
+    patcherPackage.version,
     toolchain,
   );
-  const app = await buildPluginApp(rootDirectory, bbPackage.version, toolchain);
+  const app = await buildPluginApp(
+    rootDirectory,
+    patcherPackage.version,
+    toolchain,
+  );
   console.log(
     `${plugin}: built ${server.jsPath}, ${server.metaPath}, ${app.jsPath}, ${app.cssPath}, and ${app.metaPath}`,
   );

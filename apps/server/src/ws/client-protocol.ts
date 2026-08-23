@@ -2,7 +2,7 @@ import {
   clientMessageSchema,
   permissionForRealtimeTarget,
   type PluginPermission,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { decodeSocketPayload } from "./decode-payload.js";
 import type { NotificationHub } from "./hub.js";
 import type { WatchInterestCoordinator } from "./watch-interests.js";

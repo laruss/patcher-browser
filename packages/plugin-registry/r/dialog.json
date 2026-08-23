@@ -3,19 +3,19 @@
   "name": "dialog",
   "type": "registry:ui",
   "title": "dialog",
-  "description": "BB ui \"dialog\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"dialog\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-dialog",
     "@radix-ui/react-slot"
   ],
   "registryDependencies": [
-    "@bb/drawer",
-    "@bb/icon",
-    "@bb/overlay-trigger",
-    "@bb/portal-scope",
-    "@bb/responsive-overlay",
-    "@bb/use-browser-dimming-modal",
-    "@bb/utils"
+    "@patcher/drawer",
+    "@patcher/icon",
+    "@patcher/overlay-trigger",
+    "@patcher/portal-scope",
+    "@patcher/responsive-overlay",
+    "@patcher/use-browser-dimming-modal",
+    "@patcher/utils"
   ],
   "files": [
     {

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @source "..";
-/* The UI kit's component source lives in @bb/shared-ui (a workspace package
+/* The UI kit's component source lives in @patcher/shared-ui (a workspace package
    resolved via a node_modules symlink, which Tailwind v4 does not auto-scan).
    Without this, utility classes used only by moved components — row-height,
    overlay, icon sizing — get purged from the app's CSS. */
@@ -133,51 +133,54 @@
      * SidebarContent owns scrolling. This stack owns sticky padding, row
      * sizing, gaps, and derived offsets for its descendant sticky tiers.
      */
-    --bb-sidebar-sticky-stack-padding: 0.5rem;
-    --bb-sidebar-sticky-stack-padding-top: var(
-      --bb-sidebar-sticky-stack-padding
+    --patcher-sidebar-sticky-stack-padding: 0.5rem;
+    --patcher-sidebar-sticky-stack-padding-top: var(
+      --patcher-sidebar-sticky-stack-padding
     );
-    --bb-sidebar-sticky-label-height: 1.5rem;
-    --bb-sidebar-sticky-label-gap: 0.25rem;
-    --bb-sidebar-sticky-row-height: var(--bb-sidebar-row-height);
-    --bb-sidebar-sticky-row-gap: 0.25rem;
-    --bb-sidebar-sticky-child-row-gap: 0.125rem;
-    --bb-sidebar-sticky-label-top: var(--bb-sidebar-sticky-stack-padding-top);
-    --bb-sidebar-sticky-project-top: calc(
-      var(--bb-sidebar-sticky-label-top) +
-        var(--bb-sidebar-sticky-label-height) +
-        var(--bb-sidebar-sticky-label-gap)
+    --patcher-sidebar-sticky-label-height: 1.5rem;
+    --patcher-sidebar-sticky-label-gap: 0.25rem;
+    --patcher-sidebar-sticky-row-height: var(--patcher-sidebar-row-height);
+    --patcher-sidebar-sticky-row-gap: 0.25rem;
+    --patcher-sidebar-sticky-child-row-gap: 0.125rem;
+    --patcher-sidebar-sticky-label-top: var(
+      --patcher-sidebar-sticky-stack-padding-top
+    );
+    --patcher-sidebar-sticky-project-top: calc(
+      var(--patcher-sidebar-sticky-label-top) +
+        var(--patcher-sidebar-sticky-label-height) +
+        var(--patcher-sidebar-sticky-label-gap)
     );
     /* The first pinned parent level (a parent thread or worktree
        group header) sits directly below the project row. Deeper levels stack
-       from this base via --bb-sidebar-sticky-parent-level (set inline per row),
+       from this base via --patcher-sidebar-sticky-parent-level (set inline per row),
        capped in JS so a deep chain can't pin more ancestors than the viewport
        affords. The section variant (no project row) overrides the base below. */
-    --bb-sidebar-sticky-parent-base-top: calc(
-      var(--bb-sidebar-sticky-project-top) +
-        var(--bb-sidebar-sticky-row-height) + var(--bb-sidebar-sticky-row-gap)
+    --patcher-sidebar-sticky-parent-base-top: calc(
+      var(--patcher-sidebar-sticky-project-top) +
+        var(--patcher-sidebar-sticky-row-height) +
+        var(--patcher-sidebar-sticky-row-gap)
     );
-    --bb-sidebar-sticky-parent-stride: calc(
-      var(--bb-sidebar-sticky-row-height) +
-        var(--bb-sidebar-sticky-child-row-gap)
+    --patcher-sidebar-sticky-parent-stride: calc(
+      var(--patcher-sidebar-sticky-row-height) +
+        var(--patcher-sidebar-sticky-child-row-gap)
     );
-    --bb-sidebar-sticky-parent-base-z: 40;
+    --patcher-sidebar-sticky-parent-base-z: 40;
 
-    padding: var(--bb-sidebar-sticky-stack-padding-top)
-      var(--bb-sidebar-sticky-stack-padding)
-      var(--bb-sidebar-sticky-stack-padding);
+    padding: var(--patcher-sidebar-sticky-stack-padding-top)
+      var(--patcher-sidebar-sticky-stack-padding)
+      var(--patcher-sidebar-sticky-stack-padding);
   }
 
   [data-sidebar-sticky-stack][data-sidebar-sticky-density="compact-actions"] {
-    --bb-sidebar-sticky-stack-padding-top: 0.5rem;
+    --patcher-sidebar-sticky-stack-padding-top: 0.5rem;
   }
 
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] {
     position: sticky;
-    top: var(--bb-sidebar-sticky-tier-top);
-    height: var(--bb-sidebar-sticky-tier-height);
-    min-height: var(--bb-sidebar-sticky-tier-height);
-    z-index: var(--bb-sidebar-sticky-tier-z-index);
+    top: var(--patcher-sidebar-sticky-tier-top);
+    height: var(--patcher-sidebar-sticky-tier-height);
+    min-height: var(--patcher-sidebar-sticky-tier-height);
+    z-index: var(--patcher-sidebar-sticky-tier-z-index);
     isolation: isolate;
   }
 
@@ -194,92 +197,98 @@
 
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier]::before {
     bottom: 100%;
-    height: var(--bb-sidebar-sticky-tier-shield-top-height, 0);
+    height: var(--patcher-sidebar-sticky-tier-shield-top-height, 0);
   }
 
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier]::after {
     top: 100%;
-    height: var(--bb-sidebar-sticky-tier-shield-bottom-height, 0);
+    height: var(--patcher-sidebar-sticky-tier-shield-bottom-height, 0);
   }
 
   /* The shared active-context surface is translucent so it can tint tabs and
      other content surfaces. A sticky sidebar row needs an opaque sidebar layer
      beneath that tint, or scrolled descendant text paints through the row. */
   [data-sidebar-sticky-stack]
-    [data-sidebar-sticky-tier].bb-sidebar-selected-row {
+    [data-sidebar-sticky-tier].patcher-sidebar-selected-row {
     background-image:
       linear-gradient(var(--state-active), var(--state-active)),
       linear-gradient(var(--sidebar), var(--sidebar));
   }
 
-  .bb-sidebar-hover-actions {
+  .patcher-sidebar-hover-actions {
     pointer-events: none;
     opacity: 0;
     transition-property: opacity;
     transition-duration: 0ms;
   }
 
-  .bb-sidebar-hover-actions-row:is(:hover, :has(:focus-visible))
-    .bb-sidebar-hover-actions,
-  .bb-sidebar-hover-actions[data-sidebar-hover-actions-open="true"] {
+  .patcher-sidebar-hover-actions-row:is(:hover, :has(:focus-visible))
+    .patcher-sidebar-hover-actions,
+  .patcher-sidebar-hover-actions[data-sidebar-hover-actions-open="true"] {
     pointer-events: auto;
     opacity: 1;
   }
 
-  .bb-sidebar-hover-actions-fade {
+  .patcher-sidebar-hover-actions-fade {
     opacity: 1;
     transition-property: opacity;
     transition-duration: 0ms;
   }
 
-  .bb-sidebar-hover-actions-row:is(:hover, :has(:focus-visible))
-    .bb-sidebar-hover-actions-fade,
-  .bb-sidebar-hover-actions-fade[data-sidebar-hover-actions-open="true"] {
+  .patcher-sidebar-hover-actions-row:is(:hover, :has(:focus-visible))
+    .patcher-sidebar-hover-actions-fade,
+  .patcher-sidebar-hover-actions-fade[data-sidebar-hover-actions-open="true"] {
     opacity: 0;
   }
 
   @media (max-width: 767px) and (pointer: coarse) {
-    .bb-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
-      .bb-sidebar-hover-actions:not(
+    .patcher-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
+      .patcher-sidebar-hover-actions:not(
         [data-sidebar-hover-actions-open="true"]
       ):not([data-sidebar-hover-actions-mobile="always"]) {
       pointer-events: none;
       opacity: 0;
     }
 
-    .bb-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
-      .bb-sidebar-hover-actions-fade:not(
+    .patcher-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
+      .patcher-sidebar-hover-actions-fade:not(
         [data-sidebar-hover-actions-open="true"]
       ) {
       opacity: 1;
     }
 
-    .bb-sidebar-hover-actions[data-sidebar-hover-actions-mobile="always"] {
+    .patcher-sidebar-hover-actions[data-sidebar-hover-actions-mobile="always"] {
       pointer-events: auto;
       opacity: 1;
     }
   }
 
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier="label"] {
-    --bb-sidebar-sticky-tier-top: var(--bb-sidebar-sticky-label-top);
-    --bb-sidebar-sticky-tier-height: var(--bb-sidebar-sticky-label-height);
-    --bb-sidebar-sticky-tier-z-index: 60;
-    --bb-sidebar-sticky-tier-shield-top-height: var(
-      --bb-sidebar-sticky-stack-padding
+    --patcher-sidebar-sticky-tier-top: var(--patcher-sidebar-sticky-label-top);
+    --patcher-sidebar-sticky-tier-height: var(
+      --patcher-sidebar-sticky-label-height
     );
-    --bb-sidebar-sticky-tier-shield-bottom-height: var(
-      --bb-sidebar-sticky-label-gap
+    --patcher-sidebar-sticky-tier-z-index: 60;
+    --patcher-sidebar-sticky-tier-shield-top-height: var(
+      --patcher-sidebar-sticky-stack-padding
+    );
+    --patcher-sidebar-sticky-tier-shield-bottom-height: var(
+      --patcher-sidebar-sticky-label-gap
     );
 
-    margin-bottom: var(--bb-sidebar-sticky-label-gap);
+    margin-bottom: var(--patcher-sidebar-sticky-label-gap);
   }
 
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier="project"] {
-    --bb-sidebar-sticky-tier-top: var(--bb-sidebar-sticky-project-top);
-    --bb-sidebar-sticky-tier-height: var(--bb-sidebar-sticky-row-height);
-    --bb-sidebar-sticky-tier-z-index: 50;
-    --bb-sidebar-sticky-tier-shield-bottom-height: var(
-      --bb-sidebar-sticky-row-gap
+    --patcher-sidebar-sticky-tier-top: var(
+      --patcher-sidebar-sticky-project-top
+    );
+    --patcher-sidebar-sticky-tier-height: var(
+      --patcher-sidebar-sticky-row-height
+    );
+    --patcher-sidebar-sticky-tier-z-index: 50;
+    --patcher-sidebar-sticky-tier-shield-bottom-height: var(
+      --patcher-sidebar-sticky-row-gap
     );
   }
 
@@ -288,21 +297,23 @@
        chain of nested parents stacks without per-level CSS. The level is set
        inline per row (see SidebarStickyTier); JS caps how many levels get the
        tier at all. */
-    --bb-sidebar-sticky-tier-top: calc(
-      var(--bb-sidebar-sticky-parent-base-top) +
-        var(--bb-sidebar-sticky-parent-level, 0) *
-        var(--bb-sidebar-sticky-parent-stride)
+    --patcher-sidebar-sticky-tier-top: calc(
+      var(--patcher-sidebar-sticky-parent-base-top) +
+        var(--patcher-sidebar-sticky-parent-level, 0) *
+        var(--patcher-sidebar-sticky-parent-stride)
     );
-    --bb-sidebar-sticky-tier-height: var(--bb-sidebar-sticky-row-height);
+    --patcher-sidebar-sticky-tier-height: var(
+      --patcher-sidebar-sticky-row-height
+    );
     /* Shallower ancestors win the overlap, so z-index descends with depth. */
-    --bb-sidebar-sticky-tier-z-index: calc(
-      var(--bb-sidebar-sticky-parent-base-z) -
-        var(--bb-sidebar-sticky-parent-level, 0)
+    --patcher-sidebar-sticky-tier-z-index: calc(
+      var(--patcher-sidebar-sticky-parent-base-z) -
+        var(--patcher-sidebar-sticky-parent-level, 0)
     );
     /* Parent rows and worktree group headers butt against their first child
        with the compact child gap; the wider project row gap would clip it. */
-    --bb-sidebar-sticky-tier-shield-bottom-height: var(
-      --bb-sidebar-sticky-child-row-gap
+    --patcher-sidebar-sticky-tier-shield-bottom-height: var(
+      --patcher-sidebar-sticky-child-row-gap
     );
   }
 
@@ -310,7 +321,7 @@
     [data-sidebar-sticky-project-item]
     > :not([hidden])
     ~ :not([hidden]) {
-    margin-top: var(--bb-sidebar-sticky-row-gap);
+    margin-top: var(--patcher-sidebar-sticky-row-gap);
   }
 
   /* Section-variant trees (Pinned, projectless Threads) have no project tier:
@@ -318,12 +329,16 @@
      first parent pins directly under the section label instead of reserving an
      empty project-row slot. One base override covers every depth. */
   [data-sidebar-sticky-stack] [data-sidebar-sticky-section] {
-    --bb-sidebar-sticky-parent-base-top: var(--bb-sidebar-sticky-project-top);
+    --patcher-sidebar-sticky-parent-base-top: var(
+      --patcher-sidebar-sticky-project-top
+    );
   }
 
   @media (max-width: 767px) and (pointer: coarse) {
     [data-sidebar-sticky-stack] {
-      --bb-sidebar-sticky-row-height: var(--bb-sidebar-row-height-coarse);
+      --patcher-sidebar-sticky-row-height: var(
+        --patcher-sidebar-row-height-coarse
+      );
     }
   }
 }
@@ -489,8 +504,8 @@
   --font-serif: Georgia, serif;
   --font-mono: "Fira Code", monospace;
   --radius: 0.5rem;
-  --bb-sidebar-row-height: 1.75rem;
-  --bb-sidebar-row-height-coarse: 2.5rem;
+  --patcher-sidebar-row-height: 1.75rem;
+  --patcher-sidebar-row-height-coarse: 2.5rem;
   --shadow-x: 0px;
   --shadow-y: 2px;
   --shadow-blur: 0px;
@@ -826,7 +841,7 @@ body.sidebar-resizing [data-sidebar="panel"] {
  * every interactive portaled surface out of an underlying drag strip so a
  * menu/select/dialog that crosses split chrome keeps its visible hit target.
  */
-[data-bb-portaled-overlay] {
+[data-patcher-portaled-overlay] {
   app-region: no-drag;
   -webkit-app-region: no-drag;
 }

@@ -2,7 +2,7 @@ import type {
   WorkspaceOpenTarget,
   WorkspaceOpenTargetIcon as WorkspaceOpenTargetIconValue,
   WorkspaceOpenTargetId,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import androidStudioIcon from "@/assets/workspace-open-target-icons/android-studio.png";
 import antigravityIcon from "@/assets/workspace-open-target-icons/antigravity.png";
 import bbeditIcon from "@/assets/workspace-open-target-icons/bbedit.png";
@@ -27,8 +27,8 @@ import webstormIcon from "@/assets/workspace-open-target-icons/webstorm.svg";
 import windsurfIcon from "@/assets/workspace-open-target-icons/windsurf.png";
 import xcodeIcon from "@/assets/workspace-open-target-icons/xcode.png";
 import zedIcon from "@/assets/workspace-open-target-icons/zed.png";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { getWorkspaceOpenTargetFallbackIcon } from "./workspace-open-target-display";
 
 const WORKSPACE_OPEN_TARGET_ICONS: Record<string, string | undefined> = {

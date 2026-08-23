@@ -2,7 +2,7 @@ import type {
   Environment,
   WorkspaceFileStatus,
   WorkspaceFileStatusKind,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { WorkspaceChangedFilesSection } from "@/components/workspace/workspace-change-summary";
 import { describe, expect, it } from "vitest";
 import {
@@ -69,19 +69,19 @@ describe("resolveThreadWorkspaceOpenPath", () => {
     expect(
       resolveEnvironmentOpenContext({
         environment: makeEnvironment({ hostId: "host-local" }),
-        serverOrigin: "https://bb.example.test",
+        serverOrigin: "https://patcher.example.test",
         threadEnvironmentIsLocal: true,
       }),
     ).toEqual({ kind: "local" });
     expect(
       resolveEnvironmentOpenContext({
         environment: makeEnvironment({ hostId: "host-remote" }),
-        serverOrigin: "https://bb.example.test",
+        serverOrigin: "https://patcher.example.test",
         threadEnvironmentIsLocal: false,
       }),
     ).toEqual({
       kind: "remote-ssh",
-      serverOrigin: "https://bb.example.test",
+      serverOrigin: "https://patcher.example.test",
       hostId: "host-remote",
     });
   });

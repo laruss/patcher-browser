@@ -1,4 +1,4 @@
-import type { ThreadEvent, ThreadEventFileChange } from "@bb/domain";
+import type { ThreadEvent, ThreadEventFileChange } from "@patcher/domain";
 import {
   itemStatusToApprovalStatus,
   itemStatusToFileEditStatus,

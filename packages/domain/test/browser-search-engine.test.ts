@@ -50,11 +50,11 @@ describe("browser search engines", () => {
     }
   });
 
-  // The one http exception: bb's own pages are loopback, and a plugin route is
+  // The one http exception: Patcher's own pages are loopback, and a plugin route is
   // the only way an engine can be something other than a web search.
   it("admits loopback, which is how a plugin route becomes an engine", () => {
     for (const template of [
-      "http://127.0.0.1:38886/api/v1/plugins/ask/http/search?q=%s",
+      "http://127.0.0.1:38986/api/v1/plugins/ask/http/search?q=%s",
       "http://localhost:5173/?q=%s",
       "http://[::1]:3000/?q=%s",
     ]) {
@@ -67,7 +67,7 @@ describe("browser search engines", () => {
 
   // A setting outlives the plugin that put the engine in it, and Enter still has
   // to search rather than fail.
-  it("falls back to bb's own engine for an id nothing answers to", () => {
+  it("falls back to Patcher's own engine for an id nothing answers to", () => {
     const engines = BUILT_IN_BROWSER_SEARCH_ENGINES;
 
     expect(

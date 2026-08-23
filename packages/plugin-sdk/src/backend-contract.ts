@@ -1,20 +1,20 @@
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
-import type { BbSdk } from "@bb/sdk";
-import type { ThreadResponse } from "@bb/server-contract";
+import type { PatcherSdk } from "@patcher/sdk";
+import type { ThreadResponse } from "@patcher/server-contract";
 import type { JsonValue } from "./json-value.js";
 import type { PluginRpcContract, PluginRpcHandlers } from "./rpc-contract.js";
 
 /**
- * The backend plugin API contract — the `bb` object handed to a plugin's
- * `server.ts` factory (`export default function plugin(bb: BbPluginApi)`).
+ * The backend plugin API contract — the `patcher` object handed to a plugin's
+ * `server.ts` factory (`export default function plugin(patcher: PatcherPluginApi)`).
  *
- * Types only: the implementation lives in the BB server
+ * Types only: the implementation lives in the Patcher server
  * (apps/server/src/services/plugins/plugin-api.ts), which imports these
  * shapes so the contract and the implementation cannot drift. Plugin authors
- * import them type-only (`import type { BbPluginApi } from
- * "@bb/plugin-sdk"`); the import is erased when BB loads the file.
+ * import them type-only (`import type { PatcherPluginApi } from
+ * "@patcher/plugin-sdk"`); the import is erased when Patcher loads the file.
  *
  * Runtime classes stay host-side. NeedsConfigurationError in particular is
  * matched by NAME, so plugin code needs no runtime import:
@@ -33,7 +33,7 @@ export interface PluginLogger {
 // ---------------------------------------------------------------------------
 
 /**
- * Declarative settings descriptors (`bb.settings.define`). Deliberately plain
+ * Declarative settings descriptors (`patcher.settings.define`). Deliberately plain
  * data — not zod — so the host can render settings forms and the CLI can
  * parse values without executing plugin code.
  */
@@ -107,7 +107,7 @@ export interface PluginKvStorage {
 }
 
 export interface PluginStorage {
-  /** Namespaced JSON key-value rows in bb.db; values ≤256KB each. */
+  /** Namespaced JSON key-value rows in patcher.db; values ≤256KB each. */
   kv: PluginKvStorage;
   /**
    * Open (or reuse the path of) the plugin's own SQLite database at
@@ -118,7 +118,7 @@ export interface PluginStorage {
   database(): Database.Database;
   /**
    * Ordered-statement migration helper: statement index = migration id in a
-   * `_bb_migrations` table; unapplied statements run in one transaction.
+   * `_patcher_migrations` table; unapplied statements run in one transaction.
    * Append-only — never reorder or edit shipped statements.
    */
   migrate(db: Database.Database, statements: string[]): void;
@@ -170,10 +170,10 @@ export interface PluginHttp {
   /**
    * Register an HTTP route, mounted at
    * `/api/v1/plugins/<id>/http/<path>`. Auth modes (default "local"):
-   * - "local": Origin/Host must be a local BB app origin; non-GET requires
+   * - "local": Origin/Host must be a local Patcher app origin; non-GET requires
    *   content-type application/json (forces a CORS preflight).
-   * - "token": requires the per-plugin token (`bb plugin token <id>`) via
-   *   the x-bb-plugin-token header or ?token=.
+   * - "token": requires the per-plugin token (`patcher plugin token <id>`) via
+   *   the x-patcher-plugin-token header or ?token=.
    * - "none": no checks — only for signature-verified webhooks.
    */
   route(
@@ -230,7 +230,7 @@ export interface PluginBackground {
    * durable row keyed (pluginId, name) is upserted at load; the periodic
    * sweep claims due rows with a CAS on next_run_at, but only while this
    * plugin is loaded. Failures land in last_status/last_error, visible in
-   * `bb plugin list`.
+   * `patcher plugin list`.
    */
   schedule(name: string, cron: string, fn: () => void | Promise<void>): void;
 }
@@ -306,8 +306,8 @@ export interface PluginCliExecutionResult {
 }
 
 export interface PluginCliRegistration {
-  /** Top-level command name (`bb <name> …`): lowercase [a-z0-9-]+, and not
-   * a core bb command (see RESERVED_BB_CLI_COMMANDS in the server). */
+  /** Top-level command name (`patcher <name> …`): lowercase [a-z0-9-]+, and not
+   * a core Patcher command (see RESERVED_PATCHER_CLI_COMMANDS in the server). */
   name: string;
   summary: string;
   /** Subcommand metadata rendered in help and the plugin-commands skill
@@ -321,8 +321,8 @@ export interface PluginCliRegistration {
 
 export interface PluginCli {
   /**
-   * Register this plugin's `bb` subcommand. One registration per factory
-   * execution; a repeated call is rejected. Core bb commands always win
+   * Register this plugin's `patcher` subcommand. One registration per factory
+   * execution; a repeated call is rejected. Core Patcher commands always win
    * name collisions; reserved names are rejected at registration.
    */
   register(registration: PluginCliRegistration): void;
@@ -332,7 +332,7 @@ export interface PluginCli {
 // Agent surfaces: per-turn context and native tools (design §4.4).
 // ---------------------------------------------------------------------------
 
-/** Per-turn context handed to bb.agents context providers (design §4.4). */
+/** Per-turn context handed to patcher.agents context providers (design §4.4). */
 /** MCP-style content parts a native tool may return (design §4.4). */
 export type PluginAgentToolContentPart =
   | { type: "text"; text: string }
@@ -352,8 +352,8 @@ export interface PluginAgentToolContext {
 }
 
 /**
- * Native timeline labels for a plugin tool, keyed by BB's own timeline row
- * status. This is experimental: BB may refine its presentation contract
+ * Native timeline labels for a plugin tool, keyed by Patcher's own timeline row
+ * status. This is experimental: Patcher may refine its presentation contract
  * before the field is stabilized.
  */
 export interface PluginAgentToolExperimentalStatusLabels {
@@ -376,10 +376,10 @@ export interface PluginAgentToolRegistrationBase {
    */
   instructions?: string;
   /**
-   * Optional native timeline labels. When omitted, BB shows the standard
+   * Optional native timeline labels. When omitted, Patcher shows the standard
    * tool name and arguments (for example, `Ran tool search_docs …`). Labels
    * apply only while the call is pending and after successful completion;
-   * approval, error, and interruption states keep BB's standard rendering.
+   * approval, error, and interruption states keep Patcher's standard rendering.
    */
   experimental_statusLabels?: PluginAgentToolExperimentalStatusLabels;
 }
@@ -462,7 +462,7 @@ export interface PluginAgents {
    * an already-running session is not hot-mutated. Instructions follow the
    * same boundary: a live provider session keeps the instructions it was
    * constructed with, and a changed selection applies when the session is
-   * next constructed. Skill changes follow BB's environment runtime policy:
+   * next constructed. Skill changes follow Patcher's environment runtime policy:
    * a busy runtime keeps its current catalog until a safe relaunch. Side chats
    * are ordinary plugin-owned forks here — read `origin` to detect them — and
    * their returned tool, skill, and dynamic-instruction selections apply at the
@@ -640,13 +640,13 @@ export interface PluginKeybinding {
  * A command of the plugin's own, with the chord that runs it.
  *
  * The difference from {@link PluginUi.registerKeybinding}: that one rebinds a
- * command **bb** already has, while this one adds a command bb has never heard
- * of. Which is also why it is a separate list rather than an entry in bb's
- * keybinding config — bb's command ids are a closed set, and a plugin's are not.
+ * command **Patcher** already has, while this one adds a command Patcher has never heard
+ * of. Which is also why it is a separate list rather than an entry in Patcher's
+ * keybinding config — Patcher's command ids are a closed set, and a plugin's are not.
  *
  * Deliberately context-free: `run` is handed nothing. A command that needs the
- * page the user is on reads it (`bb.browser.page.getUrl()`,
- * `bb.browser.tabs.list()`) and pays `tabs.read` for it — the permission that
+ * page the user is on reads it (`patcher.browser.page.getUrl()`,
+ * `patcher.browser.tabs.list()`) and pays `tabs.read` for it — the permission that
  * already governs seeing where the user is. Handing the address to every chord
  * would be a disclosure nobody agreed to for a shortcut.
  */
@@ -656,13 +656,13 @@ export interface PluginCommandRegistration {
   /** What the shortcut is called wherever it is listed — Settings, for now. */
   title: string;
   /**
-   * The chord. Required: bb has no command palette yet, so a command without one
+   * The chord. Required: Patcher has no command palette yet, so a command without one
    * would have no way to be run at all.
    *
-   * bb's own bindings win a contested chord — including one the user rebound —
+   * Patcher's own bindings win a contested chord — including one the user rebound —
    * and between plugins the lowest plugin id wins, so what happens does not
    * depend on load order. A chord never fires while the user is typing or a
-   * dialog is open, the same rule bb's own shortcuts follow.
+   * dialog is open, the same rule Patcher's own shortcuts follow.
    */
   shortcut: PluginKeybindingShortcut;
   /** Runs server-side when the chord fires. Nothing waits on it. */
@@ -750,7 +750,7 @@ export interface PluginOmniboxProviderRegistration {
  * How a download ended. There is no `started`: a handler runs once a download
  * is over, so it never sees a half-written file it might be tempted to move.
  *
- * `refused` is bb's own decision (the page asked for too many at once) and
+ * `refused` is Patcher's own decision (the page asked for too many at once) and
  * nothing was written, which is why `savePath` is null for it alone.
  */
 export type PluginBrowserDownloadState =
@@ -764,7 +764,7 @@ export interface PluginBrowserDownload {
   id: string;
   /** The browser tab whose page started it. */
   tabId: string;
-  /** The name bb wrote — sanitized, and not necessarily what the page asked for. */
+  /** The name Patcher wrote — sanitized, and not necessarily what the page asked for. */
   filename: string;
   /** Absolute path of the file on disk; null when nothing was written. */
   savePath: string | null;
@@ -775,7 +775,7 @@ export interface PluginBrowserDownload {
 }
 
 /**
- * Called after bb has finished writing a download.
+ * Called after Patcher has finished writing a download.
  *
  * **This is where a plugin takes downloads over.** The file is on disk and
  * nothing else is holding it, so a handler is free to move it somewhere by
@@ -786,7 +786,7 @@ export interface PluginBrowserDownload {
  *
  * What a handler cannot do is stop the write, and that is a platform limit
  * rather than a policy: Chromium demands the save path **synchronously**, while
- * a plugin lives in another process. So bb writes to the user's downloads
+ * a plugin lives in another process. So Patcher writes to the user's downloads
  * folder first and hands the result over; a plugin that wants files elsewhere
  * moves them, and one that wants them gone deletes them.
  */
@@ -870,13 +870,13 @@ export interface PluginBrowserTabActionContext {
   tabId: string;
   /**
    * The page's address, empty for a tab that has no page yet — and **null** for
-   * a bb screen (Settings, a plugin's own panel), which is a tab with no page at
+   * a Patcher screen (Settings, a plugin's own panel), which is a tab with no page at
    * all. Null is therefore how an action tells the two kinds apart.
    */
   url: string | null;
   title: string | null;
   pinned: boolean;
-  /** Web tabs only: a bb screen has no page of its own to silence. */
+  /** Web tabs only: a Patcher screen has no page of its own to silence. */
   muted: boolean;
   /** Whether this is the tab the window is currently showing. */
   active: boolean;
@@ -899,7 +899,7 @@ export interface PluginBrowserTabActionRegistration {
 export interface PluginBrowserToolbarContext {
   /** The browser tab whose toolbar this is. */
   tabId: string;
-  /** The page's address. Never empty — the toolbar is not drawn over bb's own
+  /** The page's address. Never empty — the toolbar is not drawn over Patcher's own
    * screens, so there is always a page. */
   url: string;
   title: string | null;
@@ -935,7 +935,7 @@ export interface PluginBrowserToolbarItemRegistration {
   /** The control's accessible name, and its tooltip. */
   title: string;
   /**
-   * Icon hint, resolved like every other plugin icon: your `bb.branding.icon`,
+   * Icon hint, resolved like every other plugin icon: your `patcher.branding.icon`,
    * then the manifest's, then this name, then a generic mark. Fixed at
    * registration — see {@link PluginBrowserToolbarState.active} for why.
    */
@@ -985,7 +985,7 @@ export interface PluginBrowserNewTabRow {
 
 /**
  * A section on the browser's new-tab screen — the empty page a fresh tab shows,
- * where bb lists recently visited pages.
+ * where Patcher lists recently visited pages.
  *
  * Rows are **links**, so clicking one runs no plugin code: the browser navigates
  * to what the plugin already said. That is what keeps a list of saved pages
@@ -1029,7 +1029,7 @@ export interface PluginBrowserPageStyleRegistration {
   id: string;
   /**
    * Which of the plugin's declared sites this stylesheet is for. Each entry must
-   * be one of the patterns in `bb.sites` — the manifest is where the user reads
+   * be one of the patterns in `patcher.sites` — the manifest is where the user reads
    * what a plugin reaches, so code may pick from that list but never widen it.
    */
   matches: string[];
@@ -1049,8 +1049,8 @@ export interface PluginBrowserPageStyleRegistration {
  * stand behind, so the surface is the channel home and the one piece of timing
  * sugar that keeps the common case from being a footgun.
  *
- * It arrives as the global `bb` inside the script — declare it at the top of the
- * source (`declare const bb: PluginPageScriptApi`) to type-check a script written
+ * It arrives as the global `patcher` inside the script — declare it at the top of the
+ * source (`declare const patcher: PluginPageScriptApi`) to type-check a script written
  * as a template literal.
  */
 export interface PluginPageScriptApi {
@@ -1092,14 +1092,14 @@ export interface PluginPageScriptApi {
  *
  * - It runs **before the page's own first script**, when the document exists and
  *   the parser has produced nothing (`document.documentElement` is null). Use
- *   `bb.ready` for DOM work.
+ *   `patcher.ready` for DOM work.
  * - It runs in an **isolated world of this plugin's own**. The page cannot see
- *   `bb` or anything the script defines, and cannot shadow what it reads. Two
+ *   `patcher` or anything the script defines, and cannot shadow what it reads. Two
  *   scripts of the same plugin share that world; another plugin's scripts do not.
  * - **Main frame only.** An iframe is out of reach, as it is for a page style.
  * - A script registered while a matching page is already open runs when that page
  *   is **next loaded**.
- * - An error at the top level lands in the page's console — where bb's
+ * - An error at the top level lands in the page's console — where Patcher's
  *   observation log collects it for agents — and does not stop the next script.
  */
 export interface PluginBrowserPageScriptRegistration {
@@ -1107,13 +1107,13 @@ export interface PluginBrowserPageScriptRegistration {
   id: string;
   /**
    * Which of the plugin's declared sites this script is for. Each entry must be
-   * one of the patterns in `bb.sites`, exactly as for a page style: the manifest
+   * one of the patterns in `patcher.sites`, exactly as for a page style: the manifest
    * is what the user read, so code may pick from that list but never widen it.
    */
   matches: string[];
   /**
    * The script, as source text. It is wrapped in a function before it runs, so
-   * top-level `const` stays out of the world's globals, and `bb` is in scope.
+   * top-level `const` stays out of the world's globals, and `patcher` is in scope.
    */
   code: string;
 }
@@ -1128,7 +1128,7 @@ export interface PluginBrowserPageScriptRegistration {
  *
  * The consequence worth knowing: an engine need not search. Any `https` address
  * with `%s` in it is one, and so is a **loopback** address — including your own
- * `bb.http.route`, which is how "Enter asks an agent" is built.
+ * `patcher.http.route`, which is how "Enter asks an agent" is built.
  */
 export interface PluginBrowserSearchEngineRegistration {
   /** Unique within this plugin: [a-zA-Z0-9_-]+. Stored in the user's setting. */
@@ -1193,7 +1193,7 @@ export interface PluginBrowserFindContext {
 export interface PluginBrowserPdfDocument {
   /** The browser tab the document is open in. */
   tabId: string;
-  /** Where it came from — fetchable again with `bb.browser.storage` cookies. */
+  /** Where it came from — fetchable again with `patcher.browser.storage` cookies. */
   pageUrl: string;
   title: string | null;
 }
@@ -1215,7 +1215,7 @@ export type PluginBrowserPdfTextProvider = (
   document: PluginBrowserPdfDocument,
 ) => string | null | Promise<string | null>;
 
-/** A link another app asked macOS to open, handed here because bb is the
+/** A link another app asked macOS to open, handed here because Patcher is the
  * user's default browser. */
 export interface PluginBrowserExternalLink {
   /** The address. Always `http(s)`: the shell drops every other scheme. */
@@ -1227,18 +1227,18 @@ export interface PluginBrowserExternalLinkDecision {
   /** Open this address instead of the one that arrived. Must be `http(s)`. */
   url?: string;
   /**
-   * True when the plugin dealt with the link itself and bb should open no tab —
+   * True when the plugin dealt with the link itself and Patcher should open no tab —
    * a link routed to a workspace, filed for later, answered by an agent.
    */
   handled?: boolean;
 }
 
 /**
- * Decide where a link the *system* handed bb goes.
+ * Decide where a link the *system* handed Patcher goes.
  *
  * This is the seam the "which browser opens what" apps exist for, and it only
- * exists while bb is the default browser: the link was clicked in Mail, Slack or
- * a terminal, and bb is what macOS launched with it.
+ * exists while Patcher is the default browser: the link was clicked in Mail, Slack or
+ * a terminal, and Patcher is what macOS launched with it.
  *
  * Handlers are asked in plugin id order and the **first decision wins** — a
  * rewritten address, or `handled` for a link the plugin took over. Return null to
@@ -1287,7 +1287,7 @@ export interface PluginBrowserHistoryRewrite {
 
 /**
  * Decide what the browser remembers about a page — see
- * `bb.browser.registerHistoryFilter`.
+ * `patcher.browser.registerHistoryFilter`.
  *
  * Return nothing to accept the visit as it stands, a rewrite to change what is
  * stored (strip tracking parameters, retitle a page whose own title is
@@ -1511,7 +1511,7 @@ export interface PluginBrowserConsoleEntry {
 /**
  * One request the tab finished. `status` is null when there was no response —
  * `error` then carries Chromium's `net::ERR_*` name, including for a request
- * BB's own session firewall refused.
+ * Patcher's own session firewall refused.
  */
 export interface PluginBrowserNetworkEntry {
   method: string;
@@ -1943,13 +1943,13 @@ export interface PluginBrowserVideo extends PluginBrowserPageState {
 /**
  * Recording a session, in two halves that record different things.
  *
- * The **trace** is bb's own log of the browser commands this app ran — what was
+ * The **trace** is Patcher's own log of the browser commands this app ran — what was
  * asked for, what came back, optionally a picture after each step. It is not
  * Playwright's trace format and no Playwright viewer will open it; it is a JSON
  * log meant to be read.
  *
  * The **video** is frames of one tab, taken by the browser itself. It comes back
- * as JPEGs and timings rather than a playable file: bb ships no video encoder,
+ * as JPEGs and timings rather than a playable file: Patcher ships no video encoder,
  * so turning the frames into one is a job for `ffmpeg` and the caller.
  */
 export interface PluginBrowserRecording {
@@ -2049,7 +2049,7 @@ export interface PluginBrowser {
   registerOmniboxProvider(provider: PluginOmniboxProviderRegistration): void;
   /**
    * Take over what happens to a file the browser downloaded
-   * (`browser.downloads.handlers`). Runs after bb has written it to the user's
+   * (`browser.downloads.handlers`). Runs after Patcher has written it to the user's
    * downloads folder — see {@link PluginBrowserDownloadHandler} for what a
    * handler may do with it and why it cannot prevent the write.
    *
@@ -2087,7 +2087,7 @@ export interface PluginBrowser {
    *
    * The tab strip is where a browser keeps what the user is holding open, so
    * this is the place for what a plugin does *to one of them*: send it to an
-   * agent, file it, sync it, open it somewhere else. bb's own entries — pin,
+   * agent, file it, sync it, open it somewhere else. Patcher's own entries — pin,
    * duplicate, mute, close — come first and contributed entries follow, in
    * plugin id order.
    *
@@ -2105,7 +2105,7 @@ export interface PluginBrowser {
    * than about the page, which is what makes it worth extending: saved logins for
    * this host, trackers blocked on it, whether it is on the user's own allowlist.
    *
-   * bb's own section — what it can honestly say about the connection — comes
+   * Patcher's own section — what it can honestly say about the connection — comes
    * first; contributed sections follow in plugin id order. Rows are text, not
    * controls: a section reports, and anything to *do* belongs on the tab or page
    * menu where a click has somewhere to go.
@@ -2115,11 +2115,11 @@ export interface PluginBrowser {
   ): void;
   /**
    * Put a control in the browser's toolbar (`browser.toolbar.items`) — the
-   * address row, beside bb's own downloads and open-externally buttons.
+   * address row, beside Patcher's own downloads and open-externally buttons.
    *
    * The row is where a browser keeps what applies to *the page you are looking
    * at right now*, which is what this point is for: a star that knows whether
-   * this page is saved, a reader mode, "open this in the other browser". bb's own
+   * this page is saved, a reader mode, "open this in the other browser". Patcher's own
    * controls keep their places and contributed ones sit between the address bar
    * and them, in plugin id order.
    *
@@ -2138,7 +2138,7 @@ export interface PluginBrowser {
    *
    * A new tab is the one moment the browser has nothing to show, which is what
    * makes it worth extending: saved pages, a reading list, the tabs you closed
-   * yesterday. bb's own "Recently visited" comes first and contributed sections
+   * yesterday. Patcher's own "Recently visited" comes first and contributed sections
    * follow in plugin id order.
    *
    * Costs `newTab.register`. Nothing about the user's browsing is handed over —
@@ -2151,7 +2151,7 @@ export interface PluginBrowser {
    * {@link PluginBrowserSearchEngineRegistration}.
    *
    * Offering is not choosing: the engine appears in the setting's list, and it is
-   * used only once the user picks it. bb's own engines come first, then
+   * used only once the user picks it. Patcher's own engines come first, then
    * contributed ones in plugin id order.
    */
   registerSearchEngine(engine: PluginBrowserSearchEngineRegistration): void;
@@ -2163,7 +2163,7 @@ export interface PluginBrowser {
    * column or restyling a site the user has to look at all day is one rule, runs
    * no code in the page, and reads nothing back.
    *
-   * Costs `pageStyle.register` **and** the sites in `bb.sites`: the permission
+   * Costs `pageStyle.register` **and** the sites in `patcher.sites`: the permission
    * says the plugin restyles pages, the manifest's sites say which ones, and
    * `matches` picks from that list. Declaring neither reaches nothing.
    */
@@ -2175,11 +2175,11 @@ export interface PluginBrowser {
    * {@link PluginPageScriptApi} for what the code is handed.
    *
    * Everything a page style cannot do: read the page, add a control to it,
-   * answer a click by asking this plugin's backend. The script's `bb.rpc` reaches
+   * answer a click by asking this plugin's backend. The script's `patcher.rpc` reaches
    * *this plugin's* rpc methods and nothing else, which is what keeps a program
-   * in an untrusted page from being a program in bb.
+   * in an untrusted page from being a program in Patcher.
    *
-   * Costs `pageScript.register` **and** the sites in `bb.sites` — a separate
+   * Costs `pageScript.register` **and** the sites in `patcher.sites` — a separate
    * permission from `pageStyle.register` over the same list, because a stylesheet
    * that cannot read the page and a program that can are not the same thing to
    * agree to.
@@ -2204,20 +2204,20 @@ export interface PluginBrowser {
    */
   registerPdfTextProvider(provider: PluginBrowserPdfTextProvider): void;
   /**
-   * Route a link the system handed bb, while bb is the user's default browser
+   * Route a link the system handed Patcher, while Patcher is the user's default browser
    * (`browser.externalLink.handlers`) — see
    * {@link PluginBrowserExternalLinkHandler}.
    *
    * Additive: handlers are asked in plugin id order until one decides. Costs
    * `externalLink.handle`, which is a standing read of every address the user
-   * opens from outside bb.
+   * opens from outside Patcher.
    */
   registerExternalLinkHandler(handler: PluginBrowserExternalLinkHandler): void;
   /**
    * See every page before it enters the browser's history, and rewrite or drop
    * it (`browser.history.filters`) — see {@link PluginBrowserHistoryFilter}.
    *
-   * Reading and editing the store afterwards is `bb.sdk.browserHistory`; this
+   * Reading and editing the store afterwards is `patcher.sdk.browserHistory`; this
    * is the only place a plugin sees a visit as it happens.
    *
    * Additive: every registered filter runs, across plugins, in plugin id order.
@@ -2226,7 +2226,7 @@ export interface PluginBrowser {
   /**
    * Drive the browser surface's tabs, pages and navigation.
    *
-   * These need a **connected browser window** — the BB desktop app with its
+   * These need a **connected browser window** — the Patcher desktop app with its
    * browser surface — which is never guaranteed and is certainly absent while
    * factories run. Call them from handlers, tools and services, never at load
    * time, and expect `BrowserHostUnavailableError` when nothing is connected.
@@ -2237,7 +2237,7 @@ export interface PluginBrowser {
   readonly storage: PluginBrowserStorage;
   readonly control: PluginBrowserControl;
   readonly recording: PluginBrowserRecording;
-  /** Synchronous, so it is safe to read from `bb.agents.configure()`. */
+  /** Synchronous, so it is safe to read from `patcher.agents.configure()`. */
   getStatus(): PluginBrowserStatus;
 }
 
@@ -2258,43 +2258,13 @@ export interface PluginEvents {
 
 export interface PluginServerApi {
   /**
-   * This BB server's own loopback base URL (e.g. "http://127.0.0.1:38886"),
+   * This Patcher server's own loopback base URL (e.g. "http://127.0.0.1:38986"),
    * which serves the SPA + /api + /ws. For plugins that proxy or relay
    * traffic back to the server itself (e.g. a tunnel). Bind-gated like
-   * `bb.sdk`: reading it before the server is listening throws, so prefer
+   * `patcher.sdk`: reading it before the server is listening throws, so prefer
    * reading it from handlers, services, and timers.
    */
   readonly loopbackBaseUrl: string;
-}
-
-// ---------------------------------------------------------------------------
-// Host control plane.
-// ---------------------------------------------------------------------------
-
-export interface PluginSharedPortTunnelIdentity {
-  /** Gate routing label assigned to this machine. */
-  label: string;
-  /** Gate apex without a scheme, e.g. "getbb.app". */
-  baseDomain: string;
-}
-
-export interface PluginHosts {
-  /**
-   * Ensure this enrolled host has a gate label and return its read-only public
-   * identity. The daemon chooses the trusted gate and desired label; plugins
-   * cannot influence either credential-bearing destination.
-   */
-  ensureSharedPortTunnel(
-    hostId: string,
-  ): Promise<PluginSharedPortTunnelIdentity>;
-
-  /**
-   * Replace this plugin's desired shared-loopback ports for one host. The
-   * server aggregates declarations, owns generations, and delivers the
-   * resulting set to that host's daemon. Tunnel identity is deliberately not
-   * accepted here: it is owned by the daemon's trusted enrollment.
-   */
-  declareSharedPorts(hostId: string, ports: readonly number[]): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -2304,20 +2274,20 @@ export interface PluginHosts {
 export interface PluginStatusApi {
   /**
    * Mark this plugin `needs-configuration` (with a message shown in
-   * `bb plugin list` and the UI) instead of failing — e.g. a factory or
+   * `patcher plugin list` and the UI) instead of failing — e.g. a factory or
    * service that finds no API key configured. Cleared on the next load;
    * saving settings does not auto-reload in V1, so ask the user to
-   * `bb plugin reload <id>` after configuring.
+   * `patcher plugin reload <id>` after configuring.
    */
   needsConfiguration(message: string): void;
 }
 
 /**
  * The API object handed to a plugin's factory (design §4). Implemented by
- * the BB server; this contract is what plugin `server.ts` files compile
+ * the Patcher server; this contract is what plugin `server.ts` files compile
  * against.
  */
-export interface BbPluginApi {
+export interface PatcherPluginApi {
   /** The plugin's own id (namespaces storage, routes, commands). */
   readonly pluginId: string;
   /** Leveled, plugin-scoped logger. */
@@ -2334,7 +2304,7 @@ export interface BbPluginApi {
   readonly realtime: PluginRealtime;
   /** Long-lived services + cron schedules (design §4.8). */
   readonly background: PluginBackground;
-  /** Agent-facing `bb` CLI subcommand (design §4.4). */
+  /** Agent-facing `patcher` CLI subcommand (design §4.4). */
   readonly cli: PluginCli;
   /** Per-turn agent context contributions (design §4.4). */
   readonly agents: PluginAgents;
@@ -2349,9 +2319,8 @@ export interface BbPluginApi {
   /** Read-only facts about the running server (loopback base URL). */
   readonly server: PluginServerApi;
   /** Server-to-daemon host control-plane declarations. */
-  readonly hosts: PluginHosts;
   /**
-   * The full BB SDK, bound to this server over loopback (design §4.1).
+   * The full Patcher SDK, bound to this server over loopback (design §4.1).
    * Bind-gated: reading this before the host binds the SDK throws. The real
    * server binds it before loading plugins, so it is available from the
    * moment factories run there — but isolated harnesses may not, so prefer
@@ -2359,7 +2328,7 @@ export interface BbPluginApi {
    * `threads.spawn` defaults `origin` to "plugin" and `originPluginId` to
    * this plugin's id so spawned threads are attributed automatically.
    */
-  readonly sdk: BbSdk;
+  readonly sdk: PatcherSdk;
   /**
    * Register cleanup to run on reload/disable/shutdown. Hooks run LIFO.
    * The sanctioned place to clear timers and close connections.

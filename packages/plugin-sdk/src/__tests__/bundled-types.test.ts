@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 describe("bundled plugin SDK declarations", () => {
   it("use portable named SDK results without workspace imports", async () => {
     const declarations = await readFile(
-      new URL("../../bundled-types/bb-plugin-sdk.d.ts", import.meta.url),
+      new URL("../../bundled-types/patcher-plugin-sdk.d.ts", import.meta.url),
       "utf8",
     );
 
-    expect(declarations).not.toMatch(/from ['"]@bb\//u);
+    expect(declarations).not.toMatch(/from ['"]@patcher\//u);
     expect(declarations).not.toContain("PublicApiOutput");
     expect(declarations).not.toContain("PublicApiSchema");
     expect(declarations).toContain("type ThreadSpawnResult = ThreadResponse;");
@@ -32,7 +32,10 @@ describe("bundled plugin SDK declarations", () => {
     expect(declarations).toContain("applyUpdate(args: PluginIdArgs)");
 
     const appDeclarations = await readFile(
-      new URL("../../bundled-types/bb-plugin-sdk-app.d.ts", import.meta.url),
+      new URL(
+        "../../bundled-types/patcher-plugin-sdk-app.d.ts",
+        import.meta.url,
+      ),
       "utf8",
     );
     expect(appDeclarations).not.toContain("PluginCatalogArea");
@@ -57,10 +60,10 @@ describe("bundled plugin SDK declarations", () => {
 
   it("ships portable declarations for every exported subpath", async () => {
     const fileNames = [
-      "bb-plugin-sdk.d.ts",
-      "bb-plugin-sdk-app.d.ts",
-      "bb-plugin-sdk-testing.d.ts",
-      "bb-plugin-sdk-testing-app.d.ts",
+      "patcher-plugin-sdk.d.ts",
+      "patcher-plugin-sdk-app.d.ts",
+      "patcher-plugin-sdk-testing.d.ts",
+      "patcher-plugin-sdk-testing-app.d.ts",
     ];
     const declarations = await Promise.all(
       fileNames.map((fileName) =>
@@ -71,16 +74,16 @@ describe("bundled plugin SDK declarations", () => {
       ),
     );
     for (const content of declarations.slice(0, 2)) {
-      expect(content).not.toMatch(/from ['"]@bb\//u);
-      expect(content).not.toMatch(/import\(['"]@bb\//u);
+      expect(content).not.toMatch(/from ['"]@patcher\//u);
+      expect(content).not.toMatch(/import\(['"]@patcher\//u);
     }
     for (const content of declarations.slice(2)) {
-      const bbImports = [
-        ...content.matchAll(/from ['"](@bb\/[^'"]+)['"]/gu),
+      const patcherImports = [
+        ...content.matchAll(/from ['"](@patcher\/[^'"]+)['"]/gu),
       ].map((match) => match[1]);
-      expect(new Set(bbImports)).toEqual(new Set(["@bb/plugin-sdk"]));
-      expect(content).not.toContain("@bb/sdk");
-      expect(content).not.toContain("@bb/server-contract");
+      expect(new Set(patcherImports)).toEqual(new Set(["@patcher/plugin-sdk"]));
+      expect(content).not.toContain("@patcher/sdk");
+      expect(content).not.toContain("@patcher/server-contract");
     }
     expect(declarations[2]).toContain("interface FakePluginBehaviorDrivers");
     expect(declarations[3]).toContain(

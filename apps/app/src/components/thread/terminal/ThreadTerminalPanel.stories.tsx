@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { TerminalSession } from "@bb/server-contract";
+import type { TerminalSession } from "@patcher/server-contract";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import { ThreadTerminalContent } from "./ThreadTerminalContent";
 import type { ThreadTerminalController } from "./useThreadTerminalController";
@@ -230,7 +230,7 @@ function TerminalContentStage({
 function RunningTerminalPreview() {
   return (
     <div className="flex h-full flex-col justify-end bg-background p-3 font-mono text-xs leading-5 text-foreground">
-      <div>$ pnpm test --filter @bb/app</div>
+      <div>$ pnpm test --filter @patcher/app</div>
       <div style={{ color: "var(--ansi-10)" }}>8 tests passed</div>
       <div className="text-muted-foreground">$</div>
     </div>

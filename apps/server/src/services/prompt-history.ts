@@ -6,7 +6,7 @@ import {
   type DbQueryConnection,
   type QueuedThreadMessageRow,
   type StoredPromptHistoryEntryRow,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   promptInputSchema,
   takeVisiblePromptHistoryEntries,
@@ -15,7 +15,7 @@ import {
   type Thread,
   type ThreadTurnInitiator,
   type TurnRequestTarget,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { z } from "zod";
 import { toThreadQueuedMessage } from "./threads/thread-queued-messages.js";
 import type { AppDeps, ServerLogger } from "../types.js";

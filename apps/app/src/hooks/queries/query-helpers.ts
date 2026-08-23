@@ -1,6 +1,6 @@
-import { toRecord } from "@bb/core-ui";
+import { toRecord } from "@patcher/core-ui";
 import { HttpError } from "@/lib/api";
-import { BbHttpError } from "@/lib/sdk";
+import { PatcherHttpError } from "@/lib/sdk";
 
 /**
  * Staleness window for prompt-history queries. Shared by the thread- and
@@ -49,7 +49,7 @@ export function isTransientReadError(error: unknown): boolean {
   if (toRecord(error)?.name === "AbortError") {
     return true;
   }
-  if (error instanceof HttpError || error instanceof BbHttpError) {
+  if (error instanceof HttpError || error instanceof PatcherHttpError) {
     return false;
   }
 

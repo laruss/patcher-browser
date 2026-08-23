@@ -25,10 +25,7 @@ interface ResolveBuiltinSkillsRootPathArgs {
 export const BUILTIN_SKILLS_DIRECTORY_NAME = "builtin-skills";
 // Structural essential the server itself depends on. Skill content may change
 // without breaking root detection.
-const BUILTIN_SKILLS_SENTINEL_PATH = path.join(
-  "bb-cli",
-  "SKILL.md",
-);
+const BUILTIN_SKILLS_SENTINEL_PATH = path.join("patcher-cli", "SKILL.md");
 const BUILTIN_SKILLS_COPY_MODE = fsConstants.COPYFILE_FICLONE;
 const builtinSkillsModuleDir = path.dirname(fileURLToPath(import.meta.url));
 

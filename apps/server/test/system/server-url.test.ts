@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { systemConfigResponseSchema } from "@bb/server-contract";
+import { systemConfigResponseSchema } from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import {
   type TestAppHarnessConfigOverrides,
@@ -22,19 +22,19 @@ describe("system config server URL", () => {
   it("prefers the configured app URL", async () => {
     expect(
       await readServerUrl(
-        { appUrl: "https://bb.example.test/" },
+        { appUrl: "https://patcher.example.test/" },
         "http://localhost:3334/api/v1/system/config",
       ),
-    ).toBe("https://bb.example.test");
+    ).toBe("https://patcher.example.test");
   });
 
   it("uses the direct request origin when no app URL is configured", async () => {
     expect(
       await readServerUrl(
         { appUrl: undefined, isDevelopment: false },
-        "http://bb.lan:38886/api/v1/system/config",
+        "http://patcher.lan:38986/api/v1/system/config",
       ),
-    ).toBe("http://bb.lan:38886");
+    ).toBe("http://patcher.lan:38986");
   });
 
   it("maps the forwarded dev frontend origin onto the server port", async () => {
@@ -59,12 +59,12 @@ describe("system config server URL", () => {
     expect(
       await readServerUrl(
         { appUrl: undefined, isDevelopment: false },
-        "http://127.0.0.1:38886/api/v1/system/config",
+        "http://127.0.0.1:38986/api/v1/system/config",
         {
-          "x-forwarded-host": "bb.example.test",
+          "x-forwarded-host": "patcher.example.test",
           "x-forwarded-proto": "https",
         },
       ),
-    ).toBe("https://bb.example.test");
+    ).toBe("https://patcher.example.test");
   });
 });

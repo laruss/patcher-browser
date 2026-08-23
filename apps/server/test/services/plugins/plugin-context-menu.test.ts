@@ -21,8 +21,8 @@ const INVOKE_CONTEXT = {
 function menuSource(observedPath: string): string {
   return `
   import { appendFileSync } from "node:fs";
-  export default function plugin(bb: any) {
-    bb.browser.registerContextMenuItem({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerContextMenuItem({
       id: "save-selection",
       title: "Save selection to notes",
       when: { selection: true },
@@ -30,12 +30,12 @@ function menuSource(observedPath: string): string {
         appendFileSync(${JSON.stringify(observedPath)}, JSON.stringify(context) + "\\n");
       },
     });
-    bb.browser.registerContextMenuItem({
+    patcher.browser.registerContextMenuItem({
       id: "everywhere",
       title: "Always here",
       run() {},
     });
-    bb.browser.registerContextMenuItem({
+    patcher.browser.registerContextMenuItem({
       id: "boom",
       title: "Explodes",
       run() {
@@ -57,7 +57,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Context menu fixture",
         description: "Context menu plugin fixture.",
         branding: { icon: "Zap" },
@@ -70,7 +70,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin context menu items (bb.browser.registerContextMenuItem)", () => {
+describe("plugin context menu items (patcher.browser.registerContextMenuItem)", () => {
   let harness: TestAppHarness;
   let observedPath: string;
 
@@ -102,7 +102,7 @@ describe("plugin context menu items (bb.browser.registerContextMenuItem)", () =>
     observedPath = join(harness.config.dataDir, "observed-menu.log");
     const rootDir = await writePlugin(
       join(harness.config.dataDir, "fixtures"),
-      { name: "bb-plugin-menu", serverSource: menuSource(observedPath) },
+      { name: "patcher-plugin-menu", serverSource: menuSource(observedPath) },
     );
     const entry = await harness.pluginService.installPath(rootDir);
     expect(entry.status).toBe("running");

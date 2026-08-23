@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { COARSE_POINTER_CHILD_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { COARSE_POINTER_CHILD_ICON_BUTTON_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar.js";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import {

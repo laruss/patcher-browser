@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { isBackgroundAgentTaskType } from "@bb/domain";
-import type { TimelineWorkflowWorkRow } from "@bb/server-contract";
-import { durationToCompactString } from "@bb/thread-view";
+import { isBackgroundAgentTaskType } from "@patcher/domain";
+import type { TimelineWorkflowWorkRow } from "@patcher/server-contract";
+import { durationToCompactString } from "@patcher/thread-view";
 import { PromptStackCard } from "@/components/promptbox/banner/PromptStackCard";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon } from "@patcher/shared-ui/icon";
 import {
   activityIconClass,
   activityMetaClass,
   activityRowClass,
   activityTextClass,
 } from "@/components/ui/activity-row-styles";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 const CARD_ROW_HEIGHT = 32;
 const BODY_ID = "thread-background-commands-card-body";

@@ -7,9 +7,9 @@ import {
   migrate,
   upsertInstalledPlugin,
   type DbConnection,
-} from "@bb/db";
-import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION } from "@bb/domain";
-import type { Logger } from "@bb/logger";
+} from "@patcher/db";
+import { PLUGIN_SDK_MAJOR, PLUGIN_SDK_VERSION } from "@patcher/domain";
+import type { Logger } from "@patcher/logger";
 import {
   createPluginService,
   type PluginService,
@@ -49,9 +49,17 @@ function gitPersistence(url: string, requestedRef: string) {
 
 const THROWING_SERVER_TS = `throw new Error("source must not load");\n`;
 
-const PREBUILT_SERVER_JS = `export default async function plugin(bb) {
-  bb.log.info("dist");
+const PREBUILT_SERVER_JS = `export default async function plugin(patcher) {
+  patcher.log.info("dist");
   globalThis.__prebuiltDistLoads = (globalThis.__prebuiltDistLoads ?? 0) + 1;
+}
+`;
+
+// What a bundle built against a newer SDK does when it reaches an export this
+// host does not have: the shim resolves it to `undefined` and the factory dies
+// on a property of it. The message names neither the SDK nor the artifact.
+const SDK_AHEAD_SERVER_JS = `export default async function plugin(patcher) {
+  patcher.somethingAddedLater.use();
 }
 `;
 
@@ -63,7 +71,7 @@ describe("prebuilt server bundle loading", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-prebuilt-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-prebuilt-"));
     service = createPluginService({
       db,
       hub: {
@@ -85,7 +93,7 @@ describe("prebuilt server bundle loading", () => {
 
   async function writePrebuiltPlugin(
     name: string,
-    options: { sdkMajor?: number; sdkVersion?: string } = {},
+    options: { sdkMajor?: number; sdkVersion?: string; distJs?: string } = {},
   ): Promise<string> {
     const rootDir = join(workDir, name);
     await mkdir(join(rootDir, "dist"), { recursive: true });
@@ -94,7 +102,7 @@ describe("prebuilt server bundle loading", () => {
       JSON.stringify({
         name,
         version: "0.1.0",
-        bb: {
+        patcher: {
           name: "Prebuilt server fixture",
           description: "Prebuilt plugin server fixture.",
           branding: { icon: "Zap" },
@@ -103,7 +111,10 @@ describe("prebuilt server bundle loading", () => {
       }),
     );
     await writeFile(join(rootDir, "server.ts"), THROWING_SERVER_TS);
-    await writeFile(join(rootDir, "dist", "server.js"), PREBUILT_SERVER_JS);
+    await writeFile(
+      join(rootDir, "dist", "server.js"),
+      options.distJs ?? PREBUILT_SERVER_JS,
+    );
     await writeFile(
       join(rootDir, "dist", "server.meta.json"),
       JSON.stringify({
@@ -115,13 +126,13 @@ describe("prebuilt server bundle loading", () => {
   }
 
   it("prefers a fresh dist/server.js for git installs (source never evaluated)", async () => {
-    const rootDir = await writePrebuiltPlugin("bb-plugin-gitdist");
+    const rootDir = await writePrebuiltPlugin("patcher-plugin-gitdist");
     // Managed-source registration without the clone step (materialization is
     // not under test); the row's git: source is what flips the loader path.
     upsertInstalledPlugin(db, {
-      ...gitPersistence("https://github.com/acme/bb-plugin-gitdist", "v1"),
+      ...gitPersistence("https://github.com/acme/patcher-plugin-gitdist", "v1"),
       id: "gitdist",
-      source: "git:github.com/acme/bb-plugin-gitdist@v1",
+      source: "git:github.com/acme/patcher-plugin-gitdist@v1",
       rootDir,
       version: "0.1.0",
       enabled: true,
@@ -141,21 +152,24 @@ describe("prebuilt server bundle loading", () => {
   });
 
   it("never prefers dist for path installs — edited source must win", async () => {
-    const rootDir = await writePrebuiltPlugin("bb-plugin-pathsrc");
+    const rootDir = await writePrebuiltPlugin("patcher-plugin-pathsrc");
     const entry = await service.installPath(rootDir);
     expect(entry.status).toBe("error");
     expect(entry.statusDetail).toContain("source must not load");
   });
 
-  it("pre-1.0: falls back to source when the dist SDK version differs within major 0", async () => {
-    const rootDir = await writePrebuiltPlugin("bb-plugin-minordist", {
+  it("loads a dist whose SDK version differs inside the running major", async () => {
+    const rootDir = await writePrebuiltPlugin("patcher-plugin-minordist", {
       sdkMajor: PLUGIN_SDK_MAJOR,
       sdkVersion: `${PLUGIN_SDK_MAJOR}.999.0`,
     });
     upsertInstalledPlugin(db, {
-      ...gitPersistence("https://github.com/acme/bb-plugin-minordist", "v1"),
+      ...gitPersistence(
+        "https://github.com/acme/patcher-plugin-minordist",
+        "v1",
+      ),
       id: "minordist",
-      source: "git:github.com/acme/bb-plugin-minordist@v1",
+      source: "git:github.com/acme/patcher-plugin-minordist@v1",
       rootDir,
       version: "0.1.0",
       enabled: true,
@@ -163,20 +177,57 @@ describe("prebuilt server bundle loading", () => {
     await service.reload("minordist");
 
     const entry = service.list().find((plugin) => plugin.id === "minordist");
-    // The throwing source ran — proof the 0.x-stale dist was NOT imported.
+    // The throwing source did NOT run: past 1.0 a matching major is the whole
+    // compatibility test, so the dist is imported even at a different minor.
+    expect(entry?.status).toBe("running");
+  });
+
+  it("blames the SDK gap when an artifact built ahead of this host fails to load", async () => {
+    const rootDir = await writePrebuiltPlugin("patcher-plugin-aheaddist", {
+      sdkMajor: PLUGIN_SDK_MAJOR,
+      sdkVersion: `${PLUGIN_SDK_MAJOR}.999.0`,
+      distJs: SDK_AHEAD_SERVER_JS,
+    });
+    upsertInstalledPlugin(db, {
+      ...gitPersistence(
+        "https://github.com/acme/patcher-plugin-aheaddist",
+        "v1",
+      ),
+      id: "aheaddist",
+      source: "git:github.com/acme/patcher-plugin-aheaddist@v1",
+      rootDir,
+      version: "0.1.0",
+      enabled: true,
+    });
+    await service.reload("aheaddist");
+
+    const entry = service.list().find((plugin) => plugin.id === "aheaddist");
     expect(entry?.status).toBe("error");
-    expect(entry?.statusDetail).toContain("source must not load");
+    // The runtime's own message does not even name the namespace that was
+    // missing — it reads "Cannot read properties of undefined (reading 'use')",
+    // which is the whole reason the SDK gap has to be appended.
+    expect(entry?.statusDetail).toContain(
+      "Cannot read properties of undefined",
+    );
+    expect(entry?.statusDetail).not.toContain("somethingAddedLater");
+    expect(entry?.statusDetail).toContain(
+      `built against plugin SDK ${PLUGIN_SDK_MAJOR}.999.0`,
+    );
+    expect(entry?.statusDetail).toContain(`runs ${PLUGIN_SDK_VERSION}`);
   });
 
   it("falls back to source when the dist meta's SDK major mismatches", async () => {
-    const rootDir = await writePrebuiltPlugin("bb-plugin-staledist", {
+    const rootDir = await writePrebuiltPlugin("patcher-plugin-staledist", {
       sdkMajor: 999,
       sdkVersion: "999.0.0",
     });
     upsertInstalledPlugin(db, {
-      ...gitPersistence("https://github.com/acme/bb-plugin-staledist", "v1"),
+      ...gitPersistence(
+        "https://github.com/acme/patcher-plugin-staledist",
+        "v1",
+      ),
       id: "staledist",
-      source: "git:github.com/acme/bb-plugin-staledist@v1",
+      source: "git:github.com/acme/patcher-plugin-staledist@v1",
       rootDir,
       version: "0.1.0",
       enabled: true,

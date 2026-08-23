@@ -2,7 +2,7 @@ import {
   publicApiRoutes,
   typedRoutes,
   type PublicApiSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps } from "../../types.js";

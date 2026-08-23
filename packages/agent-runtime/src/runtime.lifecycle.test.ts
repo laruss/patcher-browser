@@ -2,7 +2,7 @@ import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ThreadEvent } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
 import type {
   AdapterCommand,
   ProviderCommandPlan,
@@ -30,7 +30,7 @@ describe("createAgentRuntime lifecycle", () => {
   let scriptPath: string;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "bb-runtime-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "patcher-runtime-test-"));
     scriptPath = fakeProviderScriptPath;
   });
 
@@ -284,11 +284,11 @@ rl.on("line", (line) => {
         workspacePath: tmpDir,
         threadStorageRootPath,
         shellEnv: {
-          PATH: "/tmp/bb-bin:/usr/bin",
-          BB_HOST_DAEMON_PORT: "3002",
-          BB_PROJECT_ID: "wrong-project",
-          BB_SERVER_URL: "http://127.0.0.1:3334",
-          BB_THREAD_ID: "wrong-thread",
+          PATH: "/tmp/patcher-bin:/usr/bin",
+          PATCHER_HOST_DAEMON_PORT: "3002",
+          PATCHER_PROJECT_ID: "wrong-project",
+          PATCHER_SERVER_URL: "http://127.0.0.1:3334",
+          PATCHER_THREAD_ID: "wrong-thread",
         },
         onEvent: () => undefined,
         onToolCall: async () => ({
@@ -315,13 +315,13 @@ rl.on("line", (line) => {
         throw new Error("Expected thread/start command");
       }
       expect(threadStart.options?.envVars).toEqual({
-        PATH: "/tmp/bb-bin:/usr/bin",
-        BB_HOST_DAEMON_PORT: "3002",
-        BB_PROJECT_ID: "p1",
-        BB_SERVER_URL: "http://127.0.0.1:3334",
-        BB_THREAD_STORAGE: join(threadStorageRootPath, "t1"),
-        BB_THREAD_ID: "t1",
-        BB_ENVIRONMENT_ID: "env-1",
+        PATH: "/tmp/patcher-bin:/usr/bin",
+        PATCHER_HOST_DAEMON_PORT: "3002",
+        PATCHER_PROJECT_ID: "p1",
+        PATCHER_SERVER_URL: "http://127.0.0.1:3334",
+        PATCHER_THREAD_STORAGE: join(threadStorageRootPath, "t1"),
+        PATCHER_THREAD_ID: "t1",
+        PATCHER_ENVIRONMENT_ID: "env-1",
       });
       expect(threadStart.cwd).toBe(tmpDir);
 
@@ -363,7 +363,7 @@ rl.on("line", (line) => {
         workspacePath: tmpDir,
         skillRoots: [
           {
-            id: "bb-cli",
+            id: "patcher-cli",
             providerId: "codex",
             skillDirectoryRootPath: skillRootPath,
           },
@@ -394,7 +394,7 @@ rl.on("line", (line) => {
       }
       expect(configureCommand.skillRoots).toEqual([
         {
-          id: "bb-cli",
+          id: "patcher-cli",
           providerId: "codex",
           skillDirectoryRootPath: skillRootPath,
         },
@@ -418,7 +418,7 @@ rl.on("line", (line) => {
         workspacePath: tmpDir,
         skillRoots: [
           {
-            id: "bb-cli",
+            id: "patcher-cli",
             providerId: "pi",
             skillDirectoryRootPath: join(tmpDir, "skill-root"),
           },
@@ -452,9 +452,9 @@ rl.on("line", (line) => {
       const runtime = createAgentRuntimeWithAdapters({
         workspacePath: tmpDir,
         shellEnv: {
-          PATH: "/tmp/bb-bin:/usr/bin",
-          BB_HOST_DAEMON_PORT: "3002",
-          BB_SERVER_URL: "http://127.0.0.1:3334",
+          PATH: "/tmp/patcher-bin:/usr/bin",
+          PATCHER_HOST_DAEMON_PORT: "3002",
+          PATCHER_SERVER_URL: "http://127.0.0.1:3334",
         },
         onEvent: () => undefined,
         onToolCall: async () => ({
@@ -491,12 +491,12 @@ rl.on("line", (line) => {
         throw new Error("Expected thread/resume command");
       }
       expect(reconfigureCommand.options?.envVars).toEqual({
-        PATH: "/tmp/bb-bin:/usr/bin",
-        BB_HOST_DAEMON_PORT: "3002",
-        BB_SERVER_URL: "http://127.0.0.1:3334",
-        BB_PROJECT_ID: "p1",
-        BB_THREAD_ID: "t1",
-        BB_ENVIRONMENT_ID: "env-1",
+        PATH: "/tmp/patcher-bin:/usr/bin",
+        PATCHER_HOST_DAEMON_PORT: "3002",
+        PATCHER_SERVER_URL: "http://127.0.0.1:3334",
+        PATCHER_PROJECT_ID: "p1",
+        PATCHER_THREAD_ID: "t1",
+        PATCHER_ENVIRONMENT_ID: "env-1",
       });
       expect(reconfigureCommand.cwd).toBe(tmpDir);
 
@@ -588,9 +588,9 @@ rl.on("line", (line) => {
       const runtime = createAgentRuntimeWithAdapters({
         workspacePath: tmpDir,
         shellEnv: {
-          PATH: "/tmp/bb-bin:/usr/bin",
-          BB_HOST_DAEMON_PORT: "3002",
-          BB_SERVER_URL: "http://127.0.0.1:3334",
+          PATH: "/tmp/patcher-bin:/usr/bin",
+          PATCHER_HOST_DAEMON_PORT: "3002",
+          PATCHER_SERVER_URL: "http://127.0.0.1:3334",
         },
         onEvent: () => undefined,
         onToolCall: async () => ({
@@ -619,12 +619,12 @@ rl.on("line", (line) => {
         throw new Error("Expected thread/resume command");
       }
       expect(resumeCommand.options?.envVars).toEqual({
-        PATH: "/tmp/bb-bin:/usr/bin",
-        BB_HOST_DAEMON_PORT: "3002",
-        BB_SERVER_URL: "http://127.0.0.1:3334",
-        BB_PROJECT_ID: "p1",
-        BB_THREAD_ID: "t1",
-        BB_ENVIRONMENT_ID: "env-1",
+        PATH: "/tmp/patcher-bin:/usr/bin",
+        PATCHER_HOST_DAEMON_PORT: "3002",
+        PATCHER_SERVER_URL: "http://127.0.0.1:3334",
+        PATCHER_PROJECT_ID: "p1",
+        PATCHER_THREAD_ID: "t1",
+        PATCHER_ENVIRONMENT_ID: "env-1",
       });
       expect(resumeCommand.cwd).toBe(tmpDir);
 

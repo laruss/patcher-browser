@@ -10,7 +10,7 @@ import { cn } from "../../../lib/utils";
 
 export type ResourceStatusTone = "success" | "warning" | "error" | "muted";
 
-export const RESOURCE_ROUTE_LABEL_EVENT = "bb:resource-route-label";
+export const RESOURCE_ROUTE_LABEL_EVENT = "patcher:resource-route-label";
 
 /**
  * Supplies the loaded resource name to the host shell without coupling the

@@ -2,8 +2,8 @@ import {
   listLiveThreadsInEnvironment,
   listUnarchivedAssignedChildThreads,
   listUnarchivedHiddenSourceThreads,
-} from "@bb/db";
-import type { Environment, Thread } from "@bb/domain";
+} from "@patcher/db";
+import type { Environment, Thread } from "@patcher/domain";
 import type { AppDeps } from "../../types.js";
 import {
   requestEnvironmentCleanup,

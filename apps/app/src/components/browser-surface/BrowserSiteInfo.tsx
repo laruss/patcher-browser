@@ -1,6 +1,10 @@
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@patcher/shared-ui/popover";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { pluginIconName } from "@/components/plugin/PluginIcon";
 import { usePluginSiteInfo } from "@/hooks/queries/plugin-contribution-queries";
 import {

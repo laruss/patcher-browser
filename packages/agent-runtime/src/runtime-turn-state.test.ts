@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ThreadEvent } from "@bb/domain";
-import { turnScope } from "@bb/domain";
+import type { ThreadEvent } from "@patcher/domain";
+import { turnScope } from "@patcher/domain";
 import { RuntimeTurnReplayFilter } from "./runtime-turn-replay-filter.js";
 import { RuntimeTurnState } from "./runtime-turn-state.js";
 

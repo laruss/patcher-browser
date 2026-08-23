@@ -1,7 +1,7 @@
 // Regenerates src/runtime-export-manifest.ts from the repo's installed
-// shared-runtime packages. `bb plugin build` shims the shared-runtime modules
+// shared-runtime packages. `patcher plugin build` shims the shared-runtime modules
 // (react, the portaling radix families, sonner, vaul, ...) as ESM re-exports
-// over globalThis.__bbPluginRuntime, and ESM needs static named-export lists —
+// over globalThis.__patcherPluginRuntime, and ESM needs static named-export lists —
 // so we introspect the real modules once and check the result in. Rerun this
 // script after upgrading react or any shimmed package:
 //
@@ -143,7 +143,7 @@ async function pluginSdkAppExports() {
 const reactVersion = appRequire("react/package.json").version;
 const entryChunks = [];
 entryChunks.push(
-  `  "@bb/plugin-sdk/app": [\n${(await pluginSdkAppExports())
+  `  "@patcher/plugin-sdk/app": [\n${(await pluginSdkAppExports())
     .map((name) => `    ${JSON.stringify(name)},`)
     .join("\n")}\n  ],`,
 );
@@ -162,8 +162,8 @@ const output = `// GENERATED FILE — do not edit by hand.
 // (react@${reactVersion} + the shimmed radix/sonner/vaul packages), derived
 // from SDK source/build metadata and the host app's installed copies.
 // Consumed by
-// \`bb plugin build\` to emit static ESM re-export shims over
-// globalThis.__bbPluginRuntime. Regenerate after upgrading a shimmed package:
+// \`patcher plugin build\` to emit static ESM re-export shims over
+// globalThis.__patcherPluginRuntime. Regenerate after upgrading a shimmed package:
 //   node packages/plugin-build/scripts/generate-runtime-export-manifest.mjs
 
 export const RUNTIME_EXPORT_MANIFEST: Record<string, readonly string[]> = {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { defaultAppSettings, defaultExperiments } from "@bb/domain";
+import { defaultAppSettings, defaultExperiments } from "@patcher/domain";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingHost } from "./OnboardingHost";
 

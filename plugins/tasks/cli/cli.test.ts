@@ -14,7 +14,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 
 import { createStore } from "../api";
@@ -38,10 +38,10 @@ vi.mock("../attachments", async (importOriginal) => {
   return { ...actual, saveAttachmentFromBytes };
 });
 
-// Fake bb.sdk.files backed by the local filesystem, mimicking the host
+// Fake patcher.sdk.files backed by the local filesystem, mimicking the host
 // daemon's transport contract (missing-path errors, the 25 MB read cap, and
 // utf8-vs-base64 content encoding). The CLI reaches invoking-machine files
-// only through bb.sdk.files, so these tests stub it instead of relying on
+// only through patcher.sdk.files, so these tests stub it instead of relying on
 // the plugin touching the server's disk.
 function localFilesSdk() {
   return {
@@ -89,13 +89,13 @@ function stdout(result: {
   return result.stdout;
 }
 
-describe("bb tasks CLI", () => {
+describe("patcher tasks CLI", () => {
   it("lists seed-demo in help while retaining the explicit confirmation guard", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     expect(stdout(await harness.runCli(["--help"]))).toContain(
       "seed-demo                      Create sample data (requires --yes)",
@@ -109,7 +109,7 @@ describe("bb tasks CLI", () => {
   });
 
   it("runs create, list, show, update, and comment through case-insensitive key addressing", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: {
@@ -128,7 +128,7 @@ describe("bb tasks CLI", () => {
         },
       },
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     const projectResult = await harness.runCli([
       "project",
@@ -222,7 +222,7 @@ describe("bb tasks CLI", () => {
 
     const commentResult = await harness.runCli(
       ["comment", "CLI-1", "--body", "Ready for review.", "--json"],
-      { threadId: "thr_cli_worker", projectId: "proj_bb" },
+      { threadId: "thr_cli_worker", projectId: "proj_patcher" },
     );
     expect(JSON.parse(stdout(commentResult))).toMatchObject({
       comment: {
@@ -274,11 +274,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("assigns and promotes task parents by key or ID with stable JSON output", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     stdout(
       await harness.runCli([
@@ -367,11 +367,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("rejects conflicting or invalid parent updates without mutation", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     for (const project of [
       { name: "Relationships", prefix: "REL" },
@@ -471,11 +471,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("sorts list output by priority or due date and rejects unknown sorts", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     stdout(
       await harness.runCli([
@@ -557,12 +557,12 @@ describe("bb tasks CLI", () => {
   });
 
   it("traverses a project whose former single JSON response exceeds 64 KiB", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
-    const store = createStore(bb);
+    await plugin(patcher);
+    const store = createStore(patcher);
     const project = store.tasks.createProject({
       name: "Large project",
       prefix: "BIG",
@@ -641,11 +641,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("defaults create and list to the tracker project linked to CLI project context", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
     const context = { projectId: "proj_linked" };
 
     stdout(
@@ -656,7 +656,7 @@ describe("bb tasks CLI", () => {
         "Linked",
         "--prefix",
         "LINK",
-        "--link-bb-project",
+        "--link-patcher-project",
         context.projectId,
       ]),
     );
@@ -687,18 +687,18 @@ describe("bb tasks CLI", () => {
       exitCode: 1,
       stdout: "",
       stderr:
-        "no tracker project is linked to BB project proj_missing; pass --project or link one with bb tasks project update",
+        "no tracker project is linked to Patcher project proj_missing; pass --project or link one with patcher tasks project update",
     });
 
     await harness.dispose();
   });
 
   it("returns single-line friendly errors for invalid statuses and unknown keys", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
     stdout(
       await harness.runCli([
         "project",
@@ -740,11 +740,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("validates combined project and folder updates before mutating", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
     stdout(
       await harness.runCli([
         "project",
@@ -765,7 +765,7 @@ describe("bb tasks CLI", () => {
       "ATOM",
       "--rename-prefix",
       "NEXT",
-      "--link-bb-project",
+      "--link-patcher-project",
       "not-a-project-id",
     ]);
     expect(invalidProjectUpdate).toMatchObject({ exitCode: 1, stdout: "" });
@@ -773,7 +773,7 @@ describe("bb tasks CLI", () => {
       JSON.parse(
         stdout(await harness.runCli(["project", "show", "ATOM", "--json"])),
       ).project,
-    ).toMatchObject({ prefix: "ATOM", linkedBbProjectId: null });
+    ).toMatchObject({ prefix: "ATOM", linkedPatcherProjectId: null });
 
     await expect(
       harness.runCli([
@@ -803,7 +803,7 @@ describe("bb tasks CLI", () => {
   });
 
   it("creates, updates, lists, and deletes delegation presets", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: {
@@ -815,7 +815,7 @@ describe("bb tasks CLI", () => {
         },
       },
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     const created = JSON.parse(
       stdout(
@@ -909,11 +909,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("reports friendly preset target validation errors", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
     const required = [
       "preset",
       "create",
@@ -952,8 +952,8 @@ describe("bb tasks CLI", () => {
     await harness.dispose();
   });
 
-  it("self-attaches through BB_THREAD_ID and lists the live thread status", async () => {
-    const { bb, harness } = createFakePluginHost({
+  it("self-attaches through PATCHER_THREAD_ID and lists the live thread status", async () => {
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: {
@@ -968,7 +968,7 @@ describe("bb tasks CLI", () => {
         },
       },
     });
-    await plugin(bb);
+    await plugin(patcher);
     stdout(
       await harness.runCli([
         "project",
@@ -989,15 +989,15 @@ describe("bb tasks CLI", () => {
       ]),
     );
 
-    const previousThreadId = process.env.BB_THREAD_ID;
-    process.env.BB_THREAD_ID = "thr_cli_self";
+    const previousThreadId = process.env.PATCHER_THREAD_ID;
+    process.env.PATCHER_THREAD_ID = "thr_cli_self";
     try {
       expect(
         JSON.parse(stdout(await harness.runCli(["attach", "ATT-1", "--json"]))),
       ).toMatchObject({ task: { key: "ATT-1" }, threadId: "thr_cli_self" });
     } finally {
-      if (previousThreadId === undefined) delete process.env.BB_THREAD_ID;
-      else process.env.BB_THREAD_ID = previousThreadId;
+      if (previousThreadId === undefined) delete process.env.PATCHER_THREAD_ID;
+      else process.env.PATCHER_THREAD_ID = previousThreadId;
     }
 
     const threads = JSON.parse(
@@ -1010,7 +1010,7 @@ describe("bb tasks CLI", () => {
         presetName: "Attached",
       }),
     ]);
-    const taskStore = createStore(bb).tasks;
+    const taskStore = createStore(patcher).tasks;
     taskStore.createComment({
       taskId: threads.task.id,
       kind: "agent",
@@ -1032,7 +1032,7 @@ describe("bb tasks CLI", () => {
             "--notify",
             "--json",
           ],
-          { threadId: "thr_cli_sender", projectId: "proj_bb" },
+          { threadId: "thr_cli_sender", projectId: "proj_patcher" },
         ),
       ),
     ).comment;
@@ -1063,7 +1063,7 @@ describe("bb tasks CLI", () => {
   });
 
   it("creates a task with --attach files after validating every source path", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "bb-tasks-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-tasks-cli-"));
     const notesPath = join(directory, "notes.txt");
     const pngPath = join(directory, "pixel.png");
     await writeFile(notesPath, "attach me at create\n", "utf8");
@@ -1071,12 +1071,12 @@ describe("bb tasks CLI", () => {
       pngPath,
       new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: { files: localFilesSdk() },
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     try {
       stdout(
@@ -1177,19 +1177,19 @@ describe("bb tasks CLI", () => {
   });
 
   it("attempts every --attach file after create and reports failures truthfully", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "bb-tasks-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-tasks-cli-"));
     const firstPath = join(directory, "first.txt");
     const boomPath = join(directory, "boom.bin");
     const lastPath = join(directory, "last.txt");
     await writeFile(firstPath, "first", "utf8");
     await writeFile(boomPath, "will fail at blob write", "utf8");
     await writeFile(lastPath, "last", "utf8");
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: { files: localFilesSdk() },
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     try {
       stdout(
@@ -1255,7 +1255,7 @@ describe("bb tasks CLI", () => {
         `Failed to attach ${boomPath}: simulated blob write failure`,
       );
       expect(human.stdout).toContain(
-        `Retry with: bb tasks attachment add MIX-2 --file ${boomPath}`,
+        `Retry with: patcher tasks attachment add MIX-2 --file ${boomPath}`,
       );
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -1264,7 +1264,7 @@ describe("bb tasks CLI", () => {
   });
 
   it("shows attached-thread pull requests in show output and JSON", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: {
@@ -1292,9 +1292,9 @@ describe("bb tasks CLI", () => {
                     number: 12,
                     title: "BB-15 Show PRs in tasks",
                     state: "draft",
-                    url: "https://github.com/acme/bb/pull/12",
+                    url: "https://github.com/acme/patcher/pull/12",
                     baseRefName: "main",
-                    headRefName: "bb/bb-15",
+                    headRefName: "patcher/bb-15",
                     updatedAt: "2026-07-16T10:00:00.000Z",
                     checks: {
                       state: "pending",
@@ -1315,7 +1315,7 @@ describe("bb tasks CLI", () => {
         },
       },
     });
-    await plugin(bb);
+    await plugin(patcher);
     stdout(
       await harness.runCli([
         "project",
@@ -1348,7 +1348,7 @@ describe("bb tasks CLI", () => {
     const shown = stdout(await harness.runCli(["show", "PRS-1"]));
     expect(shown).toContain("Pull requests");
     expect(shown).toContain("#12  draft  BB-15 Show PRs in tasks");
-    expect(shown).toContain("https://github.com/acme/bb/pull/12");
+    expect(shown).toContain("https://github.com/acme/patcher/pull/12");
     // Genuine absence (no environment, or gh reported no PR) stays quiet —
     // it must not read as a failed lookup.
     expect(shown).not.toContain("PR lookup unavailable");
@@ -1358,7 +1358,7 @@ describe("bb tasks CLI", () => {
     );
     expect(payload.pullRequests).toEqual([
       {
-        url: "https://github.com/acme/bb/pull/12",
+        url: "https://github.com/acme/patcher/pull/12",
         number: 12,
         title: "BB-15 Show PRs in tasks",
         state: "draft",
@@ -1372,7 +1372,7 @@ describe("bb tasks CLI", () => {
   });
 
   it("flags threads whose PR lookup failed in show output", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: {
@@ -1393,7 +1393,7 @@ describe("bb tasks CLI", () => {
         },
       },
     });
-    await plugin(bb);
+    await plugin(patcher);
     stdout(
       await harness.runCli([
         "project",
@@ -1424,7 +1424,7 @@ describe("bb tasks CLI", () => {
   });
 
   it("adds and downloads an attachment with an exact file round-trip", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "bb-tasks-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-tasks-cli-"));
     const inputPath = join(directory, "input.txt");
     const pngPath = join(directory, "pixel.png");
     const outputPath = join(directory, "nested", "output.txt");
@@ -1433,12 +1433,12 @@ describe("bb tasks CLI", () => {
       pngPath,
       new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: { files: localFilesSdk() },
     });
-    await plugin(bb);
+    await plugin(patcher);
 
     try {
       stdout(
@@ -1658,7 +1658,7 @@ describe("bb tasks CLI", () => {
 
   it("routes file flags to the invoking thread's machine and honors --machine", async () => {
     // Files that exist only on the remote enrolled machine, never on the
-    // server's filesystem — the CLI must reach them via bb.sdk.files with
+    // server's filesystem — the CLI must reach them via patcher.sdk.files with
     // the resolved hostId.
     const remoteFiles = new Map<string, Buffer>([
       ["/remote/notes.md", Buffer.from("remote description\n", "utf8")],
@@ -1667,7 +1667,7 @@ describe("bb tasks CLI", () => {
         Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       ],
     ]);
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
       sdk: {
@@ -1708,7 +1708,7 @@ describe("bb tasks CLI", () => {
         },
       },
     });
-    await plugin(bb);
+    await plugin(patcher);
     const threadCtx = { threadId: "thr_remote_worker", cwd: "/remote" };
 
     stdout(
@@ -1800,11 +1800,11 @@ describe("bb tasks CLI", () => {
   });
 
   it("returns a friendly dispatch error when the task project is not linked", async () => {
-    const { bb, harness } = createFakePluginHost({
+    const { patcher, harness } = createFakePluginHost({
       permissions: pluginPermissionsFromManifest(import.meta.url),
       pluginId: "tasks",
     });
-    await plugin(bb);
+    await plugin(patcher);
     stdout(
       await harness.runCli([
         "project",
@@ -1850,7 +1850,7 @@ describe("bb tasks CLI", () => {
     expect(result).toEqual({
       exitCode: 1,
       stdout: "",
-      stderr: 'Task project "Unlinked CLI" is not linked to a bb project',
+      stderr: 'Task project "Unlinked CLI" is not linked to a Patcher project',
     });
     // "delegate" stays as a hidden compatibility alias for "dispatch".
     const aliased = await harness.runCli([
@@ -1860,7 +1860,7 @@ describe("bb tasks CLI", () => {
       "CLI worker",
     ]);
     expect(aliased.stderr).toBe(
-      'Task project "Unlinked CLI" is not linked to a bb project',
+      'Task project "Unlinked CLI" is not linked to a Patcher project',
     );
     expect(harness.sdk.callsTo("threads.spawn")).toEqual([]);
 

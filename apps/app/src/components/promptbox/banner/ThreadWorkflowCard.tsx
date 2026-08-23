@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { isSettledWorkflowAgentState } from "@bb/domain";
-import type { TimelineWorkflowWorkRow } from "@bb/server-contract";
-import { durationToCompactString } from "@bb/thread-view";
+import { isSettledWorkflowAgentState } from "@patcher/domain";
+import type { TimelineWorkflowWorkRow } from "@patcher/server-contract";
+import { durationToCompactString } from "@patcher/thread-view";
 import { PromptStackCard } from "@/components/promptbox/banner/PromptStackCard";
 import { WorkflowWorkRowBody } from "@/components/thread/timeline/WorkflowWorkRowBody";
 import {
@@ -10,9 +10,9 @@ import {
   activityRowClass,
   activityTextClass,
 } from "@/components/ui/activity-row-styles";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { WorkflowPhaseStrip } from "@bb/shared-ui/workflow-progress";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
+import { WorkflowPhaseStrip } from "@patcher/shared-ui/workflow-progress";
 
 const WORKFLOW_CARD_ROW_HEIGHT = 32;
 const BODY_ID = "thread-workflow-card-body";

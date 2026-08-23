@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import plugin from "./server.js";
 
 /**
- * `bb browser …` exists to make the bridge observable without running an agent,
+ * `patcher browser …` exists to make the bridge observable without running an agent,
  * so what matters here is that it reaches the same API and reports the same
  * refusals — a debugging tool that lies about the state of the bridge is worse
  * than none.
@@ -20,7 +20,7 @@ function createHost() {
     permissions: pluginPermissionsFromManifest(import.meta.url),
     pluginId: "browser-tools",
   });
-  plugin(host.bb);
+  plugin(host.patcher);
   host.harness.behavior.browser.setTabs([
     { tabId: "tab-1", url: "https://example.com/", title: "Example" },
     { tabId: "tab-2", url: "https://other.test/", title: "Other", live: false },
@@ -32,8 +32,8 @@ function createHost() {
   return host;
 }
 
-describe("bb browser CLI", () => {
-  it("registers under a name the bb CLI allows", () => {
+describe("patcher browser CLI", () => {
+  it("registers under a name the Patcher CLI allows", () => {
     const host = createHost();
     const cli = host.harness.inspection.registrations.cli;
 
@@ -52,7 +52,7 @@ describe("bb browser CLI", () => {
     const result = await host.harness.runCli([]);
 
     expect(result.exitCode).toBe(2);
-    expect(result.stdout).toContain("Usage: bb browser");
+    expect(result.stdout).toContain("Usage: patcher browser");
   });
 
   it("lists tabs, marking the active one and the cold ones", async () => {
@@ -163,7 +163,7 @@ describe("bb browser CLI", () => {
     host.harness.behavior.browser.setConnected(false);
     const offline = await host.harness.runCli(["tabs"]);
     expect(offline.exitCode).toBe(1);
-    expect(offline.stderr).toContain("open the BB desktop app");
+    expect(offline.stderr).toContain("open the Patcher desktop app");
   });
 
   it("rejects unknown commands and options rather than doing something else", async () => {
@@ -187,7 +187,7 @@ describe("bb browser CLI", () => {
   });
 });
 
-describe("bb browser CLI interaction", () => {
+describe("patcher browser CLI interaction", () => {
   function interactionHost() {
     const host = createHost();
     host.harness.behavior.browser.setPageContent("tab-1", {
@@ -412,7 +412,7 @@ describe("bb browser CLI interaction", () => {
   });
 });
 
-describe("bb browser observation commands", () => {
+describe("patcher browser observation commands", () => {
   function observationHost() {
     const host = createHost();
     host.harness.behavior.browser.setPageContent("tab-1", {
@@ -452,7 +452,7 @@ describe("bb browser observation commands", () => {
 
   it("writes a screenshot to the path it was given, relative to the caller's cwd", async () => {
     const host = observationHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     const result = await host.harness.runCli(
       ["screenshot", "shot.png", "--tab", "tab-1"],
@@ -460,7 +460,7 @@ describe("bb browser observation commands", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    // Resolved against the shell that ran `bb`, not the server process this
+    // Resolved against the shell that ran `patcher`, not the server process this
     // handler happens to execute in.
     const written = await readFile(join(directory, "shot.png"));
     expect(written.subarray(0, 4).toString("hex")).toBe("89504e47");
@@ -470,7 +470,7 @@ describe("bb browser observation commands", () => {
 
   it("asks for PNG when the file name says so, and JPEG otherwise", async () => {
     const host = observationHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     await host.harness.runCli(["screenshot", "a.png"], { cwd: directory });
     await host.harness.runCli(["screenshot", "b.jpg"], { cwd: directory });
@@ -485,7 +485,7 @@ describe("bb browser observation commands", () => {
 
   it("captures the whole document when asked for it", async () => {
     const host = observationHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     await host.harness.runCli(["screenshot", "long.jpg", "--full-page"], {
       cwd: directory,
@@ -501,7 +501,7 @@ describe("bb browser observation commands", () => {
 
   it("writes a PDF and refuses to guess a path", async () => {
     const host = observationHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     const missing = await host.harness.runCli(["pdf"], { cwd: directory });
     expect(missing.exitCode).toBe(2);
@@ -564,7 +564,7 @@ describe("bb browser observation commands", () => {
   });
 });
 
-describe("bb browser storage commands", () => {
+describe("patcher browser storage commands", () => {
   const COOKIE = {
     name: "session",
     value: "abc123",
@@ -712,7 +712,7 @@ describe("bb browser storage commands", () => {
 
   it("saves a session in Playwright's format, to a file or to stdout", async () => {
     const host = storageHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     const printed = await host.harness.runCli(
       ["state-save", "--tab", "tab-1"],
@@ -746,7 +746,7 @@ describe("bb browser storage commands", () => {
 
   it("loads a saved session and says what it could not place", async () => {
     const host = storageHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
     await writeFile(
       join(directory, "state.json"),
       JSON.stringify({
@@ -788,7 +788,7 @@ describe("bb browser storage commands", () => {
 
   it("refuses a file that is not a saved session", async () => {
     const host = storageHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
     await writeFile(join(directory, "notes.json"), "not json at all", "utf8");
 
     const result = await host.harness.runCli(
@@ -802,7 +802,7 @@ describe("bb browser storage commands", () => {
   });
 });
 
-describe("bb browser direct control commands", () => {
+describe("patcher browser direct control commands", () => {
   it("sends the function as given and prints what came back", async () => {
     const host = createHost();
     host.harness.behavior.browser.setPageContent("tab-1", {
@@ -981,7 +981,7 @@ describe("bb browser direct control commands", () => {
   });
   it("writes a trace as a directory a person can open", async () => {
     const host = createHost();
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     await host.harness.runCli(["tracing-start", "--screenshots"]);
     await host.harness.runCli(["tabs"]);
@@ -1027,7 +1027,7 @@ describe("bb browser direct control commands", () => {
         { at: 400, base64: Buffer.from("second").toString("base64") },
       ],
     });
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
 
     await host.harness.runCli(["video-start", "--fps", "5", "--tab", "tab-1"]);
     await host.harness.runCli(["video-chapter", "signed in", "--tab", "tab-1"]);
@@ -1068,9 +1068,9 @@ describe("bb browser direct control commands", () => {
         { at: 400, base64: Buffer.from("second").toString("base64") },
       ],
     });
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
     // A stand-in for ffmpeg rather than the real one: what is worth pinning is
-    // the arguments bb passes and that it checks a file appeared, neither of
+    // the arguments Patcher passes and that it checks a file appeared, neither of
     // which needs an encoder — and a test that encodes video is a test that
     // fails on a machine without one.
     const fake = join(directory, "fake-ffmpeg");
@@ -1086,8 +1086,8 @@ describe("bb browser direct control commands", () => {
       ].join("\n"),
       { mode: 0o755 },
     );
-    const previous = process.env.BB_FFMPEG;
-    process.env.BB_FFMPEG = fake;
+    const previous = process.env.PATCHER_FFMPEG;
+    process.env.PATCHER_FFMPEG = fake;
     try {
       await host.harness.runCli(["video-start", "--tab", "tab-1"]);
       const stopped = await host.harness.runCli(
@@ -1111,9 +1111,9 @@ describe("bb browser direct control commands", () => {
       expect(stopped.stdout).toContain("video.mp4");
     } finally {
       if (previous === undefined) {
-        delete process.env.BB_FFMPEG;
+        delete process.env.PATCHER_FFMPEG;
       } else {
-        process.env.BB_FFMPEG = previous;
+        process.env.PATCHER_FFMPEG = previous;
       }
       await rm(directory, { recursive: true, force: true });
     }
@@ -1124,7 +1124,7 @@ describe("bb browser direct control commands", () => {
     host.harness.behavior.browser.setPageContent("tab-1", {
       frames: [{ at: 0, base64: Buffer.from("first").toString("base64") }],
     });
-    const directory = await mkdtemp(join(tmpdir(), "bb-browser-cli-"));
+    const directory = await mkdtemp(join(tmpdir(), "patcher-browser-cli-"));
     const fake = join(directory, "fake-ffmpeg");
     await writeFile(
       fake,
@@ -1136,8 +1136,8 @@ describe("bb browser direct control commands", () => {
       ].join("\n"),
       { mode: 0o755 },
     );
-    const previous = process.env.BB_FFMPEG;
-    process.env.BB_FFMPEG = fake;
+    const previous = process.env.PATCHER_FFMPEG;
+    process.env.PATCHER_FFMPEG = fake;
     try {
       await host.harness.runCli(["video-start", "--tab", "tab-1"]);
       const stopped = await host.harness.runCli(
@@ -1155,9 +1155,9 @@ describe("bb browser direct control commands", () => {
       ).toBe("first");
     } finally {
       if (previous === undefined) {
-        delete process.env.BB_FFMPEG;
+        delete process.env.PATCHER_FFMPEG;
       } else {
-        process.env.BB_FFMPEG = previous;
+        process.env.PATCHER_FFMPEG = previous;
       }
       await rm(directory, { recursive: true, force: true });
     }

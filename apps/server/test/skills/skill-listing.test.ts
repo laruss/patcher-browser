@@ -1,6 +1,9 @@
-import type { DiscoveredSkill, SkillRootKind } from "@bb/host-daemon-contract";
+import type {
+  DiscoveredSkill,
+  SkillRootKind,
+} from "@patcher/host-daemon-contract";
 import { createHash } from "node:crypto";
-import type { SkillProvider } from "@bb/server-contract";
+import type { SkillProvider } from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import {
   assembleSkillList,
@@ -18,29 +21,29 @@ describe("mapSkillScope", () => {
   }> = [
     {
       provider: "claude-code",
-      rootKind: "bb-project",
-      scope: "bb-project",
+      rootKind: "patcher-project",
+      scope: "patcher-project",
       listedProvider: null,
       manageable: true,
     },
     {
       provider: "codex",
-      rootKind: "bb-project",
-      scope: "bb-project",
+      rootKind: "patcher-project",
+      scope: "patcher-project",
       listedProvider: null,
       manageable: true,
     },
     {
       provider: "claude-code",
-      rootKind: "bb-data-dir",
-      scope: "bb-user",
+      rootKind: "patcher-data-dir",
+      scope: "patcher-user",
       listedProvider: null,
       manageable: true,
     },
     {
       provider: "claude-code",
-      rootKind: "bb-builtin",
-      scope: "bb-builtin",
+      rootKind: "patcher-builtin",
+      scope: "patcher-builtin",
       listedProvider: null,
       manageable: false,
     },
@@ -145,21 +148,21 @@ describe("assembleSkillList", () => {
     };
   }
 
-  it("de-dupes a bb skill discovered under both providers", () => {
-    const bb = discovered(
+  it("de-dupes a Patcher skill discovered under both providers", () => {
+    const patcher = discovered(
       "shared",
-      "bb-data-dir",
+      "patcher-data-dir",
       "/data/skills/shared/SKILL.md",
     );
     const result = assembleSkillList([
-      { provider: "claude-code", skills: [bb] },
-      { provider: "codex", skills: [bb] },
+      { provider: "claude-code", skills: [patcher] },
+      { provider: "codex", skills: [patcher] },
     ]);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       name: "shared",
       provider: null,
-      scope: "bb-user",
+      scope: "patcher-user",
     });
   });
 
@@ -173,7 +176,11 @@ describe("assembleSkillList", () => {
             "provider-user",
             "/home/.claude/skills/zed/SKILL.md",
           ),
-          discovered("alpha", "bb-project", "/cwd/.bb/skills/alpha/SKILL.md"),
+          discovered(
+            "alpha",
+            "patcher-project",
+            "/cwd/.patcher/skills/alpha/SKILL.md",
+          ),
         ],
       },
       {
@@ -187,10 +194,10 @@ describe("assembleSkillList", () => {
         ],
       },
     ]);
-    // bb-project sorts before claude-user before codex-user; the two `zed` skills are
+    // patcher-project sorts before claude-user before codex-user; the two `zed` skills are
     // distinct files under different providers.
     expect(result.map((skill) => [skill.scope, skill.name])).toEqual([
-      ["bb-project", "alpha"],
+      ["patcher-project", "alpha"],
       ["claude-user", "zed"],
       ["codex-user", "zed"],
     ]);

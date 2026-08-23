@@ -4,7 +4,7 @@ import {
   createFakePluginHost,
   pluginPermissionsFromManifest,
   makeThreadResponse,
-} from "@bb/plugin-sdk/testing";
+} from "@patcher/plugin-sdk/testing";
 import plugin, {
   EMPTY_FORK_MAX_AGE_MS,
   EMPTY_FORK_SWEEP_PAGE_SIZE,
@@ -35,7 +35,7 @@ async function loadPlugin(sdkThreads: Record<string, unknown>) {
     pluginId: PLUGIN_ID,
     sdk: { threads: sdkThreads },
   });
-  await plugin(host.bb);
+  await plugin(host.patcher);
   return host;
 }
 

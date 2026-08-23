@@ -1,12 +1,16 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { Host, PermissionMode } from "@bb/domain";
-import type { HostPlatform } from "@bb/host-daemon-contract";
-import { Button } from "@bb/shared-ui/button";
-import { DialogFooter, DialogHeader, DialogTitle } from "@bb/shared-ui/dialog";
-import { DialogDescription } from "@bb/shared-ui/dialog";
-import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import type { Host, PermissionMode } from "@patcher/domain";
+import type { HostPlatform } from "@patcher/host-daemon-contract";
+import { Button } from "@patcher/shared-ui/button";
+import {
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@patcher/shared-ui/dialog";
+import { DialogDescription } from "@patcher/shared-ui/dialog";
+import { Icon } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { ConfirmDeleteDialog } from "@/components/dialogs/ConfirmDeleteDialog";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { PageShell } from "@/components/ui/page-shell.js";
@@ -39,7 +43,7 @@ import {
 } from "@/lib/route-paths";
 
 const PRIMARY_REMOVE_DISABLED_REASON =
-  "This machine runs bb and can't be removed.";
+  "This machine runs Patcher and can't be removed.";
 
 const PERMISSION_LIMIT_DESCRIPTION =
   "Highest permission mode any thread on this machine may run with. Threads that ask for more resolve down to it, and a provider that supports nothing this low can't run here.";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ThreadTimelinePendingTodos } from "@bb/domain";
+import type { ThreadTimelinePendingTodos } from "@patcher/domain";
 import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import { ThreadTodoCard } from "./ThreadTodoCard";
 
@@ -19,9 +19,7 @@ function Stage({
   return (
     <div
       data-promptbox-shell=""
-      className={
-        size === "desktop" ? "min-w-0 flex-1" : "w-[20rem] shrink-0"
-      }
+      className={size === "desktop" ? "min-w-0 flex-1" : "w-[20rem] shrink-0"}
     >
       {children}
     </div>
@@ -58,7 +56,7 @@ const mixedTodos: ThreadTimelinePendingTodos = {
     },
     {
       id: "todo:4",
-      text: "Surface pendingTodos in `bb thread show` and `bb status`",
+      text: "Surface pendingTodos in `patcher thread show` and `patcher status`",
       status: "pending",
     },
     {

@@ -1,5 +1,5 @@
 // Grok Build brand mark from xAI's supplied SVG. Rendered in currentColor so
-// it follows bb's light/dark theme color rather than staying hardcoded black.
+// it follows Patcher's light/dark theme color rather than staying hardcoded black.
 export function GrokIcon({ className }: { className?: string }) {
   return (
     <svg

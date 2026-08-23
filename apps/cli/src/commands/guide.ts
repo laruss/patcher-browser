@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { createGuideArea } from "@bb/sdk/node";
+import { createGuideArea } from "@patcher/sdk/node";
 import { action } from "../action.js";
 import { outputJson } from "./helpers.js";
 
@@ -10,12 +10,12 @@ interface GuideCommandOptions {
 export function registerGuideCommand(program: Command): void {
   program
     .command("guide [chapter]")
-    .description("Show the BB system overview and CLI guide")
+    .description("Show the Patcher system overview and CLI guide")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (chapter: string | undefined, opts: GuideCommandOptions) => {
         // The guide renders local templates only; it must keep working in
-        // environments where no BB server is configured.
+        // environments where no Patcher server is configured.
         const rendered = createGuideArea().render({ chapter });
         if (chapter) {
           if (outputJson(opts, rendered)) return;

@@ -14,7 +14,7 @@ import {
   type PluginPermission,
   type PluginThemeMeta,
   type ToolCallResponse,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   PLUGIN_CLI_OUTPUT_MAX_BYTES,
   type PluginBrowserAuthChallenge,
@@ -32,13 +32,16 @@ import {
   type PluginCliExecutionResult,
   type PluginCliOutputLimitError,
   type PluginRpcError,
-} from "@bb/plugin-sdk";
+} from "@patcher/plugin-sdk";
 // The build engine's natives (esbuild, Tailwind oxide) are dynamically
 // imported inside buildPluginApp — importing this loads nothing heavy.
-import { buildPluginApp, createPluginDevLoop } from "@bb/plugin-build";
+import { buildPluginApp, createPluginDevLoop } from "@patcher/plugin-build";
 import { getPluginBuildToolchain } from "./build-toolchain.js";
-import { deleteSecretFile, readOrCreateSecretFile } from "@bb/secret-storage";
-import type { PluginCapabilitySummary } from "@bb/server-contract";
+import {
+  deleteSecretFile,
+  readOrCreateSecretFile,
+} from "@patcher/secret-storage";
+import type { PluginCapabilitySummary } from "@patcher/server-contract";
 import {
   claimPluginScheduledRun,
   deleteAllPluginSettings,
@@ -52,7 +55,7 @@ import {
   recordPluginScheduleResult,
   setInstalledPluginEnabled,
   type InstalledPluginRow,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   getLastThreadErrorMessage,
   getLastThreadOutput,
@@ -67,7 +70,7 @@ import {
 import { listBundledPluginRegistrations } from "./builtin-registry.js";
 import {
   RESERVED_AGENT_TOOL_NAMES,
-  type BbPluginApi,
+  type PatcherPluginApi,
   type PluginAgentConfigurationContext,
   type PluginAgentToolContext,
   type PluginAgentToolRecord,
@@ -192,8 +195,8 @@ export interface PluginService {
   /** Thread lifecycle event emitter, called from the lifecycle seams. */
   events: PluginThreadEventEmitter;
   /**
-   * Bind the in-process BB SDK to the running server. Call once the HTTP
-   * listener is up, before start(): bb.sdk throws until this runs.
+   * Bind the in-process Patcher SDK to the running server. Call once the HTTP
+   * listener is up, before start(): patcher.sdk throws until this runs.
    */
   bindSdk(args: { baseUrl: string }): void;
   /** Load all enabled plugins. Call after the HTTP listener is up. */
@@ -210,7 +213,7 @@ export interface PluginService {
    * `git:<url-ish>@<ref>` (ref required; cloned into the managed dir under
    * <dataDir>/plugins/git), or `npm:<name>[@<version|tag|range>]` (installed
    * with npm --ignore-scripts under <dataDir>/plugins/npm). git/npm installs
-   * hard-fail on an engines.bb mismatch and refuse already-registered ids;
+   * hard-fail on an engines.patcher mismatch and refuse already-registered ids;
    * use update for an existing managed plugin.
    */
   install(source: string): Promise<PluginListEntry>;
@@ -231,7 +234,7 @@ export interface PluginService {
   ): Promise<PluginListEntry | undefined>;
   reload(id?: string): Promise<void>;
   /** Live API handle for a running plugin (used by later phases and tests). */
-  getApi(id: string): BbPluginApi | undefined;
+  getApi(id: string): PatcherPluginApi | undefined;
   /**
    * On-disk asset backing GET /plugins/:id/assets/app.{js,css}: file path
    * plus the current content hash (the route compares ?h against it for
@@ -305,7 +308,7 @@ export interface PluginService {
    * Which plugin an `/api/v1` request belongs to, for the permission gate on
    * that traffic. Separate from {@link httpToken}, which is the credential
    * *inbound* callers present to reach a plugin's own routes — one identifies
-   * bb to the plugin's callers, this identifies the plugin to bb.
+   * Patcher to the plugin's callers, this identifies the plugin to Patcher.
    */
   readonly apiIdentities: PluginApiIdentities;
   /**
@@ -329,7 +332,7 @@ export interface PluginService {
    * discipline. Never throws for dispatch problems: an unknown / not-running
    * plugin, closed experiment gate, missing registration, throwing handler, or
    * malformed handler result all map to exitCode 1 with a helpful stderr —
-   * the bb CLI prints stderr and exits with exitCode.
+   * the Patcher CLI prints stderr and exits with exitCode.
    */
   runCliCommand(
     id: string,
@@ -337,14 +340,14 @@ export interface PluginService {
     ctx: PluginCliContext,
   ): Promise<PluginCliExecutionResult>;
   /**
-   * Skills roots of running plugins (manifest bb.skills or the skills/
+   * Skills roots of running plugins (manifest patcher.skills or the skills/
    * convention dir), ordered by plugin id — the "plugin" precedence tier
    * passed to resolveInjectedSkillSources per turn. Missing directories are
    * tolerated downstream.
    */
   listSkillRootContributions(): PluginSkillRootContribution[];
   /**
-   * Native tools of running plugins (bb.agents.registerTool), ordered by
+   * Native tools of running plugins (patcher.agents.registerTool), ordered by
    * plugin id then registration order, deduped defensively (first wins —
    * registration already blocks collisions). Appended to a session's
    * dynamicTools at thread.start/turn.submit time; changes apply on the
@@ -352,7 +355,7 @@ export interface PluginService {
    */
   listAgentTools(): PluginAgentToolContribution[];
   /**
-   * Evaluate each plugin's optional `bb.agents.configure` callback for one
+   * Evaluate each plugin's optional `patcher.agents.configure` callback for one
    * server-owned thread/session boundary. Registrations stay static; invalid
    * or throwing callbacks fail closed for that plugin and cannot affect peers.
    */
@@ -361,7 +364,7 @@ export interface PluginService {
     skillIdsByPlugin: ReadonlyMap<string, readonly string[]>;
   }): Promise<PluginResolvedAgentConfiguration>;
   /**
-   * Dynamic instruction providers from bb.agents.contributeInstructions,
+   * Dynamic instruction providers from patcher.agents.contributeInstructions,
    * ordered by plugin id. Resolved live at thread.start/turn.submit;
    * empty when no plugin registered a provider.
    * At most one provider per plugin (duplicate registration is rejected).
@@ -384,7 +387,7 @@ export interface PluginService {
     ctx: PluginAgentToolContext;
   }): Promise<ToolCallResponse>;
   /**
-   * Mention providers of running plugins (bb.ui.registerMentionProvider),
+   * Mention providers of running plugins (patcher.ui.registerMentionProvider),
    * ordered by plugin id then registration order, for
    * GET /plugins/contributions. No plugin code runs.
    */
@@ -415,13 +418,13 @@ export interface PluginService {
     itemId: string;
   }): Promise<PluginMentionResolveResult>;
   /**
-   * Omnibox providers of running plugins (bb.browser.registerOmniboxProvider),
+   * Omnibox providers of running plugins (patcher.browser.registerOmniboxProvider),
    * ordered by plugin id then registration order, for
    * GET /plugins/contributions. No plugin code runs.
    */
   listOmniboxProviderContributions(): PluginOmniboxProviderContribution[];
   /**
-   * Keyboard shortcuts plugins contributed (`bb.ui.registerKeybinding`), for
+   * Keyboard shortcuts plugins contributed (`patcher.ui.registerKeybinding`), for
    * the system config to fold under the user's own overrides. Ordered by plugin
    * id and deduplicated, so a command two plugins both bind resolves to the
    * lowest plugin id rather than to whichever loaded first. No plugin code
@@ -474,7 +477,7 @@ export interface PluginService {
   }): Promise<PluginSiteInfoSection[]>;
   /**
    * Search engines plugins offered (`browser.searchEngines`), for the app to list
-   * beside bb's own. Ordered by plugin id, then registration order. No plugin
+   * beside Patcher's own. Ordered by plugin id, then registration order. No plugin
    * code runs — the rows were declared at load.
    */
   listSearchEngineContributions(): PluginSearchEngineContribution[];
@@ -512,7 +515,7 @@ export interface PluginService {
   }): Promise<{ ok: true } | { ok: false; error: string }>;
   /**
    * Toolbar controls plugins contributed (`browser.toolbar.items`), for the
-   * address row to render between the address bar and bb's own buttons. Ordered
+   * address row to render between the address bar and Patcher's own buttons. Ordered
    * by plugin id. No plugin code runs — this is the declaration.
    */
   listToolbarItemContributions(): PluginToolbarItemContribution[];
@@ -557,7 +560,7 @@ export interface PluginService {
   listNewTabWidgetContributions(): PluginNewTabWidgetContribution[];
   /**
    * Commands plugins added, with their chords (`app.commands`), for the app to
-   * match after every one of bb's own. Ordered by plugin id, then registration
+   * match after every one of Patcher's own. Ordered by plugin id, then registration
    * order — which is also the order that resolves a chord two plugins both want.
    * No plugin code runs.
    */
@@ -599,7 +602,7 @@ export interface PluginService {
   }): Promise<string | null>;
   /**
    * Ask every registered external-link handler
-   * (`browser.externalLink.handlers`) where a link the system handed bb should
+   * (`browser.externalLink.handlers`) where a link the system handed Patcher should
    * go, in plugin id order, stopping at the first that decides.
    *
    * Sequential and first-wins like auth, and for the harder reason: two handlers
@@ -662,7 +665,7 @@ export interface PluginService {
     query: string;
   }): Promise<PluginOmniboxRunOutcome>;
   /**
-   * Last `tail` lines of the plugin's JSONL log file (bb.log output).
+   * Last `tail` lines of the plugin's JSONL log file (patcher.log output).
    * Undefined when the plugin is not installed.
    */
   readLogTail(id: string, tail: number): Promise<string[] | undefined>;
@@ -1020,7 +1023,7 @@ function normalizeToolbarItemState(args: {
  * the browser should follow, and a row that fails when clicked is worse than a row
  * that never appeared. Malformed results throw — the caller runs this inside
  * invokeWrapped, so a bad widget contributes nothing and the screen still renders
- * bb's own recents.
+ * Patcher's own recents.
  */
 function normalizeNewTabRows(args: {
   result: unknown;
@@ -2229,7 +2232,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         notifyPluginsChanged();
         // A plugin stuck on needs-configuration is waiting for exactly this
         // save — reload it so the new values take effect without a manual
-        // `bb plugin reload` (the NeedsConfigurationError contract documents
+        // `patcher plugin reload` (the NeedsConfigurationError contract documents
         // this). Healthy plugins are NOT reloaded: they read settings lazily
         // via settings.get(), and restarting live services on every toggle
         // would be disruptive.
@@ -2319,7 +2322,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return (
         `${missing.map((permission) => `"${permission}"`).join(" and ")} ` +
         `${missing.length === 1 ? "is" : "are"} required, which plugin ` +
-        `"${pluginId}" does not declare in "bb.permissions"`
+        `"${pluginId}" does not declare in "patcher.permissions"`
       );
     },
     async httpToken(id, options) {
@@ -2398,7 +2401,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         { source: ctx.signal },
       );
       if (outcome.ok) return outcome.value;
-      return fail(`bb ${registration.name} failed: ${outcome.error}`);
+      return fail(`patcher ${registration.name} failed: ${outcome.error}`);
     },
 
     listSkillRootContributions() {

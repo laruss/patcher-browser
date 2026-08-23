@@ -1,4 +1,4 @@
-import type { Host, ThreadListEntry } from "@bb/domain";
+import type { Host, ThreadListEntry } from "@patcher/domain";
 
 // Group key for threads whose environment has no host (plain chats). Host ids
 // are prefixed (e.g. "host_…"), so the sentinel cannot collide with one.

@@ -1,18 +1,18 @@
-import type { BbDesktopDefaultBrowserStatus } from "@bb/desktop-contract";
+import type { PatcherDesktopDefaultBrowserStatus } from "@patcher/desktop-contract";
 
 // Being the user's browser is a Launch Services registration, not a capability:
 // macOS builds its "Default web browser" list from the bundles that declare
-// `http` and `https` in `CFBundleURLTypes`, and bb declares both through
+// `http` and `https` in `CFBundleURLTypes`, and Patcher declares both through
 // `mac.extendInfo` in `electron-builder.config.json`. Everything here is the
 // runtime half — asking whether the registration is the active one, and asking
 // the OS to make it so.
 
-export const BB_DESKTOP_GET_DEFAULT_BROWSER_CHANNEL =
-  "bb-desktop:get-default-browser";
-export const BB_DESKTOP_REQUEST_DEFAULT_BROWSER_CHANNEL =
-  "bb-desktop:request-default-browser";
-export const BB_DESKTOP_DEFAULT_BROWSER_CHANGED_CHANNEL =
-  "bb-desktop:default-browser-changed";
+export const PATCHER_DESKTOP_GET_DEFAULT_BROWSER_CHANNEL =
+  "patcher-desktop:get-default-browser";
+export const PATCHER_DESKTOP_REQUEST_DEFAULT_BROWSER_CHANNEL =
+  "patcher-desktop:request-default-browser";
+export const PATCHER_DESKTOP_DEFAULT_BROWSER_CHANGED_CHANNEL =
+  "patcher-desktop:default-browser-changed";
 
 /**
  * Both, always. A browser that owns `https` and not `http` is a browser that
@@ -39,7 +39,7 @@ export interface DefaultBrowserEnvironment {
 
 export function readDefaultBrowserStatus(
   environment: DefaultBrowserEnvironment,
-): BbDesktopDefaultBrowserStatus {
+): PatcherDesktopDefaultBrowserStatus {
   const isDefault = DEFAULT_BROWSER_PROTOCOLS.every((protocol) =>
     environment.isDefaultProtocolClient(protocol),
   );
@@ -60,7 +60,7 @@ export function readDefaultBrowserStatus(
  */
 export function requestDefaultBrowser(
   environment: DefaultBrowserEnvironment,
-): BbDesktopDefaultBrowserStatus {
+): PatcherDesktopDefaultBrowserStatus {
   const before = readDefaultBrowserStatus(environment);
   if (!before.canRequest) {
     return before;

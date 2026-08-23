@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fuzzyMatchPaths } from "@bb/fuzzy-match";
+import { fuzzyMatchPaths } from "@patcher/fuzzy-match";
 import type {
   HostPathEntry,
   HostPathEntryKind,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 export interface FinalizeListedFilesArgs {
   filePaths: string[];

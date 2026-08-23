@@ -1,4 +1,4 @@
-import type { ProvisioningTranscriptEntry } from "@bb/domain";
+import type { ProvisioningTranscriptEntry } from "@patcher/domain";
 import type {
   EventProjectionOperationMessage,
   EventProjectionProvisioningMetadata,

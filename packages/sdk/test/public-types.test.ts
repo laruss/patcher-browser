@@ -1,8 +1,8 @@
 import { describe, expectTypeOf, it } from "vitest";
 import type {
-  BbRealtime as RootBbRealtime,
-  BbSdk as RootBbSdk,
-  BbRealtimeConnectionEvent as RootRealtimeConnection,
+  PatcherRealtime as RootPatcherRealtime,
+  PatcherSdk as RootPatcherSdk,
+  PatcherRealtimeConnectionEvent as RootRealtimeConnection,
   EnvironmentStatusResult as RootEnvironmentStatus,
   FileReadResult as RootFileRead,
   GuideRenderResult as RootGuideRender,
@@ -27,10 +27,10 @@ import type {
   ThemeSetInput as RootThemeSetInput,
   ThreadSectionListResult as RootThreadSectionList,
   ThreadSpawnResult as RootThreadSpawn,
-} from "@bb/sdk";
+} from "@patcher/sdk";
 import type {
-  BbSdk as BrowserBbSdk,
-  BbRealtimeConnectionEvent as BrowserRealtimeConnection,
+  PatcherSdk as BrowserPatcherSdk,
+  PatcherRealtimeConnectionEvent as BrowserRealtimeConnection,
   EnvironmentStatusResult as BrowserEnvironmentStatus,
   FileReadResult as BrowserFileRead,
   GuideRenderResult as BrowserGuideRender,
@@ -54,10 +54,10 @@ import type {
   ThemeSetInput as BrowserThemeSetInput,
   ThreadSectionListResult as BrowserThreadSectionList,
   ThreadSpawnResult as BrowserThreadSpawn,
-} from "@bb/sdk/browser";
+} from "@patcher/sdk/browser";
 import type {
-  BbSdk as CoreBbSdk,
-  BbRealtimeConnectionEvent as CoreRealtimeConnection,
+  PatcherSdk as CorePatcherSdk,
+  PatcherRealtimeConnectionEvent as CoreRealtimeConnection,
   EnvironmentStatusResult as CoreEnvironmentStatus,
   FileReadResult as CoreFileRead,
   GuideRenderResult as CoreGuideRender,
@@ -81,10 +81,10 @@ import type {
   ThemeSetInput as CoreThemeSetInput,
   ThreadSectionListResult as CoreThreadSectionList,
   ThreadSpawnResult as CoreThreadSpawn,
-} from "@bb/sdk/core";
+} from "@patcher/sdk/core";
 import type {
-  BbSdk as NodeBbSdk,
-  BbRealtimeConnectionEvent as NodeRealtimeConnection,
+  PatcherSdk as NodePatcherSdk,
+  PatcherRealtimeConnectionEvent as NodeRealtimeConnection,
   EnvironmentStatusResult as NodeEnvironmentStatus,
   FileReadResult as NodeFileRead,
   GuideRenderResult as NodeGuideRender,
@@ -108,7 +108,7 @@ import type {
   ThemeSetInput as NodeThemeSetInput,
   ThreadSectionListResult as NodeThreadSectionList,
   ThreadSpawnResult as NodeThreadSpawn,
-} from "@bb/sdk/node";
+} from "@patcher/sdk/node";
 
 interface RootSurface {
   environmentStatus: RootEnvironmentStatus;
@@ -218,7 +218,7 @@ interface NodeSurface {
   threadSpawn: NodeThreadSpawn;
 }
 
-type ExpectedBbSdkKey =
+type ExpectedPatcherSdkKey =
   | "browserHistory"
   | "environments"
   | "files"
@@ -424,10 +424,10 @@ describe("SDK public type entrypoints", () => {
   });
 
   it("preserves the complete SDK surface at every entrypoint", () => {
-    expectTypeOf<keyof RootBbSdk>().toEqualTypeOf<ExpectedBbSdkKey>();
-    expectTypeOf<BrowserBbSdk>().toEqualTypeOf<RootBbSdk>();
-    expectTypeOf<CoreBbSdk>().toEqualTypeOf<RootBbSdk>();
-    expectTypeOf<NodeBbSdk>().toEqualTypeOf<RootBbSdk>();
+    expectTypeOf<keyof RootPatcherSdk>().toEqualTypeOf<ExpectedPatcherSdkKey>();
+    expectTypeOf<BrowserPatcherSdk>().toEqualTypeOf<RootPatcherSdk>();
+    expectTypeOf<CorePatcherSdk>().toEqualTypeOf<RootPatcherSdk>();
+    expectTypeOf<NodePatcherSdk>().toEqualTypeOf<RootPatcherSdk>();
   });
 
   it("exports only the public permission presets", () => {
@@ -483,61 +483,71 @@ describe("SDK public type entrypoints", () => {
   });
 
   it("snapshots every SDK area and nested method group", () => {
-    expectTypeOf<keyof RootBbRealtime>().toEqualTypeOf<ExpectedRealtimeKey>();
     expectTypeOf<
-      keyof RootBbSdk["browserHistory"]
+      keyof RootPatcherRealtime
+    >().toEqualTypeOf<ExpectedRealtimeKey>();
+    expectTypeOf<
+      keyof RootPatcherSdk["browserHistory"]
     >().toEqualTypeOf<ExpectedBrowserHistoryKey>();
     expectTypeOf<
-      keyof RootBbSdk["environments"]
+      keyof RootPatcherSdk["environments"]
     >().toEqualTypeOf<ExpectedEnvironmentsKey>();
-    expectTypeOf<keyof RootBbSdk["files"]>().toEqualTypeOf<ExpectedFilesKey>();
-    expectTypeOf<keyof RootBbSdk["guide"]>().toEqualTypeOf<ExpectedGuideKey>();
-    expectTypeOf<keyof RootBbSdk["hosts"]>().toEqualTypeOf<ExpectedHostsKey>();
     expectTypeOf<
-      keyof RootBbSdk["plugins"]
+      keyof RootPatcherSdk["files"]
+    >().toEqualTypeOf<ExpectedFilesKey>();
+    expectTypeOf<
+      keyof RootPatcherSdk["guide"]
+    >().toEqualTypeOf<ExpectedGuideKey>();
+    expectTypeOf<
+      keyof RootPatcherSdk["hosts"]
+    >().toEqualTypeOf<ExpectedHostsKey>();
+    expectTypeOf<
+      keyof RootPatcherSdk["plugins"]
     >().toEqualTypeOf<ExpectedPluginsKey>();
     expectTypeOf<
-      keyof RootBbSdk["plugins"]["catalog"]
+      keyof RootPatcherSdk["plugins"]["catalog"]
     >().toEqualTypeOf<ExpectedPluginCatalogKey>();
     expectTypeOf<
-      keyof RootBbSdk["projects"]
+      keyof RootPatcherSdk["projects"]
     >().toEqualTypeOf<ExpectedProjectsKey>();
     expectTypeOf<
-      keyof RootBbSdk["projects"]["attachments"]
+      keyof RootPatcherSdk["projects"]["attachments"]
     >().toEqualTypeOf<ExpectedProjectAttachmentsKey>();
     expectTypeOf<
-      keyof RootBbSdk["projects"]["sources"]
+      keyof RootPatcherSdk["projects"]["sources"]
     >().toEqualTypeOf<ExpectedProjectSourcesKey>();
     expectTypeOf<
-      keyof RootBbSdk["providers"]
+      keyof RootPatcherSdk["providers"]
     >().toEqualTypeOf<ExpectedProvidersKey>();
     expectTypeOf<
-      keyof RootBbSdk["status"]
+      keyof RootPatcherSdk["status"]
     >().toEqualTypeOf<ExpectedStatusKey>();
     expectTypeOf<
-      keyof RootBbSdk["system"]
+      keyof RootPatcherSdk["system"]
     >().toEqualTypeOf<ExpectedSystemKey>();
     expectTypeOf<
-      keyof RootBbSdk["terminals"]
+      keyof RootPatcherSdk["terminals"]
     >().toEqualTypeOf<ExpectedTerminalsKey>();
-    expectTypeOf<keyof RootBbSdk["theme"]>().toEqualTypeOf<ExpectedThemeKey>();
     expectTypeOf<
-      keyof RootBbSdk["threadSections"]
+      keyof RootPatcherSdk["theme"]
+    >().toEqualTypeOf<ExpectedThemeKey>();
+    expectTypeOf<
+      keyof RootPatcherSdk["threadSections"]
     >().toEqualTypeOf<ExpectedThreadSectionsKey>();
     expectTypeOf<
-      keyof RootBbSdk["threads"]
+      keyof RootPatcherSdk["threads"]
     >().toEqualTypeOf<ExpectedThreadsKey>();
     expectTypeOf<
-      keyof RootBbSdk["threads"]["events"]
+      keyof RootPatcherSdk["threads"]["events"]
     >().toEqualTypeOf<ExpectedThreadEventsKey>();
     expectTypeOf<
-      keyof RootBbSdk["threads"]["interactions"]
+      keyof RootPatcherSdk["threads"]["interactions"]
     >().toEqualTypeOf<ExpectedThreadInteractionsKey>();
     expectTypeOf<
-      keyof RootBbSdk["threads"]["queuedMessages"]
+      keyof RootPatcherSdk["threads"]["queuedMessages"]
     >().toEqualTypeOf<ExpectedThreadQueuedMessagesKey>();
     expectTypeOf<
-      keyof RootBbSdk["threads"]["tabs"]
+      keyof RootPatcherSdk["threads"]["tabs"]
     >().toEqualTypeOf<ExpectedThreadTabsKey>();
   });
 });

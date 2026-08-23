@@ -1,8 +1,8 @@
 {
-  "name": "@bb/desktop",
+  "name": "@patcher/desktop",
   "version": "0.37.0",
   "private": true,
-  "description": "macOS Electron shell for bb",
+  "description": "macOS Electron shell for Patcher",
   "main": "dist/main.js",
   "os": [
     "darwin"
@@ -15,25 +15,24 @@
     "dev": "bun run prepare-runtime && bun run build && node --conditions=source --import tsx scripts/run-electron-dev.mjs",
     "dist": "bun run prepare-runtime && bun run desktop:build",
     "package": "bun run prepare-runtime && bun run build && node scripts/run-electron-builder.mjs --mac --dir --arm64",
-    "prepare-runtime": "turbo run build --filter=bb-app --output-logs=new-only",
+    "prepare-runtime": "turbo run build --filter=patcher-app --output-logs=new-only",
     "smoke:packaged": "node scripts/smoke-packaged-app.mjs",
     "start": "bun run package && node scripts/run-packaged-app.mjs",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bb/connect-client": "workspace:*",
-    "bb-app": "workspace:*",
+    "patcher-app": "workspace:*",
     "electron-updater": "^6.8.3",
     "semver": "^7.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@bb/config": "workspace:*",
-    "@bb/desktop-contract": "workspace:*",
-    "@bb/domain": "workspace:*",
-    "@bb/server-contract": "workspace:*",
-    "@bb/tsconfig": "workspace:*",
+    "@patcher/config": "workspace:*",
+    "@patcher/desktop-contract": "workspace:*",
+    "@patcher/domain": "workspace:*",
+    "@patcher/server-contract": "workspace:*",
+    "@patcher/tsconfig": "workspace:*",
     "@types/node": "^24.9.0",
     "@types/semver": "^7.7.0",
     "electron": "41.7.0",

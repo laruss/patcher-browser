@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { EnvironmentArchiveThreadsResponse } from "@bb/server-contract";
+import type { EnvironmentArchiveThreadsResponse } from "@patcher/server-contract";
 import {
   sidebarNavigationQueryKey,
   threadSearchQueryKeyPrefix,

@@ -14,19 +14,19 @@ import { useLocation } from "react-router-dom";
 import {
   isBackgroundAgentTaskType,
   isBackgroundCommandTaskType,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   PromptInput,
   ThreadChildOrigin,
   ThreadRuntimeDisplayStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   TimelineActivityIntent,
   TimelineParentChange,
   TimelineRow,
   TimelineSystemOperationKind,
-} from "@bb/server-contract";
-import type { ThreadChatMessageReference } from "@bb/plugin-sdk";
+} from "@patcher/server-contract";
+import type { ThreadChatMessageReference } from "@patcher/plugin-sdk";
 import {
   assertNever,
   buildTimelineActivityIntentTitles,
@@ -42,8 +42,8 @@ import {
   type TimelineTitle,
   type TimelineViewTurnRow,
   type TimelineViewWorkRow,
-} from "@bb/thread-view";
-import { cn } from "@bb/shared-ui/lib/utils";
+} from "@patcher/thread-view";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import {
   collectTimelineAutoExpansionRowIds,
   isNonExpandableSummary,
@@ -81,9 +81,9 @@ import {
 } from "./TimelineTitleView.js";
 import { WorkRowBody } from "./TimelineRowDetails.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
-import { Button } from "@bb/shared-ui/button";
+import { Button } from "@patcher/shared-ui/button";
 import { AutoHeightContainer } from "../../ui/height-transition.js";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-body.js";
 import {

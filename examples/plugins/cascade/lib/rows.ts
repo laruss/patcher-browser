@@ -1,6 +1,6 @@
 // Row derivation. Rows are never stored — they are a projection of the flat
 // thread index through one grouping key. Kept pure so it is unit-testable
-// without a bb server.
+// without a Patcher server.
 
 export type GroupingMode = "sections" | "projects" | "hosts";
 
@@ -92,7 +92,7 @@ function applyOrder(
 /**
  * Projects the flat index into rows.
  *
- * Pinned threads get their own row and appear ONLY there. bb's sidebar shows a
+ * Pinned threads get their own row and appear ONLY there. Patcher's sidebar shows a
  * pinned thread twice (Pinned plus its section), which reads fine in a tree but
  * would put the same live column in two places you can scroll to — and make a
  * drag out of Pinned ambiguous. Here the row is exclusive, so dragging a thread

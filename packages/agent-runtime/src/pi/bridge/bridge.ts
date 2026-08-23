@@ -19,7 +19,7 @@ import {
   jsonRpcEnvelopeSchema,
   type BridgeToolCallRequest,
 } from "../../shared/bridge-tool-calls.js";
-import type { ThreadEventContextWindowUsage } from "@bb/domain";
+import type { ThreadEventContextWindowUsage } from "@patcher/domain";
 import {
   SessionManager,
   type AgentSessionEvent,
@@ -741,7 +741,7 @@ async function startPiThreadSession({
     throw error;
   }
 
-  // Pi has no separately minted session id: its provider identity is the BB
+  // Pi has no separately minted session id: its provider identity is the Patcher
   // thread id. Return that identity synchronously so callers do not have to
   // race the thread/identity notification emitted after start/fork.
   sendResult(id, { threadId, providerThreadId: threadId });
@@ -767,7 +767,7 @@ async function handleThreadResume(
   await startPiThreadSession({ id, params, threadId: params.threadId });
 }
 
-// Pi keeps no provider-minted session id: provider identity == bb threadId, and
+// Pi keeps no provider-minted session id: provider identity == Patcher threadId, and
 // the session file is the deterministic path for that threadId. Forking therefore
 // means materializing the source thread's full history at the NEW thread's
 // deterministic path, then launching like thread/start (which SessionManager.open's

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon, File01Icon } from "@hugeicons/core-free-icons";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { formatFileSize } from "../views/activity/time.js";
 import type { AttachmentOwnerRef } from "../views/detail/attachments.js";
 

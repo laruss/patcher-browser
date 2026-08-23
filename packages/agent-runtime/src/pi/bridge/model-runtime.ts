@@ -12,7 +12,7 @@ export function getPiModelRuntime(cwd = process.cwd()): Promise<ModelRuntime> {
   }
 
   // Use the full service path here too. This adds models from configured Pi
-  // extensions to BB's model picker. Cache each requested workspace separately
+  // extensions to Patcher's model picker. Cache each requested workspace separately
   // because project settings and extensions are bound to that workspace.
   const modelRuntimePromise = loadConfiguredPiServices({ cwd: resolvedCwd })
     .then(({ configErrors, services }) => {

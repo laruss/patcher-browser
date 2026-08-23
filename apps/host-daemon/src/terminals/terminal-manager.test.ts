@@ -1,10 +1,13 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { AgentRuntime } from "@bb/agent-runtime";
-import type { HostDaemonDaemonWsMessage } from "@bb/host-daemon-contract";
-import type { HostWorkspace } from "@bb/host-workspace";
-import { makeWorkspaceMergeBase, makeWorkspaceStatus } from "@bb/test-helpers";
+import type { AgentRuntime } from "@patcher/agent-runtime";
+import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
+import type { HostWorkspace } from "@patcher/host-workspace";
+import {
+  makeWorkspaceMergeBase,
+  makeWorkspaceStatus,
+} from "@patcher/test-helpers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostDaemonLogger } from "../logger.js";
 import { RuntimeManager } from "../runtime-manager.js";
@@ -315,7 +318,7 @@ function createHarnessWithOptions(
     createRuntime: () => runtime,
     provisionWorkspace: async () => workspace,
     shellEnv: {
-      BB_BASE_ENV: "1",
+      PATCHER_BASE_ENV: "1",
     },
   });
   const manager = new TerminalManager({
@@ -413,8 +416,8 @@ describe("TerminalManager", () => {
       rows: 30,
     });
     expect(harness.adapter.spawned[0]?.args.env).toMatchObject({
-      BB_BASE_ENV: "1",
-      BB_TERMINAL_SESSION_ID: "term-1",
+      PATCHER_BASE_ENV: "1",
+      PATCHER_TERMINAL_SESSION_ID: "term-1",
       COLORTERM: "truecolor",
       DISABLE_AUTO_TITLE: "true",
       PROMPT_EOL_MARK: "",
@@ -471,7 +474,7 @@ describe("TerminalManager", () => {
   });
 
   it("opens a PTY in a host path without an environment", async () => {
-    const cwd = await makeTempDir("bb-terminal-host-path-");
+    const cwd = await makeTempDir("patcher-terminal-host-path-");
     const harness = createHarness();
 
     await harness.manager.handleMessage({
@@ -905,9 +908,9 @@ describe("TerminalManager", () => {
     ]);
   });
 
-  it("scrubs inherited bb runtime env vars before spawning a terminal", async () => {
-    vi.stubEnv("BB_DATA_DIR", "/tmp/leaked-bb-data");
-    vi.stubEnv("BB_HOST_DAEMON_PORT", "38887");
+  it("scrubs inherited Patcher runtime env vars before spawning a terminal", async () => {
+    vi.stubEnv("PATCHER_DATA_DIR", "/tmp/leaked-patcher-data");
+    vi.stubEnv("PATCHER_HOST_DAEMON_PORT", "38987");
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("OPENAI_API_KEY", "external-secret");
 
@@ -916,18 +919,18 @@ describe("TerminalManager", () => {
 
     const env = harness.adapter.spawned[0]?.args.env;
     expect(env).toMatchObject({
-      BB_BASE_ENV: "1",
-      BB_TERMINAL_SESSION_ID: "term-1",
+      PATCHER_BASE_ENV: "1",
+      PATCHER_TERMINAL_SESSION_ID: "term-1",
       OPENAI_API_KEY: "external-secret",
     });
-    expect(env?.BB_DATA_DIR).toBeUndefined();
-    expect(env?.BB_HOST_DAEMON_PORT).toBeUndefined();
+    expect(env?.PATCHER_DATA_DIR).toBeUndefined();
+    expect(env?.PATCHER_HOST_DAEMON_PORT).toBeUndefined();
     expect(env?.NODE_ENV).toBeUndefined();
   });
 
   it("makes every available node-pty spawn-helper executable", async () => {
     const logger = createFakeLogger();
-    const packageDirectory = await makeTempDir("bb-node-pty-package-");
+    const packageDirectory = await makeTempDir("patcher-node-pty-package-");
     const buildNativePath = path.join(
       packageDirectory,
       "build",
@@ -979,7 +982,7 @@ describe("TerminalManager", () => {
 
   it("makes an available prebuild-only node-pty spawn-helper executable", async () => {
     const logger = createFakeLogger();
-    const packageDirectory = await makeTempDir("bb-node-pty-package-");
+    const packageDirectory = await makeTempDir("patcher-node-pty-package-");
     const prebuildHelperPath = path.join(
       packageDirectory,
       "prebuilds",
@@ -1013,7 +1016,7 @@ describe("TerminalManager", () => {
 
   it("logs and skips when no node-pty spawn-helper is present", async () => {
     const logger = createFakeLogger();
-    const packageDirectory = await makeTempDir("bb-node-pty-package-");
+    const packageDirectory = await makeTempDir("patcher-node-pty-package-");
     const buildHelperPath = path.join(
       packageDirectory,
       "build",
@@ -1365,8 +1368,8 @@ describe("TerminalManager", () => {
       return;
     }
 
-    const workspacePath = await makeTempDir("bb-terminal-manager-real-");
-    const targetPath = await makeTempDir("bb-terminal-manager-target-");
+    const workspacePath = await makeTempDir("patcher-terminal-manager-real-");
+    const targetPath = await makeTempDir("patcher-terminal-manager-target-");
     const expectedWorkspacePath = await fs.realpath(workspacePath);
     const expectedTargetPath = await fs.realpath(targetPath);
     const messages: HostDaemonDaemonWsMessage[] = [];

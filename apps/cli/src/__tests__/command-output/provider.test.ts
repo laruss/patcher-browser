@@ -9,13 +9,13 @@ import {
 import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import { registerProviderCommands } from "../../commands/provider.js";
 
-describe("bb provider command output", () => {
+describe("patcher provider command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
     registerProviderCommands(program, () => "http://server");
 
-  it("bb provider list renders the shared borderless table", async () => {
+  it("patcher provider list renders the shared borderless table", async () => {
     const get = vi.fn(async () => [{ id: "openai", displayName: "OpenAI" }]);
     stubServerApi({ "v1.system.providers.$get": get });
 
@@ -35,7 +35,7 @@ describe("bb provider command output", () => {
     expect(help).toContain("--environment <id>");
   });
 
-  it("bb provider list resolves a machine and preserves portable JSON output", async () => {
+  it("patcher provider list resolves a machine and preserves portable JSON output", async () => {
     const getProviders = vi.fn(async () => [
       { id: "acp-remote", displayName: "Remote ACP" },
     ]);
@@ -72,7 +72,7 @@ describe("bb provider command output", () => {
     ]);
   });
 
-  it("bb provider models renders the shared borderless table", async () => {
+  it("patcher provider models renders the shared borderless table", async () => {
     const get = vi.fn(async () => [
       { model: "gpt-5", displayName: "GPT-5", isDefault: true },
     ]);
@@ -94,7 +94,7 @@ describe("bb provider command output", () => {
     ]);
   });
 
-  it("bb provider models includes a matching selected-only model", async () => {
+  it("patcher provider models includes a matching selected-only model", async () => {
     const get = vi.fn(async () => ({
       providers: [],
       models: [
@@ -138,7 +138,7 @@ describe("bb provider command output", () => {
     ]);
   });
 
-  it("bb provider models routes through an environment", async () => {
+  it("patcher provider models routes through an environment", async () => {
     const get = vi.fn(async () => ({
       providers: [],
       models: [],

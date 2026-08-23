@@ -1,4 +1,7 @@
-import type { BbPluginApi, PluginAgentToolResult } from "@bb/plugin-sdk";
+import type {
+  PatcherPluginApi,
+  PluginAgentToolResult,
+} from "@patcher/plugin-sdk";
 import { interactionResponseSchema, toolInputSchema } from "./contracts.js";
 import {
   TOOL_DESCRIPTION,
@@ -17,7 +20,7 @@ export const TOOL_NAME = "AskUserQuestion";
 export const RENDERER_ID = "ask-user-question";
 
 /**
- * Claude Code ships `AskUserQuestion` natively, and BB wires that native call
+ * Claude Code ships `AskUserQuestion` natively, and Patcher wires that native call
  * straight into the provider's own pending-interaction path. Registering a
  * second, plugin-owned tool of the same name for those threads would give the
  * model two ways to ask one question, so the tool is withheld there.
@@ -32,8 +35,8 @@ function errorResult(message: string): PluginAgentToolResult {
   return { content: [{ type: "text", text: message }], isError: true };
 }
 
-export default function plugin(bb: BbPluginApi) {
-  bb.agents.registerTool({
+export default function plugin(patcher: PatcherPluginApi) {
+  patcher.agents.registerTool({
     name: TOOL_NAME,
     description: TOOL_DESCRIPTION,
     parameters: toolInputSchema,
@@ -53,7 +56,7 @@ export default function plugin(bb: BbPluginApi) {
       const askedAt = Date.now();
       let result;
       try {
-        result = await bb.ui.requestInput(
+        result = await patcher.ui.requestInput(
           {
             threadId: ctx.threadId,
             rendererId: RENDERER_ID,
@@ -95,7 +98,7 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
 
-  bb.agents.configure((context) => {
+  patcher.agents.configure((context) => {
     if (providerHasNativeTool(context.provider.id)) {
       return { tools: [], skills: [] };
     }

@@ -6,8 +6,8 @@ import {
   type Session,
 } from "electron";
 import {
-  buildBbDesktopSpellcheckLookupScript,
-  parseBbDesktopSpellcheckCorrectionContext,
+  buildPatcherDesktopSpellcheckLookupScript,
+  parsePatcherDesktopSpellcheckCorrectionContext,
 } from "./desktop-spellcheck-contract.js";
 
 export interface DesktopContextMenuWebContents {
@@ -103,9 +103,9 @@ export async function resolveDesktopSpellcheckFallback({
     return null;
   }
   try {
-    const context = parseBbDesktopSpellcheckCorrectionContext(
+    const context = parsePatcherDesktopSpellcheckCorrectionContext(
       await webContents.executeJavaScript(
-        buildBbDesktopSpellcheckLookupScript(word),
+        buildPatcherDesktopSpellcheckLookupScript(word),
       ),
     );
     return context === null

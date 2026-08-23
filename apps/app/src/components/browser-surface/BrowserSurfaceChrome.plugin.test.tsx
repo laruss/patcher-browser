@@ -9,9 +9,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createBbDesktopApi,
+  createPatcherDesktopApi,
   createNoopDesktopBrowserApi,
-} from "@/test/bb-desktop-test-utils";
+} from "@/test/patcher-desktop-test-utils";
 import type { PluginOmniboxSuggestGroup } from "@/hooks/queries/plugin-contribution-queries";
 import {
   createOmniboxNavigationProvider,
@@ -20,7 +20,7 @@ import {
   createPluginOmniboxSuggestionSource,
   OMNIBOX_DEBOUNCE_MS,
 } from "@/lib/omnibox";
-import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@bb/domain/browser-search-engine";
+import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@patcher/domain/browser-search-engine";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { BrowserSurfaceChrome } from "./BrowserSurfaceChrome";
 
@@ -49,7 +49,7 @@ const PLUGIN_GROUP: PluginOmniboxSuggestGroup = {
       action: { type: "run" },
       itemId: "agent:ask",
       score: 0.8,
-      subtitle: "spawns a BB thread",
+      subtitle: "spawns a Patcher thread",
       title: "Ask an agent",
     },
   ],
@@ -90,7 +90,7 @@ function stubPluginEndpoints(): FetchCall[] {
 
 function renderChrome() {
   const navigate = vi.fn();
-  window.bbDesktop = createBbDesktopApi(desktopInfo, {
+  window.patcherDesktop = createPatcherDesktopApi(desktopInfo, {
     ...createNoopDesktopBrowserApi(),
     navigate,
   });

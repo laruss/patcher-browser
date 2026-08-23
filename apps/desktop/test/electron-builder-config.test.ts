@@ -264,15 +264,15 @@ describe("electron-builder signing config", () => {
     );
   });
 
-  it("unpacks the ESM bb-app bridge with an explicit module extension", async () => {
+  it("unpacks the ESM patcher-app bridge with an explicit module extension", async () => {
     const configText = await readFile(
       resolve(desktopPackageRoot, "electron-builder.config.json"),
       "utf8",
     );
     const config = electronBuilderConfigSchema.parse(JSON.parse(configText));
 
-    expect(config.asarUnpack).toContain("dist/bb-app-bridge.mjs");
-    expect(config.asarUnpack).not.toContain("dist/bb-app-bridge.js");
+    expect(config.asarUnpack).toContain("dist/patcher-app-bridge.mjs");
+    expect(config.asarUnpack).not.toContain("dist/patcher-app-bridge.js");
   });
 
   it("runs a native module preparation hook after packaging", async () => {
@@ -344,18 +344,18 @@ describe("electron-builder signing config", () => {
     // separately without relaxing dependency pruning for the rest of node_modules.
     expect(config.files).toContainEqual({
       filter: ["**/*"],
-      from: "node_modules/bb-app/server/dist/app-scaffold-template",
-      to: "node_modules/bb-app/server/dist/app-scaffold-template",
+      from: "node_modules/patcher-app/server/dist/app-scaffold-template",
+      to: "node_modules/patcher-app/server/dist/app-scaffold-template",
     });
   });
 
   it("patches packaged node-pty helper path handling", async () => {
     const appOutDir = await mkdtemp(
-      resolve(tmpdir(), "bb-desktop-native-modules-"),
+      resolve(tmpdir(), "patcher-desktop-native-modules-"),
     );
     const nodePtyPackageDir = resolve(
       appOutDir,
-      "bb.app",
+      "patcher.app",
       "Contents",
       "Resources",
       "app.asar.unpacked",
@@ -455,12 +455,12 @@ describe("electron-builder signing config", () => {
     // the call fails whatever the user picked in Settings.
     //
     // Deliberately no `CFBundleDocumentTypes`: declaring `public.html` would
-    // make bb the opener for local HTML files, and the browsed view refuses
+    // make Patcher the opener for local HTML files, and the browsed view refuses
     // `file:` (`isAllowedBrowserUrl`), so a double-clicked document would open
     // a window that shows nothing.
     for (const channel of ["latest", "nightly"]) {
       const { config } = await readResolvedConfig({
-        BB_DESKTOP_RELEASE_CHANNEL: channel,
+        PATCHER_DESKTOP_RELEASE_CHANNEL: channel,
       });
       const extendInfo = macExtendInfoSchema.parse(config.mac.extendInfo);
 
@@ -484,19 +484,21 @@ describe("electron-builder signing config", () => {
 
     expect(config.publish[0]).toMatchObject(DESKTOP_AUTO_UPDATE_FEED_CONFIG);
     expect(DESKTOP_AUTO_UPDATE_FEED_CONFIG.url).toBe(
-      "https://github.com/get-bb/bb/releases/download/desktop-latest/",
+      "https://github.com/laruss/patcher-browser/releases/download/desktop-latest/",
     );
   });
 
   it("creates a separate nightly app identity and update feed", async () => {
     const { config } = await readResolvedConfig({
-      BB_DESKTOP_RELEASE_CHANNEL: "nightly",
+      PATCHER_DESKTOP_RELEASE_CHANNEL: "nightly",
     });
     const nightlyRelease = createDesktopReleaseInfo("nightly");
 
-    expect(config.appId).toBe("dev.bb.desktop.nightly");
-    expect(config.productName).toBe("bb Nightly");
-    expect(config.artifactName).toBe("bb-nightly-${version}-${arch}.${ext}");
+    expect(config.appId).toBe("app.patcher.desktop.nightly");
+    expect(config.productName).toBe("Patcher Nightly");
+    expect(config.artifactName).toBe(
+      "patcher-nightly-${version}-${arch}.${ext}",
+    );
     expect(config.mac.icon).toBe("assets/icon-nightly.icns");
     await expect(
       access(resolve(desktopPackageRoot, config.mac.icon)),
@@ -513,12 +515,12 @@ describe("electron-builder signing config", () => {
 
   it("rejects unknown desktop release channels", async () => {
     const result = await runConfigScript({
-      BB_DESKTOP_RELEASE_CHANNEL: "canary",
+      PATCHER_DESKTOP_RELEASE_CHANNEL: "canary",
     });
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "BB_DESKTOP_RELEASE_CHANNEL must be latest or nightly",
+      "PATCHER_DESKTOP_RELEASE_CHANNEL must be latest or nightly",
     );
   });
 

@@ -1,8 +1,8 @@
 import { atom } from "jotai";
-import { defaultAppSettings, defaultAppTheme } from "@bb/domain";
-import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
+import { defaultAppSettings, defaultAppTheme } from "@patcher/domain";
+import type { WorkspaceOpenTarget } from "@patcher/host-daemon-contract";
 import type { HostDaemonStatusSnapshot } from "./api-host-daemon";
-import type { SystemConfigResponse } from "@bb/server-contract";
+import type { SystemConfigResponse } from "@patcher/server-contract";
 import { apiClient } from "./api-server";
 import { fetchHostStatus, fetchWorkspaceOpenTargets } from "./api-host-daemon";
 import { wsManager } from "./ws";

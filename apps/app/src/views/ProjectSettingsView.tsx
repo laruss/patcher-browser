@@ -5,14 +5,14 @@ import {
   isLocalPathProjectSource,
   type Host,
   type LocalPathProjectSource,
-} from "@bb/domain";
-import { Button } from "@bb/shared-ui/button";
+} from "@patcher/domain";
+import { Button } from "@patcher/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
+} from "@patcher/shared-ui/dropdown-menu";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import {

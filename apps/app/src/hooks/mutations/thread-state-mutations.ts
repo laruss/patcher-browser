@@ -4,7 +4,7 @@ import type {
   ThreadArchiveAllResponse,
   ThreadResponse,
   UpdateThreadRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
 import type { LifecycleErrorOperation } from "@/lib/lifecycle-errors";
 import {

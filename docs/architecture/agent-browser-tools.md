@@ -1,6 +1,6 @@
 # Agent Browser Tools
 
-Phase 5 of [`docs/PROJECT_PLAN.md`](../PROJECT_PLAN.md) §18: bb agents can read
+Phase 5 of [`docs/PROJECT_PLAN.md`](../PROJECT_PLAN.md) §18: Patcher agents can read
 and operate browser state, through Browser APIs rather than Electron internals.
 
 ## The gap this had to cross
@@ -8,7 +8,7 @@ and operate browser state, through Browser APIs rather than Electron internals.
 Phases 1–4 put the browser in the app ([browser-surface.md](browser-surface.md),
 [omnibox.md](omnibox.md)). Phase 5 ran into something none of them did:
 
-- Plugin **agent tool handlers execute in the bb server process**
+- Plugin **agent tool handlers execute in the Patcher server process**
   (`apps/server/src/internal/tool-calls.ts` → `invokePluginAgentTool`), with a
   context of only `{ threadId, projectId, signal }`.
 - **The browser is nowhere near the server.** Tabs are renderer state
@@ -25,7 +25,7 @@ server-side handler down to a page, and back.
 agent tool call
    ↓  apps/server/src/internal/tool-calls.ts        (already existed)
 plugins/browser-tools/src/server.ts                  bundled plugin, 12 tools
-   ↓  bb.browser.tabs / page / navigation            plugin SDK contract
+   ↓  patcher.browser.tabs / page / navigation            plugin SDK contract
 apps/server/.../plugins/plugin-api.ts                argument validation
    ↓  services/browser/browser-bridge.ts             request ids, timeouts, errors
 apps/server/src/ws/hub.ts                            addressed to the browser host
@@ -38,12 +38,12 @@ apps/desktop/src/desktop-browser-view.ts             isolated-world read
 ```
 
 Every hop copies something already in the tree. Nothing here is a new idea about
-how bb talks to itself.
+how Patcher talks to itself.
 
 ## Why the tools are a plugin
 
 Plan §20 asks that agent interfaces use the same APIs as plugins, and warns
-against a separate hidden browser-control system for agents. So `bb.browser`
+against a separate hidden browser-control system for agents. So `patcher.browser`
 grew a control API and the tools are an ordinary bundled plugin using it. Two
 consequences worth having: anything an agent can do to the browser, a plugin can
 do too — which is what Phase 6's generated plugins will need — and the tools got
@@ -57,7 +57,7 @@ tool handler blocks on the frontend doing the real work.
 `defaultEnabled: false` in `builtin-registry.ts`. An agent driving this browser
 acts inside the user's real logged-in session, and plan §9's permission model
 does not exist yet, so the plugin toggle is the whole gate and the user turns it
-on (`bb plugin enable browser-tools`). Saying that plainly is better than
+on (`patcher plugin enable browser-tools`). Saying that plainly is better than
 implying a permission story that is not there.
 
 ## The constraint everything else bends around
@@ -66,20 +66,20 @@ implying a permission story that is not there.
 surface was open.** The deck mounts one `BrowserTabContent`, and that mount is
 what calls `attach`.
 
-It is not as narrow as it sounds: unmount does *not* detach — "deletion owns
+It is not as narrow as it sounds: unmount does _not_ detach — "deletion owns
 detach" — so a tab activated at any point in a session keeps its live view after
 the user navigates away from `/browser`. Reading the page a user is looking at
 while talking to an agent in a thread works, which is the case that matters.
 
 What each operation does without one:
 
-| Operation | No live view | Web build (no desktop bridge) |
-| --- | --- | --- |
-| tabs list / open / close / activate | works — renderer state | works |
-| page get url / title | works — from tab state | works |
-| navigation open | stores the URL; loads when the tab is next shown | `desktop_unavailable` |
-| navigation back / forward / reload | `tab_not_live` | `desktop_unavailable` |
-| page get text / selection | `tab_not_live` | `desktop_unavailable` |
+| Operation                           | No live view                                     | Web build (no desktop bridge) |
+| ----------------------------------- | ------------------------------------------------ | ----------------------------- |
+| tabs list / open / close / activate | works — renderer state                           | works                         |
+| page get url / title                | works — from tab state                           | works                         |
+| navigation open                     | stores the URL; loads when the tab is next shown | `desktop_unavailable`         |
+| navigation back / forward / reload  | `tab_not_live`                                   | `desktop_unavailable`         |
+| page get text / selection           | `tab_not_live`                                   | `desktop_unavailable`         |
 
 `navigation.open`'s fallback is safe because `BrowserTabContent` reads the tab's
 URL at mount and `loadIfNeeded` skips a load the view already shows — the
@@ -92,7 +92,7 @@ an agent that is told "no" without a reason retries the same call.
 
 The one browser IPC command that answers, so it is an `invoke`/`handle` pair
 rather than a `send`. Per invariant 2 of [bb-migration.md](bb-migration.md) it is
-a **new channel** plus an **optional** method on `BbDesktopBrowserApi`, which is
+a **new channel** plus an **optional** method on `PatcherDesktopBrowserApi`, which is
 the same shape scoped popups and favicons used — this is that pattern's first
 request/response instance, and callers feature-detect `readPage` exactly as they
 feature-detect `onFavicon`.
@@ -141,22 +141,22 @@ With none connected, the call fails immediately rather than waiting. A daemon is
 expected to reconnect; a closed browser window is a user's action, and stalling
 every tool call on the chance one appears is worse than saying so.
 
-`unregisterBrowserHost` runs *before* `unregisterClient`'s early return, since a
+`unregisterBrowserHost` runs _before_ `unregisterClient`'s early return, since a
 socket that never subscribed to anything can still be the browser host — without
 that, closing the window leaves in-flight commands to time out.
 
-## `bb browser` — the bridge, without an agent
+## `patcher browser` — the bridge, without an agent
 
 The tools are only reachable through a provider session inside a thread, which
 makes a broken bridge show up as a model saying something odd, minutes later. So
-the plugin also registers a CLI command over the **same** `bb.browser` API:
+the plugin also registers a CLI command over the **same** `patcher.browser` API:
 
 ```
-bb browser status                    is an app window connected at all
-bb browser tabs                      active/live/cold per tab
-bb browser open <url> [--new-tab]
-bb browser text [--tab <id>] [--max <n>]
-bb browser back | forward | reload
+patcher browser status                    is an app window connected at all
+patcher browser tabs                      active/live/cold per tab
+patcher browser open <url> [--new-tab]
+patcher browser text [--tab <id>] [--max <n>]
+patcher browser back | forward | reload
 ```
 
 Plugin CLI commands execute in the server process — exactly where the agent
@@ -167,7 +167,7 @@ non-zero when nothing is connected, so a script can gate on it, and failures
 print the same sentences the agent is given.
 
 That makes the first diagnostic question answerable in one command: if
-`bb browser tabs` works and a tool does not, the bridge is fine.
+`patcher browser tabs` works and a tool does not, the bridge is fine.
 
 ## What an agent does not gain
 
@@ -178,7 +178,7 @@ That makes the first diagnostic question answerable in one command: if
   real URL rather than reusing `resolveBrowserAddressInput`'s search fallback:
   silently searching is right for a human typing and wrong for an agent that
   passed a malformed address.
-- **No new session reach.** Everything stays in the `persist:bb-browser`
+- **No new session reach.** Everything stays in the `persist:patcher-browser`
   partition. No cookie, download, permission or devtools access is added.
 - **No page eval.** The obvious next tool after `getText` would be a
   general "evaluate this JS in the page", which is a remote-code-execution
@@ -222,7 +222,7 @@ That makes the first diagnostic question answerable in one command: if
 - `plugins/browser-tools/src/server.test.ts` — every tool registered under a name
   the host accepts, all of them advertised with instructions, and each failure
   mapped to a sentence telling the model what to do next.
-- `plugins/browser-tools/src/cli.test.ts` — `bb browser` reaching the same API,
+- `plugins/browser-tools/src/cli.test.ts` — `patcher browser` reaching the same API,
   the cold/live distinction visible in default output, `--json`, `--tab` and
   `--max`, a non-zero `status` when nothing is connected, and unknown commands
   and options refused rather than reinterpreted.
@@ -230,15 +230,15 @@ That makes the first diagnostic question answerable in one command: if
 Not covered by tests, and worth doing by hand before trusting it: a real page
 read in the running desktop app. `executeJavaScriptInIsolatedWorld` is exercised
 only against a fake `webContents` here, so this is the one link nothing above
-proves. `bb browser text` is the shortest way to find out:
+proves. `patcher browser text` is the shortest way to find out:
 
 ```bash
 bun run dev            # and, in another shell, bun run dev:desktop
-bun run bb:dev plugin enable browser-tools
+bun run patcher:dev plugin enable browser-tools
 # open /browser in the desktop app and load a page, then:
-bun run bb:dev browser status
-bun run bb:dev browser tabs
-bun run bb:dev browser text
+bun run patcher:dev browser status
+bun run patcher:dev browser tabs
+bun run patcher:dev browser text
 ```
 
 ## The JavaScript dialog defect this shipped with
@@ -251,7 +251,7 @@ nothing, so Electron's default applied: a page calling `alert()` or `confirm()`
 opened a native modal owned by the **app window**. Two consequences, of which the
 second was the serious one:
 
-- the modal blocked the whole BB window, not just the browsing view — a page
+- the modal blocked the whole Patcher window, not just the browsing view — a page
   could freeze the agent workspace, not only itself;
 - **an agent had no way to answer it.** The user could click its buttons;
   nothing on the automation path could, so a dialog stopped an agent dead.
@@ -270,7 +270,7 @@ Two threads run on from here.
 minus its testing group: snapshots with element refs, real interaction, storage,
 network interception, recording. Planned in
 [browser-automation.md](browser-automation.md), which also explains why that work
-moves onto CDP and why the long tail belongs in `bb browser` rather than in the
+moves onto CDP and why the long tail belongs in `patcher browser` rather than in the
 provider's tool list.
 
 **Everything else** — the plan's Phase 6 (a coding agent creating a browser

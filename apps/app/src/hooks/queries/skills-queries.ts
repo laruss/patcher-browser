@@ -3,7 +3,7 @@ import type {
   DeleteSkillRequest,
   SkillSummary,
   UpdateSkillRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
 import {
   projectSkillsQueryKey,
@@ -19,7 +19,7 @@ import {
 
 /**
  * Skills discovered for a project's default workspace (user/builtin/provider
- * scopes plus that project's `.bb/skills`). The top-level Skills page passes the
+ * scopes plus that project's `.patcher/skills`). The top-level Skills page passes the
  * personal project so it surfaces the user's global skill set.
  */
 export function useProjectSkills(projectId: string) {

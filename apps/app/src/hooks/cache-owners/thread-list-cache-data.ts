@@ -3,7 +3,7 @@ import type {
   QueryClient,
   QueryKey,
 } from "@tanstack/react-query";
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 
 // Some thread list queries store a flat array (`useThreads`); the paginated
 // archived view stores `InfiniteData<ThreadListEntry[]>`. These helpers let

@@ -4,7 +4,7 @@ import {
   type PromptMentionCommandTrigger,
   type PromptMentionResource,
   type PromptTextMention,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { JSONContent } from "@tiptap/react";
 import type { Node as ProseMirrorNode, Schema, Slice } from "@tiptap/pm/model";
 import type {

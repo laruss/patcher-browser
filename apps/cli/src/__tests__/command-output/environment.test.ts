@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ThreadPullRequest, WorkspaceStatus } from "@bb/domain";
+import type { ThreadPullRequest, WorkspaceStatus } from "@patcher/domain";
 import {
   setupCommandOutputTestEnvironment,
   collectLogLines,
@@ -11,7 +11,7 @@ import type { CommandRegistrar } from "../helpers/command-output-harness.js";
 import * as fixtures from "../helpers/command-output-fixtures.js";
 import { registerEnvironmentCommands } from "../../commands/environment.js";
 
-describe("bb environment command output", () => {
+describe("patcher environment command output", () => {
   setupCommandOutputTestEnvironment();
 
   const register: CommandRegistrar = (program) =>
@@ -34,11 +34,11 @@ describe("bb environment command output", () => {
     },
     checkout: {
       kind: "branch",
-      branchName: "bb/environment-cli",
+      branchName: "patcher/environment-cli",
       headSha: "abc123",
     },
     branch: {
-      currentBranch: "bb/environment-cli",
+      currentBranch: "patcher/environment-cli",
       defaultBranch: "main",
     },
     mergeBase: {
@@ -58,9 +58,9 @@ describe("bb environment command output", () => {
     number: 701,
     title: "Environment inspection parity",
     state: "open",
-    url: "https://github.com/example/bb/pull/701",
+    url: "https://github.com/example/patcher/pull/701",
     baseRefName: "main",
-    headRefName: "bb/environment-cli",
+    headRefName: "patcher/environment-cli",
     updatedAt: "2026-07-14T12:00:00.000Z",
     checks: {
       state: "passing",
@@ -94,7 +94,7 @@ describe("bb environment command output", () => {
     expect(help).toContain("pull-request");
   });
 
-  it("bb environment status inspects an arbitrary environment id", async () => {
+  it("patcher environment status inspects an arbitrary environment id", async () => {
     const get = vi.fn(async () => ({
       outcome: "available",
       workspace: workspaceStatus,
@@ -119,7 +119,7 @@ describe("bb environment command output", () => {
     expect(collectLogLines(vi.mocked(console.log))).toEqual(
       expect.arrayContaining([
         "State: dirty_uncommitted",
-        "Branch: bb/environment-cli",
+        "Branch: patcher/environment-cli",
         "Changed files: 1",
         "Merge base: main",
         "Ahead: 2",
@@ -127,7 +127,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment status --json preserves the canonical response", async () => {
+  it("patcher environment status --json preserves the canonical response", async () => {
     const response = {
       outcome: "available",
       workspace: workspaceStatus,
@@ -146,7 +146,7 @@ describe("bb environment command output", () => {
     ).toEqual(response);
   });
 
-  it("bb environment status explains non-git environments", async () => {
+  it("patcher environment status explains non-git environments", async () => {
     stubServerApi({
       "v1.environments.:id.status.$get": vi.fn(async () => ({
         outcome: "not_applicable",
@@ -162,7 +162,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment pull-request show reports absence and presence", async () => {
+  it("patcher environment pull-request show reports absence and presence", async () => {
     const get = vi
       .fn()
       .mockResolvedValueOnce({ outcome: "absent" })
@@ -192,13 +192,13 @@ describe("bb environment command output", () => {
     expect(collectLogLines(vi.mocked(console.log))).toEqual(
       expect.arrayContaining([
         "Pull request: #701 open - Environment inspection parity",
-        "Branch: bb/environment-cli -> main",
+        "Branch: patcher/environment-cli -> main",
         "Checks: passing (2 passed, 0 failed, 0 pending, 2 total)",
       ]),
     );
   });
 
-  it("bb environment pull-request show --json preserves the outcome", async () => {
+  it("patcher environment pull-request show --json preserves the outcome", async () => {
     stubServerApi({
       "v1.environments.:id.pull-request.$get": vi.fn(async () => ({
         outcome: "absent",
@@ -215,7 +215,7 @@ describe("bb environment command output", () => {
     ).toEqual({ outcome: "absent" });
   });
 
-  it("bb environment pull-request show reports a failed lookup", async () => {
+  it("patcher environment pull-request show reports a failed lookup", async () => {
     stubServerApi({
       "v1.environments.:id.pull-request.$get": vi.fn(async () => ({
         outcome: "unavailable",
@@ -233,7 +233,7 @@ describe("bb environment command output", () => {
     ]);
   });
 
-  it("bb environment branches returns local and remote results", async () => {
+  it("patcher environment branches returns local and remote results", async () => {
     const get = vi.fn(async () => ({
       branches: ["main", "release"],
       branchesTruncated: false,
@@ -270,7 +270,7 @@ describe("bb environment command output", () => {
     ]);
   });
 
-  it("bb environment paths targets the environment and path kinds", async () => {
+  it("patcher environment paths targets the environment and path kinds", async () => {
     const response = {
       paths: [
         {
@@ -315,7 +315,7 @@ describe("bb environment command output", () => {
     ]);
   });
 
-  it("bb environment diff prints summary, full diff, and truncation", async () => {
+  it("patcher environment diff prints summary, full diff, and truncation", async () => {
     const get = vi.fn(async () => ({
       outcome: "available",
       diff: {
@@ -353,7 +353,7 @@ describe("bb environment command output", () => {
     ]);
   });
 
-  it("bb environment diff-files --json preserves binary and initial patch metadata", async () => {
+  it("patcher environment diff-files --json preserves binary and initial patch metadata", async () => {
     const response = {
       outcome: "available",
       files: [
@@ -402,7 +402,7 @@ describe("bb environment command output", () => {
     ).toEqual(response);
   });
 
-  it("bb environment diff-file distinguishes text and binary content", async () => {
+  it("patcher environment diff-file distinguishes text and binary content", async () => {
     const get = vi
       .fn()
       .mockResolvedValueOnce({
@@ -477,7 +477,7 @@ describe("bb environment command output", () => {
     ]);
   });
 
-  it("bb environment diff-patch preserves patch paths and truncation", async () => {
+  it("patcher environment diff-patch preserves patch paths and truncation", async () => {
     const post = vi.fn(async () => ({
       outcome: "available",
       patches: [
@@ -528,7 +528,7 @@ describe("bb environment command output", () => {
     ]);
   });
 
-  it("bb environment diff explains non-git results", async () => {
+  it("patcher environment diff explains non-git results", async () => {
     stubServerApi({
       "v1.environments.:id.diff.$get": vi.fn(async () => ({
         outcome: "not_applicable",
@@ -601,7 +601,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment commit prefixes failures with environment context", async () => {
+  it("patcher environment commit prefixes failures with environment context", async () => {
     const post = vi.fn(async () => {
       throw new Error("HTTP 500: boom");
     });
@@ -616,13 +616,13 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment commit posts the action without a thread id", async () => {
+  it("patcher environment commit posts the action without a thread id", async () => {
     const post = vi.fn(async () => ({
       ok: true,
       action: "commit",
       message: "Created commit abc123",
       commitSha: "abc123",
-      commitSubject: "bb: automated commit",
+      commitSubject: "Patcher: automated commit",
     }));
     stubServerApi({ "v1.environments.:id.actions.$post": post });
 
@@ -634,7 +634,7 @@ describe("bb environment command output", () => {
     });
   });
 
-  it("bb environment update sets the merge base branch", async () => {
+  it("patcher environment update sets the merge base branch", async () => {
     const environment = fixtures.makeEnvironment({
       id: "env-update-1",
       projectId: "proj-1",
@@ -669,7 +669,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment update clears the merge base branch", async () => {
+  it("patcher environment update clears the merge base branch", async () => {
     const environment = fixtures.makeEnvironment({
       id: "env-update-2",
       projectId: "proj-1",
@@ -695,7 +695,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment update renames the environment", async () => {
+  it("patcher environment update renames the environment", async () => {
     const environment = fixtures.makeEnvironment({
       id: "env-update-name",
       projectId: "proj-1",
@@ -730,7 +730,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment update clears the environment name", async () => {
+  it("patcher environment update clears the environment name", async () => {
     const environment = fixtures.makeEnvironment({
       id: "env-clear-name",
       projectId: "proj-1",
@@ -754,7 +754,7 @@ describe("bb environment command output", () => {
     expect(collectLogLines(vi.mocked(console.log))).toContain("Name cleared");
   });
 
-  it("bb environment update sets name and merge base together", async () => {
+  it("patcher environment update sets name and merge base together", async () => {
     const environment = fixtures.makeEnvironment({
       id: "env-update-combined",
       projectId: "proj-1",
@@ -792,7 +792,7 @@ describe("bb environment command output", () => {
     );
   });
 
-  it("bb environment update rejects name and clear-name together", async () => {
+  it("patcher environment update rejects name and clear-name together", async () => {
     const patch = vi.fn();
     stubServerApi({ "v1.environments.:id.$patch": patch });
 
@@ -816,7 +816,7 @@ describe("bb environment command output", () => {
     expect(patch).not.toHaveBeenCalled();
   });
 
-  it("bb environment update rejects an empty name", async () => {
+  it("patcher environment update rejects an empty name", async () => {
     const patch = vi.fn();
     stubServerApi({ "v1.environments.:id.$patch": patch });
 
@@ -833,7 +833,7 @@ describe("bb environment command output", () => {
     expect(patch).not.toHaveBeenCalled();
   });
 
-  it("bb environment update --json prints the updated environment", async () => {
+  it("patcher environment update --json prints the updated environment", async () => {
     const environment = fixtures.makeEnvironment({
       id: "env-json-update",
       projectId: "proj-1",

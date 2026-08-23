@@ -1,8 +1,8 @@
-import type { AcpAgentProviderId } from "@bb/agent-providers";
+import type { AcpAgentProviderId } from "@patcher/agent-providers";
 import {
   normalizeHostDaemonAcpLaunchSpec,
   type HostDaemonAcpLaunchSpec,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 
 /**
  * CLI model surface of the agent's launch binary: how to discover models and

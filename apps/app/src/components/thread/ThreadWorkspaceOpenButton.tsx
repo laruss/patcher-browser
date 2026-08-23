@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import type {
   WorkspaceOpenTarget,
   WorkspaceOpenTargetId,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   SplitButton,
   type SplitButtonAction,
@@ -11,7 +11,7 @@ import { WorkspaceOpenTargetIcon } from "@/components/workspace-open-target/Work
 import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@/components/ui/chromeStyleTokens";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 interface ThreadWorkspaceOpenButtonProps {
   onOpenPreferredTarget: () => Promise<void>;

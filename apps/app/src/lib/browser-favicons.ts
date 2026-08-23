@@ -1,6 +1,6 @@
 import { atomWithStorage } from "jotai/utils";
 import { z } from "zod";
-import { BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH } from "@bb/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH } from "@patcher/desktop-contract";
 import { createSessionStorageSyncStorage } from "./browser-storage";
 
 /**
@@ -18,7 +18,7 @@ import { createSessionStorageSyncStorage } from "./browser-storage";
  * is the same lifetime the decision above wanted, honestly spelled: it survives
  * the reload, dies with the window, and is a separate budget from the tab list's.
  */
-const BROWSER_FAVICONS_STORAGE_KEY = "bb.browserSurface.favicons-1";
+const BROWSER_FAVICONS_STORAGE_KEY = "patcher.browserSurface.favicons-1";
 
 export type BrowserFaviconsState = Readonly<Record<string, string>>;
 
@@ -32,7 +32,7 @@ const browserFaviconsSchema = z.record(
   z
     .string()
     .min(1)
-    .max(BB_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH)
+    .max(PATCHER_DESKTOP_BROWSER_MAX_FAVICON_DATA_URL_LENGTH)
     .startsWith("data:"),
 );
 

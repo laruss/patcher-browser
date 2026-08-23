@@ -2,13 +2,13 @@ import {
   PERSONAL_PROJECT_ID,
   type ProjectSource,
   type ThreadListEntry,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   ProjectBranchesResponse,
   ProjectWithThreadsResponse,
   SidebarBootstrapResponse,
   TerminalSession,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { describe, expect, it } from "vitest";
 import { parseEnvironmentValue } from "@/components/pickers/environment-picker-value";
 import type { ReuseThreadOption } from "@/components/pickers/WorktreePicker";
@@ -46,13 +46,13 @@ describe("requestRootComposePluginFocus", () => {
   it("routes host focus through the subscriber that reveals the root composer", () => {
     let focusRequests = 0;
     const unsubscribe = subscribeComposerFocusRequests(
-      "bb.promptDraft.new-thread",
+      "patcher.promptDraft.new-thread",
       () => {
         focusRequests += 1;
       },
     );
 
-    requestRootComposePluginFocus("bb.promptDraft.new-thread");
+    requestRootComposePluginFocus("patcher.promptDraft.new-thread");
 
     expect(focusRequests).toBe(1);
     unsubscribe();
@@ -308,9 +308,9 @@ describe("readInitialPromptFromLocationState", () => {
     expect(
       readInitialPromptFromLocationState({
         focusPrompt: true,
-        initialPrompt: "Create a new bb automation to ",
+        initialPrompt: "Create a new Patcher automation to ",
       }),
-    ).toBe("Create a new bb automation to ");
+    ).toBe("Create a new Patcher automation to ");
   });
 
   it("returns null when no usable initialPrompt is present", () => {
@@ -329,13 +329,13 @@ describe("shouldReplaceInitialPromptFromLocationState", () => {
   it("returns true only for explicit replacement seed intents", () => {
     expect(
       shouldReplaceInitialPromptFromLocationState({
-        initialPrompt: "Create a new bb skill to review PRs.",
+        initialPrompt: "Create a new Patcher skill to review PRs.",
         replaceInitialPrompt: true,
       }),
     ).toBe(true);
     expect(
       shouldReplaceInitialPromptFromLocationState({
-        initialPrompt: "Create a new bb skill to review PRs.",
+        initialPrompt: "Create a new Patcher skill to review PRs.",
       }),
     ).toBe(false);
     expect(shouldReplaceInitialPromptFromLocationState(null)).toBe(false);

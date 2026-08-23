@@ -1,6 +1,6 @@
 import type { ThreadEvent } from "./provider-event.js";
 
-export const BB_THREAD_NAME_TAG = "bb";
+export const PATCHER_THREAD_NAME_TAG = "Patcher";
 
 export interface TagThreadNameArgs {
   name: string;
@@ -20,8 +20,8 @@ function threadNameTagPrefix(tag: string): string {
  * Adds exactly one leading tag to a thread name.
  *
  * This intentionally does not check whether the name already starts with the
- * same text. A user title such as `[bb] Literal` must remain round-trippable:
- * externally it becomes `[bb] [bb] Literal`, and removing one leading `bb` tag
+ * same text. A user title such as `[Patcher] Literal` must remain round-trippable:
+ * externally it becomes `[Patcher] [Patcher] Literal`, and removing one leading `Patcher` tag
  * restores the original title.
  */
 export function tagThreadName(args: TagThreadNameArgs): string {
@@ -40,19 +40,19 @@ export function untagThreadName(args: UntagThreadNameArgs): string {
 }
 
 /**
- * bb keeps internal thread titles untagged. When bb explicitly forwards a
+ * Patcher keeps internal thread titles untagged. When Patcher explicitly forwards a
  * title to a provider through a rename command, the runtime tags the
- * provider-facing name with `[bb] ` so provider-native UIs can distinguish
- * bb-owned sessions. Provider-originated names, including Codex
+ * provider-facing name with `[Patcher] ` so provider-native UIs can distinguish
+ * Patcher-owned sessions. Provider-originated names, including Codex
  * `thread/started` previews, are normalized if they already carry this tag but
  * are not forcibly re-renamed by this helper.
  */
 export function toProviderExternalThreadName(title: string): string {
-  return tagThreadName({ name: title, tag: BB_THREAD_NAME_TAG });
+  return tagThreadName({ name: title, tag: PATCHER_THREAD_NAME_TAG });
 }
 
 export function fromProviderExternalThreadName(name: string): string {
-  return untagThreadName({ name, tag: BB_THREAD_NAME_TAG });
+  return untagThreadName({ name, tag: PATCHER_THREAD_NAME_TAG });
 }
 
 export function normalizeProviderThreadNameEvent(

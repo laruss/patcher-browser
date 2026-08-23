@@ -3,13 +3,13 @@
   "name": "accordion",
   "type": "registry:ui",
   "title": "accordion",
-  "description": "BB ui \"accordion\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"accordion\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-accordion",
     "lucide-react"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

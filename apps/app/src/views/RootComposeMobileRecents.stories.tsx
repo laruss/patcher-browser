@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ThreadListEntry } from "@bb/domain";
+import type { ThreadListEntry } from "@patcher/domain";
 import { StoryCard, StoryRow } from "../../.ladle/story-card";
 import {
   PROJECT_IDS,
@@ -39,7 +39,7 @@ function makeRecentThread({
   overrides = {},
 }: MakeRecentThreadArgs = {}): ThreadListEntry {
   return makeThreadListEntry({
-    projectId: PROJECT_IDS.bb,
+    projectId: PROJECT_IDS.patcher,
     ...overrides,
   });
 }
@@ -133,7 +133,7 @@ const statusThreads: ThreadListEntry[] = [
 ];
 
 const projectNamesById = new Map<string, string>([
-  [PROJECT_IDS.bb, PROJECT_NAMES.bb],
+  [PROJECT_IDS.patcher, PROJECT_NAMES.patcher],
   [PROJECT_IDS.pierre, PROJECT_NAMES.pierre],
 ]);
 

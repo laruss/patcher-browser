@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { PluginBrowserTabStatus } from "@bb/plugin-sdk";
+import type { PluginBrowserTabStatus } from "@patcher/plugin-sdk";
 
 /**
  * Marks plugins have put on the browser surface's tabs — the tab **decorator**

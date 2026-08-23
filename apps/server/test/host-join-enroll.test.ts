@@ -1,10 +1,10 @@
-import { authApiKeys, getHost } from "@bb/db";
+import { authApiKeys, getHost } from "@patcher/db";
 import { eq } from "drizzle-orm";
 import {
   hostDaemonEnrollKeyResponseSchema,
   hostDaemonEnrollResponseSchema,
   type HostDaemonEnrollKeyResponse,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { errorToResponse } from "../src/errors.js";
@@ -59,7 +59,7 @@ async function requestHostEnrollKey(
 }
 
 describe("host enroll routes", () => {
-  it("creates local enroll-key material without BB_APP_URL", async () => {
+  it("creates local enroll-key material without PATCHER_APP_URL", async () => {
     const harness = await createTestAppHarness({ appUrl: undefined });
     const app = createInternalHostRouteApp({
       deps: harness.deps,
@@ -80,7 +80,7 @@ describe("host enroll routes", () => {
       expect(response.status).toBe(201);
       const body = await parseHostEnrollKeyResponse(response);
       expect(body.hostId).toBe("host_local_enroll_key");
-      expect(body.enrollKey).toMatch(/^bbde_/u);
+      expect(body.enrollKey).toMatch(/^patcherde_/u);
       // Minting no longer creates the host row; enroll does (with the
       // daemon-reported name), so an unredeemed key leaves no phantom host.
       expect(getHost(harness.db, "host_local_enroll_key")).toBeNull();
@@ -117,30 +117,6 @@ describe("host enroll routes", () => {
     }
   });
 
-  it("rejects machine-gated enroll-key requests even from loopback", async () => {
-    const harness = await createTestAppHarness({ appUrl: undefined });
-    const app = createInternalHostRouteApp({
-      deps: harness.deps,
-      trustedRemoteAddress: "127.0.0.1",
-    });
-    try {
-      const response = await app.request("/hosts/enroll-key", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-bb-gate-auth": "machine",
-        },
-        body: JSON.stringify({ hostId: "host_forbidden_machine" }),
-      });
-      expect(response.status).toBe(403);
-      expect(await readJson(response)).toMatchObject({
-        code: "machine_host_management_forbidden",
-      });
-    } finally {
-      await harness.cleanup();
-    }
-  });
-
   it("exchanges enroll-key material for a daemon host key exactly once", async () => {
     await withTestHarness(async (harness) => {
       const enrollKeyBody = await requestHostEnrollKey(
@@ -171,7 +147,7 @@ describe("host enroll routes", () => {
       expect(enrollBody).toMatchObject({
         hostId: enrollKeyBody.hostId,
       });
-      expect(enrollBody.hostKey).toMatch(/^bbdh_/u);
+      expect(enrollBody.hostKey).toMatch(/^patcherdh_/u);
       expect(getHost(harness.db, enrollKeyBody.hostId)).toMatchObject({
         id: enrollKeyBody.hostId,
         name: "real-host-name",

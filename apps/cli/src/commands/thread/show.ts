@@ -2,7 +2,7 @@ import { Command } from "commander";
 import {
   formatThreadTimelineText,
   type ThreadTimelineTextFormat,
-} from "@bb/thread-view";
+} from "@patcher/thread-view";
 import {
   resolveEnvironmentMergeBaseBranch,
   type Environment,
@@ -11,14 +11,14 @@ import {
   type ThreadPullRequest,
   type ThreadTimelinePendingTodos,
   type WorkspaceStatus,
-} from "@bb/domain";
-import type { BbSdk } from "@bb/sdk";
+} from "@patcher/domain";
+import type { PatcherSdk } from "@patcher/sdk";
 import type {
   EnvironmentDiffQuery,
   ThreadTimelineResponse,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import {
   getErrorMessage,
   outputJson,
@@ -96,7 +96,7 @@ type CliEnvironmentDiffQuery =
 async function fetchWorkStatus(args: {
   environmentId: string;
   mergeBaseBranch: string;
-  sdk: BbSdk;
+  sdk: PatcherSdk;
 }): Promise<FetchedWorkStatus> {
   const environmentStatus = await args.sdk.environments.status({
     environmentId: args.environmentId,
@@ -114,7 +114,7 @@ async function fetchWorkStatus(args: {
 async function fetchGitDiff(args: {
   environmentId: string;
   query: EnvironmentDiffQuery;
-  sdk: BbSdk;
+  sdk: PatcherSdk;
 }): Promise<FetchedGitDiff> {
   const environmentDiff = await args.sdk.environments.diff({
     environmentId: args.environmentId,
@@ -131,7 +131,7 @@ async function fetchGitDiff(args: {
 
 async function fetchPullRequest(args: {
   environmentId: string;
-  sdk: BbSdk;
+  sdk: PatcherSdk;
 }): Promise<FetchedPullRequest> {
   try {
     const response = await args.sdk.environments.pullRequest({
@@ -189,7 +189,7 @@ export function registerShowCommand(
   parent
     .command("show [id]")
     .description("Show thread details and pull request status")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .option("--work-status", "Include work status (git state) in output")
     .option("--git-diff", "Include git diff in output")
@@ -210,7 +210,7 @@ export function registerShowCommand(
     .action(
       action(async (id: string | undefined, opts: ThreadShowCommandOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const thread = await sdk.threads.get({ threadId });
 
         const statusPayload: ThreadStatusPayload = { thread };
@@ -424,7 +424,7 @@ export function registerShowCommand(
   parent
     .command("log [id]")
     .description("Show thread event log")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option(
       "--json",
       "Print machine-readable JSON output (alias for --format json)",
@@ -445,7 +445,7 @@ export function registerShowCommand(
     .action(
       action(async (id: string | undefined, opts: ThreadLogCommandOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const format = resolveThreadTimelineTextFormat(opts);
 
         if (format !== "json" && (opts.limit || opts.afterSeq)) {
@@ -480,12 +480,12 @@ export function registerShowCommand(
   parent
     .command("output [id]")
     .description("Get the final output of a thread")
-    .option("--self", "Target the current thread (from BB_THREAD_ID)")
+    .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (id: string | undefined, opts: ThreadOutputCommandOptions) => {
         const threadId = requireThreadIdOrSelf(id, opts);
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const result = await sdk.threads.output({ threadId });
         if (outputJson(opts, result)) return;
         if (result.output) {

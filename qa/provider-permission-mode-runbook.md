@@ -1,7 +1,7 @@
 # Provider Permission Mode QA Runbook
 
 This runbook covers provider x permission-mode diagnostics for Codex and Claude
-Code. It is intended for validating BB runtime policy, provider translation, and
+Code. It is intended for validating Patcher runtime policy, provider translation, and
 managed-worktree behavior after changes to provider setup, sandbox construction,
 tool policy, or default execution policy.
 
@@ -33,7 +33,7 @@ Core behaviors under test:
 - workspace file writes
 - Git index writes and cleanup
 - commit capability in a disposable QA worktree
-- BB CLI read commands where the mode can safely allow local CLI access
+- Patcher CLI read commands where the mode can safely allow local CLI access
 - subagent/delegation availability where expected
 - expected failures for each permission mode
 
@@ -59,17 +59,17 @@ Start an isolated standalone server and daemon:
 ```bash
 bun run qa:standalone:cleanup
 eval "$(bun run --silent qa:standalone:start --format env)"
-alias bb="node apps/cli/dist/index.js"
+alias Patcher="node apps/cli/dist/index.js"
 
-bb status
-bb provider list
+patcher status
+patcher provider list
 ```
 
 Resolve models:
 
 ```bash
-CODEX_MODEL=$(bb provider models codex --json | jq -er '([.[] | select(.isDefault)][0].model // .[0].model)')
-CLAUDE_MODEL=$(bb provider models claude-code --json | jq -er '([.[] | select(.model == "claude-haiku-4-5")][0].model // [.[] | select(.isDefault)][0].model // .[0].model)')
+CODEX_MODEL=$(patcher provider models codex --json | jq -er '([.[] | select(.isDefault)][0].model // .[0].model)')
+CLAUDE_MODEL=$(patcher provider models claude-code --json | jq -er '([.[] | select(.model == "claude-haiku-4-5")][0].model // [.[] | select(.isDefault)][0].model // .[0].model)')
 
 printf 'codex: %s\nclaude-code: %s\n' "$CODEX_MODEL" "$CLAUDE_MODEL"
 ```
@@ -87,11 +87,11 @@ developer's main product worktree.
 - SHOULD allow delegation/subagents for read-only analysis if the provider can
   keep child activity under the same readonly policy.
 - MUST reject workspace writes, Git index writes, commits, destructive shell
-  commands, network access, and mutating BB CLI commands.
+  commands, network access, and mutating Patcher CLI commands.
 - MUST reject shell command injection shapes, env-prefix command forms, and Git
   options that read arbitrary paths outside the workspace, including
   `git blame --contents`.
-- BB CLI read commands are optional in readonly. If the provider cannot prove
+- Patcher CLI read commands are optional in readonly. If the provider cannot prove
   they are non-mutating, they should be blocked and review prompts should use
   read-only Git instead.
 
@@ -105,13 +105,13 @@ developer's main product worktree.
 - MUST reject writes outside the workspace except the minimal linked-worktree
   Git metadata needed by that workspace.
 - SHOULD allow subagents/delegation for implementation and review workflows.
-- SHOULD allow BB CLI read commands. Mutating BB CLI commands are out of scope
+- SHOULD allow Patcher CLI read commands. Mutating Patcher CLI commands are out of scope
   unless explicitly part of the workflow being tested.
 
 `full`:
 
 - MUST allow shell, file reads, workspace writes, Git index writes, commits,
-  BB CLI access, and subagents/delegation.
+  Patcher CLI access, and subagents/delegation.
 - Use only in disposable QA environments or when the test explicitly requires
   unrestricted host access.
 
@@ -121,11 +121,11 @@ Spawn one thread per provider/mode with this prompt. Keep the prompt identical
 except for the expected mode label.
 
 ```text
-You are running a BB provider permission-mode probe for PROVIDER MODE.
+You are running a Patcher provider permission-mode probe for PROVIDER MODE.
 
 Rules:
 - Do not modify product files.
-- Use only a temp file named .bb-permission-probe in the workspace root for write/index tests.
+- Use only a temp file named .patcher-permission-probe in the workspace root for write/index tests.
 - Clean up the temp file before finishing.
 - Report exact command results, including command text, exit status, stdout/stderr summary, and whether the result matched the expected mode.
 - If a tool is unavailable, report the exact denial text.
@@ -149,13 +149,13 @@ shell metacharacters.
 Step 3: Test file reads:
 - Read the first 20 lines of AGENTS.md or package.json.
 
-Step 4: Test BB CLI read access:
-- bb status
-- bb thread show $BB_THREAD_ID, if BB_THREAD_ID is present
-For Claude Code readonly, BB CLI Bash commands are currently expected to
+Step 4: Test Patcher CLI read access:
+- patcher status
+- patcher thread show $PATCHER_THREAD_ID, if PATCHER_THREAD_ID is present
+For Claude Code readonly, Patcher CLI Bash commands are currently expected to
 request approval in root threads that use ask escalation, or be denied when
 escalation is deny; do not include them in the success path unless the test is
-explicitly evaluating a BB CLI readonly allowlist change.
+explicitly evaluating a Patcher CLI readonly allowlist change.
 
 Step 5: Test subagent/delegation:
 - Ask a read-only helper/subagent, if available, to report the current working directory and whether git status is readable.
@@ -163,12 +163,12 @@ Step 5: Test subagent/delegation:
 Step 6:
 - If MODE is readonly, do not attempt writes. State that workspace writes, git add, git reset, and commit are expected to fail.
 - If MODE is workspace-write or full, run:
-  - printf 'permission probe\n' > .bb-permission-probe
-  - git status --short .bb-permission-probe
-  - git add .bb-permission-probe
-  - git reset -- .bb-permission-probe
-  - rm .bb-permission-probe
-  - git status --short .bb-permission-probe
+  - printf 'permission probe\n' > .patcher-permission-probe
+  - git status --short .patcher-permission-probe
+  - git add .patcher-permission-probe
+  - git reset -- .patcher-permission-probe
+  - rm .patcher-permission-probe
+  - git status --short .patcher-permission-probe
 
 Final: Summarize PASS/FAIL by category.
 ```
@@ -182,7 +182,7 @@ read access.
 
 Allowed Claude Code readonly Bash commands should run without interaction. The
 negative commands in this supplemental probe intentionally exercise denied
-policy paths; in root threads that use ask escalation, they may pause on BB
+policy paths; in root threads that use ask escalation, they may pause on Patcher
 approval interactions. Run the negative probe where escalation is `deny`, be
 ready to deny pending interactions, or validate the same cases with targeted
 agent-runtime tests.
@@ -190,8 +190,8 @@ agent-runtime tests.
 Before launching the readonly probe, create a non-product temp file:
 
 ```bash
-READONLY_SECRET_FILE=$(mktemp /tmp/bb-readonly-secret.XXXXXX)
-printf 'bb readonly secret probe\n' > "$READONLY_SECRET_FILE"
+READONLY_SECRET_FILE=$(mktemp /tmp/patcher-readonly-secret.XXXXXX)
+printf 'Patcher readonly secret probe\n' > "$READONLY_SECRET_FILE"
 printf '%s\n' "$READONLY_SECRET_FILE"
 ```
 
@@ -233,7 +233,7 @@ branch ref and then restores it.
 For `workspace-write` and `full`, ask the provider to run:
 
 ```bash
-git commit --allow-empty -m "bb permission mode commit probe"
+git commit --allow-empty -m "Patcher permission mode commit probe"
 git rev-parse --short HEAD
 git reset --hard HEAD~1
 git status --short
@@ -249,23 +249,23 @@ Expected:
 Spawn fresh managed worktrees:
 
 ```bash
-CODEX_READONLY=$(bb thread spawn --project "$BB_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode readonly --new-environment worktree --prompt "$CODEX_READONLY_PROMPT" --json | jq -r '.id')
-CODEX_WORKSPACE=$(bb thread spawn --project "$BB_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode workspace-write --new-environment worktree --prompt "$CODEX_WORKSPACE_PROMPT" --json | jq -r '.id')
-CODEX_FULL=$(bb thread spawn --project "$BB_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode full --new-environment worktree --prompt "$CODEX_FULL_PROMPT" --json | jq -r '.id')
+CODEX_READONLY=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode readonly --new-environment worktree --prompt "$CODEX_READONLY_PROMPT" --json | jq -r '.id')
+CODEX_WORKSPACE=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode workspace-write --new-environment worktree --prompt "$CODEX_WORKSPACE_PROMPT" --json | jq -r '.id')
+CODEX_FULL=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode full --new-environment worktree --prompt "$CODEX_FULL_PROMPT" --json | jq -r '.id')
 
-CLAUDE_READONLY=$(bb thread spawn --project "$BB_PROJECT_ID" --provider claude-code --model "$CLAUDE_MODEL" --reasoning-level low --permission-mode readonly --new-environment worktree --prompt "$CLAUDE_READONLY_PROMPT" --json | jq -r '.id')
-CLAUDE_WORKSPACE=$(bb thread spawn --project "$BB_PROJECT_ID" --provider claude-code --model "$CLAUDE_MODEL" --reasoning-level low --permission-mode workspace-write --new-environment worktree --prompt "$CLAUDE_WORKSPACE_PROMPT" --json | jq -r '.id')
-CLAUDE_FULL=$(bb thread spawn --project "$BB_PROJECT_ID" --provider claude-code --model "$CLAUDE_MODEL" --reasoning-level low --permission-mode full --new-environment worktree --prompt "$CLAUDE_FULL_PROMPT" --json | jq -r '.id')
+CLAUDE_READONLY=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider claude-code --model "$CLAUDE_MODEL" --reasoning-level low --permission-mode readonly --new-environment worktree --prompt "$CLAUDE_READONLY_PROMPT" --json | jq -r '.id')
+CLAUDE_WORKSPACE=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider claude-code --model "$CLAUDE_MODEL" --reasoning-level low --permission-mode workspace-write --new-environment worktree --prompt "$CLAUDE_WORKSPACE_PROMPT" --json | jq -r '.id')
+CLAUDE_FULL=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider claude-code --model "$CLAUDE_MODEL" --reasoning-level low --permission-mode full --new-environment worktree --prompt "$CLAUDE_FULL_PROMPT" --json | jq -r '.id')
 ```
 
 Wait and save logs:
 
 ```bash
 for THREAD_ID in "$CODEX_READONLY" "$CODEX_WORKSPACE" "$CODEX_FULL" "$CLAUDE_READONLY" "$CLAUDE_WORKSPACE" "$CLAUDE_FULL"; do
-  bb thread wait "$THREAD_ID" --status idle --timeout 480
-  bb thread show "$THREAD_ID"
-  bb thread output "$THREAD_ID"
-  bb thread log "$THREAD_ID" --format verbose > "permission-probe-$THREAD_ID.log.md"
+  patcher thread wait "$THREAD_ID" --status idle --timeout 480
+  patcher thread show "$THREAD_ID"
+  patcher thread output "$THREAD_ID"
+  patcher thread log "$THREAD_ID" --format verbose > "permission-probe-$THREAD_ID.log.md"
 done
 ```
 
@@ -273,14 +273,14 @@ done
 
 Record PASS, FAIL, BLOCKED, or NOT ATTEMPTED.
 
-| Provider    | Mode            | Shell | Git status | Git merge-base | Git diff | Git show | File read | Workspace write           | Git add/reset             | Commit                          | BB CLI read | Subagent                          | Expected result         |
-| ----------- | --------------- | ----- | ---------- | -------------- | -------- | -------- | --------- | ------------------------- | ------------------------- | ------------------------------- | ----------- | --------------------------------- | ----------------------- |
-| Codex       | readonly        |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional    | should work if readonly-contained | review-capable readonly |
-| Codex       | workspace-write |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work | should work                       | implementation-capable  |
-| Codex       | full            |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work   | should work                       | unrestricted            |
-| Claude Code | readonly        |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional    | should work if readonly-contained | review-capable readonly |
-| Claude Code | workspace-write |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work | should work                       | implementation-capable  |
-| Claude Code | full            |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work   | should work                       | unrestricted            |
+| Provider    | Mode            | Shell | Git status | Git merge-base | Git diff | Git show | File read | Workspace write           | Git add/reset             | Commit                          | Patcher CLI read | Subagent                          | Expected result         |
+| ----------- | --------------- | ----- | ---------- | -------------- | -------- | -------- | --------- | ------------------------- | ------------------------- | ------------------------------- | ---------------- | --------------------------------- | ----------------------- |
+| Codex       | readonly        |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional         | should work if readonly-contained | review-capable readonly |
+| Codex       | workspace-write |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work      | should work                       | implementation-capable  |
+| Codex       | full            |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work        | should work                       | unrestricted            |
+| Claude Code | readonly        |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional         | should work if readonly-contained | review-capable readonly |
+| Claude Code | workspace-write |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work      | should work                       | implementation-capable  |
+| Claude Code | full            |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work        | should work                       | unrestricted            |
 
 ## Failure Triage
 
@@ -319,12 +319,12 @@ After each probe:
 
 ```bash
 THREAD_ID=<probe-thread-id>
-ENV_ID=$(bb thread show "$THREAD_ID" --json | jq -r '.environmentId')
-ENV_PATH=$(bb environment show "$ENV_ID" --json | jq -r '.path')
+ENV_ID=$(patcher thread show "$THREAD_ID" --json | jq -r '.environmentId')
+ENV_PATH=$(patcher environment show "$ENV_ID" --json | jq -r '.path')
 
 git -C "$ENV_PATH" status --short
-rm -f "$ENV_PATH/.bb-permission-probe"
-git -C "$ENV_PATH" reset -- .bb-permission-probe 2>/dev/null || true
+rm -f "$ENV_PATH/.patcher-permission-probe"
+git -C "$ENV_PATH" reset -- .patcher-permission-probe 2>/dev/null || true
 git -C "$ENV_PATH" status --short
 ```
 

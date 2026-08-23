@@ -3,7 +3,7 @@ import type {
   Environment,
   ThreadPullRequest,
   WorkspaceDiffTarget,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   EnvironmentDiffFileResponse,
   EnvironmentDiffBranchesResponse,
@@ -11,8 +11,8 @@ import type {
   EnvironmentPullRequestResponse,
   EnvironmentStatusResponse,
   WorkspacePathListResponse,
-} from "@bb/server-contract";
-import type { EnvironmentDiffArgs } from "@bb/sdk/browser";
+} from "@patcher/server-contract";
+import type { EnvironmentDiffArgs } from "@patcher/sdk/browser";
 import {
   buildFilePreview,
   normalizeFilePreviewMimeType,

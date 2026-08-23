@@ -3,8 +3,8 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import matter from "gray-matter";
-import { resolveDataDirSkillsRootPath } from "@bb/config/skill-storage-paths";
-import type { HostDaemonInjectedSkillSource } from "@bb/host-daemon-contract";
+import { resolveDataDirSkillsRootPath } from "@patcher/config/skill-storage-paths";
+import type { HostDaemonInjectedSkillSource } from "@patcher/host-daemon-contract";
 import { z } from "zod";
 import type { ServerLogger } from "../../types.js";
 import { REGISTRY_SKILL_PROVENANCE_FILE_NAME } from "./registry-skill-provenance.js";
@@ -259,7 +259,7 @@ export function hashSkillTreeEntries(
   entries: readonly SkillTreeEntry[],
 ): string {
   const hash = createHash("sha256");
-  hash.update("bb-skill-tree-v1");
+  hash.update("patcher-skill-tree-v1");
   for (const entry of [...entries].sort((left, right) =>
     compareStringsByCodePoint(left.path, right.path),
   )) {

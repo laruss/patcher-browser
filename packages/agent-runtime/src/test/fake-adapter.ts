@@ -10,7 +10,7 @@ import {
   type PendingInteractionUserQuestionOption,
   type ProviderCapabilities,
   type ThreadEvent,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type {
   AdapterCommand,
   BuildInteractiveResponseArgs,
@@ -461,10 +461,10 @@ export function createFakeAdapter(
    * Fake provider input control tokens:
    * - `delay:<ms>` delays turn completion by the requested duration.
    * - `call_tool:<name>` emits a provider-scoped tool call with required
-   *   `providerThreadId` and no BB `threadId` hint.
+   *   `providerThreadId` and no Patcher `threadId` hint.
    * - `call_tool_unresolved:<name>` emits the same tool call with a null
    *   `turnId`, matching the canonical bridge wire form for providers that
-   *   cannot resolve the BB turn id.
+   *   cannot resolve the Patcher turn id.
    * - `ask_user` emits a provider-scoped user-question interactive request
    *   when the adapter is configured with `supportsUserQuestion: true`.
    * - remaining text is echoed back as `Response to: ...`.

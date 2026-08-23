@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { PromptMentionCommandTrigger } from "@bb/domain";
+import type { PromptMentionCommandTrigger } from "@patcher/domain";
 import {
   toProviderCommandSuggestion,
   type ProviderCommandSuggestion,

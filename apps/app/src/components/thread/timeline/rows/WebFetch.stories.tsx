@@ -1,4 +1,4 @@
-import type { TimelineRow } from "@bb/server-contract";
+import type { TimelineRow } from "@patcher/server-contract";
 import { ThreadTimelineRows } from "@/components/thread/timeline";
 import { webFetchRow } from "@/test/fixtures/thread-timeline-rows";
 import { StoryCard, StoryRow } from "../../../../../.ladle/story-card";
@@ -17,7 +17,7 @@ const baseProps = {
 };
 
 // ---------------------------------------------------------------------------
-// Real web-fetch rows pulled from live threads in ~/.bb-dev/bb.db.
+// Real web-fetch rows pulled from live threads in ~/.patcher-dev/patcher.db.
 // webFetch events emit only `item/completed`, so startedAt == createdAt
 // unless an explicit `item/started` exists (e.g. the Anthropic toolu_ row).
 // ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ const runningFetch: TimelineRow = webFetchRow({
 });
 
 // Error — same shape as urlOnlyFetch but flipped to status=error.
-// No real "errored" web-fetch rows exist in ~/.bb-dev/bb.db; we reuse a real
+// No real "errored" web-fetch rows exist in ~/.patcher-dev/patcher.db; we reuse a real
 // URL payload and surface the error state.
 const erroredFetch: TimelineRow = webFetchRow({
   id: "thr_yr83zs2m7f:web-fetch:ws_errored",

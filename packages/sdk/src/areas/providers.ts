@@ -1,7 +1,7 @@
 import type {
   SystemExecutionOptionsResponse,
   SystemProviderInfo,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
 /** Select exactly one provider-discovery host source, or omit both for primary. */

@@ -1,16 +1,16 @@
 /**
  * A plugin, running in its own process.
  *
- * The thing this file does **not** do is build a second `bb`. `createPluginApi`
+ * The thing this file does **not** do is build a second `patcher`. `createPluginApi`
  * already takes every host-facing capability as an injected function — that was
  * always the seam, it just pointed at the server — so the plugin's process
  * builds the *same* object with those functions pointed at the channel. One
- * copy of what `bb.storage.kv.set` means, of the 256KB limit, of every error
+ * copy of what `patcher.storage.kv.set` means, of the 256KB limit, of every error
  * string, running on both sides of the boundary.
  *
  * This is deliberate and it is the lesson the repo already paid for twice: the
  * fake plugin host drifted from the real one, and the JS permission gate
- * drifted from the HTTP one. A hand-written plugin-side `bb` would be the third.
+ * drifted from the HTTP one. A hand-written plugin-side `patcher` would be the third.
  *
  * Not wired into the loader yet: nothing spawns this. It is exercised over a
  * linked port pair and, in one test, as a real forked process.
@@ -18,12 +18,15 @@
 
 import { createRequire } from "node:module";
 import { Hono } from "hono";
-import type { PluginPermission } from "@bb/domain";
-import type { BbSdk } from "@bb/sdk";
-import type { AppKeybindingOverrides, BrowserSearchEngine } from "@bb/domain";
-import type { PluginSettingDescriptors } from "@bb/plugin-sdk";
+import type { PluginPermission } from "@patcher/domain";
+import type { PatcherSdk } from "@patcher/sdk";
 import type {
-  BbPluginApi,
+  AppKeybindingOverrides,
+  BrowserSearchEngine,
+} from "@patcher/domain";
+import type { PluginSettingDescriptors } from "@patcher/plugin-sdk";
+import type {
+  PatcherPluginApi,
   PluginAgentToolExperimentalStatusLabels,
   PluginApiHandle,
   PluginCliCommandInfo,
@@ -64,13 +67,13 @@ import type { PluginServiceCommand } from "./plugin-service-message.js";
 export interface PluginHostConfig {
   pluginId: string;
   permissions: readonly PluginPermission[] | undefined;
-  /** What `bb.sites` declared; see the same field on `createPluginApi`. */
+  /** What `patcher.sites` declared; see the same field on `createPluginApi`. */
   sites: readonly string[] | undefined;
-  /** For `bb.storage.database()`, which this process opens itself. */
+  /** For `patcher.storage.database()`, which this process opens itself. */
   dataDir: string;
   /**
    * Null when the server is not listening yet. A plugin can load before that,
-   * and `bb.server.loopbackBaseUrl` is bind-gated for exactly that reason — so
+   * and `patcher.server.loopbackBaseUrl` is bind-gated for exactly that reason — so
    * the gate travels rather than being quietly removed. The host pushes
    * `host.loopbackBaseUrl` once it binds.
    */
@@ -83,7 +86,7 @@ export interface PluginHostConfig {
    * The two synchronous host facts, as they stand at bootstrap.
    *
    * They are pushed as notifications afterwards, but the factory runs *during*
-   * bootstrap and reads both — `bb.agents.registerTool` checks the owners map
+   * bootstrap and reads both — `patcher.agents.registerTool` checks the owners map
    * to refuse a name another plugin already took — so an empty starting value
    * is not a stale copy, it is a wrong answer at the only moment it is asked.
    */
@@ -186,7 +189,7 @@ export interface PluginRegistrationSnapshot {
 export const BOOTSTRAP_METHOD = "bootstrap";
 
 /** The plugin factory a server entry default-exports. */
-export type PluginFactory = (bb: BbPluginApi) => unknown;
+export type PluginFactory = (patcher: PatcherPluginApi) => unknown;
 
 export interface PluginChildRuntimeOptions {
   port: PluginPort;
@@ -208,7 +211,7 @@ async function defaultLoadFactory(entry: string): Promise<PluginFactory> {
   const { createJiti } = await import("jiti");
   const { pluginExternalsAlias } = await import("./plugin-externals-alias.js");
   // The same alias the in-process loader uses. Without it the first plugin
-  // that imports `@bb/plugin-sdk` — which is most of them — fails to load, and
+  // that imports `@patcher/plugin-sdk` — which is most of them — fails to load, and
   // all the server sees is a process that died on bootstrap.
   const jiti = createJiti(import.meta.url, {
     moduleCache: false,
@@ -219,7 +222,7 @@ async function defaultLoadFactory(entry: string): Promise<PluginFactory> {
   const mod = (await jiti.import(entry)) as { default?: unknown };
   if (typeof mod.default !== "function") {
     throw new Error(
-      `server entry must default-export a factory (bb) => void, got ${typeof mod.default}`,
+      `server entry must default-export a factory (patcher) => void, got ${typeof mod.default}`,
     );
   }
   return mod.default as PluginFactory;
@@ -248,7 +251,7 @@ export function createPluginChildRuntime(
   let agentToolOwners: Record<string, string> = {};
   let loopbackBaseUrl: string | null = null;
   /** Dropped when the loopback URL changes, mirroring `pluginSdks.clear()`. */
-  let sdk: BbSdk | undefined;
+  let sdk: PatcherSdk | undefined;
 
   const channel = createPluginChannel<PluginHostCallPath, PluginCallbackKind>({
     port: options.port,
@@ -349,9 +352,9 @@ export function createPluginChildRuntime(
         // listening" error a plugin sees in-process.
         if (loopbackBaseUrl === null) return undefined;
         // Built once, lazily: the SDK opens a websocket, and a plugin that
-        // never touches bb.sdk should not have one.
-        const bbSdk = loadBbSdk();
-        sdk ??= bbSdk.createNodeBbSdk({
+        // never touches patcher.sdk should not have one.
+        const patcherSdk = loadPatcherSdk();
+        sdk ??= patcherSdk.createNodePatcherSdk({
           baseUrl: loopbackBaseUrl,
           // The same two identity wrappers the in-process client gets, for the
           // same two reasons: the timeout fetch must not be dropped, and /ws
@@ -359,11 +362,11 @@ export function createPluginChildRuntime(
           fetch: createPluginApiFetch({
             pluginId: config.pluginId,
             key: config.apiKey,
-            fetch: bbSdk.createRequestTimeoutFetch({
-              timeoutMs: bbSdk.DEFAULT_BB_REQUEST_TIMEOUT_MS,
+            fetch: patcherSdk.createRequestTimeoutFetch({
+              timeoutMs: patcherSdk.DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
             }),
           }),
-          websocket: bbSdk.createNodeWebsocketFactory({
+          websocket: patcherSdk.createNodeWebsocketFactory({
             headers: pluginApiHeaders({
               pluginId: config.pluginId,
               key: config.apiKey,
@@ -415,24 +418,6 @@ export function createPluginChildRuntime(
           { command: args.command, timeoutMs: args.timeoutMs ?? null },
           args.signal,
         ) as never,
-      ensureSharedPortTunnel: (hostId) =>
-        call("hosts.ensureSharedPortTunnel", { hostId }) as never,
-      // See the note on hosts.declareSharedPorts in plugin-host-calls.ts: the
-      // policy this validated against is host state and the member is
-      // synchronous, so the check cannot happen here. The host validates what
-      // it is told; a rejection reaches the plugin as a log line, not a throw.
-      validateSharedPortDeclaration: (_hostId, ports) => ports,
-      declareSharedPorts: (hostId, ports) => {
-        send("hosts.declareSharedPorts", { hostId, ports: [...ports] });
-      },
-      replaceDeclaredSharedPorts: (declarations) => {
-        send("hosts.declareSharedPorts", {
-          replace: declarations.map((one) => ({
-            hostId: one.hostId,
-            ports: [...one.ports],
-          })),
-        });
-      },
     });
     handle = built;
 
@@ -884,12 +869,12 @@ function snapshot(handle: PluginApiHandle): PluginRegistrationSnapshot {
 }
 
 /**
- * `@bb/sdk`, loaded the first time a plugin asks for `bb.sdk` — and loaded
+ * `@patcher/sdk`, loaded the first time a plugin asks for `patcher.sdk` — and loaded
  * *synchronously*, because `getSdk()` is synchronous and the plugin-facing
- * contract (`bb.sdk.threads.list()`, `bb.sdk.guide.render()`) has members that
+ * contract (`patcher.sdk.threads.list()`, `patcher.sdk.guide.render()`) has members that
  * answer without awaiting anything.
  *
- * This is the single biggest thing a plugin process pays for. `@bb/sdk` pulls
+ * This is the single biggest thing a plugin process pays for. `@patcher/sdk` pulls
  * `createApiClient`, which builds the whole public API surface — every route,
  * every zod schema — at import time: **~100MB resident, in every plugin
  * process, whether or not the plugin ever touches the SDK.** Measured by
@@ -902,12 +887,14 @@ function snapshot(handle: PluginApiHandle): PluginRegistrationSnapshot {
  * `createRequire` resolves it from the workspace. Both branches load the same
  * module — only who resolves it differs.
  */
-let bbSdkModule: typeof import("@bb/sdk") | undefined;
+let patcherSdkModule: typeof import("@patcher/sdk") | undefined;
 
-function loadBbSdk(): typeof import("@bb/sdk") {
-  bbSdkModule ??=
+function loadPatcherSdk(): typeof import("@patcher/sdk") {
+  patcherSdkModule ??=
     typeof require === "function"
-      ? (require("@bb/sdk") as typeof import("@bb/sdk"))
-      : (createRequire(import.meta.url)("@bb/sdk") as typeof import("@bb/sdk"));
-  return bbSdkModule;
+      ? (require("@patcher/sdk") as typeof import("@patcher/sdk"))
+      : (createRequire(import.meta.url)(
+          "@patcher/sdk",
+        ) as typeof import("@patcher/sdk"));
+  return patcherSdkModule;
 }

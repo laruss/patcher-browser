@@ -42,7 +42,7 @@ import type {
   ThreadChangeKind,
   ThreadEventType,
   ThreadWithRuntime,
-} from "@bb/domain";
+} from "@patcher/domain";
 import {
   getCachedEnvironmentRefWorkspaceStateInvalidationQueryKeys,
   getCachedGlobalThreadListInvalidationQueryKeys,

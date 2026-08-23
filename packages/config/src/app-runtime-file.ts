@@ -3,32 +3,32 @@ import { basename, join } from "node:path";
 import { z } from "zod";
 
 /**
- * A running `bb-app start` writes this file into its data directory and removes
+ * A running `patcher-app start` writes this file into its data directory and removes
  * it on exit. It lets another process on the same machine identify the running
- * bb, describe it to a person, and stop it.
+ * Patcher, describe it to a person, and stop it.
  *
  * The desktop app reads it after a server probe succeeds, so it can offer to
- * quit the other copy instead of attaching to it. A bb that predates this file
+ * quit the other copy instead of attaching to it. A Patcher that predates this file
  * simply writes nothing; readers must treat a missing file as "unknown", not as
  * "not running".
  */
-export const BB_APP_RUNTIME_FILE_NAME = "bb-app-runtime.json";
+export const PATCHER_APP_RUNTIME_FILE_NAME = "patcher-app-runtime.json";
 
-export const bbAppRuntimeFileSchema = z.object({
+export const patcherAppRuntimeFileSchema = z.object({
   /** Absolute path of the entry module. Readers verify it against `ps`. */
   entryPath: z.string().min(1),
   /** PID of the launcher process that supervises the server and daemon. */
   pid: z.number().int().positive(),
-  /** How the launcher was started, from `BB_APP_SURFACE`. */
+  /** How the launcher was started, from `PATCHER_APP_SURFACE`. */
   surface: z.string().min(1),
   serverUrl: z.string().min(1),
   startedAt: z.string().min(1),
   version: z.string().min(1),
 });
 
-export type BbAppRuntimeFile = z.infer<typeof bbAppRuntimeFileSchema>;
+export type PatcherAppRuntimeFile = z.infer<typeof patcherAppRuntimeFileSchema>;
 
-export interface WriteBbAppRuntimeFileArgs {
+export interface WritePatcherAppRuntimeFileArgs {
   dataDir: string;
   entryPath: string;
   pid: number;
@@ -38,8 +38,8 @@ export interface WriteBbAppRuntimeFileArgs {
   version: string;
 }
 
-export function formatBbAppRuntimeFilePath(dataDir: string): string {
-  return join(dataDir, BB_APP_RUNTIME_FILE_NAME);
+export function formatPatcherAppRuntimeFilePath(dataDir: string): string {
+  return join(dataDir, PATCHER_APP_RUNTIME_FILE_NAME);
 }
 
 function defaultIsRunning(pid: number): boolean {
@@ -51,10 +51,10 @@ function defaultIsRunning(pid: number): boolean {
   }
 }
 
-export async function writeBbAppRuntimeFile(
-  args: WriteBbAppRuntimeFileArgs,
+export async function writePatcherAppRuntimeFile(
+  args: WritePatcherAppRuntimeFileArgs,
 ): Promise<void> {
-  const runtimeFile: BbAppRuntimeFile = {
+  const runtimeFile: PatcherAppRuntimeFile = {
     entryPath: args.entryPath,
     pid: args.pid,
     serverUrl: args.serverUrl,
@@ -64,7 +64,7 @@ export async function writeBbAppRuntimeFile(
   };
   await mkdir(args.dataDir, { recursive: true });
   await writeFile(
-    formatBbAppRuntimeFilePath(args.dataDir),
+    formatPatcherAppRuntimeFilePath(args.dataDir),
     `${JSON.stringify(runtimeFile, null, 2)}\n`,
     "utf8",
   );
@@ -77,15 +77,17 @@ export async function writeBbAppRuntimeFile(
  *
  * Ownership is decided by liveness alone. A record whose process is gone is
  * stale and gets replaced. This is not an exclusive lock: the daemon lock and
- * the server port are what actually prevent two bb instances on one data
+ * the server port are what actually prevent two Patcher instances on one data
  * directory. The check only stops a doomed second start from erasing the record
- * of the bb that is running.
+ * of the Patcher that is running.
  */
-export async function claimBbAppRuntimeFile(
-  args: WriteBbAppRuntimeFileArgs & { isRunning?: (pid: number) => boolean },
+export async function claimPatcherAppRuntimeFile(
+  args: WritePatcherAppRuntimeFileArgs & {
+    isRunning?: (pid: number) => boolean;
+  },
 ): Promise<boolean> {
   const isRunning = args.isRunning ?? defaultIsRunning;
-  const existing = await readBbAppRuntimeFile(args.dataDir);
+  const existing = await readPatcherAppRuntimeFile(args.dataDir);
   if (
     existing !== null &&
     existing.pid !== args.pid &&
@@ -93,28 +95,30 @@ export async function claimBbAppRuntimeFile(
   ) {
     return false;
   }
-  await writeBbAppRuntimeFile(args);
+  await writePatcherAppRuntimeFile(args);
   return true;
 }
 
-export async function clearBbAppRuntimeFile(dataDir: string): Promise<void> {
-  await rm(formatBbAppRuntimeFilePath(dataDir), { force: true });
+export async function clearPatcherAppRuntimeFile(
+  dataDir: string,
+): Promise<void> {
+  await rm(formatPatcherAppRuntimeFilePath(dataDir), { force: true });
 }
 
 /**
  * Remove the record only while it still names `pid`. A second launcher that
  * overwrote the file must not delete the live launcher's record when it exits,
- * because `bb-app stop` would then be unable to find the bb that is running.
+ * because `patcher-app stop` would then be unable to find the Patcher that is running.
  */
-export async function clearOwnBbAppRuntimeFile(args: {
+export async function clearOwnPatcherAppRuntimeFile(args: {
   dataDir: string;
   pid: number;
 }): Promise<boolean> {
-  const runtimeFile = await readBbAppRuntimeFile(args.dataDir);
+  const runtimeFile = await readPatcherAppRuntimeFile(args.dataDir);
   if (runtimeFile === null || runtimeFile.pid !== args.pid) {
     return false;
   }
-  await clearBbAppRuntimeFile(args.dataDir);
+  await clearPatcherAppRuntimeFile(args.dataDir);
   return true;
 }
 
@@ -124,27 +128,32 @@ export async function clearOwnBbAppRuntimeFile(args: {
  * reports the command line as it was typed, so a launcher started with a
  * relative path never shows the absolute form.
  *
- * These tokens do not establish identity on their own: every bb launcher on the
+ * These tokens do not establish identity on their own: every Patcher launcher on the
  * machine shares the same file name. The caller must also compare the recorded
  * start time, which is what separates this launcher from another one and from a
  * recycled PID.
  */
-export function bbAppRuntimeVerifyTokens(entryPath: string): string[] {
+export function patcherAppRuntimeVerifyTokens(entryPath: string): string[] {
   return [entryPath, basename(entryPath)];
 }
 
-export async function readBbAppRuntimeFile(
+export async function readPatcherAppRuntimeFile(
   dataDir: string,
-): Promise<BbAppRuntimeFile | null> {
+): Promise<PatcherAppRuntimeFile | null> {
   let rawContents: string;
   try {
-    rawContents = await readFile(formatBbAppRuntimeFilePath(dataDir), "utf8");
+    rawContents = await readFile(
+      formatPatcherAppRuntimeFilePath(dataDir),
+      "utf8",
+    );
   } catch {
     return null;
   }
 
   try {
-    const parsed = bbAppRuntimeFileSchema.safeParse(JSON.parse(rawContents));
+    const parsed = patcherAppRuntimeFileSchema.safeParse(
+      JSON.parse(rawContents),
+    );
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

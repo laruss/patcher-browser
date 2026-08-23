@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { turnScope, type PromptTextMention } from "@bb/domain";
+import { turnScope, type PromptTextMention } from "@patcher/domain";
 import {
   createTimelineEventFactory,
   type TimelineEventFactory,
@@ -49,7 +49,7 @@ function systemSteerRequest(): ClientTurnRequestedEventRow {
     initiator: "system",
     senderThreadId: null,
     target: { kind: "auto", expectedTurnId: "turn-1" },
-    text: "[bb system] Mid-turn nudge",
+    text: "[Patcher system] Mid-turn nudge",
   });
 }
 
@@ -59,7 +59,7 @@ function systemMessageRequest(): ClientTurnRequestedEventRow {
     initiator: "system",
     senderThreadId: null,
     target: { kind: "new-turn" },
-    text: "[bb system] Maintenance notice.",
+    text: "[Patcher system] Maintenance notice.",
   });
 }
 
@@ -108,7 +108,7 @@ describe("user message parsing", () => {
     const parsed = parsePromptInput([
       {
         type: "text",
-        text: "[bb system]\n\nHidden agent-only context:\n\nsecret",
+        text: "[Patcher system]\n\nHidden agent-only context:\n\nsecret",
         mentions: [],
         visibility: "agent-only",
       },
@@ -137,7 +137,7 @@ describe("user message parsing", () => {
     const parsed = parsePromptInput([
       {
         type: "text",
-        text: "[bb system]\n\nHidden agent-only context was removed.",
+        text: "[Patcher system]\n\nHidden agent-only context was removed.",
         mentions: [],
         visibility: "agent-only",
       },
@@ -243,7 +243,7 @@ describe("user message parsing", () => {
 
   it("populates initiator, senderThreadId, and turnRequest for agent-initiated messages", () => {
     const factory = createTimelineEventFactory({ threadId: "thread-1" });
-    const agentText = "[bb message from thread:thr_sender]\n\nHi";
+    const agentText = "[Patcher message from thread:thr_sender]\n\nHi";
     const row = factory.clientTurnRequested({
       initiator: "agent",
       senderThreadId: SENDER_THREAD_ID,
@@ -263,35 +263,46 @@ describe("user message parsing", () => {
       initiator: "agent",
       senderThreadId: SENDER_THREAD_ID,
       turnRequest: { isGrouped: false, kind: "message", status: "pending" },
-      // Text passes through unchanged — the renderer mutes the `[bb …]`
+      // Text passes through unchanged — the renderer mutes the `[Patcher …]`
       // prefix at display time; the projection never slices.
       text: agentText,
     });
   });
 
-  it("recovers agent attribution from a legacy cross-thread envelope", () => {
-    const factory = createTimelineEventFactory({ threadId: "thread-1" });
-    const row = factory.clientTurnRequested({
-      initiator: "user",
-      senderThreadId: null,
-      target: { kind: "new-turn" },
-      text: "[bb message from thread:thr_legacy; reply later]\n\nLegacy handoff",
-    });
-    const { event, meta } = decodeThreadEventRow(row);
+  // A row with no `senderThreadId` was necessarily written by a build that
+  // predates that metadata — and therefore also predates the rename, so its
+  // text carries the `[bb …]` envelope. Asserted as those exact bytes: with the
+  // new spelling here the case is unreachable in production and the test proves
+  // nothing.
+  it.each([
+    ["[bb message from thread:thr_legacy; reply later]\n\nLegacy handoff"],
+    ["[Patcher message from thread:thr_legacy; reply later]\n\nLegacy handoff"],
+  ])(
+    "recovers agent attribution from a legacy cross-thread envelope",
+    (text) => {
+      const factory = createTimelineEventFactory({ threadId: "thread-1" });
+      const row = factory.clientTurnRequested({
+        initiator: "user",
+        senderThreadId: null,
+        target: { kind: "new-turn" },
+        text,
+      });
+      const { event, meta } = decodeThreadEventRow(row);
 
-    const message = parseUserFromClientRequest({
-      decoded: event,
-      meta,
-      options: standardProjectionOptions,
-    });
+      const message = parseUserFromClientRequest({
+        decoded: event,
+        meta,
+        options: standardProjectionOptions,
+      });
 
-    expect(message).toMatchObject({
-      kind: "user",
-      initiator: "agent",
-      senderThreadId: "thr_legacy",
-      text: "[bb message from thread:thr_legacy; reply later]\n\nLegacy handoff",
-    });
-  });
+      expect(message).toMatchObject({
+        kind: "user",
+        initiator: "agent",
+        senderThreadId: "thr_legacy",
+        text,
+      });
+    },
+  );
 
   it("populates initiator for system-initiated messages with a turnRequest", () => {
     const { event, meta } = decodeThreadEventRow(systemMessageRequest());
@@ -313,8 +324,8 @@ describe("user message parsing", () => {
   it("preserves mentions for system-initiated messages", () => {
     const factory = createTimelineEventFactory({ threadId: "thread-1" });
     const mentionText = "@thread:thr_child";
-    const text = `[bb system]\n\n${mentionText} needs help.\nIt is blocked on a pending interaction.\n\nReview the blocker. If you can resolve it from existing context, reply to the thread with guidance. Otherwise, ask the user for the missing decision.`;
-    const mentionStart = "[bb system]\n\n".length;
+    const text = `[Patcher system]\n\n${mentionText} needs help.\nIt is blocked on a pending interaction.\n\nReview the blocker. If you can resolve it from existing context, reply to the thread with guidance. Otherwise, ask the user for the missing decision.`;
+    const mentionStart = "[Patcher system]\n\n".length;
     const mention: PromptTextMention = {
       start: mentionStart,
       end: mentionStart + mentionText.length,
@@ -608,7 +619,7 @@ describe("user message parsing", () => {
     ).toMatchObject({
       initiator: "system",
       kind: "user",
-      text: "[bb system] Maintenance notice.",
+      text: "[Patcher system] Maintenance notice.",
       turnRequest: { isGrouped: false, kind: "message", status: "pending" },
     });
   });

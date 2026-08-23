@@ -1,9 +1,9 @@
-import { listBuiltInAgentProviderInfos } from "@bb/agent-providers";
+import { listBuiltInAgentProviderInfos } from "@patcher/agent-providers";
 import {
   PERSONAL_PROJECT_ID,
   type ProjectExecutionDefaults,
   type Thread,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   resolveCreateThreadEnvironment,

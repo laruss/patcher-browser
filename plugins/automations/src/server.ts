@@ -1,4 +1,4 @@
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { PatcherPluginApi } from "@patcher/plugin-sdk";
 import { migrations } from "./data.js";
 import { ingestLegacyImport } from "./legacy-import.js";
 import { pluginDataDirFromDb } from "./path.js";
@@ -12,53 +12,53 @@ import { createAutomationService } from "./service.js";
 import { sleep, sweepDueAutomations, SWEEP_INTERVAL_MS } from "./sweep.js";
 
 function resolveServerUrl(): string {
-  return process.env.BB_SERVER_URL?.trim() || "http://127.0.0.1:38886";
+  return process.env.PATCHER_SERVER_URL?.trim() || "http://127.0.0.1:38986";
 }
 
-export default async function plugin(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, migrations);
+export default async function plugin(patcher: PatcherPluginApi) {
+  const db = patcher.storage.database();
+  patcher.storage.migrate(db, migrations);
   const pluginDataDir = pluginDataDirFromDb(db);
-  await ingestLegacyImport({ bb, db, pluginDataDir });
+  await ingestLegacyImport({ patcher, db, pluginDataDir });
 
   const service = createAutomationService({
-    bb,
+    patcher,
     db,
     pluginDataDir,
     serverUrl: resolveServerUrl(),
   });
 
-  bb.rpc.register(automationRpcContract, createRpcHandlers(service));
-  registerAutomationCli({ bb, service });
+  patcher.rpc.register(automationRpcContract, createRpcHandlers(service));
+  registerAutomationCli({ patcher, service });
 
-  bb.events.on("thread.idle", ({ thread }) => {
-    closeAutomationRunForSettledThread(bb, db, {
+  patcher.events.on("thread.idle", ({ thread }) => {
+    closeAutomationRunForSettledThread(patcher, db, {
       threadId: thread.id,
       status: "idle",
     });
   });
-  bb.events.on("thread.failed", ({ thread, error }) => {
-    closeAutomationRunForSettledThread(bb, db, {
+  patcher.events.on("thread.failed", ({ thread, error }) => {
+    closeAutomationRunForSettledThread(patcher, db, {
       threadId: thread.id,
       status: "failed",
       error,
     });
   });
 
-  bb.events.on("thread.deleted", ({ thread }) => {
-    disableAutomationsForDeletedThreadEvent(bb, db, thread.id);
+  patcher.events.on("thread.deleted", ({ thread }) => {
+    disableAutomationsForDeletedThreadEvent(patcher, db, thread.id);
   });
 
-  bb.background.service("automation-sweep", {
+  patcher.background.service("automation-sweep", {
     async start(signal) {
       while (!signal.aborted) {
         try {
-          await sweepDueAutomations(bb, db, {
+          await sweepDueAutomations(patcher, db, {
             pluginDataDir,
             serverUrl: resolveServerUrl(),
           });
         } catch (error) {
-          bb.log.error(
+          patcher.log.error(
             `Automation sweep failed: ${
               error instanceof Error ? error.message : String(error)
             }`,

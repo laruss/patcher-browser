@@ -1,5 +1,5 @@
-import type { BaseBranchSpec, EnvironmentArgs } from "@bb/server-contract";
-import type { Environment } from "@bb/domain";
+import type { BaseBranchSpec, EnvironmentArgs } from "@patcher/server-contract";
+import type { Environment } from "@patcher/domain";
 
 /**
  * Resolves the base branch for a child thread's fresh managed worktree. The

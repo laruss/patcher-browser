@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { PLUGIN_SDK_VERSION } from "@bb/domain";
+import { PLUGIN_SDK_VERSION } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 
 describe("plugin SDK compatibility version", () => {
@@ -9,6 +9,8 @@ describe("plugin SDK compatibility version", () => {
     ) as { version: string };
 
     expect(packageJson.version).toBe(PLUGIN_SDK_VERSION);
-    expect(PLUGIN_SDK_VERSION).toMatch(/^0\./u);
+    // Past 0.x on purpose. The artifact gate compares majors and was vacuous
+    // while the major was 0; see plugin-sdk-version.ts.
+    expect(PLUGIN_SDK_VERSION).toMatch(/^[1-9]\d*\.\d+\.\d+$/u);
   });
 });

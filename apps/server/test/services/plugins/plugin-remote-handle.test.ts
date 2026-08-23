@@ -19,7 +19,7 @@ import {
   remoteBackgroundService,
   remoteHttpRoute,
 } from "../../../src/services/plugins/plugin-remote-handle.js";
-import type { JsonValue } from "@bb/domain";
+import type { JsonValue } from "@patcher/domain";
 
 /**
  * The two callbacks that could not cross, now crossing.
@@ -69,7 +69,7 @@ describe("http and background services across the boundary", () => {
     snapshot: PluginRegistrationSnapshot;
     logs: string[];
   }> {
-    const dir = await mkdtemp(join(tmpdir(), "bb-wire-"));
+    const dir = await mkdtemp(join(tmpdir(), "patcher-wire-"));
     dirs.push(dir);
     const [hostPort, pluginPort] = createLinkedPorts();
     const logs: string[] = [];

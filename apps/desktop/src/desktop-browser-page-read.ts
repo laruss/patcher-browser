@@ -1,7 +1,7 @@
 import {
-  BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
-} from "@bb/desktop-contract";
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+} from "@patcher/desktop-contract";
 
 /**
  * Reading what a page says, for the agent browser tools.
@@ -37,7 +37,7 @@ import {
  * the read. Any id other than 0 (the main world) works; 999 is Electron's own
  * context-isolation world, so this sits well clear of both.
  */
-export const BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID = 1729;
+export const PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID = 1729;
 
 /**
  * A page that never answers must not hold an agent's tool call open. This is
@@ -45,28 +45,28 @@ export const BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID = 1729;
  * loading, so a wedged subresource, a busy-looping main thread, or a very large
  * DOM (`innerText` forces layout) all reach us as "no answer yet".
  */
-export const BB_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS = 2_000;
+export const PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS = 2_000;
 
 /**
  * Slicing inside the page keeps a document with megabytes of text from crossing
  * the process boundary just to be thrown away here. The script reports what it
  * cut, because after the slice the original length is gone.
  */
-export const BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT = `(() => {
+export const PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT = `(() => {
   const body = document.body;
   const rawText = body === null ? "" : String(body.innerText ?? "");
   const selection = window.getSelection();
   const rawSelection = selection === null ? "" : String(selection.toString());
   return {
     contentType: String(document.contentType ?? ""),
-    text: rawText.slice(0, ${BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH}),
-    textTruncated: rawText.length > ${BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH},
-    selection: rawSelection.slice(0, ${BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH}),
-    selectionTruncated: rawSelection.length > ${BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH},
+    text: rawText.slice(0, ${PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH}),
+    textTruncated: rawText.length > ${PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH},
+    selection: rawSelection.slice(0, ${PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH}),
+    selectionTruncated: rawSelection.length > ${PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH},
   };
 })()`;
 
-/** What {@link BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT} resolves to. */
+/** What {@link PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT} resolves to. */
 export interface BrowserPageReadContent {
   /**
    * What Chromium decided this document is. The read asks because a PDF's text
@@ -119,12 +119,12 @@ export function parseBrowserPageReadContent(
     // ways the text is read, and a page that somehow has none is a page read
     // the ordinary way — which is what every read did before it was asked for.
     contentType: typeof contentType === "string" ? contentType : "",
-    text: truncate(text, BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    text: truncate(text, PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
     textTruncated:
-      textTruncated || text.length > BB_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
-    selection: truncate(selection, BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
+      textTruncated || text.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+    selection: truncate(selection, PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
     selectionTruncated:
       selectionTruncated ||
-      selection.length > BB_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
+      selection.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
   };
 }

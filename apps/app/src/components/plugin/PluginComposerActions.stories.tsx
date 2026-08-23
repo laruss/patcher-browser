@@ -6,9 +6,9 @@ import {
   type ComponentType,
 } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ComposerView } from "@bb/plugin-sdk";
-import { Button } from "@bb/shared-ui/button";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import type { ComposerView } from "@patcher/plugin-sdk";
+import { Button } from "@patcher/shared-ui/button";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import { StoryCard, StoryRow } from "../../../.ladle/story-card";
 import {
   makeAttachmentsConfig,

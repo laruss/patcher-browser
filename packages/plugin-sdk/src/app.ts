@@ -20,11 +20,11 @@ export type {
 } from "./rpc-contract.js";
 
 /**
- * `@bb/plugin-sdk/app` — typed facade over the BB app's plugin runtime.
+ * `@patcher/plugin-sdk/app` — typed facade over the Patcher app's plugin runtime.
  *
- * This module's runtime is never bundled into plugins: `bb plugin build`
+ * This module's runtime is never bundled into plugins: `patcher plugin build`
  * swaps the specifier for a shim reading
- * `globalThis.__bbPluginRuntime.pluginSdkApp` (which the BB app fills with
+ * `globalThis.__patcherPluginRuntime.pluginSdkApp` (which the Patcher app fills with
  * its real implementation before importing any plugin bundle). The re-export
  * below mirrors that shim so code importing this package directly (plugin
  * unit tests, tooling) resolves the same objects when a runtime is
@@ -32,17 +32,17 @@ export type {
  *
  * Hooks-only surface (the host-provided UI kit was removed 2026-07-03,
  * plugin design §5.5): components are vendored shadcn-style source from the
- * BB registry (`npx shadcn add @bb/<name>`); `toast` comes from
+ * Patcher registry (`npx shadcn add @patcher/<name>`); `toast` comes from
  * `import { toast } from "sonner"` (runtime-shimmed to the host toaster).
  */
 
 interface PluginRuntimeHost {
-  __bbPluginRuntime?: { pluginSdkApp?: unknown };
+  __patcherPluginRuntime?: { pluginSdkApp?: unknown };
 }
 
 // The global is the genuinely unknowable boundary here: the host app
 // guarantees the shape via its own `satisfies PluginSdkApp` check.
-const runtime = ((globalThis as PluginRuntimeHost).__bbPluginRuntime
+const runtime = ((globalThis as PluginRuntimeHost).__patcherPluginRuntime
   ?.pluginSdkApp ?? {}) as Partial<PluginSdkApp> as PluginSdkApp;
 
 export const definePluginApp = runtime.definePluginApp;
@@ -54,8 +54,8 @@ export const useRpc = runtime.useRpc;
 export const useRealtime = runtime.useRealtime;
 export const useRealtimeConnectionState = runtime.useRealtimeConnectionState;
 export const useSettings = runtime.useSettings;
-export const useBbContext = runtime.useBbContext;
-export const useBbNavigate = runtime.useBbNavigate;
+export const usePatcherContext = runtime.usePatcherContext;
+export const usePatcherNavigate = runtime.usePatcherNavigate;
 export const useComposer = runtime.useComposer;
 export const useComposerView = runtime.useComposerView;
 // Sidebar surfaces for plugins that replace the thread list (experimental —

@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Thread } from "@bb/domain";
+import type { Thread } from "@patcher/domain";
 import { sdk } from "@/lib/sdk";
 import {
   FORK_THREAD_CREATE_SEED_LOCATION_STATE_KEY,

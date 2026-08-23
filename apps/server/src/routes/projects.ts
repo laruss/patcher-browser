@@ -19,7 +19,7 @@ import {
   setProjectGitRemoteUrlIfMissing,
   isSqliteUniqueConstraintOnColumns,
   type ReorderProjectResult,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   projectListIncludeOptionSchema,
   publicApiRoutes,
@@ -29,9 +29,9 @@ import {
   type ProjectResponse,
   type ProjectWithThreadsResponse,
   type PublicApiSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type { Hono } from "hono";
-import { supportsManualCompaction } from "@bb/agent-providers";
+import { supportsManualCompaction } from "@patcher/agent-providers";
 import type { AppDeps } from "../types.js";
 import { COMMAND_TIMEOUT_MS } from "../constants.js";
 import { ApiError } from "../errors.js";
@@ -46,7 +46,7 @@ import {
   requirePublicProject,
   requirePublicStandardProject,
 } from "../services/lib/entity-lookup.js";
-import { PROMPT_HISTORY_ENTRY_LIMIT } from "@bb/domain";
+import { PROMPT_HISTORY_ENTRY_LIMIT } from "@patcher/domain";
 import { resolveCreateThreadExecutionDefaults } from "../services/threads/thread-default-policy.js";
 import { resolveProjectCreateDefaultExecutionPlan } from "../services/threads/thread-execution-plan.js";
 import { toThreadListEntryResponses } from "../services/threads/thread-runtime-display.js";
@@ -642,7 +642,7 @@ export function registerProjectRoutes(app: Hono, deps: AppDeps): void {
         },
       });
       return createDaemonFileContentResponse(result, {
-        headers: { "x-bb-content-encoding": result.contentEncoding },
+        headers: { "x-patcher-content-encoding": result.contentEncoding },
       });
     } catch (error) {
       return remapDaemonFileRouteError(error);

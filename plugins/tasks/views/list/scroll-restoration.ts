@@ -14,7 +14,7 @@ import type { TaskSort } from "../../shared/sort.js";
  * accumulate unboundedly. An in-memory map backs storage so restoration still
  * works when storage is unavailable (private mode, disabled cookies).
  */
-const STORAGE_PREFIX = "bb-tasks:list-scroll:";
+const STORAGE_PREFIX = "patcher-tasks:list-scroll:";
 
 const memoryFallback = new Map<string, number>();
 

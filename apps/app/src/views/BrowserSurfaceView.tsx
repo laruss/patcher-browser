@@ -19,7 +19,7 @@ import { BrowserFindBar } from "@/components/browser-surface/BrowserFindBar";
 import { BrowserSurfaceChrome } from "@/components/browser-surface/BrowserSurfaceChrome";
 import { BrowserSurfaceTabStrip } from "@/components/browser-surface/BrowserSurfaceTabStrip";
 import { BrowserTabSwitcher } from "@/components/browser-surface/BrowserTabSwitcher";
-import { BROWSER_SELECT_TAB_APP_COMMAND_IDS } from "@bb/domain";
+import { BROWSER_SELECT_TAB_APP_COMMAND_IDS } from "@patcher/domain";
 import {
   useAppCommandHandler,
   useIndexedAppCommandHandlers,
@@ -31,7 +31,10 @@ import {
   runPluginTabAction,
   usePluginContributions,
 } from "@/hooks/queries/plugin-contribution-queries";
-import { closeDesktopWindow, getDesktopBrowserApi } from "@/lib/bb-desktop";
+import {
+  closeDesktopWindow,
+  getDesktopBrowserApi,
+} from "@/lib/patcher-desktop";
 import { browserFaviconsAtom, setBrowserFavicon } from "@/lib/browser-favicons";
 import {
   browserMutedTabsAtom,
@@ -42,7 +45,7 @@ import {
   usePluginBrowserTabStatuses,
 } from "@/lib/plugin-browser-tab-status";
 import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
-import { buildBrowserSearchUrl } from "@bb/domain/browser-search-engine";
+import { buildBrowserSearchUrl } from "@patcher/domain/browser-search-engine";
 import { useBrowserSearchEngine } from "@/lib/browser-search-engine";
 import { useBrowserFind } from "@/lib/browser-find";
 import { useBrowserHistorySearch } from "@/lib/browser-history";
@@ -62,7 +65,7 @@ import {
   type BrowserSurfaceTab,
 } from "@/lib/browser-surface-tabs";
 import {
-  BB_APP_TAB_DESTINATIONS,
+  PATCHER_APP_TAB_DESTINATIONS,
   resolveSurfaceTabRoute,
 } from "@/lib/app-surface-tabs";
 import { getPluginPanelRoutePath, isRoutePath } from "@/lib/route-paths";
@@ -92,13 +95,13 @@ import {
  *
  * On desktop the view is **hosted by `AppLayout` rather than by a route**, so it
  * holds the main area for every route: the agent screens paint in the side panel
- * beside it, and bb's own destinations paint inside it as {@link
+ * beside it, and Patcher's own destinations paint inside it as {@link
  * BrowserSurfaceViewProps.appScreen}. Nothing displaces it, which is why there is
  * no longer an inactive state to keep correct.
  */
 export interface BrowserSurfaceViewProps {
   /**
-   * The bb screen the window is currently routed to — Settings, Extensions, a
+   * The Patcher screen the window is currently routed to — Settings, Extensions, a
    * plugin's panel — rendered in place of the page area when present.
    *
    * Route-driven rather than read off the active tab, and deliberately: the two
@@ -311,9 +314,9 @@ export function BrowserSurfaceView({
     openSurfaceTabRef.current = openSurfaceTab;
   }, [openSurfaceTab]);
 
-  // Links macOS handed the shell because bb is the user's default browser. A
+  // Links macOS handed the shell because Patcher is the user's default browser. A
   // pull rather than a subscription, and that is the shape the cold start
-  // forces: the click that launched bb was delivered to the main process before
+  // forces: the click that launched Patcher was delivered to the main process before
   // this renderer existed, so the queue is drained here on mount, and again on
   // every nudge saying more arrived while the app was running.
   useEffect(() => {
@@ -330,7 +333,7 @@ export function BrowserSurfaceView({
           for (const url of urls) {
             // Plugins get the link before it becomes a tab: this is the routing
             // seam the "which browser opens what" apps exist for, and it only
-            // exists while bb is the default browser. Nobody deciding —
+            // exists while Patcher is the default browser. Nobody deciding —
             // including a server that is not listening — opens the link
             // unchanged.
             const decision = await resolvePluginExternalLink(url);
@@ -529,7 +532,7 @@ export function BrowserSurfaceView({
         pinned: isPinnedSurfaceTab(tab),
         pluginId: action.pluginId,
         tabId,
-        // Null says "a bb screen" — a tab with no page at all, which is what an
+        // Null says "a Patcher screen" — a tab with no page at all, which is what an
         // action has to be able to tell apart from a tab with no page *yet*.
         title: tab.title,
         url: isWebSurfaceTab(tab) ? tab.url : null,
@@ -572,13 +575,13 @@ export function BrowserSurfaceView({
   // including the commit where a restored tab list has not landed yet, and it
   // wiped every icon it could not yet see a tab for.
 
-  // bb's own destinations, plus every panel a plugin registered. The panels ride
+  // Patcher's own destinations, plus every panel a plugin registered. The panels ride
   // the same list rather than a parallel mechanism, so a plugin's screen is
   // reachable from the address bar on the same terms as Settings.
   const { navPanels } = usePluginSlots();
   const appRoutes = useMemo(
     () => [
-      ...BB_APP_TAB_DESTINATIONS,
+      ...PATCHER_APP_TAB_DESTINATIONS,
       ...navPanels.map((panel) => ({
         id: `plugin:${panel.pluginId}/${panel.path}`,
         keywords: [panel.title, panel.pluginId],
@@ -929,7 +932,7 @@ export function BrowserSurfaceView({
         tabActions={contributedTabActions}
         tabs={state.tabs}
       />
-      {/* No address bar over an app screen: bb's own screens are not pages to
+      {/* No address bar over an app screen: Patcher's own screens are not pages to
           type a URL into, and an omnibox that could not describe what is below
           it would be chrome pretending to drive something. */}
       {showsAppScreen || activeWebTab === null ? null : (

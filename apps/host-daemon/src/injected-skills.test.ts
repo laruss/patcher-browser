@@ -21,11 +21,11 @@ import type {
   AgentRuntimeCodexSkillRoot,
   AgentRuntimePiSkillRoot,
   AgentRuntimeSkillRoot,
-} from "@bb/agent-runtime";
+} from "@patcher/agent-runtime";
 import type {
   HostDaemonInjectedSkillSource,
   HostDaemonSkillTree,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import {
   cleanupInjectedSkillStagingDirs,
   ensureDataDirSkillsRootPath,
@@ -52,7 +52,7 @@ interface CapturedWarning {
 const tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(path.join(tmpdir(), "bb-host-skills-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "patcher-host-skills-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -146,7 +146,7 @@ function createTreePayload(
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
   const hash = createHash("sha256");
-  hash.update("bb-skill-tree-v1");
+  hash.update("patcher-skill-tree-v1");
   for (const entry of entries) {
     const bytes = Buffer.from(entry.contentBase64, "base64");
     hash.update("\0file\0");
@@ -293,7 +293,7 @@ describe("injected skill staging", () => {
       ).toString("base64"),
     });
     const hash = createHash("sha256");
-    hash.update("bb-skill-tree-v1");
+    hash.update("patcher-skill-tree-v1");
     for (const entry of [...entries].sort((left, right) =>
       left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
     )) {
@@ -521,7 +521,7 @@ describe("injected skill staging", () => {
         "utf8",
       ).then((content) => JSON.parse(content)),
     ).resolves.toMatchObject({
-      name: "bb-global-skills",
+      name: "patcher-global-skills",
       skills: ["./skills/release-notes"],
     });
   });

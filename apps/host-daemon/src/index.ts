@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadHostDaemonStartConfig } from "@bb/config/host-daemon";
-import { loadHostDaemonEntrypointConfig } from "@bb/config/host-daemon-entrypoint";
+import { loadHostDaemonStartConfig } from "@patcher/config/host-daemon";
+import { loadHostDaemonEntrypointConfig } from "@patcher/config/host-daemon-entrypoint";
 import {
   installSafeProcessDiagnostics,
   writeSafeProcessDiagnosticReport,
-} from "@bb/process-utils";
+} from "@patcher/process-utils";
 
 interface ReportStartupFailureArgs {
   diagnosticsLogsDir: string;
@@ -18,7 +18,7 @@ type MainFailureHandler = (error: unknown) => void;
 const entrypointDir = dirname(fileURLToPath(import.meta.url));
 
 function resolveEntrypointBridgeBundleDir(): string | undefined {
-  return existsSync(join(entrypointDir, "bb-claude-code-bridge.mjs"))
+  return existsSync(join(entrypointDir, "patcher-claude-code-bridge.mjs"))
     ? entrypointDir
     : undefined;
 }
@@ -60,17 +60,15 @@ async function runHostDaemonEntrypoint(): Promise<void> {
   // Keep this import after diagnostics so ESM evaluation failures are reported.
   const hostDaemonModule = await import("./start-host-daemon.js");
   const daemon = await hostDaemonModule.startHostDaemon({
-    bbExecutableDirectory: hostDaemonEntrypointConfig.BB_CLI_DIR,
+    patcherExecutableDirectory: hostDaemonEntrypointConfig.PATCHER_CLI_DIR,
     bridgeBundleDir:
-      hostDaemonEntrypointConfig.BB_BRIDGE_DIR ??
+      hostDaemonEntrypointConfig.PATCHER_BRIDGE_DIR ??
       resolveEntrypointBridgeBundleDir(),
-    machineCredential: hostDaemonEntrypointConfig.BB_CONNECT_MACHINE_CREDENTIAL,
-    connectMachineId: hostDaemonEntrypointConfig.BB_CONNECT_MACHINE_ID,
-    autoUpdate: hostDaemonEntrypointConfig.BB_HOST_DAEMON_AUTO_UPDATE,
-    enrollKey: hostDaemonEntrypointConfig.BB_HOST_ENROLL_KEY,
-    hostId: hostDaemonEntrypointConfig.BB_HOST_ID,
-    hostName: hostDaemonEntrypointConfig.BB_HOST_NAME,
-    hostType: hostDaemonEntrypointConfig.BB_HOST_TYPE,
+    autoUpdate: hostDaemonEntrypointConfig.PATCHER_HOST_DAEMON_AUTO_UPDATE,
+    enrollKey: hostDaemonEntrypointConfig.PATCHER_HOST_ENROLL_KEY,
+    hostId: hostDaemonEntrypointConfig.PATCHER_HOST_ID,
+    hostName: hostDaemonEntrypointConfig.PATCHER_HOST_NAME,
+    hostType: hostDaemonEntrypointConfig.PATCHER_HOST_TYPE,
   });
   await daemon.waitUntilStopped();
 }

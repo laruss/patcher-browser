@@ -15,8 +15,8 @@ import {
   getPluginSettingsValues,
   migrate,
   type DbConnection,
-} from "@bb/db";
-import type { Logger } from "@bb/logger";
+} from "@patcher/db";
+import type { Logger } from "@patcher/logger";
 import { registerPluginRoutes } from "../../../src/routes/plugins.js";
 import {
   createPluginService,
@@ -38,7 +38,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Settings storage fixture",
         description: "Settings and storage plugin fixture.",
         branding: { icon: "Zap" },
@@ -60,7 +60,7 @@ describe("plugin settings + storage", () => {
   beforeEach(async () => {
     db = createConnection(":memory:");
     migrate(db);
-    workDir = await mkdtemp(join(tmpdir(), "bb-plugin-storage-test-"));
+    workDir = await mkdtemp(join(tmpdir(), "patcher-plugin-storage-test-"));
     dataDir = join(workDir, "data");
     systemBroadcasts = [];
     service = createPluginService({
@@ -87,10 +87,10 @@ describe("plugin settings + storage", () => {
   describe("settings", () => {
     async function installConfigurable(): Promise<void> {
       const rootDir = await writePlugin(workDir, {
-        name: "bb-plugin-configurable",
+        name: "patcher-plugin-configurable",
         serverSource: `
-          export default async function plugin(bb: any) {
-            const settings = bb.settings.define({
+          export default async function plugin(patcher: any) {
+            const settings = patcher.settings.define({
               apiKey: { type: "string", label: "API key", secret: true },
               teamKey: { type: "string", label: "Team key", default: "ENG" },
               mode: { type: "select", label: "Mode", options: ["fast", "slow"], default: "fast" },
@@ -291,10 +291,10 @@ describe("plugin settings + storage", () => {
 
     it("marks a plugin error when it defines an invalid descriptor", async () => {
       const rootDir = await writePlugin(workDir, {
-        name: "bb-plugin-bad-schema",
+        name: "patcher-plugin-bad-schema",
         serverSource: `
-          export default function plugin(bb: any) {
-            bb.settings.define({ broken: { type: "select", label: "Broken", options: [] } });
+          export default function plugin(patcher: any) {
+            patcher.settings.define({ broken: { type: "select", label: "Broken", options: [] } });
           }
         `,
       });
@@ -308,7 +308,7 @@ describe("plugin settings + storage", () => {
   describe("kv storage", () => {
     it("round-trips JSON values, lists by prefix, and caps value size", async () => {
       const rootDir = await writePlugin(workDir, {
-        name: "bb-plugin-kver",
+        name: "patcher-plugin-kver",
         serverSource: `export default function plugin() {}`,
       });
       await service.installPath(rootDir);
@@ -342,9 +342,9 @@ describe("plugin settings + storage", () => {
 
   describe("database + migrate", () => {
     const sqlerSource = `
-      export default function plugin(bb: any) {
-        const db = bb.storage.database();
-        bb.storage.migrate(db, [
+      export default function plugin(patcher: any) {
+        const db = patcher.storage.database();
+        patcher.storage.migrate(db, [
           "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
           "INSERT INTO items (name) VALUES ('seed')",
         ]);
@@ -364,7 +364,7 @@ describe("plugin settings + storage", () => {
 
     it("vends a WAL handle, applies migrations once, and closes handles on reload", async () => {
       const rootDir = await writePlugin(workDir, {
-        name: "bb-plugin-sqler",
+        name: "patcher-plugin-sqler",
         serverSource: sqlerSource,
       });
       await service.installPath(rootDir);
@@ -397,17 +397,17 @@ describe("plugin settings + storage", () => {
 
   it("saving settings auto-reloads a needs-configuration plugin (regression: pasting the key in Settings must take effect)", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-needs-key",
+      name: "patcher-plugin-needs-key",
       serverSource: `
-        export default async function plugin(bb: any) {
+        export default async function plugin(patcher: any) {
           const g = globalThis as any;
           g.__needsKeyLoads = (g.__needsKeyLoads ?? 0) + 1;
-          const settings = bb.settings.define({
+          const settings = patcher.settings.define({
             apiKey: { type: "string", label: "API key", secret: true },
           });
           const values = await settings.get();
           if (!values.apiKey) {
-            bb.status.needsConfiguration("set apiKey first");
+            patcher.status.needsConfiguration("set apiKey first");
           }
         }
       `,
@@ -430,12 +430,12 @@ describe("plugin settings + storage", () => {
 
   it("saving settings does NOT reload a healthy running plugin", async () => {
     const rootDir = await writePlugin(workDir, {
-      name: "bb-plugin-healthy",
+      name: "patcher-plugin-healthy",
       serverSource: `
-        export default function plugin(bb: any) {
+        export default function plugin(patcher: any) {
           const g = globalThis as any;
           g.__healthyLoads = (g.__healthyLoads ?? 0) + 1;
-          bb.settings.define({
+          patcher.settings.define({
             note: { type: "string", label: "Note" },
           });
         }

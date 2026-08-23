@@ -38,7 +38,7 @@ const INCOMPATIBLE_ENTRY: PluginCatalogSearchEntry = {
   pluginId: "future-memory",
   displayName: "Future Memory",
   compatible: false,
-  incompatibleReason: "Requires a newer BB version",
+  incompatibleReason: "Requires a newer Patcher version",
 };
 
 const GITHUB_ENTRY: PluginCatalogSearchEntry = {
@@ -46,7 +46,7 @@ const GITHUB_ENTRY: PluginCatalogSearchEntry = {
   entryId: "github",
   pluginId: "github",
   displayName: "GitHub",
-  description: "Browse GitHub issues and pull requests in BB.",
+  description: "Browse GitHub issues and pull requests in Patcher.",
   icon: "Github",
   category: "Developer tools",
   source: "builtin:github",
@@ -60,7 +60,7 @@ const INSTALLED_MEMORY_PLUGIN = {
   provenance: "catalog",
   isOrphanedBuiltin: false,
   catalogEntryId: "memory",
-  sourceDisplay: "BB Official · Memory",
+  sourceDisplay: "Patcher Official · Memory",
   updateState: {},
   enabled: true,
   description: MEMORY_ENTRY.description,
@@ -209,7 +209,7 @@ describe("BrowsePluginsTab", () => {
       screen.getByRole("menuitemcheckbox", { name: "Context & knowledge" }),
     );
     expect(cardCount()).toBe(CATALOG_STATUS.pluginCount);
-    expect(screen.queryByText("BB Official plugins")).toBeNull();
+    expect(screen.queryByText("Patcher Official plugins")).toBeNull();
   });
 
   it("shows the official plugins and entries", async () => {
@@ -273,10 +273,10 @@ describe("BrowsePluginsTab", () => {
     expect(screen.getByRole("button", { name: "Category" })).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
     expect(screen.getByRole("button", { name: "Install Memory" })).toBeTruthy();
-    expect(screen.queryByText("BB Official plugins")).toBeNull();
+    expect(screen.queryByText("Patcher Official plugins")).toBeNull();
 
     expect(screen.queryByText(MEMORY_ENTRY.source)).toBeNull();
-    expect(screen.getByText("Requires a newer BB version")).toBeTruthy();
+    expect(screen.getByText("Requires a newer Patcher version")).toBeTruthy();
     expect(
       screen
         .getByRole("button", { name: "Install Future Memory" })
@@ -332,7 +332,7 @@ describe("BrowsePluginsTab", () => {
     });
 
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "BB's official plugins are unavailable.",
+      "Patcher's official plugins are unavailable.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -446,7 +446,7 @@ describe("BrowsePluginsTab", () => {
               {
                 ...INSTALLED_MEMORY_PLUGIN,
                 id: "simple-notes",
-                source: "npm:bb-plugin-simple-notes@^0.1.0",
+                source: "npm:patcher-plugin-simple-notes@^0.1.0",
                 catalogEntryId: "simple-notes",
               },
             ],

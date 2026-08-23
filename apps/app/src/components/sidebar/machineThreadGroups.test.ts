@@ -1,4 +1,4 @@
-import type { Host, ThreadListEntry } from "@bb/domain";
+import type { Host, ThreadListEntry } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import {
   buildMachineThreadGroups,

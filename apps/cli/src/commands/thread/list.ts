@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import { PERSONAL_PROJECT_ID, type Thread } from "@bb/domain";
+import { PERSONAL_PROJECT_ID, type Thread } from "@patcher/domain";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import { resolveExplicitIdFlag } from "../../context-env.js";
 import { renderBorderlessTable } from "../../table.js";
 import { outputJson } from "../helpers.js";
@@ -32,7 +32,7 @@ export function registerListCommand(
     .option("--json", "Print machine-readable JSON output")
     .action(
       action(async (opts: ThreadListCommandOptions) => {
-        const sdk = createCliBbSdk(getUrl());
+        const sdk = createCliPatcherSdk(getUrl());
         const projectId = resolveExplicitIdFlag({
           flagName: "--project flag",
           value: opts.project,

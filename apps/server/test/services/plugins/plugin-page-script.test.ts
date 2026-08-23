@@ -9,9 +9,9 @@ import {
 const BASE = "http://127.0.0.1:3334";
 
 /**
- * `bb.browser.registerPageScript` — the plugin's own program in a browsed page.
+ * `patcher.browser.registerPageScript` — the plugin's own program in a browsed page.
  *
- * The consent model is the page style's, deliberately: the same `bb.sites`, the
+ * The consent model is the page style's, deliberately: the same `patcher.sites`, the
  * same membership rule, the same three places a refusal can land. What is new is
  * the *second* permission over that list, because a stylesheet that cannot read
  * the page and a program that can are not the same thing to agree to — a plugin
@@ -24,11 +24,11 @@ const BASE = "http://127.0.0.1:3334";
  */
 
 const SCRIPT_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerPageScript({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPageScript({
       id: "toolbar",
       matches: ["https://github.com/**"],
-      code: "bb.ready(function () { document.title = 'seen'; });",
+      code: "patcher.ready(function () { document.title = 'seen'; });",
     });
   }
 `;
@@ -49,7 +49,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Page script fixture",
         description: "Page script fixture.",
         branding: { icon: "Zap" },
@@ -63,7 +63,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin page scripts (bb.browser.registerPageScript)", () => {
+describe("plugin page scripts (patcher.browser.registerPageScript)", () => {
   let harness: TestAppHarness;
 
   afterEach(async () => {
@@ -79,7 +79,7 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
     harness = await createTestAppHarness();
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-script",
+        name: "patcher-plugin-script",
         source: options.source,
         ...(options.permissions === undefined
           ? {}
@@ -113,7 +113,7 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
         pluginId: "script",
         scriptId: "toolbar",
         matches: ["https://github.com/**"],
-        code: "bb.ready(function () { document.title = 'seen'; });",
+        code: "patcher.ready(function () { document.title = 'seen'; });",
       },
     ]);
   });
@@ -125,7 +125,7 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
     });
 
     expect(entry.status).toBe("error");
-    expect(entry.statusDetail).toContain('"bb.sites"');
+    expect(entry.statusDetail).toContain('"patcher.sites"');
     expect(entry.statusDetail).toContain("https://gitlab.com/**");
     expect(await contributions()).toEqual([]);
   });
@@ -156,7 +156,7 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
         source: SCRIPT_SOURCE,
         sites: ["http://intranet.example/**"],
       }),
-    ).rejects.toThrow(/bb\.sites\.0.*http:\/\/intranet\.example/su);
+    ).rejects.toThrow(/patcher\.sites\.0.*http:\/\/intranet\.example/su);
   });
 
   // A pattern that would be shown to the user at install and then claim no page
@@ -175,10 +175,10 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
   it("refuses two scripts under one id", async () => {
     const entry = await install({
       source: `
-        export default function plugin(bb: any) {
+        export default function plugin(patcher: any) {
           const script = { matches: ["https://github.com/**"], code: "void 0" };
-          bb.browser.registerPageScript({ id: "twice", ...script });
-          bb.browser.registerPageScript({ id: "twice", ...script });
+          patcher.browser.registerPageScript({ id: "twice", ...script });
+          patcher.browser.registerPageScript({ id: "twice", ...script });
         }
       `,
       sites: ["https://github.com/**"],
@@ -193,8 +193,8 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
   it("refuses code that is empty or longer than the cap", async () => {
     const entry = await install({
       source: `
-        export default function plugin(bb: any) {
-          bb.browser.registerPageScript({
+        export default function plugin(patcher: any) {
+          patcher.browser.registerPageScript({
             id: "huge",
             matches: ["https://github.com/**"],
             code: "void 0;".repeat(20_000),
@@ -215,11 +215,11 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
     expect(
       await install({
         source: `
-          export default function plugin(bb: any) {
-            bb.browser.registerPageScript({
+          export default function plugin(patcher: any) {
+            patcher.browser.registerPageScript({
               id: "browser-only",
               matches: ["https://github.com/**"],
-              code: "document.body.dataset.bb = navigator.userAgent;",
+              code: "document.body.dataset.patcher = navigator.userAgent;",
             });
           }
         `,
@@ -232,13 +232,13 @@ describe("plugin page scripts (bb.browser.registerPageScript)", () => {
     expect(
       await install({
         source: `
-          export default function plugin(bb: any) {
-            bb.browser.registerPageStyle({
+          export default function plugin(patcher: any) {
+            patcher.browser.registerPageStyle({
               id: "declutter",
               matches: ["https://github.com/**"],
               css: ".ad { display: none }",
             });
-            bb.browser.registerPageScript({
+            patcher.browser.registerPageScript({
               id: "toolbar",
               matches: ["https://github.com/**"],
               code: "void 0",

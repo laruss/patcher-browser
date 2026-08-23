@@ -1,13 +1,13 @@
 import {
   getThread,
   hasRootStoredTurnStarted,
-} from "@bb/db";
+} from "@patcher/db";
 import {
   requireThreadEventScopeTurnId,
   type ThreadEvent,
   type ThreadLifecycleEvent,
   type ThreadStatus,
-} from "@bb/domain";
+} from "@patcher/domain";
 import type { AppDeps } from "../types.js";
 import {
   pruneThreadEventHistoryBestEffort,

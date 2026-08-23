@@ -7,12 +7,12 @@ import {
   updateTerminalSessions,
   type TerminalSessionMutation,
   type TerminalSessionRow,
-} from "@bb/db";
-import type { TerminalSessionCloseReason } from "@bb/domain";
+} from "@patcher/db";
+import type { TerminalSessionCloseReason } from "@patcher/domain";
 import type {
   HostDaemonDaemonWsMessage,
   HostDaemonServerWsMessage,
-} from "@bb/host-daemon-contract";
+} from "@patcher/host-daemon-contract";
 import type {
   CloseTerminalRequest,
   CreateTerminalRequest,
@@ -26,7 +26,7 @@ import type {
   TerminalResizeRequest,
   TerminalSession,
   UpdateTerminalRequest,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { ApiError } from "../../errors.js";
 import type { AppDeps, ServerLogger } from "../../types.js";
 import { assertUsableHostId } from "../hosts/primary-host.js";

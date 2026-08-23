@@ -1,10 +1,10 @@
 // The Agent SDK throws this when it falls back to its bundled CLI binary and
-// cannot resolve the platform package. Packaged bb builds never ship that
+// cannot resolve the platform package. Packaged Patcher builds never ship that
 // package (the bridge bundle inlines the SDK), so the SDK's "reinstall"
-// guidance is wrong for bb users; point them at the real remedies instead.
+// guidance is wrong for Patcher users; point them at the real remedies instead.
 const MISSING_NATIVE_CLI_PATTERN = /Native CLI binary for .+ not found/;
 const MISSING_CLAUDE_CLI_GUIDANCE =
-  "bb could not find the Claude Code CLI on this machine. Install Claude Code (https://claude.com/claude-code), or set BB_CLAUDE_CODE_EXECUTABLE to the full path of the claude binary, then restart bb.";
+  "Patcher could not find the Claude Code CLI on this machine. Install Claude Code (https://claude.com/claude-code), or set PATCHER_CLAUDE_CODE_EXECUTABLE to the full path of the claude binary, then restart Patcher.";
 
 export function isMissingClaudeCliMessage(message: string): boolean {
   return MISSING_NATIVE_CLI_PATTERN.test(message);

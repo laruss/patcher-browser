@@ -30,7 +30,7 @@ import {
   validateOnceDefinition,
 } from "./schedule-helpers.js";
 import {
-  bbBinaryCandidates,
+  patcherBinaryCandidates,
   isWakeAgentSuppressed,
   mapScriptResultToRun,
   scriptPathEnv,
@@ -104,7 +104,7 @@ function oneShotTrigger() {
   return { triggerType: "once" as const, runAt: Date.now() + 60_000 };
 }
 
-function createAutomationServiceBb() {
+function createAutomationServicePatcher() {
   return {
     sdk: {
       projects: {
@@ -306,7 +306,7 @@ describe("automation data access", () => {
   it("does not claim due agent automations when no host is connected", async () => {
     const db = createTestDb();
     const automation = createScheduledAutomation(db, 1000);
-    const bb = {
+    const patcher = {
       sdk: {
         hosts: {
           list: async () => [
@@ -342,9 +342,9 @@ describe("automation data access", () => {
       },
     };
 
-    await sweepDueAutomations(bb, db, {
+    await sweepDueAutomations(patcher, db, {
       pluginDataDir: "/tmp",
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
       now: 1000,
     });
 
@@ -401,7 +401,7 @@ describe("automation data access", () => {
 describe("automation service", () => {
   it("validates project availability before creating an automation", async () => {
     const db = createTestDb();
-    const bb = {
+    const patcher = {
       sdk: {
         projects: {
           get: async () => {
@@ -436,10 +436,10 @@ describe("automation service", () => {
       },
     };
     const service = createAutomationService({
-      bb,
+      patcher,
       db,
       pluginDataDir: "/tmp",
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
     });
 
     await expect(
@@ -464,7 +464,9 @@ describe("automation service", () => {
 
   it("removes a stored script directory after switching to agent execution", async () => {
     const db = createTestDb();
-    const pluginDataDir = await mkdtemp(join(tmpdir(), "bb-auto-service-"));
+    const pluginDataDir = await mkdtemp(
+      join(tmpdir(), "patcher-auto-service-"),
+    );
     const automation = createAutomation(db, {
       id: "auto_script_to_agent",
       projectId: "proj_test",
@@ -485,10 +487,10 @@ describe("automation service", () => {
     await mkdir(scriptDir, { recursive: true });
     await writeFile(join(scriptDir, "old.sh"), "echo old\n");
     const service = createAutomationService({
-      bb: createAutomationServiceBb(),
+      patcher: createAutomationServicePatcher(),
       db,
       pluginDataDir,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
     });
 
     try {
@@ -513,7 +515,9 @@ describe("automation service", () => {
 
   it("removes only a superseded stored script file after a filename change", async () => {
     const db = createTestDb();
-    const pluginDataDir = await mkdtemp(join(tmpdir(), "bb-auto-service-"));
+    const pluginDataDir = await mkdtemp(
+      join(tmpdir(), "patcher-auto-service-"),
+    );
     const automation = createAutomation(db, {
       id: "auto_script_rename",
       projectId: "proj_test",
@@ -535,10 +539,10 @@ describe("automation service", () => {
     await writeFile(join(scriptDir, "old.sh"), "echo old\n");
     await writeFile(join(scriptDir, "keep.txt"), "keep\n");
     const service = createAutomationService({
-      bb: createAutomationServiceBb(),
+      patcher: createAutomationServicePatcher(),
       db,
       pluginDataDir,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
     });
 
     try {
@@ -567,7 +571,9 @@ describe("automation service", () => {
 
   it("removes a newly staged filename when the database update fails", async () => {
     const db = createTestDb();
-    const pluginDataDir = await mkdtemp(join(tmpdir(), "bb-auto-service-"));
+    const pluginDataDir = await mkdtemp(
+      join(tmpdir(), "patcher-auto-service-"),
+    );
     const automation = createAutomation(db, {
       id: "auto_script_rollback",
       projectId: "proj_test",
@@ -593,10 +599,10 @@ describe("automation service", () => {
         SELECT RAISE(ABORT, 'update rejected');
       END`);
     const service = createAutomationService({
-      bb: createAutomationServiceBb(),
+      patcher: createAutomationServicePatcher(),
       db,
       pluginDataDir,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
     });
 
     try {
@@ -623,7 +629,9 @@ describe("automation service", () => {
 
   it("does not overwrite the active filename when the database update fails", async () => {
     const db = createTestDb();
-    const pluginDataDir = await mkdtemp(join(tmpdir(), "bb-auto-service-"));
+    const pluginDataDir = await mkdtemp(
+      join(tmpdir(), "patcher-auto-service-"),
+    );
     const automation = createAutomation(db, {
       id: "auto_script_same_name_rollback",
       projectId: "proj_test",
@@ -649,10 +657,10 @@ describe("automation service", () => {
         SELECT RAISE(ABORT, 'update rejected');
       END`);
     const service = createAutomationService({
-      bb: createAutomationServiceBb(),
+      patcher: createAutomationServicePatcher(),
       db,
       pluginDataDir,
-      serverUrl: "http://127.0.0.1:38886",
+      serverUrl: "http://127.0.0.1:38986",
     });
 
     try {
@@ -678,61 +686,71 @@ describe("automation service", () => {
   });
 });
 
-describe("bb CLI injection for script runs", () => {
+describe("Patcher CLI injection for script runs", () => {
   it("prefers the env pointers over PATH and macOS install locations", () => {
     expect(
-      bbBinaryCandidates({
-        BB_CLI: "/daemon/bundle/bb",
-        BB_CLI_DIR: "/other/dir",
+      patcherBinaryCandidates({
+        PATCHER_CLI: "/daemon/bundle/patcher",
+        PATCHER_CLI_DIR: "/other/dir",
       })[0],
-    ).toBe("/daemon/bundle/bb");
-    // The server process gets BB_CLI_DIR, not BB_CLI, from the launcher.
-    expect(bbBinaryCandidates({ BB_CLI_DIR: "/daemon/bundle" })[0]).toBe(
-      "/daemon/bundle/bb",
-    );
+    ).toBe("/daemon/bundle/patcher");
+    // The server process gets PATCHER_CLI_DIR, not PATCHER_CLI, from the launcher.
+    expect(
+      patcherBinaryCandidates({ PATCHER_CLI_DIR: "/daemon/bundle" })[0],
+    ).toBe("/daemon/bundle/patcher");
   });
 
   it("expands PATH itself so every candidate is absolute", () => {
-    // The resolved value is handed to scripts as BB_CLI, which is documented
-    // as absolute; a bare "bb" would re-resolve if a script edits PATH.
-    expect(bbBinaryCandidates({ PATH: "/usr/bin:/opt/tools" })).toEqual([
-      "/usr/bin/bb",
-      "/opt/tools/bb",
-      "/opt/homebrew/bin/bb",
-      "/usr/local/bin/bb",
+    // The resolved value is handed to scripts as PATCHER_CLI, which is documented
+    // as absolute; a bare "patcher" would re-resolve if a script edits PATH.
+    expect(patcherBinaryCandidates({ PATH: "/usr/bin:/opt/tools" })).toEqual([
+      "/usr/bin/patcher",
+      "/opt/tools/patcher",
+      "/opt/homebrew/bin/patcher",
+      "/usr/local/bin/patcher",
     ]);
     expect(
-      bbBinaryCandidates({ PATH: "/usr/bin" }).every((c) => c.startsWith("/")),
+      patcherBinaryCandidates({ PATH: "/usr/bin" }).every((c) =>
+        c.startsWith("/"),
+      ),
     ).toBe(true);
   });
 
   it("drops entries that would resolve against the wrong directory", () => {
     // An empty PATH entry means the cwd, which for a script run is the
-    // automation scripts directory — a `bb` dropped there is not the CLI.
-    expect(bbBinaryCandidates({ PATH: "/usr/bin::/bin" })).toEqual([
-      "/usr/bin/bb",
-      "/bin/bb",
-      "/opt/homebrew/bin/bb",
-      "/usr/local/bin/bb",
+    // automation scripts directory — a `patcher` dropped there is not the CLI.
+    expect(patcherBinaryCandidates({ PATH: "/usr/bin::/bin" })).toEqual([
+      "/usr/bin/patcher",
+      "/bin/patcher",
+      "/opt/homebrew/bin/patcher",
+      "/usr/local/bin/patcher",
     ]);
     // Blank or relative env pointers are skipped, not resolved against cwd.
     expect(
-      bbBinaryCandidates({ BB_CLI: "  ", BB_CLI_DIR: "", PATH: "" }),
-    ).toEqual(["/opt/homebrew/bin/bb", "/usr/local/bin/bb"]);
+      patcherBinaryCandidates({
+        PATCHER_CLI: "  ",
+        PATCHER_CLI_DIR: "",
+        PATH: "",
+      }),
+    ).toEqual(["/opt/homebrew/bin/patcher", "/usr/local/bin/patcher"]);
     expect(
-      bbBinaryCandidates({ BB_CLI: "./bb", BB_CLI_DIR: "rel/dir", PATH: "" }),
-    ).toEqual(["/opt/homebrew/bin/bb", "/usr/local/bin/bb"]);
+      patcherBinaryCandidates({
+        PATCHER_CLI: "./patcher",
+        PATCHER_CLI_DIR: "rel/dir",
+        PATH: "",
+      }),
+    ).toEqual(["/opt/homebrew/bin/patcher", "/usr/local/bin/patcher"]);
   });
 
-  it("prepends bb's directory to PATH only when it is absolute", () => {
-    expect(scriptPathEnv("/daemon/bundle/bb", "/usr/bin:/bin")).toBe(
+  it("prepends Patcher's directory to PATH only when it is absolute", () => {
+    expect(scriptPathEnv("/daemon/bundle/patcher", "/usr/bin:/bin")).toBe(
       "/daemon/bundle:/usr/bin:/bin",
     );
     // Guard against a relative path ever reaching here: dirname() would be "."
     // and would put the scripts directory ahead of the system PATH.
-    expect(scriptPathEnv("bb", "/usr/bin:/bin")).toBe("/usr/bin:/bin");
+    expect(scriptPathEnv("patcher", "/usr/bin:/bin")).toBe("/usr/bin:/bin");
     expect(scriptPathEnv(null, "/usr/bin:/bin")).toBe("/usr/bin:/bin");
-    expect(scriptPathEnv("/daemon/bundle/bb", undefined)).toBe(
+    expect(scriptPathEnv("/daemon/bundle/patcher", undefined)).toBe(
       "/daemon/bundle",
     );
   });
@@ -765,7 +783,7 @@ describe("script wake gate", () => {
 describe("legacy import", () => {
   it("ingests legacy rows, moves environment into agent execution, and imports scripts once", async () => {
     const db = createTestDb();
-    const pluginDataDir = await mkdtemp(join(tmpdir(), "bb-auto-plugin-"));
+    const pluginDataDir = await mkdtemp(join(tmpdir(), "patcher-auto-plugin-"));
     await mkdir(join(pluginDataDir, "import"), { recursive: true });
     await writeFile(
       join(pluginDataDir, "import", "legacy-automations.json"),
@@ -829,7 +847,7 @@ describe("legacy import", () => {
       }),
     );
     const kv = new Map<string, unknown>();
-    const bb = {
+    const patcher = {
       storage: {
         kv: {
           get: async <T>(key: string) => kv.get(key) as T | undefined,
@@ -841,8 +859,8 @@ describe("legacy import", () => {
       log: { info: () => undefined },
     };
 
-    await ingestLegacyImport({ bb, db, pluginDataDir });
-    await ingestLegacyImport({ bb, db, pluginDataDir });
+    await ingestLegacyImport({ patcher, db, pluginDataDir });
+    await ingestLegacyImport({ patcher, db, pluginDataDir });
 
     const imported = getAutomation(db, "auto_legacy");
     expect(imported).not.toBeNull();

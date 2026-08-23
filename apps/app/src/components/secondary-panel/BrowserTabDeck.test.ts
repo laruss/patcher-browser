@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { BbDesktopBrowserApi } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserApi } from "@patcher/desktop-contract";
 import type { BrowserFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
-import { createNoopDesktopBrowserApi } from "@/test/bb-desktop-test-utils";
+import { createNoopDesktopBrowserApi } from "@/test/patcher-desktop-test-utils";
 import {
   createBrowserViewVisibilityCoordinator,
   resetBrowserViewPersistence,
@@ -29,7 +29,7 @@ interface VisibilityCall {
 }
 
 interface RecordingApi {
-  api: BbDesktopBrowserApi;
+  api: PatcherDesktopBrowserApi;
   attachments: AttachCall[];
   navigations: AttachCall[];
   visibility: VisibilityCall[];
@@ -39,7 +39,7 @@ function createRecordingApi(): RecordingApi {
   const attachments: AttachCall[] = [];
   const navigations: AttachCall[] = [];
   const visibility: VisibilityCall[] = [];
-  const api: BbDesktopBrowserApi = {
+  const api: PatcherDesktopBrowserApi = {
     ...createNoopDesktopBrowserApi(),
     attach(request) {
       attachments.push({ tabId: request.tabId, url: request.url });

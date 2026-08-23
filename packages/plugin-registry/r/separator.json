@@ -3,12 +3,12 @@
   "name": "separator",
   "type": "registry:ui",
   "title": "separator",
-  "description": "BB ui \"separator\" — vendored from the BB app's own source (version-matched to this BB release).",
+  "description": "Patcher ui \"separator\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
   "dependencies": [
     "@radix-ui/react-separator"
   ],
   "registryDependencies": [
-    "@bb/utils"
+    "@patcher/utils"
   ],
   "files": [
     {

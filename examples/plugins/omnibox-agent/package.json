@@ -1,13 +1,13 @@
 {
-  "name": "bb-plugin-omnibox-agent",
+  "name": "patcher-plugin-omnibox-agent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
-    "bb": ">=0.0",
-    "bbPluginSdk": "^0.4.1"
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.0.0"
   },
-  "bb": {
+  "patcher": {
     "name": "Omnibox agent",
     "description": "Add agent and site-search suggestions to the browser omnibox.",
     "branding": {
@@ -21,13 +21,13 @@
     ]
   },
   "keywords": [
-    "bb-plugin"
+    "patcher-plugin"
   ],
   "scripts": {
     "test": "vitest run --config vitest.config.ts"
   },
   "devDependencies": {
-    "@bb/plugin-sdk": "workspace:*",
+    "@patcher/plugin-sdk": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.2",
     "typescript-7": "npm:typescript@^7.0.2",

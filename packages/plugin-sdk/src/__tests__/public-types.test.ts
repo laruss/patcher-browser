@@ -1,14 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { BbPluginApi } from "../index.js";
+import type { PatcherPluginApi } from "../index.js";
 
-type ExpectedBbPluginApiKey =
+type ExpectedPatcherPluginApiKey =
   | "agents"
   | "background"
   | "browser"
   | "cli"
   | "events"
-  | "hosts"
   | "http"
   | "log"
   | "onDispose"
@@ -23,7 +22,7 @@ type ExpectedBbPluginApiKey =
   | "ui";
 
 const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
-  "BbPluginApi",
+  "PatcherPluginApi",
   "PluginAgents",
   "PluginAgentConfiguration",
   "PluginAgentConfigurationContext",
@@ -110,7 +109,6 @@ const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
   "PluginCliResult",
   "PluginCommandRegistration",
   "PluginEvents",
-  "PluginHosts",
   "PluginHttp",
   "PluginHttpAuthMode",
   "PluginHttpHandler",
@@ -141,7 +139,6 @@ const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
   "PluginSettings",
   "PluginSettingsHandle",
   "PluginSettingsValues",
-  "PluginSharedPortTunnelIdentity",
   "PluginStatusApi",
   "PluginStorage",
   "PluginThreadEventHandler",
@@ -192,15 +189,17 @@ function rootExportNames(
 }
 
 describe("backend plugin SDK public surface", () => {
-  it("snapshots every BbPluginApi root member", () => {
-    expectTypeOf<keyof BbPluginApi>().toEqualTypeOf<ExpectedBbPluginApiKey>();
+  it("snapshots every PatcherPluginApi root member", () => {
+    expectTypeOf<
+      keyof PatcherPluginApi
+    >().toEqualTypeOf<ExpectedPatcherPluginApiKey>();
   });
 
   it("keeps every backend contract export in the root declaration bundle", async () => {
     const [backendContract, declarations] = await Promise.all([
       readFile(new URL("../backend-contract.ts", import.meta.url), "utf8"),
       readFile(
-        new URL("../../bundled-types/bb-plugin-sdk.d.ts", import.meta.url),
+        new URL("../../bundled-types/patcher-plugin-sdk.d.ts", import.meta.url),
         "utf8",
       ),
     ]);
@@ -231,7 +230,7 @@ describe("backend plugin SDK public surface", () => {
     const [rpcContract, declarations] = await Promise.all([
       readFile(new URL("../rpc-contract.ts", import.meta.url), "utf8"),
       readFile(
-        new URL("../../bundled-types/bb-plugin-sdk.d.ts", import.meta.url),
+        new URL("../../bundled-types/patcher-plugin-sdk.d.ts", import.meta.url),
         "utf8",
       ),
     ]);

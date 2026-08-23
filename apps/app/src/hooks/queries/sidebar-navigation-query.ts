@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import type { SidebarBootstrapResponse } from "@bb/server-contract";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import type { SidebarBootstrapResponse } from "@patcher/server-contract";
 import { apiClient } from "@/lib/api-server";
 import { request, requestOptions } from "@/lib/api";
 import {

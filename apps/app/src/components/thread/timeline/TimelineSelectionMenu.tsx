@@ -7,8 +7,8 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { preventOverlayTriggerSelection } from "@bb/shared-ui/overlay-trigger";
+import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import { preventOverlayTriggerSelection } from "@patcher/shared-ui/overlay-trigger";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { PluginIcon, pluginIconName } from "@/components/plugin/PluginIcon";
 import type { MessageProseSelection } from "./SelectableMessageProse.js";

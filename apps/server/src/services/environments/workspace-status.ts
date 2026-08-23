@@ -1,6 +1,6 @@
-import { recordEnvironmentCurrentBranch } from "@bb/db/internal-environment-lifecycle";
-import type { Environment } from "@bb/domain";
-import type { HostDaemonOnlineRpcResult } from "@bb/host-daemon-contract";
+import { recordEnvironmentCurrentBranch } from "@patcher/db/internal-environment-lifecycle";
+import type { Environment } from "@patcher/domain";
+import type { HostDaemonOnlineRpcResult } from "@patcher/host-daemon-contract";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import type { AppDeps } from "../../types.js";
 import { callHostRetryableOnlineRpc } from "../hosts/online-rpc.js";

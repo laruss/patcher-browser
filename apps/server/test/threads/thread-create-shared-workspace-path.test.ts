@@ -1,5 +1,5 @@
-import { ensurePersonalProject, listEnvironments } from "@bb/db";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { ensurePersonalProject, listEnvironments } from "@patcher/db";
+import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { createThreadFromRequest } from "../../src/services/threads/thread-create.js";
 import { waitForQueuedCommand } from "../helpers/commands.js";
@@ -126,7 +126,7 @@ describe("thread creation on a path another project already uses", () => {
       const { host } = seedHostSession(harness.deps, {
         id: "host-managed-alias",
       });
-      const worktreePath = "/tmp/bb-worktrees/env_owner/repo";
+      const worktreePath = "/tmp/patcher-worktrees/env_owner/repo";
       const { project: owner } = seedProjectWithSource(harness.deps, {
         hostId: host.id,
         name: "Owning Project",
@@ -159,7 +159,7 @@ describe("thread creation on a path another project already uses", () => {
           providerId: "codex",
           startedOnBehalfOf: null,
         }),
-      ).rejects.toThrow("bb-managed workspace owned by another project");
+      ).rejects.toThrow("Patcher-managed workspace owned by another project");
 
       expect(listEnvironments(harness.deps.db, project.id)).toEqual([]);
     });
@@ -209,7 +209,7 @@ describe("thread creation on a path another project already uses", () => {
           providerId: "codex",
           startedOnBehalfOf: null,
         }),
-      ).rejects.toThrow("bb-managed workspace owned by another project");
+      ).rejects.toThrow("Patcher-managed workspace owned by another project");
 
       expect(listEnvironments(harness.deps.db, project.id)).toEqual([]);
     });

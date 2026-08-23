@@ -4,8 +4,8 @@ import type {
   TaskStatus,
   TaskThread,
 } from "../../shared/contract.js";
-import type { IconName } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import type { IconName } from "@patcher/shared-ui/icon";
+import { cn } from "@patcher/shared-ui/lib/utils";
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   backlog: "Backlog",

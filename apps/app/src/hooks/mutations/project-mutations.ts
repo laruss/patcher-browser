@@ -6,7 +6,7 @@ import type {
   ReorderProjectRequest,
   UpdateProjectRequest,
   UploadedPromptAttachment,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
 import {
   applyProjectCreateResult,

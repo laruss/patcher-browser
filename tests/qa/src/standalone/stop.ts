@@ -10,7 +10,7 @@ function parseStatePath() {
   const stateFlagIndex = process.argv.indexOf("--state");
   if (stateFlagIndex < 0 || !process.argv[stateFlagIndex + 1]) {
     throw new Error(
-      "Usage: bun run --filter @bb/qa standalone:stop --state <path>",
+      "Usage: bun run --filter @patcher/qa standalone:stop --state <path>",
     );
   }
   return process.argv[stateFlagIndex + 1];

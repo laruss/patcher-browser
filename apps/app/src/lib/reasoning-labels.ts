@@ -1,4 +1,4 @@
-import type { ReasoningLevel } from "@bb/domain";
+import type { ReasoningLevel } from "@patcher/domain";
 
 /**
  * Short, user-facing labels for each reasoning level. Shared by the

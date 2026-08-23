@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import type { SkillSummary } from "@bb/server-contract";
-import { ResourcePagination } from "@bb/shared-ui/resource-pagination";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+import type { SkillSummary } from "@patcher/server-contract";
+import { ResourcePagination } from "@patcher/shared-ui/resource-pagination";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import {
   ResourceBrowseCard,
   ResourceBrowseGrid,
@@ -11,7 +11,7 @@ import {
   ResourceListState,
   ResourceOverflowMenu,
   ResourceToolbar,
-} from "@bb/shared-ui/resource-list";
+} from "@patcher/shared-ui/resource-list";
 import {
   formatInstallCount,
   formatRegistrySource,
@@ -38,7 +38,7 @@ function RegistrySkillActions({
 }) {
   return (
     <ResourceInstallControl
-      accessibleLabel={`Fork ${skillName} into a new bb skill`}
+      accessibleLabel={`Fork ${skillName} into a new Patcher skill`}
       label="Fork"
       icon="Fork"
       presentation={presentation}

@@ -200,7 +200,7 @@ describe("workspace open targets", () => {
   });
 
   it("discovers Linux desktop apps outside app-specific adapters", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-desktop-apps-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-desktop-apps-"));
     const desktopDirectory = path.join(root, "applications");
     await mkdir(desktopDirectory, { recursive: true });
     await writeFile(
@@ -296,7 +296,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens WSL paths with the configured default app bridge", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -332,7 +332,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens WSL paths with the file manager bridge through the Linux runtime", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -385,7 +385,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens Linux files with discovered editor CLIs", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -418,7 +418,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens Linux desktop app targets from desktop Exec entries", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-desktop-open-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-desktop-open-"));
     const desktopDirectory = path.join(root, "applications");
     const workspacePath = path.join(root, "workspace");
     const filePath = path.join(workspacePath, "notes.md");
@@ -465,7 +465,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens Linux paths with the platform default app", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -507,7 +507,7 @@ describe("workspace open targets", () => {
       {
         context: {
           kind: "remote-ssh",
-          serverOrigin: "https://bb.example.test",
+          serverOrigin: "https://patcher.example.test",
           hostId: "host_remote",
           sshAuthority: "devbox",
         },
@@ -595,7 +595,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens paths with the macOS default app", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({ calls });
@@ -625,7 +625,7 @@ describe("workspace open targets", () => {
   });
 
   it("reveals files in Finder", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -657,7 +657,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens BBEdit and Emacs through macOS application open instead of editor CLIs", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const applicationsDirectory = path.join(root, "Applications");
     const workspacePath = path.join(root, "workspace");
     const filePath = path.join(workspacePath, "notes.md");
@@ -709,7 +709,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens TextMate locations through txmt URLs with column support", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const applicationsDirectory = path.join(root, "Applications");
     const workspacePath = path.join(root, "workspace");
     const filePath = path.join(workspacePath, "notes.md");
@@ -758,7 +758,7 @@ describe("workspace open targets", () => {
   });
 
   it("advertises and uses column support for IntelliJ IDEA", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-intellij-idea-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-intellij-idea-"));
     const applicationsDirectory = path.join(root, "Applications");
     const intellijAppPath = path.join(applicationsDirectory, "IntelliJ IDEA.app");
     const intellijExecutable = path.join(
@@ -821,7 +821,7 @@ describe("workspace open targets", () => {
 
   it("falls back to application bundle paths when bundle id lookup misses", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "bb-workspace-open-targets-"),
+      path.join(tmpdir(), "patcher-workspace-open-targets-"),
     );
     const applicationsDirectory = path.join(root, "Applications");
     await mkdir(path.join(applicationsDirectory, "Cursor.app"), {
@@ -843,7 +843,7 @@ describe("workspace open targets", () => {
 
   it("uses Cursor's bundled macOS CLI when the shell command is unavailable", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "bb-workspace-open-targets-"),
+      path.join(tmpdir(), "patcher-workspace-open-targets-"),
     );
     const applicationsDirectory = path.join(root, "Applications");
     const cursorAppPath = path.join(applicationsDirectory, "Cursor.app");
@@ -911,7 +911,7 @@ describe("workspace open targets", () => {
 
   it("uses bundled macOS editor CLIs when shell commands are unavailable", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "bb-workspace-open-targets-"),
+      path.join(tmpdir(), "patcher-workspace-open-targets-"),
     );
     const applicationsDirectory = path.join(root, "Applications");
     const workspacePath = path.join(root, "workspace");
@@ -1007,7 +1007,7 @@ describe("workspace open targets", () => {
 
   it("uses bundled VS Code CLI for remote SSH opens when the shell command is unavailable", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "bb-workspace-open-targets-"),
+      path.join(tmpdir(), "patcher-workspace-open-targets-"),
     );
     const applicationsDirectory = path.join(root, "Applications");
     const codeExecutable = path.join(
@@ -1079,7 +1079,7 @@ describe("workspace open targets", () => {
 
   it("discovers Warp from the macOS application bundle", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "bb-workspace-open-targets-"),
+      path.join(tmpdir(), "patcher-workspace-open-targets-"),
     );
     const applicationsDirectory = path.join(root, "Applications");
     await mkdir(path.join(applicationsDirectory, "Warp.app"), {
@@ -1148,7 +1148,7 @@ describe("workspace open targets", () => {
   });
 
   it("discovers generic macOS apps from file-specific LaunchServices results", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const mockEditPath = "/Applications/MockEdit.app";
     const zedPath = "/Applications/Zed.app";
@@ -1241,7 +1241,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens generic macOS app targets by bundle id", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "notes.md");
     const calls: ExecFileCall[] = [];
     const execFile: ExecFileHandler = async (file, commandArgs) => {
@@ -1281,7 +1281,7 @@ describe("workspace open targets", () => {
   });
 
   it("uses app-provided icons for discovered targets without built-in icons", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-open-target-icon-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-open-target-icon-"));
     const appPath = path.join(root, "WebStorm.app");
     const calls: ExecFileCall[] = [];
     await mkdir(appPath, { recursive: true });
@@ -1349,7 +1349,7 @@ describe("workspace open targets", () => {
   });
 
   it("prefers app-provided icons for discovered known app targets", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-open-target-icon-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-open-target-icon-"));
     const appPath = path.join(root, "Visual Studio Code.app");
     const calls: ExecFileCall[] = [];
     await mkdir(appPath, { recursive: true });
@@ -1417,7 +1417,7 @@ describe("workspace open targets", () => {
   });
 
   it("discovers and opens JetBrains Toolbox applications through bundled executables", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-jetbrains-toolbox-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-jetbrains-toolbox-"));
     const homeDirectory = path.join(root, "home");
     const webStormAppPath = path.join(
       homeDirectory,
@@ -1488,7 +1488,7 @@ describe("workspace open targets", () => {
   });
 
   it("falls back when app-provided icons exceed the contract size limit", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-open-target-icon-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-open-target-icon-"));
     const appPath = path.join(root, "Visual Studio Code.app");
     await mkdir(appPath, { recursive: true });
     const execFile: ExecFileHandler = async (file, commandArgs) => {
@@ -1542,7 +1542,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens Xcode files through xed with the enclosing project container", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "bb-xcode-open-"));
+    const root = await mkdtemp(path.join(tmpdir(), "patcher-xcode-open-"));
     const applicationsDirectory = path.join(root, "Applications");
     const xcodeAppPath = path.join(applicationsDirectory, "Xcode.app");
     const xedPath = path.join(
@@ -1590,7 +1590,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens the workspace with an argument separator before the path", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
       availableBundleIdSubstrings: ["dev.zed.Zed"],
@@ -1619,7 +1619,7 @@ describe("workspace open targets", () => {
   });
 
   it("uses the VS Code CLI for workspace opens when available", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
       availableBundleIdSubstrings: ["com.microsoft.VSCode"],
@@ -1732,7 +1732,7 @@ describe("workspace open targets", () => {
       {
         context: {
           kind: "remote-ssh",
-          serverOrigin: "https://bb.example.test",
+          serverOrigin: "https://patcher.example.test",
           hostId: "host_remote",
           sshAuthority: "devbox",
         },
@@ -1766,7 +1766,7 @@ describe("workspace open targets", () => {
       {
         context: {
           kind: "remote-ssh",
-          serverOrigin: "https://bb.example.test",
+          serverOrigin: "https://patcher.example.test",
           hostId: "host_remote",
           sshAuthority: "devbox",
         },
@@ -1805,7 +1805,7 @@ describe("workspace open targets", () => {
       {
         context: {
           kind: "remote-ssh",
-          serverOrigin: "https://bb.example.test",
+          serverOrigin: "https://patcher.example.test",
           hostId: "host_remote",
           sshAuthority: "devbox",
         },
@@ -1845,7 +1845,7 @@ describe("workspace open targets", () => {
       {
         context: {
           kind: "remote-ssh",
-          serverOrigin: "https://bb.example.test",
+          serverOrigin: "https://patcher.example.test",
           hostId: "host_remote",
           sshAuthority: "devbox",
         },
@@ -1869,7 +1869,7 @@ describe("workspace open targets", () => {
         {
           context: {
             kind: "remote-ssh",
-            serverOrigin: "https://bb.example.test",
+            serverOrigin: "https://patcher.example.test",
             hostId: "host_remote",
             sshAuthority: "devbox",
           },
@@ -1896,7 +1896,7 @@ describe("workspace open targets", () => {
           context: { kind: "local" },
           columnNumber: null,
           lineNumber: null,
-          path: path.join(tmpdir(), "bb-missing-workspace"),
+          path: path.join(tmpdir(), "patcher-missing-workspace"),
           targetId: "zed",
         },
         createRuntime({
@@ -1911,7 +1911,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local directories in Terminal with a short cd command", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({ calls });
 
@@ -1938,7 +1938,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local directories in iTerm2 with a short cd command", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
       availableBundleIdSubstrings: ["com.googlecode.iterm2"],
@@ -1973,7 +1973,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local files in Terminal with a resolved terminal editor command", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2009,7 +2009,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local files in iTerm2 with a resolved terminal editor command", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "README.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2048,7 +2048,7 @@ describe("workspace open targets", () => {
   });
 
   it("inserts terminal editor location args before explicit editor args separator", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2085,7 +2085,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local files in Terminal at the containing directory when no terminal editor is available", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "README.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({ calls });
@@ -2116,7 +2116,7 @@ describe("workspace open targets", () => {
 
   it("opens local files in Warp at the containing directory", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "bb-workspace-open-targets-"),
+      path.join(tmpdir(), "patcher-workspace-open-targets-"),
     );
     const applicationsDirectory = path.join(root, "Applications");
     await mkdir(path.join(applicationsDirectory, "Warp.app"), {
@@ -2155,7 +2155,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local files in Ghostty with a resolved terminal editor command", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2197,7 +2197,7 @@ describe("workspace open targets", () => {
   });
 
   it("opens local files in Ghostty at the containing directory when no terminal editor is available", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "README.md");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2229,7 +2229,7 @@ describe("workspace open targets", () => {
   });
 
   it("uses line-aware direct-editor commands when available", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2264,7 +2264,7 @@ describe("workspace open targets", () => {
   });
 
   it("uses Windsurf line and column direct-editor commands when available", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2299,7 +2299,7 @@ describe("workspace open targets", () => {
   });
 
   it("falls back to regular app opens when a line-aware executable is unavailable", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
     const filePath = path.join(workspacePath, "src", "file.ts");
     const calls: ExecFileCall[] = [];
     const execFile = createAvailableExecFile({
@@ -2332,7 +2332,7 @@ describe("workspace open targets", () => {
   });
 
   it("rejects unavailable targets", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
 
     try {
       await expect(
@@ -2355,7 +2355,7 @@ describe("workspace open targets", () => {
   });
 
   it("rejects workspace opening on unsupported platforms", async () => {
-    const workspacePath = await mkdtemp(path.join(tmpdir(), "bb-workspace-"));
+    const workspacePath = await mkdtemp(path.join(tmpdir(), "patcher-workspace-"));
 
     try {
       await expect(

@@ -1,4 +1,4 @@
-export const DEFAULT_ENV_SETUP_SCRIPT_NAME = ".bb-env-setup.sh";
+export const DEFAULT_ENV_SETUP_SCRIPT_NAME = ".patcher-env-setup.sh";
 
 /**
  * Gitignore-style pattern file. It names untracked files that a new worktree

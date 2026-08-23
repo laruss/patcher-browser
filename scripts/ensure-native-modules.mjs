@@ -139,7 +139,7 @@ export function ensureNativeModules({
     // Even the *first* check runs in a child process, because loading a native
     // module is not always a catchable failure: a binary macOS refuses to map
     // takes the whole process down with SIGKILL. Doing it here would kill this
-    // script — and, since `bb-dev-app` runs it, the dev session with it —
+    // script — and, since `patcher-dev-app` runs it, the dev session with it —
     // before any repair could run. A child can die; this loop cannot.
     const initialFailure = verifyRepairedNativeModuleImpl(name, pkgJsonPath);
     if (initialFailure === null) continue;

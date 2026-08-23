@@ -1,11 +1,11 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PLUGIN_CLI_OUTPUT_MAX_BYTES } from "@bb/plugin-sdk";
+import { PLUGIN_CLI_OUTPUT_MAX_BYTES } from "@patcher/plugin-sdk";
 import type { PluginCliCommandInfo } from "./plugin-api.js";
 
 /**
  * Server-generated `plugin-commands` skill (design §4.4): teaches agents the
- * `bb` subcommands installed plugins contribute, one section per plugin, at
+ * `patcher` subcommands installed plugins contribute, one section per plugin, at
  * near-zero context cost. Lives under <dataDir>/skills-generated (a distinct
  * root resolved with the data-dir skill tier mechanics) and exists only while
  * at least one CLI command is registered — the plugin service rewrites or
@@ -33,10 +33,10 @@ export function renderPluginCommandsSkill(
 ): string {
   const sections = contributions.map((contribution) => {
     const lines = [
-      `## bb ${contribution.name} — ${contribution.summary}`,
+      `## patcher ${contribution.name} — ${contribution.summary}`,
       "",
-      `Contributed by plugin \`${contribution.pluginId}\`. Run \`bb ${contribution.name} --help\` for details;`,
-      `\`bb plugin run ${contribution.pluginId} <args...>\` is the explicit equivalent.`,
+      `Contributed by plugin \`${contribution.pluginId}\`. Run \`patcher ${contribution.name} --help\` for details;`,
+      `\`patcher plugin run ${contribution.pluginId} <args...>\` is the explicit equivalent.`,
     ];
     if (contribution.commands.length > 0) {
       lines.push("");
@@ -49,13 +49,13 @@ export function renderPluginCommandsSkill(
   return [
     "---",
     `name: ${SKILL_NAME}`,
-    "description: CLI commands contributed by installed BB plugins. Use when a task involves one of the plugin commands listed here; run them with bash like any other bb command.",
+    "description: CLI commands contributed by installed Patcher plugins. Use when a task involves one of the plugin commands listed here; run them with bash like any other Patcher command.",
     "---",
     "",
     "# Plugin Commands",
     "",
-    "Installed BB plugins contribute these `bb` subcommands. Invoke them with",
-    "bash exactly like core `bb` commands; they run server-side.",
+    "Installed Patcher plugins contribute these `patcher` subcommands. Invoke them with",
+    "bash exactly like core `patcher` commands; they run server-side.",
     `Combined stdout and stderr is capped at ${PLUGIN_CLI_OUTPUT_MAX_BYTES} UTF-8 bytes. Above-limit`,
     "results fail atomically as `plugin_cli_output_too_large` and are never clipped;",
     "use pagination or file/streaming commands for large results.",

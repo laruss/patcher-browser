@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRealtime, useRpc } from "@bb/plugin-sdk/app";
-import type { PluginSidebarThread } from "@bb/plugin-sdk";
+import { useRealtime, useRpc } from "@patcher/plugin-sdk/app";
+import type { PluginSidebarThread } from "@patcher/plugin-sdk";
 import type { t3sidebarRpcContract } from "./server";
 import {
   canPark,

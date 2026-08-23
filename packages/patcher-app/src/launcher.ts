@@ -1,0 +1,3399 @@
+#!/usr/bin/env node
+import type { ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import {
+  access,
+  mkdir,
+  readFile,
+  rename,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import {
+  patcherAppRuntimeVerifyTokens,
+  claimPatcherAppRuntimeFile,
+  clearOwnPatcherAppRuntimeFile,
+  formatPatcherAppRuntimeFilePath,
+  readPatcherAppRuntimeFile,
+} from "@patcher/config/app-runtime-file";
+import { stopVerifiedProcess } from "@patcher/config/verified-process-stop";
+import {
+  APP_SURFACE_ENV_NAME,
+  APP_SURFACE_WEB,
+  DEFAULT_APP_SURFACE,
+  parseAppSurface,
+} from "@patcher/config/app-surface";
+import {
+  PATCHER_APP_MANAGED_CONFIG_KEYS,
+  patcherAppManagedEnvFileSchema,
+  formatPatcherAppConfigPath,
+  formatPatcherAppEnvPath,
+  formatCustomAcpAgentProviderId,
+  parsePatcherAppManagedConfig,
+  type PatcherAppManagedConfig,
+  type PatcherAppManagedConfigKey,
+  type PatcherAppManagedConfigValues,
+  type PatcherAppManagedEnvConfig,
+  type PatcherAppManagedEnvFile,
+} from "@patcher/config/patcher-app-managed-config";
+import {
+  formatClientConfigPath,
+  normalizeClientServerOrigin,
+  parseClientConfig,
+  type ClientConfig,
+} from "@patcher/config/client-config";
+import {
+  validateInferenceFallbackModel,
+  validateInferenceModel,
+  validateTranscriptionModel,
+} from "@patcher/config/inference-model";
+import { validateLogLevel } from "@patcher/config/log-level";
+import { validateOptionalUrl } from "@patcher/config/public-url";
+import { parseServerBindHost } from "@patcher/config/server";
+import {
+  PATCHER_PROD_HOST_DAEMON_PORT,
+  PATCHER_LOOPBACK_HOST,
+  PATCHER_PROD_SERVER_PORT,
+  resolveConfiguredDataDir,
+  resolveDataDirDatabasePath,
+  resolvePortFromEnv,
+  resolveProdDataDir,
+  stripThreadContextEnv,
+} from "@patcher/config/runtime";
+import { z } from "zod";
+
+const HOST_AUTH_FILE_NAME = "auth.json";
+const HOST_ID_FILE_NAME = "host-id";
+const HEALTH_CHECK_TIMEOUT_MS = 60_000;
+const HEALTH_CHECK_INTERVAL_MS = 100;
+const HEALTH_CHECK_REQUEST_TIMEOUT_MS = 1_000;
+const MANAGED_PROCESS_TERMINATION_TIMEOUT_MS = 5_000;
+const MANAGED_PROCESS_KILL_TIMEOUT_MS = 1_000;
+const MANAGED_PROCESS_RESTART_RETRY_DELAY_MS = 1_000;
+const START_COMMAND = "start";
+const STOP_COMMAND = "stop";
+const STOP_TIMEOUT_MS = 15_000;
+const STOP_KILL_TIMEOUT_MS = 3_000;
+const HOST_DAEMON_COMMAND = "host-daemon";
+const HOST_DAEMON_JOIN_COMMAND = "join";
+const CLIENT_COMMAND = "client";
+const CLIENT_SSH_TARGET_COMMAND = "ssh-target";
+const CONFIG_COMMAND = "config";
+const ENV_COMMAND = "env";
+const SET_COMMAND = "set";
+const REMOVE_COMMAND = "remove";
+const CONFIG_UNSET_COMMAND = "unset";
+const CONFIG_LIST_COMMAND = "list";
+const CONFIG_REFRESH_COMMAND = "refresh";
+
+type ManagedConfigValueKey = PatcherAppManagedConfigKey;
+type ManagedConfigKey =
+  | "PATCHER_SERVER_URL"
+  | "serverUrl"
+  | ManagedConfigValueKey;
+
+const MANAGED_CONFIG_KEYS = PATCHER_APP_MANAGED_CONFIG_KEYS;
+const MANAGED_CONFIG_KEY_VALUES = new Set<string>(MANAGED_CONFIG_KEYS);
+const STARTUP_ONLY_MANAGED_CONFIG_KEYS = new Set<string>(["PATCHER_LOG_LEVEL"]);
+// Keep this in sync with loadServerConfig and direct process.env reads made
+// while assembling the server. PATCHER_APP_VERSION and NODE_ENV are omitted because
+// the launcher owns and overwrites them rather than applying env.json values.
+const STARTUP_ONLY_MANAGED_ENV_KEYS = new Set<string>([
+  "PATCHER_APP_SURFACE",
+  "PATCHER_APP_URL",
+  "PATCHER_DATA_DIR",
+  "PATCHER_DEV_APP_PORT",
+  "PATCHER_EXTERNAL_URL",
+  "PATCHER_HOST_DAEMON_PORT",
+  "PATCHER_INFERENCE",
+  "PATCHER_INFERENCE_FALLBACK",
+  "PATCHER_INHERITED_SKILLS_ROOTS",
+  "PATCHER_LOG_LEVEL",
+  "PATCHER_MANAGED_DEV_BUILTIN_PLUGIN_HOT_RELOAD",
+  "PATCHER_PLUGIN_PROCESS",
+  "PATCHER_POSTHOG_API_KEY",
+  "PATCHER_SERVER_BIND_HOST",
+  "PATCHER_SERVER_PORT",
+  "PATCHER_TELEMETRY",
+  "PATCHER_TRANSCRIPTION",
+]);
+const PORTABLE_ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const SECRET_SHAPED_ENV_NAME_PATTERN =
+  /(?:^|_)(?:API_KEY|TOKEN|SECRET|PASSWORD)$/u;
+
+const patcherAppPackageJsonSchema = z
+  .object({
+    version: z.string().min(1),
+  })
+  .passthrough();
+
+const hostEnrollKeyResponseSchema = z
+  .object({
+    enrollKey: z.string().min(1),
+    hostId: z.string().min(1),
+  })
+  .passthrough();
+
+const persistedHostAuthSchema = z
+  .object({
+    hostId: z.string().min(1),
+  })
+  .passthrough();
+
+const hostDaemonStatusSchema = z
+  .object({
+    connected: z.boolean(),
+    hostId: z.string().min(1),
+    serverUrl: z.string().min(1),
+  })
+  .passthrough();
+
+const clientHostSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1).optional(),
+    status: z.string().min(1).optional(),
+  })
+  .passthrough();
+const clientHostsResponseSchema = z.array(clientHostSchema);
+
+const apiErrorResponseSchema = z.object({
+  message: z.string(),
+});
+
+export type HostEnrollKeyResponse = z.infer<typeof hostEnrollKeyResponseSchema>;
+type ClientHost = z.infer<typeof clientHostSchema>;
+export type ManagedConfigValues = PatcherAppManagedConfigValues;
+export type ManagedEnvConfig = PatcherAppManagedEnvConfig;
+export type ManagedEnvFile = PatcherAppManagedEnvFile;
+export type ManagedConfig = PatcherAppManagedConfig;
+// Write flows carry customAcpAgents and customModels as raw JSON: the parser
+// skips invalid entries with a warning, and a rewrite from the parsed view
+// would silently delete them from the user's file.
+type ManagedConfigForWrite = Omit<
+  ManagedConfig,
+  "customAcpAgents" | "customModels"
+> & {
+  customAcpAgents?: unknown[];
+  customModels?: unknown[];
+};
+
+export interface HostEnrollKeyRequestBody {
+  hostId?: string;
+}
+
+export interface CreateHostEnrollKeyRequestBodyArgs {
+  requestedHostId: string | null;
+}
+
+export interface ResolveDataDirArgs {
+  env: NodeJS.ProcessEnv;
+  homeDir: string;
+}
+
+export interface ResolvePortArgs {
+  defaultPort: number;
+  env: NodeJS.ProcessEnv;
+  name: string;
+}
+
+export interface ResolvePatcherAppStartContextArgs {
+  entrypointUrl: string;
+  env: NodeJS.ProcessEnv;
+  homeDir: string;
+}
+
+export interface ResolvePatcherAppRuntimeContextArgs {
+  entrypointUrl: string;
+  env: NodeJS.ProcessEnv;
+  homeDir: string;
+  options: LauncherCliOptions;
+  serverUrlMode: "local" | "managed";
+}
+
+export interface PatcherAppStartContext {
+  appDistDir: string;
+  appVersion: string;
+  configFile: string;
+  daemonBundleDir: string;
+  daemonEntry: string;
+  daemonLockDir: string;
+  daemonLockFile: string;
+  daemonPort: number;
+  dataDir: string;
+  dbPath: string;
+  envFile: string;
+  logDir: string;
+  packageRoot: string;
+  serverEntry: string;
+  serverPort: number;
+  serverUrl: string;
+}
+
+export interface PatcherAppRuntimeState {
+  config: ManagedConfig;
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+  serverEnv: NodeJS.ProcessEnv;
+}
+
+export interface IsMainModuleArgs {
+  entrypointPath: string | undefined;
+  moduleUrl: string;
+}
+
+export interface StartCommand {
+  kind: "start";
+}
+
+export interface StopCommand {
+  kind: "stop";
+}
+
+export interface HostDaemonCommand {
+  args: string[];
+  kind: "host-daemon";
+}
+
+export interface ClientCommand {
+  args: string[];
+  kind: "client";
+}
+
+export interface ConfigCommand {
+  args: string[];
+  kind: "config";
+}
+
+export interface EnvCommand {
+  args: string[];
+  kind: "env";
+}
+
+export interface HelpCommand {
+  kind: "help";
+}
+
+export interface InvalidCommand {
+  command: string;
+  kind: "invalid";
+}
+
+export interface LauncherCliOptions {
+  autoUpdate?: boolean;
+  dataDir?: string;
+  enrollKey?: string;
+  help: boolean;
+  hostDaemonPort?: string;
+  hostId?: string;
+  hostType?: string;
+  joinCode?: string;
+  json?: boolean;
+  serverBindHost?: string;
+  serverPort?: string;
+  serverUrl?: string;
+}
+
+export interface ParsedLauncherArgs {
+  options: LauncherCliOptions;
+  positionals: string[];
+}
+
+interface ManagedSpawnArgs {
+  args: string[];
+  command: string;
+  env: NodeJS.ProcessEnv;
+  outputBuffer: OutputBuffer;
+}
+
+interface OutputBuffer {
+  flush(): void;
+  handler(chunk: OutputChunk): void;
+}
+
+export interface ProcessExitResult {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+}
+
+export type ManagedProcessName = "daemon" | "server";
+type OutputChunk = Buffer | string;
+type WaitForProcessExitWithTimeoutResult = "exited" | "timed-out";
+type StartManagedProcess = () => Promise<ManagedProcessRun>;
+export type DelayMillisecondsFn = (
+  args: DelayMillisecondsArgs,
+) => Promise<void>;
+export type FullStackSupervisionResult = "shutdown" | "stopped";
+type ResolveWaitForProcessExitWithTimeout = (
+  result: WaitForProcessExitWithTimeoutResult,
+) => void;
+type PatcherAppCommand =
+  | ClientCommand
+  | ConfigCommand
+  | EnvCommand
+  | HelpCommand
+  | HostDaemonCommand
+  | InvalidCommand
+  | StartCommand
+  | StopCommand;
+
+interface WaitForNamedProcessExitArgs {
+  childProcess: ChildProcess;
+  processName: ManagedProcessName;
+}
+
+interface WaitForProcessExitWithTimeoutArgs {
+  childProcess: ChildProcess;
+  timeoutMs: number;
+}
+
+interface TerminateProcessIfRunningArgs {
+  childProcess: ChildProcess;
+  processName: ManagedProcessName;
+  signal: NodeJS.Signals;
+}
+
+export interface NamedProcessExitResult {
+  processName: ManagedProcessName;
+  result: ProcessExitResult;
+}
+
+export interface ManagedProcessRun {
+  exit: Promise<NamedProcessExitResult>;
+  terminate(signal: NodeJS.Signals): Promise<void>;
+}
+
+interface ChildManagedProcessRun extends ManagedProcessRun {
+  childProcess: ChildProcess;
+}
+
+export interface ManagedFullStackProcesses {
+  daemonRun: ManagedProcessRun | null;
+  serverRun: ManagedProcessRun | null;
+}
+
+interface SpawnNamedManagedProcessArgs {
+  args: string[];
+  command: string;
+  env: NodeJS.ProcessEnv;
+  outputBuffer: OutputBuffer;
+  processName: ManagedProcessName;
+}
+
+interface StartFullStackServerProcessArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+  outputBuffer: OutputBuffer;
+  processes: ManagedFullStackProcesses;
+}
+
+interface StartFullStackDaemonProcessArgs {
+  autoJoinEnv: NodeJS.ProcessEnv;
+  context: PatcherAppStartContext;
+  outputBuffer: OutputBuffer;
+  processes: ManagedFullStackProcesses;
+}
+
+interface RestartManagedProcessArgs {
+  context: PatcherAppStartContext;
+  delayMilliseconds: DelayMillisecondsFn;
+  isShutdownRequested: () => boolean;
+  processName: ManagedProcessName;
+  start: StartManagedProcess;
+}
+
+export interface SuperviseFullStackProcessesArgs {
+  context: PatcherAppStartContext;
+  delayMilliseconds: DelayMillisecondsFn;
+  isShutdownRequested: () => boolean;
+  processes: ManagedFullStackProcesses;
+  startDaemon: StartManagedProcess;
+  startServer: StartManagedProcess;
+}
+
+export interface TerminateManagedFullStackProcessesArgs {
+  processes: ManagedFullStackProcesses;
+  signal: NodeJS.Signals;
+}
+
+export interface CompleteFullStackSupervisionArgs {
+  shutdownPromise: Promise<void> | null;
+  supervisionResult: FullStackSupervisionResult;
+}
+
+interface LogManagedProcessStartupFailureContextArgs {
+  context: PatcherAppStartContext;
+  processName: ManagedProcessName;
+}
+
+export interface DelayMillisecondsArgs {
+  ms: number;
+}
+
+interface WaitForHealthArgs {
+  childProcess: ChildProcess | null;
+  timeoutMs?: number;
+  url: string;
+}
+
+interface WaitForHostDaemonStatusArgs {
+  childProcess: ChildProcess | null;
+  expectedHostId: string;
+  expectedServerUrl: string;
+  port: number;
+  timeoutMs?: number;
+}
+
+interface RequestHostEnrollKeyArgs {
+  requestedHostId: string | null;
+  serverUrl: string;
+}
+
+interface MaybeAddAutoJoinEnvArgs {
+  dataDir: string;
+  env: NodeJS.ProcessEnv;
+  serverUrl: string;
+}
+
+interface ArtifactPath {
+  label: string;
+  path: string;
+}
+
+interface CreateCliEnvArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface CreateSharedEnvArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface CreateServerEnvArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface CreateServerBaseEnvArgs {
+  config: ManagedConfig;
+  env: NodeJS.ProcessEnv;
+  envFile: ManagedEnvFile;
+  serverBindHostOverride?: string;
+}
+
+interface CreateHostDaemonOnlyEnvArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+  serverUrl: string;
+}
+
+interface EnrollmentRequirements {
+  enrollKey?: string;
+  enrolled: boolean;
+}
+
+interface ResolveEnrollmentRequirementsArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface ResolveHostDaemonServerUrlArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface CreateHostDaemonJoinEnvArgs {
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+  serverUrl: string;
+}
+
+interface CreateEnvFromOptionsArgs {
+  env: NodeJS.ProcessEnv;
+  options: LauncherCliOptions;
+}
+
+interface ResolveManagedConfigArgs {
+  dataDir: string;
+}
+
+interface WriteManagedConfigArgs {
+  config: ManagedConfigForWrite;
+  dataDir: string;
+}
+
+interface WriteManagedConfigFileArgs {
+  config: ManagedConfigForWrite;
+  dataDir: string;
+}
+
+interface WriteManagedEnvFileArgs {
+  config: ManagedEnvFile;
+  dataDir: string;
+}
+
+interface WriteClientConfigFileArgs {
+  config: ClientConfig;
+  dataDir: string;
+}
+
+interface ResolveServerUrlArgs {
+  config: ManagedConfig;
+  defaultServerUrl: string;
+  env: NodeJS.ProcessEnv;
+  optionServerUrl?: string;
+}
+
+interface ApplyManagedConfigEnvArgs {
+  config: ManagedConfig;
+  env: NodeJS.ProcessEnv;
+  envFile: ManagedEnvFile;
+}
+
+interface ResolvePatcherAppRuntimeStateArgs {
+  entrypointUrl: string;
+  env: NodeJS.ProcessEnv;
+  homeDir: string;
+  options: LauncherCliOptions;
+  serverUrlMode: "local" | "managed";
+}
+
+interface RunConfigCommandArgs {
+  args: string[];
+  dataDir: string;
+  serverUrl: string;
+}
+
+interface RunEnvCommandArgs {
+  args: string[];
+  dataDir: string;
+  serverUrl: string;
+}
+
+interface RunClientCommandArgs {
+  args: string[];
+  dataDir: string;
+  json: boolean;
+}
+
+interface ResolveClientSshTargetHostIdArgs {
+  serverOrigin: string;
+}
+
+interface RefreshRunningServerConfigArgs {
+  required: boolean;
+  serverUrl: string;
+}
+
+interface RunHostDaemonOnlyArgs {
+  args: string[];
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface RunBundledCliCommandArgs {
+  args: string[];
+  context: PatcherAppStartContext;
+  env: NodeJS.ProcessEnv;
+}
+
+interface ResolveHostDaemonCommandResult {
+  kind: "join" | "start";
+}
+
+function color(code: number, value: string): string {
+  return `\x1b[${code}m${value}\x1b[0m`;
+}
+
+function bold(value: string): string {
+  return color(1, value);
+}
+
+function cyan(value: string): string {
+  return color(36, value);
+}
+
+function dim(value: string): string {
+  return color(2, value);
+}
+
+function green(value: string): string {
+  return color(32, value);
+}
+
+function red(value: string): string {
+  return color(31, value);
+}
+
+function yellow(value: string): string {
+  return color(33, value);
+}
+
+function log(icon: string, message: string): void {
+  process.stdout.write(`  ${icon}  ${message}\n`);
+}
+
+function beginStep(message: string): void {
+  process.stdout.write(`\x1b[2K  ${dim("○")}  ${message}\r`);
+}
+
+function endStep(icon: string, message: string): void {
+  process.stdout.write(`\x1b[2K  ${icon}  ${message}\n`);
+}
+
+function formatReadyOutputRow(label: string, value: string): string {
+  return `${dim(label.padEnd("daemon".length))} ${value}`;
+}
+
+function warnExistingDaemonLock(lockDir: string): void {
+  log(yellow("!"), "Daemon lock exists - waiting or reclaiming if stale");
+  log(" ", dim(`lock: ${lockDir}`));
+  log(
+    " ",
+    dim("If startup fails, stop the other Patcher process or remove it."),
+  );
+  process.stdout.write("\n");
+}
+
+function warnExistingRuntimeRecord(dataDir: string): void {
+  log(yellow("!"), "Another Patcher already runs on this data directory");
+  log(" ", dim(`record: ${formatPatcherAppRuntimeFilePath(dataDir)}`));
+  log(" ", dim("Run `patcher-app stop` to stop it."));
+  process.stdout.write("\n");
+}
+
+function isManagedConfigValueKey(
+  value: string,
+): value is ManagedConfigValueKey {
+  return MANAGED_CONFIG_KEY_VALUES.has(value);
+}
+
+function isPortableEnvName(value: string): boolean {
+  return PORTABLE_ENV_NAME_PATTERN.test(value);
+}
+
+function isSecretShapedEnvName(value: string): boolean {
+  return SECRET_SHAPED_ENV_NAME_PATTERN.test(value);
+}
+
+function supportedConfigKeysText(): string {
+  return ["PATCHER_SERVER_URL", ...MANAGED_CONFIG_KEYS].join(", ");
+}
+
+function createDefaultLauncherOptions(): LauncherCliOptions {
+  return { help: false, json: false };
+}
+
+function trimToUndefined(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readStringOption(
+  value: boolean | string | string[] | undefined,
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  return trimToUndefined(value);
+}
+
+function readBooleanOption(
+  value: boolean | string | string[] | undefined,
+): boolean {
+  return value === true;
+}
+
+function chooseServerUrlOption(
+  serverUrl: string | undefined,
+  server: string | undefined,
+): string | undefined {
+  if (serverUrl !== undefined && server !== undefined && serverUrl !== server) {
+    throw new Error("--server-url and --server must match when both are set");
+  }
+  return serverUrl ?? server;
+}
+
+export function parseLauncherArgs(args: string[]): ParsedLauncherArgs {
+  const parsed = parseArgs({
+    allowPositionals: true,
+    args,
+    options: {
+      "auto-update": { type: "boolean" },
+      "data-dir": { type: "string" },
+      "enroll-key": { type: "string" },
+      "host-daemon-port": { type: "string" },
+      "host-id": { type: "string" },
+      "host-type": { type: "string" },
+      "join-code": { type: "string" },
+      "server-bind-host": { type: "string" },
+      "server-port": { type: "string" },
+      "server-url": { type: "string" },
+      help: { short: "h", type: "boolean" },
+      json: { type: "boolean" },
+      server: { type: "string" },
+    },
+  });
+  const options: LauncherCliOptions = {
+    help: readBooleanOption(parsed.values.help),
+    json: readBooleanOption(parsed.values.json),
+  };
+  if (readBooleanOption(parsed.values["auto-update"])) {
+    options.autoUpdate = true;
+  }
+  const dataDir = readStringOption(parsed.values["data-dir"]);
+  const enrollKey = readStringOption(parsed.values["enroll-key"]);
+  const hostDaemonPort = readStringOption(parsed.values["host-daemon-port"]);
+  const hostId = readStringOption(parsed.values["host-id"]);
+  const hostType = readStringOption(parsed.values["host-type"]);
+  const joinCode = readStringOption(parsed.values["join-code"]);
+  const serverBindHost = readStringOption(parsed.values["server-bind-host"]);
+  const serverPort = readStringOption(parsed.values["server-port"]);
+  const serverUrl = chooseServerUrlOption(
+    readStringOption(parsed.values["server-url"]),
+    readStringOption(parsed.values.server),
+  );
+  if (dataDir !== undefined) {
+    options.dataDir = dataDir;
+  }
+  if (enrollKey !== undefined) {
+    options.enrollKey = enrollKey;
+  }
+  if (hostDaemonPort !== undefined) {
+    options.hostDaemonPort = hostDaemonPort;
+  }
+  if (hostId !== undefined) {
+    options.hostId = hostId;
+  }
+  if (hostType !== undefined) {
+    options.hostType = hostType;
+  }
+  if (joinCode !== undefined) {
+    options.joinCode = joinCode;
+  }
+  if (serverBindHost !== undefined) {
+    options.serverBindHost = serverBindHost;
+  }
+  if (serverPort !== undefined) {
+    options.serverPort = serverPort;
+  }
+  if (serverUrl !== undefined) {
+    options.serverUrl = serverUrl;
+  }
+
+  return {
+    options,
+    positionals: parsed.positionals,
+  };
+}
+
+export function resolveDataDir(args: ResolveDataDirArgs): string {
+  return resolveConfiguredDataDir({
+    defaultDataDir: resolveProdDataDir({ homeDir: args.homeDir }),
+    env: args.env,
+    homeDir: args.homeDir,
+  });
+}
+
+export function resolvePort(args: ResolvePortArgs): number {
+  return resolvePortFromEnv(args);
+}
+
+function createEnvFromOptions(
+  args: CreateEnvFromOptionsArgs,
+): NodeJS.ProcessEnv {
+  const env = { ...args.env };
+  if (args.options.dataDir !== undefined) {
+    env.PATCHER_DATA_DIR = args.options.dataDir;
+  }
+  if (args.options.autoUpdate === true) {
+    env.PATCHER_HOST_DAEMON_AUTO_UPDATE = "1";
+  }
+  if (args.options.hostDaemonPort !== undefined) {
+    env.PATCHER_HOST_DAEMON_PORT = args.options.hostDaemonPort;
+  }
+  if (args.options.serverBindHost !== undefined) {
+    env.PATCHER_SERVER_BIND_HOST = args.options.serverBindHost;
+  }
+  if (args.options.serverPort !== undefined) {
+    env.PATCHER_SERVER_PORT = args.options.serverPort;
+  }
+  if (args.options.serverUrl !== undefined) {
+    env.PATCHER_SERVER_URL = args.options.serverUrl;
+  }
+  if (args.options.hostId !== undefined) {
+    env.PATCHER_HOST_ID = args.options.hostId;
+  }
+  if (args.options.hostType !== undefined) {
+    env.PATCHER_HOST_TYPE = args.options.hostType;
+  }
+  if (args.options.joinCode !== undefined) {
+    env.PATCHER_HOST_ENROLL_KEY = args.options.joinCode;
+  }
+  if (args.options.enrollKey !== undefined) {
+    env.PATCHER_HOST_ENROLL_KEY = args.options.enrollKey;
+  }
+  return env;
+}
+
+function resolveServerUrl(args: ResolveServerUrlArgs): string {
+  return (
+    trimToUndefined(args.optionServerUrl) ??
+    args.config.serverUrl ??
+    trimToUndefined(args.env.PATCHER_SERVER_URL) ??
+    args.defaultServerUrl
+  );
+}
+
+function applyManagedConfigEnv(
+  args: ApplyManagedConfigEnvArgs,
+): NodeJS.ProcessEnv {
+  return {
+    ...args.env,
+    ...args.config.config,
+    ...args.envFile.env,
+  };
+}
+
+function createServerBaseEnv(args: CreateServerBaseEnvArgs): NodeJS.ProcessEnv {
+  return {
+    ...args.env,
+    ...args.config.config,
+    ...args.envFile.env,
+    ...(args.serverBindHostOverride !== undefined
+      ? { PATCHER_SERVER_BIND_HOST: args.serverBindHostOverride }
+      : {}),
+  };
+}
+
+async function readManagedConfig(
+  args: ResolveManagedConfigArgs,
+): Promise<ManagedConfig> {
+  try {
+    const rawConfig = await readFile(
+      formatPatcherAppConfigPath(args.dataDir),
+      "utf8",
+    );
+    return parsePatcherAppManagedConfig(JSON.parse(rawConfig), {
+      logger: launcherConfigWarningLogger,
+    });
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `Invalid patcher-app config JSON at ${formatPatcherAppConfigPath(args.dataDir)}`,
+      );
+    }
+    if (error instanceof z.ZodError) {
+      throw new Error(
+        `Invalid patcher-app config at ${formatPatcherAppConfigPath(args.dataDir)}: ${error.message}`,
+      );
+    }
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const launcherConfigWarningLogger = {
+  warn(fields: Record<string, unknown>, message: string): void {
+    process.stderr.write(`${message}: ${JSON.stringify(fields)}\n`);
+  },
+};
+
+async function readManagedConfigForWrite(
+  args: ResolveManagedConfigArgs,
+): Promise<ManagedConfigForWrite> {
+  try {
+    const rawConfig = await readFile(
+      formatPatcherAppConfigPath(args.dataDir),
+      "utf8",
+    );
+    const parsedJson: unknown = JSON.parse(rawConfig);
+    const parsedConfig = parsePatcherAppManagedConfig(parsedJson, {
+      logger: launcherConfigWarningLogger,
+    });
+    if (!isJsonObject(parsedJson)) {
+      return parsedConfig;
+    }
+    const configForWrite: ManagedConfigForWrite = { ...parsedConfig };
+    if (Array.isArray(parsedJson.customAcpAgents)) {
+      configForWrite.customAcpAgents = parsedJson.customAcpAgents;
+    }
+    if (Array.isArray(parsedJson.customModels)) {
+      configForWrite.customModels = parsedJson.customModels;
+    }
+    return configForWrite;
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `Invalid patcher-app config JSON at ${formatPatcherAppConfigPath(args.dataDir)}`,
+      );
+    }
+    if (error instanceof z.ZodError) {
+      throw new Error(
+        `Invalid patcher-app config at ${formatPatcherAppConfigPath(args.dataDir)}: ${error.message}`,
+      );
+    }
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+}
+
+async function readManagedEnvFile(
+  args: ResolveManagedConfigArgs,
+): Promise<ManagedEnvFile> {
+  try {
+    const rawConfig = await readFile(
+      formatPatcherAppEnvPath(args.dataDir),
+      "utf8",
+    );
+    return patcherAppManagedEnvFileSchema.parse(JSON.parse(rawConfig));
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `Invalid patcher-app env JSON at ${formatPatcherAppEnvPath(args.dataDir)}`,
+      );
+    }
+    if (error instanceof z.ZodError) {
+      throw new Error(
+        `Invalid patcher-app env at ${formatPatcherAppEnvPath(args.dataDir)}: ${error.message}`,
+      );
+    }
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+}
+
+async function readClientConfig(
+  args: ResolveManagedConfigArgs,
+): Promise<ClientConfig> {
+  try {
+    const rawConfig = await readFile(
+      formatClientConfigPath(args.dataDir),
+      "utf8",
+    );
+    return parseClientConfig(JSON.parse(rawConfig));
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `Invalid client config JSON at ${formatClientConfigPath(args.dataDir)}`,
+      );
+    }
+    if (error instanceof z.ZodError) {
+      throw new Error(
+        `Invalid client config at ${formatClientConfigPath(args.dataDir)}: ${error.message}`,
+      );
+    }
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ENOENT")
+    ) {
+      throw error;
+    }
+  }
+
+  return { servers: {} };
+}
+
+function createManagedConfigValuePatch(
+  key: ManagedConfigValueKey,
+  value: string,
+): ManagedConfigValues {
+  const config: ManagedConfigValues = {};
+  config[key] = value;
+  return config;
+}
+
+function mergeManagedConfig(
+  currentConfig: ManagedConfigForWrite,
+  patchConfig: ManagedConfigForWrite,
+): ManagedConfigForWrite {
+  const nextConfig: ManagedConfigForWrite = {
+    ...currentConfig,
+  };
+
+  if (patchConfig.serverUrl !== undefined) {
+    nextConfig.serverUrl = patchConfig.serverUrl;
+  }
+
+  if (patchConfig.config !== undefined) {
+    nextConfig.config = {
+      ...currentConfig.config,
+      ...patchConfig.config,
+    };
+  }
+
+  if (patchConfig.customModels !== undefined) {
+    nextConfig.customModels = patchConfig.customModels;
+  }
+  if (patchConfig.customAcpAgents !== undefined) {
+    nextConfig.customAcpAgents = patchConfig.customAcpAgents;
+  }
+
+  return nextConfig;
+}
+
+function pruneManagedConfig(
+  config: ManagedConfigForWrite,
+): ManagedConfigForWrite {
+  const nextConfig: ManagedConfigForWrite = {};
+  if (config.serverUrl !== undefined) {
+    nextConfig.serverUrl = config.serverUrl;
+  }
+  if (config.config !== undefined && Object.keys(config.config).length > 0) {
+    nextConfig.config = config.config;
+  }
+  if (config.customModels !== undefined && config.customModels.length > 0) {
+    nextConfig.customModels = config.customModels;
+  }
+  if (
+    config.customAcpAgents !== undefined &&
+    config.customAcpAgents.length > 0
+  ) {
+    nextConfig.customAcpAgents = config.customAcpAgents;
+  }
+  return nextConfig;
+}
+
+function mergeManagedEnvFile(
+  currentConfig: ManagedEnvFile,
+  patchConfig: ManagedEnvFile,
+): ManagedEnvFile {
+  const nextConfig: ManagedEnvFile = {
+    ...currentConfig,
+  };
+
+  if (patchConfig.env !== undefined) {
+    nextConfig.env = {
+      ...currentConfig.env,
+      ...patchConfig.env,
+    };
+  }
+
+  return nextConfig;
+}
+
+function pruneManagedEnvFile(config: ManagedEnvFile): ManagedEnvFile {
+  const nextConfig: ManagedEnvFile = {};
+  if (config.env !== undefined && Object.keys(config.env).length > 0) {
+    nextConfig.env = config.env;
+  }
+  return nextConfig;
+}
+
+async function writeManagedConfigFile(
+  args: WriteManagedConfigFileArgs,
+): Promise<void> {
+  validateManagedConfigForWrite(args.config);
+  await mkdir(args.dataDir, { recursive: true });
+  const nextConfig = pruneManagedConfig(args.config);
+  const configPath = formatPatcherAppConfigPath(args.dataDir);
+  const tempPath = join(
+    args.dataDir,
+    `.config.json.${process.pid}.${randomUUID()}.tmp`,
+  );
+
+  try {
+    await writeFile(tempPath, `${JSON.stringify(nextConfig, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await rename(tempPath, configPath);
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+function validateManagedConfigForWrite(config: ManagedConfigForWrite): void {
+  if (config.serverUrl !== undefined) {
+    validateOptionalUrl("PATCHER_SERVER_URL", config.serverUrl);
+  }
+  const configValues = config.config;
+  if (configValues === undefined) {
+    return;
+  }
+  if (configValues.PATCHER_APP_URL !== undefined) {
+    validateOptionalUrl("PATCHER_APP_URL", configValues.PATCHER_APP_URL);
+  }
+  if (configValues.PATCHER_INFERENCE !== undefined) {
+    validateInferenceModel(configValues.PATCHER_INFERENCE);
+  }
+  if (configValues.PATCHER_INFERENCE_FALLBACK !== undefined) {
+    validateInferenceFallbackModel(configValues.PATCHER_INFERENCE_FALLBACK);
+  }
+  if (configValues.PATCHER_TRANSCRIPTION !== undefined) {
+    validateTranscriptionModel(configValues.PATCHER_TRANSCRIPTION);
+  }
+  if (configValues.PATCHER_LOG_LEVEL !== undefined) {
+    validateLogLevel(configValues.PATCHER_LOG_LEVEL);
+  }
+}
+
+async function writeManagedConfig(args: WriteManagedConfigArgs): Promise<void> {
+  const existingConfig = await readManagedConfigForWrite({
+    dataDir: args.dataDir,
+  });
+  await writeManagedConfigFile({
+    config: mergeManagedConfig(existingConfig, args.config),
+    dataDir: args.dataDir,
+  });
+}
+
+async function writeManagedEnv(args: WriteManagedEnvFileArgs): Promise<void> {
+  const existingConfig = await readManagedEnvFile({ dataDir: args.dataDir });
+  await writeManagedEnvFile({
+    config: mergeManagedEnvFile(existingConfig, args.config),
+    dataDir: args.dataDir,
+  });
+}
+
+async function writeManagedEnvFile(
+  args: WriteManagedEnvFileArgs,
+): Promise<void> {
+  await mkdir(args.dataDir, { recursive: true });
+  const nextConfig = pruneManagedEnvFile(args.config);
+  const envPath = formatPatcherAppEnvPath(args.dataDir);
+  const tempPath = join(
+    args.dataDir,
+    `.env.json.${process.pid}.${randomUUID()}.tmp`,
+  );
+
+  try {
+    await writeFile(tempPath, `${JSON.stringify(nextConfig, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await rename(tempPath, envPath);
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function writeClientConfigFile(
+  args: WriteClientConfigFileArgs,
+): Promise<void> {
+  await mkdir(args.dataDir, { recursive: true });
+  const configPath = formatClientConfigPath(args.dataDir);
+  const tempPath = join(
+    args.dataDir,
+    `.client.json.${process.pid}.${randomUUID()}.tmp`,
+  );
+
+  try {
+    await writeFile(tempPath, `${JSON.stringify(args.config, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await rename(tempPath, configPath);
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+const PATCHER_APP_VERSION_DEV_FALLBACK = "0.0.0-dev";
+
+export function readPatcherAppPackageVersion(packageRoot: string): string {
+  try {
+    const packageJsonPath = join(packageRoot, "package.json");
+    const rawContents = readFileSync(packageJsonPath, "utf8");
+    return patcherAppPackageJsonSchema.parse(JSON.parse(rawContents)).version;
+  } catch {
+    return PATCHER_APP_VERSION_DEV_FALLBACK;
+  }
+}
+
+export function resolvePatcherAppStartContext(
+  args: ResolvePatcherAppStartContextArgs,
+): PatcherAppStartContext {
+  const entrypointDir = dirname(fileURLToPath(args.entrypointUrl));
+  const packageRoot = resolve(entrypointDir, "..");
+  const workspaceRoot = resolve(packageRoot, "..", "..");
+  const runsFromSourceCheckout = entrypointDir === resolve(packageRoot, "src");
+  const dataDir = resolveDataDir({ env: args.env, homeDir: args.homeDir });
+  const serverPort = resolvePort({
+    defaultPort: PATCHER_PROD_SERVER_PORT,
+    env: args.env,
+    name: "PATCHER_SERVER_PORT",
+  });
+  const daemonPort = resolvePort({
+    defaultPort: PATCHER_PROD_HOST_DAEMON_PORT,
+    env: args.env,
+    name: "PATCHER_HOST_DAEMON_PORT",
+  });
+  const appDistDir = runsFromSourceCheckout
+    ? resolve(workspaceRoot, "apps", "app", "dist")
+    : resolve(packageRoot, "app", "dist");
+  const daemonBundleDir = runsFromSourceCheckout
+    ? resolve(workspaceRoot, "apps", "host-daemon", "dist")
+    : resolve(packageRoot, "host-daemon", "dist");
+  const serverEntry = runsFromSourceCheckout
+    ? resolve(workspaceRoot, "apps", "server", "dist", "index.js")
+    : resolve(packageRoot, "server", "dist", "index.js");
+
+  return {
+    appDistDir,
+    appVersion: readPatcherAppPackageVersion(packageRoot),
+    configFile: formatPatcherAppConfigPath(dataDir),
+    daemonBundleDir,
+    daemonEntry: resolve(daemonBundleDir, "daemon-bundle.mjs"),
+    daemonLockDir: `${join(dataDir, "daemon.lock")}.lock`,
+    daemonLockFile: join(dataDir, "daemon.lock"),
+    daemonPort,
+    dataDir,
+    dbPath: resolveDataDirDatabasePath({ dataDir }),
+    envFile: formatPatcherAppEnvPath(dataDir),
+    logDir: join(dataDir, "logs"),
+    packageRoot,
+    serverEntry,
+    serverPort,
+    serverUrl:
+      trimToUndefined(args.env.PATCHER_SERVER_URL) ??
+      `http://${PATCHER_LOOPBACK_HOST}:${serverPort}`,
+  };
+}
+
+export async function resolvePatcherAppRuntimeState(
+  args: ResolvePatcherAppRuntimeStateArgs,
+): Promise<PatcherAppRuntimeState> {
+  const initialEnv = createEnvFromOptions({
+    env: args.env,
+    options: args.options,
+  });
+  const initialContext = resolvePatcherAppStartContext({
+    entrypointUrl: args.entrypointUrl,
+    env: initialEnv,
+    homeDir: args.homeDir,
+  });
+  const config = await readManagedConfig({ dataDir: initialContext.dataDir });
+  const envFile = await readManagedEnvFile({ dataDir: initialContext.dataDir });
+  const managedEnv = applyManagedConfigEnv({
+    config,
+    envFile,
+    env: initialEnv,
+  });
+
+  if (args.serverUrlMode === "local") {
+    const localEnv = { ...managedEnv };
+    const localServerEnv = stripThreadContextEnv(
+      createServerBaseEnv({
+        config,
+        envFile,
+        env: initialEnv,
+        serverBindHostOverride: args.options.serverBindHost,
+      }),
+    );
+    delete localEnv.PATCHER_SERVER_URL;
+    delete localServerEnv.PATCHER_SERVER_URL;
+    return {
+      config,
+      context: resolvePatcherAppStartContext({
+        entrypointUrl: args.entrypointUrl,
+        env: localEnv,
+        homeDir: args.homeDir,
+      }),
+      env: localEnv,
+      serverEnv: localServerEnv,
+    };
+  }
+
+  const finalEnv = {
+    ...managedEnv,
+    PATCHER_SERVER_URL: resolveServerUrl({
+      config,
+      defaultServerUrl: initialContext.serverUrl,
+      env: managedEnv,
+      optionServerUrl: args.options.serverUrl,
+    }),
+  };
+  return {
+    config,
+    context: resolvePatcherAppStartContext({
+      entrypointUrl: args.entrypointUrl,
+      env: finalEnv,
+      homeDir: args.homeDir,
+    }),
+    env: finalEnv,
+    serverEnv: stripThreadContextEnv(
+      createServerBaseEnv({
+        config,
+        envFile,
+        env: initialEnv,
+        serverBindHostOverride: args.options.serverBindHost,
+      }),
+    ),
+  };
+}
+
+export async function resolvePatcherAppRuntimeContext(
+  args: ResolvePatcherAppRuntimeContextArgs,
+): Promise<PatcherAppStartContext> {
+  return (await resolvePatcherAppRuntimeState(args)).context;
+}
+
+export function createHostEnrollKeyRequestBody(
+  args: CreateHostEnrollKeyRequestBodyArgs,
+): HostEnrollKeyRequestBody {
+  const requestBody: HostEnrollKeyRequestBody = {};
+  if (args.requestedHostId !== null) {
+    requestBody.hostId = args.requestedHostId;
+  }
+  return requestBody;
+}
+
+/**
+ * The token another process can look for in `ps` output to confirm that a PID
+ * really is this launcher. `argv[1]` is the entry the runtime was invoked with,
+ * which is what the command line shows; the module path is only a fallback for
+ * an embedded runtime that passes no script argument.
+ */
+function resolveLauncherEntryPath(): string {
+  const scriptArgument = trimToUndefined(process.argv[1]);
+  return scriptArgument ?? fileURLToPath(import.meta.url);
+}
+
+export function resolvePatcherAppCommand(args: string[]): PatcherAppCommand {
+  if (args.length === 0) {
+    return { kind: "start" };
+  }
+
+  if (args[0] === START_COMMAND && args.length === 1) {
+    return { kind: "start" };
+  }
+
+  if (args[0] === STOP_COMMAND && args.length === 1) {
+    return { kind: "stop" };
+  }
+
+  if (args[0] === HOST_DAEMON_COMMAND) {
+    return {
+      args: args.slice(1),
+      kind: "host-daemon",
+    };
+  }
+
+  if (args[0] === CLIENT_COMMAND) {
+    return {
+      args: args.slice(1),
+      kind: "client",
+    };
+  }
+
+  if (args[0] === CONFIG_COMMAND) {
+    return {
+      args: args.slice(1),
+      kind: "config",
+    };
+  }
+
+  if (args[0] === ENV_COMMAND) {
+    return {
+      args: args.slice(1),
+      kind: "env",
+    };
+  }
+
+  if (args[0] === "help" || args[0] === "--help" || args[0] === "-h") {
+    return { kind: "help" };
+  }
+
+  return {
+    command: args[0],
+    kind: "invalid",
+  };
+}
+
+function printConfigHelp(dataDir: string): void {
+  process.stdout.write(`patcher-app config
+
+Usage:
+  patcher-app config
+  patcher-app config list
+  patcher-app config refresh
+  patcher-app config set <key> <value>
+  patcher-app config unset <key>
+
+Supported keys:
+  ${supportedConfigKeysText()}
+
+Startup-only:
+  PATCHER_LOG_LEVEL changes require a full patcher-app restart with
+  patcher-app stop && patcher-app start, or a desktop app restart.
+
+Config file:
+  ${formatPatcherAppConfigPath(dataDir)}
+`);
+}
+
+function printEnvHelp(dataDir: string): void {
+  process.stdout.write(`patcher-app env
+
+Usage:
+  patcher-app env
+  patcher-app env list
+  patcher-app env set <key> <value>
+  patcher-app env unset <key>
+
+Startup-only server and launcher keys:
+  PATCHER_APP_SURFACE, PATCHER_APP_URL, PATCHER_DATA_DIR, PATCHER_DEV_APP_PORT,
+  PATCHER_EXTERNAL_URL, PATCHER_HOST_DAEMON_PORT, PATCHER_INFERENCE,
+  PATCHER_INFERENCE_FALLBACK, PATCHER_INHERITED_SKILLS_ROOTS, PATCHER_LOG_LEVEL,
+  PATCHER_MANAGED_DEV_BUILTIN_PLUGIN_HOT_RELOAD, PATCHER_PLUGIN_PROCESS,
+  PATCHER_POSTHOG_API_KEY, PATCHER_SERVER_BIND_HOST, PATCHER_SERVER_PORT, PATCHER_TELEMETRY,
+  PATCHER_TRANSCRIPTION, and PATCHER_FF_* feature flags.
+  Changes require a full patcher-app restart with patcher-app stop && patcher-app start,
+  or a desktop app restart. PATCHER_APP_URL, PATCHER_INFERENCE,
+  PATCHER_INFERENCE_FALLBACK, and PATCHER_TRANSCRIPTION can instead be changed live
+  with patcher-app config.
+
+Env file:
+  ${formatPatcherAppEnvPath(dataDir)}
+`);
+}
+
+function printClientHelp(dataDir: string): void {
+  process.stdout.write(`patcher-app client
+
+Usage:
+  patcher-app client ssh-target list [--json]
+  patcher-app client ssh-target set <server-origin> <ssh-target>
+  patcher-app client ssh-target remove <server-origin>
+
+Config file:
+  ${formatClientConfigPath(dataDir)}
+`);
+}
+
+function resolveManagedConfigKey(rawKey: string): ManagedConfigKey {
+  const key = rawKey.trim();
+  if (key === "PATCHER_SERVER_URL" || key === "serverUrl") {
+    return key;
+  }
+  if (isManagedConfigValueKey(key)) {
+    return key;
+  }
+  if (isSecretShapedEnvName(key)) {
+    throw new Error(
+      `patcher-app config does not store secrets. Use "patcher-app env set ${key} <value>" instead.`,
+    );
+  }
+  throw new Error(
+    `Unsupported patcher-app config key "${rawKey}". Supported keys: ${supportedConfigKeysText()}`,
+  );
+}
+
+function createManagedConfigPatch(
+  key: ManagedConfigKey,
+  value: string,
+): ManagedConfig {
+  if (key === "PATCHER_SERVER_URL" || key === "serverUrl") {
+    return { serverUrl: value };
+  }
+  return { config: createManagedConfigValuePatch(key, value) };
+}
+
+function unsetManagedConfigKey(
+  config: ManagedConfigForWrite,
+  key: ManagedConfigKey,
+): ManagedConfigForWrite {
+  const nextConfig: ManagedConfigForWrite = {
+    ...config,
+  };
+  if (key === "PATCHER_SERVER_URL" || key === "serverUrl") {
+    delete nextConfig.serverUrl;
+    return pruneManagedConfig(nextConfig);
+  }
+  const nextConfigValues: ManagedConfigValues = {
+    ...config.config,
+  };
+  delete nextConfigValues[key];
+  nextConfig.config = nextConfigValues;
+  return pruneManagedConfig(nextConfig);
+}
+
+function resolveManagedEnvKey(rawKey: string): string {
+  const key = rawKey.trim();
+  if (!isPortableEnvName(key)) {
+    throw new Error(
+      `Invalid env key "${rawKey}". Env keys must match ${PORTABLE_ENV_NAME_PATTERN.source}`,
+    );
+  }
+  return key;
+}
+
+function createManagedEnvPatch(key: string, value: string): ManagedEnvFile {
+  return {
+    env: {
+      [key]: value,
+    },
+  };
+}
+
+function unsetManagedEnvKey(
+  config: ManagedEnvFile,
+  key: string,
+): ManagedEnvFile {
+  const nextConfig: ManagedEnvFile = {
+    ...config,
+  };
+  const nextEnv: ManagedEnvConfig = {
+    ...config.env,
+  };
+  delete nextEnv[key];
+  nextConfig.env = nextEnv;
+  return pruneManagedEnvFile(nextConfig);
+}
+
+function formatManagedConfig(config: ManagedConfig): string {
+  const lines: string[] = [];
+  if (config.serverUrl !== undefined) {
+    lines.push(`PATCHER_SERVER_URL=${config.serverUrl}`);
+  }
+  for (const key of MANAGED_CONFIG_KEYS) {
+    const value = config.config?.[key];
+    if (value !== undefined) {
+      lines.push(`${key}=${value}`);
+    }
+  }
+  // customModels has no set/unset CLI surface (edit config.json directly),
+  // but list must still surface the entries so the file's contents are never
+  // invisible to the official inspection command.
+  for (const [index, customModel] of (config.customModels ?? []).entries()) {
+    lines.push(
+      `customModels[${index}]=${customModel.providerId}:${customModel.model}`,
+    );
+  }
+  for (const [index, customAgent] of (config.customAcpAgents ?? []).entries()) {
+    lines.push(
+      `customAcpAgents[${index}]=${formatCustomAcpAgentProviderId(customAgent.id)}:${customAgent.command}`,
+    );
+  }
+  return lines.length > 0
+    ? `${lines.join("\n")}\n`
+    : "No patcher-app config set.\n";
+}
+
+function formatManagedEnv(config: ManagedEnvFile): string {
+  const env = config.env;
+  if (env === undefined) {
+    return "No patcher-app env set.\n";
+  }
+  const keys = Object.keys(env).sort();
+  if (keys.length === 0) {
+    return "No patcher-app env set.\n";
+  }
+  return `${keys.map((key) => `${key}=<set>`).join("\n")}\n`;
+}
+
+function formatClientHost(host: ClientHost): string {
+  return host.name === undefined || host.name === host.id
+    ? host.id
+    : `${host.id} (${host.name})`;
+}
+
+async function resolveClientSshTargetHostId(
+  args: ResolveClientSshTargetHostIdArgs,
+): Promise<string> {
+  const serverOrigin = normalizeClientServerOrigin(args.serverOrigin);
+  const hostsUrl = new URL("/api/v1/hosts", serverOrigin);
+  const response = await fetch(hostsUrl);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to list hosts from ${serverOrigin}: HTTP ${response.status}`,
+    );
+  }
+
+  const hosts = clientHostsResponseSchema.parse(await response.json());
+  const connectedHosts = hosts.filter((host) => host.status === "connected");
+  const candidates = connectedHosts.length > 0 ? connectedHosts : hosts;
+
+  if (candidates.length === 1) {
+    return candidates[0].id;
+  }
+  if (candidates.length === 0) {
+    throw new Error(`No hosts found on ${serverOrigin}`);
+  }
+
+  throw new Error(
+    [
+      `Expected exactly one host on ${serverOrigin}, but found ${candidates.length}.`,
+      `Hosts: ${candidates.map(formatClientHost).join(", ")}`,
+    ].join(" "),
+  );
+}
+
+function setClientSshTarget(
+  config: ClientConfig,
+  rawServerOrigin: string,
+  hostId: string,
+  sshAuthority: string,
+): ClientConfig {
+  const serverOrigin = normalizeClientServerOrigin(rawServerOrigin);
+  const nextConfig: ClientConfig = {
+    servers: {
+      ...config.servers,
+    },
+  };
+  const serverConfig = nextConfig.servers[serverOrigin] ?? { hosts: {} };
+  nextConfig.servers[serverOrigin] = {
+    hosts: {
+      ...serverConfig.hosts,
+      [hostId]: { sshAuthority },
+    },
+  };
+  return parseClientConfig(nextConfig);
+}
+
+function removeClientSshTarget(
+  config: ClientConfig,
+  rawServerOrigin: string,
+): ClientConfig {
+  const serverOrigin = normalizeClientServerOrigin(rawServerOrigin);
+  const nextServers = { ...config.servers };
+  delete nextServers[serverOrigin];
+  return { servers: nextServers };
+}
+
+function formatClientSshTargets(config: ClientConfig, json: boolean): string {
+  if (json) {
+    return `${JSON.stringify(config, null, 2)}\n`;
+  }
+
+  const lines: string[] = [];
+  for (const serverOrigin of Object.keys(config.servers).sort()) {
+    const hosts = config.servers[serverOrigin]?.hosts ?? {};
+    for (const hostId of Object.keys(hosts).sort()) {
+      const sshAuthority = hosts[hostId]?.sshAuthority;
+      if (sshAuthority !== undefined) {
+        lines.push(`${serverOrigin} ${hostId} ${sshAuthority}`);
+      }
+    }
+  }
+
+  return lines.length > 0
+    ? `${lines.join("\n")}\n`
+    : "No client SSH targets set.\n";
+}
+
+async function refreshRunningServerConfig(
+  args: RefreshRunningServerConfigArgs,
+): Promise<boolean> {
+  const reloadUrl = new URL("/api/v1/system/config/reload", args.serverUrl);
+  let response: Response;
+  try {
+    response = await fetch(reloadUrl, { method: "POST" });
+  } catch {
+    if (args.required) {
+      throw new Error(`Could not reach Patcher server at ${args.serverUrl}`);
+    }
+    return false;
+  }
+
+  if (response.ok) {
+    return true;
+  }
+
+  let message = `Patcher server rejected config reload with HTTP ${response.status}`;
+  try {
+    const parsed = apiErrorResponseSchema.safeParse(await response.json());
+    if (parsed.success) {
+      message = parsed.data.message;
+    }
+  } catch {
+    // Keep the generic HTTP status message.
+  }
+  throw new Error(message);
+}
+
+function isStartupOnlyManagedKey(
+  source: "config" | "env",
+  key: string,
+): boolean {
+  if (source === "config") {
+    return STARTUP_ONLY_MANAGED_CONFIG_KEYS.has(key);
+  }
+  return (
+    STARTUP_ONLY_MANAGED_ENV_KEYS.has(key) || key.startsWith("PATCHER_FF_")
+  );
+}
+
+function printStartupOnlyChangeNotice(key: string): void {
+  process.stdout.write(
+    `${key} is startup-only. The running process keeps its current value; a full patcher-app restart is required to apply this change. Run \`patcher-app stop && patcher-app start\`, or restart the desktop app.\n`,
+  );
+  if (key === "PATCHER_SERVER_BIND_HOST") {
+    process.stdout.write(
+      "Until then, the server keeps its previous bind address. If it was bound to 0.0.0.0, that network exposure remains open.\n",
+    );
+  }
+}
+
+async function readConfiguredStartupOnlyManagedKeys(
+  dataDir: string,
+): Promise<string[]> {
+  const [config, envFile] = await Promise.all([
+    readManagedConfig({ dataDir }),
+    readManagedEnvFile({ dataDir }),
+  ]);
+  const configuredKeys = new Set<string>();
+  for (const key of Object.keys(config.config ?? {})) {
+    if (isStartupOnlyManagedKey("config", key)) {
+      configuredKeys.add(key);
+    }
+  }
+  for (const key of Object.keys(envFile.env ?? {})) {
+    if (isStartupOnlyManagedKey("env", key)) {
+      configuredKeys.add(key);
+    }
+  }
+  return [...configuredKeys].sort();
+}
+
+async function refreshRunningServerConfigAfterWrite(
+  serverUrl: string,
+  source: "config" | "env",
+  key: string,
+): Promise<void> {
+  const refreshed = await refreshRunningServerConfig({
+    required: false,
+    serverUrl,
+  });
+  if (refreshed) {
+    if (isStartupOnlyManagedKey(source, key)) {
+      printStartupOnlyChangeNotice(key);
+    } else {
+      process.stdout.write("Reloaded running Patcher server config.\n");
+    }
+    return;
+  }
+  process.stdout.write(
+    `No running Patcher server found at ${serverUrl}; config will apply on next start.\n`,
+  );
+}
+
+async function runConfigCommand(args: RunConfigCommandArgs): Promise<void> {
+  const commandArgs = args.args;
+  if (
+    commandArgs.length === 0 ||
+    (commandArgs.length === 1 && commandArgs[0] === CONFIG_LIST_COMMAND)
+  ) {
+    process.stdout.write(
+      formatManagedConfig(await readManagedConfig({ dataDir: args.dataDir })),
+    );
+    return;
+  }
+  if (
+    commandArgs.length === 1 &&
+    (commandArgs[0] === "help" ||
+      commandArgs[0] === "--help" ||
+      commandArgs[0] === "-h")
+  ) {
+    printConfigHelp(args.dataDir);
+    return;
+  }
+  if (commandArgs.length === 1 && commandArgs[0] === CONFIG_REFRESH_COMMAND) {
+    await refreshRunningServerConfig({
+      required: true,
+      serverUrl: args.serverUrl,
+    });
+    process.stdout.write("Reloaded running Patcher server config.\n");
+    const startupOnlyKeys = await readConfiguredStartupOnlyManagedKeys(
+      args.dataDir,
+    );
+    if (startupOnlyKeys.length > 0) {
+      process.stdout.write(
+        `Startup-only settings currently configured (${startupOnlyKeys.join(", ")}) apply on the next full patcher-app restart.\n`,
+      );
+    }
+    return;
+  }
+  if (commandArgs[0] === CONFIG_UNSET_COMMAND) {
+    if (commandArgs.length !== 2) {
+      throw new Error("Usage: patcher-app config unset <key>");
+    }
+    const key = resolveManagedConfigKey(commandArgs[1]);
+    const currentConfig = await readManagedConfigForWrite({
+      dataDir: args.dataDir,
+    });
+    await writeManagedConfigFile({
+      config: unsetManagedConfigKey(currentConfig, key),
+      dataDir: args.dataDir,
+    });
+    process.stdout.write(
+      `Unset ${key} in ${formatPatcherAppConfigPath(args.dataDir)}\n`,
+    );
+    await refreshRunningServerConfigAfterWrite(args.serverUrl, "config", key);
+    return;
+  }
+  if (commandArgs[0] !== SET_COMMAND || commandArgs.length !== 3) {
+    throw new Error("Usage: patcher-app config set <key> <value>");
+  }
+
+  const value = commandArgs[2].trim();
+  if (value.length === 0) {
+    throw new Error("Config value must not be empty. Use unset to remove it.");
+  }
+  const key = resolveManagedConfigKey(commandArgs[1]);
+  await writeManagedConfig({
+    config: createManagedConfigPatch(key, value),
+    dataDir: args.dataDir,
+  });
+  process.stdout.write(
+    `Set ${key} in ${formatPatcherAppConfigPath(args.dataDir)}\n`,
+  );
+  await refreshRunningServerConfigAfterWrite(args.serverUrl, "config", key);
+}
+
+async function runEnvCommand(args: RunEnvCommandArgs): Promise<void> {
+  const commandArgs = args.args;
+  if (
+    commandArgs.length === 0 ||
+    (commandArgs.length === 1 && commandArgs[0] === CONFIG_LIST_COMMAND)
+  ) {
+    process.stdout.write(
+      formatManagedEnv(await readManagedEnvFile({ dataDir: args.dataDir })),
+    );
+    return;
+  }
+  if (
+    commandArgs.length === 1 &&
+    (commandArgs[0] === "help" ||
+      commandArgs[0] === "--help" ||
+      commandArgs[0] === "-h")
+  ) {
+    printEnvHelp(args.dataDir);
+    return;
+  }
+  if (commandArgs[0] === CONFIG_UNSET_COMMAND) {
+    if (commandArgs.length !== 2) {
+      throw new Error("Usage: patcher-app env unset <key>");
+    }
+    const key = resolveManagedEnvKey(commandArgs[1]);
+    const currentConfig = await readManagedEnvFile({ dataDir: args.dataDir });
+    await writeManagedEnvFile({
+      config: unsetManagedEnvKey(currentConfig, key),
+      dataDir: args.dataDir,
+    });
+    process.stdout.write(
+      `Unset ${key} in ${formatPatcherAppEnvPath(args.dataDir)}\n`,
+    );
+    await refreshRunningServerConfigAfterWrite(args.serverUrl, "env", key);
+    return;
+  }
+  if (commandArgs[0] !== SET_COMMAND || commandArgs.length !== 3) {
+    throw new Error("Usage: patcher-app env set <key> <value>");
+  }
+
+  const key = resolveManagedEnvKey(commandArgs[1]);
+  const value = commandArgs[2].trim();
+  if (value.length === 0) {
+    throw new Error("Env value must not be empty. Use unset to remove it.");
+  }
+  if (key === "PATCHER_SERVER_BIND_HOST") {
+    parseServerBindHost(value);
+  }
+  await writeManagedEnv({
+    config: createManagedEnvPatch(key, value),
+    dataDir: args.dataDir,
+  });
+  process.stdout.write(
+    `Set ${key} in ${formatPatcherAppEnvPath(args.dataDir)}\n`,
+  );
+  await refreshRunningServerConfigAfterWrite(args.serverUrl, "env", key);
+}
+
+async function runClientCommand(args: RunClientCommandArgs): Promise<void> {
+  const commandArgs = args.args;
+  if (
+    commandArgs.length === 0 ||
+    (commandArgs.length === 1 &&
+      (commandArgs[0] === "help" ||
+        commandArgs[0] === "--help" ||
+        commandArgs[0] === "-h"))
+  ) {
+    printClientHelp(args.dataDir);
+    return;
+  }
+
+  if (commandArgs[0] !== CLIENT_SSH_TARGET_COMMAND) {
+    throw new Error(
+      `Unsupported patcher-app client command "${commandArgs[0]}". Use "ssh-target".`,
+    );
+  }
+
+  const subcommand = commandArgs[1];
+  if (subcommand === CONFIG_LIST_COMMAND || subcommand === undefined) {
+    if (commandArgs.length > 2) {
+      throw new Error("Usage: patcher-app client ssh-target list [--json]");
+    }
+    process.stdout.write(
+      formatClientSshTargets(
+        await readClientConfig({ dataDir: args.dataDir }),
+        args.json,
+      ),
+    );
+    return;
+  }
+
+  if (subcommand === SET_COMMAND) {
+    if (commandArgs.length !== 4) {
+      throw new Error(
+        "Usage: patcher-app client ssh-target set <server-origin> <ssh-target>",
+      );
+    }
+    const serverOrigin = commandArgs[2];
+    const sshAuthority = commandArgs[3].trim();
+    if (sshAuthority.length === 0) {
+      throw new Error("SSH target must not be empty");
+    }
+    const hostId = await resolveClientSshTargetHostId({
+      serverOrigin,
+    });
+    const nextConfig = setClientSshTarget(
+      await readClientConfig({ dataDir: args.dataDir }),
+      serverOrigin,
+      hostId,
+      sshAuthority,
+    );
+    await writeClientConfigFile({
+      config: nextConfig,
+      dataDir: args.dataDir,
+    });
+    process.stdout.write(
+      `Set client SSH target in ${formatClientConfigPath(args.dataDir)}\n`,
+    );
+    return;
+  }
+
+  if (subcommand === REMOVE_COMMAND) {
+    if (commandArgs.length !== 3) {
+      throw new Error(
+        "Usage: patcher-app client ssh-target remove <server-origin>",
+      );
+    }
+    await writeClientConfigFile({
+      config: removeClientSshTarget(
+        await readClientConfig({ dataDir: args.dataDir }),
+        commandArgs[2],
+      ),
+      dataDir: args.dataDir,
+    });
+    process.stdout.write(
+      `Removed client SSH target from ${formatClientConfigPath(args.dataDir)}\n`,
+    );
+    return;
+  }
+
+  throw new Error(
+    `Unsupported patcher-app client ssh-target command "${subcommand}". Use list, set, or remove.`,
+  );
+}
+
+function requiredArtifactPaths(
+  context: PatcherAppStartContext,
+): ArtifactPath[] {
+  return [
+    { label: "server entry", path: context.serverEntry },
+    { label: "host daemon entry", path: context.daemonEntry },
+    {
+      label: "bundled Patcher CLI",
+      path: join(context.daemonBundleDir, "patcher"),
+    },
+    {
+      label: "Claude Code bridge",
+      path: join(context.daemonBundleDir, "patcher-claude-code-bridge.mjs"),
+    },
+    {
+      label: "Pi bridge",
+      path: join(context.daemonBundleDir, "patcher-pi-bridge.mjs"),
+    },
+    {
+      label: "ACP bridge",
+      path: join(context.daemonBundleDir, "patcher-acp-bridge.mjs"),
+    },
+    {
+      label: "parcel watcher child",
+      path: join(context.daemonBundleDir, "patcher-parcel-watcher-child.mjs"),
+    },
+    { label: "web app", path: join(context.appDistDir, "index.html") },
+  ];
+}
+
+export function assertPatcherAppArtifacts(
+  context: PatcherAppStartContext,
+): void {
+  const missingArtifact = requiredArtifactPaths(context).find(
+    (artifact) => !existsSync(artifact.path),
+  );
+  if (missingArtifact) {
+    throw new Error(
+      `Missing ${missingArtifact.label} at ${missingArtifact.path}. Rebuild patcher-app before running this package.`,
+    );
+  }
+}
+
+async function pathExists(pathToCheck: string): Promise<boolean> {
+  try {
+    await access(pathToCheck);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readPersistedHostId(dataDir: string): Promise<string | null> {
+  try {
+    const value = (
+      await readFile(join(dataDir, HOST_ID_FILE_NAME), "utf8")
+    ).trim();
+    return value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readPersistedHostAuthId(
+  dataDir: string,
+): Promise<string | null> {
+  try {
+    const auth = persistedHostAuthSchema.parse(
+      JSON.parse(await readFile(join(dataDir, HOST_AUTH_FILE_NAME), "utf8")),
+    );
+    return auth.hostId;
+  } catch {
+    return null;
+  }
+}
+
+async function requireExpectedHostDaemonId(args: {
+  dataDir: string;
+  env: NodeJS.ProcessEnv;
+}): Promise<string> {
+  const hostId =
+    trimToUndefined(args.env.PATCHER_HOST_ID) ??
+    (await readPersistedHostId(args.dataDir)) ??
+    (await readPersistedHostAuthId(args.dataDir));
+  if (hostId === null) {
+    throw new Error("Could not resolve the expected host daemon ID");
+  }
+  return hostId;
+}
+
+export async function requestHostEnrollKey(
+  args: RequestHostEnrollKeyArgs,
+): Promise<HostEnrollKeyResponse> {
+  const response = await fetch(`${args.serverUrl}/internal/hosts/enroll-key`, {
+    body: JSON.stringify(
+      createHostEnrollKeyRequestBody({
+        requestedHostId: args.requestedHostId,
+      }),
+    ),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (response.status !== 201) {
+    const detail = await response.text();
+    throw new Error(
+      `Failed to request host enroll key: ${response.status} ${response.statusText}${detail ? ` - ${detail}` : ""}`,
+    );
+  }
+
+  return hostEnrollKeyResponseSchema.parse(await response.json());
+}
+
+export async function maybeAddAutoJoinEnv(
+  args: MaybeAddAutoJoinEnvArgs,
+): Promise<NodeJS.ProcessEnv> {
+  if (trimToUndefined(args.env.PATCHER_HOST_ENROLL_KEY) !== undefined) {
+    return args.env;
+  }
+  if (await pathExists(join(args.dataDir, HOST_AUTH_FILE_NAME))) {
+    return args.env;
+  }
+
+  const requestedHostId =
+    trimToUndefined(args.env.PATCHER_HOST_ID) ??
+    (await readPersistedHostId(args.dataDir));
+  const enrollKeyResponse = await requestHostEnrollKey({
+    requestedHostId,
+    serverUrl: args.serverUrl,
+  });
+
+  if (
+    requestedHostId !== null &&
+    enrollKeyResponse.hostId !== requestedHostId
+  ) {
+    throw new Error(
+      `Enroll key response host ID ${enrollKeyResponse.hostId} does not match persisted host ID ${requestedHostId}`,
+    );
+  }
+
+  return {
+    ...args.env,
+    PATCHER_HOST_ENROLL_KEY: enrollKeyResponse.enrollKey,
+    PATCHER_HOST_ID: enrollKeyResponse.hostId,
+  };
+}
+
+async function waitForHealth(args: WaitForHealthArgs): Promise<void> {
+  const timeoutMs = args.timeoutMs ?? HEALTH_CHECK_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (
+      args.childProcess &&
+      (args.childProcess.exitCode !== null ||
+        args.childProcess.signalCode !== null)
+    ) {
+      throw new Error("Process exited before becoming healthy");
+    }
+    try {
+      const response = await fetch(args.url);
+      if (response.ok) {
+        return;
+      }
+    } catch {}
+    await new Promise<void>((resolvePromise) => {
+      setTimeout(resolvePromise, HEALTH_CHECK_INTERVAL_MS);
+    });
+  }
+  throw new Error(`Timed out waiting for health at ${args.url}`);
+}
+
+function normalizeServerUrlForComparison(serverUrl: string): string {
+  const url = new URL(serverUrl);
+  if (url.hostname === "localhost") url.hostname = PATCHER_LOOPBACK_HOST;
+  return url.href.replace(/\/$/u, "");
+}
+
+export async function waitForHostDaemonStatus(
+  args: WaitForHostDaemonStatusArgs,
+): Promise<void> {
+  const timeoutMs = args.timeoutMs ?? HEALTH_CHECK_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  const expectedServerUrl = normalizeServerUrlForComparison(
+    args.expectedServerUrl,
+  );
+  const statusUrl = `http://${PATCHER_LOOPBACK_HOST}:${args.port}/status`;
+
+  while (Date.now() <= deadline) {
+    if (
+      args.childProcess &&
+      (args.childProcess.exitCode !== null ||
+        args.childProcess.signalCode !== null)
+    ) {
+      throw new Error("Host daemon exited before becoming ready");
+    }
+    try {
+      const response = await fetch(statusUrl, {
+        signal: AbortSignal.timeout(HEALTH_CHECK_REQUEST_TIMEOUT_MS),
+      });
+      if (response.ok) {
+        const status = hostDaemonStatusSchema.parse(await response.json());
+        if (
+          status.connected &&
+          status.hostId === args.expectedHostId &&
+          normalizeServerUrlForComparison(status.serverUrl) ===
+            expectedServerUrl
+        ) {
+          return;
+        }
+      }
+    } catch {}
+    await new Promise<void>((resolvePromise) => {
+      setTimeout(resolvePromise, HEALTH_CHECK_INTERVAL_MS);
+    });
+  }
+  throw new Error(
+    `Timed out waiting for host daemon ${args.expectedHostId} to connect to ${expectedServerUrl} at ${statusUrl}`,
+  );
+}
+
+function toChunkString(chunk: OutputChunk): string {
+  return typeof chunk === "string" ? chunk : chunk.toString("utf8");
+}
+
+function createOutputBuffer(): OutputBuffer {
+  const chunks: OutputChunk[] = [];
+  let passthrough = false;
+
+  return {
+    handler(chunk) {
+      if (passthrough) {
+        process.stdout.write(chunk);
+        return;
+      }
+      chunks.push(chunk);
+    },
+    flush() {
+      process.stdout.write("\n");
+      for (const chunk of chunks) {
+        process.stdout.write(toChunkString(chunk));
+      }
+      chunks.length = 0;
+      passthrough = true;
+    },
+  };
+}
+
+function spawnManagedProcess(args: ManagedSpawnArgs): ChildProcess {
+  const child = spawn(args.command, args.args, {
+    cwd: process.cwd(),
+    env: args.env,
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+
+  if (child.stdout === null) {
+    throw new Error("Expected managed process stdout to be piped");
+  }
+
+  child.stdout.on("data", args.outputBuffer.handler);
+  return child;
+}
+
+function spawnNamedManagedProcess(
+  args: SpawnNamedManagedProcessArgs,
+): ChildManagedProcessRun {
+  const childProcess = spawnManagedProcess(args);
+  return {
+    childProcess,
+    exit: waitForNamedProcessExit({
+      childProcess,
+      processName: args.processName,
+    }),
+    async terminate(signal): Promise<void> {
+      await terminateProcessIfRunning({
+        childProcess,
+        processName: args.processName,
+        signal,
+      });
+    },
+  };
+}
+
+function hasProcessExited(childProcess: ChildProcess): boolean {
+  return childProcess.exitCode !== null || childProcess.signalCode !== null;
+}
+
+export function waitForProcessExit(
+  childProcess: ChildProcess,
+): Promise<ProcessExitResult> {
+  if (hasProcessExited(childProcess)) {
+    return Promise.resolve({
+      code: childProcess.exitCode,
+      signal: childProcess.signalCode,
+    });
+  }
+
+  return new Promise<ProcessExitResult>((resolvePromise) => {
+    childProcess.once("exit", (code, signal) => {
+      resolvePromise({ code, signal });
+    });
+  });
+}
+
+function waitForProcessExitWithTimeout(
+  args: WaitForProcessExitWithTimeoutArgs,
+): Promise<WaitForProcessExitWithTimeoutResult> {
+  if (hasProcessExited(args.childProcess)) {
+    return Promise.resolve("exited");
+  }
+
+  return new Promise<WaitForProcessExitWithTimeoutResult>((resolvePromise) => {
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout>;
+    const finish: ResolveWaitForProcessExitWithTimeout = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      args.childProcess.off("exit", exitHandler);
+      resolvePromise(result);
+    };
+    const exitHandler = (): void => {
+      finish("exited");
+    };
+    timeout = setTimeout(() => {
+      finish("timed-out");
+    }, args.timeoutMs);
+    timeout.unref();
+
+    args.childProcess.once("exit", exitHandler);
+    if (hasProcessExited(args.childProcess)) {
+      finish("exited");
+    }
+  });
+}
+
+async function waitForNamedProcessExit(
+  args: WaitForNamedProcessExitArgs,
+): Promise<NamedProcessExitResult> {
+  return {
+    processName: args.processName,
+    result: await waitForProcessExit(args.childProcess),
+  };
+}
+
+function formatProcessExitResult(result: ProcessExitResult): string {
+  if (result.code !== null) {
+    return `code ${result.code}`;
+  }
+  if (result.signal !== null) {
+    return `signal ${result.signal}`;
+  }
+  return "no exit code or signal";
+}
+
+function formatManagedProcessName(processName: ManagedProcessName): string {
+  return processName === "server" ? "Server" : "Host daemon";
+}
+
+function formatManagedProcessLabel(processName: ManagedProcessName): string {
+  return processName === "server" ? "server" : "host daemon";
+}
+
+function toExitCode(result: ProcessExitResult): number {
+  if (result.code !== null) {
+    return result.code;
+  }
+  return result.signal === null ? 1 : 128;
+}
+
+function delayMilliseconds(args: DelayMillisecondsArgs): Promise<void> {
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, args.ms);
+  });
+}
+
+async function terminateProcessIfRunning(
+  args: TerminateProcessIfRunningArgs,
+): Promise<void> {
+  if (hasProcessExited(args.childProcess)) {
+    return;
+  }
+  args.childProcess.kill(args.signal);
+  const gracefulResult = await waitForProcessExitWithTimeout({
+    childProcess: args.childProcess,
+    timeoutMs: MANAGED_PROCESS_TERMINATION_TIMEOUT_MS,
+  });
+  if (gracefulResult === "exited") {
+    return;
+  }
+
+  log(
+    yellow("!"),
+    `${args.processName} did not stop after ${MANAGED_PROCESS_TERMINATION_TIMEOUT_MS}ms - sending SIGKILL`,
+  );
+  if (!hasProcessExited(args.childProcess)) {
+    args.childProcess.kill("SIGKILL");
+  }
+  await waitForProcessExitWithTimeout({
+    childProcess: args.childProcess,
+    timeoutMs: MANAGED_PROCESS_KILL_TIMEOUT_MS,
+  });
+}
+
+function createSharedEnv(args: CreateSharedEnvArgs): NodeJS.ProcessEnv {
+  return {
+    ...args.env,
+    PATCHER_APP_VERSION: args.context.appVersion,
+    PATCHER_DATA_DIR: args.context.dataDir,
+    PATCHER_HOST_DAEMON_PORT: String(args.context.daemonPort),
+    PATCHER_SERVER_PORT: String(args.context.serverPort),
+    NODE_ENV: "production",
+  };
+}
+
+function createServerEnv(args: CreateServerEnvArgs): NodeJS.ProcessEnv {
+  return {
+    ...args.env,
+    PATCHER_APP_VERSION: args.context.appVersion,
+    [APP_SURFACE_ENV_NAME]: APP_SURFACE_WEB,
+    // The daemon bundle holds the Patcher CLI. Server-side features that shell out
+    // — script automations put it on the script's PATH — otherwise have no way
+    // to find it: Patcher lives in the bundle directory, which is on no shell PATH.
+    // PATCHER_CLI_DIR matches createDaemonEnv, which has always passed it through.
+    //
+    // PATCHER_CLI is set rather than inherited on purpose. Launching patcher-app from an
+    // agent shell brings that shell's PATCHER_CLI along, pointing at whichever
+    // install spawned it. That binary can be older than this bundle and still
+    // answer `--version`, so an inherited value would quietly win over the
+    // bundle actually being run.
+    PATCHER_CLI: join(args.context.daemonBundleDir, "patcher"),
+    PATCHER_CLI_DIR: args.context.daemonBundleDir,
+    PATCHER_DATA_DIR: args.context.dataDir,
+    PATCHER_HOST_DAEMON_PORT: String(args.context.daemonPort),
+    PATCHER_SERVER_PORT: String(args.context.serverPort),
+    NODE_ENV: "production",
+  };
+}
+
+export function createDaemonEnv(
+  context: PatcherAppStartContext,
+  autoJoinEnv: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  return {
+    ...stripThreadContextEnv(autoJoinEnv),
+    PATCHER_APP_VERSION: context.appVersion,
+    PATCHER_BRIDGE_DIR: context.daemonBundleDir,
+    PATCHER_CLI_DIR: context.daemonBundleDir,
+    PATCHER_DATA_DIR: context.dataDir,
+    PATCHER_HOST_DAEMON_PORT: String(context.daemonPort),
+    PATCHER_SERVER_URL: context.serverUrl,
+    NODE_ENV: "production",
+  };
+}
+
+function createCliEnv(args: CreateCliEnvArgs): NodeJS.ProcessEnv {
+  const cliEnv: NodeJS.ProcessEnv = {
+    ...args.env,
+    PATCHER_APP_VERSION: args.context.appVersion,
+    PATCHER_HOST_DAEMON_PORT: String(args.context.daemonPort),
+    NODE_ENV: "production",
+  };
+
+  if (trimToUndefined(cliEnv.PATCHER_SERVER_URL) === undefined) {
+    cliEnv.PATCHER_SERVER_URL = args.context.serverUrl;
+  }
+
+  return cliEnv;
+}
+
+function resolveHostDaemonServerUrl(
+  args: ResolveHostDaemonServerUrlArgs,
+): string {
+  return trimToUndefined(args.env.PATCHER_SERVER_URL) ?? args.context.serverUrl;
+}
+
+function createHostDaemonOnlyEnv(
+  args: CreateHostDaemonOnlyEnvArgs,
+): NodeJS.ProcessEnv {
+  return {
+    ...stripThreadContextEnv(args.env),
+    PATCHER_APP_VERSION: args.context.appVersion,
+    PATCHER_BRIDGE_DIR: args.context.daemonBundleDir,
+    PATCHER_CLI_DIR: args.context.daemonBundleDir,
+    PATCHER_DATA_DIR: args.context.dataDir,
+    PATCHER_HOST_DAEMON_PORT: String(args.context.daemonPort),
+    PATCHER_SERVER_URL: args.serverUrl,
+    NODE_ENV: "production",
+  };
+}
+
+function resolveEnrollmentRequirements(
+  args: ResolveEnrollmentRequirementsArgs,
+): EnrollmentRequirements {
+  const enrollKey = trimToUndefined(args.env.PATCHER_HOST_ENROLL_KEY);
+  return {
+    enrolled: existsSync(join(args.context.dataDir, HOST_AUTH_FILE_NAME)),
+    ...(enrollKey !== undefined ? { enrollKey } : {}),
+  };
+}
+
+function resolveHostDaemonCommand(
+  args: string[],
+): ResolveHostDaemonCommandResult {
+  if (args.length === 0) {
+    return { kind: "start" };
+  }
+  if (args.length === 1 && args[0] === HOST_DAEMON_JOIN_COMMAND) {
+    return { kind: "join" };
+  }
+  throw new Error(
+    `patcher-app host-daemon accepts no subcommand except ${HOST_DAEMON_JOIN_COMMAND}`,
+  );
+}
+
+export async function createHostDaemonJoinEnv(
+  args: CreateHostDaemonJoinEnvArgs,
+): Promise<NodeJS.ProcessEnv> {
+  const requestedHostId =
+    trimToUndefined(args.env.PATCHER_HOST_ID) ??
+    (await readPersistedHostId(args.context.dataDir));
+  const suppliedJoinCode = trimToUndefined(args.env.PATCHER_HOST_ENROLL_KEY);
+  if (suppliedJoinCode !== undefined) {
+    if (requestedHostId === null) {
+      throw new Error("--host-id is required when --join-code is supplied");
+    }
+    await writeManagedConfig({
+      config: {
+        serverUrl: args.serverUrl,
+      },
+      dataDir: args.context.dataDir,
+    });
+    return {
+      ...args.env,
+      PATCHER_HOST_ENROLL_KEY: suppliedJoinCode,
+      PATCHER_HOST_ID: requestedHostId,
+    };
+  }
+  const enrollKeyResponse = await requestHostEnrollKey({
+    requestedHostId,
+    serverUrl: args.serverUrl,
+  });
+
+  if (
+    requestedHostId !== null &&
+    enrollKeyResponse.hostId !== requestedHostId
+  ) {
+    throw new Error(
+      `Enroll key response host ID ${enrollKeyResponse.hostId} does not match persisted host ID ${requestedHostId}`,
+    );
+  }
+
+  await writeManagedConfig({
+    config: {
+      serverUrl: args.serverUrl,
+    },
+    dataDir: args.context.dataDir,
+  });
+
+  return {
+    ...args.env,
+    PATCHER_HOST_ENROLL_KEY: enrollKeyResponse.enrollKey,
+    PATCHER_HOST_ID: enrollKeyResponse.hostId,
+  };
+}
+
+export async function runBundledCliCommand(
+  args: RunBundledCliCommandArgs,
+): Promise<number> {
+  // Prefer the daemon-injected absolute CLI when present so packaged `patcher`
+  // trampolines match the running host daemon (dev workspace or this install).
+  const patcherCliOverride = trimToUndefined(args.env.PATCHER_CLI);
+  const cliPath =
+    patcherCliOverride ?? join(args.context.daemonBundleDir, "patcher");
+  const childProcess = spawn(cliPath, args.args, {
+    cwd: process.cwd(),
+    env: createCliEnv({ context: args.context, env: args.env }),
+    stdio: "inherit",
+  });
+
+  return toExitCode(await waitForProcessExit(childProcess));
+}
+
+export async function runPatcherCli(
+  cliArgs: string[] = process.argv.slice(2),
+): Promise<void> {
+  const runtime = await resolvePatcherAppRuntimeState({
+    entrypointUrl: import.meta.url,
+    env: process.env,
+    homeDir: homedir(),
+    options: createDefaultLauncherOptions(),
+    serverUrlMode: "managed",
+  });
+  assertPatcherAppArtifacts(runtime.context);
+  process.exitCode = await runBundledCliCommand({
+    args: cliArgs,
+    context: runtime.context,
+    env: runtime.env,
+  });
+}
+
+export async function runPatcherServer(
+  cliArgs: string[] = process.argv.slice(2),
+): Promise<void> {
+  const parsedArgs = parseLauncherArgs(cliArgs);
+  if (parsedArgs.options.help) {
+    process.stdout.write(`patcher-server
+
+Usage:
+  patcher-server [--data-dir <path>] [--server-bind-host <host>] [--server-port <port>]
+`);
+    return;
+  }
+  if (parsedArgs.positionals.length > 0) {
+    throw new Error("patcher-server does not accept arguments.");
+  }
+
+  const runtime = await resolvePatcherAppRuntimeState({
+    entrypointUrl: import.meta.url,
+    env: process.env,
+    homeDir: homedir(),
+    options: parsedArgs.options,
+    serverUrlMode: "local",
+  });
+  const configuredServerBindHost = runtime.serverEnv.PATCHER_SERVER_BIND_HOST;
+  if (configuredServerBindHost !== undefined) {
+    try {
+      parseServerBindHost(configuredServerBindHost);
+    } catch (error) {
+      const envFile = await readManagedEnvFile({
+        dataDir: runtime.context.dataDir,
+      });
+      if (
+        parsedArgs.options.serverBindHost === undefined &&
+        envFile.env?.PATCHER_SERVER_BIND_HOST === configuredServerBindHost &&
+        error instanceof Error
+      ) {
+        throw new Error(
+          `Invalid patcher-app env at ${runtime.context.envFile}: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
+  assertPatcherAppArtifacts(runtime.context);
+
+  const childProcess = spawn(process.execPath, [runtime.context.serverEntry], {
+    cwd: process.cwd(),
+    env: createServerEnv({
+      context: runtime.context,
+      env: runtime.serverEnv,
+    }),
+    stdio: "inherit",
+  });
+  process.exitCode = toExitCode(await waitForProcessExit(childProcess));
+}
+
+async function runHostDaemonOnly(args: RunHostDaemonOnlyArgs): Promise<void> {
+  const command = resolveHostDaemonCommand(args.args);
+  const baseDaemonEnv = args.env;
+  const serverUrl = resolveHostDaemonServerUrl({
+    context: args.context,
+    env: baseDaemonEnv,
+  });
+  const joinEnv =
+    command.kind === "join"
+      ? await createHostDaemonJoinEnv({
+          context: args.context,
+          env: baseDaemonEnv,
+          serverUrl,
+        })
+      : baseDaemonEnv;
+  const daemonEnv = createHostDaemonOnlyEnv({
+    context: args.context,
+    env: joinEnv,
+    serverUrl,
+  });
+  const enrollment = resolveEnrollmentRequirements({
+    context: args.context,
+    env: daemonEnv,
+  });
+
+  process.stdout.write(`\n  ${bold("Patcher host-daemon")}\n\n`);
+
+  if (existsSync(args.context.daemonLockDir)) {
+    warnExistingDaemonLock(args.context.daemonLockDir);
+  }
+
+  if (!enrollment.enrolled && enrollment.enrollKey === undefined) {
+    endStep(
+      red("✗"),
+      `Not enrolled - set PATCHER_HOST_ENROLL_KEY to join ${serverUrl}`,
+    );
+    process.stdout.write("\n");
+    log(" ", dim("Run this command to request enrollment and start daemon:"));
+    log(" ", dim(`  patcher-app host-daemon join --server-url ${serverUrl}`));
+    process.stdout.write("\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  const expectedHostId = await requireExpectedHostDaemonId({
+    dataDir: args.context.dataDir,
+    env: daemonEnv,
+  });
+
+  beginStep(
+    enrollment.enrolled ? "Starting daemon" : "Enrolling and starting daemon",
+  );
+
+  const outputBuffer = createOutputBuffer();
+  const daemonProcess = spawnManagedProcess({
+    args: [args.context.daemonEntry],
+    command: process.execPath,
+    env: daemonEnv,
+    outputBuffer,
+  });
+
+  let shuttingDown = false;
+  const daemonExit = waitForProcessExit(daemonProcess);
+
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    process.stdout.write("\n");
+    log(dim("●"), "Shutting down");
+    await terminateProcessIfRunning({
+      childProcess: daemonProcess,
+      processName: "daemon",
+      signal,
+    });
+  };
+
+  const removeSignalForwarding = installTerminationSignalForwarding(
+    (signal) => {
+      void shutdown(signal);
+    },
+  );
+
+  try {
+    try {
+      await waitForHostDaemonStatus({
+        childProcess: daemonProcess,
+        expectedHostId,
+        expectedServerUrl: serverUrl,
+        port: args.context.daemonPort,
+      });
+    } catch {
+      endStep(red("✗"), "Host daemon failed to start");
+      log(" ", dim(`lock: ${args.context.daemonLockDir}`));
+      log(" ", dim(`logs: ${args.context.logDir}/`));
+      outputBuffer.flush();
+      process.exitCode = 1;
+      await shutdown("SIGTERM");
+      return;
+    }
+
+    endStep(green("✓"), "Host daemon running");
+
+    process.stdout.write("\n");
+    log(green("●"), bold("Patcher host-daemon is ready"));
+    process.stdout.write("\n");
+    log(" ", formatReadyOutputRow("server", cyan(serverUrl)));
+    log(" ", formatReadyOutputRow("daemon", String(args.context.daemonPort)));
+    log(" ", formatReadyOutputRow("data", args.context.dataDir));
+    log(" ", formatReadyOutputRow("logs", `${args.context.logDir}/`));
+    log(" ", formatReadyOutputRow("lock", args.context.daemonLockFile));
+    log(
+      " ",
+      formatReadyOutputRow(
+        "auth",
+        join(args.context.dataDir, HOST_AUTH_FILE_NAME),
+      ),
+    );
+    process.stdout.write("\n");
+    log(" ", dim("Press Ctrl+C to stop"));
+
+    outputBuffer.flush();
+    process.exitCode = toExitCode(await daemonExit);
+  } finally {
+    removeSignalForwarding();
+  }
+}
+
+export async function runPatcherHostDaemon(
+  cliArgs: string[] = process.argv.slice(2),
+): Promise<void> {
+  const parsedArgs = parseLauncherArgs(cliArgs);
+  if (parsedArgs.options.help) {
+    process.stdout.write(`patcher-host-daemon
+
+Usage:
+  patcher-host-daemon [--server-url <url>] [--host-daemon-port <port>] [--host-id <id>] [--host-type <type>] [--enroll-key <key>] [--auto-update]
+  patcher-host-daemon join --server-url <url> [--host-daemon-port <port>] [--join-code <code> --host-id <id>] [--auto-update]
+`);
+    return;
+  }
+
+  const runtime = await resolvePatcherAppRuntimeState({
+    entrypointUrl: import.meta.url,
+    env: process.env,
+    homeDir: homedir(),
+    options: parsedArgs.options,
+    serverUrlMode: "managed",
+  });
+  assertPatcherAppArtifacts(runtime.context);
+  await runHostDaemonOnly({
+    args: parsedArgs.positionals,
+    context: runtime.context,
+    env: runtime.env,
+  });
+}
+
+function installTerminationSignalForwarding(
+  callback: (signal: NodeJS.Signals) => void,
+): () => void {
+  const sigintHandler = (): void => callback("SIGINT");
+  const sigtermHandler = (): void => callback("SIGTERM");
+  process.on("SIGINT", sigintHandler);
+  process.on("SIGTERM", sigtermHandler);
+
+  return () => {
+    process.off("SIGINT", sigintHandler);
+    process.off("SIGTERM", sigtermHandler);
+  };
+}
+
+export function isMainModule(args: IsMainModuleArgs): boolean {
+  if (args.entrypointPath === undefined) {
+    return false;
+  }
+
+  const modulePath = fileURLToPath(args.moduleUrl);
+  try {
+    return realpathSync(args.entrypointPath) === realpathSync(modulePath);
+  } catch {
+    return resolve(args.entrypointPath) === resolve(modulePath);
+  }
+}
+
+function printPatcherAppHelp(): void {
+  process.stdout.write(`patcher-app
+
+Usage:
+  patcher-app [--data-dir <path>] [--server-bind-host <host>] [--server-port <port>] [--host-daemon-port <port>]
+  patcher-app start
+  patcher-app stop
+  patcher-app config set <key> <value>
+  patcher-app config refresh
+  patcher-app env set <key> <value>
+  patcher-app client ssh-target set <server-origin> <ssh-target>
+  patcher-app host-daemon [--server-url <url>] [--host-daemon-port <port>] [--host-id <id>] [--host-type <type>] [--enroll-key <key>] [--auto-update]
+  patcher-app host-daemon join --server-url <url> [--host-daemon-port <port>] [--join-code <code> --host-id <id>] [--auto-update]
+
+CLI:
+  npx --package patcher-app patcher <command>
+`);
+}
+
+function logManagedProcessStartupFailureContext(
+  args: LogManagedProcessStartupFailureContextArgs,
+): void {
+  if (args.processName === "server") {
+    log(" ", dim(`Check logs: ${args.context.logDir}/`));
+    return;
+  }
+
+  log(" ", dim(`lock: ${args.context.daemonLockDir}`));
+  log(" ", dim(`logs: ${args.context.logDir}/`));
+}
+
+async function startFullStackServerProcess(
+  args: StartFullStackServerProcessArgs,
+): Promise<ManagedProcessRun> {
+  const serverRun = spawnNamedManagedProcess({
+    args: [args.context.serverEntry],
+    command: process.execPath,
+    env: args.env,
+    outputBuffer: args.outputBuffer,
+    processName: "server",
+  });
+  args.processes.serverRun = serverRun;
+
+  try {
+    await waitForHealth({
+      childProcess: serverRun.childProcess,
+      url: `${args.context.serverUrl}/health`,
+    });
+    return serverRun;
+  } catch {
+    await terminateProcessIfRunning({
+      childProcess: serverRun.childProcess,
+      processName: "server",
+      signal: "SIGTERM",
+    });
+    if (args.processes.serverRun === serverRun) {
+      args.processes.serverRun = null;
+    }
+    throw new Error("Server failed to become healthy");
+  }
+}
+
+async function startFullStackDaemonProcess(
+  args: StartFullStackDaemonProcessArgs,
+): Promise<ManagedProcessRun> {
+  const daemonRun = spawnNamedManagedProcess({
+    args: [args.context.daemonEntry],
+    command: process.execPath,
+    env: createDaemonEnv(args.context, args.autoJoinEnv),
+    outputBuffer: args.outputBuffer,
+    processName: "daemon",
+  });
+  args.processes.daemonRun = daemonRun;
+
+  try {
+    const expectedHostId = await requireExpectedHostDaemonId({
+      dataDir: args.context.dataDir,
+      env: args.autoJoinEnv,
+    });
+    await waitForHostDaemonStatus({
+      childProcess: daemonRun.childProcess,
+      expectedHostId,
+      expectedServerUrl: args.context.serverUrl,
+      port: args.context.daemonPort,
+    });
+    return daemonRun;
+  } catch {
+    await terminateProcessIfRunning({
+      childProcess: daemonRun.childProcess,
+      processName: "daemon",
+      signal: "SIGTERM",
+    });
+    if (args.processes.daemonRun === daemonRun) {
+      args.processes.daemonRun = null;
+    }
+    throw new Error("Host daemon failed to become healthy");
+  }
+}
+
+async function restartManagedProcess(
+  args: RestartManagedProcessArgs,
+): Promise<ManagedProcessRun | null> {
+  while (!args.isShutdownRequested()) {
+    beginStep(`Restarting ${formatManagedProcessLabel(args.processName)}`);
+    try {
+      const processRun = await args.start();
+      endStep(
+        green("✓"),
+        `${formatManagedProcessName(args.processName)} restarted`,
+      );
+      return processRun;
+    } catch {
+      if (args.isShutdownRequested()) {
+        return null;
+      }
+      endStep(
+        red("✗"),
+        `${formatManagedProcessName(args.processName)} failed to restart`,
+      );
+      logManagedProcessStartupFailureContext({
+        context: args.context,
+        processName: args.processName,
+      });
+      await args.delayMilliseconds({
+        ms: MANAGED_PROCESS_RESTART_RETRY_DELAY_MS,
+      });
+    }
+  }
+
+  return null;
+}
+
+export async function terminateManagedFullStackProcesses(
+  args: TerminateManagedFullStackProcessesArgs,
+): Promise<void> {
+  const terminationPromises: Promise<void>[] = [];
+  const serverRun = args.processes.serverRun;
+  const daemonRun = args.processes.daemonRun;
+  if (serverRun !== null) {
+    terminationPromises.push(serverRun.terminate(args.signal));
+  }
+  if (daemonRun !== null) {
+    terminationPromises.push(daemonRun.terminate(args.signal));
+  }
+  await Promise.all(terminationPromises);
+}
+
+export async function superviseFullStackProcesses(
+  args: SuperviseFullStackProcessesArgs,
+): Promise<FullStackSupervisionResult> {
+  while (!args.isShutdownRequested()) {
+    const serverRun = args.processes.serverRun;
+    const daemonRun = args.processes.daemonRun;
+    if (serverRun === null || daemonRun === null) {
+      return "stopped";
+    }
+
+    const exitedProcess = await Promise.race([serverRun.exit, daemonRun.exit]);
+    if (args.isShutdownRequested()) {
+      return "shutdown";
+    }
+
+    log(
+      yellow("!"),
+      `${formatManagedProcessLabel(exitedProcess.processName)} exited with ${formatProcessExitResult(
+        exitedProcess.result,
+      )} - restarting ${formatManagedProcessLabel(exitedProcess.processName)}`,
+    );
+
+    if (exitedProcess.processName === "server") {
+      if (args.processes.serverRun === serverRun) {
+        args.processes.serverRun = null;
+      }
+      await args.delayMilliseconds({
+        ms: MANAGED_PROCESS_RESTART_RETRY_DELAY_MS,
+      });
+      if (args.isShutdownRequested()) {
+        return "shutdown";
+      }
+      const restartedServer = await restartManagedProcess({
+        context: args.context,
+        delayMilliseconds: args.delayMilliseconds,
+        isShutdownRequested: args.isShutdownRequested,
+        processName: "server",
+        start: args.startServer,
+      });
+      if (restartedServer === null) {
+        return "shutdown";
+      }
+      continue;
+    }
+
+    if (args.processes.daemonRun === daemonRun) {
+      args.processes.daemonRun = null;
+    }
+    await args.delayMilliseconds({
+      ms: MANAGED_PROCESS_RESTART_RETRY_DELAY_MS,
+    });
+    if (args.isShutdownRequested()) {
+      return "shutdown";
+    }
+    const restartedDaemon = await restartManagedProcess({
+      context: args.context,
+      delayMilliseconds: args.delayMilliseconds,
+      isShutdownRequested: args.isShutdownRequested,
+      processName: "daemon",
+      start: args.startDaemon,
+    });
+    if (restartedDaemon === null) {
+      return "shutdown";
+    }
+  }
+  return "shutdown";
+}
+
+export async function completeFullStackSupervision(
+  args: CompleteFullStackSupervisionArgs,
+): Promise<void> {
+  if (args.shutdownPromise !== null) {
+    await args.shutdownPromise;
+  }
+  if (args.supervisionResult === "shutdown") {
+    process.exitCode = 0;
+  }
+}
+
+/**
+ * Stop the `patcher-app start` that owns this data directory. It reads the runtime
+ * file that the running launcher wrote, verifies the recorded process really is
+ * that launcher, then sends SIGTERM and escalates to SIGKILL.
+ */
+async function runStopCommand(args: { dataDir: string }): Promise<void> {
+  const runtimeFile = await readPatcherAppRuntimeFile(args.dataDir);
+  if (runtimeFile === null) {
+    log(dim("●"), `No running Patcher recorded in ${args.dataDir}`);
+    return;
+  }
+
+  const result = await stopVerifiedProcess({
+    killTimeoutMs: STOP_KILL_TIMEOUT_MS,
+    pid: runtimeFile.pid,
+    signal: "SIGTERM",
+    startedAt: runtimeFile.startedAt,
+    timeoutMs: STOP_TIMEOUT_MS,
+    verifyTokens: patcherAppRuntimeVerifyTokens(runtimeFile.entryPath),
+  });
+
+  if (result.kind === "not-running") {
+    await clearOwnPatcherAppRuntimeFile({
+      dataDir: args.dataDir,
+      pid: runtimeFile.pid,
+    });
+    log(
+      dim("●"),
+      `Patcher was not running (removed a stale record of pid ${String(runtimeFile.pid)})`,
+    );
+    return;
+  }
+
+  if (result.kind === "unverified") {
+    const detail =
+      result.reason === "start-time"
+        ? "started at a different time than the record"
+        : "does not look like Patcher";
+    process.stderr.write(
+      `Process ${String(runtimeFile.pid)} ${detail}, so it was left alone.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Keep the record when the process survived, so a later stop can retry it.
+  if (result.kind === "still-running") {
+    process.stderr.write(
+      `Patcher (pid ${String(runtimeFile.pid)}) did not stop, even after SIGKILL.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  await clearOwnPatcherAppRuntimeFile({
+    dataDir: args.dataDir,
+    pid: runtimeFile.pid,
+  });
+  log(
+    green("✓"),
+    `Stopped Patcher (pid ${String(runtimeFile.pid)})${result.usedKill ? " with SIGKILL" : ""}`,
+  );
+}
+
+export async function runPatcherApp(
+  cliArgs: string[] = process.argv.slice(2),
+): Promise<void> {
+  const parsedArgs = parseLauncherArgs(cliArgs);
+
+  if (parsedArgs.options.help) {
+    printPatcherAppHelp();
+    return;
+  }
+
+  const command = resolvePatcherAppCommand(parsedArgs.positionals);
+  if (command.kind === "help") {
+    printPatcherAppHelp();
+    return;
+  }
+  if (command.kind === "invalid") {
+    process.stderr.write(`Unknown patcher-app command: ${command.command}\n\n`);
+    printPatcherAppHelp();
+    process.exitCode = 1;
+    return;
+  }
+
+  const runtime = await resolvePatcherAppRuntimeState({
+    entrypointUrl: import.meta.url,
+    env: process.env,
+    homeDir: homedir(),
+    options: parsedArgs.options,
+    serverUrlMode:
+      command.kind === "config" ||
+      command.kind === "env" ||
+      command.kind === "host-daemon"
+        ? "managed"
+        : "local",
+  });
+
+  if (command.kind === "start") {
+    const configuredServerBindHost = runtime.serverEnv.PATCHER_SERVER_BIND_HOST;
+    if (configuredServerBindHost !== undefined) {
+      try {
+        parseServerBindHost(configuredServerBindHost);
+      } catch (error) {
+        const envFile = await readManagedEnvFile({
+          dataDir: runtime.context.dataDir,
+        });
+        if (
+          parsedArgs.options.serverBindHost === undefined &&
+          envFile.env?.PATCHER_SERVER_BIND_HOST === configuredServerBindHost &&
+          error instanceof Error
+        ) {
+          throw new Error(
+            `Invalid patcher-app env at ${runtime.context.envFile}: ${error.message}`,
+          );
+        }
+        throw error;
+      }
+    }
+  }
+
+  if (command.kind === "config") {
+    await runConfigCommand({
+      args: command.args,
+      dataDir: runtime.context.dataDir,
+      serverUrl: runtime.context.serverUrl,
+    });
+    return;
+  }
+
+  if (command.kind === "env") {
+    await runEnvCommand({
+      args: command.args,
+      dataDir: runtime.context.dataDir,
+      serverUrl: runtime.context.serverUrl,
+    });
+    return;
+  }
+
+  if (command.kind === "stop") {
+    await runStopCommand({ dataDir: runtime.context.dataDir });
+    return;
+  }
+
+  if (command.kind === "client") {
+    await runClientCommand({
+      args: command.args,
+      dataDir: runtime.context.dataDir,
+      json: parsedArgs.options.json === true,
+    });
+    return;
+  }
+
+  assertPatcherAppArtifacts(runtime.context);
+
+  if (command.kind === "host-daemon") {
+    await runHostDaemonOnly({
+      args: command.args,
+      context: runtime.context,
+      env: runtime.env,
+    });
+    return;
+  }
+
+  const context = runtime.context;
+  const outputBuffer = createOutputBuffer();
+  const serverEnv = createServerEnv({
+    context,
+    env: runtime.serverEnv,
+  });
+  const sharedEnv = createSharedEnv({
+    context,
+    env: stripThreadContextEnv(runtime.env),
+  });
+
+  process.stdout.write(`\n  ${bold("patcher")}\n\n`);
+
+  if (existsSync(runtime.context.daemonLockDir)) {
+    warnExistingDaemonLock(runtime.context.daemonLockDir);
+  }
+
+  // Publish this launcher before the server binds its port, so a desktop app
+  // that probes the port can always describe and stop whatever it finds. A live
+  // record from another launcher stays untouched: this start is about to fail on
+  // the port anyway, and overwriting would hide the Patcher that actually runs.
+  const runtimeRecordOwned = await claimPatcherAppRuntimeFile({
+    dataDir: context.dataDir,
+    entryPath: resolveLauncherEntryPath(),
+    pid: process.pid,
+    serverUrl: context.serverUrl,
+    startedAt: new Date().toISOString(),
+    surface:
+      parseAppSurface(runtime.env[APP_SURFACE_ENV_NAME]) ?? DEFAULT_APP_SURFACE,
+    version: context.appVersion,
+  });
+  if (!runtimeRecordOwned) {
+    warnExistingRuntimeRecord(context.dataDir);
+  }
+
+  const processes: ManagedFullStackProcesses = {
+    daemonRun: null,
+    serverRun: null,
+  };
+  let shuttingDown = false;
+  let shutdownPromise: Promise<void> | null = null;
+
+  const isShutdownRequested = (): boolean => shuttingDown;
+  const shutdown = (signal: NodeJS.Signals): Promise<void> => {
+    if (shutdownPromise !== null) {
+      return shutdownPromise;
+    }
+    shuttingDown = true;
+    shutdownPromise = (async () => {
+      process.stdout.write("\n");
+      log(dim("●"), "Shutting down");
+      await terminateManagedFullStackProcesses({ processes, signal });
+    })();
+    return shutdownPromise;
+  };
+  const startServer = (): Promise<ManagedProcessRun> =>
+    startFullStackServerProcess({
+      context,
+      env: serverEnv,
+      outputBuffer,
+      processes,
+    });
+
+  const removeSignalForwarding = installTerminationSignalForwarding(
+    (signal) => {
+      void shutdown(signal);
+    },
+  );
+
+  try {
+    beginStep("Starting server");
+    try {
+      await startServer();
+    } catch {
+      endStep(red("✗"), "Server failed to start (health check timed out)");
+      logManagedProcessStartupFailureContext({
+        context,
+        processName: "server",
+      });
+      outputBuffer.flush();
+      process.exitCode = 1;
+      await shutdown("SIGTERM");
+      return;
+    }
+
+    endStep(green("✓"), `Server listening on ${cyan(context.serverUrl)}`);
+
+    beginStep("Starting host daemon");
+    const autoJoinEnv = await maybeAddAutoJoinEnv({
+      dataDir: context.dataDir,
+      env: sharedEnv,
+      serverUrl: context.serverUrl,
+    });
+    const startDaemon = (): Promise<ManagedProcessRun> =>
+      startFullStackDaemonProcess({
+        autoJoinEnv,
+        context,
+        outputBuffer,
+        processes,
+      });
+
+    try {
+      await startDaemon();
+    } catch {
+      endStep(red("✗"), "Host daemon failed to start");
+      logManagedProcessStartupFailureContext({
+        context,
+        processName: "daemon",
+      });
+      outputBuffer.flush();
+      process.exitCode = 1;
+      await shutdown("SIGTERM");
+      return;
+    }
+
+    endStep(green("✓"), "Host daemon running");
+
+    process.stdout.write("\n");
+    log(green("●"), bold("Patcher is ready"));
+    process.stdout.write("\n");
+    log(" ", formatReadyOutputRow("app", cyan(context.serverUrl)));
+    log(" ", formatReadyOutputRow("daemon", String(context.daemonPort)));
+    log(" ", formatReadyOutputRow("data", context.dataDir));
+    log(" ", formatReadyOutputRow("db", context.dbPath));
+    log(" ", formatReadyOutputRow("logs", `${context.logDir}/`));
+    log(" ", formatReadyOutputRow("lock", context.daemonLockFile));
+    process.stdout.write("\n");
+    log(" ", dim("Press Ctrl+C to stop"));
+
+    outputBuffer.flush();
+    const supervisionResult = await superviseFullStackProcesses({
+      context,
+      delayMilliseconds,
+      isShutdownRequested,
+      processes,
+      startDaemon,
+      startServer,
+    });
+    await completeFullStackSupervision({ shutdownPromise, supervisionResult });
+  } catch (error) {
+    await shutdown("SIGTERM");
+    throw error;
+  } finally {
+    removeSignalForwarding();
+    if (runtimeRecordOwned) {
+      await clearOwnPatcherAppRuntimeFile({
+        dataDir: context.dataDir,
+        pid: process.pid,
+      });
+    }
+  }
+}

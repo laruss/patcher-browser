@@ -1,4 +1,4 @@
-import { calculateExponentialBackoffDelay } from "@bb/domain";
+import { calculateExponentialBackoffDelay } from "@patcher/domain";
 import {
   getParcelWatcherBackend,
   type ParcelAsyncSubscription,

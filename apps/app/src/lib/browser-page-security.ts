@@ -7,7 +7,7 @@ import { getBrowserUrlHost, getBrowserUrlSecurity } from "./browser-url";
  * The padlock used to be derived from the scheme in the address bar and nothing
  * else, which made it a decoration that lied in two directions: it promised a
  * secure connection for a page riding a certificate the user had waved through
- * by hand, and it warned about loopback pages that never touch a network — bb's
+ * by hand, and it warned about loopback pages that never touch a network — Patcher's
  * own pages among them.
  *
  * What is *not* here, deliberately: mixed content, cipher age, revocation. Those

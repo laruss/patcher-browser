@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const BB_DESKTOP_EXISTING_SERVER_DIALOG_CHOOSE_CHANNEL =
-  "bb-desktop:existing-server-dialog:choose";
+export const PATCHER_DESKTOP_EXISTING_SERVER_DIALOG_CHOOSE_CHANNEL =
+  "patcher-desktop:existing-server-dialog:choose";
 
 export const EXISTING_SERVER_DIALOG_CHOICES = [
   "connect",

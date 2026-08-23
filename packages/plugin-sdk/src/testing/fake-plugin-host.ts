@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { PLUGIN_CLI_OUTPUT_MAX_BYTES } from "../backend-contract.js";
 import type {
-  BbPluginApi,
+  PatcherPluginApi,
   PluginAgentConfiguration,
   PluginAgentConfigurationContext,
   PluginAgentToolContext,
@@ -25,8 +25,6 @@ import type {
   PluginHttp,
   PluginHttpAuthMode,
   PluginHttpHandler,
-  PluginHosts,
-  PluginSharedPortTunnelIdentity,
   PluginInteractionRequest,
   PluginInteractionResult,
   PluginKeybinding,
@@ -84,14 +82,14 @@ import type {
   StandardSchemaV1Issue,
   StandardSchemaV1Result,
   JsonValue,
-} from "@bb/plugin-sdk";
-import type { PluginPermission } from "@bb/domain";
+} from "@patcher/plugin-sdk";
+import type { PluginPermission } from "@patcher/domain";
 import {
   BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER,
   normalizeBrowserSearchEngineTemplate,
-} from "@bb/domain/browser-search-engine";
-import { BROWSER_PAGE_STYLE_MAX_CSS_LENGTH } from "@bb/domain/browser-page-style";
-import { BROWSER_PAGE_SCRIPT_MAX_CODE_LENGTH } from "@bb/domain/browser-page-script";
+} from "@patcher/domain/browser-search-engine";
+import { BROWSER_PAGE_STYLE_MAX_CSS_LENGTH } from "@patcher/domain/browser-page-style";
+import { BROWSER_PAGE_SCRIPT_MAX_CODE_LENGTH } from "@patcher/domain/browser-page-script";
 import { createFakePermissionGate } from "./fake-permissions.js";
 import {
   createFakeSdk,
@@ -100,9 +98,9 @@ import {
 } from "./fake-sdk.js";
 
 /**
- * `createFakePluginHost` — an in-process stand-in for the BB server's plugin
+ * `createFakePluginHost` — an in-process stand-in for the Patcher server's plugin
  * runtime (apps/server/src/services/plugins/plugin-api.ts), for unit-testing
- * a plugin's `server.ts` without a server. `bb` satisfies {@link BbPluginApi};
+ * a plugin's `server.ts` without a server. `patcher` satisfies {@link PatcherPluginApi};
  * `harness` drives and inspects it.
  *
  * Faithful where a plugin can observe it: registration name validation and
@@ -118,7 +116,7 @@ import {
  * - storage is process-local: kv in a Map, `storage.database()` one shared
  *   better-sqlite3 handle in a temp directory (same data across calls, like
  *   the host's shared file), secret settings alongside plain values (no files).
- * - `bb.sdk` is always bound (no listen gate) and every unstubbed method
+ * - `patcher.sdk` is always bound (no listen gate) and every unstubbed method
  *   throws instead of hitting a server.
  * - http auth modes are recorded but not enforced — signature checks and
  *   token handling inside handlers still run.
@@ -271,11 +269,11 @@ function normalizeMentionProviderTriggers(
 
 /**
  * Copies of the server's hand-maintained reserved-name lists
- * (RESERVED_BB_CLI_COMMANDS / RESERVED_AGENT_TOOL_NAMES in
+ * (RESERVED_PATCHER_CLI_COMMANDS / RESERVED_AGENT_TOOL_NAMES in
  * apps/server/src/services/plugins/plugin-api.ts) so registrations fail here
  * the same way they fail there. Update alongside the server lists.
  */
-const RESERVED_BB_CLI_COMMANDS: readonly string[] = [
+const RESERVED_PATCHER_CLI_COMMANDS: readonly string[] = [
   "environment",
   "guide",
   "help",
@@ -373,7 +371,7 @@ export interface FakeOmniboxProviderRecord {
 }
 
 /**
- * A stand-in browser surface for plugins that call `bb.browser.tabs`/`page`/
+ * A stand-in browser surface for plugins that call `patcher.browser.tabs`/`page`/
  * `navigation`. It models the two properties those calls actually hinge on —
  * which tab is active, and which tabs are **live** (have a real page behind
  * them) — so a plugin's error handling can be exercised without an Electron
@@ -394,17 +392,17 @@ export interface FakeBrowserDrivers {
       snapshot?: string;
       console?: readonly PluginBrowserConsoleEntry[];
       network?: readonly PluginBrowserNetworkEntry[];
-      /** What `bb.browser.storage` reads, and what its writes then change. */
+      /** What `patcher.browser.storage` reads, and what its writes then change. */
       cookies?: readonly PluginBrowserCookie[];
       localStorage?: readonly PluginBrowserStorageItem[];
       sessionStorage?: readonly PluginBrowserStorageItem[];
       /**
-       * What `bb.browser.control.evaluate` answers with, whatever it was asked.
+       * What `patcher.browser.control.evaluate` answers with, whatever it was asked.
        * A fake cannot run the expression; what a test can check is that the
        * expression it meant to send is the one that was sent.
        */
       evaluated?: string;
-      /** What `bb.browser.recording.videoStop` hands back, since a fake films nothing. */
+      /** What `patcher.browser.recording.videoStop` hands back, since a fake films nothing. */
       frames?: readonly { at: number; base64: string }[];
     },
   ): void;
@@ -431,7 +429,7 @@ export interface FakeBrowserTabInput {
   canGoForward?: boolean;
 }
 
-/** One recorded `bb.browser.*` call, for assertions. */
+/** One recorded `patcher.browser.*` call, for assertions. */
 export interface FakeBrowserCall {
   type: string;
   args: Record<string, unknown>;
@@ -452,7 +450,7 @@ export interface FakePluginRegistrations {
   schedules: FakeScheduleRecord[];
   cli: FakeCliRecord | null;
   agentTools: FakeAgentToolRecord[];
-  /** Provider from bb.agents.configure, or null when none registered. */
+  /** Provider from patcher.agents.configure, or null when none registered. */
   agentConfigurationProvider:
     | ((context: PluginAgentConfigurationContext) => PluginAgentConfiguration)
     | null;
@@ -463,69 +461,65 @@ export interface FakePluginRegistrations {
   threadEventHandlers: Record<PluginThreadEventName, number>;
   mentionProviders: FakeMentionProviderRecord[];
   omniboxProviders: FakeOmniboxProviderRecord[];
-  /** Keybindings from `bb.ui.registerKeybinding`, in registration order. */
+  /** Keybindings from `patcher.ui.registerKeybinding`, in registration order. */
   keybindings: PluginKeybinding[];
-  /** Handlers from `bb.browser.registerDownloadHandler`, in registration order. */
+  /** Handlers from `patcher.browser.registerDownloadHandler`, in registration order. */
   downloadHandlers: PluginBrowserDownloadHandler[];
-  /** Items from `bb.browser.registerContextMenuItem`, in registration order. */
+  /** Items from `patcher.browser.registerContextMenuItem`, in registration order. */
   contextMenuItems: PluginBrowserContextMenuItemRegistration[];
-  /** Buttons from `bb.browser.registerFindAction`, in registration order. */
+  /** Buttons from `patcher.browser.registerFindAction`, in registration order. */
   findActions: PluginBrowserFindActionRegistration[];
-  /** Entries from `bb.browser.registerTabAction`, in registration order. */
+  /** Entries from `patcher.browser.registerTabAction`, in registration order. */
   tabActions: PluginBrowserTabActionRegistration[];
-  /** Providers from `bb.browser.registerSiteInfoProvider`, in order. */
+  /** Providers from `patcher.browser.registerSiteInfoProvider`, in order. */
   siteInfoProviders: PluginBrowserSiteInfoProviderRegistration[];
-  /** Controls from `bb.browser.registerToolbarItem` — at most one. */
+  /** Controls from `patcher.browser.registerToolbarItem` — at most one. */
   toolbarItems: PluginBrowserToolbarItemRegistration[];
-  /** Sections from `bb.browser.registerNewTabWidget`, in registration order. */
+  /** Sections from `patcher.browser.registerNewTabWidget`, in registration order. */
   newTabWidgets: PluginBrowserNewTabWidgetRegistration[];
-  /** Commands from `bb.ui.registerCommand`, in registration order. */
+  /** Commands from `patcher.ui.registerCommand`, in registration order. */
   commands: PluginCommandRegistration[];
-  /** Engines from `bb.browser.registerSearchEngine`, in registration order. */
+  /** Engines from `patcher.browser.registerSearchEngine`, in registration order. */
   searchEngines: PluginBrowserSearchEngineRegistration[];
-  /** Styles from `bb.browser.registerPageStyle`, in registration order. */
+  /** Styles from `patcher.browser.registerPageStyle`, in registration order. */
   pageStyles: PluginBrowserPageStyleRegistration[];
-  /** Scripts from `bb.browser.registerPageScript`, in registration order. */
+  /** Scripts from `patcher.browser.registerPageScript`, in registration order. */
   pageScripts: PluginBrowserPageScriptRegistration[];
-  /** Providers from `bb.browser.registerAuthProvider`, in registration order. */
+  /** Providers from `patcher.browser.registerAuthProvider`, in registration order. */
   authProviders: PluginBrowserAuthProvider[];
-  /** Providers from `bb.browser.registerPdfTextProvider`, in order. */
+  /** Providers from `patcher.browser.registerPdfTextProvider`, in order. */
   pdfTextProviders: PluginBrowserPdfTextProvider[];
   /**
-   * Handlers from `bb.browser.registerExternalLinkHandler`, in registration
+   * Handlers from `patcher.browser.registerExternalLinkHandler`, in registration
    * order.
    */
   externalLinkHandlers: PluginBrowserExternalLinkHandler[];
-  /** Filters from `bb.browser.registerHistoryFilter`, in registration order. */
+  /** Filters from `patcher.browser.registerHistoryFilter`, in registration order. */
   historyFilters: PluginBrowserHistoryFilter[];
 }
 
 /** Read-only state for assertions after a plugin registers or handles work. */
 export interface FakePluginInspectionState {
   readonly pluginId: string;
-  /** Every `bb.log` line, in order. */
+  /** Every `patcher.log` line, in order. */
   readonly logEntries: FakeLogEntry[];
-  /** Every `bb.realtime.publish`, payload normalized like the wire. */
+  /** Every `patcher.realtime.publish`, payload normalized like the wire. */
   readonly realtimeSignals: FakeRealtimeSignal[];
-  /** Every `bb.status.needsConfiguration` message, in order. */
+  /** Every `patcher.status.needsConfiguration` message, in order. */
   readonly needsConfigurationMessages: string[];
-  /** Recorded `bb.sdk` calls + stub control. */
+  /** Recorded `patcher.sdk` calls + stub control. */
   readonly sdk: FakeSdkHarness;
   readonly registrations: FakePluginRegistrations;
-  readonly sharedPortDeclarations: Array<{
-    hostId: string;
-    ports: number[];
-  }>;
   readonly pendingInteractions: readonly (PluginInteractionRequest & {
     id: string;
   })[];
-  /** Every `bb.browser.*` call, in order. */
+  /** Every `patcher.browser.*` call, in order. */
   readonly browserCalls: readonly FakeBrowserCall[];
 }
 
-/** Deterministic inputs that stand in for behavior normally driven by BB. */
+/** Deterministic inputs that stand in for behavior normally driven by Patcher. */
 export interface FakePluginBehaviorDrivers {
-  /** Drive the stand-in browser surface behind `bb.browser.*`. */
+  /** Drive the stand-in browser surface behind `patcher.browser.*`. */
   browser: FakeBrowserDrivers;
   submitInteraction(id: string, value: JsonValue): void;
   cancelInteraction(id: string): void;
@@ -545,14 +539,14 @@ export interface FakePluginBehaviorDrivers {
   /**
    * Invoke the plugin's CLI command with host semantics: the result's
    * exitCode must be a number, stdout/stderr default to "", and a throwing
-   * run() becomes `{ exitCode: 1, stderr: "bb <name> failed: …" }`.
+   * run() becomes `{ exitCode: 1, stderr: "patcher <name> failed: …" }`.
    */
   runCli(
     argv: string[],
     ctx?: PluginCliContext,
   ): Promise<PluginCliExecutionResult>;
   /**
-   * Dispatch a request to a registered `bb.http` route (exact method+path
+   * Dispatch a request to a registered `patcher.http` route (exact method+path
    * match, like the host's V1 router) through a real Hono context. Auth
    * modes are not enforced. A throwing handler yields the host's 500
    * `{ ok: false, error: "plugin route failed: …" }` response.
@@ -576,7 +570,7 @@ export interface FakePluginBehaviorDrivers {
   /** Run a registered schedule's function once (no timers, no cron sweep). */
   runSchedule(name: string): Promise<void>;
   /**
-   * Deliver a thread lifecycle event to every `bb.events.on` handler. Handlers run
+   * Deliver a thread lifecycle event to every `patcher.events.on` handler. Handlers run
    * sequentially; errors are caught and logged like the host's
    * fire-and-forget dispatch, and returned for assertions.
    */
@@ -595,7 +589,7 @@ export interface FakePluginBehaviorDrivers {
     input: unknown,
     ctx?: Partial<PluginAgentToolContext>,
   ): Promise<PluginAgentToolResult>;
-  /** Evaluate `bb.agents.configure` with production validation/fail-closed
+  /** Evaluate `patcher.agents.configure` with production validation/fail-closed
    * semantics. With no callback, every registered tool/declared test skill is
    * selected. Callback failures are logged and return empty selections. */
   resolveAgentConfiguration(context: PluginAgentConfigurationContext): Promise<{
@@ -613,12 +607,12 @@ export interface FakePluginLifecycleControls {
    * services/hooks are disposed and the returned host becomes current.
    */
   reload(
-    factory: (bb: BbPluginApi) => void | Promise<void>,
+    factory: (patcher: PatcherPluginApi) => void | Promise<void>,
   ): Promise<FakePluginHost>;
   /**
    * Dispose like a host reload/disable: abort services started via
    * runService, run onDispose hooks LIFO (isolated), close database handles,
-   * then poison the `bb` handle (further use throws
+   * then poison the `patcher` handle (further use throws
    * PluginContextStaleError). Idempotent.
    */
   dispose(): Promise<void>;
@@ -642,8 +636,8 @@ export interface CreateFakePluginHostOptions {
   /** Defaults to "test-plugin". */
   pluginId?: string;
   /**
-   * Value served by `bb.server.loopbackBaseUrl` (always bound here, like
-   * `bb.sdk`). Defaults to "http://127.0.0.1:38886".
+   * Value served by `patcher.server.loopbackBaseUrl` (always bound here, like
+   * `patcher.sdk`). Defaults to "http://127.0.0.1:38986".
    */
   loopbackBaseUrl?: string;
   /**
@@ -653,15 +647,13 @@ export interface CreateFakePluginHostOptions {
    * the descriptor default on read, like the host.
    */
   settings?: Record<string, PluginSettingValue>;
-  /** Initial `bb.sdk` stubs; extend later via `harness.sdk.stub`. */
+  /** Initial `patcher.sdk` stubs; extend later via `harness.sdk.stub`. */
   sdk?: FakeSdkOverrides;
   /** Static manifest skill ids available to configure() in this fake host. */
   agentSkillIds?: readonly string[];
-  /** Read-only identities returned by bb.hosts.ensureSharedPortTunnel. */
-  sharedPortTunnelIdentities?: Record<string, PluginSharedPortTunnelIdentity>;
   /**
-   * What `bb.permissions` declares. Defaults to none, like the host — so a
-   * suite touching `bb.browser` or `bb.sdk` must say what the plugin asks
+   * What `patcher.permissions` declares. Defaults to none, like the host — so a
+   * suite touching `patcher.browser` or `patcher.sdk` must say what the plugin asks
    * for, and cannot pass on a manifest an install would refuse.
    *
    * Read it from the plugin's own manifest so the two cannot drift:
@@ -669,7 +661,7 @@ export interface CreateFakePluginHostOptions {
    */
   permissions?: readonly PluginPermission[];
   /**
-   * What `bb.sites` declares: the websites this plugin's page contributions may
+   * What `patcher.sites` declares: the websites this plugin's page contributions may
    * reach. Defaults to none, so `registerPageStyle` and `registerPageScript`
    * are refused here exactly as an install would refuse them.
    *
@@ -680,7 +672,7 @@ export interface CreateFakePluginHostOptions {
 }
 
 export interface FakePluginHost {
-  bb: BbPluginApi;
+  patcher: PatcherPluginApi;
   harness: FakePluginHarness;
 }
 
@@ -1272,7 +1264,7 @@ function createFakePluginHostInternal(
     sharedState ??
     ({
       kvRows: new Map<string, string>(),
-      storageRoot: mkdtempSync(join(tmpdir(), "bb-fake-plugin-host-")),
+      storageRoot: mkdtempSync(join(tmpdir(), "patcher-fake-plugin-host-")),
       storedSettings: new Map<string, PluginSettingValue>(
         Object.entries(options.settings ?? {}),
       ),
@@ -1359,17 +1351,19 @@ function createFakePluginHostInternal(
     migrate(database, statements) {
       assertLive();
       database.exec(
-        "CREATE TABLE IF NOT EXISTS _bb_migrations (id INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS _patcher_migrations (id INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)",
       );
       const applied = new Set(
         (
-          database.prepare("SELECT id FROM _bb_migrations").all() as Array<{
+          database
+            .prepare("SELECT id FROM _patcher_migrations")
+            .all() as Array<{
             id: number;
           }>
         ).map((row) => row.id),
       );
       const record = database.prepare(
-        "INSERT INTO _bb_migrations (id, applied_at) VALUES (?, ?)",
+        "INSERT INTO _patcher_migrations (id, applied_at) VALUES (?, ?)",
       );
       database.transaction(() => {
         statements.forEach((statement, index) => {
@@ -1597,9 +1591,9 @@ function createFakePluginHostInternal(
           `invalid cli command name ${JSON.stringify(name)} — use lowercase letters, digits, and "-"`,
         );
       }
-      if (RESERVED_BB_CLI_COMMANDS.includes(name)) {
+      if (RESERVED_PATCHER_CLI_COMMANDS.includes(name)) {
         throw new Error(
-          `cli command name "${name}" is reserved by the bb CLI — pick another name`,
+          `cli command name "${name}" is reserved by the Patcher CLI — pick another name`,
         );
       }
       if (
@@ -1696,7 +1690,7 @@ function createFakePluginHostInternal(
       }
       if (RESERVED_AGENT_TOOL_NAMES.includes(name)) {
         throw new Error(
-          `tool name "${name}" is a built-in bb tool — pick another name`,
+          `tool name "${name}" is a built-in Patcher tool — pick another name`,
         );
       }
       if (
@@ -1986,7 +1980,7 @@ function createFakePluginHostInternal(
     args: Record<string, unknown> = {},
   ): void {
     assertLive();
-    permissionGate.assert(permission, `bb.browser ${type}`);
+    permissionGate.assert(permission, `patcher.browser ${type}`);
     browserCalls.push({ type, args });
     if (!browserConnected) {
       throw Object.assign(new Error("No browser window is connected"), {
@@ -2119,7 +2113,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "omnibox.register",
-        "bb.browser.registerOmniboxProvider",
+        "patcher.browser.registerOmniboxProvider",
       );
       const id = provider?.id;
       if (typeof id !== "string" || !OMNIBOX_PROVIDER_ID_PATTERN.test(id)) {
@@ -2157,7 +2151,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "contextMenu.register",
-        "bb.browser.registerContextMenuItem",
+        "patcher.browser.registerContextMenuItem",
       );
       if (typeof item?.id !== "string" || item.id.length === 0) {
         throw new Error("registerContextMenuItem needs an id");
@@ -2171,7 +2165,10 @@ function createFakePluginHostInternal(
     },
     registerFindAction(action) {
       assertLive();
-      permissionGate.assert("find.register", "bb.browser.registerFindAction");
+      permissionGate.assert(
+        "find.register",
+        "patcher.browser.registerFindAction",
+      );
       if (typeof action?.id !== "string" || action.id.length === 0) {
         throw new Error("registerFindAction needs an id");
       }
@@ -2184,7 +2181,10 @@ function createFakePluginHostInternal(
     },
     registerTabAction(action) {
       assertLive();
-      permissionGate.assert("tabMenu.register", "bb.browser.registerTabAction");
+      permissionGate.assert(
+        "tabMenu.register",
+        "patcher.browser.registerTabAction",
+      );
       if (typeof action?.id !== "string" || action.id.length === 0) {
         throw new Error("registerTabAction needs an id");
       }
@@ -2199,7 +2199,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "siteInfo.register",
-        "bb.browser.registerSiteInfoProvider",
+        "patcher.browser.registerSiteInfoProvider",
       );
       if (typeof provider?.id !== "string" || provider.id.length === 0) {
         throw new Error("registerSiteInfoProvider needs an id");
@@ -2215,7 +2215,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "toolbar.register",
-        "bb.browser.registerToolbarItem",
+        "patcher.browser.registerToolbarItem",
       );
       if (typeof item?.id !== "string" || item.id.length === 0) {
         throw new Error("registerToolbarItem needs an id");
@@ -2241,7 +2241,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "newTab.register",
-        "bb.browser.registerNewTabWidget",
+        "patcher.browser.registerNewTabWidget",
       );
       if (typeof widget?.id !== "string" || widget.id.length === 0) {
         throw new Error("registerNewTabWidget needs an id");
@@ -2266,7 +2266,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "searchEngine.register",
-        "bb.browser.registerSearchEngine",
+        "patcher.browser.registerSearchEngine",
       );
       if (typeof engine?.id !== "string" || engine.id.length === 0) {
         throw new Error("registerSearchEngine needs an id");
@@ -2283,7 +2283,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "pageStyle.register",
-        "bb.browser.registerPageStyle",
+        "patcher.browser.registerPageStyle",
       );
       if (typeof style?.id !== "string" || style.id.length === 0) {
         throw new Error("registerPageStyle needs an id");
@@ -2306,11 +2306,11 @@ function createFakePluginHostInternal(
         );
       }
       // The same refusal the host makes, so a plugin's test sees it too: code
-      // picks from `bb.sites` and cannot widen it.
+      // picks from `patcher.sites` and cannot widen it.
       for (const pattern of style.matches) {
         if (!declaredSites.includes(pattern)) {
           throw new Error(
-            `page style "${style.id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "bb.sites". ` +
+            `page style "${style.id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "patcher.sites". ` +
               (declaredSites.length === 0
                 ? "That list is empty — add the site there, or pass `sites` to createFakePluginHost."
                 : `It declares: ${declaredSites.join(", ")}.`),
@@ -2323,7 +2323,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "pageScript.register",
-        "bb.browser.registerPageScript",
+        "patcher.browser.registerPageScript",
       );
       if (typeof script?.id !== "string" || script.id.length === 0) {
         throw new Error("registerPageScript needs an id");
@@ -2350,7 +2350,7 @@ function createFakePluginHostInternal(
       for (const pattern of script.matches) {
         if (!declaredSites.includes(pattern)) {
           throw new Error(
-            `page script "${script.id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "bb.sites". ` +
+            `page script "${script.id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "patcher.sites". ` +
               (declaredSites.length === 0
                 ? "That list is empty — add the site there, or pass `sites` to createFakePluginHost."
                 : `It declares: ${declaredSites.join(", ")}.`),
@@ -2361,7 +2361,10 @@ function createFakePluginHostInternal(
     },
     registerAuthProvider(provider) {
       assertLive();
-      permissionGate.assert("auth.provide", "bb.browser.registerAuthProvider");
+      permissionGate.assert(
+        "auth.provide",
+        "patcher.browser.registerAuthProvider",
+      );
       if (typeof provider !== "function") {
         throw new Error(
           "registerAuthProvider(provider) needs a function taking one challenge",
@@ -2373,7 +2376,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "pdf.provide",
-        "bb.browser.registerPdfTextProvider",
+        "patcher.browser.registerPdfTextProvider",
       );
       if (typeof provider !== "function") {
         throw new Error(
@@ -2386,7 +2389,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "externalLink.handle",
-        "bb.browser.registerExternalLinkHandler",
+        "patcher.browser.registerExternalLinkHandler",
       );
       if (typeof handler !== "function") {
         throw new Error(
@@ -2397,7 +2400,7 @@ function createFakePluginHostInternal(
     },
     registerHistoryFilter(filter) {
       assertLive();
-      permissionGate.assert("history", "bb.browser.registerHistoryFilter");
+      permissionGate.assert("history", "patcher.browser.registerHistoryFilter");
       if (typeof filter !== "function") {
         throw new Error(
           "registerHistoryFilter(filter) needs a function taking one visit",
@@ -2409,7 +2412,7 @@ function createFakePluginHostInternal(
       assertLive();
       permissionGate.assert(
         "downloads.handle",
-        "bb.browser.registerDownloadHandler",
+        "patcher.browser.registerDownloadHandler",
       );
       if (typeof handler !== "function") {
         throw new Error(
@@ -3000,7 +3003,7 @@ function createFakePluginHostInternal(
   };
 
   // --- server ---
-  const loopbackBaseUrl = options.loopbackBaseUrl ?? "http://127.0.0.1:38886";
+  const loopbackBaseUrl = options.loopbackBaseUrl ?? "http://127.0.0.1:38986";
   const server: PluginServerApi = {
     get loopbackBaseUrl(): string {
       assertLive();
@@ -3119,51 +3122,6 @@ function createFakePluginHostInternal(
     });
   }
 
-  const sharedPortDeclarations: FakePluginHarness["sharedPortDeclarations"] =
-    [];
-  const hosts: PluginHosts = {
-    async ensureSharedPortTunnel(hostId) {
-      assertLive();
-      if (hostId.trim().length === 0) {
-        throw new Error("shared-port hostId must be non-empty");
-      }
-      const identity = options.sharedPortTunnelIdentities?.[hostId];
-      if (!identity) {
-        throw new Error(`host ${hostId} has no shared-port tunnel identity`);
-      }
-      return { ...identity };
-    },
-    declareSharedPorts(hostId, ports) {
-      assertLive();
-      if (hostId.trim().length === 0) {
-        throw new Error("shared-port hostId must be non-empty");
-      }
-      const normalizedPorts = [...new Set(ports)].sort((a, b) => a - b);
-      for (const port of normalizedPorts) {
-        if (!Number.isInteger(port) || port < 1 || port > 65535) {
-          throw new Error(
-            `shared port ${String(port)} must be an integer between 1 and 65535`,
-          );
-        }
-      }
-      const replacement = {
-        hostId,
-        ports: normalizedPorts,
-      };
-      const existingIndex = sharedPortDeclarations.findIndex(
-        (declaration) => declaration.hostId === hostId,
-      );
-      if (existingIndex === -1) {
-        sharedPortDeclarations.push(replacement);
-      } else {
-        sharedPortDeclarations[existingIndex] = replacement;
-      }
-    },
-  };
-  disposeHooks.push(() => {
-    sharedPortDeclarations.length = 0;
-  });
-
   const events: PluginEvents = {
     on(event, handler) {
       assertLive();
@@ -3179,7 +3137,7 @@ function createFakePluginHostInternal(
     },
   };
 
-  const bb: BbPluginApi = {
+  const patcher: PatcherPluginApi = {
     pluginId,
     log,
     settings,
@@ -3195,7 +3153,6 @@ function createFakePluginHostInternal(
     events,
     status,
     server,
-    hosts,
     get sdk() {
       assertLive();
       return sdk;
@@ -3251,7 +3208,6 @@ function createFakePluginHostInternal(
     logEntries,
     realtimeSignals,
     needsConfigurationMessages,
-    sharedPortDeclarations,
     sdk: sdkHarness,
     registrations: {
       settingsDescriptors,
@@ -3408,7 +3364,7 @@ function createFakePluginHostInternal(
           {
             exitCode: 1,
             stdout: "",
-            stderr: `bb ${registration.name} failed: ${errorMessage(error)}`,
+            stderr: `patcher ${registration.name} failed: ${errorMessage(error)}`,
           },
           argv.includes("--json"),
         );
@@ -3570,7 +3526,7 @@ function createFakePluginHostInternal(
         persistentState,
       );
       try {
-        await factory(replacement.bb);
+        await factory(replacement.patcher);
       } catch (error) {
         await fakeHostDisposers.get(replacement.harness)?.(false);
         throw error;
@@ -3585,5 +3541,5 @@ function createFakePluginHostInternal(
   };
 
   fakeHostDisposers.set(harness, disposeHost);
-  return { bb, harness };
+  return { patcher, harness };
 }

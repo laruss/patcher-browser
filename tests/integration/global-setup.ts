@@ -7,7 +7,7 @@ import { removePathWithRetry } from "./helpers/remove-path.js";
 
 const execFile = promisify(execFileCallback);
 
-const INTEGRATION_TMP_PREFIX = "bb-integration-";
+const INTEGRATION_TMP_PREFIX = "patcher-integration-";
 const STALE_TMP_ROOT_AGE_MS = 60 * 60_000;
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

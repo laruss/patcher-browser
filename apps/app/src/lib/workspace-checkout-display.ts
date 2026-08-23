@@ -1,4 +1,4 @@
-import type { GitCheckoutRef } from "@bb/domain";
+import type { GitCheckoutRef } from "@patcher/domain";
 
 const SHORT_SHA_LENGTH = 7;
 

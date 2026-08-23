@@ -1,21 +1,20 @@
 import type {
   CustomAcpAgent,
   CustomProviderModel,
-} from "@bb/config/bb-app-managed-config";
-import type { AppSurface } from "@bb/config/app-surface";
-import type { DbConnection } from "@bb/db";
-import type { FeatureFlags, ProviderNativeSkillRoots } from "@bb/domain";
-import type { Logger } from "@bb/logger";
+} from "@patcher/config/patcher-app-managed-config";
+import type { AppSurface } from "@patcher/config/app-surface";
+import type { DbConnection } from "@patcher/db";
+import type { FeatureFlags, ProviderNativeSkillRoots } from "@patcher/domain";
+import type { Logger } from "@patcher/logger";
 import type { PendingInteractionLifecycle } from "./services/interactions/pending-interactions.js";
 import type { MachineAuthService } from "./services/machine-auth.js";
 import type { AppVersionService } from "./services/system/app-version.js";
-import type { BbAppManagedConfigReloader } from "./services/system/bb-app-managed-config.js";
+import type { PatcherAppManagedConfigReloader } from "./services/system/patcher-app-managed-config.js";
 import type { TelemetryService } from "./services/system/telemetry.js";
 import type { TerminalSessionLifecycle } from "./services/terminals/terminal-session-lifecycle.js";
 import type { LifecycleDedupers } from "./lifecycle-dedupers.js";
 import type { NotificationHub } from "./ws/hub.js";
 import type { WatchInterestCoordinator } from "./ws/watch-interests.js";
-import type { HostSharedPortCoordinator } from "./ws/host-shared-ports.js";
 import type { SkillTreeRegistry } from "./services/skills/injected-skills.js";
 
 export type ServerLogger = Pick<Logger, "debug" | "error" | "info" | "warn">;
@@ -61,12 +60,11 @@ export interface AppDeps {
   telemetry: TelemetryService;
   terminalSessions: TerminalSessionLifecycle;
   watchInterests: WatchInterestCoordinator;
-  sharedPorts: HostSharedPortCoordinator;
 }
 
 export interface ServerAppDeps extends AppDeps {
   appVersion: AppVersionService;
-  bbAppManagedConfig: BbAppManagedConfigReloader;
+  patcherAppManagedConfig: PatcherAppManagedConfigReloader;
 }
 
 export type LifecycleDeps = Pick<

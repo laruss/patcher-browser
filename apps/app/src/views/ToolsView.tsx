@@ -7,7 +7,7 @@ import {
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { buildPluginEditThreadPrompt } from "@bb/shared-ui/resource-edit-prompt";
+import { buildPluginEditThreadPrompt } from "@patcher/shared-ui/resource-edit-prompt";
 import { appToast } from "@/components/ui/app-toast";
 import { OverflowFade } from "@/components/ui/overflow-fade";
 import { useScrollOverflowState } from "@/components/thread/timeline/useScrollOverflowState";
@@ -19,8 +19,8 @@ import { AddPluginDialog } from "@/components/plugin/management/AddPluginDialog"
 import {
   ResourceListState,
   useResourceRouteLabel,
-} from "@bb/shared-ui/resource-list";
-import { Skeleton } from "@bb/shared-ui/skeleton";
+} from "@patcher/shared-ui/resource-list";
+import { Skeleton } from "@patcher/shared-ui/skeleton";
 import { PluginsOverview } from "@/components/plugin/PluginsOverview";
 import {
   CatalogPluginDetail,
@@ -51,7 +51,7 @@ import {
   resolveToolsSection,
   type ToolsSectionId,
 } from "@/components/tools/tools-navigation";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn } from "@patcher/shared-ui/lib/utils";
 import { SkillsLibrary } from "./SkillsView";
 
 export { PluginDetail };
@@ -191,7 +191,7 @@ function PluginDetailToolView({ pluginId }: { pluginId: string }) {
     onSuccess: (_data, deletedPlugin) => {
       appToast.success(
         pluginIsLocalSource(deletedPlugin)
-          ? "Plugin removed from bb"
+          ? "Plugin removed from Patcher"
           : "Plugin uninstalled",
       );
       setDeleteTarget(null);
@@ -348,12 +348,12 @@ function PluginDetailToolView({ pluginId }: { pluginId: string }) {
               <ConfirmDeleteDialogContent
                 title={
                   pluginIsLocalSource(deleteTarget)
-                    ? "Remove plugin from bb?"
+                    ? "Remove plugin from Patcher?"
                     : "Uninstall plugin?"
                 }
                 description={
                   pluginIsLocalSource(deleteTarget)
-                    ? `Remove "${deleteTarget.id}" from bb? Its source files will stay on disk.`
+                    ? `Remove "${deleteTarget.id}" from Patcher? Its source files will stay on disk.`
                     : `Uninstall "${deleteTarget.id}" and delete its managed files and settings?`
                 }
                 confirmLabel={pluginRemovalLabel(deleteTarget)}

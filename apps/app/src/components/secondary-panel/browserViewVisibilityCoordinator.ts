@@ -1,4 +1,4 @@
-import type { BbDesktopBrowserApi } from "@bb/desktop-contract";
+import type { PatcherDesktopBrowserApi } from "@patcher/desktop-contract";
 
 /**
  * Owns the "only one browser view is visible at a time" invariant for a panel's
@@ -44,24 +44,24 @@ interface RegisterBrowserViewArgs {
 }
 
 interface DestroyPersistedBrowserViewArgs {
-  desktopBrowser: BbDesktopBrowserApi;
+  desktopBrowser: PatcherDesktopBrowserApi;
   tabId: string;
 }
 
 interface DestroyPersistedBrowserViewsForThreadArgs {
-  desktopBrowser: BbDesktopBrowserApi | null;
+  desktopBrowser: PatcherDesktopBrowserApi | null;
   threadId: string;
 }
 
 interface DestroyPersistedBrowserViewsForEnvironmentArgs {
-  desktopBrowser: BbDesktopBrowserApi | null;
+  desktopBrowser: PatcherDesktopBrowserApi | null;
   environmentId: string;
 }
 
 const browserViewRecords = new Map<string, BrowserViewRecord>();
 
 export function createBrowserViewVisibilityCoordinator(
-  desktopBrowser: BbDesktopBrowserApi,
+  desktopBrowser: PatcherDesktopBrowserApi,
 ): BrowserViewVisibilityCoordinator {
   // The browser tab whose native view is currently shown, or null when none is.
   let visibleTabId: string | null = null;

@@ -1,4 +1,4 @@
-import type { EnvironmentActionResponse } from "@bb/server-contract";
+import type { EnvironmentActionResponse } from "@patcher/server-contract";
 import type {
   RequestEnvironmentActionMutationRequest,
   SendThreadMessageMutationRequest,

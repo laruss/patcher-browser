@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PLUGIN_PERMISSIONS } from "@bb/domain";
+import { PLUGIN_PERMISSIONS } from "@patcher/domain";
 import { PLUGIN_CALLBACKS } from "../../../src/services/plugins/plugin-callbacks.js";
 import {
   callbacksProducedByRegistrations,
@@ -17,8 +17,8 @@ import {
 
 /**
  * The catalogue is only worth what it is checked against. A hand-written list
- * of what `bb` exposes is a second description of the object, free to agree
- * with itself while both drift — so this walks the real `bb` a plugin is
+ * of what `patcher` exposes is a second description of the object, free to agree
+ * with itself while both drift — so this walks the real `patcher` a plugin is
  * handed and requires every member to be in the list, and every listed path to
  * still exist.
  *
@@ -51,7 +51,7 @@ function walk(root: object, prefix: string): Map<string, string> {
   const visit = (node: object, path: string): void => {
     for (const key of Object.keys(node)) {
       const childPath = path === "" ? key : `${path}.${key}`;
-      // `bb.sdk` is a loopback HTTP client, not part of this transport. It is
+      // `patcher.sdk` is a loopback HTTP client, not part of this transport. It is
       // skipped before the property is *read*, not after: it is a bind-gated
       // getter that throws when the server is not listening, which is exactly
       // the state a factory runs in.
@@ -71,7 +71,7 @@ function walk(root: object, prefix: string): Map<string, string> {
   return found;
 }
 
-describe("PLUGIN_HOST_CALLS covers the bb object", () => {
+describe("PLUGIN_HOST_CALLS covers the Patcher object", () => {
   let harness: TestAppHarness;
 
   beforeEach(async () => {
@@ -112,19 +112,13 @@ describe("PLUGIN_HOST_CALLS covers the bb object", () => {
         throw new Error("not called");
       },
       getBrowserHostStatus: () => ({ connected: false, hostCount: 0 }),
-      ensureSharedPortTunnel: () => {
-        throw new Error("not called");
-      },
-      validateSharedPortDeclaration: (_hostId, ports) => ports,
-      declareSharedPorts: () => {},
-      replaceDeclaredSharedPorts: () => {},
     });
   }
 
-  it("names every member a plugin can reach on bb", () => {
+  it("names every member a plugin can reach on Patcher", () => {
     const handle = buildApi();
     const reachable = walk(handle.api, "");
-    // The settings handle has no path on `bb` — it only exists once a plugin
+    // The settings handle has no path on `patcher` — it only exists once a plugin
     // calls define — so it is walked from the object define returns.
     for (const [path, key] of walk(
       handle.api.settings.define({}),
@@ -191,11 +185,10 @@ describe("what does not cross yet", () => {
   // A different axis, and one that only turned up once a plugin actually ran
   // in another process: these serialise fine and still cannot be requests,
   // because the member the plugin calls is synchronous.
-  it("is the three members that read host state synchronously", () => {
+  it("is the two members that read host state synchronously", () => {
     expect(synchronousHostStatePaths()).toEqual([
       "agents.registerTool",
       "browser.getStatus",
-      "hosts.declareSharedPorts",
     ]);
   });
 });

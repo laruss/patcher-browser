@@ -9,20 +9,20 @@ import {
 const BASE = "http://127.0.0.1:3334";
 
 /**
- * `bb.browser.registerPageStyle`, and the thing it is really about: a
+ * `patcher.browser.registerPageStyle`, and the thing it is really about: a
  * permission whose answer is a *list of sites*.
  *
  * Every other contribution costs a capability — "may add a toolbar control" —
  * and the plugin then reaches whatever that capability reaches. A page style
  * reaches pages, so the useful question is which ones, and the answer has to
  * come from the manifest the user read before installing rather than from the
- * code that runs afterwards. Hence `bb.sites`, and hence the checks here: what
+ * code that runs afterwards. Hence `patcher.sites`, and hence the checks here: what
  * the manifest refuses, and what the plugin cannot widen once it is loaded.
  */
 
 const STYLE_SOURCE = `
-  export default function plugin(bb: any) {
-    bb.browser.registerPageStyle({
+  export default function plugin(patcher: any) {
+    patcher.browser.registerPageStyle({
       id: "declutter",
       matches: ["https://github.com/**"],
       css: ".js-notification-shelf { display: none !important }",
@@ -46,7 +46,7 @@ async function writePlugin(
     JSON.stringify({
       name: options.name,
       version: "0.1.0",
-      bb: {
+      patcher: {
         name: "Page style fixture",
         description: "Page style fixture.",
         branding: { icon: "Zap" },
@@ -60,7 +60,7 @@ async function writePlugin(
   return rootDir;
 }
 
-describe("plugin page styles (bb.browser.registerPageStyle)", () => {
+describe("plugin page styles (patcher.browser.registerPageStyle)", () => {
   let harness: TestAppHarness;
 
   afterEach(async () => {
@@ -76,7 +76,7 @@ describe("plugin page styles (bb.browser.registerPageStyle)", () => {
     harness = await createTestAppHarness();
     const entry = await harness.pluginService.installPath(
       await writePlugin(join(harness.config.dataDir, "fixtures"), {
-        name: "bb-plugin-style",
+        name: "patcher-plugin-style",
         source: options.source,
         ...(options.permissions === undefined
           ? {}
@@ -122,7 +122,7 @@ describe("plugin page styles (bb.browser.registerPageStyle)", () => {
     });
 
     expect(entry.status).toBe("error");
-    expect(entry.statusDetail).toContain('"bb.sites"');
+    expect(entry.statusDetail).toContain('"patcher.sites"');
     expect(entry.statusDetail).toContain("https://gitlab.com/**");
     expect(await contributions()).toEqual([]);
   });
@@ -158,15 +158,15 @@ describe("plugin page styles (bb.browser.registerPageStyle)", () => {
         // site, and this one is any machine on the path.
         sites: ["http://intranet.example/**"],
       }),
-    ).rejects.toThrow(/bb\.sites\.0.*http:\/\/intranet\.example/su);
+    ).rejects.toThrow(/patcher\.sites\.0.*http:\/\/intranet\.example/su);
   });
 
   it("accepts loopback over plain http, which is where a plugin's own service is", async () => {
     expect(
       await install({
         source: `
-          export default function plugin(bb: any) {
-            bb.browser.registerPageStyle({
+          export default function plugin(patcher: any) {
+            patcher.browser.registerPageStyle({
               id: "local",
               matches: ["http://localhost:5173/**"],
               css: "body { outline: 2px solid red }",
@@ -181,10 +181,10 @@ describe("plugin page styles (bb.browser.registerPageStyle)", () => {
   it("refuses two styles under one id", async () => {
     const entry = await install({
       source: `
-        export default function plugin(bb: any) {
+        export default function plugin(patcher: any) {
           const style = { matches: ["https://github.com/**"], css: "a { color: red }" };
-          bb.browser.registerPageStyle({ id: "twice", ...style });
-          bb.browser.registerPageStyle({ id: "twice", ...style });
+          patcher.browser.registerPageStyle({ id: "twice", ...style });
+          patcher.browser.registerPageStyle({ id: "twice", ...style });
         }
       `,
       sites: ["https://github.com/**"],
@@ -200,13 +200,13 @@ describe("plugin page styles (bb.browser.registerPageStyle)", () => {
     expect(
       await install({
         source: `
-          export default function plugin(bb: any) {
-            bb.browser.registerPageStyle({
+          export default function plugin(patcher: any) {
+            patcher.browser.registerPageStyle({
               id: "gh",
               matches: ["https://github.com/**"],
               css: ".ad { display: none }",
             });
-            bb.browser.registerPageStyle({
+            patcher.browser.registerPageStyle({
               id: "gl",
               matches: ["https://gitlab.com/**"],
               css: ".banner { display: none }",
@@ -227,8 +227,8 @@ describe("plugin page styles (bb.browser.registerPageStyle)", () => {
   it("refuses css that is empty or longer than the cap", async () => {
     const entry = await install({
       source: `
-        export default function plugin(bb: any) {
-          bb.browser.registerPageStyle({
+        export default function plugin(patcher: any) {
+          patcher.browser.registerPageStyle({
             id: "huge",
             matches: ["https://github.com/**"],
             css: "a{}".repeat(30_000),

@@ -10,107 +10,107 @@ import {
   type WebContents,
 } from "electron";
 import {
-  BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
-  clampBbDesktopBrowserViewBounds,
-  type BbDesktopBrowserAttachRequest,
-  type BbDesktopBrowserNavigateRequest,
-  type BbDesktopBrowserOpenTabRequest,
-  type BbDesktopBrowserScopedOpenTabRequest,
-  type BbDesktopBrowserSetBoundsRequest,
-  type BbDesktopBrowserSetVisibleRequest,
-  type BbDesktopBrowserDownload,
-  type BbDesktopBrowserDownloadActionRequest,
-  type BbDesktopBrowserDownloadActionResult,
-  type BbDesktopBrowserContextMenuInvoke,
-  type BbDesktopBrowserContextMenuItem,
-  type BbDesktopBrowserPageStyle,
-  type BbDesktopBrowserPageStyles,
-  type BbDesktopBrowserPageScript,
-  type BbDesktopBrowserPageScripts,
-  type BbDesktopBrowserPageScriptCall,
-  type BbDesktopBrowserPageScriptResult,
-  type BbDesktopPageScriptBootstrap,
-  type BbDesktopPageScriptRpcAnswer,
-  type BbDesktopPageScriptRpcRequest,
-  type BbDesktopPageScriptWorld,
-  type BbDesktopBrowserContextMenuItems,
-  type BbDesktopBrowserSearchSelection,
-  type BbDesktopBrowserSetOverlayRequest,
-  type BbDesktopBrowserSetFullscreenRequest,
-  type BbDesktopBrowserFavicon,
-  type BbDesktopBrowserPageSecurity,
-  type BbDesktopBrowserSetMutedRequest,
-  type BbDesktopBrowserSetZoomRequest,
-  type BbDesktopBrowserZoom,
-  type BbDesktopBrowserFindRequest,
-  type BbDesktopBrowserFindResult,
-  BB_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
-  type BbDesktopBrowserDialog,
-  type BbDesktopBrowserDialogRespondRequest,
-  BB_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES,
-  BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
-  type BbDesktopBrowserPagePrompt,
-  type BbDesktopBrowserPagePromptAnswer,
-  type BbDesktopBrowserPagePromptDetails,
-  type BbDesktopBrowserPopup,
-  type BbDesktopBrowserPopupTabs,
-  type BbDesktopBrowserDevToolsRequest,
-  type BbDesktopBrowserDevToolsVisibleRequest,
-  type BbDesktopBrowserDevToolsState,
-  BB_DESKTOP_BROWSER_MAX_COOKIES,
-  BB_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_ROUTES,
-  BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH,
-  type BbDesktopBrowserCaptureFullPageRequest,
-  type BbDesktopBrowserCaptureFullPageResult,
-  type BbDesktopBrowserConsoleEntry,
-  type BbDesktopBrowserControlRequest,
-  type BbDesktopBrowserControlResult,
-  type BbDesktopBrowserRecordRequest,
-  type BbDesktopBrowserSnapshotInRequest,
-  type BbDesktopBrowserRecordResult,
-  type BbDesktopBrowserRouteState,
-  type BbDesktopBrowserInteraction,
-  type BbDesktopBrowserInteractRequest,
-  type BbDesktopBrowserInteractResult,
-  type BbDesktopBrowserNetworkEntry,
-  type BbDesktopBrowserObservation,
-  type BbDesktopBrowserObserveRequest,
-  type BbDesktopBrowserObserveResult,
-  type BbDesktopBrowserPageReadResult,
-  type BbDesktopBrowserSnapshot,
-  type BbDesktopBrowserSnapshotRequest,
-  type BbDesktopBrowserSnapshotResult,
-  type BbDesktopBrowserStorageOperation,
-  type BbDesktopBrowserStorageRequest,
-  type BbDesktopBrowserStorageResult,
-  type BbDesktopBrowserState,
-  type BbDesktopBrowserViewportBounds,
-  type BbDesktopBrowserViewBounds,
-} from "@bb/desktop-contract";
-import type { AppCommandId, AppShortcutInput } from "@bb/domain";
-import { matchesBrowserUrlPattern } from "@bb/domain/browser-url-pattern";
+  PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+  clampPatcherDesktopBrowserViewBounds,
+  type PatcherDesktopBrowserAttachRequest,
+  type PatcherDesktopBrowserNavigateRequest,
+  type PatcherDesktopBrowserOpenTabRequest,
+  type PatcherDesktopBrowserScopedOpenTabRequest,
+  type PatcherDesktopBrowserSetBoundsRequest,
+  type PatcherDesktopBrowserSetVisibleRequest,
+  type PatcherDesktopBrowserDownload,
+  type PatcherDesktopBrowserDownloadActionRequest,
+  type PatcherDesktopBrowserDownloadActionResult,
+  type PatcherDesktopBrowserContextMenuInvoke,
+  type PatcherDesktopBrowserContextMenuItem,
+  type PatcherDesktopBrowserPageStyle,
+  type PatcherDesktopBrowserPageStyles,
+  type PatcherDesktopBrowserPageScript,
+  type PatcherDesktopBrowserPageScripts,
+  type PatcherDesktopBrowserPageScriptCall,
+  type PatcherDesktopBrowserPageScriptResult,
+  type PatcherDesktopPageScriptBootstrap,
+  type PatcherDesktopPageScriptRpcAnswer,
+  type PatcherDesktopPageScriptRpcRequest,
+  type PatcherDesktopPageScriptWorld,
+  type PatcherDesktopBrowserContextMenuItems,
+  type PatcherDesktopBrowserSearchSelection,
+  type PatcherDesktopBrowserSetOverlayRequest,
+  type PatcherDesktopBrowserSetFullscreenRequest,
+  type PatcherDesktopBrowserFavicon,
+  type PatcherDesktopBrowserPageSecurity,
+  type PatcherDesktopBrowserSetMutedRequest,
+  type PatcherDesktopBrowserSetZoomRequest,
+  type PatcherDesktopBrowserZoom,
+  type PatcherDesktopBrowserFindRequest,
+  type PatcherDesktopBrowserFindResult,
+  PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+  type PatcherDesktopBrowserDialog,
+  type PatcherDesktopBrowserDialogRespondRequest,
+  PATCHER_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES,
+  PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+  type PatcherDesktopBrowserPagePrompt,
+  type PatcherDesktopBrowserPagePromptAnswer,
+  type PatcherDesktopBrowserPagePromptDetails,
+  type PatcherDesktopBrowserPopup,
+  type PatcherDesktopBrowserPopupTabs,
+  type PatcherDesktopBrowserDevToolsRequest,
+  type PatcherDesktopBrowserDevToolsVisibleRequest,
+  type PatcherDesktopBrowserDevToolsState,
+  PATCHER_DESKTOP_BROWSER_MAX_COOKIES,
+  PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH,
+  PATCHER_DESKTOP_BROWSER_MAX_ROUTES,
+  PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH,
+  type PatcherDesktopBrowserCaptureFullPageRequest,
+  type PatcherDesktopBrowserCaptureFullPageResult,
+  type PatcherDesktopBrowserConsoleEntry,
+  type PatcherDesktopBrowserControlRequest,
+  type PatcherDesktopBrowserControlResult,
+  type PatcherDesktopBrowserRecordRequest,
+  type PatcherDesktopBrowserSnapshotInRequest,
+  type PatcherDesktopBrowserRecordResult,
+  type PatcherDesktopBrowserRouteState,
+  type PatcherDesktopBrowserInteraction,
+  type PatcherDesktopBrowserInteractRequest,
+  type PatcherDesktopBrowserInteractResult,
+  type PatcherDesktopBrowserNetworkEntry,
+  type PatcherDesktopBrowserObservation,
+  type PatcherDesktopBrowserObserveRequest,
+  type PatcherDesktopBrowserObserveResult,
+  type PatcherDesktopBrowserPageReadResult,
+  type PatcherDesktopBrowserSnapshot,
+  type PatcherDesktopBrowserSnapshotRequest,
+  type PatcherDesktopBrowserSnapshotResult,
+  type PatcherDesktopBrowserStorageOperation,
+  type PatcherDesktopBrowserStorageRequest,
+  type PatcherDesktopBrowserStorageResult,
+  type PatcherDesktopBrowserState,
+  type PatcherDesktopBrowserViewportBounds,
+  type PatcherDesktopBrowserViewBounds,
+} from "@patcher/desktop-contract";
+import type { AppCommandId, AppShortcutInput } from "@patcher/domain";
+import { matchesBrowserUrlPattern } from "@patcher/domain/browser-url-pattern";
 import {
-  BB_DESKTOP_BROWSER_DIALOG_CHANNEL,
-  BB_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
-  BB_DESKTOP_BROWSER_FAVICON_CHANNEL,
-  BB_DESKTOP_BROWSER_ZOOM_CHANNEL,
-  BB_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
-  BB_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
-  BB_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
-  BB_DESKTOP_BROWSER_POPUP_CHANNEL,
-  BB_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
-  BB_DESKTOP_BROWSER_OPEN_TAB_CHANNEL,
-  BB_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
-  BB_DESKTOP_BROWSER_CONTEXT_MENU_INVOKE_CHANNEL,
-  BB_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
-  BB_DESKTOP_BROWSER_SEARCH_SELECTION_CHANNEL,
-  BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
-  BB_DESKTOP_BROWSER_STATE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_FAVICON_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_ZOOM_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_CONTEXT_MENU_INVOKE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_SEARCH_SELECTION_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_STATE_CHANNEL,
 } from "./desktop-browser-ipc.js";
 import {
   resolveBrowserFaviconDataUrl,
@@ -131,13 +131,13 @@ import {
   type AxNode,
 } from "./desktop-browser-snapshot.js";
 import {
-  BB_BROWSER_ACTIONABILITY_SCRIPT,
-  BB_BROWSER_ACTION_POLL_INTERVAL_MS,
-  BB_BROWSER_ACTION_TIMEOUT_MS,
-  BB_BROWSER_AUTOMATION_WORLD_NAME,
-  BB_BROWSER_PREPARE_FILL_SCRIPT,
-  BB_BROWSER_READ_CHECKED_SCRIPT,
-  BB_BROWSER_SELECT_OPTION_SCRIPT,
+  PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
+  PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS,
+  PATCHER_BROWSER_ACTION_TIMEOUT_MS,
+  PATCHER_BROWSER_AUTOMATION_WORLD_NAME,
+  PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
+  PATCHER_BROWSER_READ_CHECKED_SCRIPT,
+  PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
   parseBrowserActionProbe,
   parseBrowserScriptOutcome,
   type BrowserActionBlockedReason,
@@ -152,11 +152,11 @@ import {
   type BrowserKeyEvent,
 } from "./desktop-browser-keyboard.js";
 import {
-  BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
+  PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
   parseBrowserCaptureRegion,
 } from "./desktop-browser-capture.js";
 import {
-  BB_BROWSER_OBSERVATION_BUFFER_SIZE,
+  PATCHER_BROWSER_OBSERVATION_BUFFER_SIZE,
   BrowserObservationLog,
   toBrowserConsoleEntry,
   toBrowserNetworkEntry,
@@ -164,13 +164,13 @@ import {
   type BrowserNetworkRequestDetails,
 } from "./desktop-browser-observe.js";
 import {
-  BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
-  BB_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
-  BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
   parseBrowserPageReadContent,
 } from "./desktop-browser-page-read.js";
 import {
-  BB_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS,
+  PATCHER_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS,
   isBrowserPdfContentType,
   readBrowserPdfBytes,
   type DesktopBrowserPdfTextOutcome,
@@ -181,9 +181,9 @@ import {
   toBrowserFulfillHeaders,
 } from "./desktop-browser-control.js";
 import {
-  BB_BROWSER_SCREENCAST_MAX_HEIGHT,
-  BB_BROWSER_SCREENCAST_MAX_WIDTH,
-  BB_BROWSER_SCREENCAST_QUALITY,
+  PATCHER_BROWSER_SCREENCAST_MAX_HEIGHT,
+  PATCHER_BROWSER_SCREENCAST_MAX_WIDTH,
+  PATCHER_BROWSER_SCREENCAST_QUALITY,
   BrowserVideoRecording,
 } from "./desktop-browser-video.js";
 import {
@@ -216,7 +216,7 @@ const POPUP_RATE_MAX_IN_WINDOW = 3;
  * Where the isolated worlds page scripts run in start.
  *
  * High on purpose. Chromium hands out the world ids behind
- * `Page.createIsolatedWorld` — the mechanism behind bb's own automation world —
+ * `Page.createIsolatedWorld` — the mechanism behind Patcher's own automation world —
  * from a low counter, so starting here keeps the two apart. Measured on Electron
  * 41.7.0: with world 9001 in use, a CDP-created world came back as 5, and neither
  * could see the other's globals.
@@ -224,23 +224,23 @@ const POPUP_RATE_MAX_IN_WINDOW = 3;
 const PAGE_SCRIPT_WORLD_BASE = 9001;
 
 /** Identifies the browsing session's page-script preload, for unregistering. */
-const PAGE_SCRIPT_PRELOAD_ID = "bb-page-scripts";
+const PAGE_SCRIPT_PRELOAD_ID = "patcher-page-scripts";
 
 /**
- * How long a page script's `bb.rpc` waits.
+ * How long a page script's `patcher.rpc` waits.
  *
  * A backstop rather than a policy: the answer travels through this window's
- * renderer to the bb server and back, and nothing in that path has a deadline of
+ * renderer to the Patcher server and back, and nothing in that path has a deadline of
  * its own, so without this a plugin that never answers leaves a page script
  * awaiting a promise for the life of the tab.
  */
 const PAGE_SCRIPT_CALL_TIMEOUT_MS = 30_000;
 
 /**
- * The sliding window on `bb.rpc`, same shape as the popup limiter above.
+ * The sliding window on `patcher.rpc`, same shape as the popup limiter above.
  *
  * Generous enough for a script answering clicks and typing, and bounded because
- * a page script in a loop would otherwise be a page driving the bb server.
+ * a page script in a loop would otherwise be a page driving the Patcher server.
  */
 const PAGE_SCRIPT_RATE_WINDOW_MS = 10_000;
 const PAGE_SCRIPT_RATE_MAX_IN_WINDOW = 60;
@@ -288,9 +288,9 @@ const PAGE_UNRESPONSIVE_ERROR_TEXT = "This page is not responding.";
 
 /** A network question a tab is stopped on, and how to answer it. */
 interface PendingPagePrompt {
-  details: BbDesktopBrowserPagePromptDetails;
+  details: PatcherDesktopBrowserPagePromptDetails;
   /** Hands the decision back to Chromium. Called exactly once. */
-  settle: (answer: BbDesktopBrowserPagePromptAnswer["answer"]) => void;
+  settle: (answer: PatcherDesktopBrowserPagePromptAnswer["answer"]) => void;
 }
 
 /** Electron's `login` answer: called with credentials, or with nothing to cancel. */
@@ -321,7 +321,7 @@ function declineClientCertificate(
  * one kind different from the next.
  */
 type OpenPagePromptDetails =
-  BbDesktopBrowserPagePromptDetails extends infer TDetails
+  PatcherDesktopBrowserPagePromptDetails extends infer TDetails
     ? TDetails extends { kind: string }
       ? Omit<TDetails, "id">
       : never
@@ -348,9 +348,15 @@ function truncate(value: string, max: number): string {
 
 /**
  * Isolated, persistent partition for the in-app browser. Cookies/storage never
- * touch the bb app session (`defaultSession`) or the user's real browser.
+ * touch the Patcher app session (`defaultSession`) or the user's real browser.
+ *
+ * The name is the on-disk directory under the app's `userData`, so changing it
+ * abandons whatever the old name holds. That cost was already paid: the rename
+ * moved `productName` from "bb" to "Patcher", which relocates `userData`
+ * itself, so no install can reach its old cookies by either name.
+ * `wire-values.test.ts` pins this string — nothing else notices it changing.
  */
-export const BB_BROWSER_PARTITION = "persist:bb-browser";
+export const PATCHER_BROWSER_PARTITION = "persist:patcher-browser";
 
 /**
  * `did-fail-load` reports aborted main-frame loads (a user navigating away, a
@@ -379,7 +385,7 @@ interface BrowserViewEntry {
    * {@link DesktopBrowserViewManager.clampVisibleBoundsForWindow}) without
    * losing the renderer's intent.
    */
-  desiredBounds: BbDesktopBrowserViewBounds;
+  desiredBounds: PatcherDesktopBrowserViewBounds;
   popupTimestamps: number[];
   /**
    * This view is a popup the shell created, and the renderer has not adopted it
@@ -416,11 +422,11 @@ interface BrowserViewEntry {
    */
   pageStyleDocument: number;
   /**
-   * `bb.rpc` stamps from page scripts running in this view, behind the same
+   * `patcher.rpc` stamps from page scripts running in this view, behind the same
    * sliding-window limiter the popups use.
    *
    * Per view rather than per plugin: what this bounds is how much one page can
-   * ask of the bb server, and a page with two plugins' scripts on it is still
+   * ask of the Patcher server, and a page with two plugins' scripts on it is still
    * one page.
    */
   pageScriptCallTimestamps: number[];
@@ -455,7 +461,7 @@ interface BrowserViewEntry {
    * a WebContentsView composites above the DOM, so there is no other way to put
    * UI in front of the page.
    */
-  pendingDialog: BbDesktopBrowserDialog["dialog"];
+  pendingDialog: PatcherDesktopBrowserDialog["dialog"];
   /**
    * The network question this tab is stopped on — an authentication challenge,
    * an untrusted certificate, a request for a client certificate. Hides the
@@ -537,8 +543,8 @@ interface BrowserViewEntry {
    * tab nobody has automated still has an answer — see
    * `desktop-browser-observe.ts` for why that decides the mechanism.
    */
-  consoleLog: BrowserObservationLog<BbDesktopBrowserConsoleEntry>;
-  networkLog: BrowserObservationLog<BbDesktopBrowserNetworkEntry>;
+  consoleLog: BrowserObservationLog<PatcherDesktopBrowserConsoleEntry>;
+  networkLog: BrowserObservationLog<PatcherDesktopBrowserNetworkEntry>;
   /**
    * Requests this tab answers itself instead of fetching, newest first, and
    * whether it is pretending to be offline.
@@ -547,7 +553,7 @@ interface BrowserViewEntry {
    * interception and the emulation when the client detaches — so both are
    * cleared with it rather than left describing a tab that is no longer routed.
    */
-  routes: BbDesktopBrowserRouteState[];
+  routes: PatcherDesktopBrowserRouteState[];
   /** Guards one-time `Fetch.requestPaused` wiring per CDP session. */
   routesWired: boolean;
   /** Whether the `Fetch` domain is currently on for this tab. */
@@ -579,22 +585,22 @@ interface BrowserViewEntry {
 }
 
 export type DesktopBrowserHostWebContentsPayload =
-  | BbDesktopBrowserState
-  | BbDesktopBrowserOpenTabRequest
-  | BbDesktopBrowserScopedOpenTabRequest
-  | BbDesktopBrowserSnapshot
-  | BbDesktopBrowserDialog
-  | BbDesktopBrowserDownload
-  | BbDesktopBrowserFavicon
-  | BbDesktopBrowserZoom
-  | BbDesktopBrowserPageSecurity
-  | BbDesktopBrowserFindResult
-  | BbDesktopBrowserPagePrompt
-  | BbDesktopBrowserPopup
-  | BbDesktopBrowserDevToolsState
-  | BbDesktopBrowserSearchSelection
-  | BbDesktopBrowserContextMenuInvoke
-  | BbDesktopBrowserPageScriptCall;
+  | PatcherDesktopBrowserState
+  | PatcherDesktopBrowserOpenTabRequest
+  | PatcherDesktopBrowserScopedOpenTabRequest
+  | PatcherDesktopBrowserSnapshot
+  | PatcherDesktopBrowserDialog
+  | PatcherDesktopBrowserDownload
+  | PatcherDesktopBrowserFavicon
+  | PatcherDesktopBrowserZoom
+  | PatcherDesktopBrowserPageSecurity
+  | PatcherDesktopBrowserFindResult
+  | PatcherDesktopBrowserPagePrompt
+  | PatcherDesktopBrowserPopup
+  | PatcherDesktopBrowserDevToolsState
+  | PatcherDesktopBrowserSearchSelection
+  | PatcherDesktopBrowserContextMenuInvoke
+  | PatcherDesktopBrowserPageScriptCall;
 
 export interface DesktopBrowserHostContentBounds {
   height: number;
@@ -661,9 +667,9 @@ export interface CreateDesktopBrowserViewManagerArgs {
   /** Hand a link to the user's real browser. */
   openExternalUrl: (url: string) => void;
   /**
-   * Whether there is a browser other than bb to hand a link to. Asked per
+   * Whether there is a browser other than Patcher to hand a link to. Asked per
    * right-click rather than captured once: the user can change their default
-   * browser while bb runs, and the shell hears about it on activation.
+   * browser while Patcher runs, and the shell hears about it on activation.
    */
   canOpenExternalUrl?: () => boolean;
   /**
@@ -698,7 +704,7 @@ interface HostScopedTabArgs {
 }
 
 interface CreateEntryArgs {
-  desiredBounds: BbDesktopBrowserViewBounds;
+  desiredBounds: PatcherDesktopBrowserViewBounds;
   hostWindow: DesktopBrowserHostWindow;
   tabId: string;
   /**
@@ -715,13 +721,13 @@ interface HostWindowViewportBoundsArgs {
 }
 
 interface SetEntryDesiredBoundsArgs {
-  bounds: BbDesktopBrowserViewBounds;
+  bounds: PatcherDesktopBrowserViewBounds;
   entry: BrowserViewEntry;
   hostWindow: DesktopBrowserHostWindow;
 }
 
 export interface DesktopBrowserViewManager {
-  attach(args: HostScopedRequestArgs<BbDesktopBrowserAttachRequest>): void;
+  attach(args: HostScopedRequestArgs<PatcherDesktopBrowserAttachRequest>): void;
   detach(args: HostScopedTabArgs): void;
   /**
    * Print a tab's page through the OS dialog.
@@ -732,7 +738,9 @@ export interface DesktopBrowserViewManager {
    * user action may reach it (see the call site's comment).
    */
   print(args: HostScopedTabArgs): void;
-  navigate(args: HostScopedRequestArgs<BbDesktopBrowserNavigateRequest>): void;
+  navigate(
+    args: HostScopedRequestArgs<PatcherDesktopBrowserNavigateRequest>,
+  ): void;
   goBack(args: HostScopedTabArgs): void;
   goForward(args: HostScopedTabArgs): void;
   reload(args: HostScopedTabArgs): void;
@@ -742,51 +750,57 @@ export interface DesktopBrowserViewManager {
    * here that answers; it never rejects, reporting every failure as a typed
    * `ok: false` so the renderer can tell "no view" from "page would not talk".
    */
-  readPage(args: HostScopedTabArgs): Promise<BbDesktopBrowserPageReadResult>;
+  readPage(
+    args: HostScopedTabArgs,
+  ): Promise<PatcherDesktopBrowserPageReadResult>;
   /**
    * Search the tab's page, step through what was found, or stop. The count
    * comes back on its own channel rather than from here, because one query
    * answers many times while Chromium scans.
    */
-  find(args: HostScopedRequestArgs<BbDesktopBrowserFindRequest>): void;
+  find(args: HostScopedRequestArgs<PatcherDesktopBrowserFindRequest>): void;
   /**
    * Give the page the whole window, or give the chrome back. Whether that is
    * something to offer is the renderer's call — see
-   * {@link bbDesktopBrowserSetFullscreenRequestSchema}.
+   * {@link patcherDesktopBrowserSetFullscreenRequestSchema}.
    */
   setFullscreen(
-    args: HostScopedRequestArgs<BbDesktopBrowserSetFullscreenRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSetFullscreenRequest>,
   ): void;
   /**
    * Open or close Chromium's own DevTools for a tab, and place the view they
    * draw into. Re-sending with `open: true` reports a resize.
    */
   setDevTools(
-    args: HostScopedRequestArgs<BbDesktopBrowserDevToolsRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserDevToolsRequest>,
   ): void;
   /**
    * Report whether the app's DevTools panel is on screen for a tab — see
    * {@link BrowserViewEntry.devToolsVisible}.
    */
   setDevToolsVisible(
-    args: HostScopedRequestArgs<BbDesktopBrowserDevToolsVisibleRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserDevToolsVisibleRequest>,
   ): void;
   /**
    * Replace the set of tabs whose pages get real popups — see
-   * {@link bbDesktopBrowserPopupTabsSchema}.
+   * {@link patcherDesktopBrowserPopupTabsSchema}.
    */
-  setPopupTabs(args: HostScopedRequestArgs<BbDesktopBrowserPopupTabs>): void;
+  setPopupTabs(
+    args: HostScopedRequestArgs<PatcherDesktopBrowserPopupTabs>,
+  ): void;
   /** Replace the plugin entries offered on a browsed page's context menu. */
   setContextMenuItems(
-    args: HostScopedRequestArgs<BbDesktopBrowserContextMenuItems>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserContextMenuItems>,
   ): void;
   /**
    * Replace the plugin stylesheets applied to browsed pages, and bring every
    * open page in line with the new set.
    */
-  setPageStyles(args: HostScopedRequestArgs<BbDesktopBrowserPageStyles>): void;
+  setPageStyles(
+    args: HostScopedRequestArgs<PatcherDesktopBrowserPageStyles>,
+  ): void;
   setPageScripts(
-    args: HostScopedRequestArgs<BbDesktopBrowserPageScripts>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserPageScripts>,
   ): void;
   /**
    * What a browsed frame's preload should run, answered synchronously at document
@@ -795,23 +809,23 @@ export interface DesktopBrowserViewManager {
   pageScriptBootstrap(args: {
     webContentsId: number;
     url: string;
-  }): BbDesktopPageScriptBootstrap;
-  /** One `bb.rpc` from a page script, routed through this window's renderer. */
+  }): PatcherDesktopPageScriptBootstrap;
+  /** One `patcher.rpc` from a page script, routed through this window's renderer. */
   pageScriptRpc(args: {
     webContentsId: number;
     url: string;
-    request: BbDesktopPageScriptRpcRequest;
-  }): Promise<BbDesktopPageScriptRpcAnswer>;
+    request: PatcherDesktopPageScriptRpcRequest;
+  }): Promise<PatcherDesktopPageScriptRpcAnswer>;
   /** The renderer's answer to one, on its way back to the page. */
   respondToPageScriptCall(args: {
-    result: BbDesktopBrowserPageScriptResult;
+    result: PatcherDesktopBrowserPageScriptResult;
   }): void;
   /**
    * Freeze the page to a bitmap and hide the view so the app can draw over it,
    * or reveal it again. The only way React can put anything over a page.
    */
   setOverlay(
-    args: HostScopedRequestArgs<BbDesktopBrowserSetOverlayRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSetOverlayRequest>,
   ): void;
   /**
    * Open a finished download or show it in the file manager. Refuses any path
@@ -819,26 +833,26 @@ export interface DesktopBrowserViewManager {
    * "open this file" primitive. Never rejects.
    */
   downloadAction(
-    request: BbDesktopBrowserDownloadActionRequest,
-  ): Promise<BbDesktopBrowserDownloadActionResult>;
+    request: PatcherDesktopBrowserDownloadActionRequest,
+  ): Promise<PatcherDesktopBrowserDownloadActionResult>;
   /**
    * Accessibility snapshot with a ref on every interactive element — the
    * primitive the interaction commands address elements through. Attaches the
    * tab's CDP session on first use. Never rejects.
    */
   snapshot(
-    args: HostScopedRequestArgs<BbDesktopBrowserSnapshotRequest>,
-  ): Promise<BbDesktopBrowserSnapshotResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSnapshotRequest>,
+  ): Promise<PatcherDesktopBrowserSnapshotResult>;
   /** The same snapshot, of what a CSS selector matches. Never rejects. */
   snapshotIn(
-    args: HostScopedRequestArgs<BbDesktopBrowserSnapshotInRequest>,
-  ): Promise<BbDesktopBrowserSnapshotResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSnapshotInRequest>,
+  ): Promise<PatcherDesktopBrowserSnapshotResult>;
   /**
    * Answer the JavaScript dialog a tab is blocked on. False when there is none —
    * including when a human answered it first.
    */
   respondToDialog(
-    args: HostScopedRequestArgs<BbDesktopBrowserDialogRespondRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserDialogRespondRequest>,
   ): Promise<boolean>;
   /**
    * Answer the network question a tab is stopped on. False when there was
@@ -846,54 +860,54 @@ export interface DesktopBrowserViewManager {
    * moved past.
    */
   respondToPagePrompt(
-    args: HostScopedRequestArgs<BbDesktopBrowserPagePromptAnswer>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserPagePromptAnswer>,
   ): Promise<boolean>;
   /**
    * Act on the page through a ref from the last snapshot, waiting for the
    * element to be actionable first. Never rejects.
    */
   interact(
-    args: HostScopedRequestArgs<BbDesktopBrowserInteractRequest>,
-  ): Promise<BbDesktopBrowserInteractResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserInteractRequest>,
+  ): Promise<PatcherDesktopBrowserInteractResult>;
   /**
    * Look at a tab — screenshot, PDF, console log, network log — without
    * attaching the browser debugger to it. Never rejects.
    */
   observe(
-    args: HostScopedRequestArgs<BbDesktopBrowserObserveRequest>,
-  ): Promise<BbDesktopBrowserObserveResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserObserveRequest>,
+  ): Promise<PatcherDesktopBrowserObserveResult>;
   /**
    * Capture the whole document, however far it scrolls. The one capture that
    * does attach the debugger — see {@link captureFullPage}. Never rejects.
    */
   captureFullPage(
-    args: HostScopedRequestArgs<BbDesktopBrowserCaptureFullPageRequest>,
-  ): Promise<BbDesktopBrowserCaptureFullPageResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserCaptureFullPageRequest>,
+  ): Promise<PatcherDesktopBrowserCaptureFullPageResult>;
   /**
    * Read or write a tab's cookies and web storage. Attaches no debugger either,
    * and never rejects.
    */
   storage(
-    args: HostScopedRequestArgs<BbDesktopBrowserStorageRequest>,
-  ): Promise<BbDesktopBrowserStorageResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserStorageRequest>,
+  ): Promise<PatcherDesktopBrowserStorageResult>;
   /**
    * Drive a tab directly — evaluate the caller's JavaScript in it, act at raw
    * coordinates, mock its network, take it offline. Never rejects.
    */
   control(
-    args: HostScopedRequestArgs<BbDesktopBrowserControlRequest>,
-  ): Promise<BbDesktopBrowserControlResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserControlRequest>,
+  ): Promise<PatcherDesktopBrowserControlResult>;
   /**
    * Film a tab and hand the frames back when it stops. Never rejects.
    */
   record(
-    args: HostScopedRequestArgs<BbDesktopBrowserRecordRequest>,
-  ): Promise<BbDesktopBrowserRecordResult>;
+    args: HostScopedRequestArgs<PatcherDesktopBrowserRecordRequest>,
+  ): Promise<PatcherDesktopBrowserRecordResult>;
   setBounds(
-    args: HostScopedRequestArgs<BbDesktopBrowserSetBoundsRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSetBoundsRequest>,
   ): void;
   setVisible(
-    args: HostScopedRequestArgs<BbDesktopBrowserSetVisibleRequest>,
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSetVisibleRequest>,
   ): void;
   /**
    * Scale a tab's page.
@@ -902,7 +916,9 @@ export interface DesktopBrowserViewManager {
    * not only a property of the tab: setting it here is also what a *later* tab
    * on the same site will come up with.
    */
-  setZoom(args: HostScopedRequestArgs<BbDesktopBrowserSetZoomRequest>): void;
+  setZoom(
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSetZoomRequest>,
+  ): void;
   /**
    * Silence a tab's page, or let it speak again.
    *
@@ -911,7 +927,9 @@ export interface DesktopBrowserViewManager {
    * to silence, and this call finds no entry and does nothing. The renderer
    * re-applies it once the view exists; see `browser-tab-mute.ts` there.
    */
-  setMuted(args: HostScopedRequestArgs<BbDesktopBrowserSetMutedRequest>): void;
+  setMuted(
+    args: HostScopedRequestArgs<PatcherDesktopBrowserSetMutedRequest>,
+  ): void;
   /**
    * Hide every visible view owned by the window for the duration of a native
    * resize burst. During an interactive window resize the host chrome
@@ -981,7 +999,7 @@ function send(
 
 function hostWindowViewportBounds(
   args: HostWindowViewportBoundsArgs,
-): BbDesktopBrowserViewportBounds {
+): PatcherDesktopBrowserViewportBounds {
   const contentBounds = args.hostWindow.getContentBounds();
   return {
     width: contentBounds.width,
@@ -1016,7 +1034,7 @@ function applyEntryDesiredBounds(
     return;
   }
   entry.view.setBounds(
-    clampBbDesktopBrowserViewBounds({
+    clampPatcherDesktopBrowserViewBounds({
       bounds: entry.desiredBounds,
       viewport,
     }),
@@ -1077,7 +1095,7 @@ function invalidateSnapshotRefs(entry: BrowserViewEntry): void {
 }
 
 type InteractionRefusalReason = Extract<
-  BbDesktopBrowserInteractResult,
+  PatcherDesktopBrowserInteractResult,
   { ok: false }
 >["reason"];
 
@@ -1123,7 +1141,7 @@ async function ensureAutomationWorld(
   }
   const created = await session.send<{ executionContextId?: number }>(
     "Page.createIsolatedWorld",
-    { frameId, worldName: BB_BROWSER_AUTOMATION_WORLD_NAME },
+    { frameId, worldName: PATCHER_BROWSER_AUTOMATION_WORLD_NAME },
   );
   if (typeof created.executionContextId !== "number") {
     throw new InteractionRefusal(
@@ -1249,14 +1267,14 @@ async function waitForActionable(
     .send("DOM.scrollIntoViewIfNeeded", { backendNodeId: target.backendNodeId })
     .catch(() => undefined);
 
-  const deadline = Date.now() + BB_BROWSER_ACTION_TIMEOUT_MS;
+  const deadline = Date.now() + PATCHER_BROWSER_ACTION_TIMEOUT_MS;
   let blocked: BrowserActionBlockedReason = "detached";
   for (;;) {
     const probe = parseBrowserActionProbe(
       await callOnElement(
         session,
         target.objectId,
-        BB_BROWSER_ACTIONABILITY_SCRIPT,
+        PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
       ),
     );
     if (probe === null) {
@@ -1275,7 +1293,7 @@ async function waitForActionable(
         `Gave up waiting for the element: ${BLOCKED_REASON_TEXT[blocked]}.`,
       );
     }
-    await delay(BB_BROWSER_ACTION_POLL_INTERVAL_MS);
+    await delay(PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS);
   }
 }
 
@@ -1346,7 +1364,7 @@ async function readCheckedState(
   objectId: string,
 ): Promise<boolean> {
   const outcome = parseBrowserScriptOutcome(
-    await callOnElement(session, objectId, BB_BROWSER_READ_CHECKED_SCRIPT),
+    await callOnElement(session, objectId, PATCHER_BROWSER_READ_CHECKED_SCRIPT),
   );
   if (outcome === null || !outcome.ok || outcome.checked === null) {
     throw new InteractionRefusal(
@@ -1363,9 +1381,9 @@ const CHECKED_SETTLE_TIMEOUT_MS = 500;
 async function performInteraction(
   session: CdpSession,
   entry: BrowserViewEntry,
-  request: BbDesktopBrowserInteractRequest,
+  request: PatcherDesktopBrowserInteractRequest,
 ): Promise<void> {
-  const interaction: BbDesktopBrowserInteraction = request.interaction;
+  const interaction: PatcherDesktopBrowserInteraction = request.interaction;
 
   if (interaction.action === "resize") {
     // Device metrics rather than the view's bounds: the panel's size belongs to
@@ -1436,7 +1454,7 @@ async function performInteraction(
         await callOnElement(
           session,
           target.objectId,
-          BB_BROWSER_SELECT_OPTION_SCRIPT,
+          PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
           [{ value: [...interaction.values] }],
         ),
       );
@@ -1457,7 +1475,7 @@ async function performInteraction(
         await callOnElement(
           session,
           target.objectId,
-          BB_BROWSER_PREPARE_FILL_SCRIPT,
+          PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
         ),
       );
       if (outcome === null || !outcome.ok) {
@@ -1587,7 +1605,7 @@ async function performInteraction(
             `The control did not become ${interaction.checked ? "checked" : "unchecked"}.`,
           );
         }
-        await delay(BB_BROWSER_ACTION_POLL_INTERVAL_MS);
+        await delay(PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS);
       }
     }
 
@@ -1630,7 +1648,7 @@ async function performInteraction(
 }
 
 type ControlRefusalReason = Extract<
-  BbDesktopBrowserControlResult,
+  PatcherDesktopBrowserControlResult,
   { ok: false }
 >["reason"];
 
@@ -1737,7 +1755,7 @@ function wireRouteInterception(
 function entryRoutes(
   entry: BrowserViewEntry,
   tabId: string,
-): Extract<BbDesktopBrowserControlResult, { kind: "routes" }> {
+): Extract<PatcherDesktopBrowserControlResult, { kind: "routes" }> {
   return {
     ok: true,
     kind: "routes",
@@ -1829,7 +1847,7 @@ async function evaluateInPage(
   }
   return formatBrowserEvalValue(
     response.result?.value,
-    BB_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
+    PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
   );
 }
 
@@ -1845,10 +1863,10 @@ async function performControl(
   session: CdpSession,
   entry: BrowserViewEntry,
   tabId: string,
-  request: BbDesktopBrowserControlRequest,
-): Promise<BbDesktopBrowserControlResult> {
+  request: PatcherDesktopBrowserControlRequest,
+): Promise<PatcherDesktopBrowserControlResult> {
   const operation = request.operation;
-  const acted = (): BbDesktopBrowserControlResult => ({
+  const acted = (): PatcherDesktopBrowserControlResult => ({
     ok: true,
     kind: "acted",
     tabId,
@@ -1913,10 +1931,10 @@ async function performControl(
       const existing = entry.routes.filter(
         (route) => route.pattern !== operation.route.pattern,
       );
-      if (existing.length >= BB_DESKTOP_BROWSER_MAX_ROUTES) {
+      if (existing.length >= PATCHER_DESKTOP_BROWSER_MAX_ROUTES) {
         throw new ControlRefusal(
           "too-many-routes",
-          `This tab already holds ${BB_DESKTOP_BROWSER_MAX_ROUTES} routes. Remove one first.`,
+          `This tab already holds ${PATCHER_DESKTOP_BROWSER_MAX_ROUTES} routes. Remove one first.`,
         );
       }
       // Newest first, so the route just added is the one that answers — the
@@ -2051,8 +2069,8 @@ async function performRecord(
   session: CdpSession,
   entry: BrowserViewEntry,
   tabId: string,
-  operation: BbDesktopBrowserRecordRequest["operation"],
-): Promise<BbDesktopBrowserRecordResult> {
+  operation: PatcherDesktopBrowserRecordRequest["operation"],
+): Promise<PatcherDesktopBrowserRecordResult> {
   const page = { tabId, ...entryPageIdentity(entry) };
 
   if (operation.kind === "video-start") {
@@ -2072,9 +2090,9 @@ async function performRecord(
       await session.enableDomain("Page");
       await session.send("Page.startScreencast", {
         format: "jpeg",
-        quality: BB_BROWSER_SCREENCAST_QUALITY,
-        maxWidth: BB_BROWSER_SCREENCAST_MAX_WIDTH,
-        maxHeight: BB_BROWSER_SCREENCAST_MAX_HEIGHT,
+        quality: PATCHER_BROWSER_SCREENCAST_QUALITY,
+        maxWidth: PATCHER_BROWSER_SCREENCAST_MAX_WIDTH,
+        maxHeight: PATCHER_BROWSER_SCREENCAST_MAX_HEIGHT,
         everyNthFrame: 1,
       });
     } catch (error) {
@@ -2120,11 +2138,11 @@ function entryPageIdentity(entry: BrowserViewEntry): {
   const rawTitle = entry.view.webContents.getTitle();
   const title = rawTitle.length > 0 && rawTitle !== url ? rawTitle : null;
   return {
-    url: truncate(url, BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    url: truncate(url, PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
     title:
       title === null
         ? null
-        : truncate(title, BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+        : truncate(title, PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
   };
 }
 
@@ -2139,8 +2157,8 @@ function entryPageIdentity(entry: BrowserViewEntry): {
 async function captureObservation(
   entry: BrowserViewEntry,
   tabId: string,
-  observation: BbDesktopBrowserObservation,
-): Promise<BbDesktopBrowserObserveResult> {
+  observation: PatcherDesktopBrowserObservation,
+): Promise<PatcherDesktopBrowserObserveResult> {
   const page = { tabId, ...entryPageIdentity(entry) };
 
   // The two logs answer without touching the page at all: whatever the tab has
@@ -2171,7 +2189,7 @@ async function captureObservation(
   if (observation.kind === "pdf") {
     const buffer = await entry.view.webContents.printToPDF({});
     const base64 = buffer.toString("base64");
-    if (base64.length > BB_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH) {
+    if (base64.length > PATCHER_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH) {
       return {
         ok: false,
         reason: "too-large",
@@ -2200,7 +2218,7 @@ async function captureObservation(
       ? image.toPNG()
       : image.toJPEG(observation.quality);
   const base64 = buffer.toString("base64");
-  if (base64.length > BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH) {
+  if (base64.length > PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH) {
     return {
       ok: false,
       reason: "too-large",
@@ -2235,13 +2253,13 @@ async function captureObservation(
 async function captureFullPageImage(
   entry: BrowserViewEntry,
   session: CdpSession,
-  request: BbDesktopBrowserCaptureFullPageRequest,
-): Promise<BbDesktopBrowserCaptureFullPageResult> {
+  request: PatcherDesktopBrowserCaptureFullPageRequest,
+): Promise<PatcherDesktopBrowserCaptureFullPageResult> {
   const page = { tabId: request.tabId, ...entryPageIdentity(entry) };
 
   const measured = await runIsolatedScript(
     entry.view.webContents,
-    BB_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
+    PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
   );
   if (measured.kind === "timeout") {
     return {
@@ -2296,7 +2314,7 @@ async function captureFullPageImage(
       message: "The browser captured nothing.",
     };
   }
-  if (base64.length > BB_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH) {
+  if (base64.length > PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH) {
     return {
       ok: false,
       reason: "too-large",
@@ -2337,15 +2355,16 @@ async function runIsolatedScript(
   let timer: ReturnType<typeof setTimeout> | undefined;
   return await Promise.race<IsolatedScriptOutcome>([
     webContents
-      .executeJavaScriptInIsolatedWorld(BB_DESKTOP_BROWSER_PAGE_READ_WORLD_ID, [
-        { code },
-      ])
+      .executeJavaScriptInIsolatedWorld(
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+        [{ code }],
+      )
       .then((value: unknown) => ({ kind: "value" as const, value }))
       .catch(() => ({ kind: "failed" as const })),
     new Promise<{ kind: "timeout" }>((resolve) => {
       timer = setTimeout(
         () => resolve({ kind: "timeout" }),
-        BB_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
       );
     }),
   ]).finally(() => {
@@ -2373,9 +2392,9 @@ async function runIsolatedScript(
 async function captureStorage(args: {
   entry: BrowserViewEntry;
   tabId: string;
-  operation: BbDesktopBrowserStorageOperation;
+  operation: PatcherDesktopBrowserStorageOperation;
   cookies: Session["cookies"];
-}): Promise<BbDesktopBrowserStorageResult> {
+}): Promise<PatcherDesktopBrowserStorageResult> {
   const { cookies, entry, operation, tabId } = args;
   const webContents = entry.view.webContents;
   const url = webContents.getURL();
@@ -2393,7 +2412,7 @@ async function captureStorage(args: {
       kind: "cookies",
       ...page,
       cookies: found
-        .slice(0, BB_DESKTOP_BROWSER_MAX_COOKIES)
+        .slice(0, PATCHER_DESKTOP_BROWSER_MAX_COOKIES)
         .map((cookie) => toBrowserCookie(cookie)),
     };
   }
@@ -2497,7 +2516,7 @@ async function captureStorage(args: {
 function buildBrowserState(
   tabId: string,
   entry: BrowserViewEntry,
-): BbDesktopBrowserState {
+): PatcherDesktopBrowserState {
   const webContents = entry.view.webContents;
   const url = webContents.getURL();
   const rawTitle = webContents.getTitle();
@@ -2506,18 +2525,21 @@ function buildBrowserState(
   // always validates and oversized values never reach the renderer/localStorage.
   return {
     tabId,
-    url: truncate(url, BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+    url: truncate(url, PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
     title:
       title === null
         ? null
-        : truncate(title, BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+        : truncate(title, PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
     isLoading: webContents.isLoadingMainFrame(),
     canGoBack: webContents.navigationHistory.canGoBack(),
     canGoForward: webContents.navigationHistory.canGoForward(),
     errorText:
       entry.lastErrorText === null
         ? null
-        : truncate(entry.lastErrorText, BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+        : truncate(
+            entry.lastErrorText,
+            PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+          ),
   };
 }
 
@@ -2551,7 +2573,7 @@ export function isAllowedBrowserPermission(permission: string): boolean {
 export function createDesktopBrowserViewManager(
   args: CreateDesktopBrowserViewManagerArgs,
 ): DesktopBrowserViewManager {
-  const partition = args.partition ?? BB_BROWSER_PARTITION;
+  const partition = args.partition ?? PATCHER_BROWSER_PARTITION;
   const entries = new Map<string, BrowserViewEntry>();
   const entriesByWebContentsId = new Map<number, BrowserViewEntry>();
   // Host webContents ids with a native resize burst in flight: views of these
@@ -2576,14 +2598,14 @@ export function createDesktopBrowserViewManager(
    * so a right-click composes its menu from data already in hand — asking the
    * server first would put a round trip in front of every menu.
    */
-  let contextMenuItems: readonly BbDesktopBrowserContextMenuItem[] = [];
+  let contextMenuItems: readonly PatcherDesktopBrowserContextMenuItem[] = [];
   /**
    * Plugin page styles, as the renderer last declared them. Held here for a
    * sharper reason than the menu entries above: this is where navigation
    * happens, and inserted CSS lasts exactly one document, so re-applying it is
    * something only the shell can do at the moment the page commits.
    */
-  let pageStyles: readonly BbDesktopBrowserPageStyle[] = [];
+  let pageStyles: readonly PatcherDesktopBrowserPageStyle[] = [];
 
   /**
    * Bring one view's applied stylesheets in line with what should be applied to
@@ -2605,7 +2627,7 @@ export function createDesktopBrowserViewManager(
       return;
     }
     const url = webContents.getURL();
-    const wanted = new Map<string, BbDesktopBrowserPageStyle>();
+    const wanted = new Map<string, PatcherDesktopBrowserPageStyle>();
     // Only a real page: `about:blank` and the empty URL of a fresh view are not
     // sites, and a pattern like `https://**/**` must not be read as claiming them.
     if (url.startsWith("https://") || url.startsWith("http://")) {
@@ -2682,12 +2704,12 @@ export function createDesktopBrowserViewManager(
    * to reach a document *as it is created*, before the page's own first script
    * runs, and this is the only process present at that moment.
    */
-  let pageScripts: readonly BbDesktopBrowserPageScript[] = [];
+  let pageScripts: readonly PatcherDesktopBrowserPageScript[] = [];
   /**
    * Whether the browsing session currently carries the page-script preload.
    *
    * The load-bearing property of this whole surface: while no plugin declares a
-   * page script, no preload is installed, so a browsed renderer holds no bb code
+   * page script, no preload is installed, so a browsed renderer holds no Patcher code
    * at all and the shell's standing rule needs no qualification. Measured: after
    * `unregisterPreloadScript`, the next document has no preload and the isolated
    * world is empty.
@@ -2699,12 +2721,12 @@ export function createDesktopBrowserViewManager(
    *
    * One world per plugin, not one per script and not one shared: two scripts of
    * the same plugin are one program and may share globals, while two plugins are
-   * two programs and — measured — cannot see each other's `bb` or anything else.
+   * two programs and — measured — cannot see each other's `patcher` or anything else.
    */
   const pageScriptWorldIds = new Map<string, number>();
   let pageScriptCallSequence = 0;
   /**
-   * `bb.rpc` calls in flight: callId → how to answer the page that asked.
+   * `patcher.rpc` calls in flight: callId → how to answer the page that asked.
    *
    * The request starts in a browsed renderer, is answered by this window's
    * renderer, and has to find its way back, so the correlation lives here. A late
@@ -2712,7 +2734,7 @@ export function createDesktopBrowserViewManager(
    */
   const pendingPageScriptCalls = new Map<
     string,
-    (answer: BbDesktopPageScriptRpcAnswer) => void
+    (answer: PatcherDesktopPageScriptRpcAnswer) => void
   >();
 
   function pageScriptWorldId(pluginId: string): number {
@@ -2732,11 +2754,11 @@ export function createDesktopBrowserViewManager(
    * the same refusal to treat a blank page as a site: `https://**` must not be
    * read as claiming `about:blank`.
    */
-  function pageScriptWorldsFor(url: string): BbDesktopPageScriptWorld[] {
+  function pageScriptWorldsFor(url: string): PatcherDesktopPageScriptWorld[] {
     if (!url.startsWith("https://") && !url.startsWith("http://")) {
       return [];
     }
-    const worlds = new Map<string, BbDesktopPageScriptWorld>();
+    const worlds = new Map<string, PatcherDesktopPageScriptWorld>();
     for (const script of pageScripts) {
       if (
         !script.matches.some((pattern) =>
@@ -2792,12 +2814,14 @@ export function createDesktopBrowserViewManager(
     }
   }
 
-  function refusePageScriptCall(message: string): BbDesktopPageScriptRpcAnswer {
+  function refusePageScriptCall(
+    message: string,
+  ): PatcherDesktopPageScriptRpcAnswer {
     return { ok: false, message };
   }
 
   /**
-   * One `bb.rpc` from a page script.
+   * One `patcher.rpc` from a page script.
    *
    * `url` is the frame's address as Chromium reports it to this process, never
    * something the payload claimed, and the plugin is re-checked against it on
@@ -2809,11 +2833,11 @@ export function createDesktopBrowserViewManager(
   async function callPageScriptRpc(callArgs: {
     webContentsId: number;
     url: string;
-    request: BbDesktopPageScriptRpcRequest;
-  }): Promise<BbDesktopPageScriptRpcAnswer> {
+    request: PatcherDesktopPageScriptRpcRequest;
+  }): Promise<PatcherDesktopPageScriptRpcAnswer> {
     const entry = entriesByWebContentsId.get(callArgs.webContentsId);
     if (entry === undefined) {
-      return refusePageScriptCall("bb.rpc is not available in this page.");
+      return refusePageScriptCall("patcher.rpc is not available in this page.");
     }
     const { pluginId, method, input } = callArgs.request;
     if (
@@ -2822,7 +2846,7 @@ export function createDesktopBrowserViewManager(
       )
     ) {
       return refusePageScriptCall(
-        `bb.rpc: plugin "${pluginId}" declares no page script for this address.`,
+        `patcher.rpc: plugin "${pluginId}" declares no page script for this address.`,
       );
     }
     const now = Date.now();
@@ -2832,7 +2856,7 @@ export function createDesktopBrowserViewManager(
     if (recent.length >= PAGE_SCRIPT_RATE_MAX_IN_WINDOW) {
       entry.pageScriptCallTimestamps = recent;
       return refusePageScriptCall(
-        `bb.rpc: too many calls — at most ${PAGE_SCRIPT_RATE_MAX_IN_WINDOW} every ${
+        `patcher.rpc: too many calls — at most ${PAGE_SCRIPT_RATE_MAX_IN_WINDOW} every ${
           PAGE_SCRIPT_RATE_WINDOW_MS / 1000
         } seconds.`,
       );
@@ -2841,15 +2865,17 @@ export function createDesktopBrowserViewManager(
 
     const hostWindow = entry.hostWindow;
     if (hostWindow.webContents.isDestroyed()) {
-      return refusePageScriptCall("bb.rpc: this tab's bb window is gone.");
+      return refusePageScriptCall(
+        "patcher.rpc: this tab's Patcher window is gone.",
+      );
     }
     const callId = `page-script-${(pageScriptCallSequence += 1)}`;
-    return await new Promise<BbDesktopPageScriptRpcAnswer>((resolve) => {
+    return await new Promise<PatcherDesktopPageScriptRpcAnswer>((resolve) => {
       const timer = setTimeout(() => {
         if (pendingPageScriptCalls.delete(callId)) {
           resolve(
             refusePageScriptCall(
-              `bb.rpc("${method}"): no answer within ${
+              `patcher.rpc("${method}"): no answer within ${
                 PAGE_SCRIPT_CALL_TIMEOUT_MS / 1000
               } seconds.`,
             ),
@@ -2862,13 +2888,13 @@ export function createDesktopBrowserViewManager(
         clearTimeout(timer);
         resolve(answer);
       });
-      send(hostWindow, BB_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL, {
+      send(hostWindow, PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL, {
         callId,
         tabId: entry.tabId,
         pluginId,
         method,
         input,
-        url: truncate(callArgs.url, BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+        url: truncate(callArgs.url, PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
       });
     });
   }
@@ -3003,9 +3029,9 @@ export function createDesktopBrowserViewManager(
 
   function sendDownload(
     entry: BrowserViewEntry,
-    download: Omit<BbDesktopBrowserDownload, "tabId">,
+    download: Omit<PatcherDesktopBrowserDownload, "tabId">,
   ): void {
-    send(entry.hostWindow, BB_DESKTOP_BROWSER_DOWNLOAD_CHANNEL, {
+    send(entry.hostWindow, PATCHER_DESKTOP_BROWSER_DOWNLOAD_CHANNEL, {
       ...download,
       tabId: entry.tabId,
     });
@@ -3065,7 +3091,7 @@ export function createDesktopBrowserViewManager(
         const dataUrl = `data:image/jpeg;base64,${image
           .toJPEG(RESIZE_SNAPSHOT_JPEG_QUALITY)
           .toString("base64")}`;
-        send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
           tabId,
           dataUrl,
         });
@@ -3115,10 +3141,10 @@ export function createDesktopBrowserViewManager(
       // benefit, and a payload the preload's schema drops would cost the user
       // the message about their own download.
       const source = {
-        url: truncate(item.getURL(), BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+        url: truncate(item.getURL(), PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
         mimeType: truncate(
           item.getMimeType(),
-          BB_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH,
+          PATCHER_DESKTOP_BROWSER_MAX_MIME_TYPE_LENGTH,
         ),
       };
       const decision = evaluatePopupRate({
@@ -3171,7 +3197,7 @@ export function createDesktopBrowserViewManager(
         });
       });
     });
-    // Network firewall: untrusted pages must not invisibly reach bb's loopback
+    // Network firewall: untrusted pages must not invisibly reach Patcher's loopback
     // services or the user's LAN. Top-level http(s) navigation remains allowed;
     // subresources, fetch/XHR, iframes, and WebSockets are guarded here.
     browserSession.webRequest.onBeforeRequest((details, callback) => {
@@ -3239,7 +3265,10 @@ export function createDesktopBrowserViewManager(
     tabId: string,
     dataUrl: string | null,
   ): void {
-    send(hostWindow, BB_DESKTOP_BROWSER_FAVICON_CHANNEL, { tabId, dataUrl });
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_FAVICON_CHANNEL, {
+      tabId,
+      dataUrl,
+    });
   }
 
   /**
@@ -3255,7 +3284,7 @@ export function createDesktopBrowserViewManager(
     if (entry.view.webContents.isDestroyed()) {
       return;
     }
-    send(hostWindow, BB_DESKTOP_BROWSER_ZOOM_CHANNEL, {
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_ZOOM_CHANNEL, {
       tabId,
       factor: entry.view.webContents.getZoomFactor(),
     });
@@ -3279,7 +3308,7 @@ export function createDesktopBrowserViewManager(
       return;
     }
     const host = browserUrlHost(entry.view.webContents.getURL());
-    send(hostWindow, BB_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL, {
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL, {
       tabId,
       certificateTrustedByUser:
         host.length > 0 && hasAcceptedCertificateForHost(host),
@@ -3383,7 +3412,7 @@ export function createDesktopBrowserViewManager(
     }
     send(
       hostWindow,
-      BB_DESKTOP_BROWSER_STATE_CHANNEL,
+      PATCHER_DESKTOP_BROWSER_STATE_CHANNEL,
       buildBrowserState(tabId, entry),
     );
   }
@@ -3412,7 +3441,7 @@ export function createDesktopBrowserViewManager(
       });
       if (command === null) return;
       // Prevent both the untrusted page and Electron's application menu from
-      // also handling a chord that bb resolved as a browser command.
+      // also handling a chord that Patcher resolved as a browser command.
       event.preventDefault();
       // Commands whose *next* keystroke has to land in the app rather than in
       // the page. The address bar is the obvious one; the tab switcher is the
@@ -3497,10 +3526,10 @@ export function createDesktopBrowserViewManager(
         };
       }
       if (fallbackUrl !== null) {
-        send(hostWindow, BB_DESKTOP_BROWSER_OPEN_TAB_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL, {
           url: fallbackUrl,
         });
-        send(hostWindow, BB_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL, {
           tabId,
           url: fallbackUrl,
         });
@@ -3512,14 +3541,14 @@ export function createDesktopBrowserViewManager(
     // page menu opens them, their own toolbar closes them — and the renderer
     // owns the space they occupy, so both directions are reported.
     webContents.on("devtools-opened", () => {
-      send(hostWindow, BB_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL, {
+      send(hostWindow, PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL, {
         tabId,
         open: true,
       });
     });
     webContents.on("devtools-closed", () => {
       closeDevToolsView(entry, hostWindow);
-      send(hostWindow, BB_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL, {
+      send(hostWindow, PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL, {
         tabId,
         open: false,
       });
@@ -3542,7 +3571,7 @@ export function createDesktopBrowserViewManager(
       if (!hostWindow.isDestroyed()) {
         hostWindow.contentView.removeChildView(entry.view);
       }
-      send(hostWindow, BB_DESKTOP_BROWSER_POPUP_CHANNEL, {
+      send(hostWindow, PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL, {
         kind: "closed",
         tabId,
       });
@@ -3551,7 +3580,7 @@ export function createDesktopBrowserViewManager(
     // Right-click menu for the untrusted browser view. Built from this view's
     // own webContents so the standard editing roles act on it (not the host
     // React surface), giving Copy parity even when focus is elsewhere. Only
-    // plain editing roles are exposed — no dev tools, reload, or bb-bridge
+    // plain editing roles are exposed — no dev tools, reload, or patcher-bridge
     // surface — keeping the untrusted-content posture.
     webContents.on("context-menu", (_event, params) => {
       if (webContents.isDestroyed()) {
@@ -3576,30 +3605,40 @@ export function createDesktopBrowserViewManager(
             webContents.inspectElement(params.x, params.y);
           },
           invokePluginItem: (item) => {
-            send(hostWindow, BB_DESKTOP_BROWSER_CONTEXT_MENU_INVOKE_CHANNEL, {
-              pluginId: item.pluginId,
-              itemId: item.itemId,
-              tabId,
-              pageUrl: truncate(
-                webContents.getURL(),
-                BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
-              ),
-              linkUrl:
-                params.linkURL.length > 0
-                  ? truncate(params.linkURL, BB_DESKTOP_BROWSER_MAX_URL_LENGTH)
-                  : null,
-              imageUrl:
-                params.mediaType === "image" && params.srcURL.length > 0
-                  ? truncate(params.srcURL, BB_DESKTOP_BROWSER_MAX_URL_LENGTH)
-                  : null,
-              selectionText:
-                params.selectionText.length > 0
-                  ? truncate(
-                      params.selectionText,
-                      BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
-                    )
-                  : null,
-            });
+            send(
+              hostWindow,
+              PATCHER_DESKTOP_BROWSER_CONTEXT_MENU_INVOKE_CHANNEL,
+              {
+                pluginId: item.pluginId,
+                itemId: item.itemId,
+                tabId,
+                pageUrl: truncate(
+                  webContents.getURL(),
+                  PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+                ),
+                linkUrl:
+                  params.linkURL.length > 0
+                    ? truncate(
+                        params.linkURL,
+                        PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+                      )
+                    : null,
+                imageUrl:
+                  params.mediaType === "image" && params.srcURL.length > 0
+                    ? truncate(
+                        params.srcURL,
+                        PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH,
+                      )
+                    : null,
+                selectionText:
+                  params.selectionText.length > 0
+                    ? truncate(
+                        params.selectionText,
+                        PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+                      )
+                    : null,
+              },
+            );
           },
           copyImage: () => {
             webContents.copyImageAt(params.x, params.y);
@@ -3619,7 +3658,7 @@ export function createDesktopBrowserViewManager(
           openInNewTab: (url) => {
             // The path popups already take: the renderer owns where a tab goes,
             // and the surface only opens one for a tab it owns.
-            send(hostWindow, BB_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL, {
+            send(hostWindow, PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL, {
               tabId,
               url,
             });
@@ -3633,9 +3672,9 @@ export function createDesktopBrowserViewManager(
             webContents.downloadURL(url);
           },
           searchFor: (query) => {
-            send(hostWindow, BB_DESKTOP_BROWSER_SEARCH_SELECTION_CHANNEL, {
+            send(hostWindow, PATCHER_DESKTOP_BROWSER_SEARCH_SELECTION_CHANNEL, {
               tabId,
-              query: truncate(query, BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+              query: truncate(query, PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
             });
           },
         },
@@ -3657,7 +3696,7 @@ export function createDesktopBrowserViewManager(
     // The three questions the network asks that only a human can answer. Each
     // one is a documented Electron event whose *default* is to refuse silently,
     // which is what made them dead ends: the page simply failed with no way to
-    // tell whether bb had decided something or nothing had happened at all.
+    // tell whether Patcher had decided something or nothing had happened at all.
 
     webContents.on("login", (event, details, authInfo, callback) => {
       // Electron's default cancels every challenge. Taking it over means this
@@ -3702,7 +3741,7 @@ export function createDesktopBrowserViewManager(
           kind: "auth",
           host: truncate(
             formatBrowserAuthHost(authInfo),
-            BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+            PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
           ),
           // Basic auth over http puts the password on the wire in the clear.
           insecure: !details.url.startsWith("https:"),
@@ -3751,24 +3790,27 @@ export function createDesktopBrowserViewManager(
         const opened = openPagePrompt({
           details: {
             kind: "certificate",
-            host: truncate(host, BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH),
+            host: truncate(
+              host,
+              PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+            ),
             errorCode: truncate(
               error,
-              BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+              PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
             ),
             subjectName: truncate(
               certificate.subjectName,
-              BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+              PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
             ),
             issuerName: truncate(
               certificate.issuerName,
-              BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+              PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
             ),
             validFrom: certificate.validStart,
             validTo: certificate.validExpiry,
             fingerprint: truncate(
               certificate.fingerprint,
-              BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+              PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
             ),
           },
           entry,
@@ -3797,7 +3839,7 @@ export function createDesktopBrowserViewManager(
         event.preventDefault();
         const offered = certificateList.slice(
           0,
-          BB_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES,
+          PATCHER_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES,
         );
         if (offered.length === 0) {
           // Nothing to choose from, and the default is already prevented — so
@@ -3811,17 +3853,17 @@ export function createDesktopBrowserViewManager(
             kind: "client-certificate",
             host: truncate(
               browserUrlHost(url),
-              BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+              PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
             ),
             certificates: offered.map((certificate, index) => ({
               index,
               subjectName: truncate(
                 certificate.subjectName,
-                BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+                PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
               ),
               issuerName: truncate(
                 certificate.issuerName,
-                BB_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
+                PATCHER_DESKTOP_BROWSER_MAX_PROMPT_TEXT_LENGTH,
               ),
               validTo: certificate.validExpiry,
             })),
@@ -3913,7 +3955,7 @@ export function createDesktopBrowserViewManager(
       if (entry.findRequestId !== result.requestId) {
         return;
       }
-      send(hostWindow, BB_DESKTOP_BROWSER_FIND_RESULT_CHANNEL, {
+      send(hostWindow, PATCHER_DESKTOP_BROWSER_FIND_RESULT_CHANNEL, {
         tabId,
         activeMatchOrdinal: result.activeMatchOrdinal,
         matches: result.matches,
@@ -3974,7 +4016,7 @@ export function createDesktopBrowserViewManager(
     webContents.on("page-title-updated", refresh);
     // A page's favicon URL is still never forwarded: the renderer receives only a
     // `data:` URI the shell built from bytes it fetched in the browsing session,
-    // so the trusted bb app neither sees nor requests anything the page chose.
+    // so the trusted Patcher app neither sees nor requests anything the page chose.
     // `desktop-browser-favicon.ts` carries the reasoning and the limits.
     webContents.on("page-favicon-updated", (_event, urls) => {
       void updateFavicon(hostWindow, tabId, entry, urls);
@@ -4033,11 +4075,11 @@ export function createDesktopBrowserViewManager(
       tabId,
       view,
     });
-    send(args.hostWindow, BB_DESKTOP_BROWSER_POPUP_CHANNEL, {
+    send(args.hostWindow, PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL, {
       kind: "opened",
       openerTabId: args.openerTabId,
       tabId,
-      url: truncate(args.url, BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
+      url: truncate(args.url, PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
     });
     return view.webContents;
   }
@@ -4072,7 +4114,7 @@ export function createDesktopBrowserViewManager(
           // the user's.
           disableHtmlFullscreenWindowResize: true,
           // Intentionally NO preload: browsed pages are untrusted and must never
-          // receive a bb bridge.
+          // receive a Patcher bridge.
         },
       });
     const entry: BrowserViewEntry = {
@@ -4105,8 +4147,12 @@ export function createDesktopBrowserViewManager(
       devToolsVisible: null,
       dialogsWired: false,
       automationWorldId: null,
-      consoleLog: new BrowserObservationLog(BB_BROWSER_OBSERVATION_BUFFER_SIZE),
-      networkLog: new BrowserObservationLog(BB_BROWSER_OBSERVATION_BUFFER_SIZE),
+      consoleLog: new BrowserObservationLog(
+        PATCHER_BROWSER_OBSERVATION_BUFFER_SIZE,
+      ),
+      networkLog: new BrowserObservationLog(
+        PATCHER_BROWSER_OBSERVATION_BUFFER_SIZE,
+      ),
       routes: [],
       routesWired: false,
       routesEnabled: false,
@@ -4251,11 +4297,11 @@ export function createDesktopBrowserViewManager(
             : "alert",
         message: truncate(
           opening.message ?? "",
-          BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+          PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
         ),
         defaultPrompt: truncate(
           opening.defaultPrompt ?? "",
-          BB_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+          PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
         ),
       };
       // Stand a bitmap of the frozen page in for the hidden view, so the dialog
@@ -4263,7 +4309,7 @@ export function createDesktopBrowserViewManager(
       // the resize burst uses; a capture that fails just leaves the panel bare.
       captureDialogPlaceholder(hostWindow, tabId, entry);
       applyEntryVisibility(entry, hostWindow);
-      send(hostWindow, BB_DESKTOP_BROWSER_DIALOG_CHANNEL, {
+      send(hostWindow, PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL, {
         tabId,
         dialog: entry.pendingDialog,
       });
@@ -4287,7 +4333,7 @@ export function createDesktopBrowserViewManager(
         if (entry.pendingDialog === null || image.isEmpty()) {
           return;
         }
-        send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
           tabId,
           dataUrl: `data:image/jpeg;base64,${image
             .toJPEG(RESIZE_SNAPSHOT_JPEG_QUALITY)
@@ -4311,11 +4357,11 @@ export function createDesktopBrowserViewManager(
     applyEntryVisibility(entry, hostWindow);
     // Reveal first, then drop the placeholder, so the swap never flashes an
     // empty panel — the same ordering `endWindowResize` uses.
-    send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
       tabId,
       dataUrl: null,
     });
-    send(hostWindow, BB_DESKTOP_BROWSER_DIALOG_CHANNEL, {
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL, {
       tabId,
       dialog: null,
     });
@@ -4424,14 +4470,14 @@ export function createDesktopBrowserViewManager(
     const details = {
       ...args.details,
       id: `page-prompt-${pagePromptSequence}`,
-    } as BbDesktopBrowserPagePromptDetails;
+    } as PatcherDesktopBrowserPagePromptDetails;
     args.entry.pagePrompt = { details, settle: args.settle };
     // Stand a bitmap of the stopped page in behind the question, the way the
     // dialog path does — a prompt over an empty panel says less about what is
     // being asked.
     capturePagePromptPlaceholder(args.hostWindow, args.tabId, args.entry);
     applyEntryVisibility(args.entry, args.hostWindow);
-    send(args.hostWindow, BB_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL, {
+    send(args.hostWindow, PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL, {
       tabId: args.tabId,
       prompt: details,
     });
@@ -4449,7 +4495,7 @@ export function createDesktopBrowserViewManager(
         if (entry.pagePrompt === null || image.isEmpty()) {
           return;
         }
-        send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
           tabId,
           dataUrl: `data:image/jpeg;base64,${image
             .toJPEG(RESIZE_SNAPSHOT_JPEG_QUALITY)
@@ -4471,7 +4517,7 @@ export function createDesktopBrowserViewManager(
     hostWindow: DesktopBrowserHostWindow,
     tabId: string,
     entry: BrowserViewEntry,
-    answer: BbDesktopBrowserPagePromptAnswer["answer"],
+    answer: PatcherDesktopBrowserPagePromptAnswer["answer"],
   ): void {
     const pending = entry.pagePrompt;
     if (pending === null) {
@@ -4479,11 +4525,11 @@ export function createDesktopBrowserViewManager(
     }
     entry.pagePrompt = null;
     applyEntryVisibility(entry, hostWindow);
-    send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
       tabId,
       dataUrl: null,
     });
-    send(hostWindow, BB_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL, {
+    send(hostWindow, PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL, {
       tabId,
       prompt: null,
     });
@@ -4497,8 +4543,8 @@ export function createDesktopBrowserViewManager(
    * a certificate handed to a server.
    */
   function pagePromptAnswerFits(
-    details: BbDesktopBrowserPagePromptDetails,
-    answer: BbDesktopBrowserPagePromptAnswer["answer"],
+    details: PatcherDesktopBrowserPagePromptDetails,
+    answer: PatcherDesktopBrowserPagePromptAnswer["answer"],
   ): boolean {
     if (answer.kind === "cancel") return true;
     if (details.kind === "auth") return answer.kind === "credentials";
@@ -4527,9 +4573,9 @@ export function createDesktopBrowserViewManager(
   async function captureTabSnapshot(args: {
     hostWindow: DesktopBrowserHostWindow;
     request:
-      | BbDesktopBrowserSnapshotRequest
-      | BbDesktopBrowserSnapshotInRequest;
-  }): Promise<BbDesktopBrowserSnapshotResult> {
+      | PatcherDesktopBrowserSnapshotRequest
+      | PatcherDesktopBrowserSnapshotInRequest;
+  }): Promise<PatcherDesktopBrowserSnapshotResult> {
     const { hostWindow, request } = args;
     const entry = entries.get(browserViewKey(hostWindow, request.tabId));
     if (!entry || entry.view.webContents.isDestroyed()) {
@@ -4590,7 +4636,7 @@ export function createDesktopBrowserViewManager(
         nodes,
         ...(root === undefined ? {} : { root }),
         maxDepth: request.maxDepth,
-        maxLength: BB_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH,
+        maxLength: PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH,
       });
 
       // Replacing the table is itself an invalidation: refs from the previous
@@ -4636,7 +4682,7 @@ export function createDesktopBrowserViewManager(
   async function readPdfText(
     url: string,
   ): Promise<DesktopBrowserPdfTextOutcome> {
-    const deadline = Date.now() + BB_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS;
+    const deadline = Date.now() + PATCHER_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS;
     let response: Awaited<ReturnType<Session["fetch"]>>;
     try {
       response = await ensureHardenedSession().fetch(url, {
@@ -4644,7 +4690,9 @@ export function createDesktopBrowserViewManager(
         // plainly: a PDF behind a login is fetched with the cookies that
         // already opened it for the viewer.
         credentials: "include",
-        signal: AbortSignal.timeout(BB_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS),
+        signal: AbortSignal.timeout(
+          PATCHER_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS,
+        ),
       });
     } catch {
       // A `blob:` URL, a document that only exists as the answer to a POST, a
@@ -4715,7 +4763,7 @@ export function createDesktopBrowserViewManager(
         if (entry.view.webContents.getURL().length === 0) {
           return;
         }
-        // The dialog is owned by the app window, so it blocks bb while it is up
+        // The dialog is owned by the app window, so it blocks Patcher while it is up
         // — including an agent waiting on a browser command. That is the right
         // trade for a chord the user just pressed and the wrong one for
         // anything else, which is why this is reachable only from
@@ -4773,7 +4821,7 @@ export function createDesktopBrowserViewManager(
         // Reveal first, then drop the placeholder, so the swap never flashes an
         // empty panel — the ordering `clearPendingDialog` uses.
         applyEntryVisibility(entry, hostWindow);
-        send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
           tabId: request.tabId,
           dataUrl: null,
         });
@@ -4790,7 +4838,7 @@ export function createDesktopBrowserViewManager(
             return;
           }
           if (!image.isEmpty()) {
-            send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+            send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
               tabId: request.tabId,
               dataUrl: `data:image/jpeg;base64,${image
                 .toJPEG(RESIZE_SNAPSHOT_JPEG_QUALITY)
@@ -4854,7 +4902,7 @@ export function createDesktopBrowserViewManager(
         // Re-sent on every resize, which is what makes this both the open and
         // the placement command.
         devToolsView?.setBounds(
-          clampBbDesktopBrowserViewBounds({
+          clampPatcherDesktopBrowserViewBounds({
             bounds: request.bounds,
             viewport: hostWindowViewportBounds({ hostWindow }),
           }),
@@ -4932,7 +4980,7 @@ export function createDesktopBrowserViewManager(
         return {
           ok: false,
           reason: "unknown-path",
-          message: "bb did not download that file.",
+          message: "Patcher did not download that file.",
         };
       }
       if (action === "reveal") {
@@ -4950,7 +4998,10 @@ export function createDesktopBrowserViewManager(
         : {
             ok: false,
             reason: "failed",
-            message: truncate(failure, BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH),
+            message: truncate(
+              failure,
+              PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
+            ),
           };
     },
     async readPage({ hostWindow, tabId }) {
@@ -4967,7 +5018,7 @@ export function createDesktopBrowserViewManager(
 
       const raw = await runIsolatedScript(
         webContents,
-        BB_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
       );
 
       if (raw.kind === "timeout") {
@@ -5373,7 +5424,7 @@ export function createDesktopBrowserViewManager(
           applyEntryDesiredBounds(entry, hostWindow);
         }
         applyEntryVisibility(entry, hostWindow);
-        send(hostWindow, BB_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
           tabId: key.slice(prefix.length),
           dataUrl: null,
         });

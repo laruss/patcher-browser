@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { BbDesktopBrowserApi } from "@bb/desktop-contract";
-import { createNoopDesktopBrowserApi } from "@/test/bb-desktop-test-utils";
+import type { PatcherDesktopBrowserApi } from "@patcher/desktop-contract";
+import { createNoopDesktopBrowserApi } from "@/test/patcher-desktop-test-utils";
 import {
   createBrowserViewVisibilityCoordinator,
   destroyPersistedBrowserViewsForEnvironment,
@@ -15,7 +15,7 @@ interface VisibilityCall {
 }
 
 interface RecordingApi {
-  api: BbDesktopBrowserApi;
+  api: PatcherDesktopBrowserApi;
   detachments: string[];
   visibility: VisibilityCall[];
 }
@@ -23,7 +23,7 @@ interface RecordingApi {
 function createRecordingApi(): RecordingApi {
   const detachments: string[] = [];
   const visibility: VisibilityCall[] = [];
-  const api: BbDesktopBrowserApi = {
+  const api: PatcherDesktopBrowserApi = {
     ...createNoopDesktopBrowserApi(),
     detach(tabId) {
       detachments.push(tabId);
@@ -57,7 +57,7 @@ describe("browserViewVisibilityCoordinator", () => {
 
   it("syncs bounds before showing", () => {
     const order: string[] = [];
-    const api: BbDesktopBrowserApi = {
+    const api: PatcherDesktopBrowserApi = {
       ...createNoopDesktopBrowserApi(),
       setVisible(request) {
         if (request.visible) {

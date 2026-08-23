@@ -6,7 +6,7 @@ import {
   realtimeSubscriptionTargetKey,
   threadOpenSignalLenientSchema,
   threadPaneActionSignalLenientSchema,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import type {
   BrowserCommandRequestSignal,
   ClientMessage,
@@ -16,8 +16,8 @@ import type {
   ThreadOpenFile,
   ThreadOpenSignal,
   ThreadPaneActionSignal,
-} from "@bb/server-contract";
-import type { BrowserCommandResponseMessage } from "@bb/domain";
+} from "@patcher/server-contract";
+import type { BrowserCommandResponseMessage } from "@patcher/domain";
 import { buildDevWebSocketUrl } from "./dev-websocket-url";
 
 type ChangeCallback = (message: ChangedMessage) => void;
@@ -158,7 +158,7 @@ export class WebSocketManager {
       return;
     }
 
-    // Ephemeral plugin realtime signal (bb.realtime.publish). Not buffered:
+    // Ephemeral plugin realtime signal (patcher.realtime.publish). Not buffered:
     // only live useRealtime subscribers care, and V1 has no replay.
     const pluginSignal = pluginSignalLenientSchema.safeParse(parsed);
     if (pluginSignal.success) {

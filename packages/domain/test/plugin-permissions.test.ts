@@ -168,11 +168,11 @@ describe("permissionForBrowserCommand", () => {
   });
 });
 
-describe("bb.permissions in the manifest", () => {
+describe("patcher.permissions in the manifest", () => {
   const manifest = (permissions: unknown) => ({
-    name: "bb-plugin-fixture",
+    name: "patcher-plugin-fixture",
     version: "0.1.0",
-    bb: {
+    patcher: {
       name: "Fixture",
       description: "Fixture plugin.",
       branding: { icon: "Zap" },
@@ -222,7 +222,7 @@ describe("the permission list itself", () => {
 /**
  * Realtime is named twice — feeds are `thread:changed`, subscription targets
  * are `thread-detail` — and a plugin can reach the data either way: through
- * `bb.sdk.subscribe`, or by opening the websocket itself, which is not under
+ * `patcher.sdk.subscribe`, or by opening the websocket itself, which is not under
  * `/api/v1` and so never meets the request gate. Two spellings of one decision
  * must not answer differently.
  */

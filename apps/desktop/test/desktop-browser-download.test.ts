@@ -7,7 +7,7 @@ import {
   splitDownloadFilename,
 } from "../src/desktop-browser-download.js";
 
-const DIRECTORY = "/tmp/bb-downloads";
+const DIRECTORY = "/tmp/patcher-downloads";
 
 function pathIn(filename: string): string {
   return join(DIRECTORY, filename);
@@ -20,9 +20,9 @@ describe("sanitizeDownloadFilename", () => {
     expect(sanitizeDownloadFilename("../../.ssh/authorized_keys")).toBe(
       "authorized_keys",
     );
-    expect(sanitizeDownloadFilename("..\\..\\Windows\\System32\\evil.dll")).toBe(
-      "evil.dll",
-    );
+    expect(
+      sanitizeDownloadFilename("..\\..\\Windows\\System32\\evil.dll"),
+    ).toBe("evil.dll");
     expect(sanitizeDownloadFilename("/etc/passwd")).toBe("passwd");
   });
 

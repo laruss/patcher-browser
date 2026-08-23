@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { deleteThread } from "@bb/db";
-import type { HostDaemonInteractiveRequest } from "@bb/host-daemon-contract";
-import { renderTemplate } from "@bb/templates";
+import { deleteThread } from "@patcher/db";
+import type { HostDaemonInteractiveRequest } from "@patcher/host-daemon-contract";
+import { renderTemplate } from "@patcher/templates";
 import { describe, expect, it } from "vitest";
 import {
   internalAuthHeaders,

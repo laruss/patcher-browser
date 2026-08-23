@@ -1,9 +1,9 @@
-import { getInstalledPlugin, type DbConnection } from "@bb/db";
+import { getInstalledPlugin, type DbConnection } from "@patcher/db";
 import type {
   InstalledPlugin,
   PluginCatalogSearchResult,
   PluginCatalogStatus,
-} from "@bb/server-contract";
+} from "@patcher/server-contract";
 import {
   builtinPluginSource,
   listBundledPluginRegistrations,
@@ -63,8 +63,8 @@ export function createPluginCatalogService(deps: {
 
   function compatibilityProblem(manifest: PluginManifest): string | null {
     const compatibility = evaluateCompatibility({
-      bbRange: manifest.bbEngineRange,
-      sdkRange: manifest.bbPluginSdkRange,
+      patcherRange: manifest.patcherEngineRange,
+      sdkRange: manifest.patcherPluginSdkRange,
       appVersion: deps.appVersion,
     });
     return compatibility.effective.length === 0

@@ -3,9 +3,9 @@ import {
   threadVisibilitySchema,
   type PromptInput,
   type Thread,
-} from "@bb/domain";
+} from "@patcher/domain";
 import { action } from "../../action.js";
-import { createCliBbSdk } from "../../client.js";
+import { createCliPatcherSdk } from "../../client.js";
 import { resolveExplicitIdFlag } from "../../context-env.js";
 import { outputJson, prependErrorContext } from "../helpers.js";
 import {
@@ -113,7 +113,7 @@ export function registerForkCommand(
 
           let thread: Thread;
           try {
-            thread = await createCliBbSdk(getUrl()).threads.fork({
+            thread = await createCliPatcherSdk(getUrl()).threads.fork({
               sourceThreadId,
               origin: "cli",
               workspace,
