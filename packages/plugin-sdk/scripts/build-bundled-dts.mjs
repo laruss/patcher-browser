@@ -91,6 +91,17 @@ async function bundle(input) {
   const build = await rollup({
     input,
     external: EXTERNAL,
+    // Load one file at a time. TypeScript emits the members of an inferred
+    // object type in the order it interned them, so a concurrent load order
+    // made the declaration bytes vary run to run while the types stayed
+    // identical — a real one-line change arrived buried in dozens of unrelated
+    // swaps. Sequential loading fixes the cause: measured 6 clean regenerations
+    // byte-identical with no normalization at all, against roughly one in three
+    // differing without it. It costs about a second on this graph.
+    //
+    // Note the name: `maxParallelFileOperations` is silently accepted as an
+    // unknown option and does nothing.
+    maxParallelFileOps: 1,
     plugins: [inlineWorkspace, dts({ respectExternal: false })],
     onwarn(warning) {
       // Circular type references are fine in .d.ts output; surface everything
@@ -119,22 +130,91 @@ for (const [fileName, entry] of Object.entries(outputs)) {
 }
 
 /**
- * rollup-plugin-dts loads modules concurrently, so the emission order of
- * inferred type members (zod enum maps especially) varies run to run while
- * the content stays semantically identical. Compare (and skip rewrites) on
- * the sorted line multiset: real drift adds/removes/changes lines and is
- * still caught, but a pure reordering neither fails --check nor churns the
- * committed bytes.
+ * What the staleness check treats as "the same declaration".
+ *
+ * Sequential loading above makes emission deterministic, so this is a belt to
+ * that brace rather than the fix: it absorbs the two constructs whose order
+ * carries no meaning, in case a different toolchain or platform reorders them
+ * anyway. A literal union on one line, and a run of *inferred* members — a
+ * member typed by a `z.*` reference, or a literal key -> same-literal entry,
+ * which is what `z.enum` emits.
+ *
+ * Deliberately narrow. It used to compare the sorted line multiset of the whole
+ * file, which passes for any reordering whatsoever: a member moved from one
+ * interface into another was invisible to it. Hand-written interfaces are now
+ * compared where their author put them.
  */
 function canonicalize(content) {
-  // Union member order can vary on a single emitted line as well as across
-  // object-member lines. Normalize quoted literal unions before sorting lines
-  // so semantically identical output does not rewrite committed declarations.
-  const normalizedLiteralUnions = content.replace(
+  return sortInferredMembers(sortLiteralUnions(content));
+}
+
+// Comparison only: the written bytes stay in the order the compiler emitted
+// them, which is deterministic now and readable — these files ship into
+// scaffolded plugins for people to read, so alphabetizing them would cost more
+// than it buys.
+
+/** `"b" | "a"` -> `"a" | "b"`. Union member order carries no meaning. */
+function sortLiteralUnions(content) {
+  return content.replace(
     /"(?:[^"\\]|\\.)+"(?: \| "(?:[^"\\]|\\.)+")+/gu,
     (union) => union.split(" | ").sort().join(" | "),
   );
-  return normalizedLiteralUnions.split("\n").sort().join("\n");
+}
+
+/**
+ * A complete one-line object member: `name: type;`, optionally `readonly` and
+ * optionally `?`. Balanced-bracket check below keeps multi-line members out.
+ */
+const MEMBER =
+  /^(\s*)(?:readonly )?(?:"((?:[^"\\]|\\.)+)"|([A-Za-z_$][\w$]*))\??: (.+);$/u;
+
+function inferredMember(line) {
+  const match = MEMBER.exec(line);
+  if (match === null) return null;
+  const [, indent, quotedKey, bareKey, type] = match;
+  // A member whose value spans lines cannot be moved on its own.
+  if (!isBalanced(type)) return null;
+  const key = quotedKey ?? bareKey;
+  const isZodType = /^z\$?\d*\./u.test(type);
+  const isLiteralSelfMap = type === `"${key}"`;
+  return isZodType || isLiteralSelfMap ? { indent } : null;
+}
+
+function isBalanced(text) {
+  const pairs = { ")": "(", "]": "[", "}": "{", ">": "<" };
+  const stack = [];
+  for (const character of text) {
+    if ("([{<".includes(character)) stack.push(character);
+    else if (character in pairs && stack.pop() !== pairs[character])
+      return false;
+  }
+  return stack.length === 0;
+}
+
+/** Sort each maximal run of same-indent inferred members in place. */
+function sortInferredMembers(content) {
+  const lines = content.split("\n");
+  let start = 0;
+  while (start < lines.length) {
+    const first = inferredMember(lines[start]);
+    if (first === null) {
+      start += 1;
+      continue;
+    }
+    let end = start + 1;
+    while (end < lines.length) {
+      const next = inferredMember(lines[end]);
+      if (next === null || next.indent !== first.indent) break;
+      end += 1;
+    }
+    if (end - start > 1) {
+      const run = lines.slice(start, end);
+      run.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+      lines.splice(start, run.length, ...run);
+    }
+    start = end;
+  }
+  return lines.join("\n");
 }
 
 const check = process.argv.includes("--check");
