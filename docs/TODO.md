@@ -172,6 +172,21 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 - **Per-site permission toggles and a cookie count** in the site panel. Patcher's
   permission policy is fixed in the shell, so there is nothing per-site to toggle
   yet.
+- **Opening another app from a link.** `spotify:`, `zoommtg:`, `vscode:`,
+  `itms-apps:` — a page hands one of these to the browser expecting the OS to
+  take it, and Chrome asks "Open Spotify?" and remembers the answer. Patcher does
+  nothing visible at all: top-level navigation is `http(s)`-only
+  (`isAllowedBrowserUrl` in `desktop-browser-policy.ts`, which treats every other
+  scheme as hostile), and the `will-navigate` / `will-frame-navigate` guards
+  `preventDefault()` without saying so, so the page sits there and reads as
+  broken. The hand-off itself is not the missing part — `shell.openExternal` is
+  already wired for "open in the system browser". The consent around it is: the
+  URL comes from the page, so it needs a prompt that names what is about to open,
+  a remembered per-scheme answer so a second click is not a second prompt, and an
+  allowlist narrow enough that `file:` and `javascript:` never reach the OS
+  through it. Open question: Chrome knows whether a handler is installed before
+  it asks, and Electron exposes no Launch Services binding, so Patcher either
+  prompts optimistically and reports the failure, or grows a small native probe.
 - **Incognito and profiles.** One fixed `persist:patcher-browser` partition.
 - **Picture-in-picture and media keys**; **DRM will not play** at all (no Widevine
   in Electron).
