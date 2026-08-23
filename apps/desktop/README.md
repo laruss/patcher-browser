@@ -94,8 +94,21 @@ To bump for a release:
 node scripts/bump-version.mjs <new-version>
 ```
 
-Then commit and ship through the normal `sawyer-next` → `main` flow. You can also
-use `--patch`, `--minor`, or `--major` instead of an explicit version.
+The script rewrites both `package.json` versions and nothing else — no commit,
+no tag. You can also use `--patch`, `--minor`, or `--major` instead of an
+explicit version.
+
+Commit the bump on a short-lived branch, open a PR, and merge it into `main`
+once CI and Version Lockstep are green. Then cut the release from `main`:
+
+```bash
+gh workflow run "Build Desktop" -f publish=true -f release_channel=stable
+```
+
+Dispatch it from `main`: the workflow tags whichever commit it ran on, so a
+dispatch from a branch would publish a release pointing at that branch. It
+refuses to overwrite an existing `desktop-v<version>`, so every release needs
+its own bump first.
 
 CI enforces this lockstep. Direct edits that leave
 `packages/patcher-app/package.json` and `apps/desktop/package.json` with different
