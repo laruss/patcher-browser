@@ -4,8 +4,6 @@
 
 # Patcher
 
-[![npm version](https://img.shields.io/npm/v/patcher-app.svg)](https://www.npmjs.com/package/patcher-app)
-
 Patcher is an agentic IDE that builds itself. It can control, customize, and automate
 itself, laying the groundwork for your own software factory.
 
