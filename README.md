@@ -20,38 +20,31 @@ keeps its MIT license. It is developed independently: it has its own data
 directory, ports, package names, and plugin contract, and it neither reads nor
 migrates the state of a bb install. The two can be installed side by side.
 
-<p align="center">
-  <img alt="Patcher desktop app showing a code review thread, dispatch panel, and task board" src="assets/app-screenshot.png" width="800">
-</p>
-
 ## Use Patcher
 
-### Download the desktop app
+### There is no release yet
 
-Patcher ships as a macOS desktop app:
+Patcher has not cut its first release. Nothing is published to npm, and the
+[releases page](https://github.com/laruss/patcher-browser/releases) is empty, so
+the only way to run it today is to build it from this repository — see
+[Development](#development).
 
-**[Download the latest desktop app](https://github.com/laruss/patcher-browser/releases/tag/desktop-latest)**
-
-Early adopters can install
-**[Patcher Nightly](https://github.com/laruss/patcher-browser/releases/tag/desktop-nightly)**
-alongside the stable desktop app. It has a separate application identity,
-yellow icon, and auto-update feed.
-
-Patcher uses the provider CLI you already have authenticated.
+When there is one, the desktop app will be the way to install it, and
+[`.github/workflows/publish-patcher-app.yml`](./.github/workflows/publish-patcher-app.yml)
+is the workflow that cuts it.
 
 ### Supported platforms
 
 **macOS on Apple Silicon (arm64), and nothing else yet.** That is the only
-platform Patcher is built and tested for right now.
+platform Patcher is built and tested for. The Electron shell is arm64-only by
+configuration; the server and CLI are plain Node and will probably run
+elsewhere, but nobody has checked.
 
-There is no `npx` install: the `patcher-app` package is not published to npm, so
-the launcher that would serve Intel Macs, Linux and Windows/WSL2 has nowhere to
-be fetched from. Running Patcher on those platforms means building it from this
-repository — see [Development](#development) — and none of it is tested.
+Patcher uses the provider CLI you already have authenticated.
 
-Enrolling an additional machine from a running Patcher does not need the
-registry: the server builds and serves its own `patcher-app` package, and the
-enrollment script installs that.
+Enrolling an additional machine from a running Patcher needs no registry: the
+server builds and serves its own `patcher-app` package, and the enrollment
+script installs that.
 
 ### Telemetry
 

@@ -1097,19 +1097,24 @@ the user's actual default untouched before and after. That is the whole point
 of the `CFBundleURLTypes` declaration, and it is the first time it has been
 confirmed under `app.patcher.desktop`.
 
-**Still bb:** `assets/app-screenshot.png`. It is a screenshot, not a mark — full
-of `BB-` task keys and a project literally named `bb` — and replacing it means
-running Patcher with plausible data, not editing artwork. It is the last
-deliberate `bb` in the tree that is neither frozen nor history.
+**Deleted rather than kept:** `assets/app-screenshot.png`. It was a screenshot,
+not a mark — full of `BB-` task keys and a project literally named `bb` — and
+replacing it means running Patcher with plausible data, not editing artwork. The
+root README led with it, so until someone takes that screenshot the README shows
+the other product; a README with no hero image says less but says it truthfully.
+The file is gone with the reference.
 
 ## Open items
 
-- **A product screenshot of Patcher.** `assets/app-screenshot.png` is still
-  bb's, and the root README leads with it.
+- **A product screenshot of Patcher.** There is none: bb's was deleted rather
+  than shipped as if it were ours, so the root README has no hero image.
 - **First release.** `patcher-app` has never been published, and the
-  `desktop-latest` / `desktop-nightly` tags do not exist in the renamed repo,
-  so the auto-update feed resolves to nothing. The publish workflow's
-  `npm view patcher-app versions` will 404 on its first run.
+  `desktop-latest` / `desktop-nightly` tags do not exist in the renamed repo, so
+  the auto-update feed resolves to nothing. Confirmed against the live
+  repository, not inferred: `gh release list` returns nothing. The README used to
+  link both tags as its only install path and now says there is no release yet.
+  The publish workflow's `npm view patcher-app versions` no longer 404s the run
+  itself — that guard landed — but nothing has been published through it.
 - **A PostHog project.** `DEFAULT_PATCHER_POSTHOG_API_KEY` is `""`, which
   disables telemetry outright. Set a Patcher-owned write-only key to turn it
   back on, or delete the sender.
