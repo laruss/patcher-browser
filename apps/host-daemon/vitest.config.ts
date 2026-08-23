@@ -9,6 +9,9 @@ export default defineWorkspaceTestConfig({
     name: "@patcher/host-daemon",
     include: ["src/**/*.test.ts", "test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
+    // Provider discovery reads the real CLIs' config variables, and any of them
+    // set in a developer's shell overrides the temp home the tests hand in.
+    setupFiles: ["src/test/seal-ambient-provider-config.ts"],
     env: {
       PATCHER_DATA_DIR: "/tmp/patcher-host-daemon-test",
       PATCHER_SERVER_URL: "http://127.0.0.1:49161",
