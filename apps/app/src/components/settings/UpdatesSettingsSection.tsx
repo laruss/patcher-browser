@@ -36,7 +36,7 @@ import {
 import { useDesktopUpdateInfo } from "@/hooks/useDesktopUpdateInfo";
 import { formatHostUpdateStatus } from "@/lib/host-update-status";
 import { formatRelativeTime } from "@/lib/relative-time";
-import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
+import { useOpenUrlByPreference } from "@/lib/url-open-routing";
 import { sdk } from "@/lib/sdk";
 
 const CHANGELOG_URL =
@@ -648,6 +648,7 @@ function useNow(intervalMs: number): number {
  */
 export function UpdatesSettingsSection() {
   const queryClient = useQueryClient();
+  const openChangelog = useOpenUrlByPreference();
   const inventory = useUpdateInventory();
   const { desktopApi, desktopInfo, isDesktop } = useDesktopUpdateInfo();
   const retryHostUpdate = useRetryHostUpdate();
@@ -780,7 +781,7 @@ export function UpdatesSettingsSection() {
             <RowButton
               variant="ghost"
               className="text-muted-foreground hover:text-foreground"
-              onClick={() => openUrlInExternalBrowser(CHANGELOG_URL)}
+              onClick={() => openChangelog(CHANGELOG_URL)}
             >
               What's new
             </RowButton>

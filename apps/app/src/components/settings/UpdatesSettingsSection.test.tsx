@@ -29,6 +29,8 @@ import {
   type UpdateInventory,
   type UpdateInventoryMachine,
 } from "@/hooks/useUpdateInventory";
+import { createPatcherDesktopApi } from "@/test/patcher-desktop-test-utils";
+import { UrlOpenRoutingProvider } from "@/lib/url-open-routing";
 import { UpdatesSettingsSection } from "./UpdatesSettingsSection";
 
 vi.mock("@/components/ui/app-toast", () => ({
@@ -215,14 +217,20 @@ function makeInventory(overrides: Partial<UpdateInventory>): UpdateInventory {
   };
 }
 
-function renderSection(): void {
+function renderSection(
+  options: { openInAppBrowser?: (url: string) => void } = {},
+): void {
   render(
     <QueryClientProvider
       client={
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <UpdatesSettingsSection />
+      <UrlOpenRoutingProvider
+        openInAppBrowser={options.openInAppBrowser ?? null}
+      >
+        <UpdatesSettingsSection />
+      </UrlOpenRoutingProvider>
     </QueryClientProvider>,
   );
 }
@@ -246,6 +254,36 @@ afterEach(() => {
 });
 
 describe("UpdatesSettingsSection", () => {
+  // "Open links in the in-app browser" is the app's answer to where a web link
+  // opens, and the changelog is a web link. It used to reach for the OS browser
+  // directly, which made the setting a half-truth.
+  it("sends the changelog wherever the link preference points", () => {
+    useDesktopUpdateInfoMock.mockReturnValue({
+      desktopApi: null,
+      desktopInfo: null,
+      isDesktop: false,
+    });
+    useUpdateInventoryMock.mockReturnValue(makeInventory({}));
+    window.patcherDesktop = createPatcherDesktopApi({
+      lastCheckedAt: null,
+      latestVersion: null,
+      pendingVersion: null,
+      platform: "macos",
+      updateAvailable: false,
+      updateDownloaded: false,
+      version: "0.0.5",
+    });
+    const openInAppBrowser = vi.fn();
+
+    renderSection({ openInAppBrowser });
+    fireEvent.click(screen.getByRole("button", { name: "What's new" }));
+
+    expect(openInAppBrowser).toHaveBeenCalledWith(
+      "https://github.com/laruss/patcher-browser/blob/main/CHANGELOG.md",
+    );
+    delete window.patcherDesktop;
+  });
+
   it("keeps a recently checked healthy fleet quiet and accessible", () => {
     useDesktopUpdateInfoMock.mockReturnValue({
       desktopApi: null,

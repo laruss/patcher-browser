@@ -4,7 +4,7 @@ import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section.js";
-import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
+import { useOpenUrlByPreference } from "@/lib/url-open-routing";
 
 export const GITHUB_REPO_URL = "https://github.com/laruss/patcher-browser";
 
@@ -23,6 +23,8 @@ function CommunityLinkRow({
   label,
   openLabel,
 }: CommunityLinkRowProps) {
+  const openUrl = useOpenUrlByPreference();
+
   return (
     <SettingsWithControl label={label} description={description}>
       <Button
@@ -32,7 +34,7 @@ function CommunityLinkRow({
         className="h-7 gap-1.5 px-2.5 text-xs"
         aria-label={openLabel}
         onClick={() => {
-          openUrlInExternalBrowser(href);
+          openUrl(href);
         }}
       >
         <Icon name={icon} className="size-3.5 shrink-0" />

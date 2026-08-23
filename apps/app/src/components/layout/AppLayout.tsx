@@ -65,6 +65,8 @@ import { usePluginSlots, type PluginNavPanelSlot } from "@/lib/plugin-slots";
 import { createLocalStorageSyncStorage } from "@/lib/browser-storage";
 import { classifySurfaceRoute } from "@/lib/app-surface-tabs";
 import { useBrowserSurfaceRouteSync } from "@/hooks/useBrowserSurfaceRouteSync";
+import { useOpenBrowserSurfaceTab } from "@/lib/browser-surface-tabs";
+import { UrlOpenRoutingProvider } from "@/lib/url-open-routing";
 import {
   CHROME_ROW_CLASS,
   getPatcherDesktopInfo,
@@ -676,6 +678,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   // desktop app" screen comes from. `App.tsx` reads the same gate to decide
   // whether that route still renders anything.
   const [hostsBrowserSurface] = useState(isDesktopBrowserAvailable);
+  // The in-app opener belongs to the whole window, not to a thread. It used to
+  // be published from ThreadDetailView alone, so everything outside a thread —
+  // the sidebar footer, Settings — saw no in-app browser and fell back to the
+  // OS one whatever the user's link preference said.
+  //
+  // Nothing about it needs the browser surface to be on screen: it appends to
+  // the shared tab atom, and `useBrowserSurfaceRouteSync` above brings the
+  // window to the browser when an app screen is holding the main area.
+  const openPageInBrowser = useOpenBrowserSurfaceTab();
   // Where this route paints, now that the browser holds the main area for all of
   // them. Desktop-only for the same reason as the surface itself: with no
   // browser to host them, the web build keeps every route in `main`.
@@ -1026,100 +1037,106 @@ export function AppLayout({ children }: AppLayoutProps) {
   );
 
   return (
-    <ToolsHubExperimentProvider enabled={toolsHubEnabled}>
-      <ProjectActionsProvider>
-        <ThreadTitleMentionResourcesProvider {...titleMentionResources}>
-          <ThreadActionsProvider>
-            <IframeDragGuardOverlay active={isSidebarResizing} />
-            <SidebarStateBridge
-              providerRef={providerRef}
-              style={sidebarProviderStyle}
-              opensForRoute={isAgentPanelRoute}
-            >
-              {/* The leading edge belongs to plugins, and renders nothing at
+    <UrlOpenRoutingProvider
+      openInAppBrowser={hostsBrowserSurface ? openPageInBrowser : null}
+    >
+      <ToolsHubExperimentProvider enabled={toolsHubEnabled}>
+        <ProjectActionsProvider>
+          <ThreadTitleMentionResourcesProvider {...titleMentionResources}>
+            <ThreadActionsProvider>
+              <IframeDragGuardOverlay active={isSidebarResizing} />
+              <SidebarStateBridge
+                providerRef={providerRef}
+                style={sidebarProviderStyle}
+                opensForRoute={isAgentPanelRoute}
+              >
+                {/* The leading edge belongs to plugins, and renders nothing at
                   all until one asks for it — see PluginLeadingPanel. First in
                   DOM order because it is in flow: it takes its width from the
                   row, and the inset below shrinks to what is left. */}
-              <PluginLeadingPanel />
-              {/* Content first, sidebar after: the sidebar reserves its width
+                <PluginLeadingPanel />
+                {/* Content first, sidebar after: the sidebar reserves its width
                   with an in-flow "gap" element rendered where <Sidebar> sits,
                   and the panel itself is fixed. DOM order is therefore what puts
                   the sidebar on the trailing edge — `side="right"` alone would
                   pin the panel right while the gap still held space on the
                   left. */}
-              <SidebarInset>
-                <div
-                  ref={contentShellRef}
-                  data-testid="app-layout-content-shell"
-                  className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"
-                >
-                  {hostsBrowserSurface ? (
-                    <Suspense fallback={null}>
-                      <BrowserSurfaceView
-                        appScreen={isAppTabRoute ? appScreen : null}
-                      />
-                    </Suspense>
-                  ) : (
-                    appScreen
-                  )}
-                </div>
-              </SidebarInset>
-              {isAgentPanelRoute ? (
-                <AgentPanelSidebar
-                  backLabel="Threads"
-                  backTo={BROWSER_SURFACE_ROUTE_PATH}
-                  isResizing={isSidebarResizing}
-                  onResizeMouseDown={handleResizeMouseDown}
-                >
-                  {children}
-                </AgentPanelSidebar>
-              ) : isGlobalSettingsView ? (
-                <SettingsSidebar
-                  onResizeMouseDown={handleResizeMouseDown}
-                  isResizing={isSidebarResizing}
-                  showTopReserve={true}
-                  appRoutePath={appRoutePath}
+                <SidebarInset>
+                  <div
+                    ref={contentShellRef}
+                    data-testid="app-layout-content-shell"
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"
+                  >
+                    {hostsBrowserSurface ? (
+                      <Suspense fallback={null}>
+                        <BrowserSurfaceView
+                          appScreen={isAppTabRoute ? appScreen : null}
+                        />
+                      </Suspense>
+                    ) : (
+                      appScreen
+                    )}
+                  </div>
+                </SidebarInset>
+                {isAgentPanelRoute ? (
+                  <AgentPanelSidebar
+                    backLabel="Threads"
+                    backTo={BROWSER_SURFACE_ROUTE_PATH}
+                    isResizing={isSidebarResizing}
+                    onResizeMouseDown={handleResizeMouseDown}
+                  >
+                    {children}
+                  </AgentPanelSidebar>
+                ) : isGlobalSettingsView ? (
+                  <SettingsSidebar
+                    onResizeMouseDown={handleResizeMouseDown}
+                    isResizing={isSidebarResizing}
+                    showTopReserve={true}
+                    appRoutePath={appRoutePath}
+                  />
+                ) : isGlobalToolsView ? (
+                  <ToolsSidebar
+                    onResizeMouseDown={handleResizeMouseDown}
+                    isResizing={isSidebarResizing}
+                    showTopReserve={true}
+                    appRoutePath={toolsBackRoutePath}
+                  />
+                ) : (
+                  <AppSidebar
+                    onResizeMouseDown={handleResizeMouseDown}
+                    isResizing={isSidebarResizing}
+                    showTopReserve={true}
+                    settingsRoutePath={settingsRoutePath}
+                    toolsRoutePath={
+                      toolsHubEnabled ? toolsRoutePath : undefined
+                    }
+                  />
+                )}
+                <SidebarTriggerOverlay usesDesktopChrome={usesDesktopChrome} />
+                <BrowserSurfaceRouteSyncBridge
+                  enabled={hostsBrowserSurface}
+                  path={
+                    isAppTabRoute
+                      ? `${location.pathname}${location.search}`
+                      : null
+                  }
+                  title={documentTitle}
                 />
-              ) : isGlobalToolsView ? (
-                <ToolsSidebar
-                  onResizeMouseDown={handleResizeMouseDown}
-                  isResizing={isSidebarResizing}
-                  showTopReserve={true}
-                  appRoutePath={toolsBackRoutePath}
-                />
-              ) : (
-                <AppSidebar
-                  onResizeMouseDown={handleResizeMouseDown}
-                  isResizing={isSidebarResizing}
-                  showTopReserve={true}
-                  settingsRoutePath={settingsRoutePath}
-                  toolsRoutePath={toolsHubEnabled ? toolsRoutePath : undefined}
-                />
-              )}
-              <SidebarTriggerOverlay usesDesktopChrome={usesDesktopChrome} />
-              <BrowserSurfaceRouteSyncBridge
-                enabled={hostsBrowserSurface}
-                path={
-                  isAppTabRoute
-                    ? `${location.pathname}${location.search}`
-                    : null
-                }
-                title={documentTitle}
+              </SidebarStateBridge>
+              <ProjectPathDialog
+                target={quickCreateProject.projectPathDialog.target}
+                pending={quickCreateProject.isCreating}
+                platform={quickCreateProject.platform}
+                hostId={quickCreateProject.hostId}
+                hostName={quickCreateProject.hostName}
+                hosts={quickCreateProject.hosts}
+                onOpenChange={quickCreateProject.projectPathDialog.onOpenChange}
+                onSubmit={quickCreateProject.submitProjectPath}
               />
-            </SidebarStateBridge>
-            <ProjectPathDialog
-              target={quickCreateProject.projectPathDialog.target}
-              pending={quickCreateProject.isCreating}
-              platform={quickCreateProject.platform}
-              hostId={quickCreateProject.hostId}
-              hostName={quickCreateProject.hostName}
-              hosts={quickCreateProject.hosts}
-              onOpenChange={quickCreateProject.projectPathDialog.onOpenChange}
-              onSubmit={quickCreateProject.submitProjectPath}
-            />
-          </ThreadActionsProvider>
-        </ThreadTitleMentionResourcesProvider>
-      </ProjectActionsProvider>
-    </ToolsHubExperimentProvider>
+            </ThreadActionsProvider>
+          </ThreadTitleMentionResourcesProvider>
+        </ProjectActionsProvider>
+      </ToolsHubExperimentProvider>
+    </UrlOpenRoutingProvider>
   );
 }

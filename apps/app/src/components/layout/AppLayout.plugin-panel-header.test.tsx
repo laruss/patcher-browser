@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { useAtomValue } from "jotai";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  browserSurfaceTabsAtom,
+  getBrowserSurfaceWebTabs,
+} from "@/lib/browser-surface-tabs";
+import { useOpenUrlByPreference } from "@/lib/url-open-routing";
 import { AppLayout } from "./AppLayout";
 
 const viewportState = vi.hoisted(() => ({ compact: false }));
@@ -186,6 +192,69 @@ function renderPluginPanelRoute(): void {
     </MemoryRouter>,
   );
 }
+
+// Where a web link opens is the app's own setting to answer, and the answer
+// needs an in-app opener in context. It used to be published by ThreadDetailView
+// alone, so everything outside a thread — the sidebar footer's bug report,
+// Settings — found none and went out to the OS browser whatever the user had
+// chosen. The shell publishes it now, which is the only place that covers both
+// the sidebar and the routes beside it.
+describe("AppLayout in-app link routing", () => {
+  function LinkProbe() {
+    const openUrl = useOpenUrlByPreference();
+    const webTabUrls = getBrowserSurfaceWebTabs(
+      useAtomValue(browserSurfaceTabsAtom),
+    ).map((tab) => tab.url);
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => openUrl("https://example.test/issues/new")}
+        >
+          Open a web link
+        </button>
+        <span data-testid="web-tabs">{webTabUrls.join(" ")}</span>
+      </>
+    );
+  }
+
+  function renderProbe(path: string): void {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <AppLayout>
+          <LinkProbe />
+        </AppLayout>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    viewportState.compact = false;
+    desktopState.browserAvailable = true;
+  });
+
+  afterEach(() => {
+    cleanup();
+    desktopState.browserAvailable = false;
+    vi.clearAllMocks();
+  });
+
+  it("hands its children an opener that lands in the in-app browser", async () => {
+    // An app screen holding the main area — the case that used to have no
+    // in-app opener in context at all. Awaited because the surface that hosts
+    // it is lazy.
+    renderProbe("/plugins/helm-wiki/wiki");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open a web link" }),
+    );
+
+    expect(screen.getByTestId("web-tabs").textContent).toContain(
+      "https://example.test/issues/new",
+    );
+  });
+});
 
 describe("AppLayout plugin panel header", () => {
   beforeEach(() => {

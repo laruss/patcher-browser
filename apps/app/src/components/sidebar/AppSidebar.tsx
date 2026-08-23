@@ -35,7 +35,7 @@ import {
 import { getRootComposeRoutePath, getThreadRoutePath } from "@/lib/route-paths";
 import { useThreadSplitsEnabled } from "@/hooks/useThreadSplitsEnabled";
 import { usePaneContentSplitDrag } from "./usePaneContentSplitDrag";
-import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
+import { useOpenUrlByPreference } from "@/lib/url-open-routing";
 import type { SidebarThreadSearchNavigationItem } from "./sidebarThreadSearch";
 import { useSidebarThreadSearch } from "./useSidebarThreadSearch";
 import {
@@ -93,6 +93,11 @@ export function AppSidebar({
     label: "New thread",
   });
   const closeOnMobile = useCloseMobileSidebar();
+  // Through the preference, not straight out to the OS browser: "Open links in
+  // the in-app browser" is what answers where a web link opens, and this is a
+  // web link like any other. It predates the setting, which is the only reason
+  // it used to ignore it.
+  const openBugReport = useOpenUrlByPreference();
   const { isCompactViewport, setOpen, setOpenMobile } = useSidebar();
   const [desktopInfo] = useState(getPatcherDesktopInfo);
   const [threadShortcutKeysById, setThreadShortcutKeysById] = useState<
@@ -397,7 +402,7 @@ export function AppSidebar({
                 aria-label="Report a bug"
                 onClick={() => {
                   closeOnMobile();
-                  openUrlInExternalBrowser(BUG_REPORT_NEW_ISSUE_URL);
+                  openBugReport(BUG_REPORT_NEW_ISSUE_URL);
                 }}
               >
                 <Icon name="Bug" />
