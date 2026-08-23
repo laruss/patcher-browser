@@ -6,6 +6,7 @@ import * as logViewerIpc from "../src/log-viewer-contract.js";
 import * as serverUrlDialogIpc from "../src/server-url-dialog-ipc.js";
 import * as updateIpc from "../src/desktop-update-ipc.js";
 import * as windowCommandIpc from "../src/desktop-window-command-ipc.js";
+import { PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX } from "@patcher/desktop-contract";
 import { PATCHER_BROWSER_PARTITION } from "../src/desktop-browser-view.js";
 
 /**
@@ -62,6 +63,21 @@ describe("desktop wire values", () => {
       openLogsFolder: "patcher:log-viewer:open-logs-folder",
       snapshot: "patcher:log-viewer:snapshot",
     });
+  });
+
+  // The main process writes this into argv and the preload slices it back out.
+  // Both halves are the same build, so a rename cannot strand an old renderer —
+  // but nothing else notices it changing, and the renderer derives its
+  // per-window storage keys from the value (`patcher.browserSurface.tabs-1`,
+  // `patcher.thread.fixedPanelTabsState-<thread>-1`). Renamed on one side only,
+  // every window silently falls back to a shared default and loses its own
+  // tabs and panel state.
+  // Both halves import this constant, so the type system already keeps them
+  // agreeing with each other; the value is what nothing checks.
+  it("passes the window key under its own argument name", () => {
+    expect(PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX).toBe(
+      "--patcher-window-key=",
+    );
   });
 
   it("keeps the browsed-page partition on its own name", () => {
