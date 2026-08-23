@@ -107,8 +107,15 @@ immutable releases and `desktop-latest` for the moving pointer.
 
 ## Nightly channel
 
-The scheduled `publish-patcher-app.yml` workflow runs from `main` every day at
-3:00 AM Pacific (`America/Los_Angeles`, including daylight-saving changes). It
+The nightly channel is **switched off**: `publish-patcher-app.yml` is disabled in
+GitHub, so nothing publishes on its own and no `desktop-nightly` release exists.
+Releases are cut by dispatching `build-desktop.yml` instead. Turn the channel
+back on with `gh workflow enable "Publish patcher-app"` — the cron lives in the
+workflow file and resumes with it, npm publish included.
+
+The scheduled `publish-patcher-app.yml` workflow is configured to run from
+`main` every day at 3:00 AM Pacific (`America/Los_Angeles`, including
+daylight-saving changes). It
 derives a unique version such as `0.34.1-nightly.<run-id>.<attempt>` without
 committing that version, publishes `patcher-app` with the npm `nightly` dist-tag,
 and builds the desktop app from that same lockstep version.
