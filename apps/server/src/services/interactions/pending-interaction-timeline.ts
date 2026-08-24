@@ -1,6 +1,7 @@
 import { assertNever } from "@patcher/core-ui";
 import type {
   ApprovalPendingInteractionResolution,
+  ConsentPendingInteraction,
   PendingInteraction,
   ProviderPendingInteraction,
   PendingInteractionApprovalSubject,
@@ -12,18 +13,48 @@ import type {
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
+  isConsentPendingInteraction,
+  isConsentPendingInteractionResolution,
   isUserQuestionPendingInteractionPayload,
   isUserQuestionPendingInteractionResolution,
   turnScope,
   threadScope,
   isPluginPendingInteraction,
 } from "@patcher/domain";
+import { formatPendingInteractionConsentSummary } from "@patcher/core-ui";
 import { getThread, type DbNotifier, type DbTransaction } from "@patcher/db";
 import type { AppDeps } from "../../types.js";
 import {
   appendThreadEvent,
   appendThreadEventInTransaction,
 } from "../threads/thread-events.js";
+
+/**
+ * What a settled consent prompt leaves behind in the thread.
+ *
+ * Only the settled ones: while it is pending, the prompt itself is on screen,
+ * and a second row saying so would be the lingering duplicate the plugin
+ * interaction events were hidden for. What is worth keeping is the decision —
+ * months later, "who allowed this plugin, and when" has an answer in the
+ * thread where it was asked.
+ */
+function consentTimelineData(interaction: ConsentPendingInteraction): {
+  message: string;
+  decision: string;
+} | null {
+  if (interaction.status === "pending" || interaction.status === "resolving") {
+    return null;
+  }
+  const summary = formatPendingInteractionConsentSummary(interaction.payload);
+  const resolution = interaction.resolution;
+  const decision =
+    resolution !== null && isConsentPendingInteractionResolution(resolution)
+      ? resolution.approved
+        ? "allowed"
+        : "declined"
+      : "unanswered";
+  return { message: `${summary}: ${decision}`, decision };
+}
 
 interface PendingInteractionTimelineTransactionDeps {
   db: DbTransaction;
@@ -405,6 +436,30 @@ export function appendPendingInteractionTimelineEvent(
   deps: Pick<AppDeps, "db" | "hub">,
   interaction: PendingInteraction,
 ): void {
+  if (isConsentPendingInteraction(interaction)) {
+    const consent = consentTimelineData(interaction);
+    if (!consent) return;
+    const thread = getThread(deps.db, interaction.threadId);
+    appendThreadEvent(deps, {
+      threadId: interaction.threadId,
+      environmentId: thread?.environmentId ?? null,
+      type: "system/operation",
+      scope: threadScope(),
+      data: {
+        operation: "plugin_consent",
+        status: interaction.status,
+        message: consent.message,
+        operationId: interaction.id,
+        metadata: {
+          interactionId: interaction.id,
+          action: interaction.payload.action,
+          subjectId: interaction.payload.subjectId,
+          decision: consent.decision,
+        },
+      },
+    });
+    return;
+  }
   if (isPluginPendingInteraction(interaction)) {
     const thread = getThread(deps.db, interaction.threadId);
     appendThreadEvent(deps, {
@@ -453,6 +508,33 @@ export function appendPendingInteractionTimelineEventInTransaction(
   deps: PendingInteractionTimelineTransactionDeps,
   interaction: PendingInteraction,
 ): void {
+  if (isConsentPendingInteraction(interaction)) {
+    const consent = consentTimelineData(interaction);
+    if (!consent) return;
+    const thread = getThread(deps.db, interaction.threadId);
+    appendThreadEventInTransaction(deps.db, {
+      threadId: interaction.threadId,
+      environmentId: thread?.environmentId ?? null,
+      type: "system/operation",
+      scope: threadScope(),
+      data: {
+        operation: "plugin_consent",
+        status: interaction.status,
+        message: consent.message,
+        operationId: interaction.id,
+        metadata: {
+          interactionId: interaction.id,
+          action: interaction.payload.action,
+          subjectId: interaction.payload.subjectId,
+          decision: consent.decision,
+        },
+      },
+    });
+    deps.hub.notifyThread(interaction.threadId, ["events-appended"], {
+      eventTypes: ["system/operation"],
+    });
+    return;
+  }
   if (isPluginPendingInteraction(interaction)) {
     const thread = getThread(deps.db, interaction.threadId);
     appendThreadEventInTransaction(deps.db, {

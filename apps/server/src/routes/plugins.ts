@@ -6,6 +6,10 @@ import type { Context, Hono } from "hono";
 import { z } from "zod";
 import type { ServerRuntimeConfig } from "../types.js";
 import {
+  requirePluginConsent,
+  type PluginConsentDeps,
+} from "./plugin-consent.js";
+import {
   browserRequestProblem,
   type BrowserRequestProblem,
 } from "../browser-request-guard.js";
@@ -191,6 +195,21 @@ import {
 export interface PluginRoutesDeps {
   config: Pick<ServerRuntimeConfig, "serverPort" | "appUrl" | "devAppPort">;
   db: import("@patcher/db").DbConnection;
+  pendingInteractions?: PluginConsentDeps["pendingInteractions"];
+}
+
+/**
+ * The manifest-declared permissions and sites of an installed plugin, for the
+ * consent card. Manifest-declared means they are accurate while the plugin is
+ * disabled, which is exactly when it is being asked about.
+ */
+function declaredBy(plugins: PluginService, pluginId: string) {
+  const installed = plugins.list().find((entry) => entry.id === pluginId);
+  return {
+    subjectName: installed?.name ?? installed?.id ?? pluginId,
+    permissions: installed?.permissions ?? [],
+    sites: installed?.sites ?? [],
+  };
 }
 
 type WireAuthProblem = BrowserRequestProblem | { status: 401; error: string };
@@ -940,6 +959,20 @@ export function registerPluginRoutes(
     if (!body.success) {
       return context.json({ error: "expected an empty JSON object" }, 400);
     }
+    // An update replaces the plugin's code, and its next version can declare
+    // more than the one that was allowed.
+    const consent = await requirePluginConsent({
+      action: "update",
+      context,
+      deps,
+      subjectId: context.req.param("id"),
+      ...declaredBy(plugins, context.req.param("id")),
+      detail:
+        "An update replaces the plugin's code, and the new version may declare permissions this one does not.",
+    });
+    if (!consent.allowed) {
+      return context.json({ error: consent.error }, consent.status);
+    }
     try {
       const outcome = await plugins.applyUpdate(context.req.param("id"));
       if (!outcome.ok) return context.json({ error: outcome.error }, 422);
@@ -967,6 +1000,18 @@ export function registerPluginRoutes(
         },
         422,
       );
+    }
+    const consent = await requirePluginConsent({
+      action: "install",
+      context,
+      deps,
+      subjectId: parsed.data.source,
+      subjectName: parsed.data.source,
+      detail:
+        "A plugin's backend is full-trust code inside the server. What it declares is not known until it is installed.",
+    });
+    if (!consent.allowed) {
+      return context.json({ ok: false, error: consent.error }, consent.status);
     }
     try {
       const plugin = await plugins.install(parsed.data.source);
@@ -996,19 +1041,31 @@ export function registerPluginRoutes(
     return context.json({ ok: true, plugins: plugins.list() });
   });
 
-  app.post("/plugins/:id/enable", async (context) => {
-    const plugin = await plugins.setEnabled(context.req.param("id"), true);
-    if (!plugin)
-      return context.json({ ok: false, error: "unknown plugin" }, 404);
-    return context.json({ ok: true, plugin });
-  });
-
-  app.post("/plugins/:id/disable", async (context) => {
-    const plugin = await plugins.setEnabled(context.req.param("id"), false);
-    if (!plugin)
-      return context.json({ ok: false, error: "unknown plugin" }, 404);
-    return context.json({ ok: true, plugin });
-  });
+  for (const [action, enabled] of [
+    ["enable", true],
+    ["disable", false],
+  ] as const) {
+    app.post(`/plugins/:id/${action}`, async (context) => {
+      const id = context.req.param("id");
+      const consent = await requirePluginConsent({
+        action,
+        context,
+        deps,
+        subjectId: id,
+        ...declaredBy(plugins, id),
+      });
+      if (!consent.allowed) {
+        return context.json(
+          { ok: false, error: consent.error },
+          consent.status,
+        );
+      }
+      const plugin = await plugins.setEnabled(id, enabled);
+      if (!plugin)
+        return context.json({ ok: false, error: "unknown plugin" }, 404);
+      return context.json({ ok: true, plugin });
+    });
+  }
 
   const NOT_RUNNING = {
     ok: false as const,
@@ -1030,6 +1087,17 @@ export function registerPluginRoutes(
         { ok: false, error: "expected { values: Record<string, unknown> }" },
         400,
       );
+    }
+    const consent = await requirePluginConsent({
+      action: "configure",
+      context,
+      deps,
+      subjectId: context.req.param("id"),
+      ...declaredBy(plugins, context.req.param("id")),
+      detail: `Settings: ${Object.keys(body.data.values).sort().join(", ")}`,
+    });
+    if (!consent.allowed) {
+      return context.json({ ok: false, error: consent.error }, consent.status);
     }
     try {
       const view = await plugins.updateSettings(
@@ -1056,6 +1124,16 @@ export function registerPluginRoutes(
         },
         409,
       );
+    }
+    const consent = await requirePluginConsent({
+      action: "remove",
+      context,
+      deps,
+      subjectId: id,
+      ...declaredBy(plugins, id),
+    });
+    if (!consent.allowed) {
+      return context.json({ ok: false, error: consent.error }, consent.status);
     }
     const removed = await plugins.remove(id);
     if (!removed)

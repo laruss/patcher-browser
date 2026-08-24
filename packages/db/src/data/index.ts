@@ -456,7 +456,7 @@ export {
   interruptPendingInteractionsForThreads,
   interruptPendingInteractionsForPlugin,
   listActivePendingInteractionsForPlugin,
-  listActivePluginPendingInteractions,
+  listActiveInProcessPendingInteractions,
   listPendingInteractionsByThread,
   setPendingInteractionInterrupted,
   setPendingInteractionResolving,

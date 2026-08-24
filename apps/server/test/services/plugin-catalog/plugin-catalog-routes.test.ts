@@ -30,7 +30,9 @@ describe("plugin catalog routes", () => {
       },
     });
     const app = new Hono();
-    registerPluginCatalogRoutes(app, catalog);
+    // No interaction service: this test drives requests that declare no
+    // thread, which is the path that never needs to ask anyone.
+    registerPluginCatalogRoutes(app, catalog, {});
 
     const status = await app.request("/plugin-catalog");
     await expect(status.json()).resolves.toMatchObject({

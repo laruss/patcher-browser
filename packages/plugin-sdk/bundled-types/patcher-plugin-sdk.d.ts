@@ -502,7 +502,46 @@ declare const pluginPendingInteractionSchema: z$1.ZodObject<{
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
 type PluginPendingInteraction = z$1.infer<typeof pluginPendingInteractionSchema>;
-type PendingInteraction = ProviderPendingInteraction | PluginPendingInteraction;
+declare const consentPendingInteractionSchema: z$1.ZodObject<{
+    id: z$1.ZodString;
+    threadId: z$1.ZodString;
+    status: z$1.ZodEnum<{
+        pending: "pending";
+        interrupted: "interrupted";
+        resolving: "resolving";
+        resolved: "resolved";
+    }>;
+    statusReason: z$1.ZodNullable<z$1.ZodString>;
+    createdAt: z$1.ZodNumber;
+    expiresAt: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodNumber>>;
+    resolvedAt: z$1.ZodNullable<z$1.ZodNumber>;
+    turnId: z$1.ZodNullable<z$1.ZodString>;
+    origin: z$1.ZodObject<{
+        kind: z$1.ZodLiteral<"server">;
+    }, z$1.core.$strip>;
+    payload: z$1.ZodObject<{
+        kind: z$1.ZodLiteral<"consent">;
+        action: z$1.ZodEnum<{
+            update: "update";
+            enable: "enable";
+            disable: "disable";
+            install: "install";
+            remove: "remove";
+            configure: "configure";
+        }>;
+        subjectId: z$1.ZodString;
+        subjectName: z$1.ZodString;
+        permissions: z$1.ZodArray<z$1.ZodString>;
+        sites: z$1.ZodArray<z$1.ZodString>;
+        detail: z$1.ZodNullable<z$1.ZodString>;
+    }, z$1.core.$strip>;
+    resolution: z$1.ZodNullable<z$1.ZodObject<{
+        kind: z$1.ZodLiteral<"consent_decided">;
+        approved: z$1.ZodBoolean;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type ConsentPendingInteraction = z$1.infer<typeof consentPendingInteractionSchema>;
+type PendingInteraction = ProviderPendingInteraction | PluginPendingInteraction | ConsentPendingInteraction;
 
 declare const projectSourceSchema: z$1.ZodObject<{
     id: z$1.ZodString;
@@ -9883,6 +9922,43 @@ declare const threadPendingInteractionsResponseSchema: z$1.ZodArray<z$1.ZodUnion
     }, z$1.core.$strip>;
     resolution: z$1.ZodNullable<z$1.ZodObject<{
         kind: z$1.ZodLiteral<"plugin_submitted">;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>, z$1.ZodObject<{
+    id: z$1.ZodString;
+    threadId: z$1.ZodString;
+    status: z$1.ZodEnum<{
+        pending: "pending";
+        interrupted: "interrupted";
+        resolving: "resolving";
+        resolved: "resolved";
+    }>;
+    statusReason: z$1.ZodNullable<z$1.ZodString>;
+    createdAt: z$1.ZodNumber;
+    expiresAt: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodNumber>>;
+    resolvedAt: z$1.ZodNullable<z$1.ZodNumber>;
+    turnId: z$1.ZodNullable<z$1.ZodString>;
+    origin: z$1.ZodObject<{
+        kind: z$1.ZodLiteral<"server">;
+    }, z$1.core.$strip>;
+    payload: z$1.ZodObject<{
+        kind: z$1.ZodLiteral<"consent">;
+        action: z$1.ZodEnum<{
+            update: "update";
+            install: "install";
+            enable: "enable";
+            disable: "disable";
+            remove: "remove";
+            configure: "configure";
+        }>;
+        subjectId: z$1.ZodString;
+        subjectName: z$1.ZodString;
+        permissions: z$1.ZodArray<z$1.ZodString>;
+        sites: z$1.ZodArray<z$1.ZodString>;
+        detail: z$1.ZodNullable<z$1.ZodString>;
+    }, z$1.core.$strip>;
+    resolution: z$1.ZodNullable<z$1.ZodObject<{
+        kind: z$1.ZodLiteral<"consent_decided">;
+        approved: z$1.ZodBoolean;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>]>>;
 type ThreadPendingInteractionsResponse = z$1.infer<typeof threadPendingInteractionsResponseSchema>;

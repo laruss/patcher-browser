@@ -2,9 +2,15 @@ import type {
   PendingInteraction,
   PendingInteractionUserQuestionQuestion,
 } from "@patcher/domain";
-import { isApprovalPendingInteractionPayload } from "@patcher/domain";
+import {
+  isApprovalPendingInteractionPayload,
+  isConsentPendingInteractionPayload,
+} from "@patcher/domain";
 import { assertNever } from "./assert-never.js";
-import { summarizePendingInteractionRequestedPermissions } from "./pending-interaction-formatting.js";
+import {
+  formatPendingInteractionConsentSummary,
+  summarizePendingInteractionRequestedPermissions,
+} from "./pending-interaction-formatting.js";
 
 export type PendingInteractionPresentationSurface = "app" | "cli";
 
@@ -34,6 +40,10 @@ export function formatPendingInteractionSummary(
 
   if (interaction.payload.kind === "plugin") {
     return interaction.payload.title;
+  }
+
+  if (isConsentPendingInteractionPayload(interaction.payload)) {
+    return formatPendingInteractionConsentSummary(interaction.payload);
   }
 
   if (!isApprovalPendingInteractionPayload(interaction.payload)) {

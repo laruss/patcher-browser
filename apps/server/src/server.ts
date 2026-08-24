@@ -470,7 +470,7 @@ export function createApp(
   registerEnvironmentRoutes(publicApi, deps);
   registerThreadRoutes(publicApi, deps);
   registerSystemRoutes(publicApi, deps, pluginService);
-  registerPluginCatalogRoutes(publicApi, pluginCatalogService);
+  registerPluginCatalogRoutes(publicApi, pluginCatalogService, deps);
   registerPluginRoutes(publicApi, deps, pluginService);
   registerSkillsRegistryRoutes(publicApi, deps);
   registerBrowserHistoryRoutes(publicApi, deps, pluginService);

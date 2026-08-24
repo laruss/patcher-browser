@@ -335,6 +335,47 @@ export type PluginPendingInteractionPayload = z.infer<
   typeof pluginPendingInteractionPayloadSchema
 >;
 
+export const pendingInteractionConsentActionValues = [
+  "enable",
+  "disable",
+  "install",
+  "update",
+  "remove",
+  "configure",
+] as const;
+export const pendingInteractionConsentActionSchema = z.enum(
+  pendingInteractionConsentActionValues,
+);
+export type PendingInteractionConsentAction = z.infer<
+  typeof pendingInteractionConsentActionSchema
+>;
+
+/**
+ * A plugin change an agent asked for, waiting for the user to allow it.
+ *
+ * Raised by the server rather than by a provider or a plugin: the CLI declares
+ * the thread it runs in, and a declared thread is what turns a plugin mutation
+ * into a question. `subjectId` is the plugin for every action but `install`,
+ * where it is the source being installed and no plugin exists yet.
+ *
+ * The permissions ride the payload rather than being looked up by whatever
+ * renders it, because they are the reason to ask at all: whether this should be
+ * allowed depends on them, and a card that omits them asks the user to consent
+ * to nothing in particular.
+ */
+export const consentPendingInteractionPayloadSchema = z.object({
+  kind: z.literal("consent"),
+  action: pendingInteractionConsentActionSchema,
+  subjectId: z.string().min(1).max(200),
+  subjectName: z.string().min(1).max(200),
+  permissions: z.array(z.string().min(1).max(100)).max(50),
+  sites: z.array(z.string().min(1).max(255)).max(50),
+  detail: z.string().min(1).max(500).nullable(),
+});
+export type ConsentPendingInteractionPayload = z.infer<
+  typeof consentPendingInteractionPayloadSchema
+>;
+
 export const pendingInteractionPayloadSchema = z.discriminatedUnion("kind", [
   approvalPendingInteractionPayloadSchema,
   userQuestionPendingInteractionPayloadSchema,
@@ -344,7 +385,8 @@ export type PendingInteractionPayload = z.infer<
 >;
 export type AnyPendingInteractionPayload =
   | PendingInteractionPayload
-  | PluginPendingInteractionPayload;
+  | PluginPendingInteractionPayload
+  | ConsentPendingInteractionPayload;
 
 export function isApprovalPendingInteractionPayload(
   payload: AnyPendingInteractionPayload,
@@ -418,6 +460,22 @@ export type PluginPendingInteractionResolution = z.infer<
   typeof pluginPendingInteractionResolutionSchema
 >;
 
+/**
+ * Kept out of `pendingInteractionResolutionSchema` on purpose. That union
+ * travels to the host daemon inside the `interactive.resolve` command, which
+ * parses `.strict()`, and invariant 1 of docs/architecture/bb-migration.md
+ * makes any change to that wire a protocol-version bump. A consent interaction
+ * has no provider request, so no resolve command is ever sent for one: adding
+ * it there would buy the bump and change nothing.
+ */
+export const consentPendingInteractionResolutionSchema = z.object({
+  kind: z.literal("consent_decided"),
+  approved: z.boolean(),
+});
+export type ConsentPendingInteractionResolution = z.infer<
+  typeof consentPendingInteractionResolutionSchema
+>;
+
 export const pendingInteractionResolutionSchema = z.union(
   [
     approvalPendingInteractionResolutionSchema,
@@ -429,6 +487,16 @@ export const pendingInteractionResolutionSchema = z.union(
 export type PendingInteractionResolution = z.infer<
   typeof pendingInteractionResolutionSchema
 >;
+
+/**
+ * Every resolution a stored interaction can carry, including the consent one
+ * that is deliberately absent from `pendingInteractionResolutionSchema`.
+ * Mirrors `AnyPendingInteractionPayload`: readers of a stored row need the
+ * wider type, the daemon wire needs the narrower one.
+ */
+export type AnyPendingInteractionResolution =
+  | PendingInteractionResolution
+  | ConsentPendingInteractionResolution;
 
 export function isApprovalPendingInteractionResolution(
   resolution: PendingInteractionResolution,
@@ -467,9 +535,18 @@ export type PendingInteractionPluginOrigin = z.infer<
   typeof pendingInteractionPluginOriginSchema
 >;
 
+/** The server asked, on behalf of the thread the interaction is raised in. */
+export const pendingInteractionServerOriginSchema = z.object({
+  kind: z.literal("server"),
+});
+export type PendingInteractionServerOrigin = z.infer<
+  typeof pendingInteractionServerOriginSchema
+>;
+
 export const pendingInteractionOriginSchema = z.discriminatedUnion("kind", [
   pendingInteractionProviderOriginSchema,
   pendingInteractionPluginOriginSchema,
+  pendingInteractionServerOriginSchema,
 ]);
 export type PendingInteractionOrigin = z.infer<
   typeof pendingInteractionOriginSchema
@@ -533,16 +610,47 @@ export type PluginPendingInteraction = z.infer<
   typeof pluginPendingInteractionSchema
 >;
 
+export const consentPendingInteractionSchema =
+  pendingInteractionBaseSchema.extend({
+    turnId: z.string().min(1).nullable(),
+    origin: pendingInteractionServerOriginSchema,
+    payload: consentPendingInteractionPayloadSchema,
+    resolution: consentPendingInteractionResolutionSchema.nullable(),
+  });
+export type ConsentPendingInteraction = z.infer<
+  typeof consentPendingInteractionSchema
+>;
+
 export const pendingInteractionSchema = z.union([
   providerPendingInteractionSchema,
   pluginPendingInteractionSchema,
+  consentPendingInteractionSchema,
 ]);
 export type PendingInteraction =
   | ProviderPendingInteraction
-  | PluginPendingInteraction;
+  | PluginPendingInteraction
+  | ConsentPendingInteraction;
 
 export function isPluginPendingInteraction(
   interaction: PendingInteraction,
 ): interaction is PluginPendingInteraction {
   return interaction.payload.kind === "plugin";
+}
+
+export function isConsentPendingInteraction(
+  interaction: PendingInteraction,
+): interaction is ConsentPendingInteraction {
+  return interaction.payload.kind === "consent";
+}
+
+export function isConsentPendingInteractionPayload(
+  payload: AnyPendingInteractionPayload,
+): payload is ConsentPendingInteractionPayload {
+  return payload.kind === "consent";
+}
+
+export function isConsentPendingInteractionResolution(
+  resolution: AnyPendingInteractionResolution,
+): resolution is ConsentPendingInteractionResolution {
+  return "kind" in resolution && resolution.kind === "consent_decided";
 }

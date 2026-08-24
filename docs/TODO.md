@@ -229,14 +229,15 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   to a plugin that is running, which is a failure its author has never had to
   handle.
 
-- **The app shows no plugin permissions.** Nothing in the SPA renders
-  `patcher.permissions`, and nothing renders `patcher.sites` either. The CLI prints both
-  before an install and `patcher plugin info` lists them, so the agent-authored path
-  discloses them — but a plugin installed through the app's own dialog does not,
-  and `sites` is the one whose scope only the reader can judge. It now scopes two
-  permissions, one of which runs the plugin's code in those pages, which raises what
-  the gap costs. `InstalledPlugin` carries it on the wire already; what is missing is
-  the surface.
+- **The plugin pages show no plugin permissions.** The CLI prints
+  `patcher.permissions` and `patcher.sites` before an install and `patcher plugin info`
+  lists them, and the consent prompt an agent's plugin change raises now shows
+  both at the moment they decide something — but the app's own plugin list and
+  detail pages still render neither, so a plugin the user installs through the
+  app's dialog, or one they are merely looking at, discloses nothing. `sites` is
+  the one whose scope only the reader can judge: it scopes two permissions, one
+  of which runs the plugin's code in those pages. `InstalledPlugin` carries both
+  on the wire already; what is missing is the surface.
 - **A page script cannot reach a subframe.** Same limit as a page style, and for a
   different reason: a session preload does not run in subframes unless the browsing
   session opts into `nodeIntegrationInSubFrames`, which is experimental and would

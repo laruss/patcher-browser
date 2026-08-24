@@ -9,6 +9,8 @@ export type {
 export {
   buildPendingInteractionApprovalResolution,
   formatPendingInteractionApprovalResolutionOutcome,
+  formatPendingInteractionConsentDetailLines,
+  formatPendingInteractionConsentSummary,
   formatPendingInteractionSubjectDetailLines,
   summarizePendingInteractionRequestedPermissions,
 } from "./pending-interaction-formatting.js";
