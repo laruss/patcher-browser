@@ -250,6 +250,51 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   reloading somebody's pages for them. Worth revisiting only with a way to inject
   into a live document that does not also mean a preload in every page.
 
+- **Content blocking has no contribution point, and the firewall it needs is
+  already running.** The shell wires a session-wide
+  `webRequest.onBeforeRequest` over every browsed view, deciding each request
+  through one pure predicate (`shouldBlockBrowserRequest` in
+  `desktop-browser-policy.ts`) — synchronous, before the request leaves, across
+  subresources, `fetch`/XHR, iframes and WebSockets, with no debugger attached.
+  That is everything a network-level blocker needs and everything the page
+  surfaces cannot do, and no plugin API reaches it. So "hide ads with a page
+  style" works today and "block them" is unavailable, which reads as a browser
+  limitation and is not one.
+
+  `control.route` is not the answer and should be refused as one: per tab,
+  imperative, alive only as long as that tab's debugger session, refused while
+  DevTools holds the tab, capped, and with no navigation event to reattach on. A
+  blocker built on it works in a demo and is gone by the next reload.
+
+  Three things have to be decided, and the second is the interesting one.
+
+  **It has to be data, not a callback.** The hook is synchronous and plugins may
+  run out of process, so nothing can await a plugin inside it. Rules must be
+  pushed into the shell the way page styles already are
+  (`PATCHER_DESKTOP_BROWSER_SET_PAGE_STYLES_CHANNEL` → a module array, capped at
+  64). That rules out anything dynamic and is fine for a rule list.
+
+  **Blocking is a weaker ask than reading, and nothing in the permission model
+  says so yet.** `patcher.sites` answers _where the plugin's code runs_; a rule list
+  answers _which request targets to refuse_, which is a different question with a
+  different risk. A plugin that hands over patterns gets no callback and never
+  sees a request — it is data, not a program, so it can cost far less than
+  `pageScript.register`. The dangerous shape is the _observing_ one, a callback
+  per request, which is a standing read of every URL the user opens and should
+  stay unavailable. Conflating the two is probably why neither exists.
+
+  **The matcher would have to be indexed.** `matchesBrowserUrlPattern` compiles a
+  fresh `RegExp` per call with no cache, and `patcher.sites` caps at 32 patterns —
+  fine for "which sites may this plugin restyle", useless for a real rule list of
+  tens of thousands. Every request would pay for every rule. Bucketing by host
+  before matching is the work, and it is the only part of this that is not
+  design.
+
+  Cosmetics stay necessary either way: a cancelled request leaves a hole in the
+  layout, so hiding and blocking are complements, not alternatives. The one thing
+  blocking reaches that styles never will is the iframe — the firewall sees every
+  frame, while a page style and a page script see only the main one.
+
 - **There is no page without a tab — no hidden window.** A plugin that wants to
   read a site the user is not looking at has nowhere to put it. Every page this
   app loads belongs to a browser-surface tab, and a tab is a row in the strip:
