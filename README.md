@@ -49,11 +49,21 @@ arm64-only by configuration.
 
 The npm package reaches further, by declaration: `os: ["darwin", "linux"]` with
 no CPU restriction, and Node 22.19, 24, or 26. npm therefore installs it on an
-Intel Mac and on Linux, and nothing in the launcher, server, or CLI refuses to
-start on either. Only macOS on Apple Silicon has actually been run, so treat the
-rest as untested rather than supported. Windows fails npm's own platform check;
-run Patcher inside WSL2, which
+Intel Mac as well, and nothing in the launcher, server, or CLI refuses a platform
+outright. Verified on macOS arm64 from an empty npm cache: install, `patcher
+--version`, and the packaged-tarball smoke.
+
+**Linux needs a C++ toolchain.** `node-pty` ships prebuilt binaries for
+`darwin-arm64`, `darwin-x64`, `win32-arm64`, and `win32-x64`, and none for
+Linux, so there its install step falls back to `node-gyp rebuild`. On a stock
+Ubuntu 24.04 that aborts at `not found: make`, and npm rolls the whole tree
+back, so nothing is left behind to debug. Install `build-essential` first.
+Whether Patcher then runs on Linux is still unverified. macOS never meets this
+because it gets a prebuild, which is also why Xcode is not a prerequisite there.
+
+Windows fails npm's own platform check; run Patcher inside WSL2, which
 [`packages/patcher-app/README.md`](./packages/patcher-app/README.md) describes.
+WSL2 is Linux, so the toolchain requirement follows it there.
 
 Patcher uses the provider CLI you already have authenticated.
 

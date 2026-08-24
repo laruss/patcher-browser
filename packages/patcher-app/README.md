@@ -26,6 +26,10 @@ Patcher runs from npm and orchestrates coding agents you already have installed.
 
 - Node.js 22.19, 24, or 26.
 - Git.
+- On Linux, including WSL2: a C++ toolchain (`build-essential` on Debian and
+  Ubuntu). `node-pty` ships no Linux prebuild and compiles at install time;
+  without `make` the install aborts and npm rolls the whole tree back. macOS
+  needs nothing extra.
 - At least one supported agent provider: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/cli), Cursor via ACP, [Pi](https://github.com/earendil-works/pi/tree/main/packages/coding-agent), or another ACP-compatible agent.
 
 If you already use one of these providers, Patcher will pick up your existing
