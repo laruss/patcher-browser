@@ -134,7 +134,14 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   unassignedBinding("thread.rename", mainWithoutModal),
   unassignedBinding("thread.archive", mainWithoutModal),
   binding("settings.open", ",", { mod: true }, mainWithoutModal),
-  binding("sidebar.toggle", "\\", { mod: true }, mainWithoutModal),
+  binding("sidebar.toggle", "j", { mod: true }, mainWithoutModal),
+  // The same chord again, scoped to browser focus, and not a duplicate: a key
+  // pressed inside a browsed page never reaches the renderer, so the shell
+  // resolves it itself — and `resolveDesktopBrowserAppCommand` only considers
+  // bindings whose context names `browserFocus`. Without this entry the sidebar
+  // toggle is dead exactly where this app spends most of its time, which is the
+  // whole reason it moved off Mod+\.
+  binding("sidebar.toggle", "j", { mod: true }, browserWithoutModal),
   binding(
     "thread.previous",
     "ArrowUp",
@@ -191,7 +198,10 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   binding("pane.close", "x", { mod: true, shift: true }, splitWithoutModal),
   binding("panel.newTab", "t", { mod: true }, mainWithoutModal),
   binding("panel.close", "w", { mod: true }, mainWithoutModal),
-  binding("panel.toggle", "j", { mod: true }, mainWithoutModal),
+  // Moved off Mod+J so the right sidebar can have it: the sidebar is the one
+  // panel that exists on every route, and the secondary panel only inside a
+  // thread pane, so the chord that works everywhere belongs to the sidebar.
+  binding("panel.toggle", "\\", { mod: true }, mainWithoutModal),
   binding(
     "diff.toggle",
     "d",

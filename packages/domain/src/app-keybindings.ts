@@ -184,12 +184,23 @@ export function normalizeAppShortcutInputKey(input: AppShortcutInput): string {
   if (input.key === " " || input.key === "Spacebar") {
     return "Space";
   }
-  // macOS composes Option+<letter> into another character — Option+M reports
-  // key "µ" — so an Alt chord could never be matched by `key` there. Fall back
-  // to the physical key only when the composed character is NOT a plain letter
-  // or digit. A non-US layout still reports one (AZERTY Alt+A is key "a", code
-  // "KeyQ"), so it keeps matching the character the user actually sees.
-  if (input.altKey && !isAsciiAlphanumeric(input.key)) {
+  // Fall back to the physical key whenever the character produced is NOT a
+  // plain letter or digit. Two cases reach this, and the rule is the same for
+  // both:
+  //
+  // - **A non-Latin layout.** Cyrillic reports key "о" for the key labelled J,
+  //   Greek reports "ξ", and so on, so every letter chord — Mod+J, Mod+K,
+  //   Mod+T — would be unmatchable while that layout is active. The user is
+  //   pressing the key the shortcut is printed on; honour that.
+  // - **macOS composing Option+<letter>** into another character (Option+M
+  //   reports key "µ"), which is why this fallback existed in the first place.
+  //
+  // Deliberately NOT applied when the character IS a Latin letter or digit,
+  // because that is what keeps a Latin non-QWERTY layout matching what the user
+  // sees: on AZERTY the key labelled A reports key "a" with code "KeyQ", so
+  // Mod+A stays the key labelled A. Preferring the code there would instead
+  // bind the chord to whichever key sits where QWERTY puts it.
+  if (!isAsciiAlphanumeric(input.key)) {
     const fromCode = baseKeyFromCode(input.code);
     if (fromCode !== null) return fromCode;
   }

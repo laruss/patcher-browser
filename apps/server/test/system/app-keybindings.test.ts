@@ -351,6 +351,11 @@ describe("app keybindings", () => {
           .filter((binding) => binding.desktopOnly)
           .map((binding) => binding.command),
       ).toEqual([
+        // Mod+J again under browser focus. A key pressed inside a browsed page
+        // is resolved by the shell, which only looks at bindings whose context
+        // names `browserFocus`, so the sidebar toggle needs this second entry
+        // to work while the user is browsing — see app-keybindings.ts.
+        "sidebar.toggle",
         "thread.previous",
         "thread.next",
         ...THREAD_JUMP_APP_COMMAND_IDS,
