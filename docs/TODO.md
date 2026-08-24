@@ -273,6 +273,22 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   way: whether Patcher runs on Linux once the toolchain is there has not been
   measured.
 
+## Flaky, and known to be
+
+- **A Tiptap timer outliving its test.** `apps/app` once failed a root
+  `bun run test` with all 3076 tests passing and one error *outside* them: a
+  timer inside `@tiptap/react` (dist/index.js:497) fired after vitest had torn
+  the file's environment down, which is enough to exit 1. Blamed on
+  `src/components/promptbox/PromptBoxInternal.test.tsx`, which is where the
+  editor is mounted, but the file passes on its own — measured three times, 85
+  tests, clean. It did not reproduce afterwards: the app suite alone is green,
+  and so is a full `--force` root run with nothing cached (54/54). The root
+  script is `turbo run test --concurrency=2`, so the suite there shares the
+  machine with another package, which is the difference between the run that
+  failed and every run that has not. If it comes back, the fix is on our side of
+  the seam — destroy the editor in the test's own teardown rather than leaving it
+  to `cleanup()` — not a retry.
+
 ## Deliberately not for the browser at all
 
 - **Agent tools** wrapping the browser commands added for plugins (`page.zoom`,
