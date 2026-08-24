@@ -137,6 +137,37 @@ export function createRemotePluginApiHandle(args: {
       ...(signal === undefined ? {} : { signal }),
     });
 
+  /**
+   * The snapshot lists only the events the plugin registered; the handle owes
+   * the server a list for **every** event, empty where there is none. The
+   * server reads `threadEventHandlers[event]` for events nobody handles —
+   * `hasThreadEventHandlers` before it builds a payload, then the dispatch
+   * loop — so a record built from the snapshot alone hands it `undefined`,
+   * and the first thread event after any non-builtin plugin loads takes the
+   * server down with it.
+   *
+   * Spelled out per event rather than derived: the type is a mapped type over
+   * the event union, so a forgotten key fails here, at compile time, which is
+   * where the missing keys should have failed all along.
+   */
+  const threadEventHandlers = (): PluginApiHandle["threadEventHandlers"] => {
+    const forEvent = (event: string) =>
+      (snapshot.threadEvents.includes(event)
+        ? [
+            (payload: unknown) =>
+              call("threadEvent", event, payload) as Promise<void>,
+          ]
+        : []) as never[];
+    return {
+      "thread.created": forEvent("thread.created"),
+      "thread.active": forEvent("thread.active"),
+      "thread.idle": forEvent("thread.idle"),
+      "thread.failed": forEvent("thread.failed"),
+      "thread.archived": forEvent("thread.archived"),
+      "thread.deleted": forEvent("thread.deleted"),
+    };
+  };
+
   const notLocal = (what: string): never => {
     throw new Error(
       `${what} is not available for plugin "${args.pluginId}": it runs in its ` +
@@ -165,15 +196,7 @@ export function createRemotePluginApiHandle(args: {
           ]
         : [],
     },
-    threadEventHandlers: Object.fromEntries(
-      snapshot.threadEvents.map((event) => [
-        event,
-        [
-          (payload: unknown) =>
-            call("threadEvent", event, payload) as Promise<void>,
-        ],
-      ]),
-    ) as PluginApiHandle["threadEventHandlers"],
+    threadEventHandlers: threadEventHandlers(),
     httpRoutes: snapshot.httpRoutes.map((route) =>
       remoteHttpRoute({ channel, ...route }),
     ),
