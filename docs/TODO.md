@@ -250,6 +250,53 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   reloading somebody's pages for them. Worth revisiting only with a way to inject
   into a live document that does not also mean a preload in every page.
 
+- **There is no page without a tab — no hidden window.** A plugin that wants to
+  read a site the user is not looking at has nowhere to put it. Every page this
+  app loads belongs to a browser-surface tab, and a tab is a row in the strip:
+  `tabs.open` writes `browserSurfaceTabsAtom`, which is what the strip renders
+  and is an `atomWithStorage`, so a tab a schedule opens is visible **and
+  survives a restart**. `activate: false` buys inactivity, not invisibility, and
+  it does not even load — only the active tab's `WebContentsView` is ever created
+  (`BrowserTabDeck.selectActiveBrowserTab`). So a cron can create a tab it can
+  never read, sitting in the user's strip until they click it. `window.open`
+  popups are no exception: they become ordinary tabs.
+
+  What is missing is the other shape — a `BrowserWindow` that is never shown (or
+  an offscreen `webContents`), addressed by the plugin API rather than by the
+  strip. The three `show: false` sites in the shell today are all "create, then
+  show when ready" for real windows and dialogs; nothing here stays hidden.
+
+  **Measured**, because it decides whether the shape is worth anything (Electron
+  41.7.0 / Chrome 146, a `WebContentsView` with this repo's own
+  `webPreferences`, `setVisible(false)`):
+
+  |                         | visible | hidden 4s | hidden 30s | hidden 5.5min |
+  | ----------------------- | ------- | --------- | ---------- | ------------- |
+  | `visibilityState`       | visible | hidden    | hidden     | hidden        |
+  | `setInterval(10ms)`     | 100/s   | 1/s       | 1/s        | ~0/s          |
+  | `requestAnimationFrame` | 120/s   | 0         | 0          | 0             |
+  | pushed network events   | 10/s    | 9.8/s     | 9.8/s      | 9.8/s         |
+
+  So a hidden page is **not frozen**: network-driven callbacks keep arriving at
+  full rate indefinitely, which is what a chat or feed watcher actually runs on.
+  What dies is everything clock-driven — timers throttled to 1/s at once, and by
+  5.5 minutes below what a 4s sample can see (consistent with Chromium's 1/min
+  intensive throttling; the window is too short to tell 1/min from 0). rAF stops
+  outright, and pixel reads go with it: `capturePage` needs a visible view, which
+  is why `captureAndHide` and `setOverlay` both snapshot _before_ hiding.
+  `backgroundThrottling: false` removes all of it — timers stay at 100/s and the
+  page keeps reporting `visibilityState: "visible"` while hidden.
+
+  Which is where the real cost is, and it is not the throttling. A hidden page is
+  a full renderer process holding the user's real session, with no strip row, no
+  favicon and no padlock — nothing on screen that says it exists, and the reason
+  the deck is lazy in the first place was to avoid quietly resurrecting a batch
+  of them from stale URLs. Open questions before any of it: what tells the user
+  such a page is running and lets them end it; what the ceiling is and what
+  happens at it; whether it is one permission or an extension of `sites`; and
+  whether `backgroundThrottling: false` is the plugin's choice or the host's,
+  given a page that cannot tell it is hidden also cannot pause itself politely.
+
 ## Installing it at all — Linux
 
 - **`npx patcher-app` fails silently on Linux.** Measured on stock Ubuntu 24.04
@@ -276,7 +323,7 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 ## Flaky, and known to be
 
 - **A Tiptap timer outliving its test.** `apps/app` once failed a root
-  `bun run test` with all 3076 tests passing and one error *outside* them: a
+  `bun run test` with all 3076 tests passing and one error _outside_ them: a
   timer inside `@tiptap/react` (dist/index.js:497) fired after vitest had torn
   the file's environment down, which is enough to exit 1. Blamed on
   `src/components/promptbox/PromptBoxInternal.test.tsx`, which is where the
