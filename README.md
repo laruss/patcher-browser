@@ -22,23 +22,38 @@ migrates the state of a bb install. The two can be installed side by side.
 
 ## Use Patcher
 
-### There is no release yet
+### Install from npm
 
-Patcher has not cut its first release. Nothing is published to npm, and the
-[releases page](https://github.com/laruss/patcher-browser/releases) is empty, so
-the only way to run it today is to build it from this repository — see
-[Development](#development).
+```bash
+npx patcher-app@latest
+```
 
-When there is one, the desktop app will be the way to install it, and
-[`.github/workflows/publish-patcher-app.yml`](./.github/workflows/publish-patcher-app.yml)
+That starts the server and host daemon and serves the web app on
+`http://localhost:38986`. The same package carries the `patcher` CLI:
+
+```bash
+npx --package patcher-app patcher --help
+```
+
+The desktop app has no release yet. The
+[releases page](https://github.com/laruss/patcher-browser/releases) is empty and
+no update feed resolves, so the Electron shell still has to be built from this
+repository — see [Development](#development).
+[`.github/workflows/build-desktop.yml`](./.github/workflows/build-desktop.yml)
 is the workflow that cuts it.
 
 ### Supported platforms
 
-**macOS on Apple Silicon (arm64), and nothing else yet.** That is the only
-platform Patcher is built and tested for. The Electron shell is arm64-only by
-configuration; the server and CLI are plain Node and will probably run
-elsewhere, but nobody has checked.
+**The desktop app is macOS on Apple Silicon only.** The Electron shell is
+arm64-only by configuration.
+
+The npm package reaches further, by declaration: `os: ["darwin", "linux"]` with
+no CPU restriction, and Node 22.19, 24, or 26. npm therefore installs it on an
+Intel Mac and on Linux, and nothing in the launcher, server, or CLI refuses to
+start on either. Only macOS on Apple Silicon has actually been run, so treat the
+rest as untested rather than supported. Windows fails npm's own platform check;
+run Patcher inside WSL2, which
+[`packages/patcher-app/README.md`](./packages/patcher-app/README.md) describes.
 
 Patcher uses the provider CLI you already have authenticated.
 
