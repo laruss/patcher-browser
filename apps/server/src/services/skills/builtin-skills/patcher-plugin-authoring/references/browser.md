@@ -459,21 +459,33 @@ row in the plugin's SQLite, and the note appearing in Patcher's own panel.
 
 ### What no page surface can do: block the network
 
-There is no declarative request filter — no equivalent of Chrome's
-`declarativeNetRequest`. A page style and a page script both act on a document
-that has already been fetched, so they can hide an element or wrap `fetch`
-before the page's own code takes it, and neither can stop a request the browser
-makes on the page's behalf. `control.route` is the only interception, and it is
-the wrong tool for standing policy: per tab, imperative, and alive only as long
-as that tab's debugger session.
+A page style and a page script both act on a document that has already been
+fetched. They can hide an element, or wrap `fetch` before the page's own code
+takes it, and neither can stop a request the browser makes on the page's behalf.
+So the honest answer to "build me an ad blocker" is split: **hiding** ads on the
+sites you declared is a page style and works well; **blocking** them at the
+network is not something a plugin can reach.
 
-Worth saying plainly when asked for a content blocker, because the honest answer
-is split: hiding ads on sites you declare is a page style and works well;
-blocking them at the network, across every site, in iframes, is not a plugin
-surface today. Do not build the second one out of `route` and call it done — it
-dies with the debugger session, is refused while DevTools holds the tab, and has
-no navigation event to reattach on (`patcher.events.on` is six thread events; there
-is no tab or navigation event for plugins).
+Not because the browser cannot do it. Say this accurately, because the
+distinction decides what you build: the shell already runs a session-wide
+`webRequest.onBeforeRequest` firewall over every browsed view
+(`shouldBlockBrowserRequest` in `desktop-browser-policy.ts`) — synchronous,
+before the request leaves, across subresources, `fetch`/XHR, iframes and
+WebSockets, with no debugger involved. What is missing is a **contribution
+point**: no plugin API adds rules to it. That is a gap in the plugin surface, not
+a limit of the browser, and it is written up in the repository's `docs/TODO.md`
+under "Core-only, structural".
+
+What you must not do meanwhile is build it out of `control.route`. That is the
+only interception a plugin has, and it is the wrong shape for standing policy:
+per tab, imperative, alive only as long as that tab's debugger session, refused
+while DevTools holds the tab, capped (`too_many_routes`), and with nothing to
+reattach on when it dies — `patcher.events.on` is six thread events, and there is no
+tab or navigation event for plugins. A blocker built on it looks right in a demo
+and is gone by the next reload.
+
+So: page styles for what the user sees, and say plainly that network-level
+blocking is not available yet rather than shipping something that decays.
 
 ## patcher.browser — adding a button to the find bar
 
