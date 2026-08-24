@@ -784,9 +784,10 @@ interface PluginSidebarThreadActions {
 /**
  * Render a plugin component in the thread header's action row.
  *
- * The frontend sibling of the backend `patcher.ui.registerThreadAction`, which
- * renders a host-owned button and runs server-side. Use that one for "do a
- * thing"; use this one when the control must draw live state.
+ * This replaced an older backend-only registration that rendered a host-owned
+ * button and ran server-side, so it is now the only shape a thread-header
+ * control takes — including the plain "do a thing" button, which is this
+ * component rendering one.
  *
  * The host places it at the left end of the action row, before the workspace
  * button, git actions, the panel toggle, maximize, and close. That row is a

@@ -137,9 +137,9 @@ export default definePluginApp((app) => {
 ## A control in the thread header
 
 `app.slots.experimental_threadHeaderAction` renders a component in the thread
-header's action row. It replaced the older backend-only
-`patcher.ui.registerThreadAction`, so a control that needs to draw live state (a
-count, a cluster, a status) is now the only shape:
+header's action row. It replaced an older backend-only thread action, so this is
+the only shape a header control takes — a plain button included, and anything
+that has to draw live state (a count, a cluster, a status) along with it:
 
 ```tsx
 app.slots.experimental_threadHeaderAction({

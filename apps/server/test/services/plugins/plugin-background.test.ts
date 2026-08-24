@@ -524,6 +524,27 @@ describe("plugin schedules", () => {
     expect(listPluginSchedules(db, "ticker")).toHaveLength(0);
   });
 
+  it("runs a tick that came due while the plugin was not loaded", async () => {
+    await installTicker();
+    // The window this covers is the ordinary one for a desktop app: the machine
+    // was asleep or shut down when the schedule came due, so nothing claimed it.
+    await service.setEnabled("ticker", false);
+    const missed = Date.now() - 3 * 3_600_000;
+    setNextRunAt(db, "ticker", "tick", missed);
+
+    // Loading again must not move it — that is what used to lose the tick.
+    await service.setEnabled("ticker", true);
+    expect(listPluginSchedules(db, "ticker")[0]?.nextRunAt).toBe(missed);
+
+    const now = Date.now();
+    await service.sweepDueSchedules(now);
+    expect(globals.__tickRuns).toBe(1);
+    // One catch-up run, then back on the cron rather than on what it missed.
+    expect(listPluginSchedules(db, "ticker")[0]?.nextRunAt).toBeGreaterThan(
+      now,
+    );
+  });
+
   it("prunes rows for schedule names the plugin no longer registers", async () => {
     const rootDir = await writePlugin(workDir, {
       name: "patcher-plugin-renamer",

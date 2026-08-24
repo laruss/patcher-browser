@@ -11280,9 +11280,10 @@ interface PluginSidebarThreadActions {
 /**
  * Render a plugin component in the thread header's action row.
  *
- * The frontend sibling of the backend `patcher.ui.registerThreadAction`, which
- * renders a host-owned button and runs server-side. Use that one for "do a
- * thing"; use this one when the control must draw live state.
+ * This replaced an older backend-only registration that rendered a host-owned
+ * button and ran server-side, so it is now the only shape a thread-header
+ * control takes — including the plain "do a thing" button, which is this
+ * component rendering one.
  *
  * The host places it at the left end of the action row, before the workspace
  * button, git actions, the panel toggle, maximize, and close. That row is a
@@ -13554,9 +13555,17 @@ interface PluginBackground {
     /**
      * Register a cron schedule (5-field expression, server-local time). The
      * durable row keyed (pluginId, name) is upserted at load; the periodic
-     * sweep claims due rows with a CAS on next_run_at, but only while this
-     * plugin is loaded. Failures land in last_status/last_error, visible in
-     * `patcher plugin list`.
+     * sweep runs every 10s and claims due rows with a CAS on next_run_at, but
+     * only while this plugin is loaded. Failures land in last_status/last_error,
+     * visible in `patcher plugin list`.
+     *
+     * An occurrence that came due while nothing was loaded — the server was down,
+     * the machine asleep, the plugin disabled — is **not** lost: a load leaves an
+     * already-due next_run_at alone, so the next sweep runs it once and then
+     * resumes the cron. Only a changed cron discards it, because the stored time
+     * is no longer that schedule's. What a schedule still cannot promise is *when*
+     * a catch-up lands, so a job whose result depends on the wall clock should
+     * read the clock itself rather than assume it woke on the minute.
      */
     schedule(name: string, cron: string, fn: () => void | Promise<void>): void;
 }
@@ -14508,6 +14517,15 @@ type PluginBrowserHistoryFilter = (visit: PluginBrowserHistoryVisit) => PluginBr
  * so tab bookkeeping works for every tab while reading a page or replaying its
  * history only works for a live one. When `live` is false the navigation flags
  * are false because they are unknown, not because the answer is no.
+ *
+ * Live is **earned once and then kept**: switching away hides the view but
+ * leaves the page loaded and running, so a tab the user is not looking at is
+ * still readable and drivable. Closing the tab ends it, and so does restarting
+ * the app — nothing is live again until it has been shown again. What this rules
+ * out is only the tab that has *never* been shown: `tabs.open({ activate: false
+ * })` stores a URL and loads nothing, so anything but `navigation.open` on it
+ * fails with `tab_not_live`. A background job that reads pages therefore has to
+ * bring each tab forward once per run of the app, not once per pass.
  */
 interface PluginBrowserTab {
     tabId: string;

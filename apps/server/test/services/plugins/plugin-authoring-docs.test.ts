@@ -55,6 +55,29 @@ const SKILL_DIR = fileURLToPath(
 const SKILL_PATH = path.join(SKILL_DIR, "SKILL.md");
 const REFERENCES_DIR = path.join(SKILL_DIR, "references");
 
+/**
+ * The generated declarations the skill itself calls authoritative — the same
+ * files `patcher plugin types` writes into a plugin. Read as text because the
+ * surface is types: there is no runtime object to reflect on.
+ */
+const SDK_DECLARATION_TEXT = ["", "-app"]
+  .map((suffix) =>
+    readFileSync(
+      fileURLToPath(
+        new URL(
+          `../../../../../packages/plugin-sdk/bundled-types/patcher-plugin-sdk${suffix}.d.ts`,
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    ),
+  )
+  .join("\n");
+
+/** A declared interface member: `name(`, `name:`, `name?:`, `readonly name:`. */
+const DECLARED_MEMBER_RE =
+  /^\s*(?:readonly\s+)?([A-Za-z_][A-Za-z0-9_]*)\??\s*(?:\(|:|<)/gmu;
+
 function readReferenceFileNames(): string[] {
   return readdirSync(REFERENCES_DIR)
     .filter((name) => name.endsWith(".md"))
@@ -420,6 +443,44 @@ describe("patcher-plugin-authoring skill", () => {
     expect([...documented].filter((name) => !known.has(name)).sort()).toEqual(
       [],
     );
+  });
+
+  /**
+   * The check above reads only the first segment, so `patcher.browser.tabs.observe`
+   * passed on `browser` alone while naming a method that has never existed —
+   * which is worse than an undocumented one, because an agent writes the call.
+   *
+   * Every later segment is checked against the member names the SDK actually
+   * declares. Membership rather than resolution: this cannot say a name belongs
+   * to *that* interface, and it does catch the invented name, which is the way
+   * these go wrong.
+   */
+  it("names no method the SDK does not declare", () => {
+    const declared = new Set(
+      [...SDK_DECLARATION_TEXT.matchAll(DECLARED_MEMBER_RE)].map(
+        (match) => match[1],
+      ),
+    );
+    // Documented spellings that are not SDK members: manifest fields live in
+    // package.json, and `experimental_` slots are frontend, not `patcher.*`.
+    const notSdkMembers = new Set(
+      Object.keys(pluginPatcherManifestSchema.shape),
+    );
+
+    const named = new Set<string>();
+    for (const match of skill.matchAll(
+      /\bpatcher((?:\.[A-Za-z][A-Za-z0-9_]*)+)/gu,
+    )) {
+      for (const segment of (match[1] ?? "").split(".").slice(1)) {
+        if (segment.length > 0) named.add(segment);
+      }
+    }
+
+    expect(
+      [...named]
+        .filter((name) => !declared.has(name) && !notSdkMembers.has(name))
+        .sort(),
+    ).toEqual([]);
   });
 
   it("documents every @patcher/plugin-sdk/app runtime export", () => {

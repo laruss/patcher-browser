@@ -154,7 +154,12 @@ bundled by `patcher plugin build`).
   throws only set the schedule's last_error. Name-matching means no import
   is needed for the error class.
 - Schedules only fire while the plugin is loaded (rows are durable, the
-  runner is not).
+  runner is not) — but an occurrence missed while it was not loaded is caught
+  up once on the next sweep rather than skipped.
+- There is no headless or background tab: a tab has a real page only after the
+  user has had it on screen, and it keeps one from then on. Anything that has to
+  observe a site the user is not looking at belongs in the backend (a webhook or
+  a `background.service`), not in a page script.
 - CLI `run(argv)` argv excludes the command name; core Patcher command names
   are reserved; workspace-sandboxed agent threads (Accept Edits / Approve
   for me) may fail to reach the Patcher CLI when the provider sandbox blocks

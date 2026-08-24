@@ -27,8 +27,21 @@ Auth modes:
   `--rotate` generates a new one, invalidating the old) via the
   `x-patcher-plugin-token` header or `?token=`. Right for external scripts
   and machines you control.
-- `"none"` — no checks. ONLY for webhooks that verify their own signature
-  (e.g. Slack's `x-slack-signature` HMAC) inside the handler.
+- `"none"` — no checks, so it is for webhooks that verify their own signature
+  (e.g. Slack's `x-slack-signature` HMAC) inside the handler, and nothing else.
+  Anything reachable without a signature to check belongs on `"token"`.
+
+A webhook only works if the sender can reach this server, and Patcher ships no
+tunnel — a loopback server is not addressable from the internet, so the user
+supplies their own reachable URL (`cloudflared`, `ngrok`, a hosted server). Say
+so when you build one; it is the step that silently makes an otherwise correct
+plugin look broken. `examples/plugins/slack-bot` is the worked end-to-end
+example, including what to configure on the sender's side.
+
+This is also the answer for **anything a page cannot be present for**: a page
+script only exists while its tab is loaded, and there is no headless or
+background tab, so "notify me when a message arrives" is a webhook or a
+`background.service` poll, never a watcher on a closed tab.
 
 ## patcher.rpc — the frontend data plane
 
@@ -122,8 +135,16 @@ patcher.background.schedule("sync", "*/5 * * * *", async () => {
   capped exponential backoff.
 - A **schedule** is a 5-field cron (server-local time) backed by a durable
   row keyed (pluginId, name) — it survives server restarts, and the sweep
-  claims due rows with a compare-and-swap, but it only fires while the
-  plugin is loaded.
+  runs every 10s and claims due rows with a compare-and-swap, but it only
+  fires while the plugin is loaded.
+- **A missed occurrence is caught up, once.** Patcher is a desktop app, so the
+  common case for `"0 9 * * *"` is a machine that was asleep or shut down at
+  09:00. Loading the plugin leaves an already-due row alone, so the next sweep
+  runs it and then resumes the cron — one run, not one per day missed. Changing
+  the cron is the exception: the stored time is no longer that schedule's, so it
+  is recomputed and the missed tick goes with it. Because a catch-up can land at
+  any hour, read the clock in the handler rather than inferring it from having
+  woken up.
 - Semantics differ on throw: a service throwing `NeedsConfigurationError`
   transitions the whole plugin to `needs-configuration` and stops
   restarting until the next load; a schedule throw (any error) only lands
