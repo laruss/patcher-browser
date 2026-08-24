@@ -630,6 +630,35 @@ export class PendingInteractionLifecycle {
     if (!thread || thread.deletedAt !== null) {
       throw new ApiError(404, "invalid_request", "Thread does not exist");
     }
+    // A prompt is only consent if somebody can answer it. The thread view
+    // replaces its composer — and with it this prompt — for an archived thread
+    // and for one whose environment is being torn down, both deliberately
+    // read-only. Raised there, the prompt would hold the thread's single
+    // interaction slot for the whole timeout with nothing on screen able to
+    // decide it, and then refuse anyway. Refusing up front costs the caller
+    // one immediate error instead of four silent minutes.
+    if (thread.archivedAt !== null) {
+      throw new ApiError(
+        409,
+        "invalid_request",
+        `Thread ${args.threadId} is archived, so it cannot show a prompt`,
+      );
+    }
+    const environment =
+      thread.environmentId === null
+        ? null
+        : getEnvironment(this.deps.db, thread.environmentId);
+    if (
+      environment !== null &&
+      (environment.status === "destroying" ||
+        environment.status === "destroyed")
+    ) {
+      throw new ApiError(
+        409,
+        "invalid_request",
+        `Thread ${args.threadId} is read-only: its environment is ${environment.status}, so it cannot show a prompt`,
+      );
+    }
     if (args.signal?.aborted) {
       return Promise.resolve({
         outcome: "cancelled",

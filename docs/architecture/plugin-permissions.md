@@ -60,6 +60,13 @@ five because the answer comes back as the response to a request the CLI is
 holding open, and Node's `fetch` abandons a response whose headers have not
 arrived in 300 s.
 
+A thread that cannot show the prompt is refused before one is raised: archived,
+or with an environment `destroying` or `destroyed`. Both are deliberately
+read-only in the app, which replaces the composer — and with it this prompt —
+so a prompt raised there would hold the thread's single interaction slot for the
+whole timeout with nothing on screen able to decide it, and refuse anyway. One
+immediate error beats four silent minutes.
+
 Every other outcome refuses, because a prompt nobody saw is not consent: an
 unknown thread or a thread already holding a question is a `409`, a refusal or a
 timeout is a `403`, a server with no interaction service is a `503`. Each error

@@ -1,7 +1,10 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { pendingInteractions as pendingInteractionTable } from "@patcher/db";
+import {
+  pendingInteractions as pendingInteractionTable,
+  threads as threadTable,
+} from "@patcher/db";
 import {
   isConsentPendingInteraction,
   type ConsentPendingInteraction,
@@ -30,12 +33,17 @@ import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
 
 const GATED_PLUGIN = "secrets";
 
-function seedConsentThread(deps: AppDeps, suffix: string) {
+function seedConsentThread(
+  deps: AppDeps,
+  suffix: string,
+  environmentStatus?: Parameters<typeof seedEnvironment>[1]["status"],
+) {
   const { host } = seedHostSession(deps, { id: `host-consent-${suffix}` });
   const { project } = seedProjectWithSource(deps, { hostId: host.id });
   const environment = seedEnvironment(deps, {
     hostId: host.id,
     projectId: project.id,
+    ...(environmentStatus ? { status: environmentStatus } : {}),
   });
   return seedThread(deps, {
     projectId: project.id,
@@ -173,6 +181,48 @@ describe("plugin change consent", () => {
 
       expect(response.status).toBe(409);
       expect(isEnabled(harness, pluginId)).toBe(false);
+    });
+  });
+
+  it("refuses up front in an archived thread, which cannot show a prompt", async () => {
+    await withTestHarness(async (harness) => {
+      const pluginId = await installDisabled(harness);
+      const thread = seedConsentThread(harness.deps, "archived");
+      harness.db
+        .update(threadTable)
+        .set({ archivedAt: Date.now() })
+        .where(eq(threadTable.id, thread.id))
+        .run();
+
+      const response = await enableRequest(harness, pluginId, thread.id);
+
+      expect(response.status).toBe(409);
+      expect(isEnabled(harness, pluginId)).toBe(false);
+      // The point of refusing early: nothing is parked, so the thread's one
+      // interaction slot stays free instead of being held for the timeout by a
+      // question no surface can render.
+      expect(
+        harness.deps.pendingInteractions.listPendingThreadInteractions(
+          thread.id,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  it("refuses up front when the thread's environment is gone", async () => {
+    await withTestHarness(async (harness) => {
+      const pluginId = await installDisabled(harness);
+      const thread = seedConsentThread(harness.deps, "destroyed", "destroyed");
+
+      const response = await enableRequest(harness, pluginId, thread.id);
+
+      expect(response.status).toBe(409);
+      expect(isEnabled(harness, pluginId)).toBe(false);
+      expect(
+        harness.deps.pendingInteractions.listPendingThreadInteractions(
+          thread.id,
+        ),
+      ).toEqual([]);
     });
   });
 
