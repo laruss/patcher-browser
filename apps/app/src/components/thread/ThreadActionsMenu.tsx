@@ -20,6 +20,7 @@ import { COARSE_POINTER_ICON_SIZE_CLASS } from "@patcher/shared-ui/coarse-pointe
 import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@patcher/shared-ui/lib/utils";
 import { isThreadRead } from "@/lib/thread-read-state";
+import { usePageOverlayWhileOpen } from "@/components/browser-surface/PageOverlayRequests";
 import { useThreadActions } from "./ThreadActionsProvider";
 
 interface ThreadActionsMenuBaseProps {
@@ -259,8 +260,11 @@ export function ThreadActionsMenu({
   triggerClassName,
   align = "end",
 }: ThreadActionsMenuProps) {
+  // The menu is portalled to the body, so over a live browser page the native
+  // view paints on top of it. Freezing the page is what puts it back on screen.
+  const handleOpenChange = usePageOverlayWhileOpen(onOpenChange);
   return (
-    <DropdownMenu onOpenChange={onOpenChange}>
+    <DropdownMenu onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -302,8 +306,9 @@ export function ThreadActionsContextMenu({
   onOpenInSplit,
   onOpenChange,
 }: ThreadActionsContextMenuProps) {
+  const handleOpenChange = usePageOverlayWhileOpen(onOpenChange);
   return (
-    <ContextMenu onOpenChange={onOpenChange}>
+    <ContextMenu onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent aria-label="Thread actions">
         <ThreadActionsMenuItems
