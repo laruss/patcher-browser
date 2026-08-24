@@ -823,6 +823,18 @@ Rules worth building around:
   for these where the safer calls genuinely cannot go, and say so plainly in
   anything you build on them. Routes and `setOffline` last only as long as the
   tab's debugger session, so do not treat them as configuration.
+- **`evaluate` is one expression in one document, and is not how you change a
+  site.** It caps at 8 KB and dies with the page: a reload, a real navigation or
+  a fresh tab leaves nothing behind. Reaching for it to install something
+  lasting is what produces the tell-tale workarounds — a payload split into
+  chunks, an injector re-run after every load, a listener re-attached on the
+  site's own navigation events. All three mean the wrong surface:
+  `registerPageScript` holds 64 KB, is re-injected into **every** matching
+  document before the page's own first script, needs no re-attachment, and is
+  unaffected by the page's CSP because it runs in an isolated world. What
+  `evaluate` keeps for itself is that world: it runs in the page's own, so
+  reading or patching the site's JS globals is the case it is genuinely for —
+  a page script shares the DOM but not the page's variables and functions.
 - **`patcher.browser.recording` produces artifacts, and it is two different things.**
   `traceStart`/`traceStop` log the browser commands _Patcher_ runs while the trace is
   open — one at a time, and stopping it is the only way to read it. It is Patcher's

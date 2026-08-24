@@ -571,6 +571,11 @@ Direct control — these skip what makes the commands above safe
   route-list                 What this tab mocks, and how often each fired
   unroute [pattern]          Remove one route, or all of them
   network-state-set <offline|online>
+  Each of these lasts one document: eval runs one 8 KB expression in the page
+  that is loaded now, and routes live only as long as the tab's debugger
+  session. Code that has to survive a reload belongs in a page script —
+  patcher.browser.registerPageScript, 64 KB, injected into every matching
+  document; see the patcher-plugin-authoring skill.
 
 Recording — what was done, and what it looked like
   tracing-start [--screenshots]
@@ -842,7 +847,9 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
       {
         name: "eval",
         summary:
-          "Run a JavaScript function in the page and print what it returned",
+          "Run a JavaScript function in the page and print what it returned " +
+          "(one document, 8 KB; for code that must survive a reload, register " +
+          "a page script from a plugin instead)",
         usage:
           'patcher browser eval "<function>" [<ref>] [--tab <tab-id>] [--generation <n>]',
       },
