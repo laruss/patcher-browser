@@ -394,3 +394,52 @@ describe("AppLayout agent panel routing", () => {
     );
   });
 });
+
+// The sidebar toggle is an icon with no text, and the shortcut pill beside it
+// only appears while the primary modifier is held — so a user reaching for the
+// mouse had nothing telling them what the button does. The accessible name is
+// the same string the hover tooltip renders, and it names the *action* rather
+// than the control, because the icon does not change between states.
+describe("AppLayout sidebar toggle labelling", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  function renderLayout(): void {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppLayout>
+          <div>Body</div>
+        </AppLayout>
+      </MemoryRouter>,
+    );
+  }
+
+  function overlayTrigger(): HTMLElement {
+    // Scoped to the overlay: `SidebarTrigger` also ships an sr-only "Toggle
+    // Sidebar" span, and the sidebar itself renders one, so a name query alone
+    // is ambiguous.
+    const overlay = screen.getByTestId("app-sidebar-trigger-overlay");
+    const trigger = overlay.querySelector("button");
+    if (trigger === null) throw new Error("no trigger in the overlay");
+    return trigger;
+  }
+
+  it("says what the click will do, not just that there is a sidebar", () => {
+    renderLayout();
+    // The sidebar starts open, so the button hides it.
+    expect(overlayTrigger().getAttribute("aria-label")).toMatch(
+      /^Hide sidebar/u,
+    );
+    expect(overlayTrigger().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("flips the label once the sidebar is closed", () => {
+    renderLayout();
+    fireEvent.click(overlayTrigger());
+    expect(overlayTrigger().getAttribute("aria-label")).toMatch(
+      /^Show sidebar/u,
+    );
+    expect(overlayTrigger().getAttribute("aria-expanded")).toBe("false");
+  });
+});

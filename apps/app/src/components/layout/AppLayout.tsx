@@ -20,6 +20,11 @@ import type { ProjectResponse } from "@patcher/server-contract";
 import { Icon } from "@patcher/shared-ui/icon";
 import { RESOURCE_ROUTE_LABEL_EVENT } from "@patcher/shared-ui/resource-list";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@patcher/shared-ui/tooltip";
+import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
@@ -29,7 +34,10 @@ import { AppSidebar } from "@/components/sidebar/AppSidebar";
 import { AgentPanelSidebar } from "@/components/sidebar/AgentPanelSidebar";
 import { PluginLeadingPanel } from "./PluginLeadingPanel";
 import { ThreadTitleMentionResourcesProvider } from "@/components/thread/ThreadTitleMentions";
-import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
+import {
+  AppCommandShortcutHint,
+  AppCommandShortcutPill,
+} from "@/components/commands/AppCommandShortcutHint";
 import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
 import { ToolsSidebar } from "@/components/tools/ToolsSidebar";
 import { ToolsHubExperimentProvider } from "@/components/tools/tools-experiment-context";
@@ -360,13 +368,39 @@ interface SidebarTriggerOverlayProps {
 function SidebarTriggerOverlay({
   usesDesktopChrome,
 }: SidebarTriggerOverlayProps) {
+  const { isCompactViewport, open, openMobile } = useSidebar();
   const shortcut = useAppCommandShortcut("sidebar.toggle");
+  const isOpen = isCompactViewport ? openMobile : open;
+  // Says what the click will do rather than naming the control, because the
+  // icon is the same in both states and "Toggle sidebar" leaves the user to
+  // work out which way it goes.
+  const action = isOpen ? "Hide sidebar" : "Show sidebar";
   const triggerProps = {
-    "aria-label": shortcut
-      ? `Toggle sidebar (${shortcut.label})`
-      : "Toggle sidebar",
+    "aria-label": shortcut ? `${action} (${shortcut.label})` : action,
     "aria-keyshortcuts": shortcut?.ariaKeyshortcuts,
   };
+  /**
+   * The hover tooltip. `AppCommandShortcutHint` beside the button is a
+   * different thing — it appears only while the primary modifier is held, so
+   * a user reaching for the mouse never sees it and has nothing telling them
+   * what the button is.
+   *
+   * `side="bottom"` keeps it inside the app's own chrome. It must not be given
+   * a side that puts it over the browsed page: a `WebContentsView` composites
+   * above the DOM, and tooltips deliberately do not take the freeze-and-overlay
+   * path that menus use (hovering should never stop a page).
+   */
+  const withTooltip = (trigger: ReactNode) => (
+    <Tooltip>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+      <TooltipContent side="bottom" className="flex items-center gap-1.5">
+        <span>{action}</span>
+        {shortcut ? (
+          <AppCommandShortcutPill shortcut={shortcut} className="opacity-100" />
+        ) : null}
+      </TooltipContent>
+    </Tooltip>
+  );
   if (usesDesktopChrome) {
     return (
       <div
@@ -381,10 +415,12 @@ function SidebarTriggerOverlay({
         {/* The overlay's CHROME_ROW_CLASS box-centers the trigger on the shared
             traffic-light axis, matching the sidebar arrows and page-title
             header in desktop chrome. */}
-        <SidebarTrigger
-          className={MACOS_CHROME_CONTROL_NO_DRAG_CLASS}
-          {...triggerProps}
-        />
+        {withTooltip(
+          <SidebarTrigger
+            className={MACOS_CHROME_CONTROL_NO_DRAG_CLASS}
+            {...triggerProps}
+          />,
+        )}
         {/* The hint trails the trigger, so at this end it goes to its left. */}
         <AppCommandShortcutHint
           shortcut={shortcut}
@@ -405,7 +441,7 @@ function SidebarTriggerOverlay({
         SIDEBAR_TRIGGER_TRAILING_INSET_CLASS,
       )}
     >
-      <SidebarTrigger {...triggerProps} />
+      {withTooltip(<SidebarTrigger {...triggerProps} />)}
       <AppCommandShortcutHint
         shortcut={shortcut}
         className="absolute right-full mr-1"

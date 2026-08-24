@@ -22,12 +22,10 @@ import { useThreadListProvider } from "./threadListProvider";
 import { PluginNavSidebarItems } from "@/components/plugin/PluginNavSidebarItems";
 import { PluginSidebarFooterActions } from "@/components/plugin/PluginSidebarFooterActions";
 import { SidebarUpdatesBadge } from "./SidebarUpdatesBadge";
-import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import {
   CHROME_ROW_CLASS,
   getPatcherDesktopInfo,
-  MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
   MACOS_WINDOW_DRAG_CLASS,
   shouldUseMacosDesktopChrome,
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
@@ -308,15 +306,7 @@ export function AppSidebar({
               SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
               usesDesktopChrome && MACOS_WINDOW_DRAG_CLASS,
             )}
-          >
-            <SidebarHistoryNavigationControls
-              onNavigate={closeOnMobile}
-              className={cn(
-                "group-data-[collapsible=icon]:hidden",
-                usesDesktopChrome && MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
-              )}
-            />
-          </div>
+          ></div>
         ) : null}
         <div
           data-testid="app-sidebar-primary-actions"

@@ -5,13 +5,11 @@ import {
 } from "react";
 import { CompactViewportOverrideProvider } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@patcher/shared-ui/lib/utils";
-import { Sidebar, useCloseMobileSidebar } from "@/components/ui/sidebar.js";
+import { Sidebar } from "@/components/ui/sidebar.js";
 import { SectionSidebarIcon, SectionSidebarRow } from "./SectionSidebar";
-import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
 import {
   CHROME_ROW_CLASS,
   getPatcherDesktopInfo,
-  MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
   MACOS_WINDOW_DRAG_CLASS,
   shouldUseMacosDesktopChrome,
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
@@ -45,7 +43,6 @@ export function AgentPanelSidebar({
   isResizing: boolean;
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
-  const closeOnMobile = useCloseMobileSidebar();
   const [desktopInfo] = useState(getPatcherDesktopInfo);
   const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
 
@@ -61,15 +58,7 @@ export function AgentPanelSidebar({
           SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
           usesDesktopChrome && MACOS_WINDOW_DRAG_CLASS,
         )}
-      >
-        <SidebarHistoryNavigationControls
-          onNavigate={closeOnMobile}
-          className={cn(
-            "group-data-[collapsible=icon]:hidden",
-            usesDesktopChrome && MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
-          )}
-        />
-      </div>
+      ></div>
       <div className="shrink-0 px-2 pb-2 group-data-[collapsible=icon]:hidden">
         <SectionSidebarRow active={false} label={backLabel} to={backTo}>
           <SectionSidebarIcon name="ChevronLeft" />

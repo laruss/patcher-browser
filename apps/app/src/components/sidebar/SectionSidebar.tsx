@@ -13,14 +13,12 @@ import {
   SidebarContent,
   useCloseMobileSidebar,
 } from "@/components/ui/sidebar.js";
-import { SidebarHistoryNavigationControls } from "@/components/sidebar/SidebarHistoryNavigationControls";
 import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@/components/sidebar/ProjectList";
 import { SIDEBAR_STANDARD_ROW_PADDING_CLASS } from "@/components/sidebar/sidebarRowClasses";
 import { CHROME_SECTION_LABEL_CLASS } from "@/components/ui/chromeStyleTokens";
 import {
   CHROME_ROW_CLASS,
   getPatcherDesktopInfo,
-  MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
   MACOS_WINDOW_DRAG_CLASS,
   shouldUseMacosDesktopChrome,
   SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
@@ -98,7 +96,6 @@ export function SectionSidebar({
   showTopReserve: boolean;
   testIdPrefix: string;
 }) {
-  const closeOnMobile = useCloseMobileSidebar();
   const [desktopInfo] = useState(getPatcherDesktopInfo);
   const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
 
@@ -115,15 +112,7 @@ export function SectionSidebar({
             SIDEBAR_TRIGGER_TRAILING_RESERVE_CLASS,
             usesDesktopChrome && MACOS_WINDOW_DRAG_CLASS,
           )}
-        >
-          <SidebarHistoryNavigationControls
-            onNavigate={closeOnMobile}
-            className={cn(
-              "group-data-[collapsible=icon]:hidden",
-              usesDesktopChrome && MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
-            )}
-          />
-        </div>
+        ></div>
       ) : null}
       <div className="shrink-0 px-2 py-2 group-data-[collapsible=icon]:hidden">
         <div className="space-y-1">

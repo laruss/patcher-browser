@@ -12,7 +12,15 @@ import { readJson } from "../helpers/json.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
 describe("app keybindings", () => {
-  it("serves validated explicit defaults from system config", async () => {
+  /**
+   * The default keymap is a browser's, plus the handful of app chords that back
+   * native menu items. Everything inherited from the agent app this browser
+   * grew out of is listed but
+   * unassigned — present in `defaultKeybindings` with a null shortcut so the
+   * settings UI can offer it, absent from `keybindings` so it competes for no
+   * chord.
+   */
+  it("assigns chords to the browser and to the menu-backed app commands only", async () => {
     await withTestHarness(async (harness) => {
       const response = await harness.app.request("/api/v1/system/config");
       expect(response.status).toBe(200);
@@ -23,52 +31,125 @@ describe("app keybindings", () => {
       );
       expect(config.keybindingOverrides).toEqual([]);
       expect(assignedDefaultKeybindings).toEqual(config.keybindings);
-      for (const command of ["thread.rename", "thread.archive"] as const) {
+
+      // The whole non-browser keymap, exhaustively. Five of these six exist
+      // because the native menu reads its accelerators from this table
+      // (`resolveApplicationMenuAccelerators`), so dropping one empties a menu
+      // item's shortcut; the sixth is the sidebar, which is the one panel that
+      // exists on every route.
+      const nonBrowser = config.keybindings.filter(
+        (binding) => !binding.command.startsWith("browser."),
+      );
+      expect(
+        nonBrowser.map((binding) => ({
+          command: binding.command,
+          key: binding.shortcut.key,
+          mod: binding.shortcut.mod,
+          shift: binding.shortcut.shift,
+          desktopOnly: binding.desktopOnly,
+        })),
+      ).toEqual([
+        {
+          command: "thread.new",
+          key: "o",
+          mod: true,
+          shift: true,
+          desktopOnly: false,
+        },
+        {
+          command: "settings.open",
+          key: ",",
+          mod: true,
+          shift: false,
+          desktopOnly: false,
+        },
+        {
+          command: "sidebar.toggle",
+          key: "j",
+          mod: true,
+          shift: false,
+          desktopOnly: false,
+        },
+        // The browser-focus copy, so the chord survives a key pressed inside a
+        // browsed page — the shell resolves those and only looks at bindings
+        // whose context names `browserFocus`.
+        {
+          command: "sidebar.toggle",
+          key: "j",
+          mod: true,
+          shift: false,
+          desktopOnly: true,
+        },
+        {
+          command: "panel.newTab",
+          key: "t",
+          mod: true,
+          shift: false,
+          desktopOnly: false,
+        },
+        {
+          command: "panel.close",
+          key: "w",
+          mod: true,
+          shift: false,
+          desktopOnly: false,
+        },
+        {
+          command: "window.new",
+          key: "n",
+          mod: true,
+          shift: false,
+          desktopOnly: true,
+        },
+      ]);
+
+      // The inherited set: listed, assignable, and holding no chord.
+      const inherited = [
+        "thread.search",
+        "thread.rename",
+        "thread.archive",
+        "thread.previous",
+        "thread.next",
+        ...THREAD_JUMP_APP_COMMAND_IDS,
+        "pane.focus.previous",
+        "pane.focus.next",
+        ...PANE_FOCUS_APP_COMMAND_IDS,
+        "pane.maximize.toggle",
+        "pane.close",
+        "panel.toggle",
+        "diff.toggle",
+        "terminal.open",
+        "composer.focus",
+        "modelPicker.toggle",
+        "modelPicker.cycleModel",
+        "modelPicker.cycleReasoning",
+        "workspace.openPreferred",
+      ] as const;
+      for (const command of inherited) {
         expect(
           config.defaultKeybindings.find(
             (binding) => binding.command === command,
           ),
-        ).toMatchObject({
-          desktopOnly: false,
-          shortcut: null,
-          when: { all: ["mainSurface"], none: ["modalOpen"] },
-        });
+        ).toMatchObject({ shortcut: null });
         expect(
           config.keybindings.some((binding) => binding.command === command),
         ).toBe(false);
       }
-      expect(
-        config.keybindings
-          .filter((binding) => binding.command === "thread.new")
-          .map((binding) => ({
-            desktopOnly: binding.desktopOnly,
-            key: binding.shortcut.key,
-            shift: binding.shortcut.shift,
-          })),
-      ).toEqual([{ desktopOnly: false, key: "o", shift: true }]);
-      // Mod+N belongs to the browser: Patcher is one, and that chord opens a window
-      // in every other. Mod+Shift+N stays unassigned on purpose — it is the
-      // incognito window everywhere else, and Patcher has yet to build one.
-      expect(
-        config.keybindings.find((binding) => binding.command === "window.new"),
-      ).toMatchObject({
-        desktopOnly: true,
-        shortcut: { key: "n", mod: true, shift: false },
-      });
+
+      // Mod+Shift+N stays unassigned on purpose — it is the incognito window
+      // everywhere else, and Patcher has yet to build one.
       expect(
         config.keybindings.filter(
           (binding) =>
-            binding.shortcut !== null &&
             binding.shortcut.key === "n" &&
             binding.shortcut.mod &&
             binding.shortcut.shift,
         ),
       ).toEqual([]);
-      // Mod+P is print and nothing else. It used to be a second chord for the
-      // panel's new tab, which already has Mod+T, so nothing shares it now.
+
+      // Mod+P is print and nothing else.
       const modP = config.keybindings.filter(
         (binding) =>
-          binding.shortcut !== null &&
           binding.shortcut.key === "p" &&
           binding.shortcut.mod &&
           !binding.shortcut.shift,
@@ -77,285 +158,25 @@ describe("app keybindings", () => {
       expect(modP[0]?.when).toMatchObject({
         all: expect.arrayContaining(["browserFocus"]),
       });
+
+      // Nothing holds plain Alt any more: the model-picker cycle chords were
+      // the only ones, and they went with the rest of the inherited set.
       expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.command === "thread.previous")
-          .map((binding) => ({
-            desktopOnly: binding.desktopOnly,
-            key: binding.shortcut.key,
-          })),
-      ).toEqual([
-        { desktopOnly: false, key: "ArrowUp" },
-        { desktopOnly: true, key: "[" },
-      ]);
-      expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.command === "thread.next")
-          .map((binding) => ({
-            desktopOnly: binding.desktopOnly,
-            key: binding.shortcut.key,
-          })),
-      ).toEqual([
-        { desktopOnly: false, key: "ArrowDown" },
-        { desktopOnly: true, key: "]" },
-      ]);
-      expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.command.startsWith("thread.jump."))
-          .map((binding) => ({
-            command: binding.command,
-            desktopOnly: binding.desktopOnly,
-            key: binding.shortcut.key,
-            mod: binding.shortcut.mod,
-            control: binding.shortcut.control,
-            shift: binding.shortcut.shift,
-            when: binding.when,
-          })),
-      ).toEqual(
-        THREAD_JUMP_APP_COMMAND_IDS.flatMap((command, index) => [
-          {
-            command,
-            desktopOnly: false,
-            key: String(index + 1),
-            mod: false,
-            control: true,
-            shift: false,
-            when: {
-              all: ["mainSurface", "webSurface", "macPlatform"],
-              none: ["modalOpen"],
-            },
-          },
-          {
-            command,
-            desktopOnly: false,
-            key: String(index + 1),
-            mod: true,
-            control: false,
-            shift: true,
-            when: {
-              all: ["mainSurface", "webSurface"],
-              none: ["modalOpen", "macPlatform"],
-            },
-          },
-          {
-            command,
-            desktopOnly: true,
-            key: String(index + 1),
-            mod: true,
-            control: false,
-            shift: false,
-            when: {
-              all: ["mainSurface"],
-              none: ["modalOpen"],
-            },
-          },
-        ]),
-      );
-      expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.command === "terminal.open")
-          .map((binding) => ({
-            desktopOnly: binding.desktopOnly,
-            key: binding.shortcut.key,
-          })),
-      ).toEqual([
-        { desktopOnly: false, key: "Enter" },
-        { desktopOnly: true, key: "t" },
-      ]);
-      expect(
-        assignedDefaultKeybindings.find(
-          (binding) => binding.command === "composer.focus",
+        config.keybindings.filter(
+          (binding) =>
+            binding.shortcut.alt &&
+            !binding.shortcut.mod &&
+            !binding.shortcut.control &&
+            !binding.shortcut.meta,
         ),
-      ).toMatchObject({
-        desktopOnly: false,
-        shortcut: { key: "c", mod: true, shift: true },
-        when: {
-          all: ["mainSurface", "promptAvailable"],
-          none: ["modalOpen", "terminalFocus", "browserFocus"],
-        },
-      });
-      // The cycle chords must stay on plain Alt and share the scope of
-      // `modelPicker.toggle`. Alt is unused elsewhere in Patcher, so nothing shadows
-      // them and they shadow nothing.
-      expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.command.startsWith("modelPicker.cycle"))
-          .map((binding) => ({
-            command: binding.command,
-            shortcut: binding.shortcut,
-            when: binding.when,
-          })),
-      ).toEqual([
-        {
-          command: "modelPicker.cycleModel",
-          shortcut: {
-            key: "m",
-            mod: false,
-            meta: false,
-            control: false,
-            alt: true,
-            shift: false,
-          },
-          when: {
-            all: ["mainSurface", "promptAvailable"],
-            none: ["modalOpen", "terminalFocus", "browserFocus"],
-          },
-        },
-        {
-          command: "modelPicker.cycleReasoning",
-          shortcut: {
-            key: "t",
-            mod: false,
-            meta: false,
-            control: false,
-            alt: true,
-            shift: false,
-          },
-          when: {
-            all: ["mainSurface", "promptAvailable"],
-            none: ["modalOpen", "terminalFocus", "browserFocus"],
-          },
-        },
-        // The picker popover is modal, so a second scoped copy of each chord
-        // keeps cycling alive while it is open.
-        {
-          command: "modelPicker.cycleModel",
-          shortcut: {
-            key: "m",
-            mod: false,
-            meta: false,
-            control: false,
-            alt: true,
-            shift: false,
-          },
-          when: { all: ["mainSurface", "modelPickerOpen"], none: [] },
-        },
-        {
-          command: "modelPicker.cycleReasoning",
-          shortcut: {
-            key: "t",
-            mod: false,
-            meta: false,
-            control: false,
-            alt: true,
-            shift: false,
-          },
-          when: { all: ["mainSurface", "modelPickerOpen"], none: [] },
-        },
-      ]);
-      // No other default binding may use **plain** Alt, so the cycle chords
-      // cannot be shadowed by an earlier binding for the same chord. A chord
-      // that also holds Mod is a different chord and cannot collide with them —
-      // `browser.devTools.toggle` is Cmd+Alt+I, Chromium's own — so the filter
-      // is what the rule is actually about rather than Alt appearing at all.
-      expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.shortcut.alt && !binding.shortcut.mod)
-          .map((binding) => binding.command),
-      ).toEqual([
-        "modelPicker.cycleModel",
-        "modelPicker.cycleReasoning",
-        "modelPicker.cycleModel",
-        "modelPicker.cycleReasoning",
-      ]);
-      expect(
-        assignedDefaultKeybindings
-          .filter((binding) => binding.command.startsWith("pane."))
-          .map((binding) => ({
-            command: binding.command,
-            desktopOnly: binding.desktopOnly,
-            key: binding.shortcut.key,
-            mod: binding.shortcut.mod,
-            control: binding.shortcut.control,
-            shift: binding.shortcut.shift,
-            when: binding.when,
-          })),
-      ).toEqual([
-        {
-          command: "pane.focus.previous",
-          desktopOnly: false,
-          key: "[",
-          mod: true,
-          control: false,
-          shift: true,
-          when: { all: ["mainSurface", "splitActive"], none: ["modalOpen"] },
-        },
-        {
-          command: "pane.focus.next",
-          desktopOnly: false,
-          key: "]",
-          mod: true,
-          control: false,
-          shift: true,
-          when: { all: ["mainSurface", "splitActive"], none: ["modalOpen"] },
-        },
-        ...PANE_FOCUS_APP_COMMAND_IDS.flatMap((command, index) => [
-          {
-            command,
-            desktopOnly: false,
-            key: String(index + 1),
-            mod: false,
-            control: true,
-            shift: false,
-            when: {
-              all: ["mainSurface", "splitActive", "webSurface", "macPlatform"],
-              none: ["modalOpen"],
-            },
-          },
-          {
-            command,
-            desktopOnly: false,
-            key: String(index + 1),
-            mod: true,
-            control: false,
-            shift: true,
-            when: {
-              all: ["mainSurface", "splitActive", "webSurface"],
-              none: ["modalOpen", "macPlatform"],
-            },
-          },
-          {
-            command,
-            desktopOnly: true,
-            key: String(index + 1),
-            mod: true,
-            control: false,
-            shift: false,
-            when: {
-              all: ["mainSurface", "splitActive"],
-              none: ["modalOpen"],
-            },
-          },
-        ]),
-        {
-          command: "pane.maximize.toggle",
-          desktopOnly: false,
-          key: "e",
-          mod: true,
-          control: false,
-          shift: true,
-          when: { all: ["mainSurface", "splitActive"], none: ["modalOpen"] },
-        },
-        {
-          command: "pane.close",
-          desktopOnly: false,
-          key: "x",
-          mod: true,
-          control: false,
-          shift: true,
-          when: { all: ["mainSurface", "splitActive"], none: ["modalOpen"] },
-        },
-      ]);
+      ).toEqual([]);
+
       expect(
         assignedDefaultKeybindings
           .filter((binding) => binding.desktopOnly)
           .map((binding) => binding.command),
       ).toEqual([
-        "thread.previous",
-        "thread.next",
-        ...THREAD_JUMP_APP_COMMAND_IDS,
-        ...PANE_FOCUS_APP_COMMAND_IDS,
-        "terminal.open",
+        "sidebar.toggle",
         "browser.focusLocation",
         "browser.reload",
         "browser.find",
@@ -391,7 +212,10 @@ describe("app keybindings", () => {
       };
       const overrides = [
         { command: "thread.new" as const, shortcut },
-        { command: "modelPicker.toggle" as const, shortcut },
+        // Two bindings, one command: the sidebar toggle has a main-surface entry
+        // and a browser-focus copy, so this is what proves an override reaches
+        // every binding rather than only the first.
+        { command: "sidebar.toggle" as const, shortcut },
       ];
       const response = await harness.app.request("/api/v1/settings/keyboard", {
         method: "PUT",
@@ -414,12 +238,12 @@ describe("app keybindings", () => {
       ).toMatchObject({ shortcut });
       expect(
         config.keybindings.filter(
-          (binding) => binding.command === "modelPicker.toggle",
+          (binding) => binding.command === "sidebar.toggle",
         ),
       ).toHaveLength(2);
       expect(
         config.keybindings
-          .filter((binding) => binding.command === "modelPicker.toggle")
+          .filter((binding) => binding.command === "sidebar.toggle")
           .every((binding) => binding.shortcut.key === "u"),
       ).toBe(true);
     });
