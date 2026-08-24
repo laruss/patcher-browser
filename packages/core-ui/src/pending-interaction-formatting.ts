@@ -44,11 +44,22 @@ export function formatPendingInteractionConsentSummary(
 export function formatPendingInteractionConsentDetailLines(
   payload: ConsentPendingInteractionPayload,
 ): string[] {
+  // On enable, install, update and configure the list is what saying yes hands
+  // over. On disable and remove it is what the plugin holds today and saying yes
+  // takes away, so the same "Permissions:" label would read as a grant request
+  // for the two actions that grant nothing.
+  const revokes = payload.action === "disable" || payload.action === "remove";
   return [
     ...(payload.permissions.length > 0
-      ? [`Permissions: ${payload.permissions.join(", ")}`]
+      ? [
+          `${revokes ? "Currently allowed" : "Permissions"}: ${payload.permissions.join(", ")}`,
+        ]
       : []),
-    ...(payload.sites.length > 0 ? [`Sites: ${payload.sites.join(", ")}`] : []),
+    ...(payload.sites.length > 0
+      ? [
+          `${revokes ? "Currently reaches" : "Sites"}: ${payload.sites.join(", ")}`,
+        ]
+      : []),
     ...(payload.detail === null ? [] : [payload.detail]),
     "Asked for by an agent in this thread.",
   ];

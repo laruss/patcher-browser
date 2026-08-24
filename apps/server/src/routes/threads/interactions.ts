@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { requirePublicThread } from "../../services/lib/entity-lookup.js";
+import { declaresThread } from "../plugin-consent.js";
 
 const pendingInteractionIdSchema = z
   .string()
@@ -95,6 +96,20 @@ export function registerThreadInteractionRoutes(
       interactionId,
     });
     if (isConsentPendingInteraction(current)) {
+      // The one caller a consent prompt must not accept is the one that raised
+      // it. A request declaring a thread is a command inside a turn (the app
+      // never sends the header), and an agent that answers its own prompt does
+      // not just bypass the gate — it writes "the user allowed this" into the
+      // thread, which is the record the prompt exists to leave. A declaration
+      // rather than a credential, like the gate itself: it keeps the honest
+      // path honest.
+      if (declaresThread(context)) {
+        throw new ApiError(
+          403,
+          "invalid_request",
+          "A consent prompt is answered by the user, not from inside a turn. Nothing changed. Ask in your reply instead.",
+        );
+      }
       const answer = consentInteractionAnswerSchema.safeParse(payload.value);
       if (!answer.success) {
         throw new ApiError(

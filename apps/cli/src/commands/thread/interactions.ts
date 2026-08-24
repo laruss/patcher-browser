@@ -321,6 +321,29 @@ function printInteraction(interaction: PendingInteraction): void {
     console.log("  Delivery: waiting for provider acknowledgement");
   }
 
+  if (isConsentPendingInteraction(interaction)) {
+    // Nothing here to resolve — a consent prompt is answered from the app — but
+    // `show` reads an interaction rather than resolving one, and falling through
+    // to requireApprovalInteraction would half-print it and then throw
+    // "cannot be resolved with this command" at someone who asked to look.
+    console.log(
+      `  Change: ${formatPendingInteractionSummary({
+        interaction,
+        surface: "cli",
+      })}`,
+    );
+    for (const line of formatPendingInteractionSubjectDetailLines(
+      interaction,
+    )) {
+      console.log(`  ${line}`);
+    }
+    const resolution = interaction.resolution;
+    if (resolution !== null) {
+      console.log(`  Answer: ${resolution.approved ? "allowed" : "declined"}`);
+    }
+    return;
+  }
+
   if (isUserQuestionInteraction(interaction)) {
     printUserQuestionInteraction(interaction);
     return;

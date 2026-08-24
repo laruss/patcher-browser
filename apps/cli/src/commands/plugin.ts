@@ -338,8 +338,13 @@ async function callPlugins(
   }
   // 400/404/422 carry structured { ok: false, error } (disabled experiment,
   // install/validation failures) — let them through so the caller can print
-  // the reason.
-  if (!response.ok && ![400, 404, 422].includes(response.status)) {
+  // the reason. So do 403/409/503, which is how a plugin change refused for
+  // want of the user's consent comes back: that body is written for whoever
+  // reads it and says what to do instead, and "HTTP 403" says neither.
+  if (
+    !response.ok &&
+    ![400, 403, 404, 409, 422, 503].includes(response.status)
+  ) {
     throw new Error(`/api/v1/plugins${path} failed: HTTP ${response.status}`);
   }
   return parsed;

@@ -1,3 +1,4 @@
+import { assertNever } from "@patcher/core-ui";
 import {
   pendingInteractionSchema,
   type PendingInteraction,
@@ -52,6 +53,11 @@ function rowOrigin(row: PendingInteractionRow) {
       };
     case "server":
       return { kind: "server" };
+    default:
+      // The column is TEXT with no CHECK, so the three cases above are a claim
+      // about writers rather than something the database enforces. Falling off
+      // the end would have returned `undefined` and blamed the payload.
+      return assertNever(row.originKind);
   }
 }
 

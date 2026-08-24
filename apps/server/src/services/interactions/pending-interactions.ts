@@ -140,6 +140,8 @@ interface RequestConsentInteractionArgs {
 
 interface ConsentInteractionWaiter {
   resolve: (result: ConsentInteractionResult) => void;
+  /** Carried so a drain can settle the row, not just the promise. */
+  threadId: string;
   timer: ReturnType<typeof setTimeout>;
   removeAbortListener: () => void;
 }
@@ -672,6 +674,7 @@ export class PendingInteractionLifecycle {
       }, args.timeoutMs);
       this.consentWaiters.set(interaction.id, {
         resolve,
+        threadId: interaction.threadId,
         timer,
         removeAbortListener: () =>
           args.signal?.removeEventListener("abort", abort),
@@ -684,7 +687,8 @@ export class PendingInteractionLifecycle {
       return pending;
     }
     try {
-      appendPendingInteractionTimelineEvent(this.deps, interaction);
+      // No timeline event while it is pending: the prompt itself is on screen,
+      // and only the decision is worth keeping (see consentTimelineEventData).
       notifyInteractionChanged({
         deps: this.deps,
         hasPendingInteraction: true,
@@ -775,6 +779,31 @@ export class PendingInteractionLifecycle {
     });
     this.settlePluginInteractionTerminalSideEffects(interaction);
     return interaction;
+  }
+
+  /**
+   * Release every request parked on a consent prompt, without waiting for the
+   * prompt.
+   *
+   * A consent answer arrives inside an HTTP request that is still open, so a
+   * shutdown that lets in-flight requests finish would wait out the prompt's
+   * whole timeout — minutes of an app that will not quit because nobody
+   * happened to look at a banner.
+   *
+   * The rows are interrupted rather than left `pending`: the server keeps
+   * serving the app's already-open connection while the rest of the shutdown
+   * runs, and a `pending` row would still accept an answer there — writing "the
+   * user allowed this" into the thread for a change the caller was already told
+   * did not happen.
+   */
+  releaseConsentWaiters(reason: PluginInteractionCancelReason): void {
+    for (const [interactionId, waiter] of [...this.consentWaiters]) {
+      this.cancelConsentInteractionFromCallback({
+        interactionId,
+        threadId: waiter.threadId,
+        reason,
+      });
+    }
   }
 
   interruptPluginInteractions(pluginId: string): PendingInteraction[] {

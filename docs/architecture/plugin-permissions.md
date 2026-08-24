@@ -52,10 +52,13 @@ processes a turn spawns, and `cliFetch` forwards it as
 `x-patcher-thread-id` (`PATCHER_THREAD_ID_HEADER`, defined with the rest of the
 HTTP contract). No declared thread means a person at their own terminal or the
 app's own toggle, and those behave exactly as they did. A declared thread means
-an agent mid-turn, and `enable`, `disable`, `install`, `remove` and a settings
-write each raise a prompt in that thread — the plugin's name, its declared
-permissions, its declared sites — and block on the answer for up to five
-minutes. The change happens only if the user allows it.
+an agent mid-turn, and `enable`, `disable`, `install`, `update`, `remove` and a
+settings write each raise a prompt in that thread — the plugin's name, its
+declared permissions, its declared sites — and block on the answer for up to
+four minutes. The change happens only if the user allows it. Four rather than
+five because the answer comes back as the response to a request the CLI is
+holding open, and Node's `fetch` abandons a response whose headers have not
+arrived in 300 s.
 
 Every other outcome refuses, because a prompt nobody saw is not consent: an
 unknown thread or a thread already holding a question is a `409`, a refusal or a
@@ -71,6 +74,14 @@ invariant 1 of [bb-migration.md](bb-migration.md) touching that wire costs a
 protocol-version bump. A consent interaction has no provider request, so no
 resolve command is ever built for one, and `buildInteractiveResolveCommand`
 throws if anyone tries. The bump was not needed.
+
+The answer is refused from the same place: `POST
+/threads/:id/interactions/:interactionId/respond` rejects a consent answer whose
+request declares a thread. The app never sends that header, so nothing a user
+does is affected — but an agent that read the interaction id out of `patcher
+thread interactions list` and answered its own prompt would not just bypass the
+gate, it would write "the user allowed this" into the thread, which is the one
+record the prompt exists to leave.
 
 **This is a consent boundary, not a security one**, for the same reason as the
 section above: an agent with a shell can `curl` the API directly, or drop the

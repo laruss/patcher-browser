@@ -6,6 +6,7 @@ import type {
   ProviderPendingInteraction,
   PendingInteractionApprovalSubject,
   PendingInteractionPermissionGrantApprovalSubject,
+  SystemOperationEventData,
   ThreadEventItemApprovalStatus,
   ThreadEventItem,
   UserQuestionPendingInteractionResolution,
@@ -38,10 +39,9 @@ import {
  * months later, "who allowed this plugin, and when" has an answer in the
  * thread where it was asked.
  */
-function consentTimelineData(interaction: ConsentPendingInteraction): {
-  message: string;
-  decision: string;
-} | null {
+function consentTimelineEventData(
+  interaction: ConsentPendingInteraction,
+): SystemOperationEventData | null {
   if (interaction.status === "pending" || interaction.status === "resolving") {
     return null;
   }
@@ -53,7 +53,26 @@ function consentTimelineData(interaction: ConsentPendingInteraction): {
         ? "allowed"
         : "declined"
       : "unanswered";
-  return { message: `${summary}: ${decision}`, decision };
+  return {
+    operation: "plugin_consent",
+    // An operation status the timeline reader knows, not the interaction's own:
+    // it maps anything it does not recognise to "other" and draws the row as
+    // still running, so a decision made months ago would sit there looking
+    // live. "noop" for anything but an allowance, because a declined or
+    // unanswered prompt changed nothing — the outcome itself rides `summary`
+    // and `decision`, which is what the row is titled from.
+    status: decision === "allowed" ? "completed" : "noop",
+    message: `${summary}: ${decision}`,
+    operationId: interaction.id,
+    metadata: {
+      interactionId: interaction.id,
+      interactionStatus: interaction.status,
+      action: interaction.payload.action,
+      subjectId: interaction.payload.subjectId,
+      summary,
+      decision,
+    },
+  };
 }
 
 interface PendingInteractionTimelineTransactionDeps {
@@ -437,26 +456,15 @@ export function appendPendingInteractionTimelineEvent(
   interaction: PendingInteraction,
 ): void {
   if (isConsentPendingInteraction(interaction)) {
-    const consent = consentTimelineData(interaction);
-    if (!consent) return;
+    const data = consentTimelineEventData(interaction);
+    if (!data) return;
     const thread = getThread(deps.db, interaction.threadId);
     appendThreadEvent(deps, {
       threadId: interaction.threadId,
       environmentId: thread?.environmentId ?? null,
       type: "system/operation",
       scope: threadScope(),
-      data: {
-        operation: "plugin_consent",
-        status: interaction.status,
-        message: consent.message,
-        operationId: interaction.id,
-        metadata: {
-          interactionId: interaction.id,
-          action: interaction.payload.action,
-          subjectId: interaction.payload.subjectId,
-          decision: consent.decision,
-        },
-      },
+      data,
     });
     return;
   }
@@ -509,26 +517,15 @@ export function appendPendingInteractionTimelineEventInTransaction(
   interaction: PendingInteraction,
 ): void {
   if (isConsentPendingInteraction(interaction)) {
-    const consent = consentTimelineData(interaction);
-    if (!consent) return;
+    const data = consentTimelineEventData(interaction);
+    if (!data) return;
     const thread = getThread(deps.db, interaction.threadId);
     appendThreadEventInTransaction(deps.db, {
       threadId: interaction.threadId,
       environmentId: thread?.environmentId ?? null,
       type: "system/operation",
       scope: threadScope(),
-      data: {
-        operation: "plugin_consent",
-        status: interaction.status,
-        message: consent.message,
-        operationId: interaction.id,
-        metadata: {
-          interactionId: interaction.id,
-          action: interaction.payload.action,
-          subjectId: interaction.payload.subjectId,
-          decision: consent.decision,
-        },
-      },
+      data,
     });
     deps.hub.notifyThread(interaction.threadId, ["events-appended"], {
       eventTypes: ["system/operation"],

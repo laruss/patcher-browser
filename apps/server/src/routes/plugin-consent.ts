@@ -6,11 +6,18 @@ import type { AppDeps } from "../types.js";
 /**
  * How long a consent prompt waits before it gives up.
  *
- * Five minutes rather than the ten a plugin question gets: this one blocks a
+ * Four minutes rather than the ten a plugin question gets: this one blocks a
  * command an agent is sitting on, and a turn parked on a prompt nobody is
  * looking at is worse than a turn told to ask again.
+ *
+ * Four rather than five because the answer travels back as the response to a
+ * request the CLI is still holding open, and undici — Node's `fetch` — gives up
+ * on a response whose headers have not arrived in 300 s. At five, the client
+ * always loses the race: the agent gets `UND_ERR_HEADERS_TIMEOUT` instead of the
+ * sentence below, and the socket closing aborts the prompt off the user's screen
+ * at the exact moment they may be deciding.
  */
-const PLUGIN_CONSENT_TIMEOUT_MS = 5 * 60 * 1000;
+const PLUGIN_CONSENT_TIMEOUT_MS = 4 * 60 * 1000;
 
 const SUBJECT_ID_MAX = 200;
 const SUBJECT_NAME_MAX = 200;
@@ -56,13 +63,35 @@ export type PluginConsentOutcome =
  * schema and reaching the agent as an unexplained refusal.
  */
 function capConsentText(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+  if (value.length <= max) return value;
+  // Never cut a surrogate pair in half. A lone surrogate renders as a
+  // replacement glyph, and this string is the identity the user is being asked
+  // to trust — corrupting it at the one boundary a caller controls is exactly
+  // what should not happen here.
+  const lastKept = value.charCodeAt(max - 2);
+  const end = lastKept >= 0xd800 && lastKept <= 0xdbff ? max - 2 : max - 1;
+  return `${value.slice(0, end)}…`;
 }
 
 function capConsentList(values: readonly string[], itemMax: number): string[] {
   return values
     .slice(0, LIST_MAX)
     .map((value) => capConsentText(value, itemMax));
+}
+
+/**
+ * Whether this request declares the thread it was made from, i.e. whether
+ * `requirePluginConsent` will ask anyone anything.
+ *
+ * Exported so a route can skip the work of describing the change — reading a
+ * manifest, building a plugin list — on the path that asks nothing.
+ */
+export function declaresThread(context: {
+  // Structural rather than Hono's `Context`, so a typed route's narrower
+  // context satisfies it too.
+  req: { header: (name: string) => string | undefined };
+}): boolean {
+  return (context.req.header(PATCHER_THREAD_ID_HEADER)?.trim() ?? "") !== "";
 }
 
 /**
@@ -89,7 +118,10 @@ export async function requirePluginConsent(
     return { allowed: true };
   }
 
-  const manual = "The user can do it themselves under Extensions → Plugins.";
+  // Deliberately not naming a screen: plugin management lives under Settings →
+  // Plugins, and only moves to Extensions → Plugins while the toolsHub
+  // experiment is on, which it is not by default.
+  const manual = "The user can do it themselves in Patcher's plugin settings.";
   if (!args.deps.pendingInteractions) {
     return {
       allowed: false,
@@ -138,7 +170,7 @@ export async function requirePluginConsent(
       status: 403,
       error:
         result.reason === "timeout"
-          ? `The request to allow this went unanswered for five minutes, so nothing changed. Ask in your reply instead of retrying. ${manual}`
+          ? `The request to allow this went unanswered for four minutes, so nothing changed. Ask in your reply instead of retrying. ${manual}`
           : `The request to allow this ended without an answer (${result.reason}), so nothing changed. ${manual}`,
     };
   }

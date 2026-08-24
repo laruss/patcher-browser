@@ -94,6 +94,9 @@ describe("plugin change consent", () => {
   it("enables without asking when no thread is declared", async () => {
     await withTestHarness(async (harness) => {
       const pluginId = await installDisabled(harness);
+      // Seeded before the request, so it is a thread a prompt could have landed
+      // in. Asserting on a thread created afterwards proves nothing.
+      const thread = seedConsentThread(harness.deps, "unasked");
 
       const response = await enableRequest(harness, pluginId);
 
@@ -101,7 +104,7 @@ describe("plugin change consent", () => {
       expect(isEnabled(harness, pluginId)).toBe(true);
       expect(
         harness.deps.pendingInteractions.listPendingThreadInteractions(
-          seedConsentThread(harness.deps, "unasked").id,
+          thread.id,
         ),
       ).toEqual([]);
     });
@@ -263,7 +266,10 @@ describe("plugin change consent", () => {
       const pending =
         harness.deps.pendingInteractions.requestConsentInteraction({
           threadId: thread.id,
-          timeoutMs: 200,
+          // Small on purpose: nothing between here and start() awaits, so no
+          // timer can fire early, and the drain at the end of the test waits on
+          // this one.
+          timeoutMs: 20,
           payload: {
             kind: "consent",
             action: "enable",
@@ -301,6 +307,74 @@ describe("plugin change consent", () => {
 
       // Drain the old waiter so its timer does not outlive the test.
       await expect(pending).resolves.toMatchObject({ outcome: "cancelled" });
+    });
+  });
+
+  it("refuses an answer sent from inside the turn that asked", async () => {
+    await withTestHarness(async (harness) => {
+      const pluginId = await installDisabled(harness);
+      const thread = seedConsentThread(harness.deps, "self-answer");
+
+      const pending = enableRequest(harness, pluginId, thread.id);
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+      const respondPath = `/api/v1/threads/${thread.id}/interactions/${interaction.id}/respond`;
+
+      // Answering its own prompt would not just bypass the gate: it would write
+      // "the user allowed this" into the thread, which is the record the prompt
+      // exists to leave.
+      const selfAnswer = await harness.app.request(respondPath, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [PATCHER_THREAD_ID_HEADER]: thread.id,
+        },
+        body: JSON.stringify({ value: { approved: true } }),
+      });
+      expect(selfAnswer.status).toBe(403);
+      expect(isEnabled(harness, pluginId)).toBe(false);
+
+      // The same answer with no thread declared is the user's, and lands.
+      const answered = await harness.app.request(respondPath, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value: { approved: true } }),
+      });
+      expect(answered.status).toBe(200);
+      expect((await pending).status).toBe(200);
+      expect(isEnabled(harness, pluginId)).toBe(true);
+    });
+  });
+
+  it("closes the door on a prompt the shutdown drain released", async () => {
+    await withTestHarness(async (harness) => {
+      const pluginId = await installDisabled(harness);
+      const thread = seedConsentThread(harness.deps, "released");
+
+      const pending = enableRequest(harness, pluginId, thread.id);
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+
+      // What a shutdown does: let the parked request go rather than hold the
+      // whole process open waiting for an answer.
+      harness.deps.pendingInteractions.releaseConsentWaiters(
+        "server-restarted",
+      );
+
+      expect((await pending).status).toBe(403);
+      expect(isEnabled(harness, pluginId)).toBe(false);
+
+      // The server keeps serving the app's open connection while the rest of
+      // the shutdown runs. A click that lands in that window must not record an
+      // allowance for a change the caller was already told did not happen.
+      const late = await harness.app.request(
+        `/api/v1/threads/${thread.id}/interactions/${interaction.id}/respond`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ value: { approved: true } }),
+        },
+      );
+      expect(late.status).toBe(409);
+      expect(isEnabled(harness, pluginId)).toBe(false);
     });
   });
 

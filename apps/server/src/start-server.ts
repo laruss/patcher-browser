@@ -233,6 +233,10 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     shutdownPromise = (async () => {
       eventLoopStallMonitor.stop();
       clearInterval(sweepInterval);
+      // Before waiting on in-flight requests: a request parked on a consent
+      // prompt is in flight for as long as the prompt stands, so without this
+      // `server.close()` would not call back for minutes.
+      pendingInteractions.releaseConsentWaiters("server-restarted");
       await pluginService.stop().catch((error: unknown) => {
         logger.warn({ err: error }, "Plugin shutdown failed");
       });

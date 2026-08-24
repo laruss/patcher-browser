@@ -76,6 +76,7 @@ function normalizeThreadOperationKind(
   rawOperation: string,
 ): EventProjectionThreadOperationKind {
   if (rawOperation === "ownership_change") return "ownership_change";
+  if (rawOperation === "plugin_consent") return "plugin_consent";
   return "other";
 }
 
@@ -114,6 +115,25 @@ function createThreadOperationMetadata(
       ...base,
       operation,
       metadata: parsedMetadata?.success ? parsedMetadata.data : null,
+    };
+  }
+  if (operation === "plugin_consent") {
+    // Read out of metadata rather than reconstructed from the message: the
+    // decision is the load-bearing half of this row, and a row that cannot say
+    // which way it went is worse than one that admits it does not know.
+    const decision = decoded.metadata?.decision;
+    return {
+      ...base,
+      operation,
+      summary:
+        typeof decoded.metadata?.summary === "string"
+          ? decoded.metadata.summary
+          : decoded.message,
+      decision:
+        decision === "allowed" || decision === "declined"
+          ? decision
+          : "unanswered",
+      ...(decoded.metadata ? { metadata: decoded.metadata } : {}),
     };
   }
   return {
@@ -201,6 +221,8 @@ export function threadOperationTitle(
   switch (meta.operation) {
     case "ownership_change":
       return ownershipChangeOperationTitle(meta, threadName);
+    case "plugin_consent":
+      return `${meta.summary}: ${meta.decision}`;
     case "other":
       return `${capitalize(meta.rawOperation.replace(/_/g, " "))} ${
         meta.rawStatus

@@ -242,6 +242,7 @@ export type EventProjectionOperationType =
 
 export const eventProjectionThreadOperationKindValues = [
   "ownership_change",
+  "plugin_consent",
   "other",
 ] as const;
 export type EventProjectionThreadOperationKind =
@@ -269,6 +270,26 @@ export interface EventProjectionOwnershipChangeThreadOperationMetadata {
   metadata: OwnershipChangeOperationMetadata | null;
 }
 
+/**
+ * A settled plugin-consent prompt: what was asked, and what the user answered.
+ *
+ * Its own kind rather than falling through to `other`, whose title is built as
+ * "<raw operation> <raw status>". That reads as "Plugin consent completed" for
+ * an allowed change and for a declined one alike — a decision the thread exists
+ * to record, rendered as though the outcome were the same either way.
+ */
+export interface EventProjectionPluginConsentThreadOperationMetadata {
+  operation: "plugin_consent";
+  rawOperation: string;
+  status: EventProjectionThreadOperationStatus;
+  rawStatus: string;
+  operationId: string;
+  /** The change that was asked about, e.g. "Enable the Browser tools plugin". */
+  summary: string;
+  decision: "allowed" | "declined" | "unanswered";
+  metadata?: JsonObject;
+}
+
 export interface EventProjectionOtherThreadOperationMetadata {
   operation: "other";
   rawOperation: string;
@@ -280,6 +301,7 @@ export interface EventProjectionOtherThreadOperationMetadata {
 
 export type EventProjectionThreadOperationMetadata =
   | EventProjectionOwnershipChangeThreadOperationMetadata
+  | EventProjectionPluginConsentThreadOperationMetadata
   | EventProjectionOtherThreadOperationMetadata;
 
 export interface EventProjectionProvisioningTranscriptEntry {
