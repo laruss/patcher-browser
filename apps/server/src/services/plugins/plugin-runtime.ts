@@ -30,6 +30,7 @@ import { readPluginSettingsValues } from "./plugin-settings.js";
 import { pluginExternalsAlias } from "./plugin-externals-alias.js";
 import { createPluginHostCallServer } from "./plugin-host-call-server.js";
 import { createRemotePluginApiHandle } from "./plugin-remote-handle.js";
+import { readThreadEventHandlers } from "./plugin-thread-event-registry.js";
 import {
   createPluginSupervisor,
   type PluginSupervisor,
@@ -643,10 +644,53 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     );
   }
 
+  /**
+   * Reported once per plugin and event: thread events fire on every thread
+   * change, so a handle that stays unreadable would otherwise fill the log with
+   * one line per transition. Cleared when the plugin unloads, so the same fault
+   * after a reload is reported again.
+   */
+  const reportedUnreadableThreadRegistries = new Set<string>();
+
+  function reportUnreadableThreadRegistry(
+    id: string,
+    event: PluginThreadEventName,
+    detail: string,
+  ): void {
+    const key = `${id}:${event}`;
+    if (reportedUnreadableThreadRegistries.has(key)) return;
+    reportedUnreadableThreadRegistries.add(key);
+    const label = `${event} registry`;
+    statsFor(id).errorCount += 1;
+    logger.warn(`[plugin:${id}] ${label} unreadable: ${detail}`);
+    if (statuses.get(id)?.status === "running") {
+      setStatus(id, "running", `${label} unreadable: ${detail}`);
+    }
+  }
+
+  /**
+   * One plugin's handlers for `event` — see ./plugin-thread-event-registry.ts
+   * for why reading them is contained the way invoking one is (design §3).
+   */
+  function threadEventHandlersFor<E extends PluginThreadEventName>(
+    id: string,
+    plugin: LoadedPlugin,
+    event: E,
+  ): ReadonlyArray<
+    (payload: PluginThreadEventPayloads[E]) => void | Promise<void>
+  > {
+    return readThreadEventHandlers({
+      handle: plugin.handle,
+      event,
+      onUnreadable: (detail) =>
+        reportUnreadableThreadRegistry(id, event, detail),
+    });
+  }
+
   function hasThreadEventHandlers(event: PluginThreadEventName): boolean {
     if (loaded.size === 0) return false;
-    for (const plugin of loaded.values()) {
-      if (plugin.handle.threadEventHandlers[event].length > 0) return true;
+    for (const [id, plugin] of loaded) {
+      if (threadEventHandlersFor(id, plugin, event).length > 0) return true;
     }
     return false;
   }
@@ -808,7 +852,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         return;
       }
       for (const [id, plugin] of loaded) {
-        for (const handler of [...plugin.handle.threadEventHandlers[event]]) {
+        for (const handler of [...threadEventHandlersFor(id, plugin, event)]) {
           void invokeThreadEventHandler(id, event, handler, payload);
         }
       }
@@ -1445,6 +1489,13 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     plugin: LoadedPlugin,
   ): Promise<void> {
     disposingPluginIds.add(id);
+    // A reload builds a fresh handle, so a registry fault the new one still has
+    // is news again rather than a line already printed.
+    for (const key of reportedUnreadableThreadRegistries) {
+      if (key.startsWith(`${id}:`)) {
+        reportedUnreadableThreadRegistries.delete(key);
+      }
+    }
     try {
       try {
         deps.pendingInteractions?.interruptPluginInteractions(id);
