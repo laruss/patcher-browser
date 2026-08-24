@@ -14,7 +14,8 @@ import { withTestHarness } from "../helpers/test-app.js";
 describe("app keybindings", () => {
   /**
    * The default keymap is a browser's, plus the handful of app chords that back
-   * native menu items. Everything Patcher inherited from bb is listed but
+   * native menu items. Everything inherited from the agent app this browser
+   * grew out of is listed but
    * unassigned — present in `defaultKeybindings` with a null shortcut so the
    * settings UI can offer it, absent from `keybindings` so it competes for no
    * chord.

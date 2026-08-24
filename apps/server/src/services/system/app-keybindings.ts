@@ -105,8 +105,9 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   // toggle is dead exactly where this app spends most of its time, which is the
   // whole reason it moved off Mod+\.
   binding("sidebar.toggle", "j", { mod: true }, browserWithoutModal),
-  // Unassigned deliberately. These are the chords Patcher inherited from bb, and
-  // they are the app's, not the browser's. A browser's keymap is muscle memory —
+  // Unassigned deliberately. These are the chords inherited from the agent app
+  // this browser grew out of, and they are the app's, not the browser's. A
+  // browser's keymap is muscle memory —
   // Mod+1..9, Mod+T, Mod+W, Mod+Shift+T all mean something here already — so the
   // inherited set is off by default rather than quietly competing for chords.
   // Every command below stays assignable: the settings UI lists it, and a null
