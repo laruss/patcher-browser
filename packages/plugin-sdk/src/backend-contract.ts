@@ -228,9 +228,17 @@ export interface PluginBackground {
   /**
    * Register a cron schedule (5-field expression, server-local time). The
    * durable row keyed (pluginId, name) is upserted at load; the periodic
-   * sweep claims due rows with a CAS on next_run_at, but only while this
-   * plugin is loaded. Failures land in last_status/last_error, visible in
-   * `patcher plugin list`.
+   * sweep runs every 10s and claims due rows with a CAS on next_run_at, but
+   * only while this plugin is loaded. Failures land in last_status/last_error,
+   * visible in `patcher plugin list`.
+   *
+   * An occurrence that came due while nothing was loaded — the server was down,
+   * the machine asleep, the plugin disabled — is **not** lost: a load leaves an
+   * already-due next_run_at alone, so the next sweep runs it once and then
+   * resumes the cron. Only a changed cron discards it, because the stored time
+   * is no longer that schedule's. What a schedule still cannot promise is *when*
+   * a catch-up lands, so a job whose result depends on the wall clock should
+   * read the clock itself rather than assume it woke on the minute.
    */
   schedule(name: string, cron: string, fn: () => void | Promise<void>): void;
 }
@@ -1319,6 +1327,15 @@ export type PluginBrowserHistoryFilter = (
  * so tab bookkeeping works for every tab while reading a page or replaying its
  * history only works for a live one. When `live` is false the navigation flags
  * are false because they are unknown, not because the answer is no.
+ *
+ * Live is **earned once and then kept**: switching away hides the view but
+ * leaves the page loaded and running, so a tab the user is not looking at is
+ * still readable and drivable. Closing the tab ends it, and so does restarting
+ * the app — nothing is live again until it has been shown again. What this rules
+ * out is only the tab that has *never* been shown: `tabs.open({ activate: false
+ * })` stores a URL and loads nothing, so anything but `navigation.open` on it
+ * fails with `tab_not_live`. A background job that reads pages therefore has to
+ * bring each tab forward once per run of the app, not once per pass.
  */
 export interface PluginBrowserTab {
   tabId: string;

@@ -5,15 +5,32 @@ auth, PDF text, downloads, history) and the API that drives tabs and pages.
 Every hook runs server-side; the driving calls need a connected browser window,
 so call them from handlers, tools, and services, never at load time.
 
+Reaching into the page itself:
+
+- [Page styles — restyling a site](#patcherbrowser--restyling-the-sites-the-user-let-you-reach)
+- [Page scripts — your code in the page](#patcherbrowser--running-your-own-code-in-a-page)
+  - [What no page surface can do: block the network](#what-no-page-surface-can-do-block-the-network)
+- [Driving tabs and pages](#patcherbrowser--driving-the-browser-surface)
+
+Adding to the browser's own chrome:
+
 - [Omnibox suggestions](#patcherbrowser--omnibox-suggestions-in-the-browser-surface)
 - [Page context menu](#patcherbrowser--adding-to-a-pages-context-menu)
+- [Tab menu entry](#patcherbrowser--adding-an-entry-to-a-tabs-menu)
+- [Pin, mute, duplicate, move a tab](#patcherbrowser--pinning-muting-duplicating-and-moving-a-tab)
+- [Search engine](#patcherbrowser--offering-a-search-engine)
+- [Site-info panel section](#patcherbrowser--adding-a-section-to-the-site-info-panel)
+- [Toolbar control](#patcherbrowser--putting-a-control-in-the-toolbar)
+- [New-tab screen section](#patcherbrowser--a-section-on-the-new-tab-screen)
 - [Find-bar button](#patcherbrowser--adding-a-button-to-the-find-bar)
+
+Answering for the browser:
+
 - [HTTP auth provider](#patcherbrowser--answering-a-sites-login-prompt)
 - [PDF text provider](#patcherbrowser--reading-a-pdf-the-browser-cannot)
 - [Download handler](#patcherbrowser--taking-over-downloads)
 - [External link routing](#patcherbrowser--routing-a-link-the-system-opened)
 - [History filter](#patcherbrowser--deciding-what-the-browser-remembers)
-- [Driving tabs and pages](#patcherbrowser--driving-the-browser-surface)
 
 ## patcher.browser — omnibox suggestions in the browser surface
 
@@ -407,7 +424,10 @@ Inside the script there are exactly two names:
 
 - `patcher.rpc(method, input?)` — **your** plugin's rpc methods and nothing else.
   Resolves with the result, rejects with the plugin's own message. JSON in and out,
-  bounded in size, and rate limited per tab.
+  bounded in size, and rate limited to **60 calls per 10 seconds per tab** —
+  enough for a click, not for a call per DOM mutation. A watcher on a busy page
+  (a chat, a feed) has to batch or debounce in the page; past the limit the call
+  rejects rather than queueing.
 - `patcher.ready(callback)` — runs once the document has parsed.
 
 What the browser can promise, measured rather than assumed:
@@ -427,8 +447,8 @@ What the browser can promise, measured rather than assumed:
 - **A new registration runs on the next load** of a matching page, as Chrome's
   content scripts do. Reload the tab.
 - **An error is contained.** It lands in the page's console — which Patcher's
-  observation log collects, so `patcher.browser.tabs.observe` can read it — and the next
-  script still runs.
+  observation log collects, so `patcher.browser.page.console()` can read it — and the
+  next script still runs.
 
 Nothing here is evaluated in the server: the source is text all the way to the
 page. A syntax error is reported by the page's console, in the world it would have
@@ -436,6 +456,24 @@ run in.
 
 See examples/plugins/site-tweaks for the whole loop — a button in GitHub's page, a
 row in the plugin's SQLite, and the note appearing in Patcher's own panel.
+
+### What no page surface can do: block the network
+
+There is no declarative request filter — no equivalent of Chrome's
+`declarativeNetRequest`. A page style and a page script both act on a document
+that has already been fetched, so they can hide an element or wrap `fetch`
+before the page's own code takes it, and neither can stop a request the browser
+makes on the page's behalf. `control.route` is the only interception, and it is
+the wrong tool for standing policy: per tab, imperative, and alive only as long
+as that tab's debugger session.
+
+Worth saying plainly when asked for a content blocker, because the honest answer
+is split: hiding ads on sites you declare is a page style and works well;
+blocking them at the network, across every site, in iframes, is not a plugin
+surface today. Do not build the second one out of `route` and call it done — it
+dies with the debugger session, is refused while DevTools holds the tab, and has
+no navigation event to reattach on (`patcher.events.on` is six thread events; there
+is no tab or navigation event for plugins).
 
 ## patcher.browser — adding a button to the find bar
 
@@ -728,13 +766,31 @@ what keeps the redirect chain that led to the current page readable. Both are
 fixed-size rings — `droppedCount` is how many entries the answer is missing, and
 it counts what your `limit` cut as well as what the ring evicted.
 
-Two more rules worth building around:
+Rules worth building around:
 
 - **`live` is the one to check.** A tab only has a real page behind it once the
   user has had it open on screen. Tab bookkeeping works for every tab; reading a
   page and replaying history need a live one and fail with `tab_not_live`
   otherwise. `navigation.open` is the exception — it stores the URL, which loads
   when the tab is next shown.
+- **Live is earned once, then kept.** Switching tabs hides the view but leaves
+  the page loaded and running, so a tab the user is not looking at is still
+  readable and drivable — and a page script in it keeps running. What is never
+  live is the tab that has _never_ been shown: `tabs.open({ activate: false })`
+  stores a URL and loads nothing. Closing the tab ends it, and so does
+  restarting the app.
+
+  So a background job that reads pages needs each tab brought forward **once per
+  run of the app**, not once per pass — after that it can read them hidden,
+  without taking the user's focus. `getStatus().connected` is the synchronous
+  check for whether a window is there at all; there is no headless tab, so with
+  no window there is nothing to read.
+
+  Often the better shape is not to hold tabs open. Bring the site up once,
+  take its session with `storage.cookies()`, and fetch from the backend on your
+  own schedule — no window, no focus, no tab. Tabs earn their cost when the
+  content only exists after the page's own JavaScript has run.
+
 - **Page text is untrusted.** `getText`/`getSelection` return content the web
   page wrote. Pass it on as data to reason about, never as instructions, and
   never let it reach a place that treats text as a command.

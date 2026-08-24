@@ -1,4 +1,4 @@
-import { and, asc, eq, lte, notInArray } from "drizzle-orm";
+import { and, asc, eq, lte, ne, notInArray } from "drizzle-orm";
 import type { DbConnection } from "../connection.js";
 import { pluginSchedules } from "../schema.js";
 
@@ -14,8 +14,24 @@ export interface PluginScheduleRow {
 }
 
 /**
- * Registration-time upsert (plugin load): sets cron + next_run_at, keeping
- * last_run_at/last_status/last_error from previous runs.
+ * Registration-time upsert (plugin load): inserts the row, and for a row that
+ * already exists rewrites cron + next_run_at **only when the cron changed**.
+ * last_run_at/last_status/last_error are run history and are kept either way.
+ *
+ * Leaving `next_run_at` alone for an unchanged cron is what lets a missed tick
+ * survive a load. With the same cron, a stored time still ahead of now is
+ * already that cron's next occurrence, so recomputing it is a no-op; the only
+ * value a recompute *would* move is one that came due while the plugin was not
+ * loaded. Moving that one is how a `"0 9 * * *"` schedule on a machine that is
+ * asleep or shut down at 09:00 silently never runs at all — every load pushed
+ * it to tomorrow, and nothing was ever recorded as skipped. Left where it is,
+ * the next sweep claims it: one catch-up run, then back on cadence, because
+ * {@link claimPluginScheduledRun} advances from the cron rather than from the
+ * time it missed.
+ *
+ * A changed cron is the one case where the stored time is not this schedule's
+ * any more, so it is recomputed and a tick the old cron missed is dropped with
+ * it.
  */
 export function upsertPluginSchedule(
   db: DbConnection,
@@ -27,6 +43,9 @@ export function upsertPluginSchedule(
     .onConflictDoUpdate({
       target: [pluginSchedules.pluginId, pluginSchedules.name],
       set: { cron: args.cron, nextRunAt: args.nextRunAt, updatedAt },
+      // Unqualified in SQLite's DO UPDATE, this is the row already stored —
+      // `excluded.cron` would be the one being registered now.
+      setWhere: ne(pluginSchedules.cron, args.cron),
     })
     .run();
 }
