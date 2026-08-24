@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0
+
+The first Patcher release, and the first published `patcher-app`. Version
+numbering restarts here: the entries below are the inherited bb release notes,
+kept for history, and their numbers belong to bb rather than to Patcher.
+
 ## 0.37.0
 
 A much faster app on your phone, message editing, manual context compaction, shared skills, and a long list of fixes.

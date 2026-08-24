@@ -1,6 +1,6 @@
 {
   "name": "patcher-app",
-  "version": "0.37.0",
+  "version": "0.1.0",
   "description": "Patcher app launcher for npx",
   "keywords": [
     "patcher",

@@ -58,15 +58,6 @@ npx patcher-app@latest
 
 Then open: `http://localhost:38986`
 
-To opt into the automated nightly channel:
-
-```bash
-npx patcher-app@nightly
-```
-
-Nightly versions are built from `main` and may be unstable. The `nightly`
-dist-tag moves independently of the stable `latest` tag.
-
 `npx patcher-app@latest` downloads the published `patcher-app` package, starts the server and
 local host daemon, and serves the web app. It stores Patcher-managed state under
 `~/.patcher/` by default. If either managed child process exits unexpectedly, the
