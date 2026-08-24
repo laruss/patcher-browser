@@ -249,6 +249,29 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   reloading somebody's pages for them. Worth revisiting only with a way to inject
   into a live document that does not also mean a preload in every page.
 
+## Installing it at all — Linux
+
+- **`npx patcher-app` fails silently on Linux.** Measured on stock Ubuntu 24.04
+  x86_64 under WSL2, Node 22.20.0, empty npm cache: exit 1, nothing at all on
+  stdout, and a stderr holding three deprecation warnings and no cause.
+  `npm install patcher-app` in the same shell is loud about the same failure, so
+  the information exists and `npm exec` drops it. The failure itself is
+  `node-pty`: its install step is `node scripts/prebuild.js || node-gyp rebuild`,
+  its tarball carries prebuilds for `darwin-arm64`, `darwin-x64`, `win32-arm64`
+  and `win32-x64` and none for Linux, so the first half reports that
+  `prebuilds/linux-x64` does not exist and the second dies on `not found: make`.
+  npm then rolls the tree back, which leaves no `node_modules` to inspect and no
+  `patcher` binary — a reader who follows the README gets silence and an empty
+  directory. `better-sqlite3` is not involved; `prebuild-install` finds its
+  linux-x64 build. The package's `os` field claims `darwin` and `linux`, so npm
+  never warns anyone off either. Three ways out, none free: vendor a Linux
+  prebuild for `node-pty`, which means building and hosting one per ABI; narrow
+  `os` to `darwin`, which at least fails loudly with `EBADPLATFORM` and gives up
+  Linux honestly; or leave it to documentation, which is where it stands — both
+  READMEs now name `build-essential` as a Linux prerequisite. Untested either
+  way: whether Patcher runs on Linux once the toolchain is there has not been
+  measured.
+
 ## Deliberately not for the browser at all
 
 - **Agent tools** wrapping the browser commands added for plugins (`page.zoom`,
