@@ -11,6 +11,8 @@ import {
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
+  isConsentPendingInteraction,
+  isConsentPendingInteractionResolution,
   isUserQuestionPendingInteractionPayload,
   isUserQuestionPendingInteractionResolution,
   PendingInteraction,
@@ -22,6 +24,7 @@ import {
   type PendingInteractionGrantablePermissionProfile,
   type PendingInteractionRequestedPermissionProfile,
   PendingInteractionResolution,
+  type AnyPendingInteractionResolution,
   type UserQuestionPendingInteractionPayload,
   type UserQuestionPendingInteractionResolution,
 } from "@patcher/domain";
@@ -117,6 +120,10 @@ function parsePermissionGrantScope(
 }
 
 function formatInteractionKind(interaction: PendingInteraction): string {
+  if (isConsentPendingInteraction(interaction)) {
+    return "consent";
+  }
+
   if (isUserQuestionPendingInteractionPayload(interaction.payload)) {
     return "question";
   }
@@ -142,6 +149,11 @@ function formatInteractionKind(interaction: PendingInteraction): string {
 function isApprovalInteraction(
   interaction: PendingInteraction,
 ): interaction is ApprovalPendingInteraction {
+  // A consent prompt is answered from the app, or by the plugin command that
+  // raised it timing out — never by these resolve subcommands.
+  if (isConsentPendingInteraction(interaction)) {
+    return false;
+  }
   return (
     isApprovalPendingInteractionPayload(interaction.payload) &&
     (interaction.resolution === null ||
@@ -152,6 +164,9 @@ function isApprovalInteraction(
 function isUserQuestionInteraction(
   interaction: PendingInteraction,
 ): interaction is UserQuestionPendingInteraction {
+  if (isConsentPendingInteraction(interaction)) {
+    return false;
+  }
   return (
     isUserQuestionPendingInteractionPayload(interaction.payload) &&
     (interaction.resolution === null ||
@@ -304,6 +319,29 @@ function printInteraction(interaction: PendingInteraction): void {
   }
   if (interaction.status === "resolving") {
     console.log("  Delivery: waiting for provider acknowledgement");
+  }
+
+  if (isConsentPendingInteraction(interaction)) {
+    // Nothing here to resolve — a consent prompt is answered from the app — but
+    // `show` reads an interaction rather than resolving one, and falling through
+    // to requireApprovalInteraction would half-print it and then throw
+    // "cannot be resolved with this command" at someone who asked to look.
+    console.log(
+      `  Change: ${formatPendingInteractionSummary({
+        interaction,
+        surface: "cli",
+      })}`,
+    );
+    for (const line of formatPendingInteractionSubjectDetailLines(
+      interaction,
+    )) {
+      console.log(`  ${line}`);
+    }
+    const resolution = interaction.resolution;
+    if (resolution !== null) {
+      console.log(`  Answer: ${resolution.approved ? "allowed" : "declined"}`);
+    }
+    return;
   }
 
   if (isUserQuestionInteraction(interaction)) {
@@ -639,9 +677,12 @@ function buildPermissionGrantResolution(
 }
 
 function formatBinaryResolutionMessage(
-  resolution: PendingInteractionResolution,
+  resolution: AnyPendingInteractionResolution,
 ): string {
-  if (!isApprovalPendingInteractionResolution(resolution)) {
+  if (
+    isConsentPendingInteractionResolution(resolution) ||
+    !isApprovalPendingInteractionResolution(resolution)
+  ) {
     throw new Error("Expected an approval resolution");
   }
   return formatPendingInteractionApprovalResolutionOutcome(resolution.decision);

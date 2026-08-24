@@ -180,9 +180,17 @@ describe("a remote handle against the in-process one", () => {
       authProviders: handle.authProviders.length,
       pdfTextProviders: handle.pdfTextProviders.length,
       keybindings: handle.keybindings,
-      threadEvents: Object.entries(handle.threadEventHandlers)
-        .filter(([, hs]) => (hs as unknown[]).length > 0)
-        .map(([event]) => event),
+      // A count per event rather than the names that have one. The filtered
+      // version passed a remote handle that carried *only* the events the
+      // plugin registered, because both sides project to the same list — and
+      // the keys it left out are exactly the ones the server reads for every
+      // event no plugin handles.
+      threadEvents: Object.fromEntries(
+        Object.entries(handle.threadEventHandlers).map(([event, hs]) => [
+          event,
+          (hs as unknown[]).length,
+        ]),
+      ),
       settingsDescriptors: handle.settings.descriptors,
       hasSettingsListeners: handle.settings.listeners.length > 0,
     });

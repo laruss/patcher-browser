@@ -32,13 +32,70 @@ What the declaration is actually for, in the order the value arrives:
    that reaches for something it did not ask for throws with the permission
    named and the fix in the message. That is what makes plan Phase 6's loop
    converge rather than silently do more than the user asked.
-3. **It is something to show.** `patcher plugin list` prints it, and install prints
-   it for a `path:` source. The app does not: `installedPluginSchema` carries
-   the declared set — for a disabled plugin too, since the manifest is the
-   record and that is exactly when someone wants to look — but nothing in the
-   plugin detail renders it yet. Half of this goal is delivered, and the half
-   that is not is a UI surface nobody has asked for rather than a missing
-   mechanism.
+3. **It is something to show.** `patcher plugin list` prints it, install prints
+   it for a `path:` source, and the consent prompt an agent's plugin change
+   raises prints it at the one moment it decides something (see below).
+   `installedPluginSchema` carries the declared set — for a disabled plugin too,
+   since the manifest is the record and that is exactly when someone wants to
+   look — but the plugin detail page still does not render it.
+
+## An agent cannot flip the toggle on its own
+
+The toggle is what stands in for the permission model that does not exist, which
+only works if the person who owns the machine is the one flipping it. The local
+API could not tell: an agent's `patcher plugin enable` and its user's arrive on
+the same loopback server with the same credentials, and `POST
+/plugins/:id/enable` had no notion of who was asking.
+
+Now the caller says. Patcher sets `PATCHER_THREAD_ID` in the environment of the
+processes a turn spawns, and `cliFetch` forwards it as
+`x-patcher-thread-id` (`PATCHER_THREAD_ID_HEADER`, defined with the rest of the
+HTTP contract). No declared thread means a person at their own terminal or the
+app's own toggle, and those behave exactly as they did. A declared thread means
+an agent mid-turn, and `enable`, `disable`, `install`, `update`, `remove` and a
+settings write each raise a prompt in that thread — the plugin's name, its
+declared permissions, its declared sites — and block on the answer for up to
+four minutes. The change happens only if the user allows it. Four rather than
+five because the answer comes back as the response to a request the CLI is
+holding open, and Node's `fetch` abandons a response whose headers have not
+arrived in 300 s.
+
+A thread that cannot show the prompt is refused before one is raised: archived,
+or with an environment `destroying` or `destroyed`. Both are deliberately
+read-only in the app, which replaces the composer — and with it this prompt —
+so a prompt raised there would hold the thread's single interaction slot for the
+whole timeout with nothing on screen able to decide it, and refuse anyway. One
+immediate error beats four silent minutes.
+
+Every other outcome refuses, because a prompt nobody saw is not consent: an
+unknown thread or a thread already holding a question is a `409`, a refusal or a
+timeout is a `403`, a server with no interaction service is a `503`. Each error
+is written for the agent that reads it, and says what did not happen and what to
+do instead.
+
+The prompt is a pending interaction with `originKind: "server"` — neither a
+provider's nor a plugin's — and payload kind `consent`. Its resolution is
+deliberately absent from `pendingInteractionResolutionSchema`: that union
+travels to the host daemon in the `interactive.resolve` command, and by
+invariant 1 of [bb-migration.md](bb-migration.md) touching that wire costs a
+protocol-version bump. A consent interaction has no provider request, so no
+resolve command is ever built for one, and `buildInteractiveResolveCommand`
+throws if anyone tries. The bump was not needed.
+
+The answer is refused from the same place: `POST
+/threads/:id/interactions/:interactionId/respond` rejects a consent answer whose
+request declares a thread. The app never sends that header, so nothing a user
+does is affected — but an agent that read the interaction id out of `patcher
+thread interactions list` and answered its own prompt would not just bypass the
+gate, it would write "the user allowed this" into the thread, which is the one
+record the prompt exists to leave.
+
+**This is a consent boundary, not a security one**, for the same reason as the
+section above: an agent with a shell can `curl` the API directly, or drop the
+header. What it buys is that the honest path is the default one, the permissions
+are on screen at the moment the grant is made, and the decision is recorded in
+the thread where it was asked — so "who allowed this, and when" has an answer
+later.
 
 ## Undeclared means denied
 
@@ -411,8 +468,10 @@ the rest.
   activate.
 - **No revocation.** Declaring is granting; a user who dislikes one entry can
   only disable the plugin.
-- **The app does not show a plugin's permissions.** The data reaches it; the
-  plugin detail does not render it.
+- **The app does not show a plugin's permissions on the plugin page.** The
+  consent prompt shows them when an agent asks for a change; the plugin detail
+  still does not, so a user browsing their own plugins cannot see what each one
+  declared.
 - **Phase 7 is what makes any of this hold.** The list above is the RPC surface
   a plugin host has to expose, and the gate is where that boundary goes. The
   other direction — what the server calls _into_ a plugin — is described in

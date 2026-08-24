@@ -56,9 +56,17 @@ tool handler blocks on the frontend doing the real work.
 
 `defaultEnabled: false` in `builtin-registry.ts`. An agent driving this browser
 acts inside the user's real logged-in session, and plan §9's permission model
-does not exist yet, so the plugin toggle is the whole gate and the user turns it
-on (`patcher plugin enable browser-tools`). Saying that plainly is better than
-implying a permission story that is not there.
+does not exist yet, so the plugin toggle is the whole gate and the user is the
+one who turns it on. Saying that plainly is better than implying a permission
+story that is not there.
+
+What did change: the toggle is no longer something an agent can flip for itself.
+`patcher plugin enable browser-tools` run from inside a thread raises a prompt in
+that thread naming the plugin and its permissions, and enables nothing unless
+the user allows it — see
+[plugin-permissions.md](plugin-permissions.md#an-agent-cannot-flip-the-toggle-on-its-own).
+The builtin `patcher-browser` skill is what tells an agent all of this before it
+goes looking.
 
 ## The constraint everything else bends around
 

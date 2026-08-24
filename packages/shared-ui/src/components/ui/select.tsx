@@ -4,6 +4,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { useBrowserFreezingOverlay } from "../../hooks/useBrowserFreezingOverlay";
 import { CONTROL_HOVER_TRANSITION } from "./motion.js";
 import { Icon } from "../../components/ui/icon.js";
 
@@ -68,6 +69,16 @@ const SelectScrollDownButton = React.forwardRef<
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName;
 
+/**
+ * Holds the browser page frozen while the list is up. See ContextMenuContent's
+ * copy: inside the portal is what scopes it to the open state, because the
+ * wrapper below owns the portal and renders either way.
+ */
+function BrowserFreezeWhileOpen(): null {
+  useBrowserFreezingOverlay(true);
+  return null;
+}
+
 const SelectContent = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
@@ -87,6 +98,7 @@ const SelectContent = React.forwardRef<
       position={position}
       {...props}
     >
+      <BrowserFreezeWhileOpen />
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(

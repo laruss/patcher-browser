@@ -1,4 +1,5 @@
 import type {
+  ConsentPendingInteractionPayload,
   PendingInteractionApprovalDecision,
   PendingInteractionCommandAction,
   PendingInteractionGrantablePermissionProfile,
@@ -8,8 +9,61 @@ import type {
   PendingInteractionResolution,
   PendingInteractionRequestedPermissionProfile,
 } from "@patcher/domain";
-import { isApprovalPendingInteractionPayload } from "@patcher/domain";
+import {
+  isApprovalPendingInteractionPayload,
+  isConsentPendingInteractionPayload,
+} from "@patcher/domain";
 import { assertNever } from "./assert-never.js";
+
+/**
+ * One line naming the change, in the imperative — the same voice the plugin
+ * settings toggle uses, so the prompt reads as the action the user is being
+ * asked to take rather than as a report about an agent.
+ */
+export function formatPendingInteractionConsentSummary(
+  payload: ConsentPendingInteractionPayload,
+): string {
+  switch (payload.action) {
+    case "enable":
+      return `Enable the ${payload.subjectName} plugin`;
+    case "disable":
+      return `Disable the ${payload.subjectName} plugin`;
+    case "install":
+      return `Install a plugin from ${payload.subjectName}`;
+    case "update":
+      return `Update the ${payload.subjectName} plugin`;
+    case "remove":
+      return `Remove the ${payload.subjectName} plugin`;
+    case "configure":
+      return `Change the ${payload.subjectName} plugin's settings`;
+    default:
+      return assertNever(payload.action);
+  }
+}
+
+export function formatPendingInteractionConsentDetailLines(
+  payload: ConsentPendingInteractionPayload,
+): string[] {
+  // On enable, install, update and configure the list is what saying yes hands
+  // over. On disable and remove it is what the plugin holds today and saying yes
+  // takes away, so the same "Permissions:" label would read as a grant request
+  // for the two actions that grant nothing.
+  const revokes = payload.action === "disable" || payload.action === "remove";
+  return [
+    ...(payload.permissions.length > 0
+      ? [
+          `${revokes ? "Currently allowed" : "Permissions"}: ${payload.permissions.join(", ")}`,
+        ]
+      : []),
+    ...(payload.sites.length > 0
+      ? [
+          `${revokes ? "Currently reaches" : "Sites"}: ${payload.sites.join(", ")}`,
+        ]
+      : []),
+    ...(payload.detail === null ? [] : [payload.detail]),
+    "Asked for by an agent in this thread.",
+  ];
+}
 
 type PendingInteractionPermissionSummaryProfile =
   | PendingInteractionGrantablePermissionProfile
@@ -133,6 +187,9 @@ export function formatPendingInteractionSubjectDetailLines(
 ): string[] {
   if (interaction.payload.kind === "plugin") {
     return [];
+  }
+  if (isConsentPendingInteractionPayload(interaction.payload)) {
+    return formatPendingInteractionConsentDetailLines(interaction.payload);
   }
   if (!isApprovalPendingInteractionPayload(interaction.payload)) {
     return interaction.payload.questions.map((question) => question.prompt);

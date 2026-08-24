@@ -5,14 +5,16 @@ import type { Plugin } from "vite";
 const appDir = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The shared UI kit (@patcher/shared-ui) ships the plugin/no-op flavor of two
+ * The shared UI kit (@patcher/shared-ui) ships the plugin/no-op flavor of three
  * environment leaves so its component source stays byte-identical across the
  * app, builtin plugins, and the shadcn registry (see packages/shared-ui and
  * packages/plugin-registry). Only the host app has real implementations:
  * `lib/portal-scope` reads the plugin-slot context so host overlays never
  * carry a plugin CSS scope (which would let plugin styles leak onto them),
  * and `hooks/useBrowserDimmingModal` dims the native browser WebContentsView
- * while a modal is open. This plugin redirects shared-ui's own relative
+ * while a modal is open, while `hooks/useBrowserFreezingOverlay` freezes it to
+ * a bitmap while a menu drawn over the page is open. This plugin redirects
+ * shared-ui's own relative
  * imports of those two leaves to the app flavors, so every Dialog the app
  * renders keeps its real behavior; plugin and registry builds resolve the
  * same imports to shared-ui's no-op leaves untouched.
@@ -22,6 +24,10 @@ export function sharedUiEnvSeam(): Plugin {
   const browserDimming = resolve(
     appDir,
     "./src/hooks/useBrowserDimmingModal.ts",
+  );
+  const browserFreezing = resolve(
+    appDir,
+    "./src/hooks/useBrowserFreezingOverlay.ts",
   );
   return {
     name: "patcher:shared-ui-env-seam",
@@ -36,6 +42,9 @@ export function sharedUiEnvSeam(): Plugin {
       if (/(^|\/)lib\/portal-scope(\.js)?$/.test(source)) return portalScope;
       if (/(^|\/)hooks\/useBrowserDimmingModal(\.js)?$/.test(source)) {
         return browserDimming;
+      }
+      if (/(^|\/)hooks\/useBrowserFreezingOverlay(\.js)?$/.test(source)) {
+        return browserFreezing;
       }
       return null;
     },

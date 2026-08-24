@@ -29,6 +29,12 @@ export type CreatePendingInteractionInput =
       pluginId: string;
       rendererId: string;
       turnId: string | null;
+    })
+  // The server asked on its own behalf: no provider request to answer, and no
+  // plugin renderer to draw it. What it is about lives in the payload.
+  | (CreatePendingInteractionInputBase & {
+      originKind: "server";
+      turnId: string | null;
     });
 
 export interface PendingInteractionProviderRequestIdentity {
@@ -136,6 +142,45 @@ function updatePendingInteractionTerminalState(
   );
 }
 
+/**
+ * The origin columns, chosen as a set rather than field by field: which of
+ * them may be non-null is decided by `originKind`, and a ternary per column
+ * cannot narrow `input` to the variant that carries them.
+ */
+function originColumns(input: CreatePendingInteractionInput) {
+  if (input.originKind === "plugin") {
+    return {
+      originKind: "plugin" as const,
+      turnId: input.turnId,
+      providerId: null,
+      providerThreadId: null,
+      providerRequestId: null,
+      pluginId: input.pluginId,
+      rendererId: input.rendererId,
+    };
+  }
+  if (input.originKind === "server") {
+    return {
+      originKind: "server" as const,
+      turnId: input.turnId,
+      providerId: null,
+      providerThreadId: null,
+      providerRequestId: null,
+      pluginId: null,
+      rendererId: null,
+    };
+  }
+  return {
+    originKind: "provider" as const,
+    turnId: input.turnId,
+    providerId: input.providerId,
+    providerThreadId: input.providerThreadId,
+    providerRequestId: input.providerRequestId,
+    pluginId: null,
+    rendererId: null,
+  };
+}
+
 export function createPendingInteraction(
   db: PendingInteractionWriteConnection,
   input: CreatePendingInteractionInput,
@@ -147,15 +192,7 @@ export function createPendingInteraction(
     .values({
       id: createPendingInteractionId(),
       threadId: input.threadId,
-      originKind: input.originKind ?? "provider",
-      turnId: input.turnId,
-      providerId: input.originKind !== "plugin" ? input.providerId : null,
-      providerThreadId:
-        input.originKind !== "plugin" ? input.providerThreadId : null,
-      providerRequestId:
-        input.originKind !== "plugin" ? input.providerRequestId : null,
-      pluginId: input.originKind === "plugin" ? input.pluginId : null,
-      rendererId: input.originKind === "plugin" ? input.rendererId : null,
+      ...originColumns(input),
       status: "pending",
       payload: input.payload,
       resolution: null,
@@ -214,7 +251,16 @@ export function listActivePendingInteractionsForPlugin(
     .all();
 }
 
-export function listActivePluginPendingInteractions(
+/**
+ * Interactions a restart orphans.
+ *
+ * A provider interaction survives one: the daemon still holds the request and
+ * the answer still has somewhere to go. Plugin and consent interactions do not
+ * — whoever was awaiting them was a promise in the old process — so the ones
+ * left `pending` have to be swept, or they sit on screen forever with nothing
+ * behind them to answer.
+ */
+export function listActiveInProcessPendingInteractions(
   db: PendingInteractionReadConnection,
 ): PendingInteractionRow[] {
   return db
@@ -222,7 +268,7 @@ export function listActivePluginPendingInteractions(
     .from(pendingInteractions)
     .where(
       and(
-        eq(pendingInteractions.originKind, "plugin"),
+        inArray(pendingInteractions.originKind, ["plugin", "server"]),
         inArray(pendingInteractions.status, ["pending", "resolving"]),
       ),
     )

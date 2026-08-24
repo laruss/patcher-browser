@@ -41,8 +41,11 @@ or screenshot, click, fill, press keys, handle dialogs, and navigate. It ships
 disabled because it acts inside the user's real logged-in browsing session and
 Patcher has no step where a user grants a plugin its permissions, so the toggle is
 the whole gate: the user enables it under Extensions → Plugins or with
-`patcher plugin enable browser-tools`, and an agent asks rather than enabling it
-itself. Its declared permissions include `page.credentials` and
+`patcher plugin enable browser-tools`. That command run from inside a thread does
+not enable anything by itself — it raises a prompt naming the plugin and its
+permissions, and the change happens only if the user allows it. The same holds
+for installing, updating, removing, disabling and configuring a plugin from a
+thread. Its declared permissions include `page.credentials` and
 `network.intercept`. A tab answers page-level calls only after it has been the
 active tab while the browser surface was open; before that they refuse with
 `tab_not_live`, while listing tabs and reading a tab's URL or title still work.

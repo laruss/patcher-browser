@@ -6,9 +6,12 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { useBrowserFreezingOverlay } from "@/hooks/useBrowserFreezingOverlay";
 import type { PatcherDesktopBrowserDownload } from "@patcher/desktop-contract";
 import { AppCommandProvider } from "@/components/commands/AppCommandProvider";
 import {
@@ -103,16 +106,33 @@ function seedTwoLoadedTabs(): void {
  * The surface plus the download reporter that feeds its chrome, which is how the
  * two meet in the running app — the reporter is mounted above the router.
  */
-function OverlayHarness() {
+function OverlayHarness({ sibling }: { sibling?: ReactNode }) {
   useBrowserDownloadNotifications();
   return (
     <MemoryRouter initialEntries={["/browser"]}>
       <BrowserSurfaceView />
+      {sibling}
     </MemoryRouter>
   );
 }
 
-function renderSurface() {
+/**
+ * Chrome that is beside the surface rather than below it — a thread header's
+ * dropdown, a sidebar row's context menu — registers the freeze itself instead
+ * of being handed a prop. Stands in for the menu primitives, which do this from
+ * inside their content component.
+ */
+function MenuBesideTheSurface() {
+  const [isOpen, setIsOpen] = useState(false);
+  useBrowserFreezingOverlay(isOpen);
+  return (
+    <button type="button" onClick={() => setIsOpen((open) => !open)}>
+      open beside
+    </button>
+  );
+}
+
+function renderSurface(sibling?: ReactNode) {
   const setOverlay = vi.fn();
   const downloadListeners: Array<
     (download: PatcherDesktopBrowserDownload) => void
@@ -130,7 +150,7 @@ function renderSurface() {
   render(
     <Wrapper>
       <AppCommandProvider>
-        <OverlayHarness />
+        <OverlayHarness sibling={sibling} />
       </AppCommandProvider>
     </Wrapper>,
   );
@@ -217,6 +237,32 @@ describe("BrowserSurfaceView: one owner of the page freeze", () => {
     expect(setOverlay).toHaveBeenLastCalledWith({
       tabId: ACTIVE_TAB_ID,
       active: true,
+    });
+  });
+
+  // The surface owns the one `setOverlay` call, and its own panels reach it as
+  // flags — which only works for chrome below it in the tree. A dropdown in the
+  // thread sidebar or the agent panel is its sibling, portalled to the body,
+  // and drew behind the page until it could ask for the freeze too.
+  it("freezes the page for a menu opened beside it, not below it", async () => {
+    seedTwoLoadedTabs();
+    const { setOverlay } = renderSurface(<MenuBesideTheSurface />);
+    // The tabs hydrate after the first paint, and until one is active the
+    // surface has no page to freeze and calls nothing. Waiting for the settled
+    // call is what makes the assertions below about the freeze and not timing.
+    await waitFor(() => expect(setOverlay).toHaveBeenCalled());
+    setOverlay.mockClear();
+
+    fireEvent.click(screen.getByText("open beside"));
+    expect(setOverlay).toHaveBeenLastCalledWith({
+      tabId: ACTIVE_TAB_ID,
+      active: true,
+    });
+
+    fireEvent.click(screen.getByText("open beside"));
+    expect(setOverlay).toHaveBeenLastCalledWith({
+      tabId: ACTIVE_TAB_ID,
+      active: false,
     });
   });
 });

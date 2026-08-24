@@ -2,17 +2,20 @@ import { useMemo, type ReactNode } from "react";
 import {
   assertNever,
   buildPendingInteractionApprovalResolution,
+  formatPendingInteractionConsentDetailLines,
+  formatPendingInteractionConsentSummary,
   formatPendingInteractionSubjectDetailLines,
 } from "@patcher/core-ui";
 import { extractShellCommandFromString } from "@patcher/thread-view";
 import {
   isApprovalPendingInteractionPayload,
+  isConsentPendingInteractionPayload,
   isUserQuestionPendingInteractionPayload,
   type ApprovalPendingInteractionPayload,
+  type ConsentPendingInteractionPayload,
   type PendingInteraction,
   type PendingInteractionApprovalDecision,
   type PendingInteractionApprovalSubject,
-  type PendingInteractionResolution,
   type UserQuestionPendingInteractionPayload,
 } from "@patcher/domain";
 import { Button } from "@patcher/shared-ui/button";
@@ -21,7 +24,10 @@ import { Icon } from "@patcher/shared-ui/icon";
 import { MarkdownPreview } from "@/components/ui/markdown-preview.js";
 import { getDetailScrollMaxHeightClass } from "@/components/ui/detail-scroll-size.js";
 import { UserQuestionAnswerForm } from "@/components/thread/user-questions/UserQuestionInteractionContent.js";
-import { useResolveThreadPendingInteraction } from "@/hooks/mutations/thread-interaction-mutations";
+import {
+  useResolveThreadPendingInteraction,
+  useRespondToThreadPendingInteraction,
+} from "@/hooks/mutations/thread-interaction-mutations";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { cn } from "@patcher/shared-ui/lib/utils";
 
@@ -39,6 +45,12 @@ interface ApprovalPendingInteractionBannerProps {
 interface UserQuestionPendingInteractionBannerProps {
   interaction: PendingInteraction;
   payload: UserQuestionPendingInteractionPayload;
+  threadId: string;
+}
+
+interface ConsentPendingInteractionBannerProps {
+  interaction: PendingInteraction;
+  payload: ConsentPendingInteractionPayload;
   threadId: string;
 }
 
@@ -66,6 +78,15 @@ export function ThreadPendingInteractionBanner({
 }: ThreadPendingInteractionBannerProps) {
   if (interaction.payload.kind === "plugin") {
     return null;
+  }
+  if (isConsentPendingInteractionPayload(interaction.payload)) {
+    return (
+      <ConsentPendingInteractionBanner
+        interaction={interaction}
+        payload={interaction.payload}
+        threadId={threadId}
+      />
+    );
   }
   if (isUserQuestionPendingInteractionPayload(interaction.payload)) {
     return (
@@ -179,6 +200,87 @@ function ApprovalPendingInteractionBanner({
   );
 }
 
+/**
+ * A plugin change an agent asked for, waiting on the person who owns the
+ * machine.
+ *
+ * Deliberately not styled as a warning: the agent asking is ordinary, and a
+ * banner that shouts trains people to click through it. What earns the space is
+ * the permission list, so it renders as body text rather than behind a
+ * disclosure.
+ */
+function ConsentPendingInteractionBanner({
+  interaction,
+  payload,
+  threadId,
+}: ConsentPendingInteractionBannerProps) {
+  const respondToPendingInteraction = useRespondToThreadPendingInteraction();
+  const detailLines = useMemo(
+    () => formatPendingInteractionConsentDetailLines(payload),
+    [payload],
+  );
+  const mutationErrorMessage = respondToPendingInteraction.error
+    ? getMutationErrorMessage({
+        error: respondToPendingInteraction.error,
+        fallbackMessage: "Failed to answer pending interaction",
+        lifecycleOperation: "resolve_interaction",
+      })
+    : null;
+  const submitDisabled =
+    respondToPendingInteraction.isPending || interaction.status !== "pending";
+
+  const answer = (approved: boolean) => {
+    void respondToPendingInteraction
+      .mutateAsync({
+        threadId,
+        interactionId: interaction.id,
+        value: { approved },
+      })
+      .catch(() => {});
+  };
+
+  return (
+    <BannerShell
+      title={formatPendingInteractionConsentSummary(payload)}
+      errorMessage={mutationErrorMessage}
+      footer={
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={submitDisabled}
+            onClick={() => answer(false)}
+          >
+            Don&apos;t allow
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={submitDisabled}
+            onClick={() => answer(true)}
+          >
+            {respondToPendingInteraction.isPending ? (
+              <Icon name="Spinner" className="size-3 animate-spin" />
+            ) : null}
+            Allow
+          </Button>
+        </>
+      }
+    >
+      <ul className="space-y-1">
+        {detailLines.map((line) => (
+          <li key={line} className="min-w-0">
+            <ExpandableLine fullText={line} collapsedClassName="line-clamp-2">
+              {line}
+            </ExpandableLine>
+          </li>
+        ))}
+      </ul>
+    </BannerShell>
+  );
+}
+
 function ThreadUserQuestionPendingInteractionBanner({
   interaction,
   payload,
@@ -248,7 +350,7 @@ function approvalDecisionButtonVariant(
 }
 
 function approvalResolutionDecision(
-  resolution: PendingInteractionResolution | null,
+  resolution: PendingInteraction["resolution"],
 ): PendingInteractionApprovalDecision | null {
   if (!resolution || "kind" in resolution) {
     return null;

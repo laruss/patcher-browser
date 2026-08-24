@@ -185,6 +185,60 @@ describe("parseOperationMessage operation titles", () => {
     });
   });
 
+  describe("plugin-consent", () => {
+    function consentMessage(
+      decision: "allowed" | "declined",
+      status: string,
+    ): EventProjectionOperationMessage {
+      const row = factory().systemOperation({
+        operation: "plugin_consent",
+        operationId: "pint_abcdefghij",
+        status,
+        message: `Enable the Browser tools plugin: ${decision}`,
+        metadata: {
+          interactionId: "pint_abcdefghij",
+          summary: "Enable the Browser tools plugin",
+          decision,
+        },
+      });
+      const { event, meta } = decodeThreadEventRow(row);
+      const message = parseOperationMessage(event, meta, {
+        threadName: THREAD_NAME,
+      });
+      if (message === null || message.kind !== "operation") {
+        throw new Error("expected an operation message");
+      }
+      return message;
+    }
+
+    it("titles the row with the decision, and does not dress a refusal as a success", () => {
+      const allowed = consentMessage("allowed", "completed");
+      expect(allowed.title).toBe("Enable the Browser tools plugin: allowed");
+      expect(allowed.status).toBe("completed");
+
+      const declined = consentMessage("declined", "noop");
+      expect(declined.title).toBe("Enable the Browser tools plugin: declined");
+      // Neither an error nor still-running: the user answered, and nothing
+      // changed. What differs from an allowance is the title, not the styling.
+      expect(declined.status).toBe("completed");
+      // The message repeats the title, so it is not also shown as detail.
+      expect(declined.detail).toBeUndefined();
+    });
+
+    it("says so when the prompt was never answered", () => {
+      const row = factory().systemOperation({
+        operation: "plugin_consent",
+        operationId: "pint_zzzzzzzzzz",
+        status: "noop",
+        message: "Enable the Browser tools plugin: unanswered",
+        metadata: { summary: "Enable the Browser tools plugin" },
+      });
+      expect(operationTitleFor(row, THREAD_NAME)).toBe(
+        "Enable the Browser tools plugin: unanswered",
+      );
+    });
+  });
+
   describe("post-hoc overrides stay scoped to the current thread", () => {
     function pendingProvisioning(): EventProjectionOperationMessage {
       const row = factory().threadProvisioning({

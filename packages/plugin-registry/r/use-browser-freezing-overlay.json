@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-browser-freezing-overlay",
+  "type": "registry:hook",
+  "title": "use-browser-freezing-overlay",
+  "description": "Patcher hook \"use-browser-freezing-overlay\" — vendored from the Patcher app's own source (version-matched to this Patcher release).",
+  "files": [
+    {
+      "path": "registry/hooks/useBrowserFreezingOverlay.ts",
+      "content": "/**\n * Plugin/registry flavor of the app's `hooks/useBrowserFreezingOverlay.ts`: a\n * no-op. In the host app this hook freezes the native in-app browser\n * `WebContentsView` to a bitmap while a menu drawn over it is open — the\n * lighter half of the pair `useBrowserDimmingModal` completes: a modal covers\n * the whole panel, so the view is hidden outright, while a dropdown leaves the\n * page showing under it and needs it to stay on screen without compositing\n * over the menu. That coordination lives in host state a plugin bundle\n * deliberately does not share. The app injects its real jotai-backed flavor\n * over this file at build time (see apps/app/vite.config.ts's shared-ui env\n * seam); plugins and the vendored registry keep this no-op so the menu\n * components stay byte-identical across every consumer without stripping the\n * call.\n */\nexport function useBrowserFreezingOverlay(_active: boolean): void {}\n\n/** Host flavor reports live menu state; plugins have none. */\nexport function useIsBrowserFreezingOverlayOpen(): boolean {\n  return false;\n}\n",
+      "type": "registry:hook",
+      "target": "hooks/useBrowserFreezingOverlay.ts"
+    }
+  ]
+}

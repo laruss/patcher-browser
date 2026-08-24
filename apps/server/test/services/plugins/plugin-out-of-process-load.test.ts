@@ -151,6 +151,34 @@ describe("loading a plugin into a plugin process", () => {
     expect(items.map((item) => item.itemId)).toContain("shout");
   }, 30_000);
 
+  // A plugin registers a handful of surfaces and no thread events at all —
+  // which is most plugins, and was the first plugin an agent wrote here. The
+  // server still reads `threadEventHandlers[event]` for every event on every
+  // loaded plugin before it dispatches one, so a handle that carries only the
+  // events the plugin *did* register answers `undefined`: creating a thread
+  // threw out of the transaction as a 500, and an event that got as far as the
+  // dispatch loop took the whole server process down as an uncaughtException.
+  it("survives a thread event when the plugin registered none", async () => {
+    await start(() => true);
+    const rootDir = await writePlugin(
+      join(harness.config.dataDir, "fixtures"),
+      {
+        name: "patcher-plugin-remote",
+        permissions: ["contextMenu.register"],
+        source: CONTEXT_MENU_PLUGIN,
+      },
+    );
+
+    const entry = await harness.pluginService.installPath(rootDir);
+    expect([entry.status, entry.statusDetail]).toEqual(["running", null]);
+
+    // The lifecycle seam's own call, with the payload builder it would use.
+    // Nothing handles the event, so nothing should be asked to build one.
+    const thread = { id: "thr_none" } as never;
+    expect(() => harness.pluginService.events.emitThreadCreated(thread)).not.toThrow();
+    expect(() => harness.pluginService.events.emitThreadActive(thread)).not.toThrow();
+  }, 30_000);
+
   // `patcher.sites` has to survive the boundary, and nothing else makes it: the
   // bootstrap payload is built with an `as never` cast, so a field the child
   // needs and the supervisor forgets compiles clean and refuses every style the

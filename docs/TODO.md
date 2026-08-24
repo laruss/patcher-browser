@@ -229,14 +229,15 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   to a plugin that is running, which is a failure its author has never had to
   handle.
 
-- **The app shows no plugin permissions.** Nothing in the SPA renders
-  `patcher.permissions`, and nothing renders `patcher.sites` either. The CLI prints both
-  before an install and `patcher plugin info` lists them, so the agent-authored path
-  discloses them — but a plugin installed through the app's own dialog does not,
-  and `sites` is the one whose scope only the reader can judge. It now scopes two
-  permissions, one of which runs the plugin's code in those pages, which raises what
-  the gap costs. `InstalledPlugin` carries it on the wire already; what is missing is
-  the surface.
+- **The plugin pages show no plugin permissions.** The CLI prints
+  `patcher.permissions` and `patcher.sites` before an install and `patcher plugin info`
+  lists them, and the consent prompt an agent's plugin change raises now shows
+  both at the moment they decide something — but the app's own plugin list and
+  detail pages still render neither, so a plugin the user installs through the
+  app's dialog, or one they are merely looking at, discloses nothing. `sites` is
+  the one whose scope only the reader can judge: it scopes two permissions, one
+  of which runs the plugin's code in those pages. `InstalledPlugin` carries both
+  on the wire already; what is missing is the surface.
 - **A page script cannot reach a subframe.** Same limit as a page style, and for a
   different reason: a session preload does not run in subframes unless the browsing
   session opts into `nodeIntegrationInSubFrames`, which is experimental and would
@@ -271,6 +272,22 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   READMEs now name `build-essential` as a Linux prerequisite. Untested either
   way: whether Patcher runs on Linux once the toolchain is there has not been
   measured.
+
+## Flaky, and known to be
+
+- **A Tiptap timer outliving its test.** `apps/app` once failed a root
+  `bun run test` with all 3076 tests passing and one error *outside* them: a
+  timer inside `@tiptap/react` (dist/index.js:497) fired after vitest had torn
+  the file's environment down, which is enough to exit 1. Blamed on
+  `src/components/promptbox/PromptBoxInternal.test.tsx`, which is where the
+  editor is mounted, but the file passes on its own — measured three times, 85
+  tests, clean. It did not reproduce afterwards: the app suite alone is green,
+  and so is a full `--force` root run with nothing cached (54/54). The root
+  script is `turbo run test --concurrency=2`, so the suite there shares the
+  machine with another package, which is the difference between the run that
+  failed and every run that has not. If it comes back, the fix is on our side of
+  the seam — destroy the editor in the test's own teardown rather than leaving it
+  to `cleanup()` — not a retry.
 
 ## Deliberately not for the browser at all
 

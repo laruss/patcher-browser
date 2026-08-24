@@ -8,7 +8,7 @@ import {
   interruptPendingInteractionsForThreadIds,
   interruptPendingInteractionsForThreads,
   interruptPendingInteractionsForPlugin,
-  listActivePluginPendingInteractions,
+  listActiveInProcessPendingInteractions,
   listPendingInteractionsByThread,
   setPendingInteractionInterrupted,
   setPendingInteractionResolved,
@@ -19,8 +19,11 @@ import {
 } from "@patcher/db";
 import {
   isApprovalPendingInteractionPayload,
+  isConsentPendingInteraction,
+  isConsentPendingInteractionPayload,
   isPluginPendingInteractionPayload,
   isPluginPendingInteraction,
+  type ConsentPendingInteractionPayload,
   type JsonValue,
   type PendingInteraction,
   type PendingInteractionCreate,
@@ -119,6 +122,30 @@ interface PluginInteractionWaiter {
   removeAbortListener: () => void;
 }
 
+/**
+ * "decided" carries the answer rather than splitting into approved/denied
+ * outcomes: a denial is an answer the user gave, and a caller that treats it
+ * like a cancellation would retry something the user just refused.
+ */
+export type ConsentInteractionResult =
+  | { outcome: "decided"; approved: boolean }
+  | { outcome: "cancelled"; reason: PluginInteractionCancelReason };
+
+interface RequestConsentInteractionArgs {
+  threadId: string;
+  payload: ConsentPendingInteractionPayload;
+  timeoutMs: number;
+  signal?: AbortSignal;
+}
+
+interface ConsentInteractionWaiter {
+  resolve: (result: ConsentInteractionResult) => void;
+  /** Carried so a drain can settle the row, not just the promise. */
+  threadId: string;
+  timer: ReturnType<typeof setTimeout>;
+  removeAbortListener: () => void;
+}
+
 interface GetThreadInteractionArgs {
   interactionId: string;
   threadId: string;
@@ -208,6 +235,13 @@ function buildInteractiveResolveCommand(
   if (isPluginPendingInteraction(args.interaction)) {
     throw new Error("Plugin interactions do not produce host resolve commands");
   }
+  // The same reason the consent resolution stays out of the wire union: there
+  // is no provider request to answer, so there is nothing to tell the daemon.
+  if (isConsentPendingInteraction(args.interaction)) {
+    throw new Error(
+      "Consent interactions do not produce host resolve commands",
+    );
+  }
   return {
     type: "interactive.resolve",
     environmentId: args.environmentId,
@@ -260,6 +294,7 @@ function notifyInteractionChanged({
 export class PendingInteractionLifecycle {
   private readonly deps: CreateLifecycleDeps;
   private readonly pluginWaiters = new Map<string, PluginInteractionWaiter>();
+  private readonly consentWaiters = new Map<string, ConsentInteractionWaiter>();
   private started = false;
 
   constructor(args: PendingInteractionLifecycleArgs) {
@@ -282,7 +317,7 @@ export class PendingInteractionLifecycle {
     }
     this.started = true;
     this.settleInterruptedRows(
-      listActivePluginPendingInteractions(this.deps.db).flatMap((row) => {
+      listActiveInProcessPendingInteractions(this.deps.db).flatMap((row) => {
         const updated = setPendingInteractionInterrupted(this.deps.db, {
           id: row.id,
           statusReason: "server-restarted",
@@ -574,6 +609,230 @@ export class PendingInteractionLifecycle {
     });
     this.settlePluginInteractionTerminalSideEffects(interaction);
     return interaction;
+  }
+
+  /**
+   * Ask the user to allow a plugin change, and wait for the answer.
+   *
+   * Shaped after requestPluginInteraction rather than registerPendingInteraction
+   * because the caller is an HTTP request that has to block on the answer: the
+   * provider path returns as soon as the row exists and lets the daemon carry
+   * the reply back, and there is no daemon in this story.
+   *
+   * The one-interaction-per-thread rule is the reason this can fail before it
+   * asks anything, and the 409 says so: an agent whose thread is already
+   * holding a question cannot also be asking one.
+   */
+  requestConsentInteraction(
+    args: RequestConsentInteractionArgs,
+  ): Promise<ConsentInteractionResult> {
+    const thread = getThread(this.deps.db, args.threadId);
+    if (!thread || thread.deletedAt !== null) {
+      throw new ApiError(404, "invalid_request", "Thread does not exist");
+    }
+    // A prompt is only consent if somebody can answer it. The thread view
+    // replaces its composer — and with it this prompt — for an archived thread
+    // and for one whose environment is being torn down, both deliberately
+    // read-only. Raised there, the prompt would hold the thread's single
+    // interaction slot for the whole timeout with nothing on screen able to
+    // decide it, and then refuse anyway. Refusing up front costs the caller
+    // one immediate error instead of four silent minutes.
+    if (thread.archivedAt !== null) {
+      throw new ApiError(
+        409,
+        "invalid_request",
+        `Thread ${args.threadId} is archived, so it cannot show a prompt`,
+      );
+    }
+    const environment =
+      thread.environmentId === null
+        ? null
+        : getEnvironment(this.deps.db, thread.environmentId);
+    if (
+      environment !== null &&
+      (environment.status === "destroying" ||
+        environment.status === "destroyed")
+    ) {
+      throw new ApiError(
+        409,
+        "invalid_request",
+        `Thread ${args.threadId} is read-only: its environment is ${environment.status}, so it cannot show a prompt`,
+      );
+    }
+    if (args.signal?.aborted) {
+      return Promise.resolve({
+        outcome: "cancelled",
+        reason: "request-aborted",
+      });
+    }
+
+    const expiresAt = Date.now() + args.timeoutMs;
+    const row = this.deps.db.transaction((tx) => {
+      if (getActivePendingInteractionForThread(tx, args.threadId)) {
+        throw new ApiError(
+          409,
+          "invalid_request",
+          `Thread ${args.threadId} is already awaiting user interaction`,
+        );
+      }
+      return createPendingInteraction(tx, {
+        originKind: "server",
+        threadId: args.threadId,
+        turnId: null,
+        expiresAt,
+        payload: JSON.stringify(args.payload),
+      });
+    });
+    const interaction = toPendingInteraction(row);
+
+    const pending = new Promise<ConsentInteractionResult>((resolve) => {
+      const abort = () => {
+        this.cancelConsentInteractionFromCallback({
+          interactionId: interaction.id,
+          threadId: interaction.threadId,
+          reason: "request-aborted",
+        });
+      };
+      args.signal?.addEventListener("abort", abort, { once: true });
+      const timer = setTimeout(() => {
+        this.cancelConsentInteractionFromCallback({
+          interactionId: interaction.id,
+          threadId: interaction.threadId,
+          reason: "timeout",
+        });
+      }, args.timeoutMs);
+      this.consentWaiters.set(interaction.id, {
+        resolve,
+        threadId: interaction.threadId,
+        timer,
+        removeAbortListener: () =>
+          args.signal?.removeEventListener("abort", abort),
+      });
+      if (args.signal?.aborted) {
+        abort();
+      }
+    });
+    if (args.signal?.aborted) {
+      return pending;
+    }
+    try {
+      // No timeline event while it is pending: the prompt itself is on screen,
+      // and only the decision is worth keeping (see consentTimelineEventData).
+      notifyInteractionChanged({
+        deps: this.deps,
+        hasPendingInteraction: true,
+        threadId: interaction.threadId,
+      });
+    } catch (error) {
+      try {
+        setPendingInteractionInterrupted(this.deps.db, {
+          id: interaction.id,
+          statusReason: "Consent interaction setup failed",
+        });
+      } catch (cleanupError) {
+        this.deps.logger.warn(
+          {
+            err: cleanupError,
+            interactionId: interaction.id,
+          },
+          "Failed to clean up consent interaction after setup failure",
+        );
+      }
+      this.settleConsentWaiter(interaction.id, {
+        outcome: "cancelled",
+        reason: "thread-stopped",
+      });
+      throw error;
+    }
+    return pending;
+  }
+
+  decideConsentInteraction(args: {
+    interactionId: string;
+    threadId: string;
+    approved: boolean;
+  }): PendingInteraction {
+    const current = this.getThreadInteraction(args);
+    if (!isConsentPendingInteraction(current)) {
+      throw new ApiError(
+        400,
+        "invalid_request",
+        "Consent interaction expected",
+      );
+    }
+    if (current.status !== "pending") throw buildResolveConflictError(current);
+    const updated = setPendingInteractionResolved(this.deps.db, {
+      id: current.id,
+      resolution: JSON.stringify({
+        kind: "consent_decided",
+        approved: args.approved,
+      }),
+    });
+    if (!updated)
+      throw buildResolveConflictError(this.requireInteraction(current.id));
+    const interaction = toPendingInteraction(updated);
+    this.settleConsentWaiter(interaction.id, {
+      outcome: "decided",
+      approved: args.approved,
+    });
+    this.settlePluginInteractionTerminalSideEffects(interaction);
+    return interaction;
+  }
+
+  cancelConsentInteraction(args: {
+    interactionId: string;
+    threadId: string;
+    reason: PluginInteractionCancelReason;
+  }): PendingInteraction {
+    const current = this.getThreadInteraction(args);
+    if (!isConsentPendingInteraction(current)) {
+      throw new ApiError(
+        400,
+        "invalid_request",
+        "Consent interaction expected",
+      );
+    }
+    if (current.status !== "pending" && current.status !== "resolving") {
+      throw buildResolveConflictError(current);
+    }
+    const updated = setPendingInteractionInterrupted(this.deps.db, {
+      id: current.id,
+      statusReason: args.reason,
+    });
+    if (!updated)
+      throw buildResolveConflictError(this.requireInteraction(current.id));
+    const interaction = toPendingInteraction(updated);
+    this.settleConsentWaiter(interaction.id, {
+      outcome: "cancelled",
+      reason: args.reason,
+    });
+    this.settlePluginInteractionTerminalSideEffects(interaction);
+    return interaction;
+  }
+
+  /**
+   * Release every request parked on a consent prompt, without waiting for the
+   * prompt.
+   *
+   * A consent answer arrives inside an HTTP request that is still open, so a
+   * shutdown that lets in-flight requests finish would wait out the prompt's
+   * whole timeout — minutes of an app that will not quit because nobody
+   * happened to look at a banner.
+   *
+   * The rows are interrupted rather than left `pending`: the server keeps
+   * serving the app's already-open connection while the rest of the shutdown
+   * runs, and a `pending` row would still accept an answer there — writing "the
+   * user allowed this" into the thread for a change the caller was already told
+   * did not happen.
+   */
+  releaseConsentWaiters(reason: PluginInteractionCancelReason): void {
+    for (const [interactionId, waiter] of [...this.consentWaiters]) {
+      this.cancelConsentInteractionFromCallback({
+        interactionId,
+        threadId: waiter.threadId,
+        reason,
+      });
+    }
   }
 
   interruptPluginInteractions(pluginId: string): PendingInteraction[] {
@@ -968,15 +1227,55 @@ export class PendingInteractionLifecycle {
   }
 
   private settleInterruptedPluginWaiter(interaction: PendingInteraction): void {
-    if (
-      isPluginPendingInteractionPayload(interaction.payload) &&
-      interaction.status === "interrupted"
-    ) {
+    if (interaction.status !== "interrupted") return;
+    if (isPluginPendingInteractionPayload(interaction.payload)) {
       this.settlePluginWaiter(interaction.id, {
         outcome: "cancelled",
         reason: this.normalizePluginCancelReason(interaction.statusReason),
       });
+      return;
     }
+    if (isConsentPendingInteractionPayload(interaction.payload)) {
+      this.settleConsentWaiter(interaction.id, {
+        outcome: "cancelled",
+        reason: this.normalizePluginCancelReason(interaction.statusReason),
+      });
+    }
+  }
+
+  private cancelConsentInteractionFromCallback(args: {
+    interactionId: string;
+    threadId: string;
+    reason: PluginInteractionCancelReason;
+  }): void {
+    try {
+      this.cancelConsentInteraction(args);
+    } catch (error) {
+      this.settleConsentWaiter(args.interactionId, {
+        outcome: "cancelled",
+        reason: args.reason,
+      });
+      this.deps.logger.warn(
+        {
+          err: error,
+          interactionId: args.interactionId,
+          reason: args.reason,
+        },
+        "Failed to cancel consent interaction from callback",
+      );
+    }
+  }
+
+  private settleConsentWaiter(
+    interactionId: string,
+    result: ConsentInteractionResult,
+  ): void {
+    const waiter = this.consentWaiters.get(interactionId);
+    if (!waiter) return;
+    this.consentWaiters.delete(interactionId);
+    clearTimeout(waiter.timer);
+    waiter.removeAbortListener();
+    waiter.resolve(result);
   }
 
   private settlePluginWaiter(

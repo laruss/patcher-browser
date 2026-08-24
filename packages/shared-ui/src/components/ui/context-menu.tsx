@@ -4,6 +4,7 @@ import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { useBrowserFreezingOverlay } from "../../hooks/useBrowserFreezingOverlay";
 import { COARSE_POINTER_CHECK_SLOT_CLASS } from "./coarse-pointer-sizing.js";
 import {
   MENU_ITEM_LAST_HOVERED_CLASS,
@@ -148,6 +149,19 @@ const ContextMenuSubContent = React.forwardRef<
 ));
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
 
+/**
+ * Holds the browser page frozen while the menu is up.
+ *
+ * A component, and rendered *inside* the portal, because that is what scopes it
+ * to the open state: the content wrapper below owns the portal and so renders
+ * whether or not the menu is open, while everything inside the portal mounts
+ * with the menu and unmounts with it.
+ */
+function BrowserFreezeWhileOpen(): null {
+  useBrowserFreezingOverlay(true);
+  return null;
+}
+
 const ContextMenuContent = React.forwardRef<
   ContextMenuContentElement,
   ContextMenuContentProps
@@ -165,6 +179,7 @@ const ContextMenuContent = React.forwardRef<
       )}
       {...props}
     >
+      <BrowserFreezeWhileOpen />
       <MenuHoverProvider>{children}</MenuHoverProvider>
     </ContextMenuPrimitive.Content>
   </ContextMenuPrimitive.Portal>

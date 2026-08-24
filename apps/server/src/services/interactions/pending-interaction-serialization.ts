@@ -1,3 +1,4 @@
+import { assertNever } from "@patcher/core-ui";
 import {
   pendingInteractionSchema,
   type PendingInteraction,
@@ -32,6 +33,31 @@ function parseStoredPendingInteractionJson(
     return JSON.parse(value);
   } catch {
     throw new PendingInteractionSerializationError(row.id, field);
+  }
+}
+
+function rowOrigin(row: PendingInteractionRow) {
+  switch (row.originKind) {
+    case "provider":
+      return {
+        kind: "provider",
+        providerId: row.providerId,
+        providerThreadId: row.providerThreadId,
+        providerRequestId: row.providerRequestId,
+      };
+    case "plugin":
+      return {
+        kind: "plugin",
+        pluginId: row.pluginId,
+        rendererId: row.rendererId,
+      };
+    case "server":
+      return { kind: "server" };
+    default:
+      // The column is TEXT with no CHECK, so the three cases above are a claim
+      // about writers rather than something the database enforces. Falling off
+      // the end would have returned `undefined` and blamed the payload.
+      return assertNever(row.originKind);
   }
 }
 
@@ -73,19 +99,7 @@ export function toPendingInteraction(
             providerRequestId: row.providerRequestId,
           }
         : {}),
-      origin:
-        row.originKind === "provider"
-          ? {
-              kind: "provider",
-              providerId: row.providerId,
-              providerThreadId: row.providerThreadId,
-              providerRequestId: row.providerRequestId,
-            }
-          : {
-              kind: "plugin",
-              pluginId: row.pluginId,
-              rendererId: row.rendererId,
-            },
+      origin: rowOrigin(row),
       status: row.status,
       payload,
       resolution,
