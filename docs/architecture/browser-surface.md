@@ -768,6 +768,28 @@ Freezing also buys the thing that makes the menu usable at all: with the page
 hidden, the whole window is DOM again, so a click outside the menu lands where
 Radix can see it and dismisses it.
 
+Reporting by prop only reaches chrome that is *below* the surface. The thread
+sidebar and the agent panel are its siblings in `AppLayout`, and a menu opened in
+either is portaled into `document.body` over the page area just the same — the
+thread actions menu opened invisible there for exactly the reason above, with no
+prop to report through. So the menu primitives report for themselves: shared-ui's
+`DropdownMenuContent`, `ContextMenuContent`, `PopoverContent` and `SelectContent`
+register with `useBrowserFreezingOverlay` while they are open, and the surface
+reads the total alongside its own flags. It is a count, not a flag, for the same
+reason there is a single owner — two menus can be up at once, and the first to
+close must not thaw the page under the second.
+
+That hook is the third of the shared-ui **environment leaves** (see the seam in
+`apps/app/vite-shared-ui-seam.ts`), and it is the lighter half of a pair: a modal
+covers the whole panel, so `useBrowserDimmingModal` hides the view outright,
+while a menu leaves the page showing under it and needs it frozen instead. A
+compact viewport takes neither — there the menu is a drawer, which dims. Plugin
+and registry builds keep the no-op leaf, so the menu components stay
+byte-identical across every consumer.
+
+Tooltips are deliberately left out. They would need the same freeze to be seen
+over a page, but hovering is not an interaction worth stopping a page for.
+
 ### Dragging a tab to reorder it
 
 Tabs reorder by drag, with `@dnd-kit` — the same library, sensors and click

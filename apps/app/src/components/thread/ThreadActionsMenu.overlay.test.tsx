@@ -3,10 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Thread } from "@patcher/domain";
-import {
-  PageOverlayRequestsProvider,
-  usePageOverlayRequested,
-} from "@/components/browser-surface/PageOverlayRequests";
+import { useIsBrowserFreezingOverlayOpen } from "@/hooks/useBrowserFreezingOverlay";
 import { makeThreadListEntry } from "@/test/fixtures/thread-list-entries";
 import {
   ThreadActionsContextMenu,
@@ -16,11 +13,15 @@ import {
 /**
  * Over a live browser page this menu is portalled to the body, where the native
  * view paints straight over it: it opened invisible and unclickable. What puts
- * it back is the page freeze, which the surface owns — so what this holds is the
- * menu's end of it, that opening one asks and closing one lets go.
+ * it back is the page freeze, which the surface owns.
+ *
+ * The menu asks for nothing itself — the shared-ui menu primitives register it,
+ * so this also guards the env seam for them: the shared-ui import must resolve
+ * to the app's real jotai-backed flavor and not shared-ui's no-op leaf, the way
+ * `dialog.browser-dimming.test.tsx` guards the modal half.
  *
  * The actions themselves are stubbed. Which entries the menu carries is the
- * concern of its own tests; this is about the request.
+ * concern of its own tests; this is about the freeze.
  */
 
 vi.mock("./ThreadActionsProvider", () => ({
@@ -39,7 +40,7 @@ const thread = makeThreadListEntry() as unknown as Thread;
 function Probe() {
   return (
     <span data-testid="page">
-      {usePageOverlayRequested() ? "frozen" : "live"}
+      {useIsBrowserFreezingOverlayOpen() ? "frozen" : "live"}
     </span>
   );
 }
@@ -53,10 +54,10 @@ describe("the thread actions menu over a browser page", () => {
 
   it("asks for the page freeze while the dropdown is open", () => {
     render(
-      <PageOverlayRequestsProvider>
+      <>
         <Probe />
         <ThreadActionsMenu thread={thread} />
-      </PageOverlayRequestsProvider>,
+      </>,
     );
 
     expect(page()).toBe("live");
@@ -74,12 +75,12 @@ describe("the thread actions menu over a browser page", () => {
 
   it("asks for it from the context menu too", () => {
     render(
-      <PageOverlayRequestsProvider>
+      <>
         <Probe />
         <ThreadActionsContextMenu thread={thread}>
           <span>row</span>
         </ThreadActionsContextMenu>
-      </PageOverlayRequestsProvider>,
+      </>,
     );
 
     expect(page()).toBe("live");

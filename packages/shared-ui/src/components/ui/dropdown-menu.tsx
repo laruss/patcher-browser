@@ -4,6 +4,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { useBrowserFreezingOverlay } from "../../hooks/useBrowserFreezingOverlay";
 import { COARSE_POINTER_CHECK_SLOT_CLASS } from "./coarse-pointer-sizing.js";
 import {
   type ResponsiveOverlayContextValue,
@@ -163,6 +164,9 @@ const DropdownMenuContent = React.forwardRef<
     ref,
   ) => {
     const { isCompactViewport, open, onOpenChange } = useResponsiveMenu();
+    // The page under a menu stays visible, so it is frozen rather than hidden.
+    // Not on the compact path: that one is a drawer, which dims instead.
+    useBrowserFreezingOverlay(open && !isCompactViewport);
     // Unconditional (rules of hooks — the compact branch returns early); the
     // compact drawer path is covered by DrawerContent's own stamp.
     const scopeProps = usePortalScopeProps();

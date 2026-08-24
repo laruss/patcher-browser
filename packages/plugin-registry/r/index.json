@@ -210,6 +210,10 @@
       "type": "registry:hook"
     },
     {
+      "name": "use-browser-freezing-overlay",
+      "type": "registry:hook"
+    },
+    {
       "name": "use-compact-viewport",
       "type": "registry:hook"
     },

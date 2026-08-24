@@ -18,8 +18,8 @@ import { BrowserDevToolsPanel } from "@/components/browser-surface/BrowserDevToo
 import { BrowserFindBar } from "@/components/browser-surface/BrowserFindBar";
 import { BrowserSurfaceChrome } from "@/components/browser-surface/BrowserSurfaceChrome";
 import { BrowserSurfaceTabStrip } from "@/components/browser-surface/BrowserSurfaceTabStrip";
-import { usePageOverlayRequested } from "@/components/browser-surface/PageOverlayRequests";
 import { BrowserTabSwitcher } from "@/components/browser-surface/BrowserTabSwitcher";
+import { useIsBrowserFreezingOverlayOpen } from "@/hooks/useBrowserFreezingOverlay";
 import { BROWSER_SELECT_TAB_APP_COMMAND_IDS } from "@patcher/domain";
 import {
   useAppCommandHandler,
@@ -665,9 +665,10 @@ export function BrowserSurfaceView({
   // is why the chrome's own panels arrive here as a flag instead of a call.
   const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
   const [isChromePanelOpen, setIsChromePanelOpen] = useState(false);
-  // Chrome that is not below the surface — the thread sidebar, the agent panel —
-  // cannot be handed a flag, so it asks through the context instead.
-  const isOverlayRequestedOutside = usePageOverlayRequested();
+  // Chrome that is not below the surface — a menu in the thread sidebar or the
+  // agent panel — cannot be handed a flag, so the menu primitives register
+  // themselves instead (useBrowserFreezingOverlay) and this reads the total.
+  const isOverlayRequestedOutside = useIsBrowserFreezingOverlayOpen();
   const needsPageOverlay =
     isSwitcherOpen ||
     isTabMenuOpen ||

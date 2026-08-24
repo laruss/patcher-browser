@@ -4,6 +4,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { useBrowserFreezingOverlay } from "../../hooks/useBrowserFreezingOverlay";
 import {
   type ResponsiveOverlayContextValue,
   useResponsiveRoot,
@@ -147,6 +148,8 @@ const PopoverContent = React.forwardRef<
     ref,
   ) => {
     const { isCompactViewport, open, onOpenChange } = useResponsivePopover();
+    // See DropdownMenuContent: frozen, not hidden, and not on the drawer path.
+    useBrowserFreezingOverlay(open && !isCompactViewport);
     // Unconditional (rules of hooks — the compact branch returns early); the
     // compact drawer path is covered by DrawerContent's own stamp.
     const scopeProps = usePortalScopeProps();

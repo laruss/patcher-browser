@@ -122,7 +122,6 @@ import { useSystemConfig } from "@/hooks/queries/system-queries";
  * Lazy for the same reason `App.tsx` loads it lazily; both specifiers resolve to
  * the one module, so this is the same chunk rather than a second copy.
  */
-import { PageOverlayRequestsProvider } from "@/components/browser-surface/PageOverlayRequests";
 const BrowserSurfaceView = lazy(() => import("@/views/BrowserSurfaceView"));
 
 const SIDEBAR_WIDTH_KEY = "patcher.sidebar.width";
@@ -1045,103 +1044,95 @@ export function AppLayout({ children }: AppLayoutProps) {
         <ProjectActionsProvider>
           <ThreadTitleMentionResourcesProvider {...titleMentionResources}>
             <ThreadActionsProvider>
-              {/* Above both the surface and the panels beside it: a menu opened
-                  in either has to be able to freeze the page it draws over. */}
-              <PageOverlayRequestsProvider>
-                <IframeDragGuardOverlay active={isSidebarResizing} />
-                <SidebarStateBridge
-                  providerRef={providerRef}
-                  style={sidebarProviderStyle}
-                  opensForRoute={isAgentPanelRoute}
-                >
-                  {/* The leading edge belongs to plugins, and renders nothing at
+              <IframeDragGuardOverlay active={isSidebarResizing} />
+              <SidebarStateBridge
+                providerRef={providerRef}
+                style={sidebarProviderStyle}
+                opensForRoute={isAgentPanelRoute}
+              >
+                {/* The leading edge belongs to plugins, and renders nothing at
                   all until one asks for it — see PluginLeadingPanel. First in
                   DOM order because it is in flow: it takes its width from the
                   row, and the inset below shrinks to what is left. */}
-                  <PluginLeadingPanel />
-                  {/* Content first, sidebar after: the sidebar reserves its width
+                <PluginLeadingPanel />
+                {/* Content first, sidebar after: the sidebar reserves its width
                   with an in-flow "gap" element rendered where <Sidebar> sits,
                   and the panel itself is fixed. DOM order is therefore what puts
                   the sidebar on the trailing edge — `side="right"` alone would
                   pin the panel right while the gap still held space on the
                   left. */}
-                  <SidebarInset>
-                    <div
-                      ref={contentShellRef}
-                      data-testid="app-layout-content-shell"
-                      className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"
-                    >
-                      {hostsBrowserSurface ? (
-                        <Suspense fallback={null}>
-                          <BrowserSurfaceView
-                            appScreen={isAppTabRoute ? appScreen : null}
-                          />
-                        </Suspense>
-                      ) : (
-                        appScreen
-                      )}
-                    </div>
-                  </SidebarInset>
-                  {isAgentPanelRoute ? (
-                    <AgentPanelSidebar
-                      backLabel="Threads"
-                      backTo={BROWSER_SURFACE_ROUTE_PATH}
-                      isResizing={isSidebarResizing}
-                      onResizeMouseDown={handleResizeMouseDown}
-                    >
-                      {children}
-                    </AgentPanelSidebar>
-                  ) : isGlobalSettingsView ? (
-                    <SettingsSidebar
-                      onResizeMouseDown={handleResizeMouseDown}
-                      isResizing={isSidebarResizing}
-                      showTopReserve={true}
-                      appRoutePath={appRoutePath}
-                    />
-                  ) : isGlobalToolsView ? (
-                    <ToolsSidebar
-                      onResizeMouseDown={handleResizeMouseDown}
-                      isResizing={isSidebarResizing}
-                      showTopReserve={true}
-                      appRoutePath={toolsBackRoutePath}
-                    />
-                  ) : (
-                    <AppSidebar
-                      onResizeMouseDown={handleResizeMouseDown}
-                      isResizing={isSidebarResizing}
-                      showTopReserve={true}
-                      settingsRoutePath={settingsRoutePath}
-                      toolsRoutePath={
-                        toolsHubEnabled ? toolsRoutePath : undefined
-                      }
-                    />
-                  )}
-                  <SidebarTriggerOverlay
-                    usesDesktopChrome={usesDesktopChrome}
+                <SidebarInset>
+                  <div
+                    ref={contentShellRef}
+                    data-testid="app-layout-content-shell"
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"
+                  >
+                    {hostsBrowserSurface ? (
+                      <Suspense fallback={null}>
+                        <BrowserSurfaceView
+                          appScreen={isAppTabRoute ? appScreen : null}
+                        />
+                      </Suspense>
+                    ) : (
+                      appScreen
+                    )}
+                  </div>
+                </SidebarInset>
+                {isAgentPanelRoute ? (
+                  <AgentPanelSidebar
+                    backLabel="Threads"
+                    backTo={BROWSER_SURFACE_ROUTE_PATH}
+                    isResizing={isSidebarResizing}
+                    onResizeMouseDown={handleResizeMouseDown}
+                  >
+                    {children}
+                  </AgentPanelSidebar>
+                ) : isGlobalSettingsView ? (
+                  <SettingsSidebar
+                    onResizeMouseDown={handleResizeMouseDown}
+                    isResizing={isSidebarResizing}
+                    showTopReserve={true}
+                    appRoutePath={appRoutePath}
                   />
-                  <BrowserSurfaceRouteSyncBridge
-                    enabled={hostsBrowserSurface}
-                    path={
-                      isAppTabRoute
-                        ? `${location.pathname}${location.search}`
-                        : null
+                ) : isGlobalToolsView ? (
+                  <ToolsSidebar
+                    onResizeMouseDown={handleResizeMouseDown}
+                    isResizing={isSidebarResizing}
+                    showTopReserve={true}
+                    appRoutePath={toolsBackRoutePath}
+                  />
+                ) : (
+                  <AppSidebar
+                    onResizeMouseDown={handleResizeMouseDown}
+                    isResizing={isSidebarResizing}
+                    showTopReserve={true}
+                    settingsRoutePath={settingsRoutePath}
+                    toolsRoutePath={
+                      toolsHubEnabled ? toolsRoutePath : undefined
                     }
-                    title={documentTitle}
                   />
-                </SidebarStateBridge>
-                <ProjectPathDialog
-                  target={quickCreateProject.projectPathDialog.target}
-                  pending={quickCreateProject.isCreating}
-                  platform={quickCreateProject.platform}
-                  hostId={quickCreateProject.hostId}
-                  hostName={quickCreateProject.hostName}
-                  hosts={quickCreateProject.hosts}
-                  onOpenChange={
-                    quickCreateProject.projectPathDialog.onOpenChange
+                )}
+                <SidebarTriggerOverlay usesDesktopChrome={usesDesktopChrome} />
+                <BrowserSurfaceRouteSyncBridge
+                  enabled={hostsBrowserSurface}
+                  path={
+                    isAppTabRoute
+                      ? `${location.pathname}${location.search}`
+                      : null
                   }
-                  onSubmit={quickCreateProject.submitProjectPath}
+                  title={documentTitle}
                 />
-              </PageOverlayRequestsProvider>
+              </SidebarStateBridge>
+              <ProjectPathDialog
+                target={quickCreateProject.projectPathDialog.target}
+                pending={quickCreateProject.isCreating}
+                platform={quickCreateProject.platform}
+                hostId={quickCreateProject.hostId}
+                hostName={quickCreateProject.hostName}
+                hosts={quickCreateProject.hosts}
+                onOpenChange={quickCreateProject.projectPathDialog.onOpenChange}
+                onSubmit={quickCreateProject.submitProjectPath}
+              />
             </ThreadActionsProvider>
           </ThreadTitleMentionResourcesProvider>
         </ProjectActionsProvider>
