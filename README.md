@@ -1,223 +1,222 @@
 <p align="center">
-  <img alt="Patcher" src="assets/patcher-icon.png" width="128">
+  <img alt="Patcher" src="assets/patcher-icon.png" width="96">
 </p>
 
-# Patcher
+<h1 align="center">Patcher</h1>
 
-Patcher is an agentic IDE that builds itself. It can control, customize, and automate
-itself, laying the groundwork for your own software factory.
+<p align="center">
+  <strong>The browser that writes its own extensions.</strong>
+</p>
 
-Every surface — the desktop app, web app, CLI, and HTTP API — is a first-class
-way to drive Patcher. Work runs in threads you can follow live, steer at any point,
-or hand off to another agent.
+<p align="center">
+  Describe what you want a website — or the browser itself — to do.
+  Patcher turns the request into a <em>patch</em>, shows you the code and the
+  access it asks for, and installs it into your browser.
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#what-works-today">What works today</a> ·
+  <a href="#security-model">Security model</a> ·
+  <a href="#current-limitations">Limitations</a>
+</p>
+
+<p align="center">
+  <img alt="Patcher turning a prompt into an installed patch" src="assets/demo.gif" width="800">
+</p>
 
 > [!NOTE]
-> Patcher is in active development. Core architecture is stable, but workflows
-> and surfaces are still evolving.
+> Patcher is in active development, and the desktop browser has no release yet —
+> it runs from source on macOS Apple Silicon. See [Install](#install).
 
-Patcher is a fork of [bb](https://github.com/get-bb/bb) by Michael Yong, and
-keeps its MIT license. It is developed independently: it has its own data
-directory, ports, package names, and plugin contract, and it neither reads nor
-migrates the state of a bb install. The two can be installed side by side.
+## Patch the web around you
 
-## Use Patcher
+- **Modify websites** — remove distractions, restyle a page you stare at all
+  day, add actions to a site's own UI.
+- **Modify the browser** — add sidebars, toolbar controls, context-menu entries,
+  new-tab sections and omnibox providers.
+- **Automate workflows** — persistent jobs that run on demand or on a schedule,
+  driving your real logged-in browser.
+- **Edit everything again** — inspect, change, disable or remove any patch it
+  wrote for you.
 
-### Install from npm
+A **patch** is a Patcher plugin created or modified for you by a coding agent.
+Inside the architecture they are plugins, with a documented contract you can
+write by hand; in the product you ask for a patch.
+
+## How patches work
+
+```text
+Prompt  →  Code  →  Permissions  →  Installed
+```
+
+1. A coding agent scaffolds or edits a plugin against Patcher's plugin SDK.
+2. Patcher shows you the code change and the access it declares — permissions,
+   and the sites it wants to reach.
+3. You approve or reject the installation. An agent cannot flip that switch
+   itself; see [Security model](#security-model).
+4. The patch persists across restarts, and can be edited, disabled or removed
+   later.
+
+Patcher uses the coding-agent CLI you already have authenticated — Claude Code,
+Codex, Cursor, Pi, OpenCode, Grok Build, Hermes, or any ACP-compatible agent.
+
+## What works today
+
+**Browser**
+
+- Persistent Chromium tabs and browsing sessions, surviving restarts
+- Omnibox with history-backed ranking, and pluggable search engines
+- Real `window.open` popups, so OAuth and payment flows complete
+- History, downloads, find-in-page, zoom, PDF viewing and reading
+- Chromium's own DevTools, with **Inspect** in the page context menu
+- Tab context menu: duplicate, pin, mute, close, reopen, drag to reorder
+- Prompts for HTTP basic auth, certificate errors and client certificates
+
+**Patches**
+
+- Toolbar items, panels, context-menu and tab-menu entries, new-tab widgets
+- Page scripts and page styles, scoped to the sites the patch declared
+- Cron schedules and long-lived background services
+- Per-patch SQLite storage, settings, and agent tools
+- Declared permissions and site scopes, printed by the CLI and by every prompt
+
+**Agents**
+
+- Agent control over the live browser — tabs, navigation, page reads, interaction
+- Threads you can follow live, steer, or hand off to another provider
+- A consent prompt before any agent-requested patch install, update or removal
+
+The plugin contract is documented in
+[`docs/architecture/`](docs/architecture) — start with
+[browser-surface.md](docs/architecture/browser-surface.md) and
+[plugin-permissions.md](docs/architecture/plugin-permissions.md).
+
+## Install
+
+Patcher has two halves, and right now they install differently.
+
+### The desktop browser
+
+No release yet — the Electron shell is built from source, and it is **macOS on
+Apple Silicon only**.
+
+```bash
+git clone https://github.com/laruss/patcher-browser
+cd patcher-browser
+bun install
+bun run dev:desktop
+```
+
+Needs [Bun](https://bun.sh) 1.3.14+, Node 22.20.0+ (or 24 / 26), and an
+authenticated agent CLI. Full prerequisites and a packaged local build are in
+[docs/installation.md](docs/installation.md).
+
+### The agent runtime and web app
 
 ```bash
 npx patcher-app@latest
 ```
 
 That starts the server and host daemon and serves the web app on
-`http://localhost:38986`. The same package carries the `patcher` CLI:
+`http://localhost:38986`, on macOS and Linux. **It does not include the
+browser** — it gives you threads, projects, patch management and the `patcher`
+CLI. See [`packages/patcher-app/README.md`](./packages/patcher-app/README.md).
 
-```bash
-npx --package patcher-app patcher --help
-```
+## Security model
 
-The desktop app has no release yet. The
-[releases page](https://github.com/laruss/patcher-browser/releases) is empty and
-no update feed resolves, so the Electron shell still has to be built from this
-repository — see [Development](#development).
-[`.github/workflows/build-desktop.yml`](./.github/workflows/build-desktop.yml)
-is the workflow that cuts it.
+Patcher is experimental software that runs code an agent wrote.
 
-### Supported platforms
+- Agent-requested patch changes require your confirmation.
+- The confirmation shows the declared permissions and site scopes.
+- Browser access operates on your real authenticated sessions.
+- **Patch backends are not sandboxed yet** and may execute local Node.js code
+  with the server process's own privileges.
+- The local API is unauthenticated; it binds to loopback for that reason.
+- Install only patches you understand and trust.
 
-**The desktop app is macOS on Apple Silicon only.** The Electron shell is
-arm64-only by configuration.
+The reasoning, the exits a patch can still take, and the telemetry position
+(currently: none is sent) are in [docs/security.md](docs/security.md).
 
-The npm package reaches further, by declaration: `os: ["darwin", "linux"]` with
-no CPU restriction, and Node 22.19, 24, or 26. npm therefore installs it on an
-Intel Mac as well, and nothing in the launcher, server, or CLI refuses a platform
-outright. Verified on macOS arm64 from an empty npm cache: install, `patcher
---version`, and the packaged-tarball smoke.
+## Current limitations
 
-**Linux needs a C++ toolchain.** `node-pty` ships prebuilt binaries for
-`darwin-arm64`, `darwin-x64`, `win32-arm64`, and `win32-x64`, and none for
-Linux, so there its install step falls back to `node-gyp rebuild`. On a stock
-Ubuntu 24.04 that aborts at `not found: make`, and npm rolls the whole tree
-back, so nothing is left behind to debug. Install `build-essential` first.
-Whether Patcher then runs on Linux is still unverified. macOS never meets this
-because it gets a prebuild, which is also why Xcode is not a prerequisite there.
+- **No desktop release.** The browser runs from source, macOS arm64 only.
+  Releases and the update feed are empty.
+- **Patches are not isolated.** Process isolation is planned work, not shipped.
+- **Not a Chrome extension host.** Chrome extension compatibility is out of
+  scope for now.
+- **Missing browser features:** no user-facing print, no spellcheck suggestions,
+  no audio indicator on a tab playing on its own, no download progress or
+  pause/resume, and no permission prompt UI — everything except sanitized
+  clipboard writes and fullscreen is denied outright.
+- **Linux and WSL2 are unverified** for the runtime, and need a C++ toolchain to
+  install at all.
 
-Windows fails npm's own platform check; run Patcher inside WSL2, which
-[`packages/patcher-app/README.md`](./packages/patcher-app/README.md) describes.
-WSL2 is Linux, so the toolchain requirement follows it there.
+The full list, with the reasoning and what is decided versus merely unbuilt, is
+[browser-gaps.md](docs/architecture/browser-gaps.md).
 
-Patcher uses the provider CLI you already have authenticated.
+## Example patches
 
-Enrolling an additional machine from a running Patcher needs no registry: the
-server builds and serves its own `patcher-app` package, and the enrollment
-script installs that.
+Things the contract already supports end to end:
 
-### Telemetry
+- _"Strip the sidebar from this docs site and widen the article column."_ — a
+  page style scoped to one site.
+- _"Add a toolbar button that saves the current page to a reading list, and put
+  the list on my new-tab screen."_ — a toolbar item, per-patch storage, a
+  new-tab widget.
+- _"When I'm on a GitHub pull request, show me a panel summarizing it."_ — a
+  panel with a URL match, plus an agent tool.
+- _"Every weekday at 9, check our dashboards and open anything that's red."_ — a
+  cron schedule driving the browser.
+- _"Make our internal wiki searchable from the address bar."_ — an omnibox
+  provider or a search engine.
 
-Patcher currently sends no telemetry: it ships with an empty PostHog key, and
-an empty key disables the sender. The code path is still there, and if a key is
-ever configured, production runs (the desktop app and the packaged launcher) would
-send anonymous usage telemetry (app starts, thread creation counts, and user
-message counts). Identification would be a random per-install id stored in your
-data dir — no user, host, project, workspace, or message content is ever
-attached. Development/source runs never send. Opt out of any run with
-`PATCHER_TELEMETRY=false`. See
-[`apps/server/src/services/system/telemetry.ts`](./apps/server/src/services/system/telemetry.ts).
+Bundled plugins under [`plugins/`](plugins) and
+[`examples/plugins/`](examples/plugins) are working references.
+
+## Built on BB
+
+Patcher is based on the open-source agent infrastructure of
+[BB](https://github.com/get-bb/bb) by Michael Yong, and keeps its MIT license.
+
+Patcher develops an independent browser-first product, plugin contract,
+application identity and release lifecycle. It has its own data directory,
+ports and package names, and it neither reads nor migrates the state of a bb
+install — the two can be installed side by side.
 
 ## Development
 
-Use the development loop when working on Patcher itself:
-
 ```bash
-bun run dev
+bun install
+bun run dev          # web app + server
+bun run dev:desktop  # the same dev server inside the Electron browser
+bun run test
 ```
 
-That starts the Vite app and proxies API and WebSocket traffic to a separate
-dev server. The launcher prints the actual ports at startup. Each checkout gets
-a data directory under
-`~/.patcher-dev/<checkout-instance>/` and deterministic high ports derived from the
-checkout path. The checkout instance id is the sanitized path to the checkout,
-relative to your home directory, plus a short hash suffix. Separate worktrees
-can run alongside each other and the packaged production instance.
+[docs/development.md](docs/development.md) covers the dev loop, what hot reloads
+and what does not, per-checkout data directories and ports, Storybook, and
+reaching a dev instance from another machine.
 
-To run that same source dev server with the Electron desktop shell:
+Before changing contracts, dependencies or packaging, read [AGENTS.md](AGENTS.md)
+and [the migration map](docs/architecture/bb-migration.md): this repository
+carries inherited invariants a passing build does not protect.
 
-```bash
-bun run dev:desktop
-```
+## Troubleshooting
 
-This uses `scripts/patcher-dev-app current --desktop`, which stops stale launcher
-sessions, checks dependencies and native modules, starts the source dev server,
-then opens the desktop shell against that dev app. The launcher prints the web
-URL but does not open a browser unless you pass `--open`.
+Common failures — `Could not locate the bindings file`, `not found: make` on
+Linux, npm refusing to install on Windows, `debugger-unavailable` on a tab with
+DevTools open — are in
+[docs/troubleshooting.md](docs/troubleshooting.md).
 
-To use the dev app from another machine over Tailscale, run `bun run dev`, note the
-printed app port, and publish the loopback Vite listener:
+## Further reading
 
-```bash
-tailscale serve --bg --https=443 http://127.0.0.1:<app-port>
-```
-
-Then open `https://<machine>.<tailnet>.ts.net`. Source dev binds both the Vite
-app and main server to loopback by default; Vite continues to proxy API and
-WebSocket traffic.
-
-To use the component storybook from another machine, run:
-
-```bash
-bun run storybook
-```
-
-Ladle binds to all interfaces and configures its HMR WebSocket to use the
-browser's current host instead of `localhost`. Do not run `bun run storybook` on an
-untrusted network.
-
-Development behavior is intentionally split:
-
-- the app hot reloads itself
-- the server does not hot reload
-- the host daemon does not hot reload
-
-When you want the server and host daemon to pick up the latest build output, use:
-
-```bash
-bun run dev:restart
-bun run dev:restart-server
-bun run dev:restart-host-daemon
-```
-
-These rebuild first, then restart only the targeted stateful services.
-
-To run a production-mode build from a source checkout:
-
-```bash
-bun run start
-```
-
-That builds only the app, server, and host-daemon runtime artifacts, then runs
-the launcher directly against those workspace outputs. Use the `patcher-app`
-tarball smoke task when validating the `patcher-app` package layout.
-
-```bash
-bun run patcher --help            # built CLI, targets the default/prod instance
-bun run reset                # clear production state
-
-bun run patcher:dev --help        # source CLI, targets this checkout's dev instance
-bun run reset:dev            # clear this checkout's dev state
-
-bun run reset:all            # clear both production and dev states
-```
-
-These reset commands prompt for confirmation before deleting anything.
-
-## Further Reading
-
-Seven links here used to point at `docs/` pages the fork does not carry
-(`repository-overview`, `system-overview`, `VISION`, `platform-support`,
-`configuration`, `multiple-devices`, `worktrees`). What exists:
-
-- [AGENTS.md](AGENTS.md) — working agreements, and the invariants a passing build
-  does not protect
+- [`docs/architecture/`](docs/architecture) — the browser surface, the plugin
+  contract, permissions, and the transport between them
 - [Migration map](docs/architecture/bb-migration.md) — what this fork inherited,
   and the contracts that must survive changing it
 - [Project plan](docs/PROJECT_PLAN.md) and [TODO](docs/TODO.md)
 - [Lifecycle diagrams](docs/lifecycle-diagrams.md)
-- [`docs/architecture/`](docs/architecture) — the browser surface, the plugin
-  contract, permissions, and the transport between them
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
-
-## Troubleshooting
-
-### `Could not locate the bindings file`
-
-Patcher uses native add-ons, for example `better-sqlite3` and `@parcel/watcher`. npm
-downloads or builds those binaries in a package install script. If npm does not
-run install scripts, the binaries are absent. Patcher then stops at startup with this
-error:
-
-```
-Error: Could not locate the bindings file. Tried:
- → .../node_modules/better-sqlite3/build/better_sqlite3.node
-```
-
-The usual cause is `ignore-scripts=true` in your `~/.npmrc`. The desktop app is
-unaffected — it ships its native modules prebuilt — so this bites the two paths
-that run `npm install` on your machine: enrolling a machine from a running
-Patcher, and building from this repository.
-
-Set the `npm_config_ignore_scripts` environment variable for that one command:
-
-```bash
-npm_config_ignore_scripts=false sh install.sh --join-code <code> --host-id <id> --server <url>
-npm_config_ignore_scripts=false bun install    # in a checkout
-```
-
-The environment variable applies to the command you put it in front of. Keep
-`ignore-scripts=true` in your `~/.npmrc` if you want it for security.
-
-The same error has other causes. A Node.js major-version change after the
-install causes it. A copy of `node_modules` from a different operating system,
-CPU architecture, or libc variant also causes it. To recover, install the
-package again, or run `npm rebuild better-sqlite3`.
+See [CONTRIBUTING.md](CONTRIBUTING.md).

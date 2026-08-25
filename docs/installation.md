@@ -1,0 +1,104 @@
+# Installation
+
+Patcher has two halves, and they install differently. This page is the long
+version of the README's [Install](../README.md#install) section.
+
+| What you get                             | How you get it             | State                    |
+| ---------------------------------------- | -------------------------- | ------------------------ |
+| The **browser** — tabs, omnibox, patches | Built from this repository | macOS Apple Silicon only |
+| The **agent runtime, web app, and CLI**  | `npx patcher-app@latest`   | macOS and Linux          |
+
+## The desktop browser
+
+There is no desktop release yet. The
+[releases page](https://github.com/laruss/patcher-browser/releases) is empty and
+no update feed resolves, so the Electron shell has to be built from source.
+[`.github/workflows/build-desktop.yml`](../.github/workflows/build-desktop.yml)
+is the workflow that cuts it.
+
+**The desktop app is macOS on Apple Silicon only.** The Electron shell is
+arm64-only by configuration.
+
+### Prerequisites
+
+- macOS on Apple Silicon.
+- [Bun](https://bun.sh) 1.3.14 or newer — the version CI pins.
+- Node.js 22.20.0 or newer on the 22 line, or Node 24 or 26. Below 22.20.0 the
+  `better-sqlite3` prebuild does not load.
+- Git.
+- At least one authenticated agent provider — see
+  [Provider credentials](../packages/patcher-app/README.md#provider-credentials).
+  Patcher uses the provider CLI you already have authenticated.
+
+### Build and run
+
+```bash
+git clone https://github.com/laruss/patcher-browser
+cd patcher-browser
+bun install
+bun run dev:desktop
+```
+
+`dev:desktop` runs `scripts/patcher-dev-app current --desktop`: it stops stale
+launcher sessions, checks dependencies and native modules, starts the source dev
+server, then opens the desktop shell against that dev app. See
+[Development](development.md) for what that dev server does and where it stores
+its data.
+
+For a packaged local build instead of the dev loop:
+
+```bash
+bun run --filter @patcher/desktop package   # unsigned .app under apps/desktop/release
+bun run --filter @patcher/desktop start     # package, then launch it
+```
+
+These are unsigned. Signing and notarization happen in the workflow, from
+repository secrets.
+
+## The agent runtime and web app
+
+```bash
+npx patcher-app@latest
+```
+
+That starts the server and host daemon and serves the web app on
+`http://localhost:38986`. **It does not give you the browser** — the browser
+surface lives in the Electron shell above. What it gives you is threads,
+projects, plugin management, and the CLI.
+
+The same package carries the `patcher` CLI:
+
+```bash
+npx --package patcher-app patcher --help
+```
+
+[`packages/patcher-app/README.md`](../packages/patcher-app/README.md) documents
+the launcher, the CLI, the Node SDK, provider credentials, and configuration.
+
+### Supported platforms
+
+The npm package reaches further than the desktop app, by declaration:
+`os: ["darwin", "linux"]` with no CPU restriction, and Node 22.19, 24, or 26.
+npm therefore installs it on an Intel Mac as well, and nothing in the launcher,
+server, or CLI refuses a platform outright. Verified on macOS arm64 from an
+empty npm cache: install, `patcher --version`, and the packaged-tarball smoke.
+
+**Linux needs a C++ toolchain.** `node-pty` ships prebuilt binaries for
+`darwin-arm64`, `darwin-x64`, `win32-arm64`, and `win32-x64`, and none for
+Linux, so there its install step falls back to `node-gyp rebuild`. On a stock
+Ubuntu 24.04 that aborts at `not found: make`, and npm rolls the whole tree
+back, so nothing is left behind to debug. Install `build-essential` first.
+Whether Patcher then runs on Linux is still unverified. macOS never meets this
+because it gets a prebuild, which is also why Xcode is not a prerequisite there.
+
+**Windows** fails npm's own platform check; run Patcher inside WSL2, which
+[`packages/patcher-app/README.md`](../packages/patcher-app/README.md) describes.
+WSL2 is Linux, so the toolchain requirement follows it there.
+
+## Enrolling another machine
+
+Enrolling an additional machine from a running Patcher needs no registry: the
+server builds and serves its own `patcher-app` package, and the enrollment
+script installs that. If that install fails with
+`Could not locate the bindings file`, see
+[Troubleshooting](troubleshooting.md#could-not-locate-the-bindings-file).
