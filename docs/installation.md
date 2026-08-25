@@ -10,14 +10,38 @@ version of the README's [Install](../README.md#install) section.
 
 ## The desktop browser
 
-There is no desktop release yet. The
-[releases page](https://github.com/laruss/patcher-browser/releases) is empty and
-no update feed resolves, so the Electron shell has to be built from source.
-[`.github/workflows/build-desktop.yml`](../.github/workflows/build-desktop.yml)
-is the workflow that cuts it.
-
 **The desktop app is macOS on Apple Silicon only.** The Electron shell is
 arm64-only by configuration.
+
+### Download the alpha
+
+The [releases page](https://github.com/laruss/patcher-browser/releases) carries
+a `.dmg` — `0.1.1-alpha.1` at the time of writing. Alphas are published as
+prereleases, so `/releases/latest` and the release API skip them by design; the
+page itself is the list. Open the `.dmg`, drag Patcher to Applications, and
+expect one refusal on first launch: the build is ad-hoc signed, not signed with an Apple Developer ID, so
+Gatekeeper will not open it unattended.
+
+Allow it once in **System Settings → Privacy & Security** → **Open Anyway**, or
+strip the quarantine flag yourself:
+
+```bash
+xattr -d com.apple.quarantine /Applications/Patcher.app
+```
+
+Neither is a workaround for a broken download — the signature is valid, it just
+carries no Apple identity. What notarization would buy is skipping this step;
+see [Security](security.md) for what the signature does and does not say about
+the code.
+
+Alpha builds do not update themselves. `electron-updater` installs only a
+Developer ID-signed update, so the alpha deliberately leaves the update feed
+alone rather than offering one it cannot apply. Check the releases page.
+
+### Or build it from source
+
+[`.github/workflows/build-desktop.yml`](../.github/workflows/build-desktop.yml)
+is the workflow that cuts a release; the steps below are the same build by hand.
 
 ### Prerequisites
 

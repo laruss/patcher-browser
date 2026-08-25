@@ -22,12 +22,17 @@
 </p>
 
 <p align="center">
-  <img alt="Patcher turning a prompt into an installed patch" src="assets/demo.gif" width="800">
+  <img alt="Concept animation of Patcher turning a prompt into an installed patch" src="assets/demo.gif" width="800">
+</p>
+
+<p align="center">
+  <sub>Design concept — not a screen recording.</sub>
 </p>
 
 > [!NOTE]
-> Patcher is in active development, and the desktop browser has no release yet —
-> it runs from source on macOS Apple Silicon. See [Install](#install).
+> Patcher is in active development. The desktop browser is an alpha for **macOS
+> on Apple Silicon**, and it is not signed with an Apple Developer ID, so the
+> first launch needs one explicit approval. See [Install](#install).
 
 ## Patch the web around you
 
@@ -98,8 +103,20 @@ Patcher has two halves, and right now they install differently.
 
 ### The desktop browser
 
-No release yet — the Electron shell is built from source, and it is **macOS on
-Apple Silicon only**.
+**[Download the alpha](https://github.com/laruss/patcher-browser/releases)** —
+a `.dmg` for **macOS on Apple Silicon**, currently `0.1.1-alpha.1`. Open it and
+drag Patcher to Applications. Alphas are published as prereleases, so GitHub's
+"latest release" link skips them — the releases page itself is the list.
+
+The build is ad-hoc signed rather than signed with an Apple Developer ID, so
+macOS refuses it on your word alone the first time. Open Patcher, then go to
+**System Settings → Privacy & Security**, scroll to Security, and choose **Open
+Anyway**. Later launches ask nothing. The release notes carry the same steps and
+a terminal equivalent.
+
+Alpha builds do not update themselves — check the releases page for a newer one.
+
+To run it from source instead:
 
 ```bash
 git clone https://github.com/laruss/patcher-browser
@@ -140,8 +157,10 @@ The reasoning, the exits a patch can still take, and the telemetry position
 
 ## Current limitations
 
-- **No desktop release.** The browser runs from source, macOS arm64 only.
-  Releases and the update feed are empty.
+- **The browser is macOS arm64 only**, and its download is an alpha.
+- **Not notarized.** With no Apple Developer ID, the build is ad-hoc signed:
+  Gatekeeper refuses it until you allow it once, and it cannot update itself,
+  because `electron-updater` installs only a Developer ID-signed update.
 - **Patches are not isolated.** Process isolation is planned work, not shipped.
 - **Not a Chrome extension host.** Chrome extension compatibility is out of
   scope for now.
