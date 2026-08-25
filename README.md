@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  Describe what you want a website — or the browser itself — to do.
-  Patcher turns the request into a <em>patch</em>, shows you the code and the
-  access it asks for, and installs it into your browser.
+  Tell your coding agent what you want a website — or the browser itself — to do.
+  It builds a Patcher plugin, shows you the generated code and the access it
+  asks for, and installs the plugin into your browser.
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img alt="Concept animation of Patcher turning a prompt into an installed patch" src="assets/demo.gif" width="800">
+  <img alt="Concept animation of an agent creating and installing a Patcher plugin" src="assets/demo.gif" width="800">
 </p>
 
 <p align="center">
@@ -34,7 +34,20 @@
 > on Apple Silicon**, and it is not signed with an Apple Developer ID, so the
 > first launch needs one explicit approval. See [Install](#install).
 
-## Patch the web around you
+## Try it
+
+Once you have Patcher ([install](#install)), open a thread and tell your coding
+agent, in as many words, to use Patcher:
+
+> **Using Patcher, create and install a browser plugin that shows a summarizing
+> sidebar whenever I'm on a GitHub pull request.**
+
+Starting with **"Using Patcher…"** is what points the agent at Patcher's CLI and
+plugin system, rather than at writing an unrelated script or project. Saying
+"create and install" asks for both halves: the plugin gets written _and_ offered
+for installation.
+
+## Make the web work your way
 
 - **Modify websites** — remove distractions, restyle a page you stare at all
   day, add actions to a site's own UI.
@@ -42,25 +55,24 @@
   new-tab sections and omnibox providers.
 - **Automate workflows** — persistent jobs that run on demand or on a schedule,
   driving your real logged-in browser.
-- **Edit everything again** — inspect, change, disable or remove any patch it
-  wrote for you.
+- **Edit everything again** — inspect, change, disable or remove any generated
+  plugin.
 
-A **patch** is a Patcher plugin created or modified for you by a coding agent.
-Inside the architecture they are plugins, with a documented contract you can
-write by hand; in the product you ask for a patch.
-
-## How patches work
+## How generated plugins work
 
 ```text
 Prompt  →  Code  →  Permissions  →  Installed
 ```
 
-1. A coding agent scaffolds or edits a plugin against Patcher's plugin SDK.
-2. You review the generated code in the thread's diff, like any other change an
+1. In a Patcher thread, you ask the agent to use Patcher and describe the
+   browser behaviour you want.
+2. The agent scaffolds or edits a plugin against Patcher's plugin SDK.
+3. You review the generated code in the thread's diff, like any other change an
    agent makes.
-3. When the agent asks to install it, Patcher shows the declared permissions and
-   site scopes for approval — that prompt carries the declaration, not the diff.
-4. You allow or refuse. The patch then persists across restarts, and can be
+4. When the agent asks to install it, Patcher shows the plugin's declared
+   permissions and site scopes — that prompt carries the declaration, not the
+   diff.
+5. You allow or refuse. An installed plugin persists across restarts, and can be
    edited, disabled or removed later.
 
 That approval is a consent and audit boundary, not a sandbox — see
@@ -81,19 +93,20 @@ Codex, Cursor, Pi, OpenCode, Grok Build, Hermes, or any ACP-compatible agent.
 - Tab context menu: duplicate, pin, mute, close, reopen, drag to reorder
 - Prompts for HTTP basic auth, certificate errors and client certificates
 
-**Patches**
+**Plugins**
 
 - Toolbar items, panels, context-menu and tab-menu entries, new-tab widgets
-- Page scripts and page styles, scoped to the sites the patch declared
+- Page scripts and page styles, scoped to the sites declared by the plugin
 - Cron schedules and long-lived background services
-- Per-patch SQLite storage, settings, and agent tools
-- Declared permissions and site scopes, printed by the CLI and by every prompt
+- Per-plugin SQLite storage, settings, and agent tools
+- Declared permissions and site scopes, shown by the CLI and consent prompt
 
 **Agents**
 
 - Agent control over the live browser — tabs, navigation, page reads, interaction
 - Threads you can follow live, steer, or hand off to another provider
-- A consent prompt before any agent-requested patch install, update or removal
+- A consent prompt before an agent-requested plugin install, update, removal or
+  configuration change
 
 The plugin contract is documented in
 [`docs/architecture/`](docs/architecture) — start with
@@ -140,26 +153,27 @@ npx patcher-app@latest
 
 That starts the server and host daemon and serves the web app on
 `http://localhost:38986`, on macOS and Linux. **It does not include the
-browser** — it gives you threads, projects, patch management and the `patcher`
+browser** — it gives you threads, projects, plugin management and the `patcher`
 CLI. See [`packages/patcher-app/README.md`](./packages/patcher-app/README.md).
 
 ## Security model
 
-Patcher is experimental software that runs code an agent wrote.
+Patcher is experimental software that runs plugins written by coding agents.
 
-- Agent-requested patch changes made through Patcher's normal CLI path pause for
-  your confirmation, and the prompt shows the declared permissions and sites.
+- Agent-requested plugin changes made through Patcher's normal CLI path pause
+  for your confirmation, and the prompt shows the declared permissions and
+  sites.
 - **That is a consent and audit boundary, not a sandbox against malicious code.**
-  The local API is unauthenticated and patch backends are not isolated, so the
+  The local API is unauthenticated and plugin backends are not isolated, so the
   gate records and slows a decision rather than enforcing it.
 - Browser access operates on your real authenticated sessions.
-- **Patch backends are not sandboxed yet** and may execute local Node.js code
+- **Plugin backends are not sandboxed yet** and may execute local Node.js code
   with the server process's own privileges.
 - The local API binds to loopback, which is the only thing standing in for the
   authentication it does not have.
-- Install only patches you understand and trust.
+- Install only plugins you understand and trust.
 
-The reasoning, the exits a patch can still take, and the telemetry position
+The reasoning, the exits a plugin can still take, and the telemetry position
 (currently: none is sent) are in [docs/security.md](docs/security.md).
 
 ## Current limitations
@@ -168,7 +182,7 @@ The reasoning, the exits a patch can still take, and the telemetry position
 - **Not notarized.** With no Apple Developer ID, the build is ad-hoc signed:
   Gatekeeper refuses it until you allow it once, and it cannot update itself,
   because `electron-updater` installs only a Developer ID-signed update.
-- **Patches are not isolated.** Process isolation is planned work, not shipped.
+- **Plugins are not isolated.** Process isolation is planned work, not shipped.
 - **Not a Chrome extension host.** Chrome extension compatibility is out of
   scope for now.
 - **Missing browser features:** no user-facing print, no spellcheck suggestions,
@@ -178,30 +192,36 @@ The reasoning, the exits a patch can still take, and the telemetry position
   microphone, geolocation, notifications or MIDI is refused outright rather than
   put to you; only sanitized clipboard writes and fullscreen are allowed. This
   is about what _websites_ may ask for, and is unrelated to the permissions a
-  patch declares.
+  plugin declares.
 - **Linux and WSL2 are unverified** for the runtime, and need a C++ toolchain to
   install at all.
 
 The full list, with the reasoning and what is decided versus merely unbuilt, is
 [browser-gaps.md](docs/architecture/browser-gaps.md).
 
-## Example patches
+## Example prompts
 
-Things the contract already supports end to end:
+Copy one into a Patcher thread:
 
-- _"Strip the sidebar from this docs site and widen the article column."_ — a
-  page style scoped to one site.
-- _"Add a toolbar button that saves the current page to a reading list, and put
-  the list on my new-tab screen."_ — a toolbar item, per-patch storage, a
-  new-tab widget.
-- _"When I'm on a GitHub pull request, show me a panel summarizing it."_ — a
-  panel with a URL match, plus an agent tool.
-- _"Every weekday at 9, check our dashboards and open anything that's red."_ — a
-  cron schedule driving the browser.
-- _"Make our internal wiki searchable from the address bar."_ — an omnibox
-  provider or a search engine.
+> Using Patcher, create and install a browser plugin that removes the sidebar
+> from this documentation site and widens the article column.
 
-Bundled plugins under [`plugins/`](plugins) and
+> Using Patcher, create and install a browser plugin that adds a toolbar button
+> for saving the current page to a reading list and shows that list on the
+> new-tab screen.
+
+> Using Patcher, create and install a browser plugin that shows a summarizing
+> panel whenever I'm viewing a GitHub pull request.
+
+> Using Patcher, create and install a browser plugin that runs every weekday at
+> 9 AM, checks our dashboards, and opens anything that is red.
+
+> Using Patcher, create and install a browser plugin that makes our internal
+> wiki searchable from the address bar.
+
+These use plugin capabilities that already work end to end — page styles,
+toolbar items and per-plugin storage, panels with a URL match, cron schedules,
+and omnibox providers. Bundled plugins under [`plugins/`](plugins) and
 [`examples/plugins/`](examples/plugins) are working references.
 
 ## Built on bb

@@ -5,7 +5,7 @@ version of the README's [Install](../README.md#install) section.
 
 | What you get                             | How you get it               | State                    |
 | ---------------------------------------- | ---------------------------- | ------------------------ |
-| The **browser** — tabs, omnibox, patches | GitHub prerelease, or source | macOS Apple Silicon only |
+| The **browser** — tabs, omnibox, plugins | GitHub prerelease, or source | macOS Apple Silicon only |
 | The **agent runtime, web app, and CLI**  | `npx patcher-app@latest`     | macOS and Linux          |
 
 ## The desktop browser
