@@ -262,9 +262,9 @@ const ALLOW = [
 
   // --- The fork is stated on purpose ---------------------------------------
   {
-    why: "the fork attribution, the comments explaining a frozen name or a removed link, and the changelog note saying whose release numbers the entries under 0.1.0 carry",
+    why: "the fork attribution and the heading over it, the comments explaining a frozen name or a removed link, and the changelog note saying whose release numbers the entries under 0.1.0 carry",
     word: /^(?:bb|get-bb)$/u,
-    line: /fork of \[bb\]|a bb install|bb's server|belong(?:s|ed)? to bb|inherited bb release notes|github\.com\/get-bb/u,
+    line: /fork of \[bb\]|a bb install|bb's server|belong(?:s|ed)? to bb|inherited bb release notes|github\.com\/get-bb|^## Built on bb$/u,
   },
 
   // --- English, libraries, and camelCase seams -----------------------------

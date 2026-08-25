@@ -174,15 +174,15 @@ Things the contract already supports end to end:
 Bundled plugins under [`plugins/`](plugins) and
 [`examples/plugins/`](examples/plugins) are working references.
 
-## Built on BB
+## Built on bb
 
-Patcher is based on the open-source agent infrastructure of
-[BB](https://github.com/get-bb/bb) by Michael Yong, and keeps its MIT license.
+Patcher is a fork of [bb](https://github.com/get-bb/bb) by Michael Yong, built on
+its open-source agent infrastructure, and keeps its MIT license.
 
 Patcher develops an independent browser-first product, plugin contract,
-application identity and release lifecycle. It has its own data directory,
-ports and package names, and it neither reads nor migrates the state of a bb
-install — the two can be installed side by side.
+application identity and release lifecycle. It has its own data directory, ports
+and package names, and it neither reads nor migrates the state of a bb install —
+the two can be installed side by side.
 
 ## Development
 
