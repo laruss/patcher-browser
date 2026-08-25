@@ -8,9 +8,9 @@ The short version is in the README's [Security model](../README.md#security-mode
 This is the reasoning behind it. For the full argument, see
 [plugin-permissions.md](architecture/plugin-permissions.md).
 
-## A patch is not sandboxed
+## A plugin is not sandboxed
 
-A patch's backend is a Node module loaded into the Patcher server process
+A plugin's backend is a Node module loaded into the Patcher server process
 (`plugin-runtime.ts`, via `jiti.import`). It runs with the process's own
 capabilities. Nothing in the `patcher` object it is handed closes that:
 
@@ -19,9 +19,9 @@ capabilities. Nothing in the `patcher` object it is handed closes that:
   around any wrapper on `patcher.sdk`;
 - it shares a realm with Patcher's own modules and can monkey-patch them.
 
-So a patch that wants what it did not declare can still take it. Treat
-installing a patch as running a local script with your account's privileges,
-because that is what it is.
+So a plugin that wants what it did not declare can still take it. Treat
+installing one as running a local script with your account's privileges, because
+that is what it is.
 
 Isolating plugins into their own process is planned work — Phase 7 of the
 project plan — and both
@@ -36,8 +36,8 @@ page, `patcher.sites`. Since that declaration is not enforced against hostile
 code, it buys three other things:
 
 1. **It specifies the future RPC surface.** Every entry names an operation that
-   must cross a process boundary once patches move out of the server process.
-2. **It makes an under-declared patch fail loudly.** A patch that reaches for
+   must cross a process boundary once plugins move out of the server process.
+2. **It makes an under-declared plugin fail loudly.** A plugin that reaches for
    something it did not ask for throws with the permission named and the fix in
    the message — which is what makes an agent's build loop converge instead of
    silently doing more than you asked.
@@ -60,7 +60,7 @@ processes a turn spawns, and the CLI forwards it as `x-patcher-thread-id`. No
 declared thread means a person at their own terminal, and that behaves as it
 always did. A declared thread means an agent mid-turn, and `enable`, `disable`,
 `install`, `update`, `remove` and a settings write each raise a prompt in that
-thread — the patch's name, its declared permissions, its declared sites — and
+thread — the plugin's name, its declared permissions, its declared sites — and
 block on the answer for up to four minutes. The change happens only if you
 allow it.
 
@@ -72,8 +72,8 @@ prompt is raised, an unknown thread or one already holding a question is a
 ## The browser runs your real sessions
 
 Browsing happens in a persistent Chromium session with your real cookies and
-logins. A patch that declares a site and registers a page script runs on that
-site while you are signed in to it. That is what makes patches useful and it is
+logins. A plugin that declares a site and registers a page script runs on that
+site while you are signed in to it. That is what makes plugins useful and it is
 also the whole risk: read the site list on the consent prompt, not just the
 permission list.
 

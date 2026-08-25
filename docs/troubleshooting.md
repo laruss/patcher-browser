@@ -52,11 +52,11 @@ There is no desktop release yet, and the update feed does not resolve. Build the
 Electron shell from this repository — see
 [Installation](installation.md#the-desktop-browser).
 
-## A patch throws with a permission name in the message
+## A plugin throws with a permission name in the message
 
-That is the intended behaviour, not a bug: a patch that reaches for something it
-did not declare fails loudly, with the permission named and the fix in the
-message. Add the permission to the patch's `patcher.permissions` (and the site
+That is the intended behaviour, not a bug: a plugin that reaches for something
+it did not declare fails loudly, with the permission named and the fix in the
+message. Add the permission to the plugin's `patcher.permissions` (and the site
 to `patcher.sites` if it touches a page), then reinstall. See
 [plugin-permissions.md](architecture/plugin-permissions.md).
 
