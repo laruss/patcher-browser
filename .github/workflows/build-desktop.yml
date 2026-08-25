@@ -118,6 +118,17 @@ jobs:
       - name: Generate desktop version feed
         run: bun run --filter @patcher/desktop --elide-lines=0 desktop:version-feed
 
+      # What an ad-hoc-signed download has instead of a notarization ticket. It
+      # cannot say who built the app -- only Apple's chain does that -- but it
+      # does let someone check that the bytes they got are the bytes CI made.
+      - name: Checksum desktop artifacts
+        run: |
+          set -euo pipefail
+
+          cd apps/desktop/release
+          shasum -a 256 Patcher*.dmg Patcher*.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Plan release publication
         id: release_plan
         env:
@@ -190,6 +201,7 @@ jobs:
             apps/desktop/release/*.blockmap
             apps/desktop/release/latest-mac.yml
             apps/desktop/release/desktop-version.json
+            apps/desktop/release/SHA256SUMS.txt
           if-no-files-found: error
 
       - name: Publish stable desktop release feed
@@ -209,6 +221,7 @@ jobs:
 
           if [[ "$PUBLISH_BINARIES" == "true" ]]; then
             RELEASE_ASSETS+=("$RELEASE_DIR/latest-mac.yml")
+            RELEASE_ASSETS+=("$RELEASE_DIR/SHA256SUMS.txt")
             RELEASE_ASSETS+=("$RELEASE_DIR"/*.dmg)
             RELEASE_ASSETS+=("$RELEASE_DIR"/*.zip)
             RELEASE_ASSETS+=("$RELEASE_DIR"/*.blockmap)
@@ -273,6 +286,7 @@ jobs:
           # are the auto-update feed, and an ad-hoc-signed build cannot serve it.
           RELEASE_ASSETS=(
             "$RELEASE_DIR/desktop-version.json"
+            "$RELEASE_DIR/SHA256SUMS.txt"
             "$RELEASE_DIR"/*.dmg
             "$RELEASE_DIR"/*.zip
             "$RELEASE_DIR"/*.blockmap
@@ -310,6 +324,18 @@ jobs:
           \`\`\`bash
           xattr -d com.apple.quarantine /Applications/Patcher.app
           \`\`\`
+
+          ## Verifying the download
+
+          There is no notarization ticket to check, so \`SHA256SUMS.txt\` is what
+          says the bytes are the ones CI produced:
+
+          \`\`\`bash
+          shasum -a 256 -c SHA256SUMS.txt
+          \`\`\`
+
+          It says nothing about *who* built the app. Only Apple's chain does that,
+          and this build is not in it.
 
           ## Alpha builds do not auto-update
 

@@ -13,9 +13,9 @@ installs it into your browser.
 **This package is the agent runtime, not the browser.** It provides the
 `npx patcher-app` launcher, the bundled `patcher` CLI entry, and the Node SDK
 export: threads, projects, patch management, and the HTTP API. The browser
-surface lives in the Electron desktop app, which currently
-[runs from source](https://github.com/laruss/patcher-browser#install) on macOS
-Apple Silicon.
+surface lives in the Electron desktop app, downloadable as an
+[alpha for macOS Apple Silicon](https://github.com/laruss/patcher-browser/releases)
+or buildable from source.
 
 Every surface here — the web app, CLI, and HTTP API — is a first-class way to
 drive Patcher. Work runs in threads you can follow live, steer at any point, or

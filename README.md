@@ -56,12 +56,15 @@ Prompt  →  Code  →  Permissions  →  Installed
 ```
 
 1. A coding agent scaffolds or edits a plugin against Patcher's plugin SDK.
-2. Patcher shows you the code change and the access it declares — permissions,
-   and the sites it wants to reach.
-3. You approve or reject the installation. An agent cannot flip that switch
-   itself; see [Security model](#security-model).
-4. The patch persists across restarts, and can be edited, disabled or removed
-   later.
+2. You review the generated code in the thread's diff, like any other change an
+   agent makes.
+3. When the agent asks to install it, Patcher shows the declared permissions and
+   site scopes for approval — that prompt carries the declaration, not the diff.
+4. You allow or refuse. The patch then persists across restarts, and can be
+   edited, disabled or removed later.
+
+That approval is a consent and audit boundary, not a sandbox — see
+[Security model](#security-model).
 
 Patcher uses the coding-agent CLI you already have authenticated — Claude Code,
 Codex, Cursor, Pi, OpenCode, Grok Build, Hermes, or any ACP-compatible agent.
@@ -125,7 +128,7 @@ bun install
 bun run dev:desktop
 ```
 
-Needs [Bun](https://bun.sh) 1.3.14+, Node 22.20.0+ (or 24 / 26), and an
+Needs [Bun](https://bun.sh) 1.3.14+, the Node version in `.nvmrc`, and an
 authenticated agent CLI. Full prerequisites and a packaged local build are in
 [docs/installation.md](docs/installation.md).
 
@@ -144,12 +147,16 @@ CLI. See [`packages/patcher-app/README.md`](./packages/patcher-app/README.md).
 
 Patcher is experimental software that runs code an agent wrote.
 
-- Agent-requested patch changes require your confirmation.
-- The confirmation shows the declared permissions and site scopes.
+- Agent-requested patch changes made through Patcher's normal CLI path pause for
+  your confirmation, and the prompt shows the declared permissions and sites.
+- **That is a consent and audit boundary, not a sandbox against malicious code.**
+  The local API is unauthenticated and patch backends are not isolated, so the
+  gate records and slows a decision rather than enforcing it.
 - Browser access operates on your real authenticated sessions.
 - **Patch backends are not sandboxed yet** and may execute local Node.js code
   with the server process's own privileges.
-- The local API is unauthenticated; it binds to loopback for that reason.
+- The local API binds to loopback, which is the only thing standing in for the
+  authentication it does not have.
 - Install only patches you understand and trust.
 
 The reasoning, the exits a patch can still take, and the telemetry position
@@ -165,9 +172,13 @@ The reasoning, the exits a patch can still take, and the telemetry position
 - **Not a Chrome extension host.** Chrome extension compatibility is out of
   scope for now.
 - **Missing browser features:** no user-facing print, no spellcheck suggestions,
-  no audio indicator on a tab playing on its own, no download progress or
-  pause/resume, and no permission prompt UI — everything except sanitized
-  clipboard writes and fullscreen is denied outright.
+  no audio indicator on a tab playing on its own, and no download progress or
+  pause/resume.
+- **No prompt for a site's permission requests.** A page asking for camera,
+  microphone, geolocation, notifications or MIDI is refused outright rather than
+  put to you; only sanitized clipboard writes and fullscreen are allowed. This
+  is about what _websites_ may ask for, and is unrelated to the permissions a
+  patch declares.
 - **Linux and WSL2 are unverified** for the runtime, and need a C++ toolchain to
   install at all.
 
