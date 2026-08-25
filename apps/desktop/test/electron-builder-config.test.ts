@@ -535,12 +535,18 @@ describe("electron-builder signing config", () => {
     expect(config.dmg.sign).toBe(false);
   });
 
-  it("keeps builds unsigned when keychain auto-discovery is explicitly disabled", async () => {
+  // Ad-hoc rather than null: skipping codesign leaves only the arm64 linker's
+  // signature, which claims sealed resources the bundle does not have, so
+  // `codesign --verify` rejects it and macOS calls a downloaded copy damaged
+  // with no way to open it anyway. Ad-hoc is still untrusted -- Gatekeeper
+  // needs notarization -- but it is valid, which is what makes the override
+  // available to the user.
+  it("ad-hoc signs when keychain auto-discovery is explicitly disabled", async () => {
     const { config } = await readResolvedConfig({
       CSC_IDENTITY_AUTO_DISCOVERY: "false",
     });
 
-    expect(config.mac.identity).toBeNull();
+    expect(config.mac.identity).toBe("-");
     expect(config.mac.notarize).toBe(false);
   });
 

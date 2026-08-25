@@ -78,9 +78,19 @@ sign with a code-signing identity auto-discovered from the keychain and skip
 notarization. A valid signature matters even for local builds: macOS
 provenance-tracks unsigned apps, forcing syspolicyd to evaluate every exec in
 the app's process tree, which can stall process launches system-wide. On
-machines with no keychain identity (or with `CSC_IDENTITY_AUTO_DISCOVERY=false`,
-as CI sets for workflow-artifact-only builds), artifacts remain unsigned and
-macOS shows the normal Gatekeeper warning on first launch.
+machines with no keychain identity, electron-builder falls back to unsigned
+artifacts. With `CSC_IDENTITY_AUTO_DISCOVERY=false`, as CI sets when it has no
+Developer ID, the build is **ad-hoc signed** instead: `mac.identity` becomes
+`"-"` rather than `null`.
+
+That distinction is the difference between an installable download and a dead
+one, and it is not cosmetic. Skipping `codesign` altogether leaves only the
+arm64 linker's own signature, which declares sealed resources the bundle does
+not have — `codesign --verify --deep --strict` rejects it, `spctl` reports
+`no usable signature`, and macOS calls a quarantined copy _damaged_ with no
+"Open Anyway" offered. An ad-hoc signature verifies, so the same download is
+merely untrusted and the user can override it once. Gatekeeper still refuses it
+on its own: that needs notarization, not a certificate of any other kind.
 
 ## Releasing
 
@@ -183,11 +193,31 @@ GitHub Actions secrets:
 Once those secrets are present, the next `Build Desktop` workflow run with
 `publish=true` and `release_channel=stable` signs the `.app`, notarizes it, and
 publishes the signed `.dmg` / `.zip` assets to `desktop-latest`. If no required
-signing secrets are configured, the workflow still builds unsigned artifacts, but
-the release job publishes only `desktop-version.json` and withholds unsigned
-binaries from `desktop-latest`. If only some required signing secrets are set,
-the workflow fails before packaging so a misconfigured release cannot silently
-produce unsigned or signed-but-not-notarized artifacts.
+signing secrets are configured, `release_channel=stable` still publishes only
+`desktop-version.json` and withholds the binaries from `desktop-latest`. If only
+some required signing secrets are set, the workflow fails before packaging so a
+misconfigured release cannot silently produce unsigned or
+signed-but-not-notarized artifacts.
+
+### Releasing without a Developer ID
+
+`release_channel=alpha` with `publish=true` is the path that has no Apple
+account behind it. It publishes the ad-hoc-signed `.dmg`, `.zip`, blockmaps and
+`desktop-version.json` to their own `desktop-v<version>` prerelease, and
+requires the version to be a prerelease number so an ad-hoc build cannot occupy
+one reserved for a signed release.
+
+What it deliberately does not do is touch `desktop-latest` or publish
+`latest-mac.yml`. That is the auto-update feed, and `electron-updater` installs
+only a Developer ID-signed update, so pointing installed apps at an ad-hoc
+build would offer an update that cannot apply. Alpha downloads are found on the
+releases page, and the release notes carry the first-launch override the
+signature makes necessary.
+
+A self-signed certificate is not a middle ground worth building: Gatekeeper
+trusts only Apple's chain, so a self-signed identity is refused exactly like
+ad-hoc, while costing two more secrets, keychain setup in CI, and an expiry
+date. Ad-hoc buys the same valid signature with none of that.
 
 ## Auto-update
 

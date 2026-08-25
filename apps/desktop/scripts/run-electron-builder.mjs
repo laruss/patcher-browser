@@ -88,7 +88,7 @@ function logSigningPlan(signingPlan) {
     );
   } else {
     logWarning(
-      "macOS signing skipped: CSC_IDENTITY_AUTO_DISCOVERY=false and no signing secrets found. Artifacts will be unsigned.",
+      "macOS ad-hoc signing: CSC_IDENTITY_AUTO_DISCOVERY=false and no signing secrets found. The signature is valid but untrusted, so Gatekeeper refuses a downloaded copy until the user opens it explicitly.",
     );
   }
 
@@ -116,8 +116,11 @@ function autoDiscoveryExplicitlyDisabled(env) {
  *   evaluate every exec in the app's process tree and can stall execs
  *   system-wide. Machines without a signing identity fall back to unsigned
  *   artifacts inside electron-builder.
- * - "disabled": no secrets and CSC_IDENTITY_AUTO_DISCOVERY=false — explicitly
- *   unsigned (the CI path for workflow-artifact-only builds).
+ * - "disabled": no secrets and CSC_IDENTITY_AUTO_DISCOVERY=false — ad-hoc
+ *   signed, which is the CI path for builds with no Developer ID. "Disabled"
+ *   names the certificate, not the signature: see the ad-hoc branch in
+ *   resolveElectronBuilderConfig for why skipping codesign is worse than
+ *   signing without a certificate.
  */
 function createSigningPlan(env) {
   const presentSigningKeys = presentEnvironmentKeys(
@@ -170,7 +173,13 @@ export function resolveElectronBuilderConfig(baseConfig, env) {
   };
 
   if (signingPlan.mode === "disabled") {
-    mac.identity = null;
+    // Ad-hoc, not unsigned. Skipping codesign entirely leaves only the
+    // linker's own signature, which declares sealed resources the bundle does
+    // not have -- `codesign --verify` rejects it and macOS calls a quarantined
+    // copy damaged, with no "Open Anyway" offered. An ad-hoc signature is
+    // valid, so the same download is merely untrusted and can be opened.
+    // Gatekeeper still refuses it on its own: that needs notarization.
+    mac.identity = "-";
   } else if (signingPlan.identityName) {
     mac.identity = signingPlan.identityName;
   } else {
