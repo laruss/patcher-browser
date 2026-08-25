@@ -206,10 +206,28 @@ export function resolveElectronBuilderConfig(baseConfig, env) {
   };
 }
 
-function createElectronBuilderEnv(signingPlan) {
+/**
+ * GitHub Actions defines an unset secret as an empty string rather than leaving
+ * it out of the environment, and electron-builder reads a *present* `CSC_LINK`
+ * as a certificate path no matter how blank it is. An empty path resolves to
+ * the project directory, so the build dies with "<projectDir> not a file" while
+ * every signing secret is, as far as anyone reading the workflow can tell,
+ * absent. `envValueIsSet` already treats blank as absent; this makes the child
+ * process agree, so the two cannot disagree about whether a certificate exists.
+ *
+ * Nothing surfaced this until signing became ad-hoc: `identity: null` skipped
+ * the certificate path entirely, so a blank CSC_LINK was never read.
+ */
+export function createElectronBuilderEnv(signingPlan, env = process.env) {
   const childEnv = {
-    ...process.env,
+    ...env,
   };
+
+  for (const key of [...requiredSigningEnvironmentKeys, "CSC_NAME"]) {
+    if (!envValueIsSet(childEnv[key])) {
+      delete childEnv[key];
+    }
+  }
 
   childEnv.CSC_IDENTITY_AUTO_DISCOVERY =
     signingPlan.mode !== "disabled" && !signingPlan.identityName

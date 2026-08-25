@@ -17,6 +17,8 @@ import {
   createDesktopReleaseInfo,
   DESKTOP_AUTO_UPDATE_FEED_CONFIG,
 } from "../src/desktop-update-provider.js";
+// @ts-expect-error -- plain .mjs build script with no type declarations
+import { createElectronBuilderEnv } from "../scripts/run-electron-builder.mjs";
 
 const desktopPackageRoot = process.cwd();
 
@@ -548,6 +550,63 @@ describe("electron-builder signing config", () => {
 
     expect(config.mac.identity).toBe("-");
     expect(config.mac.notarize).toBe(false);
+  });
+
+  // An unset GitHub Actions secret arrives as an empty string, not as an absent
+  // key, and electron-builder reads a present CSC_LINK as a certificate path
+  // however blank it is -- an empty one resolves to the project directory and
+  // kills the build with "<projectDir> not a file". This cost a release build
+  // once, and it was invisible in the workflow: every signing secret looked
+  // absent because it was.
+  it("hides blank signing secrets from electron-builder", () => {
+    const env = createElectronBuilderEnv(
+      { mode: "disabled", identityName: undefined, notarizationEnabled: false },
+      {
+        APPLE_APP_SPECIFIC_PASSWORD: "",
+        APPLE_ID: "",
+        APPLE_TEAM_ID: "",
+        CSC_KEY_PASSWORD: "   ",
+        CSC_LINK: "",
+        CSC_NAME: "",
+        PATH: "/usr/bin",
+      },
+    );
+
+    for (const key of [
+      "APPLE_APP_SPECIFIC_PASSWORD",
+      "APPLE_ID",
+      "APPLE_TEAM_ID",
+      "CSC_KEY_PASSWORD",
+      "CSC_LINK",
+      "CSC_NAME",
+    ]) {
+      expect(key in env).toBe(false);
+    }
+
+    expect(env.PATH).toBe("/usr/bin");
+    expect(env.CSC_IDENTITY_AUTO_DISCOVERY).toBe("false");
+  });
+
+  it("passes real signing secrets through untouched", () => {
+    const env = createElectronBuilderEnv(
+      {
+        mode: "environment",
+        identityName: undefined,
+        notarizationEnabled: true,
+      },
+      {
+        APPLE_APP_SPECIFIC_PASSWORD: "app-specific",
+        APPLE_ID: "release@example.test",
+        APPLE_TEAM_ID: "TEAMID",
+        CSC_KEY_PASSWORD: "certificate-password",
+        CSC_LINK: "/tmp/certificate.p12",
+      },
+    );
+
+    expect(env.CSC_LINK).toBe("/tmp/certificate.p12");
+    expect(env.CSC_KEY_PASSWORD).toBe("certificate-password");
+    expect(env.APPLE_TEAM_ID).toBe("TEAMID");
+    expect(env.CSC_IDENTITY_AUTO_DISCOVERY).toBe("true");
   });
 
   it("rejects partial signing secret sets", async () => {
