@@ -3,10 +3,10 @@
 Patcher has two halves, and they install differently. This page is the long
 version of the README's [Install](../README.md#install) section.
 
-| What you get                             | How you get it             | State                    |
-| ---------------------------------------- | -------------------------- | ------------------------ |
-| The **browser** — tabs, omnibox, patches | Built from this repository | macOS Apple Silicon only |
-| The **agent runtime, web app, and CLI**  | `npx patcher-app@latest`   | macOS and Linux          |
+| What you get                             | How you get it               | State                    |
+| ---------------------------------------- | ---------------------------- | ------------------------ |
+| The **browser** — tabs, omnibox, patches | GitHub prerelease, or source | macOS Apple Silicon only |
+| The **agent runtime, web app, and CLI**  | `npx patcher-app@latest`     | macOS and Linux          |
 
 ## The desktop browser
 
@@ -29,8 +29,12 @@ strip the quarantine flag yourself:
 xattr -d com.apple.quarantine /Applications/Patcher.app
 ```
 
-Neither is a workaround for a broken download — the signature is valid, it just
-carries no Apple identity. What notarization would buy is skipping this step;
+Each release also carries `SHA256SUMS.txt`, which is what stands in for the
+notarization ticket this build does not have — `shasum -a 256 -c SHA256SUMS.txt`
+confirms the bytes, though not who produced them.
+
+Neither override is a workaround for a broken download — the signature is valid,
+it just carries no Apple identity. What notarization would buy is skipping this step;
 see [Security](security.md) for what the signature does and does not say about
 the code.
 
@@ -47,8 +51,14 @@ is the workflow that cuts a release; the steps below are the same build by hand.
 
 - macOS on Apple Silicon.
 - [Bun](https://bun.sh) 1.3.14 or newer — the version CI pins.
-- Node.js 22.20.0 or newer on the 22 line, or Node 24 or 26. Below 22.20.0 the
-  `better-sqlite3` prebuild does not load.
+- Node.js as pinned in [`.nvmrc`](../.nvmrc) — 22.20.0. That is narrower than
+  the `^22.19.0 || ^24 || ^26` the published package declares, and deliberately
+  so: `engines` is the floor for _running_ `patcher-app`, while `.nvmrc` is the
+  one version this checkout is developed and tested on. The gap is load-bearing
+  in at least one direction — Node 25 enables Web Storage globals that shadow
+  jsdom's `localStorage` inside vitest, and whole test files fail with
+  `clear is not a function`. See invariant 2 of
+  [bb-migration.md](architecture/bb-migration.md).
 - Git.
 - At least one authenticated agent provider — see
   [Provider credentials](../packages/patcher-app/README.md#provider-credentials).

@@ -45,10 +45,13 @@ code, it buys three other things:
    prints it, and the consent prompt prints it at the one moment it decides
    something.
 
-## An agent cannot install a patch on its own
+## An agent's install pauses for you
 
 The consent prompt is what stands in for the permission model that does not
-exist yet, and it only works if the person at the machine is the one answering.
+exist yet. It is a consent and audit boundary rather than a barrier: it works on
+an agent taking Patcher's normal CLI path, and the sections above are why
+nothing stronger is available yet. What it needs to be useful is that the person
+at the machine is the one answering.
 The local API could not tell an agent's `patcher plugin enable` from yours:
 both arrive on the same loopback server with the same credentials.
 
