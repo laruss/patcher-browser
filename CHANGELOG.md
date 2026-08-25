@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1-alpha.1
+
+The first downloadable Patcher desktop build: macOS on Apple Silicon, published
+as a prerelease on the releases page.
+
+It is ad-hoc signed rather than signed with an Apple Developer ID, so macOS asks
+for one explicit approval the first time you open it — the release notes carry
+the steps. For the same reason it does not update itself: `electron-updater`
+installs only a Developer ID-signed update, so this build leaves the
+`desktop-latest` feed alone rather than offering installed apps an update that
+cannot apply. Check the releases page for a newer alpha.
+
 ## 0.1.0
 
 The first Patcher release, and the first published `patcher-app`. Version
