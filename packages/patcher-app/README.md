@@ -4,19 +4,29 @@
 
 # Patcher
 
-Patcher is an agentic IDE that builds itself. It can control, customize, and automate
-itself, laying the groundwork for your own software factory.
+**The browser that writes its own extensions.**
 
-This package provides the `npx patcher-app` launcher, bundled `patcher` CLI entry, and
-Node SDK export. Every surface — the web app, CLI, and HTTP API — is a
-first-class way to drive Patcher. Work runs in threads you can follow live, steer at
-any point, or hand off to another agent.
+Describe what you want a website — or the browser itself — to do. Patcher turns
+the request into a _patch_, shows you the code and the access it asks for, and
+installs it into your browser.
+
+**This package is the agent runtime, not the browser.** It provides the
+`npx patcher-app` launcher, the bundled `patcher` CLI entry, and the Node SDK
+export: threads, projects, patch management, and the HTTP API. The browser
+surface lives in the Electron desktop app, which currently
+[runs from source](https://github.com/laruss/patcher-browser#install) on macOS
+Apple Silicon.
+
+Every surface here — the web app, CLI, and HTTP API — is a first-class way to
+drive Patcher. Work runs in threads you can follow live, steer at any point, or
+hand off to another agent.
 
 > Note: Patcher is in active development. Workflows and surfaces are still evolving.
 
-Patcher is a fork of [bb](https://github.com/get-bb/bb) by Michael Yong, developed
-independently of it. It has its own data directory, ports, and package names, and
-does not read or migrate the state of a bb install.
+Patcher is based on the open-source agent infrastructure of
+[bb](https://github.com/get-bb/bb) by Michael Yong, developed independently of
+it. It has its own data directory, ports, and package names, and does not read
+or migrate the state of a bb install.
 
 ## Quick Start
 
@@ -203,4 +213,7 @@ behavior, run `npx patcher-app config --help` and `npx patcher-app env --help`.
 ## Further Reading
 
 - [Main README](https://github.com/laruss/patcher-browser#readme)
+- [Installation](https://github.com/laruss/patcher-browser/blob/main/docs/installation.md) — including the desktop browser
+- [Security](https://github.com/laruss/patcher-browser/blob/main/docs/security.md) — what a patch can reach, and telemetry
+- [Troubleshooting](https://github.com/laruss/patcher-browser/blob/main/docs/troubleshooting.md)
 - [Architecture notes](https://github.com/laruss/patcher-browser/tree/main/docs/architecture)
