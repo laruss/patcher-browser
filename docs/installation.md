@@ -48,12 +48,15 @@ its data.
 For a packaged local build instead of the dev loop:
 
 ```bash
-bun run --filter @patcher/desktop package   # unsigned .app under apps/desktop/release
+bun run --filter @patcher/desktop package   # .app under apps/desktop/release
 bun run --filter @patcher/desktop start     # package, then launch it
 ```
 
-These are unsigned. Signing and notarization happen in the workflow, from
-repository secrets.
+A local build signs with a code-signing identity found in your keychain, and
+falls back to unsigned if there is none. That is fine for a build you made
+yourself — a local app never gets the quarantine flag — but it is not what a
+download needs; see the signing section of
+[`apps/desktop/README.md`](../apps/desktop/README.md#macos-signing--notarization).
 
 ## The agent runtime and web app
 

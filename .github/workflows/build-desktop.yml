@@ -4,18 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish stable desktop-version.json release assets"
+        description: "Create a GitHub release. Which one depends on release_channel."
         required: true
         type: boolean
         default: false
       release_channel:
-        description: "Release channel. Only stable can update desktop-latest."
+        description: "qa builds workflow artifacts only. stable needs Developer ID secrets and moves desktop-latest. alpha publishes an ad-hoc-signed prerelease and never touches the update feed."
         required: true
         type: choice
         default: qa
         options:
           - qa
           - stable
+          - alpha
 
 env:
   CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -93,7 +94,7 @@ jobs:
           done
 
           if [[ "${#PRESENT_SECRET_NAMES[@]}" -eq 0 ]]; then
-            echo "::warning::macOS signing/notarization secrets are not configured; building unsigned workflow artifacts and publishing desktop-version.json only."
+            echo "::notice::No macOS signing secrets: building ad-hoc-signed artifacts. The signature is valid but carries no Developer ID, so Gatekeeper refuses a downloaded copy until the user opens it explicitly, and the stable channel still withholds these binaries from desktop-latest."
           elif [[ "${#MISSING_SECRET_NAMES[@]}" -eq 0 ]]; then
             echo "macOS signing/notarization secrets are complete; signed and notarized artifacts will be produced."
           else
@@ -141,6 +142,23 @@ jobs:
             SHOULD_PUBLISH="true"
           fi
 
+          # The alpha channel exists because the stable one is right to refuse:
+          # an ad-hoc signature cannot carry an auto-update, so a build without
+          # a Developer ID must not reach desktop-latest, where installed apps
+          # look. Alpha publishes the same artifacts to their own versioned
+          # prerelease tag and leaves the feed alone, so the download is
+          # available without anything being promised an update it cannot get.
+          SHOULD_PUBLISH_ALPHA="false"
+          if [[ "$INPUT_PUBLISH" == "true" && "$RELEASE_CHANNEL" == "alpha" ]]; then
+            # A stable version number is reserved for a signed release. Requiring
+            # a prerelease here is what stops an ad-hoc build from occupying it.
+            if [[ "$IS_PRERELEASE" == "false" ]]; then
+              echo "::error::release_channel=alpha needs a prerelease version, and $VERSION is a stable one. Bump both packages with scripts/bump-version.mjs (for example $VERSION-alpha.1) and run again."
+              exit 1
+            fi
+            SHOULD_PUBLISH_ALPHA="true"
+          fi
+
           HAS_SIGNING_SECRETS="false"
           if [[ -n "${CSC_LINK:-}" && -n "${CSC_KEY_PASSWORD:-}" && -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
             HAS_SIGNING_SECRETS="true"
@@ -157,6 +175,7 @@ jobs:
             echo "version=$VERSION"
             echo "is_prerelease=$IS_PRERELEASE"
             echo "should_publish=$SHOULD_PUBLISH"
+            echo "should_publish_alpha=$SHOULD_PUBLISH_ALPHA"
             echo "publish_binaries=$PUBLISH_BINARIES"
             echo "has_signing_secrets=$HAS_SIGNING_SECRETS"
           } >> "$GITHUB_OUTPUT"
@@ -238,11 +257,78 @@ jobs:
               --latest=false
           fi
 
+      - name: Publish alpha desktop prerelease
+        if: steps.release_plan.outputs.should_publish_alpha == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release_plan.outputs.version }}
+          HAS_SIGNING_SECRETS: ${{ steps.release_plan.outputs.has_signing_secrets }}
+        run: |
+          set -euo pipefail
+
+          VERSION_TAG="desktop-v${VERSION}"
+          RELEASE_DIR="apps/desktop/release"
+
+          # desktop-latest and latest-mac.yml are deliberately absent here. They
+          # are the auto-update feed, and an ad-hoc-signed build cannot serve it.
+          RELEASE_ASSETS=(
+            "$RELEASE_DIR/desktop-version.json"
+            "$RELEASE_DIR"/*.dmg
+            "$RELEASE_DIR"/*.zip
+            "$RELEASE_DIR"/*.blockmap
+          )
+
+          if gh release view "$VERSION_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $VERSION_TAG already exists. Desktop releases are immutable; bump the version instead of replacing one."
+            exit 1
+          fi
+
+          SIGNING_NOTE="ad-hoc signed"
+          if [[ "$HAS_SIGNING_SECRETS" == "true" ]]; then
+            SIGNING_NOTE="signed with a Developer ID and notarized"
+          fi
+
+          cat > release-notes.md <<NOTES
+          Patcher desktop ${VERSION} — alpha. macOS on Apple Silicon only.
+
+          Download the \`.dmg\`, open it, and drag Patcher to Applications.
+
+          ## First launch needs one approval
+
+          This build is ${SIGNING_NOTE}. An ad-hoc signature is valid, but it
+          carries no Apple Developer ID and is not notarized, so macOS will not
+          open it on your word alone:
+
+          1. Open Patcher from Applications. macOS refuses, saying it cannot
+             check it for malicious software.
+          2. Open **System Settings → Privacy & Security**, scroll to Security,
+             and choose **Open Anyway** for Patcher.
+          3. Confirm. Later launches ask nothing.
+
+          From a terminal instead:
+
+          \`\`\`bash
+          xattr -d com.apple.quarantine /Applications/Patcher.app
+          \`\`\`
+
+          ## Alpha builds do not auto-update
+
+          \`electron-updater\` installs only a Developer ID-signed update, so
+          this build will not replace itself. Check this page for a newer alpha.
+          NOTES
+
+          gh release create "$VERSION_TAG" "${RELEASE_ASSETS[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "Patcher desktop ${VERSION}" \
+            --notes-file release-notes.md \
+            --prerelease
+
       - name: Summarize
         env:
           IS_PRERELEASE: ${{ steps.release_plan.outputs.is_prerelease }}
           PUBLISH_BINARIES: ${{ steps.release_plan.outputs.publish_binaries }}
           SHOULD_PUBLISH: ${{ steps.release_plan.outputs.should_publish }}
+          SHOULD_PUBLISH_ALPHA: ${{ steps.release_plan.outputs.should_publish_alpha }}
           VERSION: ${{ steps.release_plan.outputs.version }}
         run: |
           {
@@ -252,6 +338,8 @@ jobs:
             echo "- version: ${VERSION}"
             echo "- prerelease version: ${IS_PRERELEASE}"
             echo "- stable release publication requested and allowed: ${SHOULD_PUBLISH}"
+            echo "- alpha prerelease publication requested and allowed: ${SHOULD_PUBLISH_ALPHA}"
             echo "- release binary upload enabled: ${PUBLISH_BINARIES}"
+            echo "- alpha publishes binaries to desktop-v\${VERSION} only; desktop-latest and the auto-update feed are untouched"
             echo "- desktop feed URL: https://github.com/laruss/patcher-browser/releases/download/desktop-latest/desktop-version.json"
           } >> "$GITHUB_STEP_SUMMARY"
