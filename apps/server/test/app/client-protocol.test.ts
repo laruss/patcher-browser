@@ -136,6 +136,92 @@ describe("client websocket protocol", () => {
     });
   });
 
+  /**
+   * The message next to `subscribe`, which was not gated at all. The browser
+   * host answers every browser command the server routes, so claiming the role
+   * reads that stream and decides what the model is told the page said.
+   */
+  describe("claiming the browser host role", () => {
+    function register(
+      deps: ReturnType<typeof createProtocolDeps> & {
+        logger: { warn: (message: string) => void };
+      },
+      socket: ReturnType<typeof createMockHubSocket>,
+      browserHostId: string,
+    ) {
+      onClientSocketMessage(
+        deps,
+        socket,
+        JSON.stringify({ type: "browser-host.register", browserHostId }),
+      );
+    }
+
+    it("refuses a plugin's claim to be the browser", () => {
+      const hub = new NotificationHub();
+      const warn = vi.fn();
+      const deps = { ...createProtocolDeps(hub), logger: { warn } };
+      const socket = createMockHubSocket();
+      onClientSocketOpen(hub, socket, "notes");
+
+      register(deps, socket, "not-the-browser");
+
+      // Nothing is registered at all, not even behind the app: a plugin does
+      // not serve browser commands, it makes them through `patcher.browser`
+      // and is charged the permission there.
+      expect(hub.getBrowserHostSnapshot()).toEqual({
+        connected: false,
+        browserHostId: null,
+        hostCount: 0,
+      });
+      // Refused, not fatal — the same treatment a subscription it may not have
+      // gets, and for the same reason.
+      expect(socket.closed).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("notes"));
+    });
+
+    it("leaves the app window driving when a plugin asks for the role", () => {
+      const hub = new NotificationHub();
+      const deps = { ...createProtocolDeps(hub), logger: { warn: vi.fn() } };
+      const app = createMockHubSocket();
+      const plugin = createMockHubSocket();
+      onClientSocketOpen(hub, app);
+      onClientSocketOpen(hub, plugin, "notes");
+
+      register(deps, app, "window-a");
+      register(deps, plugin, "not-the-browser");
+
+      expect(hub.getBrowserHostSnapshot()).toEqual({
+        connected: true,
+        browserHostId: "window-a",
+        hostCount: 1,
+      });
+    });
+
+    it("records a second window as waiting rather than driving", () => {
+      const hub = new NotificationHub();
+      const warn = vi.fn();
+      const deps = { ...createProtocolDeps(hub), logger: { warn } };
+      const first = createMockHubSocket();
+      const second = createMockHubSocket();
+      onClientSocketOpen(hub, first);
+      onClientSocketOpen(hub, second);
+
+      register(deps, first, "window-a");
+      register(deps, second, "window-b");
+
+      expect(hub.getBrowserHostSnapshot()).toEqual({
+        connected: true,
+        browserHostId: "window-a",
+        hostCount: 2,
+      });
+      // `hostCount` is the only other trace of a window that serves nothing,
+      // so the log is what answers "why is the agent driving my other window".
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("window-b registered behind window-a"),
+      );
+    });
+  });
+
   it("rejects subscribe messages whose target id is not a string", () => {
     const hub = new NotificationHub();
     const deps = createProtocolDeps(hub);

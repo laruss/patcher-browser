@@ -141,9 +141,22 @@ socket close. It is **sent to one socket, never broadcast** — a command must b
 performed once and answered once, and the SDK's realtime client is on the same
 `/ws` endpoint with no business seeing browser commands.
 
-With two app windows open, the most recently registered wins. That is not a new
-invention: terminal resize ownership already resolves the same contention the
-same way.
+With two app windows open, the **first** live claim keeps the role and a later
+one waits behind it (`hostCount` counts both). It used to be the most recent,
+which was the same rule terminal resize ownership uses — and the wrong rule
+here, because the message that registers is authenticated no further than "not
+a plugin", so it made the role something anyone already on `/ws` could take from
+the window a person was watching, with nothing on screen saying so
+([#15](https://github.com/laruss/patcher-browser/issues/15)). A window reclaims
+its own role by presenting the same `browserHostId` on a new socket, which is
+what the client does after a reconnect; the id is per page load, so a reload is
+a new window and a dropped connection is the same one. A claim that waited is
+kept rather than refused, so closing the window that was driving promotes the
+other one instead of leaving the agent with no browser.
+
+Which of several honest windows _should_ be the one an agent drives is still
+open — [browser-gaps.md](browser-gaps.md) says the focused one, and neither rule
+implements that. What changed is only that the answer no longer moves on its own.
 
 With none connected, the call fails immediately rather than waiting. A daemon is
 expected to reconnect; a closed browser window is a user's action, and stalling
