@@ -27,8 +27,11 @@ all of them.
 - The main server and source Vite app bind to loopback by default. Use a
   private Tailscale Serve URL (or an equivalent private reverse proxy) for
   remote browsers and execution machines. `--server-bind-host 0.0.0.0` is a compatibility escape hatch only:
-  the public API is unauthenticated and permits command execution and file
-  reads, so wildcard binding requires a trusted network boundary.
+  the public API is guarded by a per-install key that any local process can
+  read, and permits command execution and file reads, so wildcard binding
+  requires a trusted network boundary. Every `/api/v1` request presents that
+  key in `x-patcher-app-key`; the CLI reads it from `PATCHER_APP_KEY` or from
+  `app-api-key` in the data directory, so `patcher` needs no extra setup.
 
 ## Spawning Threads
 

@@ -1,3 +1,4 @@
+import { withAppKeyQuery } from "@/lib/app-key";
 import { buildDevWebSocketUrl } from "@/lib/dev-websocket-url";
 
 interface BuildTerminalWebSocketUrlArgs {
@@ -23,5 +24,8 @@ function buildWebSocketUrl(path: string): string {
 export function buildTerminalWebSocketUrl(
   args: BuildTerminalWebSocketUrlArgs,
 ): string {
-  return buildWebSocketUrl(buildTerminalWebSocketPath(args));
+  // The key rides in the query for the same reason it does on `/ws`: a browser
+  // `WebSocket` sets no request headers, and `/ws/terminals/:id` reaches the
+  // same streams `/api/v1/terminals` does and is gated the same way.
+  return withAppKeyQuery(buildWebSocketUrl(buildTerminalWebSocketPath(args)));
 }

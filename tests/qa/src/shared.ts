@@ -8,6 +8,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import {
+  appApiKeyHeaders,
   PATCHER_APP_KEY_HEADER,
   resolveAppApiKey,
 } from "@patcher/config/app-key";
@@ -343,19 +344,35 @@ export async function createTestGitRepo(repoDir: string): Promise<string> {
 }
 
 /**
+ * Where the server under test keeps its key.
+ *
+ * A QA server runs out of a temp directory that only its own child env names,
+ * so the ambient `resolveAppApiKey()` answer is some other install's key or
+ * none. `startQaServer` records the dir it spawned with, and the readers below
+ * resolve through it — re-reading each time, because the file appears when the
+ * server starts and the readiness poll runs before that.
+ */
+let serverUnderTestDataDir: string | undefined;
+
+function resolveQaAppApiKey(): string | undefined {
+  return serverUnderTestDataDir === undefined
+    ? resolveAppApiKey()
+    : resolveAppApiKey({ dataDir: serverUnderTestDataDir });
+}
+
+/**
  * What the QA harness presents to `/api/v1`, which refuses a request that
  * identifies itself as nothing. Read the same way the CLI does: from
  * `PATCHER_APP_KEY`, or from the key file in the data dir of the server under
  * test.
  */
 function qaAppKeyHeaders(): Record<string, string> {
-  const key = resolveAppApiKey();
-  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+  return appApiKeyHeaders(resolveQaAppApiKey());
 }
 
 /** The same key as a `curl -H` argument, for the commands run over ssh. */
 function curlAppKeyArgument(): string {
-  const key = resolveAppApiKey();
+  const key = resolveQaAppApiKey();
   return key === undefined
     ? ""
     : `-H ${shellQuote(`${PATCHER_APP_KEY_HEADER}: ${key}`)}`;
@@ -550,6 +567,9 @@ export async function startQaServer(
   args: StartQaServerArgs,
 ): Promise<StartQaServerResult> {
   const serverUrl = buildLocalServerUrl(args.port);
+  // Before the first request: this is what the harness signs with, and the
+  // readiness probe below is a request like any other.
+  serverUnderTestDataDir = args.dataDir;
 
   if (args.reuseExisting && (await isServerReady(serverUrl))) {
     return {

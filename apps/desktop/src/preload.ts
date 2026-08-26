@@ -85,7 +85,6 @@ import {
   type PatcherDesktopBrowserTabRef,
   type PatcherDesktopBrowserZoomHandler,
   patcherDesktopBrowserZoomSchema,
-  PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX,
   PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX,
 } from "@patcher/desktop-contract";
 import {
@@ -722,18 +721,6 @@ const windowKey = process.argv
   ?.slice(PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX.length);
 
 /**
- * What this renderer signs its `/api/v1` and `/ws` traffic with, handed over
- * the same way and for the same reason: it is needed before anything can be
- * awaited, and every route that could have answered is behind the gate it
- * opens.
- */
-const appKey = process.argv
-  .find((argument) =>
-    argument.startsWith(PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX),
-  )
-  ?.slice(PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX.length);
-
-/**
  * Parse here and swallow rejections, the way `invokeDesktopInfo` does: a shell
  * that predates these channels answers with a rejection, and "Patcher is not the
  * default and cannot ask" is exactly what such a shell means.
@@ -754,7 +741,6 @@ async function invokeDefaultBrowserStatus(
 const patcherDesktopApi: PatcherDesktopApi = {
   browser: patcherBrowserApi,
   ...(windowKey === undefined || windowKey.length === 0 ? {} : { windowKey }),
-  ...(appKey === undefined || appKey.length === 0 ? {} : { appKey }),
   get lastCheckedAt() {
     return currentInfo.lastCheckedAt;
   },

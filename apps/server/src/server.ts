@@ -472,9 +472,12 @@ export function createApp(
       // Two exceptions, and they have to be: a plugin's own HTTP routes are
       // meant to be callable by a third party, and its frontend assets are
       // loaded by the browser itself, which sets no headers. See the pattern.
+      // Identity first: every app, CLI, desktop and launcher request carries
+      // the key and stops here, and the regex only ever answers for the two
+      // route families that do not.
       if (
-        !PLUGIN_UNKEYED_ROUTE_PATTERN.test(context.req.path) &&
-        !appIdentity.verify(context.req)
+        !appIdentity.verify(context.req) &&
+        !PLUGIN_UNKEYED_ROUTE_PATTERN.test(context.req.path)
       ) {
         return unauthorizedResponse();
       }

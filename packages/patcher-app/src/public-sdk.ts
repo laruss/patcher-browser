@@ -1,3 +1,4 @@
+import { resolveAppApiKey } from "@patcher/config/app-key";
 import {
   PatcherHttpError,
   PatcherRequestTimeoutError,
@@ -90,7 +91,7 @@ export class PatcherSdk implements PatcherSdkContract {
   readonly subscribe: PatcherSdkContract["subscribe"];
 
   constructor(options: PatcherSdkOptions = {}) {
-    const sdk = createNodePatcherSdk(options);
+    const sdk = createNodePatcherSdk(withAmbientAppKey(options));
     this.browserHistory = sdk.browserHistory;
     this.environments = sdk.environments;
     this.files = sdk.files;
@@ -112,4 +113,23 @@ export class PatcherSdk implements PatcherSdkContract {
 
 export function createPatcherSdk(options: PatcherSdkOptions = {}): PatcherSdk {
   return new PatcherSdk(options);
+}
+
+/**
+ * Resolve the app key the same way the base URL is resolved: from the ambient
+ * environment, unless the caller named one.
+ *
+ * `/api/v1` and `/ws` refuse a request that identifies itself as nothing, and
+ * this SDK's whole premise is `new PatcherSdk()` inside an agent's shell —
+ * where the host daemon exports `PATCHER_APP_KEY` beside `PATCHER_SERVER_URL`.
+ * Resolving one and not the other would leave every such script refused.
+ *
+ * Not done inside `createNodeTransport`: a plugin supplies its own `fetch` and
+ * identifies itself with its own header pair, and wrapping that with the app's
+ * key would hand a plugin the credential it is not meant to hold.
+ */
+function withAmbientAppKey(options: PatcherSdkOptions): PatcherSdkOptions {
+  if (options.appKey !== undefined) return options;
+  const appKey = resolveAppApiKey();
+  return appKey === undefined ? options : { ...options, appKey };
 }

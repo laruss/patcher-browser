@@ -184,8 +184,10 @@ npx patcher-app config refresh
 
 For remote access, publish the default loopback listener with Tailscale Serve. Direct tailnet or LAN access to port `38986` requires the
 explicit, security-sensitive `--server-bind-host 0.0.0.0` compatibility option,
-and a trusted network boundary in front of it: the public API is
-unauthenticated.
+and a trusted network boundary in front of it: the public API is guarded by a
+per-install key that any local process can read, not by user accounts.
+`PATCHER_APP_KEY` — or `app-api-key` in the data directory — is what a client
+on another machine has to be given.
 
 Use `patcher-app client ssh-target` to configure local editor opens for remote
 Patcher servers under `~/.patcher/client.json`. The target is the value that works after

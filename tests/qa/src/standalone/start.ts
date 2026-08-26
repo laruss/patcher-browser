@@ -151,7 +151,7 @@ async function main() {
     // The API refuses a request that identifies itself as nothing, so the key
     // travels with the URL — for the CLI, for the runbook's curls, and for
     // anything else a QA session starts from this env block.
-    const appApiKey = resolveAppApiKey({ dataDir: patcherRoot });
+    const appApiKey = resolveAppApiKey({ dataDir: serverDataDir });
     const cliEnv = {
       PATCHER_HOST_DAEMON_PORT: String(daemonPort),
       PATCHER_PROJECT_ID: project.id,

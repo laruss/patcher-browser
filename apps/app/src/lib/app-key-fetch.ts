@@ -23,15 +23,31 @@ import { appKey } from "./app-key";
  * `withAppKeyQuery`.
  */
 
+/**
+ * The two route families the server serves without a key, and that this must
+ * therefore not sign: a plugin's own `http` routes and its frontend assets.
+ * Signing them would hand the app's credential to plugin-authored code — the
+ * `http` dispatcher passes the whole request, headers included, to the plugin's
+ * handler. Mirrors `PLUGIN_UNKEYED_ROUTE_PATTERN` in the server.
+ */
+const PLUGIN_UNKEYED_ROUTE_PATTERN =
+  /^\/api\/v1\/plugins\/[^/]+\/(http|assets)(\/|$)/u;
+
 function isPatcherApiUrl(rawUrl: string): boolean {
   let url: URL;
   try {
-    url = new URL(rawUrl, window.location.origin);
+    // Against `href`, not `origin`: a path-relative URL resolves against the
+    // current document, and classifying it against the origin would judge a
+    // different path than the one that is actually fetched.
+    url = new URL(rawUrl, window.location.href);
   } catch {
     return false;
   }
   if (url.origin !== window.location.origin) return false;
-  return url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/");
+  if (url.pathname !== "/api/v1" && !url.pathname.startsWith("/api/v1/")) {
+    return false;
+  }
+  return !PLUGIN_UNKEYED_ROUTE_PATTERN.test(url.pathname);
 }
 
 function requestUrl(input: RequestInfo | URL): string {
@@ -45,27 +61,22 @@ export function installAppKeyFetch(): void {
   // Resolved now rather than on the first request: reading it is what strips
   // `?appKey=` out of the address bar, and that has to happen before the
   // router reads `location`.
-  const resolved = appKey();
+  const key = appKey();
   const inner = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    const key = resolved;
     if (key === undefined || !isPatcherApiUrl(requestUrl(input))) {
       return inner(input, init);
     }
-    // A caller that set the header itself meant it — the same rule the plugin
-    // and thread-id wrappers follow.
-    if (input instanceof Request && init?.headers === undefined) {
-      if (input.headers.has(PATCHER_APP_KEY_HEADER)) return inner(input, init);
-      const headers = new Headers(input.headers);
-      headers.set(PATCHER_APP_KEY_HEADER, key);
-      return inner(new Request(input, { headers }), init);
-    }
+    // Seeded from the `Request`'s own headers when `init` names none, because
+    // an `init.headers` replaces a `Request`'s header list rather than merging
+    // into it — building it from `init` alone would drop the caller's.
     const headers = new Headers(
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
-    if (!headers.has(PATCHER_APP_KEY_HEADER)) {
-      headers.set(PATCHER_APP_KEY_HEADER, key);
-    }
+    // A caller that set the header itself meant it — the same rule the plugin
+    // and thread-id wrappers follow.
+    if (headers.has(PATCHER_APP_KEY_HEADER)) return inner(input, init);
+    headers.set(PATCHER_APP_KEY_HEADER, key);
     return inner(input, { ...init, headers });
   };
 }

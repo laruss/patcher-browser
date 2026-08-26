@@ -117,6 +117,15 @@ your browser loads with no headers at all.
 `PATCHER_APP_KEY` overrides the file, which is how a shell, a container, or a
 desktop pointed at a remote server is given a key it cannot read from disk.
 
+The key never goes on a command line. The desktop shell hands it to its own
+window in the URL it navigates to, and the app takes it out of `location`
+before anything else reads it — a launch argument would have arrived sooner and
+would also be visible in `ps` to every process running as you, which is the
+same reason a plugin's key travels in a message rather than in argv. Open a
+plain browser at `<server>/?appKey=<key>` once and it is remembered for that
+tab; the server will not hand it to a caller that has not already got it,
+because a plugin is such a caller.
+
 **A plugin can read that file.** Its process is not sandboxed and runs as you,
 so the key the CLI reads is a key it can read. What the gate buys is that
 skipping the permission map is no longer _free_ — there is no unidentified

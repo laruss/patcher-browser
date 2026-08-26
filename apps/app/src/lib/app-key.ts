@@ -1,8 +1,4 @@
-import {
-  PATCHER_APP_KEY_HEADER,
-  PATCHER_APP_KEY_QUERY_PARAM,
-} from "@patcher/config/app-key";
-import { getPatcherDesktopInfo } from "./patcher-desktop";
+import { PATCHER_APP_KEY_QUERY_PARAM } from "@patcher/config/app-key";
 
 /**
  * What this page presents to `/api/v1` and `/ws`.
@@ -11,18 +7,20 @@ import { getPatcherDesktopInfo } from "./patcher-desktop";
  * plugin process holds the loopback URL and "anonymous" was how it skipped the
  * permission map. So the app says who it is too.
  *
- * Three sources, in the order they are trustworthy:
+ * Two sources:
  *
- * 1. **The desktop shell**, over the preload bridge. It reads the key file and
- *    hands it to the renderer as a launch argument, which is the only channel
- *    that has already arrived when the first module runs.
- * 2. **`?appKey=` in this page's own URL**, for a browser with no shell — a
- *    plain `patcher-app start`, or a server published over Tailscale. Stashed
+ * 1. **`?appKey=` in this page's own URL.** The desktop shell puts it there
+ *    when it navigates to the app; a plain browser — `patcher-app start`, or a
+ *    server published over Tailscale — is opened with it once by hand. Stashed
  *    in `sessionStorage` and stripped from the address bar immediately, so it
  *    survives navigation without living in history or in a shared link.
- * 3. **`sessionStorage`**, which is (2) on every page after the first.
+ * 2. **`sessionStorage`**, which is (1) on every page after the first.
  *
- * There is deliberately no fourth: the server does not hand the key to an
+ * Not a launch argument, though the shell could: a process's command line is
+ * readable by anything running as the same user, which is the reason
+ * `plugin-child-runtime.ts` refuses argv for the plugin API keys.
+ *
+ * And deliberately not a third: the server does not hand the key to an
  * unidentified caller, because a plugin is an unidentified caller.
  */
 
@@ -33,13 +31,19 @@ function readFromUrl(): string | undefined {
   const key = url.searchParams.get(PATCHER_APP_KEY_QUERY_PARAM);
   if (key === null || key.length === 0) return undefined;
   url.searchParams.delete(PATCHER_APP_KEY_QUERY_PARAM);
-  // Replace rather than push: the key should not be one Back away, and a
-  // reload of this entry should not put it back in the address bar.
-  window.history.replaceState(
-    null,
-    "",
-    `${url.pathname}${url.search}${url.hash}`,
-  );
+  try {
+    // Replace rather than push: the key should not be one Back away, and a
+    // reload of this entry should not put it back in the address bar.
+    window.history.replaceState(
+      null,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  } catch {
+    // An opaque origin throws here, and this runs at module scope before
+    // anything renders. Failing to tidy the address bar is not a reason to
+    // give the user a blank page instead of a working one.
+  }
   return key;
 }
 
@@ -70,32 +74,21 @@ let resolved: string | undefined | null = null;
 
 export function appKey(): string | undefined {
   if (resolved !== null) return resolved;
-  // Same guard `api-server.ts` and `getPatcherDesktopInfo` carry: this module
-  // is reachable from tests and any non-browser evaluation of the bundle,
-  // where there is no URL to read and no shell to ask.
-  if (typeof window === "undefined") {
-    resolved = undefined;
-    return resolved;
-  }
-  const fromShell = getPatcherDesktopInfo()?.appKey;
-  if (fromShell !== undefined && fromShell.length > 0) {
-    resolved = fromShell;
-    return resolved;
-  }
-  const fromUrl = readFromUrl();
-  if (fromUrl !== undefined) {
-    rememberInSession(fromUrl);
-    resolved = fromUrl;
-    return resolved;
-  }
-  resolved = readFromSession();
+  resolved = resolveAppKey();
   return resolved;
 }
 
-/** The header, for anything that can set one. */
-export function appKeyHeaders(): Record<string, string> {
-  const key = appKey();
-  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+function resolveAppKey(): string | undefined {
+  // Same guard `api-server.ts` carries: this module
+  // is reachable from tests and any non-browser evaluation of the bundle,
+  // where there is no URL to read and no shell to ask.
+  if (typeof window === "undefined") return undefined;
+  const fromUrl = readFromUrl();
+  if (fromUrl !== undefined) {
+    rememberInSession(fromUrl);
+    return fromUrl;
+  }
+  return readFromSession();
 }
 
 /**
@@ -110,17 +103,16 @@ export function withAppKeyQuery(url: string): string {
   if (key === undefined || typeof window === "undefined") return url;
   // Absolute or relative, and the answer keeps whichever shape came in: the
   // websocket URL is absolute (and `ws:`, so testing for `http` would get it
-  // wrong), while the file-content URLs are paths.
-  let absolute: URL;
-  let wasAbsolute = true;
-  try {
-    absolute = new URL(url);
-  } catch {
-    absolute = new URL(url, window.location.origin);
-    wasAbsolute = false;
-  }
+  // wrong), while the file-content URLs are paths. Tested by scheme rather
+  // than by letting `new URL` throw — the relative case is the common one, and
+  // it runs per attachment and per markdown image in a render pass.
+  const wasAbsolute = HAS_SCHEME_PATTERN.test(url);
+  const absolute = new URL(url, window.location.origin);
   absolute.searchParams.set(PATCHER_APP_KEY_QUERY_PARAM, key);
   return wasAbsolute
     ? absolute.href
     : `${absolute.pathname}${absolute.search}${absolute.hash}`;
 }
+
+/** A URL that names its own scheme, per RFC 3986's `scheme` production. */
+const HAS_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/iu;

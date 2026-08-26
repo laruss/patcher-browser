@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveEnvLoader, type EnvLoaderArgs } from "./env.js";
 import { resolveRuntimeDataDir } from "./runtime.js";
+import { toOptionalString } from "./strings.js";
 
 /**
  * How a local process finds the key that identifies it to `/api/v1` and `/ws`.
@@ -49,6 +50,19 @@ export const PATCHER_APP_KEY_HEADER = "x-patcher-app-key";
  */
 export const PATCHER_APP_KEY_QUERY_PARAM = "appKey";
 
+/**
+ * The key as a header pair, or nothing when there is none to present.
+ *
+ * One spelling of "absent means send no header" rather than one per client:
+ * the desktop shell, the launcher, the CLI and the QA harnesses all resolve
+ * the key differently and then all have to say the same thing about it.
+ */
+export function appApiKeyHeaders(
+  key: string | undefined,
+): Record<string, string> {
+  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+}
+
 /** The file the server writes under the data dir. */
 export const PATCHER_APP_KEY_FILE_NAME = "app-api-key";
 
@@ -61,8 +75,9 @@ export interface ResolveAppApiKeyArgs extends EnvLoaderArgs {
 /** Read one key file, or undefined when it is not there or is empty. */
 export function readAppApiKeyFile(dataDir: string): string | undefined {
   try {
-    const key = readFileSync(join(dataDir, PATCHER_APP_KEY_FILE_NAME), "utf8");
-    return key.trim().length === 0 ? undefined : key.trim();
+    return toOptionalString(
+      readFileSync(join(dataDir, PATCHER_APP_KEY_FILE_NAME), "utf8"),
+    );
   } catch {
     // No file is the normal case for a server that has never run, and the
     // caller's own error ("refused: no app key") says more than this could.
@@ -82,8 +97,8 @@ export function resolveAppApiKey(
   args: ResolveAppApiKeyArgs = {},
 ): string | undefined {
   const loader = resolveEnvLoader(args);
-  const fromEnv = loader.env.PATCHER_APP_KEY?.trim();
-  if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+  const fromEnv = toOptionalString(loader.env.PATCHER_APP_KEY);
+  if (fromEnv !== undefined) return fromEnv;
   if (args.dataDir !== undefined) return readAppApiKeyFile(args.dataDir);
   try {
     return readAppApiKeyFile(

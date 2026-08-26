@@ -75,10 +75,19 @@ export function withTestAppKey<T extends Hono>(app: T): T {
     Env,
     executionCtx,
   ) => {
-    const headers = new Headers(requestInit?.headers);
-    if (!headers.has(PATCHER_APP_KEY_HEADER)) {
-      headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_API_KEY);
+    // Seeded from the `Request` when the caller built one and named no init
+    // headers: Hono passes `requestInit` to `new Request(input, init)`, whose
+    // `headers` replaces the request's header list rather than merging into
+    // it, so building from `requestInit` alone would silently drop a test's
+    // own `Origin`, plugin-identity or deliberately-wrong app key.
+    const headers = new Headers(
+      requestInit?.headers ??
+        (input instanceof Request ? input.headers : undefined),
+    );
+    if (headers.has(PATCHER_APP_KEY_HEADER)) {
+      return request(input as never, requestInit, Env, executionCtx);
     }
+    headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_API_KEY);
     return request(
       input as never,
       { ...requestInit, headers },

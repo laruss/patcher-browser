@@ -22,10 +22,7 @@ import {
   formatPatcherAppRuntimeFilePath,
   readPatcherAppRuntimeFile,
 } from "@patcher/config/app-runtime-file";
-import {
-  PATCHER_APP_KEY_HEADER,
-  resolveAppApiKey,
-} from "@patcher/config/app-key";
+import { appApiKeyHeaders, resolveAppApiKey } from "@patcher/config/app-key";
 import { stopVerifiedProcess } from "@patcher/config/verified-process-stop";
 import {
   APP_SURFACE_ENV_NAME,
@@ -592,6 +589,8 @@ interface ResolveClientSshTargetHostIdArgs {
 }
 
 interface RefreshRunningServerConfigArgs {
+  /** This install's data dir, which is where its app key lives. */
+  dataDir: string;
   required: boolean;
   serverUrl: string;
 }
@@ -1623,9 +1622,22 @@ function formatClientHost(host: ClientHost): string {
  * permission map. The launcher runs beside the server and reads the key from
  * the data dir; `PATCHER_APP_KEY` overrides, for a remote origin.
  */
-function launcherAppKeyHeaders(): Record<string, string> {
-  const key = resolveAppApiKey();
-  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+function launcherAppKeyHeaders(
+  dataDir: string | undefined,
+): Record<string, string> {
+  // The launcher's own data dir, not the ambient one `resolveAppApiKey()`
+  // would derive: `--data-dir` and `PATCHER_DATA_DIR` reach the child's env,
+  // never this process's, so the ambient answer is a different install's key
+  // or none at all.
+  //
+  // No data dir is a server on another machine. Its key is not on this disk,
+  // and this machine's key is not something to hand to another host, so only
+  // `PATCHER_APP_KEY` — which is how a remote target is given one — applies.
+  const key =
+    dataDir === undefined
+      ? process.env.PATCHER_APP_KEY?.trim() || undefined
+      : resolveAppApiKey({ dataDir });
+  return appApiKeyHeaders(key);
 }
 
 async function resolveClientSshTargetHostId(
@@ -1633,7 +1645,11 @@ async function resolveClientSshTargetHostId(
 ): Promise<string> {
   const serverOrigin = normalizeClientServerOrigin(args.serverOrigin);
   const hostsUrl = new URL("/api/v1/hosts", serverOrigin);
-  const response = await fetch(hostsUrl, { headers: launcherAppKeyHeaders() });
+  // No data dir: a `client` target is another machine's server, whose key this
+  // one cannot read. `PATCHER_APP_KEY` is how that one is supplied.
+  const response = await fetch(hostsUrl, {
+    headers: launcherAppKeyHeaders(undefined),
+  });
   if (!response.ok) {
     throw new Error(
       `Failed to list hosts from ${serverOrigin}: HTTP ${response.status}`,
@@ -1719,7 +1735,7 @@ async function refreshRunningServerConfig(
   let response: Response;
   try {
     response = await fetch(reloadUrl, {
-      headers: launcherAppKeyHeaders(),
+      headers: launcherAppKeyHeaders(args.dataDir),
       method: "POST",
     });
   } catch {
@@ -1790,11 +1806,13 @@ async function readConfiguredStartupOnlyManagedKeys(
 }
 
 async function refreshRunningServerConfigAfterWrite(
+  dataDir: string,
   serverUrl: string,
   source: "config" | "env",
   key: string,
 ): Promise<void> {
   const refreshed = await refreshRunningServerConfig({
+    dataDir,
     required: false,
     serverUrl,
   });
@@ -1833,6 +1851,7 @@ async function runConfigCommand(args: RunConfigCommandArgs): Promise<void> {
   }
   if (commandArgs.length === 1 && commandArgs[0] === CONFIG_REFRESH_COMMAND) {
     await refreshRunningServerConfig({
+      dataDir: args.dataDir,
       required: true,
       serverUrl: args.serverUrl,
     });
@@ -1862,7 +1881,12 @@ async function runConfigCommand(args: RunConfigCommandArgs): Promise<void> {
     process.stdout.write(
       `Unset ${key} in ${formatPatcherAppConfigPath(args.dataDir)}\n`,
     );
-    await refreshRunningServerConfigAfterWrite(args.serverUrl, "config", key);
+    await refreshRunningServerConfigAfterWrite(
+      args.dataDir,
+      args.serverUrl,
+      "config",
+      key,
+    );
     return;
   }
   if (commandArgs[0] !== SET_COMMAND || commandArgs.length !== 3) {
@@ -1881,7 +1905,12 @@ async function runConfigCommand(args: RunConfigCommandArgs): Promise<void> {
   process.stdout.write(
     `Set ${key} in ${formatPatcherAppConfigPath(args.dataDir)}\n`,
   );
-  await refreshRunningServerConfigAfterWrite(args.serverUrl, "config", key);
+  await refreshRunningServerConfigAfterWrite(
+    args.dataDir,
+    args.serverUrl,
+    "config",
+    key,
+  );
 }
 
 async function runEnvCommand(args: RunEnvCommandArgs): Promise<void> {
@@ -1917,7 +1946,12 @@ async function runEnvCommand(args: RunEnvCommandArgs): Promise<void> {
     process.stdout.write(
       `Unset ${key} in ${formatPatcherAppEnvPath(args.dataDir)}\n`,
     );
-    await refreshRunningServerConfigAfterWrite(args.serverUrl, "env", key);
+    await refreshRunningServerConfigAfterWrite(
+      args.dataDir,
+      args.serverUrl,
+      "env",
+      key,
+    );
     return;
   }
   if (commandArgs[0] !== SET_COMMAND || commandArgs.length !== 3) {
@@ -1939,7 +1973,12 @@ async function runEnvCommand(args: RunEnvCommandArgs): Promise<void> {
   process.stdout.write(
     `Set ${key} in ${formatPatcherAppEnvPath(args.dataDir)}\n`,
   );
-  await refreshRunningServerConfigAfterWrite(args.serverUrl, "env", key);
+  await refreshRunningServerConfigAfterWrite(
+    args.dataDir,
+    args.serverUrl,
+    "env",
+    key,
+  );
 }
 
 async function runClientCommand(args: RunClientCommandArgs): Promise<void> {
