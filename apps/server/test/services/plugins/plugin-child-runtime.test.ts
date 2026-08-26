@@ -190,6 +190,10 @@ describe("a plugin in its own process", () => {
 
   // The permission gate is the same object here as in the server, so a plugin
   // in another process is refused by the same code with the same message.
+  // What this does *not* show is enforcement: this copy of the gate runs on
+  // the plugin's side of the pipe, so it is the message an under-declared
+  // plugin gets, not the thing that stops a hostile one. The host's own copy
+  // is in plugin-host-call-server.test.ts.
   it("refuses a surface the manifest did not declare", async () => {
     const { host, bootstrap } = startPluginProcess({
       dataDir: await dataDir(),

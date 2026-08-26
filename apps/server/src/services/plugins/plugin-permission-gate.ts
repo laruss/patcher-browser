@@ -14,13 +14,19 @@ import type { PatcherSdk } from "@patcher/sdk";
  *
  * Two chokepoints carry all of it, which is the reason this is worth having:
  * every `patcher.browser.*` call funnels through one `callBrowser`, and every
- * `patcher.sdk` area is handed out by one wrapper. Those two are also exactly the
- * calls that must become RPC when plugins move out of this process, so the
- * gate doubles as the list of what that RPC has to carry.
+ * `patcher.sdk` area is handed out by one wrapper. Those two are also exactly
+ * the calls that cross the pipe for a plugin in its own process, so the gate
+ * doubles as the list of what that channel carries.
  *
- * What this is not is a security boundary. A plugin runs in the server's own
- * process; it can reach the loopback API directly with the base URL the host
- * gives it, or skip Patcher entirely and use `node:fs`. See
+ * **Where a copy of this runs is what decides whether it is enforcement.** For
+ * an out-of-process plugin `createPluginApi` builds one in the *plugin's* own
+ * process: that copy is what gives an under-declared plugin's author a fixable
+ * error, and a plugin that writes to the channel itself never meets it. The
+ * copy that decides is the host's, in ./plugin-host-call-server.ts.
+ *
+ * What no copy of this is is a sandbox. A plugin process is a plain `fork`: it
+ * has `node:fs`, `node:child_process` and the network, runs as the user, and
+ * can reach the loopback API directly with the base URL it is handed. See
  * `@patcher/domain`'s plugin-permissions module for the full argument.
  */
 

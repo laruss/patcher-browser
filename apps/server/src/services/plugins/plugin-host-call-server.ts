@@ -13,15 +13,32 @@
  * (in-process) or to this (out-of-process). There is no second place where a
  * capability could be wired to something slightly different, which is the
  * failure this repo keeps rediscovering.
+ *
+ * **This is also where the gate is.** `createPluginApi` builds one from the
+ * same two fields, and for an out-of-process plugin it builds it *in the
+ * plugin's process* — on the untrusted side of the pipe, where a plugin that
+ * writes frames itself never meets it. The plugin never has to guess its own
+ * channel key to do that: it shares the process with the port and can read the
+ * key off any frame going either way. So the copy over there is what gives a
+ * plugin author a good error message, and this copy is what decides.
  */
 
 import type { JsonValue } from "@patcher/domain";
+import {
+  browserCommandSchema,
+  type BrowserCommand,
+} from "@patcher/domain/browser-control";
+import { permissionForBrowserCommand } from "@patcher/domain/plugin-permissions";
 import type {
   PluginNotifyHandler,
   PluginRequestHandler,
 } from "./plugin-channel.js";
-import type { createPluginApi } from "./plugin-api.js";
+import {
+  normalizePluginInteractionRequest,
+  type createPluginApi,
+} from "./plugin-api.js";
 import type { PluginHostCallPath } from "./plugin-host-calls.js";
+import { createPluginPermissionGate } from "./plugin-permission-gate.js";
 
 export type PluginHostCapabilities = Parameters<typeof createPluginApi>[0];
 
@@ -87,6 +104,32 @@ export const ONE_WAY = new Set<PluginHostCallPath>([
 export function createPluginHostCallServer(
   capabilities: PluginHostCapabilities,
 ): PluginHostCallServer {
+  const gate = createPluginPermissionGate(
+    capabilities.pluginId,
+    capabilities.permissions,
+  );
+
+  /**
+   * Charge one browser command against what the plugin declared.
+   *
+   * Getting here at all means the two gates disagree: a plugin calling through
+   * the object it was handed is refused in its own process and never reaches
+   * the pipe. So a refusal here is either a bug in the pair or a plugin
+   * talking to the channel directly, and both are worth a line in the log —
+   * this is the only place either one is visible.
+   */
+  function chargeBrowserCommand(command: BrowserCommand): void {
+    const permission = permissionForBrowserCommand(command);
+    if (!gate.has(permission)) {
+      capabilities.logger.warn(
+        `plugin "${capabilities.pluginId}" asked the host for browser command ` +
+          `"${command.type}", which needs "${permission}" and was not ` +
+          `declared; refused`,
+      );
+    }
+    gate.assert(permission, `patcher.browser command "${command.type}"`);
+  }
+
   const body = (payload: JsonValue): Record<string, JsonValue> =>
     (typeof payload === "object" && payload !== null && !Array.isArray(payload)
       ? payload
@@ -169,22 +212,36 @@ export function createPluginHostCallServer(
           args.descriptors as never,
         )) as JsonValue;
       case "ui.requestInput":
+        // Validated here as well as in the plugin's own process, for the same
+        // reason the browser command below is charged here: what arrives is a
+        // frame, not a call through `patcher.ui`.
         return (await capabilities.requestInteraction({
-          threadId: String(args.threadId),
-          rendererId: String(args.rendererId),
-          title: String(args.title),
-          payload: args.payload as JsonValue,
-          timeoutMs: Number(args.timeoutMs),
+          ...normalizePluginInteractionRequest(args),
           signal,
         })) as unknown as JsonValue;
-      case "browser.<command>":
+      case "browser.<command>": {
+        // Parsed before it is charged. `permissionForBrowserCommand` reads
+        // `command.operation.kind` and `command.observation.kind`, so a frame
+        // that never went through `patcher.browser` could otherwise pick its
+        // own price by leaving them off. The bridge parses again on the way
+        // out; this parse is about knowing what is being asked before
+        // answering it.
+        const parsed = browserCommandSchema.safeParse(args.command);
+        if (!parsed.success) {
+          throw new Error(
+            `browser command is not a valid BrowserCommand: ` +
+              `${parsed.error.issues[0]?.message ?? "unrecognized"}`,
+          );
+        }
+        chargeBrowserCommand(parsed.data);
         return (await capabilities.requestBrowserCommand({
-          command: args.command as never,
+          command: parsed.data,
           ...(typeof args.timeoutMs === "number"
             ? { timeoutMs: args.timeoutMs }
             : {}),
           signal,
         })) as unknown as JsonValue;
+      }
       default:
         if (ANSWERED_IN_THE_PLUGIN_PROCESS.has(path)) {
           throw new Error(

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PLUGIN_PERMISSIONS } from "@patcher/domain";
+import { PLUGIN_PERMISSIONS, type PluginPermission } from "@patcher/domain";
 import {
   ANSWERED_IN_THE_PLUGIN_PROCESS,
   createPluginHostCallServer,
@@ -17,7 +17,9 @@ import {
  * same capability `createPluginApi` would have called.
  */
 
-function capabilities() {
+function capabilities(
+  declared: readonly PluginPermission[] = PLUGIN_PERMISSIONS,
+) {
   const spies = {
     debug: vi.fn(),
     info: vi.fn(),
@@ -36,7 +38,7 @@ function capabilities() {
   };
   const caps = {
     pluginId: "probe",
-    permissions: PLUGIN_PERMISSIONS,
+    permissions: declared,
     dataDir: "/tmp",
     logger: {
       debug: spies.debug,
@@ -212,5 +214,121 @@ describe("input the host did not expect", () => {
         signal: NO_SIGNAL,
       }),
     ).rejects.toThrow(/unknown plugin host call/);
+  });
+});
+
+/**
+ * The point of this end of the channel, and the reason it re-checks what the
+ * plugin's own process already checked: a frame that arrives here did not
+ * necessarily come through the `patcher` object the plugin was handed. A plugin
+ * shares its process with the port and can write to the pipe itself.
+ */
+describe("the declared permission set is enforced on this side", () => {
+  it("refuses a browser command the plugin did not declare", async () => {
+    const { server, spies } = capabilities([]);
+
+    await expect(
+      server.onRequest({
+        method: "browser.<command>",
+        payload: {
+          command: {
+            type: "page.storage",
+            tabId: null,
+            operation: { kind: "cookies-get" },
+          },
+        },
+        signal: NO_SIGNAL,
+      }),
+    ).rejects.toThrow(/needs the "page.credentials" permission/);
+
+    expect(spies.requestBrowserCommand).not.toHaveBeenCalled();
+  });
+
+  it("says so in the log, because nothing else would show it", async () => {
+    const { server, spies } = capabilities([]);
+
+    await expect(
+      server.onRequest({
+        method: "browser.<command>",
+        payload: { command: { type: "tabs.list" } },
+        signal: NO_SIGNAL,
+      }),
+    ).rejects.toThrow(/tabs.read/);
+
+    expect(spies.warn).toHaveBeenCalledWith(
+      expect.stringContaining('asked the host for browser command "tabs.list"'),
+    );
+  });
+
+  it("charges each command what the shared map says it costs", async () => {
+    // `page.inject` and nothing else: the plugin reaches `evaluate` and is
+    // refused the cookie read beside it, rather than both or neither.
+    const { server, spies } = capabilities(["page.inject"]);
+
+    await server.onRequest({
+      method: "browser.<command>",
+      payload: {
+        command: {
+          type: "page.control",
+          tabId: null,
+          generation: null,
+          operation: { kind: "evaluate", expression: "1", ref: null },
+        },
+      },
+      signal: NO_SIGNAL,
+    });
+    expect(spies.requestBrowserCommand).toHaveBeenCalledTimes(1);
+
+    await expect(
+      server.onRequest({
+        method: "browser.<command>",
+        payload: {
+          command: {
+            type: "page.storage",
+            tabId: null,
+            operation: { kind: "cookies-get" },
+          },
+        },
+        signal: NO_SIGNAL,
+      }),
+    ).rejects.toThrow(/needs the "page.credentials" permission/);
+    expect(spies.requestBrowserCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a command it cannot price rather than guessing", async () => {
+    // The price of `page.control` is its operation's, so a frame that omits
+    // the operation is a frame asking to be charged for nothing.
+    const { server, spies } = capabilities();
+
+    await expect(
+      server.onRequest({
+        method: "browser.<command>",
+        payload: { command: { type: "page.control", tabId: null } },
+        signal: NO_SIGNAL,
+      }),
+    ).rejects.toThrow(/not a valid BrowserCommand/);
+
+    expect(spies.requestBrowserCommand).not.toHaveBeenCalled();
+  });
+
+  it("validates ui.requestInput here too", async () => {
+    const { server, spies } = capabilities();
+
+    await expect(
+      server.onRequest({
+        method: "ui.requestInput",
+        payload: {
+          threadId: "t1",
+          rendererId: "r1",
+          title: "Pick one",
+          payload: null,
+          // Off the far end of what the in-process object allows.
+          timeoutMs: 60 * 60 * 1000 + 1,
+        },
+        signal: NO_SIGNAL,
+      }),
+    ).rejects.toThrow(/timeoutMs must be between 1 and 3600000/);
+
+    expect(spies.requestInteraction).not.toHaveBeenCalled();
   });
 });
