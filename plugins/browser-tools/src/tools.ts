@@ -291,10 +291,10 @@ export function explainBrowserError(error: unknown): string {
     return "No browser window is connected. Ask the user to open the Patcher desktop app and its Browser surface, then try again.";
   }
   if (name === "BrowserCommandTimeoutError") {
-    return "The browser did not respond in time. It may be busy loading a page; try again in a moment.";
+    return "The browser did not answer in time. This is a deadline on the wait, not on the command: it may still be running, so whether it took effect is unknown. Look at the page before retrying — a blind retry can apply the same action twice.";
   }
   if (name === "BrowserCommandAbortedError") {
-    return "The browser command was cancelled.";
+    return "The wait for that browser command was cancelled. The command itself was not: a navigation or an action already under way in the page runs to completion, so check the page rather than assuming nothing happened.";
   }
 
   switch (code) {

@@ -177,14 +177,34 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
 **Done.**
 
 - **Actionability** (`desktop-browser-actions.ts`) — the substantial part, as
-  expected. One probe run in an isolated world answers attached / visible /
-  settled / enabled / not-covered in a single round trip and returns the point to
-  act at; the manager polls it until it passes or a 5s deadline expires, then
-  reports _why_ it never did. Stability is two `requestAnimationFrame`s and a box
-  comparison; "not covered" is a hit test at the point about to be clicked, which
-  is the check that catches the fading-out modal backdrop. The blocked reasons
-  are separate because each implies a different fix — `covered` means dismiss
-  something, `disabled` means fill something else first, `unstable` means wait.
+  expected. One sample run in an isolated world answers attached / visible /
+  enabled / not-covered in a single round trip and returns the point to act at
+  plus the element's box; the manager polls it until it passes or a 5s deadline
+  expires, then reports _why_ it never did. "Not covered" is a hit test at the
+  point about to be clicked, which is the check that catches the fading-out modal
+  backdrop. The blocked reasons are separate because each implies a different fix
+  — `covered` means dismiss something, `disabled` means fill something else
+  first, `unstable` means wait.
+
+  **The sample never waits inside the page, and the settle check is the
+  manager's.** Playwright compares the box across two `requestAnimationFrame`s;
+  doing that here deadlocked every ref-based action whenever the app window was
+  covered, minimised, or merely behind another application, because Chromium
+  stops producing frames for a view nobody can see and the frame that the probe
+  was waiting for never came. The wait then outlived its own deadline — which was
+  only read _between_ attempts — and surfaced as the bridge's generic ten-second
+  timeout, while the action stayed queued and landed later, on the next frame
+  something incidental forced. So: the page answers synchronously, and the
+  manager decides `unstable` by comparing two samples taken a poll interval
+  apart, timed by the main process where no page throttling reaches.
+
+- **The interaction deadline is a cancellation, not just a report.** One
+  `InteractionDeadline` per `interact` bounds each round trip into the page and
+  is checked once more immediately before the first input event of an action.
+  That is what lets a refusal mean _nothing happened_: an action the caller was
+  told had failed can never land afterwards and overwrite what they did instead.
+  It is deliberately not checked between the input events of one action — half a
+  `type` in the field is worse than finishing late.
 - **One `interact` channel**, not one per verb. Every action shares the same
   preamble (resolve the ref, check the generation, wait for actionability), and a
   channel per verb would freeze nine copies of it across a wire-frozen boundary.

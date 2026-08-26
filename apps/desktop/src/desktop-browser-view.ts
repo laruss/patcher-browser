@@ -138,9 +138,11 @@ import {
   PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
   PATCHER_BROWSER_READ_CHECKED_SCRIPT,
   PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
-  parseBrowserActionProbe,
+  browserActionRectsAgree,
+  parseBrowserActionSample,
   parseBrowserScriptOutcome,
   type BrowserActionBlockedReason,
+  type BrowserActionRect,
 } from "./desktop-browser-actions.js";
 import {
   CDP_MODIFIER_ALT,
@@ -1118,6 +1120,77 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
+ * The clock one interaction runs against.
+ *
+ * Two jobs, and the second is the one that matters. It bounds every round trip
+ * into the page, so a renderer that stops answering — a busy main thread, a
+ * frame that never comes — ends as our typed refusal instead of running past the
+ * bridge's own timeout. And it is checked once more immediately before the first
+ * input event of an action, which is what makes a refusal mean *nothing
+ * happened*: an action the caller has already been told about must never land
+ * afterwards and overwrite whatever they did instead.
+ *
+ * Deliberately not checked *between* the input events of one action. Once the
+ * first keystroke of a `type` is in the page, stopping halfway would leave the
+ * field holding half the text, which is worse than finishing late.
+ */
+class InteractionDeadline {
+  private readonly at: number;
+
+  constructor(budgetMs: number) {
+    this.at = Date.now() + budgetMs;
+  }
+
+  remainingMs(): number {
+    return this.at - Date.now();
+  }
+
+  expired(): boolean {
+    return this.remainingMs() <= 0;
+  }
+
+  private expiry(what: string): InteractionRefusal {
+    return new InteractionRefusal(
+      "not-actionable",
+      `Ran out of time ${what}; nothing was sent to the page.`,
+    );
+  }
+
+  /**
+   * Refuse unless there is still time to act. `what` names the step, so the
+   * agent reading this knows how far the action got.
+   */
+  assertTimeToAct(what: string): void {
+    if (this.expired()) {
+      throw this.expiry(`before ${what}`);
+    }
+  }
+
+  /**
+   * Bound one round trip into the page. The abandoned call is left to settle on
+   * its own — a CDP request cannot be recalled, and its answer is no longer
+   * anyone's to read.
+   */
+  async race<T>(work: Promise<T>, what: string): Promise<T> {
+    const remaining = this.remainingMs();
+    if (remaining <= 0) {
+      void work.catch(() => undefined);
+      throw this.expiry(what);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expiry = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(this.expiry(what)), remaining);
+    });
+    try {
+      return await Promise.race([work, expiry]);
+    } finally {
+      clearTimeout(timer);
+      void work.catch(() => undefined);
+    }
+  }
+}
+
+/**
  * The isolated world the interaction scripts run in.
  *
  * Same reasoning as the page-read world: a page that can see our script can
@@ -1255,42 +1328,62 @@ const BLOCKED_REASON_TEXT: Record<BrowserActionBlockedReason, string> = {
  * This is the wait Playwright performs before every action and the reason its
  * actions are not races. Polling rather than observing: the conditions that
  * matter (an overlay's opacity, a layout settling) have no single event to
- * subscribe to, and the probe already spends two animation frames per attempt.
+ * subscribe to.
+ *
+ * The settle check lives here rather than in the page. Two samples an interval
+ * apart with the same box means the element has stopped moving; the interval is
+ * this loop's own timer, in the main process, where no page-visibility
+ * throttling can stretch or stop it. Doing it the obvious way — awaiting two
+ * animation frames inside the page — is what made every ref-based action hang
+ * whenever the app window was covered or minimised, because Chromium stops
+ * producing frames for a view nobody can see and the wait simply never ended.
  */
 async function waitForActionable(
   session: CdpSession,
   target: InteractionTarget,
+  deadline: InteractionDeadline,
 ): Promise<{ x: number; y: number }> {
-  // Best-effort: an element with no layout box throws here, and the probe below
+  // Best-effort: an element with no layout box throws here, and the sample below
   // reports that in terms the caller can act on.
   await session
     .send("DOM.scrollIntoViewIfNeeded", { backendNodeId: target.backendNodeId })
     .catch(() => undefined);
 
-  const deadline = Date.now() + PATCHER_BROWSER_ACTION_TIMEOUT_MS;
   let blocked: BrowserActionBlockedReason = "detached";
+  let previous: BrowserActionRect | null = null;
   for (;;) {
-    const probe = parseBrowserActionProbe(
-      await callOnElement(
-        session,
-        target.objectId,
-        PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
+    const sample = parseBrowserActionSample(
+      await deadline.race(
+        callOnElement(
+          session,
+          target.objectId,
+          PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
+        ),
+        "while checking whether the element could be acted on",
       ),
     );
-    if (probe === null) {
+    if (sample === null) {
       throw new InteractionRefusal(
         "failed",
         "The page answered the actionability check with something unusable.",
       );
     }
-    if (probe.ready) {
-      return { x: probe.x, y: probe.y };
+    if (sample.ready) {
+      if (previous !== null && browserActionRectsAgree(previous, sample.rect)) {
+        return { x: sample.x, y: sample.y };
+      }
+      // One good sample only says where the element is now, not that it will
+      // still be there when the click lands.
+      blocked = "unstable";
+      previous = sample.rect;
+    } else {
+      blocked = sample.reason;
+      previous = null;
     }
-    blocked = probe.reason;
-    if (Date.now() >= deadline) {
+    if (deadline.remainingMs() <= PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS) {
       throw new InteractionRefusal(
         "not-actionable",
-        `Gave up waiting for the element: ${BLOCKED_REASON_TEXT[blocked]}.`,
+        `Gave up waiting for the element: ${BLOCKED_REASON_TEXT[blocked]}. Nothing was sent to the page.`,
       );
     }
     await delay(PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS);
@@ -1382,6 +1475,7 @@ async function performInteraction(
   session: CdpSession,
   entry: BrowserViewEntry,
   request: PatcherDesktopBrowserInteractRequest,
+  deadline: InteractionDeadline,
 ): Promise<void> {
   const interaction: PatcherDesktopBrowserInteraction = request.interaction;
 
@@ -1410,6 +1504,7 @@ async function performInteraction(
         `${JSON.stringify(interaction.key)} is not a key the browser can press.`,
       );
     }
+    deadline.assertTimeToAct("pressing the key");
     await dispatchKey(session, event);
     return;
   }
@@ -1432,6 +1527,7 @@ async function performInteraction(
       // No actionability wait: a styled upload control almost always hides the
       // real <input type=file>, so requiring it to be visible would refuse the
       // common case. CDP rejects a node that is not a file input.
+      deadline.assertTimeToAct("handing the files over");
       await session
         .send("DOM.setFileInputFiles", {
           files: [...interaction.paths],
@@ -1449,7 +1545,8 @@ async function performInteraction(
     }
 
     case "select": {
-      await waitForActionable(session, target);
+      await waitForActionable(session, target, deadline);
+      deadline.assertTimeToAct("choosing the options");
       const outcome = parseBrowserScriptOutcome(
         await callOnElement(
           session,
@@ -1470,7 +1567,11 @@ async function performInteraction(
     }
 
     case "fill": {
-      await waitForActionable(session, target);
+      await waitForActionable(session, target, deadline);
+      // The last point at which this action can still be called off: what
+      // follows selects the old value and replaces it, and a caller already told
+      // this timed out must not have it land on top of their next write.
+      deadline.assertTimeToAct("filling the field");
       const outcome = parseBrowserScriptOutcome(
         await callOnElement(
           session,
@@ -1501,7 +1602,8 @@ async function performInteraction(
     }
 
     case "type": {
-      await waitForActionable(session, target);
+      await waitForActionable(session, target, deadline);
+      deadline.assertTimeToAct("typing the text");
       await session.send("DOM.focus", { backendNodeId: target.backendNodeId });
       // One event per character, because that is the whole difference from
       // fill: autocompletes and input masks react to keystrokes, not to a value
@@ -1520,20 +1622,24 @@ async function performInteraction(
           `${JSON.stringify(interaction.key)} is not a key the browser can press.`,
         );
       }
-      await waitForActionable(session, target);
+      await waitForActionable(session, target, deadline);
+      deadline.assertTimeToAct("pressing the key");
       await session.send("DOM.focus", { backendNodeId: target.backendNodeId });
       await dispatchKey(session, event);
       return;
     }
 
     case "hover": {
-      const point = await waitForActionable(session, target);
+      const point = await waitForActionable(session, target, deadline);
+      deadline.assertTimeToAct("moving the pointer");
       await dispatchMouse(session, "mouseMoved", point, { button: "none" });
       return;
     }
 
     case "drag": {
-      const from = await waitForActionable(session, target);
+      // One budget for both waits: two five-second waits back to back would
+      // outlast the bridge that is waiting on this command.
+      const from = await waitForActionable(session, target, deadline);
       const to = await waitForActionable(
         session,
         await resolveInteractionTarget(
@@ -1542,7 +1648,9 @@ async function performInteraction(
           interaction.targetRef,
           request.generation,
         ),
+        deadline,
       );
+      deadline.assertTimeToAct("starting the drag");
       await dispatchMouse(session, "mouseMoved", from, { button: "none" });
       await dispatchMouse(session, "mousePressed", from, {
         button: "left",
@@ -1570,13 +1678,16 @@ async function performInteraction(
     }
 
     case "check": {
-      const point = await waitForActionable(session, target);
+      const point = await waitForActionable(session, target, deadline);
       if (
-        (await readCheckedState(session, target.objectId)) ===
-        interaction.checked
+        (await deadline.race(
+          readCheckedState(session, target.objectId),
+          "while reading whether the control was already set",
+        )) === interaction.checked
       ) {
         return;
       }
+      deadline.assertTimeToAct("clicking the control");
       await dispatchMouse(session, "mouseMoved", point, { button: "none" });
       await dispatchMouse(session, "mousePressed", point, {
         button: "left",
@@ -1591,7 +1702,10 @@ async function performInteraction(
       // Confirm rather than assume: a controlled component can refuse the
       // change, and reporting success on a checkbox that did not move would be
       // the worst kind of lie to an agent.
-      const deadline = Date.now() + CHECKED_SETTLE_TIMEOUT_MS;
+      // Its own budget, and its own clock: the interaction deadline is spent by
+      // now, and this runs *after* the click, so it can no longer refuse on the
+      // grounds that nothing was sent.
+      const settleBy = Date.now() + CHECKED_SETTLE_TIMEOUT_MS;
       for (;;) {
         if (
           (await readCheckedState(session, target.objectId)) ===
@@ -1599,7 +1713,7 @@ async function performInteraction(
         ) {
           return;
         }
-        if (Date.now() >= deadline) {
+        if (Date.now() >= settleBy) {
           throw new InteractionRefusal(
             "failed",
             `The control did not become ${interaction.checked ? "checked" : "unchecked"}.`,
@@ -1610,7 +1724,8 @@ async function performInteraction(
     }
 
     case "click": {
-      const point = await waitForActionable(session, target);
+      const point = await waitForActionable(session, target, deadline);
+      deadline.assertTimeToAct("clicking");
       const modifiers = modifierMask(interaction.modifiers);
       const buttons = MOUSE_BUTTON_MASK[interaction.button] ?? 1;
       await dispatchMouse(session, "mouseMoved", point, {
@@ -5147,6 +5262,11 @@ export function createDesktopBrowserViewManager(
         };
       }
 
+      // Started before the setup below, not after it: the budget is what the
+      // caller is waiting out, and it has to cover everything this command does.
+      const deadline = new InteractionDeadline(
+        PATCHER_BROWSER_ACTION_TIMEOUT_MS,
+      );
       try {
         // Same reason as in `snapshot`: from the moment we drive this tab, its
         // dialogs are ours to answer. A click that opens a `confirm()` would
@@ -5158,7 +5278,7 @@ export function createDesktopBrowserViewManager(
           session,
         );
         await session.enableDomain("DOM");
-        await performInteraction(session, entry, request);
+        await performInteraction(session, entry, request, deadline);
       } catch (error) {
         if (error instanceof InteractionRefusal) {
           return { ok: false, reason: error.reason, message: error.message };

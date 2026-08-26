@@ -7,8 +7,22 @@
  * on top at the point it is about to click. Without that, every action is a race
  * against layout and the agent's failures look nondeterministic — a click that
  * lands on the modal backdrop that was still fading out, a fill into an input
- * that React replaced a frame later. The probe below is that check, run in one
+ * that React replaced a frame later. The sample below is that check, run in one
  * round trip and polled until it passes or the deadline runs out.
+ *
+ * **Nothing here waits inside the page.** The obvious way to check that an
+ * element has stopped moving is to compare its box across two
+ * `requestAnimationFrame`s, which is what Playwright does — and it is wrong
+ * here. Playwright drives a page that is always being rendered; we drive one
+ * inside a `WebContentsView` that Chromium stops producing frames for whenever
+ * the app window is hidden, minimised, or merely covered by another
+ * application's window. In that state `requestAnimationFrame` never fires
+ * again, so a probe that awaits one never answers, and the whole command hangs
+ * until something incidental — a screenshot, the user coming back — forces a
+ * frame. A user switching apps while an agent works is the normal case, not an
+ * edge case, so the check samples synchronously and the *caller* supplies the
+ * interval between samples, using a timer in the main process that no page
+ * throttling can reach.
  *
  * Everything here is a **constant** script. Nothing a caller supplies is ever
  * interpolated into these strings; values reach them as CDP `arguments`, which
@@ -30,13 +44,22 @@ export const PATCHER_BROWSER_AUTOMATION_WORLD_NAME = "patcher-automation";
  * rather than a generic timeout.
  */
 export const PATCHER_BROWSER_ACTION_TIMEOUT_MS = 5_000;
-/** Gap between probes. Each probe already spans two animation frames. */
+/**
+ * Gap between samples, and so also the window an element has to hold still for.
+ * Longer than a frame at 60Hz on purpose: it is the settle check, and it has to
+ * be a real interval rather than "the next frame", because on a page Chromium is
+ * not rendering there is no next frame.
+ */
 export const PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS = 50;
 
 /**
  * Why an element could not be acted on. These are the sentence an agent gets, so
  * each one has to imply a different next move: `covered` means dismiss whatever
  * is on top, `unstable` means wait, `disabled` means fill something else first.
+ *
+ * All but `unstable` are decided from a single sample. `unstable` is the
+ * caller's verdict, reached by comparing two samples taken an interval apart —
+ * one sample cannot know whether a box is moving.
  */
 export type BrowserActionBlockedReason =
   | "detached"
@@ -46,29 +69,44 @@ export type BrowserActionBlockedReason =
   | "offscreen"
   | "covered";
 
-export type BrowserActionProbe =
-  | { ready: true; x: number; y: number }
+/** An element's box, carried so the caller can compare consecutive samples. */
+export interface BrowserActionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type BrowserActionSample =
+  | { ready: true; x: number; y: number; rect: BrowserActionRect }
   | { ready: false; reason: BrowserActionBlockedReason };
 
-const BLOCKED_REASONS = new Set<string>([
+/**
+ * What the in-page sample may answer with. `unstable` is absent because the page
+ * never decides it — see {@link BrowserActionBlockedReason}.
+ */
+const SAMPLED_BLOCKED_REASONS = new Set<string>([
   "detached",
   "not_visible",
-  "unstable",
   "disabled",
   "offscreen",
   "covered",
 ]);
 
 /**
- * One actionability check, returning the point to act at.
+ * One actionability check: everything decidable from a single look at the
+ * element, plus the box the caller compares against the next look.
  *
- * The two `requestAnimationFrame`s are the stability check: an element whose box
- * moved between them is mid-animation, and clicking its old centre would miss.
+ * Synchronous from end to end — see the note at the top of this file on why
+ * awaiting an animation frame here deadlocks whenever the app window is not on
+ * screen. `getBoundingClientRect` forces the pending layout the two frames used
+ * to wait for, so the box is current either way.
+ *
  * The hit test is the "not covered" check — an overlay that intercepts the point
  * would otherwise swallow the click silently, which is the failure mode hardest
  * to diagnose from the outside.
  */
-export const PATCHER_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
+export const PATCHER_BROWSER_ACTIONABILITY_SCRIPT = `function () {
   const node = this;
   const element =
     node instanceof Element
@@ -77,13 +115,6 @@ export const PATCHER_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
         ? node.parentElement
         : null;
   if (element === null || !element.isConnected) {
-    return { ready: false, reason: "detached" };
-  }
-  const before = element.getBoundingClientRect();
-  await new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  });
-  if (!element.isConnected) {
     return { ready: false, reason: "detached" };
   }
   const rect = element.getBoundingClientRect();
@@ -95,14 +126,6 @@ export const PATCHER_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
     !element.checkVisibility({ checkVisibilityCSS: true })
   ) {
     return { ready: false, reason: "not_visible" };
-  }
-  if (
-    Math.abs(rect.x - before.x) > 1 ||
-    Math.abs(rect.y - before.y) > 1 ||
-    Math.abs(rect.width - before.width) > 1 ||
-    Math.abs(rect.height - before.height) > 1
-  ) {
-    return { ready: false, reason: "unstable" };
   }
   if (element.matches(":disabled") || element.getAttribute("aria-disabled") === "true") {
     return { ready: false, reason: "disabled" };
@@ -131,7 +154,12 @@ export const PATCHER_BROWSER_ACTIONABILITY_SCRIPT = `async function () {
   if (hit !== element && !element.contains(hit) && !hit.contains(element)) {
     return { ready: false, reason: "covered" };
   }
-  return { ready: true, x, y };
+  return {
+    ready: true,
+    x,
+    y,
+    rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+  };
 }`;
 
 /**
@@ -232,39 +260,73 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parseRect(value: unknown): BrowserActionRect | null {
+  const record = asRecord(value);
+  if (record === null) {
+    return null;
+  }
+  const x = finiteNumber(record.x);
+  const y = finiteNumber(record.y);
+  const width = finiteNumber(record.width);
+  const height = finiteNumber(record.height);
+  if (x === null || y === null || width === null || height === null) {
+    return null;
+  }
+  return { x, y, width, height };
+}
+
 /**
- * Validate what the page answered the probe with.
+ * Validate what the page answered the sample with.
  *
  * Null means the page returned something unusable, which is a different
  * condition from "not ready yet" and must not be retried as one.
  */
-export function parseBrowserActionProbe(
+export function parseBrowserActionSample(
   value: unknown,
-): BrowserActionProbe | null {
+): BrowserActionSample | null {
   const record = asRecord(value);
   if (record === null) {
     return null;
   }
   if (record.ready === true) {
-    const { x, y } = record;
-    if (
-      typeof x !== "number" ||
-      typeof y !== "number" ||
-      !Number.isFinite(x) ||
-      !Number.isFinite(y)
-    ) {
+    const x = finiteNumber(record.x);
+    const y = finiteNumber(record.y);
+    const rect = parseRect(record.rect);
+    if (x === null || y === null || rect === null) {
       return null;
     }
-    return { ready: true, x, y };
+    return { ready: true, x, y, rect };
   }
   if (record.ready !== false) {
     return null;
   }
   const reason = record.reason;
-  if (typeof reason !== "string" || !BLOCKED_REASONS.has(reason)) {
+  if (typeof reason !== "string" || !SAMPLED_BLOCKED_REASONS.has(reason)) {
     return null;
   }
   return { ready: false, reason: reason as BrowserActionBlockedReason };
+}
+
+/**
+ * Whether an element held still between two samples.
+ *
+ * A pixel of tolerance, because a box can jitter by a subpixel under a
+ * transform without anything actually moving.
+ */
+export function browserActionRectsAgree(
+  before: BrowserActionRect,
+  after: BrowserActionRect,
+): boolean {
+  return (
+    Math.abs(after.x - before.x) <= 1 &&
+    Math.abs(after.y - before.y) <= 1 &&
+    Math.abs(after.width - before.width) <= 1 &&
+    Math.abs(after.height - before.height) <= 1
+  );
 }
 
 export type BrowserScriptOutcome =

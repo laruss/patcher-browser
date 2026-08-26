@@ -3729,6 +3729,10 @@ describe("DesktopBrowserViewManager dialogs", () => {
 // before anything is dispatched at it.
 describe("DesktopBrowserViewManager interactions", () => {
   const READY_POINT = { x: 40, y: 25 };
+  // The box the settle check compares across samples. Constant here, so an
+  // element is "still" from the second sample on.
+  const READY_RECT = { x: 20, y: 10, width: 40, height: 30 };
+  const READY_SAMPLE = { ready: true, ...READY_POINT, rect: READY_RECT };
 
   interface InteractionHarness {
     hostWindow: FakeHostWindow;
@@ -3777,17 +3781,22 @@ describe("DesktopBrowserViewManager interactions", () => {
     });
 
     const scriptResults = new Map<string, unknown>([
-      [PATCHER_BROWSER_ACTIONABILITY_SCRIPT, { ready: true, ...READY_POINT }],
+      [PATCHER_BROWSER_ACTIONABILITY_SCRIPT, READY_SAMPLE],
     ]);
     webContents.debugger.results.set(
       "Runtime.callFunctionOn",
-      (params?: Record<string, unknown>) => ({
-        result: {
-          value: scriptResults.get(String(params?.functionDeclaration)) ?? {
-            ok: true,
+      (params?: Record<string, unknown>) => {
+        const canned = scriptResults.get(
+          String(params?.functionDeclaration),
+        ) ?? { ok: true };
+        // A function stands in for a script whose answer changes between calls
+        // — an element that is still settling gives a different box each time.
+        return {
+          result: {
+            value: typeof canned === "function" ? canned() : canned,
           },
-        },
-      }),
+        };
+      },
     );
 
     // Refs only exist once a snapshot has handed them out.
@@ -3935,6 +3944,137 @@ describe("DesktopBrowserViewManager interactions", () => {
     // The message is the whole value of the check: "something is on top of it"
     // tells an agent to dismiss the overlay, where a bare failure would not.
     expect((result as { message?: string }).message).toContain("on top of");
+    expect(inputEvents(webContents)).toHaveLength(0);
+  }, 15_000);
+
+  it("answers with a reason instead of hanging when the page stops answering", async () => {
+    // The bug: the check used to await two animation frames inside the page, and
+    // Chromium stops producing frames for a view whose window is covered or
+    // minimised — so the check never came back, the action's own deadline was
+    // only read between attempts and never reached, and the caller was left with
+    // the bridge's generic "the browser did not respond" ten seconds later.
+    const { hostWindow, manager, webContents, generation } =
+      await attachTabForInteractions();
+    webContents.debugger.results.set(
+      "Runtime.callFunctionOn",
+      () => new Promise(() => undefined),
+    );
+
+    const result = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation,
+        interaction: { action: "fill", ref: "e1", text: "hello" },
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "not-actionable" });
+    // Saying so is the whole point: the caller has to be able to tell "did not
+    // happen" from "has not happened yet" before it retries.
+    expect((result as { message?: string }).message).toContain(
+      "nothing was sent",
+    );
+    expect(inputEvents(webContents)).toHaveLength(0);
+  }, 15_000);
+
+  it("never lets a refused action land afterwards", async () => {
+    // The second half of the same bug: a `fill` that had already reported a
+    // timeout stayed queued behind the stalled check, and committed later —
+    // overwriting a write the caller had made in the meantime, having been told
+    // the fill failed.
+    const { hostWindow, manager, webContents, scriptResults, generation } =
+      await attachTabForInteractions();
+    scriptResults.set(PATCHER_BROWSER_ACTIONABILITY_SCRIPT, {
+      ready: false,
+      reason: "covered",
+    });
+
+    const result = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation,
+        interaction: { action: "fill", ref: "e1", text: "clobber" },
+      },
+    });
+    expect(result).toMatchObject({ ok: false, reason: "not-actionable" });
+
+    // The element becoming actionable after the refusal must change nothing:
+    // the action was abandoned, not deferred.
+    scriptResults.set(PATCHER_BROWSER_ACTIONABILITY_SCRIPT, READY_SAMPLE);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(inputEvents(webContents)).toHaveLength(0);
+  }, 15_000);
+
+  it("waits for the box to stop moving before acting on it", async () => {
+    // The settle check, now that the interval belongs to this process rather
+    // than to the page's animation frames: an element is only actionable once
+    // two samples an interval apart agree on where it is.
+    const { hostWindow, manager, webContents, scriptResults, generation } =
+      await attachTabForInteractions();
+    let sample = 0;
+    scriptResults.set(PATCHER_BROWSER_ACTIONABILITY_SCRIPT, () => {
+      sample += 1;
+      // Sliding for the first two looks, settled from the third on.
+      const offset = sample < 3 ? sample * 20 : 60;
+      return {
+        ready: true,
+        x: READY_POINT.x + offset,
+        y: READY_POINT.y,
+        rect: { ...READY_RECT, x: READY_RECT.x + offset },
+      };
+    });
+
+    const result = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation,
+        interaction: { action: "hover", ref: "e1" },
+      },
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(sample).toBeGreaterThanOrEqual(4);
+    // The point acted on is the settled one, not the one from while it moved.
+    expect(inputEvents(webContents).at(-1)?.params).toMatchObject({
+      x: READY_POINT.x + 60,
+      y: READY_POINT.y,
+    });
+  }, 15_000);
+
+  it("gives up on a box that never stops moving, and says so", async () => {
+    const { hostWindow, manager, webContents, scriptResults, generation } =
+      await attachTabForInteractions();
+    let sample = 0;
+    scriptResults.set(PATCHER_BROWSER_ACTIONABILITY_SCRIPT, () => {
+      sample += 1;
+      return {
+        ready: true,
+        x: READY_POINT.x + sample,
+        y: READY_POINT.y,
+        rect: { ...READY_RECT, x: READY_RECT.x + sample * 10 },
+      };
+    });
+
+    const result = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation,
+        interaction: {
+          action: "click",
+          ref: "e1",
+          button: "left",
+          clickCount: 1,
+          modifiers: [],
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "not-actionable" });
+    expect((result as { message?: string }).message).toContain("still moving");
     expect(inputEvents(webContents)).toHaveLength(0);
   }, 15_000);
 
