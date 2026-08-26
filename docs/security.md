@@ -101,6 +101,20 @@ Popups are real windows for the browser surface's tabs, which is what makes
 [browser-surface.md](architecture/browser-surface.md) for the popup policy and
 the rate limiter that survived that change.
 
+**Being the browser is a claim, and a plugin cannot make it.** One `/ws`
+message says "this socket is the browser window", and whoever holds that role
+answers every browser command the server routes — the agent's tools and every
+plugin's `patcher.browser` call alike, which means reading the urls, the
+`evaluate` sources and the cookie values on their way into the session, and
+deciding what the model is told the page said. So it is gated the way the
+subscription beside it is: a socket carrying a plugin's identity is refused,
+because a plugin _makes_ those calls and is charged the permission for them
+rather than answering them. A claim also no longer displaces a live one — the
+window that claimed first keeps the role, and only that window takes it back,
+by presenting again the id it registered with. What is left is what the section
+below is about: a local process holding the app key is not a plugin as far as
+this gate can see, so it can still claim the role while no window holds it.
+
 ## The local API takes a key, and the key is only as private as your disk
 
 Every request to `/api/v1` and every `/ws` socket has to say who it is. A plugin

@@ -312,8 +312,10 @@ list. History stays shared across windows — it is the user's, not the window's
 What it took was smaller than that reads, because two of the three pieces were
 already there. The server has modelled several browser hosts all along —
 `registerBrowserHost` keeps a map, `getBrowserHostSnapshot` reports `hostCount`,
-and the most recently registered window is the primary one an agent's commands
-reach — so nothing changed there. And the shell already assigns every window a
+and one of them is the primary one an agent's commands reach — so nothing
+changed there. (Which one it is has since changed: the first live claim rather
+than the most recent, because the most recent was a role anyone on `/ws` could
+take — see [agent-browser-tools.md](agent-browser-tools.md#addressing-one-browser).) And the shell already assigns every window a
 `WindowStateKey` and persists its geometry under it, so the tab list needed no
 identity of its own: it hangs off the same key, and a window that reopens where
 it was reopens with what it had.

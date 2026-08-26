@@ -91,11 +91,40 @@ export function onClientSocketMessage(
       deps.hub.unsubscribe(socket, parsed.target);
       deps.watchInterests.unsubscribe(socket, parsed.target);
       break;
-    case "browser-host.register":
-      deps.hub.registerBrowserHost(socket, {
+    case "browser-host.register": {
+      // The gate one case above says why a subscription is policed here: this
+      // socket never passes the request gate, so a message it carries inward
+      // is only as safe as what this switch does with it. This is the larger
+      // of the two. The browser host answers every browser command the server
+      // routes — the agent's tools and every plugin's `patcher.browser` call —
+      // so claiming the role reads that stream (urls, `evaluate` sources,
+      // cookie values on their way into the session) and decides what the
+      // model is told the page said.
+      const pluginId = deps.hub.pluginIdForSocket(socket);
+      if (pluginId !== null) {
+        // No permission grants this and none should: the browser surface is
+        // the app's own window, and a plugin reaches it through
+        // `patcher.browser`, charged on the host's side of the pipe. A plugin
+        // registering here would be answering those calls instead of making
+        // them, past a consent prompt that named nothing of the sort.
+        deps.logger?.warn(
+          `plugin browser-host.register refused: ${pluginId} is not an app window`,
+        );
+        break;
+      }
+      const claim = deps.hub.registerBrowserHost(socket, {
         browserHostId: parsed.browserHostId,
       });
+      if (!claim.primary) {
+        // This window serves nothing until the one driving goes away, and the
+        // only other trace of that is `hostCount`. Said out loud so "the agent
+        // is driving my other window" is something a log can answer.
+        deps.logger?.warn(
+          `browser host ${parsed.browserHostId} registered behind ${claim.primaryBrowserHostId}, which is driving`,
+        );
+      }
       break;
+    }
     case "browser-host.unregister":
       deps.hub.unregisterBrowserHost(socket);
       break;

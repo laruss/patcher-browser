@@ -153,6 +153,12 @@ export class HostOnlineRpcUnavailableError extends Error {
 
 interface BrowserHostRegistration {
   browserHostId: string;
+  /**
+   * Which claim came first, which is what decides the primary host. Held here
+   * rather than read off the map's insertion order so a window that reconnects
+   * on a new socket keeps its place instead of moving to the back.
+   */
+  claimedAt: number;
   socket: HubSocket;
 }
 
@@ -173,6 +179,16 @@ export type BrowserCommandResponseDisposition =
   | { handled: true }
   | { handled: false; reason: "stale" }
   | { handled: false; reason: "host_mismatch" };
+
+/**
+ * What a registration got: the role, or a place behind the window holding it.
+ *
+ * Returned rather than logged from in here, because the caller is the one that
+ * knows whose socket this was — an app window, a plugin, or a test.
+ */
+export type BrowserHostClaim =
+  | { primary: true }
+  | { primary: false; primaryBrowserHostId: string };
 
 export interface BrowserHostSnapshot {
   connected: boolean;
@@ -223,13 +239,15 @@ export class NotificationHub implements DbNotifier {
     HostOnlineRpcWaiter
   >();
   /**
-   * App sockets that can drive a browser surface. Insertion-ordered, and a
-   * re-registration deletes before it sets, so **the last entry is the primary
-   * host** — the window the user most recently connected (or refocused) is the
-   * one an agent drives. Same "latest client wins" rule terminal resize
-   * ownership already uses.
+   * App sockets that can drive a browser surface. **The oldest claim is the
+   * primary host** — see `registerBrowserHost` for why it is not the newest,
+   * which is the rule terminal resize ownership uses and the wrong one here.
+   * The rest are counted and wait: whichever is oldest takes over when the
+   * window that was driving goes away.
    */
   private readonly browserHosts = new Map<HubSocket, BrowserHostRegistration>();
+  /** Hands out `claimedAt`. Never reset, so no two claims ever compare equal. */
+  private browserHostClaims = 0;
   private readonly browserCommandWaiters = new Map<
     string,
     BrowserCommandWaiter
@@ -774,20 +792,65 @@ export class NotificationHub implements DbNotifier {
   }
 
   /**
-   * Record that an app socket can drive a browser surface. Re-registering the
-   * same socket moves it to the back of the map, which is what makes it the
-   * primary host.
+   * Record that an app socket can drive a browser surface.
+   *
+   * The **first** live claim is the one commands go to, and a later one waits
+   * behind it. It used to be the last: the map was read from the back, so
+   * whoever registered most recently became the browser an agent drives. That
+   * is a takeover anyone already on this socket could perform by asking, and
+   * the message asking it is authenticated no further than "not a plugin"
+   * (ws/client-protocol.ts) — so the window a person was watching could lose
+   * the command stream with nothing on screen saying it had.
+   *
+   * A window reclaims its own role by presenting the same `browserHostId` on a
+   * new socket, which is what the client does after a reconnect
+   * (apps/app/src/lib/ws.ts). The id is per page load, so a reload is a new
+   * window and a dropped connection is the same one still asking. That id is a
+   * claim rather than proof, and it is not published to anyone who could use
+   * it as one: it stays in this process, and a plugin's `browser.getStatus()`
+   * sees a count.
    */
   registerBrowserHost(
     socket: HubSocket,
     args: { browserHostId: string },
-  ): void {
-    this.browserHosts.delete(socket);
+  ): BrowserHostClaim {
+    const held = this.browserHosts.get(socket);
+    const reconnected = this.reconnectedBrowserHost(socket, args.browserHostId);
+    if (reconnected !== undefined) {
+      // The window is back on a new socket, so the old one is a connection its
+      // client has already given up on: a command still waiting there can only
+      // time out, and failing it now is what noticing the close would have
+      // done.
+      this.browserHosts.delete(reconnected.socket);
+      this.rejectBrowserCommandWaitersForSocket(reconnected.socket);
+    }
     this.browserHosts.set(socket, {
       browserHostId: args.browserHostId,
+      claimedAt:
+        held?.claimedAt ?? reconnected?.claimedAt ?? ++this.browserHostClaims,
       socket,
     });
     this.notifyBrowserHostsChangedListeners();
+    const primary = this.primaryBrowserHost();
+    return primary === undefined || primary.socket === socket
+      ? { primary: true }
+      : { primary: false, primaryBrowserHostId: primary.browserHostId };
+  }
+
+  /** The same window on an earlier socket, while that socket is still listed. */
+  private reconnectedBrowserHost(
+    socket: HubSocket,
+    browserHostId: string,
+  ): BrowserHostRegistration | undefined {
+    for (const registration of this.browserHosts.values()) {
+      if (
+        registration.socket !== socket &&
+        registration.browserHostId === browserHostId
+      ) {
+        return registration;
+      }
+    }
+    return undefined;
   }
 
   unregisterBrowserHost(socket: HubSocket): void {
@@ -1085,13 +1148,15 @@ export class NotificationHub implements DbNotifier {
     }
   }
 
-  /** The most recently registered host; `Map` preserves insertion order. */
+  /** The oldest live claim: a window arriving later waits rather than takes. */
   private primaryBrowserHost(): BrowserHostRegistration | undefined {
-    let latest: BrowserHostRegistration | undefined;
+    let primary: BrowserHostRegistration | undefined;
     for (const registration of this.browserHosts.values()) {
-      latest = registration;
+      if (primary === undefined || registration.claimedAt < primary.claimedAt) {
+        primary = registration;
+      }
     }
-    return latest;
+    return primary;
   }
 
   private deleteBrowserCommandWaiter(
