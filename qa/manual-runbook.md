@@ -99,6 +99,11 @@ SERVER_LOG_DIR=$(jq -er '(.paths.serverDataDir // .server.dataDir) + "/logs"' "$
 DAEMON_LOG_DIR=$(jq -er '(.paths.daemonDataDir // .daemon.dataDir) + "/logs"' "$STATE_PATH")
 
 Patcher() { node apps/cli/dist/index.js "$@"; }
+
+# `/api/v1` refuses a request that identifies itself as nothing — see
+# docs/security.md. The env block above exports the key; this puts it on every
+# curl below, so the rest of the runbook reads the way it always did.
+curl() { command curl -H "x-patcher-app-key: $PATCHER_APP_KEY" "$@"; }
 ```
 
 The machine-facing contract is the exported env block. The state file at `$STATE_PATH`

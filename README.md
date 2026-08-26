@@ -164,13 +164,16 @@ Patcher is experimental software that runs plugins written by coding agents.
   for your confirmation, and the prompt shows the declared permissions and
   sites.
 - **That is a consent and audit boundary, not a sandbox against malicious code.**
-  The local API is unauthenticated and plugin backends are not isolated, so the
-  gate records and slows a decision rather than enforcing it.
 - Browser access operates on your real authenticated sessions.
-- **Plugin backends are not sandboxed yet** and may execute local Node.js code
-  with the server process's own privileges.
-- The local API binds to loopback, which is the only thing standing in for the
-  authentication it does not have.
+- **A plugin you installed runs in its own process, which is not a sandbox.** It
+  has the filesystem, subprocesses and the network, and runs as you — so treat
+  installing a plugin as running a local script with your account's privileges.
+- The permissions a plugin declares are enforced on every path Patcher owns:
+  each browser command is charged on the server's side of the process boundary,
+  and the local API refuses a request that does not say who it is. A plugin can
+  still read the key off your disk, because nothing sandboxes it.
+- The local API binds to loopback, and takes a per-install key that local
+  clients read from your data directory.
 - Install only plugins you understand and trust.
 
 The reasoning, the exits a plugin can still take, and the telemetry position
@@ -182,7 +185,10 @@ The reasoning, the exits a plugin can still take, and the telemetry position
 - **Not notarized.** With no Apple Developer ID, the build is ad-hoc signed:
   Gatekeeper refuses it until you allow it once, and it cannot update itself,
   because `electron-updater` installs only a Developer ID-signed update.
-- **Plugins are not isolated.** Process isolation is planned work, not shipped.
+- **Plugins run in their own process, but are not sandboxed.** The process
+  boundary keeps a plugin out of the server's memory and is where the permission
+  gate now sits; it does not take away the filesystem, subprocesses or the
+  network, so a plugin that goes around Patcher entirely is not stopped.
 - **Not a Chrome extension host.** Chrome extension compatibility is out of
   scope for now.
 - **Missing browser features:** no user-facing print, no spellcheck suggestions,

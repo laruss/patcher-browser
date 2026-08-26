@@ -1,3 +1,5 @@
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
+
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
 
@@ -46,9 +48,21 @@ function waitForRetryDelay(): Promise<void> {
   );
 }
 
-export function createIntegrationFetch(): typeof fetch {
+export function createIntegrationFetch(appApiKey?: string): typeof fetch {
   return async (input, init) => {
     const retryable = isRetryableFetch(input, init);
+    // The API refuses a request that identifies itself as nothing, so this
+    // harness says who it is exactly as the app and the CLI do.
+    const signed =
+      appApiKey === undefined
+        ? init
+        : (() => {
+            const headers = new Headers(init?.headers);
+            if (!headers.has(PATCHER_APP_KEY_HEADER)) {
+              headers.set(PATCHER_APP_KEY_HEADER, appApiKey);
+            }
+            return { ...init, headers };
+          })();
 
     for (
       let attempt = 1;
@@ -56,7 +70,7 @@ export function createIntegrationFetch(): typeof fetch {
       attempt += 1
     ) {
       try {
-        return await fetch(input, init);
+        return await fetch(input, signed);
       } catch (error) {
         const shouldRetry =
           retryable &&

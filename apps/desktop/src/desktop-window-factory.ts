@@ -1,5 +1,8 @@
 import type { BrowserWindowConstructorOptions } from "electron";
-import { PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX } from "@patcher/desktop-contract";
+import {
+  PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX,
+  PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX,
+} from "@patcher/desktop-contract";
 import {
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
@@ -84,6 +87,12 @@ export interface OpenExternalUrlArgs {
 }
 
 export interface CreateDesktopWindowFactoryArgs {
+  /**
+   * What the renderer presents to `/api/v1`. A function rather than a value:
+   * the key file appears when the server first starts, which can be after the
+   * first window is asked for.
+   */
+  appKey(): string | undefined;
   browserWindowCreator: DesktopBrowserWindowCreator;
   createWindowStateKey(): WindowStateKey;
   displayWorkAreas: DisplayWorkArea[] | null;
@@ -135,6 +144,7 @@ interface LoadUrlIntoWindowArgs {
 }
 
 interface CreateWindowOptionsArgs {
+  appKey: string | undefined;
   bounds: WindowBounds;
   icon: DesktopWindowIcon;
   preloadPath: string;
@@ -184,6 +194,11 @@ function createWindowOptions(
       // channel that has already arrived by then.
       additionalArguments: [
         `${PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX}${args.stateKey}`,
+        // Same channel, same reason: the renderer's first API call happens
+        // while its modules initialise, and that call now has to be signed.
+        ...(args.appKey === undefined
+          ? []
+          : [`${PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX}${args.appKey}`]),
       ],
       contextIsolation: true,
       nodeIntegration: false,
@@ -238,6 +253,7 @@ export function createDesktopWindowFactory(
       });
       const browserWindow = args.browserWindowCreator.create(
         createWindowOptions({
+          appKey: args.appKey(),
           bounds: restoredState.bounds,
           icon: args.icon,
           preloadPath: args.preloadPath,

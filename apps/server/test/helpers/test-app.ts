@@ -5,6 +5,8 @@ import { serve } from "@hono/node-server";
 import type { AddressInfo } from "node:net";
 import type { DbConnection } from "@patcher/db";
 import { defaultFeatureFlags, type HostType } from "@patcher/domain";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
+import type { Hono } from "hono";
 import { initDb } from "../../src/db.js";
 import { createApp } from "../../src/server.js";
 import { PendingInteractionLifecycle } from "../../src/services/interactions/pending-interactions.js";
@@ -28,6 +30,81 @@ import { WatchInterestCoordinator } from "../../src/ws/watch-interests.js";
 
 const TEST_MACHINE_KEY_PREFIX = "test-daemon-key";
 const TEST_SERVER_HOST = "127.0.0.1";
+
+/**
+ * What this harness's clients present to `/api/v1` and `/ws`.
+ *
+ * Fixed rather than random so a test can write the header itself when it is
+ * testing the gate rather than passing through it. Everything else gets it
+ * added for free by `withAppKey` below.
+ */
+export const TEST_APP_API_KEY = "test-app-api-key";
+
+/** The header a raw `fetch` or a websocket in a test has to send. */
+export function testAppKeyHeaders(): Record<string, string> {
+  return { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY };
+}
+
+/**
+ * `fetch`, as a client this install knows. For tests that go over a real
+ * socket to `startTestServer`'s `baseUrl` rather than through `app.request`.
+ */
+export function appFetch(
+  input: string | URL | Request,
+  init?: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has(PATCHER_APP_KEY_HEADER)) {
+    headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_API_KEY);
+  }
+  return fetch(input, { ...init, headers });
+}
+
+/**
+ * `app.request(...)`, with this harness's app key on it.
+ *
+ * Wrapped centrally because the alternative is the same header on ~700 call
+ * sites. A test that sets the header itself wins, which is what lets the
+ * app-identity tests send a wrong key or none at all.
+ */
+export function withTestAppKey<T extends Hono>(app: T): T {
+  const request = app.request.bind(app) as Hono["request"];
+  const wrappedRequest: Hono["request"] = (
+    input,
+    requestInit,
+    Env,
+    executionCtx,
+  ) => {
+    const headers = new Headers(requestInit?.headers);
+    if (!headers.has(PATCHER_APP_KEY_HEADER)) {
+      headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_API_KEY);
+    }
+    return request(
+      input as never,
+      { ...requestInit, headers },
+      Env,
+      executionCtx,
+    );
+  };
+  // `fetch` as well as `request`: they are two entry points and tests use
+  // both — `fetch` whenever a test builds the `Request` itself.
+  const fetchApp = app.fetch.bind(app) as Hono["fetch"];
+  const wrappedFetch: Hono["fetch"] = (input, Env, executionCtx) => {
+    if (input.headers.has(PATCHER_APP_KEY_HEADER)) {
+      return fetchApp(input, Env, executionCtx);
+    }
+    const headers = new Headers(input.headers);
+    headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_API_KEY);
+    return fetchApp(new Request(input, { headers }), Env, executionCtx);
+  };
+  return new Proxy(app, {
+    get(target, property, receiver) {
+      if (property === "request") return wrappedRequest;
+      if (property === "fetch") return wrappedFetch;
+      return Reflect.get(target, property, receiver) as unknown;
+    },
+  }) as T;
+}
 
 export interface TestAppHarness {
   app: ReturnType<typeof createApp>["app"];
@@ -190,6 +267,7 @@ export async function createTestAppHarness(
     });
   const deps: ServerAppDeps = {
     appVersion,
+    appApiKey: TEST_APP_API_KEY,
     patcherAppManagedConfig,
     config,
     db,
@@ -209,7 +287,7 @@ export async function createTestAppHarness(
   );
 
   return {
-    app,
+    app: withTestAppKey(app),
     config,
     db,
     deps,
@@ -220,6 +298,20 @@ export async function createTestAppHarness(
       await rm(dataDir, { recursive: true, force: true });
     },
   };
+}
+
+/**
+ * `createApp`, with this harness's app key already on the returned app.
+ *
+ * For the tests that build their own app rather than taking the harness's —
+ * they are testing the server's plumbing, not its front door, and should not
+ * each have to remember the header.
+ */
+export function createTestApp(
+  ...args: Parameters<typeof createApp>
+): ReturnType<typeof createApp> {
+  const created = createApp(...args);
+  return { ...created, app: withTestAppKey(created.app) };
 }
 
 export async function withTestHarness<T>(
@@ -281,7 +373,7 @@ export async function startTestServer(
 
   return {
     ...harness,
-    app,
+    app: withTestAppKey(app),
     pluginService,
     baseUrl: `http://${TEST_SERVER_HOST}:${resolvedAddress.port}`,
     async close(): Promise<void> {

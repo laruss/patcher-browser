@@ -11,10 +11,17 @@ import {
   createAppQueryClient,
   installAppQueryClientBrowserEvents,
 } from "./lib/query-client";
+import { installAppKeyFetch } from "./lib/app-key-fetch";
 import { adoptLegacyBrowserStorage } from "./lib/legacy-storage-adoption";
 import { takeOverPanelResizeCursor } from "./lib/resizeCursor";
 import { applyCachedAppThemeCss } from "./lib/themes";
 import "./app.css";
+
+// Before anything fetches: the API refuses a request that identifies itself
+// as nothing, and this is what puts the app's key on every one of them. It
+// also strips the key out of the address bar when the page was opened with
+// one, so it must run before anything reads the URL.
+installAppKeyFetch();
 
 // Before anything reads a preference: on an origin the rename did not move,
 // every stored key is still under its pre-rename name.

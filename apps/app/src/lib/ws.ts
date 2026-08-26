@@ -18,6 +18,7 @@ import type {
   ThreadPaneActionSignal,
 } from "@patcher/server-contract";
 import type { BrowserCommandResponseMessage } from "@patcher/domain";
+import { withAppKeyQuery } from "./app-key";
 import { buildDevWebSocketUrl } from "./dev-websocket-url";
 
 type ChangeCallback = (message: ChangedMessage) => void;
@@ -63,9 +64,12 @@ export class WebSocketManager {
     // In dev mode, connect directly to the server to bypass Vite's WS proxy
     // which does not handle reconnection after backend restarts.
     // In production, use the same origin (server serves the app).
-    const url =
+    // The key rides in the query: a browser `WebSocket` sets no request
+    // headers, and `/ws` is gated the same way `/api/v1` is.
+    const url = withAppKeyQuery(
       buildDevWebSocketUrl({ path: "/ws" }) ??
-      `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
+        `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`,
+    );
 
     this.socket = new ReconnectingWebSocket(url, undefined, {
       minReconnectionDelay: 1000,

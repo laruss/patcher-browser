@@ -11,14 +11,18 @@ import {
 import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import { initDb } from "../../src/db.js";
-import { createApp } from "../../src/server.js";
+
 import { readJson } from "../helpers/json.js";
 import {
   seedHostSession,
   seedProjectWithSource,
   seedThread,
 } from "../helpers/seed.js";
-import { createTestAppHarness, withTestHarness } from "../helpers/test-app.js";
+import {
+  createTestApp,
+  createTestAppHarness,
+  withTestHarness,
+} from "../helpers/test-app.js";
 
 type InsertMigrationParameters = [string, number];
 
@@ -60,7 +64,7 @@ describe("server skeleton", () => {
 
   it("serves install version metadata without auth", async () => {
     const harness = await createTestAppHarness();
-    const { app } = createApp(harness.deps, {
+    const { app } = createTestApp(harness.deps, {
       patcherAppArtifactService: {
         getTarballPath: async () => "/unused",
         getVersion: async () => "3.2.1-test",
@@ -83,7 +87,7 @@ describe("server skeleton", () => {
     const tarballPath = join(harness.config.dataDir, "fixture.tgz");
     writeFileSync(tarballPath, "tarball-bytes");
     const getTarballPath = vi.fn(async () => tarballPath);
-    const { app } = createApp(harness.deps, {
+    const { app } = createTestApp(harness.deps, {
       patcherAppArtifactService: {
         getTarballPath,
         getVersion: async () => "test",
@@ -105,7 +109,7 @@ describe("server skeleton", () => {
     const tarballPath = join(harness.config.dataDir, "fixture.tgz");
     writeFileSync(tarballPath, "tarball-bytes");
     const getTarballPath = vi.fn(async () => tarballPath);
-    const { app } = createApp(harness.deps, {
+    const { app } = createTestApp(harness.deps, {
       patcherAppArtifactService: {
         getTarballPath,
         getVersion: async () => "test",
@@ -183,7 +187,7 @@ describe("server skeleton", () => {
       info: vi.fn(),
       warn: vi.fn(),
     };
-    const serverApp = createApp(
+    const serverApp = createTestApp(
       {
         ...harness.deps,
         logger,
@@ -218,7 +222,7 @@ describe("server skeleton", () => {
       info: vi.fn(),
       warn: vi.fn(),
     };
-    const serverApp = createApp(
+    const serverApp = createTestApp(
       {
         ...harness.deps,
         logger,

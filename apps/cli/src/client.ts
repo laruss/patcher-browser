@@ -1,8 +1,10 @@
+import { resolveAppApiKey } from "@patcher/config/app-key";
 import {
   createNodePatcherSdk,
   type PatcherSdk,
   type PatcherSdkContext,
 } from "@patcher/sdk/node";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { PATCHER_THREAD_ID_HEADER } from "@patcher/server-contract";
 import { resolveContextThreadId } from "./context-env.js";
 
@@ -11,6 +13,20 @@ import { resolveContextThreadId } from "./context-env.js";
  * The header and the reason for it are defined with the rest of the HTTP
  * contract, in @patcher/server-contract.
  */
+
+/**
+ * The key that says this is a client the install knows.
+ *
+ * Resolved once per process: it comes from `PATCHER_APP_KEY` or from a file in
+ * the data dir, and neither changes under a running command. Undefined when
+ * there is none to find — the request then gets a 401 that says so, which is a
+ * better failure than one thrown from inside a `fetch` wrapper.
+ */
+let appApiKey: string | undefined | null = null;
+function cachedAppApiKey(): string | undefined {
+  if (appApiKey === null) appApiKey = resolveAppApiKey();
+  return appApiKey;
+}
 
 function declaredThreadId(): string | undefined {
   try {
@@ -31,13 +47,17 @@ export function cliFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const threadId = declaredThreadId();
-  if (threadId === undefined) {
+  const key = cachedAppApiKey();
+  if (threadId === undefined && key === undefined) {
     return fetch(input, init);
   }
   const headers = new Headers(init?.headers);
   // An explicit header wins: a caller that set it meant it.
-  if (!headers.has(PATCHER_THREAD_ID_HEADER)) {
+  if (threadId !== undefined && !headers.has(PATCHER_THREAD_ID_HEADER)) {
     headers.set(PATCHER_THREAD_ID_HEADER, threadId);
+  }
+  if (key !== undefined && !headers.has(PATCHER_APP_KEY_HEADER)) {
+    headers.set(PATCHER_APP_KEY_HEADER, key);
   }
   return fetch(input, { ...init, headers });
 }
@@ -46,7 +66,11 @@ export function createCliPatcherSdk(
   baseUrl: string,
   options: CreateCliPatcherSdkOptions = {},
 ): PatcherSdk {
+  const key = cachedAppApiKey();
   return createNodePatcherSdk({
+    // `cliFetch` already signs the HTTP side; this is what reaches the
+    // realtime socket, which is not under /api/v1 and is gated separately.
+    ...(key === undefined ? {} : { appKey: key }),
     baseUrl,
     context: options.context,
     fetch: cliFetch,

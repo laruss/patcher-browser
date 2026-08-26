@@ -1,3 +1,4 @@
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { z } from "zod";
 
 const healthResponseSchema = z
@@ -46,12 +47,23 @@ export interface UnavailableServerProbeResult {
 }
 
 export interface ProbePatcherServerArgs {
+  /**
+   * Identifies this shell to `/api/v1`, which refuses a request that
+   * identifies itself as nothing. `/health` stays anonymous — a launcher polls
+   * it before anything exists — so a probe with no key still finds the server
+   * and then says plainly that it cannot read its config.
+   *
+   * Absent for a server whose data dir this machine cannot read, which is what
+   * a custom remote target is. `PATCHER_APP_KEY` is how that one is supplied.
+   */
+  appApiKey?: string;
   fetchImpl?: ServerProbeFetch;
   serverUrl: string;
   timeoutMs: number;
 }
 
 export interface WaitForCompatibleServerArgs {
+  appApiKey?: string;
   intervalMs: number;
   serverUrl: string;
   timeoutMs: number;
@@ -59,6 +71,7 @@ export interface WaitForCompatibleServerArgs {
 
 interface FetchJsonArgs<TValue> {
   fetchImpl: ServerProbeFetch;
+  headers?: Record<string, string>;
   schema: z.ZodType<TValue>;
   timeoutMs: number;
   url: string;
@@ -119,6 +132,7 @@ async function fetchJson<TValue>(
 
   try {
     const response = await args.fetchImpl(args.url, {
+      ...(args.headers === undefined ? {} : { headers: args.headers }),
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -195,10 +209,26 @@ export async function probePatcherServer(
 
   const configResult = await fetchJson({
     fetchImpl,
+    ...(args.appApiKey === undefined
+      ? {}
+      : { headers: { [PATCHER_APP_KEY_HEADER]: args.appApiKey } }),
     schema: systemConfigResponseSchema,
     timeoutMs: args.timeoutMs,
     url: endpointUrl(args.serverUrl, "/api/v1/system/config"),
   });
+
+  if (configResult.kind === "http-error" && configResult.status === 401) {
+    // Named on its own, because it is the one failure a user can act on: the
+    // server is there and healthy and this shell has not been given its key.
+    return {
+      kind: "incompatible",
+      reason:
+        "/api/v1/system/config refused this app: no valid app key. Set " +
+        "PATCHER_APP_KEY to the contents of `app-api-key` in that server's " +
+        "data directory.",
+      serverUrl: args.serverUrl,
+    };
+  }
 
   if (configResult.kind !== "success") {
     return {
@@ -227,6 +257,7 @@ export async function waitForCompatibleServer(
 
   while (Date.now() <= deadline) {
     lastResult = await probePatcherServer({
+      ...(args.appApiKey === undefined ? {} : { appApiKey: args.appApiKey }),
       serverUrl: args.serverUrl,
       timeoutMs: Math.min(args.intervalMs, 1_000),
     });

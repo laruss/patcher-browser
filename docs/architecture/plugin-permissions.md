@@ -4,30 +4,40 @@ What a plugin declares in `patcher.permissions`, what refuses it, and — the pa
 worth reading before the rest — what this does not do.
 
 Plan §9 asks that generated plugins not run with everything the host has. This
-is the first half of that answer. The second half is plan Phase 7, and the
-order matters: this document argues that the declaration had to come first,
-and that it is worth having before it can be enforced against hostile code.
+is the first half of that answer, and the declaration had to come first: it is
+what the second half — the process boundary — is built against.
 
-## This is not a security boundary, and cannot be one yet
+## The declaration is enforced. It is still not a sandbox
 
-A plugin's `server.ts` is a Node module loaded into the Patcher server process
-(`plugin-runtime.ts`, via `jiti.import`). Three exits are open to it today and
-no gate on the `patcher` object closes any of them:
+A plugin you installed runs in its own process, one process per plugin
+(`plugin-placement.ts`, `plugin-supervisor.ts`), and every permission below is
+checked on the **host's** side of that boundary:
 
-- `import("node:child_process")` and `node:fs` — the process's own capabilities;
-- `patcher.server.loopbackBaseUrl` plus `fetch` — the whole server API, around any
-  wrapper on `patcher.sdk`;
-- monkey-patching Patcher's own modules, which it shares a realm with.
+- `patcher.browser.*` is charged in `plugin-host-call-server.ts`, against the
+  parsed command, before the host performs it. The copy of the gate that runs
+  in the plugin's own process is what gives an under-declared plugin a fixable
+  error; it is not what decides.
+- Everything that reaches `/api/v1` is charged by the middleware in
+  `server.ts`, which now refuses a request that identifies itself as nothing —
+  so `patcher.server.loopbackBaseUrl` plus `fetch` gets the same answer
+  `patcher.sdk` does, rather than skipping the map.
+- `patcher.sites` for page contributions is enforced in the browser process, by
+  pattern match per navigation.
 
-So a plugin that wants what it did not declare can still take it. Saying
-otherwise in a UI would be worse than saying nothing.
+What no part of that closes is the process itself. It is a plain `fork`:
+`node:child_process`, `node:fs`, the network, running as you. A plugin can read
+another plugin's secrets off disk, and it can read the app's own key file. The
+boundary keeps a plugin out of the server's memory and makes the declaration
+mean something on the paths Patcher owns; it does not contain a plugin that
+goes around them. A sandbox is the missing half, and until it exists,
+installing a plugin is running a local script with your account's privileges.
 
-What the declaration is actually for, in the order the value arrives:
+What the declaration buys, in the order the value arrives:
 
-1. **It specifies the Phase 7 RPC surface.** Every entry names an operation
-   that must cross a process boundary once plugins move out. A plugin host
-   built without this list would isolate the plugin and then hand it back
-   everything over RPC — the isolation would be real and pointless.
+1. **It is the RPC surface, and the gate on it.** Every entry names an
+   operation that crosses the process boundary, and is charged where it lands.
+   A plugin host built without this list would isolate the plugin and then hand
+   it back everything over RPC — the isolation would be real and pointless.
 2. **It makes an under-declared plugin fail loudly.** An agent-generated plugin
    that reaches for something it did not ask for throws with the permission
    named and the fix in the message. That is what makes plan Phase 6's loop
@@ -112,12 +122,20 @@ correct and is now visible rather than implicit.
 
 ## Where it is enforced
 
-Two chokepoints carry all of it, and they were chosen because they are the
-same two places the Phase 7 RPC will sit.
+Two chokepoints carry all of it, and they were chosen because they are the same
+two places the RPC sits.
 
 **`callBrowser` in `plugin-api.ts`** — every `patcher.browser` call that reaches a
 page funnels through one function, so one `permissionForBrowserCommand` call
 covers `tabs`, `page`, `navigation`, `storage`, `control` and `recording`.
+
+For a plugin in its own process that function runs _in that process_, which
+makes it the plugin's own error message rather than the host's decision. The
+decision is `plugin-host-call-server.ts`, which holds the same declared set and
+charges the same `permissionForBrowserCommand` against the parsed command
+before it calls `requestBrowserCommand`. Both copies exist on purpose: the near
+one is legible to whoever wrote the plugin, the far one is the one a plugin
+cannot talk past.
 
 **`applySdkPermissions` in `plugin-permission-gate.ts`** — `patcher.sdk` is handed
 out by one wrapper, so an undeclared area is replaced by a proxy that throws on
@@ -314,14 +332,20 @@ middleware on `/api/v1/*` looks up what that path costs and refuses with 403
 when the plugin did not declare it. A request with no identity — the app, the
 CLI, anything else local — is untouched.
 
-**In-process this is cooperative and cannot be otherwise.** A plugin shares the
-server's memory: it can read another plugin's key, or send no header and be
-taken for the app. That is not a hole to be plugged here; it is what Phase 7
-plugs, by making identity the only way traffic arrives. What exists now is the
-mechanism, the header shape and the path→permission map — the parts a plugin
-host has to be built against, tested before the split rather than invented
-during it. And it is already load-bearing for the honest case: a plugin gets
-the same answer whether it asks through `patcher.sdk` or through `fetch`.
+**Sending no header is no longer a way past this.** It used to be: a request
+with no plugin identity was "the app, the CLI, or anything else local", and a
+plugin holding the loopback URL is something else local. So the other clients
+say who they are too — a key in the data dir, presented as `x-patcher-app-key`
+or, for the URLs a browser fetches itself, as `?appKey=` — and a request
+carrying neither identity is a 401. Two routes stay open without it, because
+they have to: a plugin's own `http` routes, which exist to be called by third
+parties and carry their own `auth` mode, and its frontend assets, which the
+browser loads with no headers at all.
+
+What that does not close is a plugin reading the app's key file. The process is
+not sandboxed, so it can. This makes the permission map the only way in
+_through Patcher_, which is the part that was broken; the rest waits on the
+sandbox.
 
 Paths are classified by longest matching prefix, and an unmatched path is
 **refused**, not allowed — a route nobody classified is a route nobody thought
@@ -472,7 +496,8 @@ the rest.
   consent prompt shows them when an agent asks for a change; the plugin detail
   still does not, so a user browsing their own plugins cannot see what each one
   declared.
-- **Phase 7 is what makes any of this hold.** The list above is the RPC surface
-  a plugin host has to expose, and the gate is where that boundary goes. The
-  other direction — what the server calls _into_ a plugin — is described in
-  [plugin-callbacks.md](plugin-callbacks.md).
+- **A sandbox is what would make this hold against hostile code.** The process
+  boundary put the gate in the right place and the list above is the surface it
+  guards, but a plugin process still has the filesystem, subprocesses and the
+  network. The other direction — what the server calls _into_ a plugin — is
+  described in [plugin-callbacks.md](plugin-callbacks.md).

@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createApp } from "../../src/server.js";
-import { createTestAppHarness } from "../helpers/test-app.js";
+
+import { createTestApp, createTestAppHarness } from "../helpers/test-app.js";
 
 describe("production static cache headers", () => {
   it("keeps index.html fresh while allowing immutable hashed assets", async () => {
@@ -31,7 +31,7 @@ describe("production static cache headers", () => {
     );
 
     const harness = await createTestAppHarness();
-    const serverApp = createApp(harness.deps, { staticDir });
+    const serverApp = createTestApp(harness.deps, { staticDir });
     try {
       const rootResponse = await serverApp.app.request("/");
       expect(rootResponse.headers.get("cache-control")).toBe("no-store");

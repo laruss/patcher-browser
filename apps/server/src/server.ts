@@ -17,6 +17,7 @@ import {
   type BuildLocalAppOriginsArgs,
 } from "@patcher/config/local-app-origins";
 import type { AppDeps, ServerAppDeps } from "./types.js";
+import { createAppApiIdentity } from "./app-identity.js";
 import { ApiError, errorToResponse } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
 import { registerFileRoutes } from "./routes/files.js";
@@ -109,6 +110,22 @@ function unauthorizedResponse(): Response {
     },
   );
 }
+
+/**
+ * The two parts of the public API that a caller presenting no app key is still
+ * meant to reach.
+ *
+ * `http` is a plugin's own routes: they carry their own `auth` mode, and
+ * `auth: "none"` exists so a third party — a webhook, a payment callback — can
+ * call one. `assets` is the plugin's frontend bundle and branding images,
+ * which the browser loads for itself through `import()`, `<link>` and
+ * `<img src>`, none of which can set a header.
+ *
+ * Both are what the permission map already classifies as costing a plugin
+ * nothing, for the same reasons. See the use site.
+ */
+const PLUGIN_UNKEYED_ROUTE_PATTERN =
+  /^\/api\/v1\/plugins\/[^/]+\/(http|assets)(\/|$)/u;
 
 function normalizeInternalAuthPath(path: string): string {
   if (path === "/") {
@@ -276,6 +293,7 @@ export function createApp(
   options?: CreateAppOptions,
 ): ServerApp {
   const app = new Hono();
+  const appIdentity = createAppApiIdentity(deps.appApiKey);
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });
@@ -446,8 +464,22 @@ export function createApp(
       id: context.req.header(PLUGIN_API_ID_HEADER),
       key: context.req.header(PLUGIN_API_KEY_HEADER),
     });
-    // No identity is the app, the CLI, or anything else local — unchanged.
-    if (pluginId === null) return next();
+    // No plugin identity used to mean "the app, the CLI, or anything else
+    // local", and a plugin holding `patcher.server.loopbackBaseUrl` is
+    // something else local. So every other client says who it is too, and the
+    // anonymous case is refused rather than trusted — see app-identity.ts.
+    if (pluginId === null) {
+      // Two exceptions, and they have to be: a plugin's own HTTP routes are
+      // meant to be callable by a third party, and its frontend assets are
+      // loaded by the browser itself, which sets no headers. See the pattern.
+      if (
+        !PLUGIN_UNKEYED_ROUTE_PATTERN.test(context.req.path) &&
+        !appIdentity.verify(context.req)
+      ) {
+        return unauthorizedResponse();
+      }
+      return next();
+    }
     const required = permissionsForApiPath(context.req.path);
     const problem = pluginService.apiPermissionProblem(pluginId, required);
     if (problem !== null) {
@@ -506,6 +538,14 @@ export function createApp(
         id: context.req.header(PLUGIN_API_ID_HEADER),
         key: context.req.header(PLUGIN_API_KEY_HEADER),
       });
+      // The same refusal the request gate makes, and it has to be here rather
+      // than there: `/ws` is not under `/api/v1`, so a socket that presented
+      // nothing was taken for the app and the subscribe gate in
+      // ws/client-protocol.ts never fired on it. A browser sets no headers on
+      // an upgrade, so the key may arrive in the query instead.
+      if (pluginId === null && !appIdentity.verify(context.req)) {
+        throw new ApiError(401, "unauthorized", "Unauthorized", false);
+      }
       return {
         onOpen: (_event, socket) =>
           onClientSocketOpen(deps.hub, socket, pluginId ?? undefined),
@@ -531,6 +571,26 @@ export function createApp(
           problem.error,
           false,
         );
+      }
+      // Terminal I/O is what `/api/v1/terminals` costs `shell` for, and this
+      // socket reaches the same streams without passing that map. So it takes
+      // the same two identities the realtime socket does, and a plugin has to
+      // have declared `shell` — the check the HTTP path would have made.
+      const terminalPluginId = pluginService.apiIdentities.resolve({
+        id: context.req.header(PLUGIN_API_ID_HEADER),
+        key: context.req.header(PLUGIN_API_KEY_HEADER),
+      });
+      if (terminalPluginId === null) {
+        if (!appIdentity.verify(context.req)) {
+          throw new ApiError(401, "unauthorized", "Unauthorized", false);
+        }
+      } else {
+        const forbidden = pluginService.apiPermissionProblem(terminalPluginId, [
+          "shell",
+        ]);
+        if (forbidden !== null) {
+          throw new ApiError(403, "forbidden", forbidden, false);
+        }
       }
       const terminalId = context.req.param("terminalId");
       const query = terminalWebSocketQuerySchema.safeParse({

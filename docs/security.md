@@ -8,35 +8,54 @@ The short version is in the README's [Security model](../README.md#security-mode
 This is the reasoning behind it. For the full argument, see
 [plugin-permissions.md](architecture/plugin-permissions.md).
 
-## A plugin is not sandboxed
+## A plugin runs in its own process, and that is not a sandbox
 
-A plugin's backend is a Node module loaded into the Patcher server process
-(`plugin-runtime.ts`, via `jiti.import`). It runs with the process's own
-capabilities. Nothing in the `patcher` object it is handed closes that:
+A plugin you installed — anything that did not ship with Patcher — runs in its
+own process, one process per plugin (`plugin-placement.ts`;
+`PATCHER_PLUGIN_PROCESS=false` puts them all back in the server). Built-in
+plugins stay in the server, because they are the same code as the server,
+released and reviewed with it.
 
-- `import("node:child_process")` and `node:fs` are reachable directly;
-- `patcher.server.loopbackBaseUrl` plus `fetch` reaches the whole server API,
-  around any wrapper on `patcher.sdk`;
-- it shares a realm with Patcher's own modules and can monkey-patch them.
+The process boundary is worth having and it is not a security boundary. It is a
+plain `fork` with no sandbox: the plugin's process has `node:fs`,
+`node:child_process` and the network, runs as you, and inherits the server's
+environment. A plugin that declared nothing can read your files, run commands and
+reach the internet, because that is what any program you start can do.
 
-So a plugin that wants what it did not declare can still take it. Treat
-installing one as running a local script with your account's privileges, because
-that is what it is.
+What moving out of the server did buy: the plugin no longer shares a realm with
+Patcher's own modules, cannot monkey-patch them or read what the server holds in
+memory, and cannot take the server down when it crashes. It also put the
+permission gate somewhere a plugin cannot reach past — every
+`patcher.browser` command is charged on the host's side of the pipe, every
+`/api/v1` request is charged by the middleware, and a request that identifies
+itself as nothing is now refused rather than taken for the app. One plugin per
+process is part of that: two in one process would share a pipe and a V8 realm,
+which is one trust domain however carefully the pipe is keyed.
 
-Isolating plugins into their own process is planned work — Phase 7 of the
-project plan — and both
+What none of it buys is containment. The gate is in the right place and the
+plugin can still walk around the building:
+
+- it can read your files, including the app's own key file and another
+  plugin's secrets, because it has `node:fs` and runs as you;
+- it can run commands and reach the network;
+- so a plugin that wants what it did not declare can still take it.
+
+Treat installing one as running a local script with your account's privileges,
+because that is what it is. The missing half is a sandbox, not another gate —
 [plugin-permissions.md](architecture/plugin-permissions.md) and
-[plugin-callbacks.md](architecture/plugin-callbacks.md) exist to specify the
-boundary before it can be enforced.
+[plugin-callbacks.md](architecture/plugin-callbacks.md) describe the boundary as
+it now stands.
 
 ## What the permission declaration is actually for
 
 Every patch declares `patcher.permissions` and, for anything that touches a
-page, `patcher.sites`. Since that declaration is not enforced against hostile
-code, it buys three other things:
+page, `patcher.sites`. It is enforced on every path Patcher owns, and a plugin
+with the filesystem can still go around those paths, so besides the enforcement
+it buys three things:
 
-1. **It specifies the future RPC surface.** Every entry names an operation that
-   must cross a process boundary once plugins move out of the server process.
+1. **It specifies the RPC surface.** Every entry names an operation that crosses
+   the process boundary for a plugin that runs outside the server — which is
+   now the default for anything you installed.
 2. **It makes an under-declared plugin fail loudly.** A plugin that reaches for
    something it did not ask for throws with the permission named and the fix in
    the message — which is what makes an agent's build loop converge instead of
@@ -82,13 +101,34 @@ Popups are real windows for the browser surface's tabs, which is what makes
 [browser-surface.md](architecture/browser-surface.md) for the popup policy and
 the rate limiter that survived that change.
 
-## The local API is unauthenticated
+## The local API takes a key, and the key is only as private as your disk
 
-The server binds to loopback by default. Direct tailnet or LAN access to port
-`38986` requires the explicit `--server-bind-host 0.0.0.0` option, and a trusted
-network boundary in front of it, because the public API has no authentication.
-For remote access, publish the loopback listener with Tailscale Serve instead —
-see [`packages/patcher-app/README.md`](../packages/patcher-app/README.md#configuration).
+Every request to `/api/v1` and every `/ws` socket has to say who it is. A plugin
+signs with its own per-run key and is charged the permissions it declared; every
+other local client — the app, the CLI, the launcher, the QA harness — presents
+the key in `app-api-key` in your data directory, written `0600` when the server
+first starts. A request carrying neither is refused.
+
+Two routes stay open to an unidentified caller, on purpose: a plugin's own
+`/api/v1/plugins/<id>/http/...` routes, which exist so a webhook can call a
+plugin and which carry their own `auth` mode, and its frontend assets, which
+your browser loads with no headers at all.
+
+`PATCHER_APP_KEY` overrides the file, which is how a shell, a container, or a
+desktop pointed at a remote server is given a key it cannot read from disk.
+
+**A plugin can read that file.** Its process is not sandboxed and runs as you,
+so the key the CLI reads is a key it can read. What the gate buys is that
+skipping the permission map is no longer _free_ — there is no unidentified
+caller left to imitate, so going around it means going around Patcher
+altogether. Closing the rest needs the sandbox described in the first section.
+
+The server still binds to loopback by default. Direct tailnet or LAN access to
+port `38986` requires the explicit `--server-bind-host 0.0.0.0` option and a
+trusted network boundary in front of it; the app key is a local-client check,
+not a substitute for one. For remote access, publish the loopback listener with
+Tailscale Serve instead — see
+[`packages/patcher-app/README.md`](../packages/patcher-app/README.md#configuration).
 
 ## Telemetry
 
