@@ -10,24 +10,30 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
  * else. This is how a request says which plugin it belongs to, so the same
  * permissions can be enforced where the traffic actually is.
  *
- * **In-process this is cooperative, not enforced**, and that is not a defect
- * to be fixed here. A plugin shares the server's memory: it can read another
- * plugin's key, or simply send no header at all and be taken for the app.
- * Plan Phase 7 is what makes the header the only way in — once plugins run in
- * their own process, the server can require identity on that socket and refuse
- * the anonymous case for everything that arrives on it.
+ * **The anonymous case is refused**, which it was not for most of this file's
+ * life. "No identity is the app, the CLI, or anything else local" was true and
+ * useless: a plugin holds `patcher.server.loopbackBaseUrl`, so omitting the
+ * header pair skipped the path→permission map entirely. Every non-plugin
+ * client now presents its own key — see ../../app-identity.ts — and a request
+ * carrying neither is a 401.
  *
- * What it buys before then:
+ * What that does and does not buy, stated plainly because this is the file an
+ * auditor reads first:
  *
  * - `patcher.sdk` traffic is identified and gated at the HTTP layer, so a plugin
  *   gets the same answer whichever way it asks — through the SDK object or
  *   through `fetch` at the loopback URL, which is a supported thing to do.
- * - The mechanism, the header shape and the path→permission map are the parts
- *   a plugin host has to be built against, and they exist and are tested
- *   before the process split rather than being invented during it.
+ * - Going around the SDK no longer means going around the gate, because there
+ *   is no longer an unidentified caller for a plugin to imitate.
+ * - It is still not a boundary against a hostile plugin. A plugin process is
+ *   not sandboxed: it has `node:fs` and runs as the user, so it can read the
+ *   app's key file exactly as the CLI does. Closing that needs the sandbox,
+ *   not another header. See docs/security.md.
  *
  * Keys are minted per server run and kept in memory. Nothing persists: a
  * restart re-mints, and there is no file for another local process to read.
+ * The app's key is the one credential here that does live in a file, because
+ * clients that outlive a server restart have to find it.
  */
 
 /** Names the plugin; meaningless without the key. */
@@ -39,8 +45,9 @@ export interface PluginApiIdentities {
   /** This plugin's key, minted on first use and stable until restart. */
   keyFor(pluginId: string): string;
   /**
-   * The plugin a request belongs to, or null when it carries no identity —
-   * which is the app, the CLI, and anything else local.
+   * The plugin a request belongs to, or null when it carries no plugin
+   * identity — which the caller then has to answer for another way, with the
+   * app key or by being one of the routes that needs neither.
    *
    * A header pair that does not verify returns null rather than throwing: an
    * unverified caller is simply not a plugin, and treating it as a hard error

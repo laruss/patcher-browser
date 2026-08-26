@@ -12,6 +12,7 @@
     "standalone:cleanup": "tsx src/standalone/cleanup.ts"
   },
   "dependencies": {
+    "@patcher/config": "workspace:*",
     "@patcher/domain": "workspace:*",
     "@patcher/host-daemon-contract": "workspace:*",
     "@patcher/server-contract": "workspace:*",

@@ -1,4 +1,15 @@
+import { withAppKeyQuery } from "./app-key";
 import { apiClient, toRelativeUrl } from "./api-server";
+
+/**
+ * Every URL in this file is handed to the browser to fetch for itself — an
+ * `<img src>`, an `<iframe>`, a download link — so none of them passes through
+ * `fetch` and none can carry the app key as a header. The gate accepts it in
+ * the query for exactly these; see `withAppKeyQuery`.
+ */
+function browserLoadableUrl(url: URL): string {
+  return withAppKeyQuery(toRelativeUrl(url));
+}
 
 /**
  * Percent-encode each segment of a path-suffix route param. Hono's `$url()`
@@ -13,7 +24,7 @@ export function buildProjectAttachmentContentUrl(
   projectId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.projects[":id"].attachments.content.$url({
       param: { id: projectId },
       query: { path },
@@ -26,7 +37,7 @@ export function buildProjectFileContentUrl(
   path: string,
   routing: { environmentId?: string; hostId?: string } = {},
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.projects[":id"].files.content.$url({
       param: { id: projectId },
       query: { path, ...routing },
@@ -38,7 +49,7 @@ export function buildThreadStorageContentUrl(
   threadId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.threads[":id"]["thread-storage"].content.$url({
       param: { id: threadId },
       query: { path },
@@ -50,7 +61,7 @@ export function buildThreadStorageRawContentUrl(
   threadId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.threads[":id"]["thread-storage"].files[":filePath{.+}"].$url({
       param: { id: threadId, filePath: encodePathSegments(path) },
     }),
@@ -61,7 +72,7 @@ export function buildThreadHostFileContentUrl(
   threadId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.threads[":id"]["host-files"].content.$url({
       param: { id: threadId },
       query: { path },
@@ -73,7 +84,7 @@ export function buildRawFilesystemHtmlContentUrl(
   threadId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.threads[":id"].files.raw.$url({
       param: { id: threadId },
       query: { path },
@@ -85,7 +96,7 @@ export function buildThreadWorktreeRawContentUrl(
   threadId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
+  return browserLoadableUrl(
     apiClient.threads[":id"].worktree.files[":filePath{.+}"].$url({
       param: { id: threadId, filePath: encodePathSegments(path) },
     }),

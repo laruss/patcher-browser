@@ -7,6 +7,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import {
+  PATCHER_APP_KEY_HEADER,
+  resolveAppApiKey,
+} from "@patcher/config/app-key";
 import { hostSchema } from "@patcher/domain";
 import type { Host } from "@patcher/domain";
 import {
@@ -338,6 +342,25 @@ export async function createTestGitRepo(repoDir: string): Promise<string> {
   return repoDir;
 }
 
+/**
+ * What the QA harness presents to `/api/v1`, which refuses a request that
+ * identifies itself as nothing. Read the same way the CLI does: from
+ * `PATCHER_APP_KEY`, or from the key file in the data dir of the server under
+ * test.
+ */
+function qaAppKeyHeaders(): Record<string, string> {
+  const key = resolveAppApiKey();
+  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+}
+
+/** The same key as a `curl -H` argument, for the commands run over ssh. */
+function curlAppKeyArgument(): string {
+  const key = resolveAppApiKey();
+  return key === undefined
+    ? ""
+    : `-H ${shellQuote(`${PATCHER_APP_KEY_HEADER}: ${key}`)}`;
+}
+
 export async function createProject(
   serverUrl: string,
   project: CreateProjectRequest,
@@ -346,6 +369,7 @@ export async function createProject(
     method: "POST",
     headers: {
       "content-type": "application/json",
+      ...qaAppKeyHeaders(),
     },
     body: JSON.stringify(project),
   });
@@ -501,6 +525,7 @@ export function spawnLoggedProcess(
 async function isServerReady(serverUrl: string): Promise<boolean> {
   try {
     const response = await fetch(`${serverUrl}/api/v1/system/config`, {
+      headers: qaAppKeyHeaders(),
       signal: AbortSignal.timeout(1_000),
     });
     return response.ok;
@@ -854,7 +879,9 @@ export function buildDaemonRestartCommand(
   const startCommand = `(${startScript}) </dev/null >> ${shellQuote(args.logPath)} 2>&1`;
   const waitForReconnectCommand = [
     "connected=0",
-    `for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do if curl -fsS ${shellQuote(`${args.serverUrl}/api/v1/hosts`)} | jq -e ${shellQuote(`any(.[]; .id == ${JSON.stringify(args.hostId)} and .status == "connected")`)} >/dev/null; then connected=1; break; fi`,
+    // The API refuses an unidentified request, and this curl runs on the host
+    // under test rather than here, so the key travels with the command.
+    `for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do if curl -fsS ${curlAppKeyArgument()} ${shellQuote(`${args.serverUrl}/api/v1/hosts`)} | jq -e ${shellQuote(`any(.[]; .id == ${JSON.stringify(args.hostId)} and .status == "connected")`)} >/dev/null; then connected=1; break; fi`,
     "sleep 1",
     "done",
     `[ "$connected" = 1 ]`,
@@ -888,7 +915,9 @@ export async function waitForConnectedHost(serverUrl: string): Promise<Host> {
     async () => {
       let response;
       try {
-        response = await fetch(`${serverUrl}/api/v1/hosts`);
+        response = await fetch(`${serverUrl}/api/v1/hosts`, {
+          headers: qaAppKeyHeaders(),
+        });
       } catch {
         return null;
       }
@@ -909,7 +938,9 @@ export async function waitForServerReady(serverUrl: string): Promise<boolean> {
   return waitFor(
     async () => {
       try {
-        const response = await fetch(`${serverUrl}/api/v1/system/config`);
+        const response = await fetch(`${serverUrl}/api/v1/system/config`, {
+          headers: qaAppKeyHeaders(),
+        });
         return response.ok ? true : null;
       } catch {
         return null;

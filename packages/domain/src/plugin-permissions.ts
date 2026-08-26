@@ -7,19 +7,25 @@ import type {
 /**
  * What a plugin declares it will use, and what the host lets it reach.
  *
- * Read this before adding one: **in-process, these are not a security boundary
- * and cannot be.** A plugin's `server.ts` is a Node module loaded into the Patcher
- * server, so it can `import("node:child_process")`, read another plugin's
- * secrets off disk, or skip `patcher.sdk` entirely and call the loopback API it is
- * handed in `patcher.server.loopbackBaseUrl`. A gate on the `patcher` object stops none
- * of that. Plan §9 asks for isolation and plan Phase 7 is where it comes from.
+ * Read this before adding one: **these are enforced, and they are still not a
+ * sandbox.** A plugin you installed runs in its own process, one process per
+ * plugin, and every entry below is checked on the *host's* side of that pipe —
+ * `plugin-host-call-server.ts` for the browser, the `/api/v1` middleware for
+ * the rest. What a plugin cannot do any more is pick its own price by writing
+ * to the channel itself, or skip the map by sending no header.
  *
- * What these are for until then, in the order the value actually arrives:
+ * What it can still do is everything any program you start can do. The process
+ * is a plain `fork`: `node:child_process`, `node:fs`, the network, running as
+ * you. It can read another plugin's secrets off disk, and it can read the
+ * app's own key file. Plan §9 asks for isolation; the process boundary is half
+ * of it and a sandbox is the other half.
  *
- * 1. **The specification of the Phase 7 RPC surface.** Every entry names an
- *    operation that must cross a process boundary once plugins move out. A
- *    plugin host built without this list would isolate the plugin and then hand
- *    it back everything over RPC.
+ * So, in the order the value actually arrives:
+ *
+ * 1. **The RPC surface.** Every entry names an operation that crosses the
+ *    process boundary, and is charged where it lands. A plugin host built
+ *    without this list would isolate the plugin and then hand it back
+ *    everything over RPC.
  * 2. **A legible contract.** An agent-generated plugin that reaches for
  *    something it did not declare fails at the call with the permission named,
  *    which is a fixable message rather than silent extra behaviour.

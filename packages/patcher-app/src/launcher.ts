@@ -22,6 +22,10 @@ import {
   formatPatcherAppRuntimeFilePath,
   readPatcherAppRuntimeFile,
 } from "@patcher/config/app-runtime-file";
+import {
+  PATCHER_APP_KEY_HEADER,
+  resolveAppApiKey,
+} from "@patcher/config/app-key";
 import { stopVerifiedProcess } from "@patcher/config/verified-process-stop";
 import {
   APP_SURFACE_ENV_NAME,
@@ -1611,12 +1615,25 @@ function formatClientHost(host: ClientHost): string {
     : `${host.id} (${host.name})`;
 }
 
+/**
+ * The header that says this launcher is a client the install knows.
+ *
+ * `/api/v1` refuses a request that identifies itself as nothing, because a
+ * plugin process holds the loopback URL and that was how it skipped the
+ * permission map. The launcher runs beside the server and reads the key from
+ * the data dir; `PATCHER_APP_KEY` overrides, for a remote origin.
+ */
+function launcherAppKeyHeaders(): Record<string, string> {
+  const key = resolveAppApiKey();
+  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+}
+
 async function resolveClientSshTargetHostId(
   args: ResolveClientSshTargetHostIdArgs,
 ): Promise<string> {
   const serverOrigin = normalizeClientServerOrigin(args.serverOrigin);
   const hostsUrl = new URL("/api/v1/hosts", serverOrigin);
-  const response = await fetch(hostsUrl);
+  const response = await fetch(hostsUrl, { headers: launcherAppKeyHeaders() });
   if (!response.ok) {
     throw new Error(
       `Failed to list hosts from ${serverOrigin}: HTTP ${response.status}`,
@@ -1701,7 +1718,10 @@ async function refreshRunningServerConfig(
   const reloadUrl = new URL("/api/v1/system/config/reload", args.serverUrl);
   let response: Response;
   try {
-    response = await fetch(reloadUrl, { method: "POST" });
+    response = await fetch(reloadUrl, {
+      headers: launcherAppKeyHeaders(),
+      method: "POST",
+    });
   } catch {
     if (args.required) {
       throw new Error(`Could not reach Patcher server at ${args.serverUrl}`);

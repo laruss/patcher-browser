@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import {
   startTestServer,
+  TEST_APP_API_KEY,
+  testAppKeyHeaders,
   type RunningTestServer,
 } from "../helpers/test-app.js";
 
@@ -18,10 +20,13 @@ function websocketUrl(baseUrl: string, path: string): string {
 
 function openWebSocket(url: string, origin?: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
+    // Every socket here belongs to a client the install knows, so it presents
+    // the app key. What this suite is about is the origin boundary on top.
+    const headers = testAppKeyHeaders();
     const socket =
       origin === undefined
-        ? new WebSocket(url)
-        : new WebSocket(url, { origin });
+        ? new WebSocket(url, { headers })
+        : new WebSocket(url, { headers, origin });
     sockets.add(socket);
     socket.once("open", () => resolve(socket));
     socket.once("error", reject);
@@ -30,7 +35,10 @@ function openWebSocket(url: string, origin?: string): Promise<WebSocket> {
 
 function rejectedWebSocketStatus(url: string, origin: string): Promise<number> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(url, { origin });
+    const socket = new WebSocket(url, {
+      headers: testAppKeyHeaders(),
+      origin,
+    });
     sockets.add(socket);
     socket.once("open", () =>
       reject(new Error(`WebSocket unexpectedly opened for ${origin}`)),
@@ -121,7 +129,10 @@ describe("browser WebSocket origin boundary", () => {
 
   it("keeps absent-Origin Node SDK realtime and CLI terminal sockets working", async () => {
     server = await startTestServer();
-    const sdk = createNodePatcherSdk({ baseUrl: server.baseUrl });
+    const sdk = createNodePatcherSdk({
+      appKey: TEST_APP_API_KEY,
+      baseUrl: server.baseUrl,
+    });
 
     let stopTarget = (): void => {};
     let stopConnection = (): void => {};
@@ -143,9 +154,9 @@ describe("browser WebSocket origin boundary", () => {
     stopTarget();
     stopConnection();
 
-    const terminalSocket = createNodeWebsocketFactory()(
-      websocketUrl(server.baseUrl, "/ws/terminals/missing-terminal"),
-    );
+    const terminalSocket = createNodeWebsocketFactory({
+      headers: testAppKeyHeaders(),
+    })(websocketUrl(server.baseUrl, "/ws/terminals/missing-terminal"));
     await new Promise<void>((resolve, reject) => {
       terminalSocket.onopen = () => resolve();
       terminalSocket.onerror = () =>

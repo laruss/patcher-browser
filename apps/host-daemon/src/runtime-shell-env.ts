@@ -20,6 +20,17 @@ export interface PrepareRuntimeShellEnvOptions {
   patcherExecutablePath?: string;
   hostDaemonPort?: number;
   serverUrl: string;
+  /**
+   * What an agent's `patcher` calls present to `/api/v1`, which refuses a
+   * request that identifies itself as nothing (see `app-identity.ts` in the
+   * server). Resolved by the caller so this stays a pure function.
+   *
+   * Undefined leaves `PATCHER_APP_KEY` unset, and the CLI in that shell is
+   * refused. That is the honest failure for a daemon that cannot find the
+   * key — one on another machine from the server, which has no data dir to
+   * read it from and needs `PATCHER_APP_KEY` in its own environment.
+   */
+  appApiKey?: string;
   inheritedPath?: string;
 }
 
@@ -385,6 +396,11 @@ export function prepareRuntimeShellEnv(
     PATCHER_CLI: patcherExecutablePath,
     PATCHER_SERVER_URL: options.serverUrl,
   };
+  assignIfDefined({
+    key: "PATCHER_APP_KEY",
+    target: shellEnv,
+    value: options.appApiKey,
+  });
   assignIfDefined({
     key: "PATCHER_HOST_DAEMON_PORT",
     target: shellEnv,

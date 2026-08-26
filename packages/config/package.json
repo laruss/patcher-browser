@@ -48,6 +48,11 @@
       "types": "./src/logger.ts",
       "default": "./src/logger.ts"
     },
+    "./app-key": {
+      "source": "./src/app-key.ts",
+      "types": "./src/app-key.ts",
+      "default": "./src/app-key.ts"
+    },
     "./cli": {
       "source": "./src/cli.ts",
       "types": "./src/cli.ts",

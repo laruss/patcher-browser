@@ -1,3 +1,4 @@
+import { resolveAppApiKey } from "@patcher/config/app-key";
 import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -147,10 +148,15 @@ async function main() {
       serverUrl,
     });
 
+    // The API refuses a request that identifies itself as nothing, so the key
+    // travels with the URL — for the CLI, for the runbook's curls, and for
+    // anything else a QA session starts from this env block.
+    const appApiKey = resolveAppApiKey({ dataDir: patcherRoot });
     const cliEnv = {
       PATCHER_HOST_DAEMON_PORT: String(daemonPort),
       PATCHER_PROJECT_ID: project.id,
       PATCHER_SERVER_URL: serverUrl,
+      ...(appApiKey === undefined ? {} : { PATCHER_APP_KEY: appApiKey }),
     };
 
     const setupEnv = {

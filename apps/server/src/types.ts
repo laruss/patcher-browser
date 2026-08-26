@@ -64,6 +64,13 @@ export interface AppDeps {
 
 export interface ServerAppDeps extends AppDeps {
   appVersion: AppVersionService;
+  /**
+   * What a non-plugin client presents to `/api/v1` and `/ws`. Required rather
+   * than optional, because a missing key would have to mean "admit anonymous"
+   * — the hole `app-identity.ts` exists to close — so forgetting it is a
+   * compile error instead of a silent regression.
+   */
+  appApiKey: string;
   patcherAppManagedConfig: PatcherAppManagedConfigReloader;
 }
 

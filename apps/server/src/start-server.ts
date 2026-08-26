@@ -6,6 +6,8 @@ import type { ServerConfig } from "@patcher/config/server";
 import { isLoopbackHostname } from "@patcher/config/loopback";
 import { toOptionalString } from "@patcher/config/strings";
 import { createLogger } from "@patcher/logger";
+import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
+import { readOrCreateSecretFile } from "@patcher/secret-storage";
 import { initDb } from "./db.js";
 import { createApp } from "./server.js";
 import { PendingInteractionLifecycle } from "./services/interactions/pending-interactions.js";
@@ -118,6 +120,17 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     logger,
   });
 
+  // What every non-plugin client presents. Beside `auth-secret`, by the same
+  // helper, for the same reason: 0600, created once, race-safe against a
+  // second server starting at the same moment. See app-identity.ts for why it
+  // persists rather than being minted per run.
+  const appApiKey = await readOrCreateSecretFile({
+    bytes: 32,
+    dataDir: serverConfig.PATCHER_DATA_DIR,
+    encoding: "base64url",
+    fileName: PATCHER_APP_KEY_FILE_NAME,
+  });
+
   const machineAuth = await createMachineAuthService({
     dataDir: serverConfig.PATCHER_DATA_DIR,
     db,
@@ -145,6 +158,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
   const { app, closeWebSockets, injectWebSocket, pluginService } = createApp(
     {
       appVersion,
+      appApiKey,
       patcherAppManagedConfig,
       config: runtimeConfig,
       db,

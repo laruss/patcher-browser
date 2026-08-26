@@ -185,7 +185,7 @@
     },
     "apps/desktop": {
       "name": "@patcher/desktop",
-      "version": "0.37.0",
+      "version": "0.1.1-alpha.1",
       "dependencies": {
         "electron-updater": "^6.8.3",
         "patcher-app": "workspace:*",
@@ -695,7 +695,7 @@
     },
     "packages/patcher-app": {
       "name": "patcher-app",
-      "version": "0.37.0",
+      "version": "0.1.1-alpha.1",
       "bin": {
         "patcher-app": "dist/patcher-app.js",
         "patcher": "dist/patcher.js",
@@ -1426,6 +1426,7 @@
       "name": "@patcher/qa",
       "version": "0.0.1",
       "dependencies": {
+        "@patcher/config": "workspace:*",
         "@patcher/domain": "workspace:*",
         "@patcher/host-daemon-contract": "workspace:*",
         "@patcher/server-contract": "workspace:*",

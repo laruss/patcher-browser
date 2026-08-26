@@ -3,6 +3,7 @@ import {
   createHostDaemonLocalClient,
   DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST,
 } from "@patcher/host-daemon-contract";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { createPatcherSdk, type PatcherSdk } from "./core.js";
 import { createNodeWebsocketFactory } from "./node-websocket.js";
 import {
@@ -18,6 +19,19 @@ import type {
 } from "./transport.js";
 
 export interface CreateNodeTransportArgs {
+  /**
+   * Identifies this client to `/api/v1` and `/ws`.
+   *
+   * The API refuses a request that is neither a plugin nor a client holding
+   * this key; see the header's own note in @patcher/server-contract. Attached
+   * to both the HTTP requests and the realtime socket, because `/ws` is not
+   * under `/api/v1` and is gated separately.
+   *
+   * Plugins do not set this: they identify themselves with their own header
+   * pair and supply their own `fetch` and `websocket`, which this leaves
+   * alone.
+   */
+  appKey?: string;
   baseUrl?: string;
   cliConfig?: CliConfig;
   fetch?: FetchImplementation;
@@ -44,22 +58,47 @@ function resolveHostDaemonUrl(cliConfig?: CliConfig): string {
   return `http://${DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST}:${config.PATCHER_HOST_DAEMON_PORT}`;
 }
 
+/**
+ * Sign every request as this client. Caller headers are preserved and then
+ * overridden, the same way `createPluginApiFetch` does it for a plugin.
+ */
+function withAppKey(
+  inner: FetchImplementation,
+  appKey: string,
+): FetchImplementation {
+  return (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set(PATCHER_APP_KEY_HEADER, appKey);
+    return inner(input, { ...init, headers });
+  };
+}
+
 export function createNodeTransport(
   args: CreateNodeTransportArgs = {},
 ): PatcherSdkTransport {
+  const baseFetch =
+    args.fetch ??
+    createRequestTimeoutFetch({
+      timeoutMs: args.timeoutMs ?? DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
+    });
   return createHttpTransport({
     // Only fall back to CLI config when no base URL is given, so explicitly
     // configured SDKs work in environments without PATCHER_SERVER_URL.
     baseUrl:
       args.baseUrl ?? resolveCliConfig(args.cliConfig).PATCHER_SERVER_URL,
     fetch:
-      args.fetch ??
-      createRequestTimeoutFetch({
-        timeoutMs: args.timeoutMs ?? DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
-      }),
+      args.appKey === undefined
+        ? baseFetch
+        : withAppKey(baseFetch, args.appKey),
     realtimeUrl: args.realtimeUrl,
     runtime: "node",
-    websocket: args.websocket ?? createNodeWebsocketFactory(),
+    websocket:
+      args.websocket ??
+      createNodeWebsocketFactory(
+        args.appKey === undefined
+          ? undefined
+          : { headers: { [PATCHER_APP_KEY_HEADER]: args.appKey } },
+      ),
   });
 }
 

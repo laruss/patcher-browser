@@ -53,6 +53,12 @@ const repoRoot = path.resolve(
 const HARNESS_DAEMON_START_RETRY_DELAY_MS = 50;
 const HARNESS_DAEMON_START_MAX_ATTEMPTS = 2;
 const TEST_SERVER_HOST = "127.0.0.1";
+/**
+ * What this harness's clients present to `/api/v1` and `/ws`, which refuse a
+ * request that identifies itself as nothing. Fixed rather than read from a
+ * file: this harness builds the server in-process and never writes one.
+ */
+const INTEGRATION_APP_API_KEY = "integration-app-api-key";
 
 let loadedProjectEnvPath: string | null | undefined;
 
@@ -282,6 +288,7 @@ async function startIntegrationServer(
   });
   const { app, injectWebSocket } = createApp({
     appVersion,
+    appApiKey: INTEGRATION_APP_API_KEY,
     patcherAppManagedConfig,
     config,
     db,
@@ -524,7 +531,7 @@ export async function createIntegrationHarness(
       options,
     );
     const api = createPublicApiClient(server.baseUrl, {
-      fetch: createIntegrationFetch(),
+      fetch: createIntegrationFetch(INTEGRATION_APP_API_KEY),
     });
     daemonResources = await startHarnessDaemon(
       daemonDataDir,

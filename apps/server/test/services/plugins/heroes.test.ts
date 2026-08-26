@@ -19,6 +19,7 @@ import {
   seedProjectWithSource,
 } from "../../helpers/seed.js";
 import {
+  appFetch,
   createTestAppHarness,
   startTestServer,
   testLogger,
@@ -348,7 +349,7 @@ describe("hero plugin: omnibox-agent", () => {
       server.pluginService.bindSdk({ baseUrl: server.baseUrl });
 
       const suggest = async (query: string) => {
-        const response = await fetch(
+        const response = await appFetch(
           `${server.baseUrl}/api/v1/plugins/omnibox/suggest?q=${encodeURIComponent(query)}`,
         );
         expect(response.status).toBe(200);
@@ -403,15 +404,18 @@ describe("hero plugin: omnibox-agent", () => {
 
       // Picking the ask row runs the plugin, which spawns a Patcher thread through
       // its loopback SDK and hands the browser the thread's URL to open.
-      const run = await fetch(`${server.baseUrl}/api/v1/plugins/omnibox/run`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          itemId: "agent:ask",
-          pluginId: "omnibox-agent",
-          query: "flaky tests",
-        }),
-      });
+      const run = await appFetch(
+        `${server.baseUrl}/api/v1/plugins/omnibox/run`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            itemId: "agent:ask",
+            pluginId: "omnibox-agent",
+            query: "flaky tests",
+          }),
+        },
+      );
       expect(run.status).toBe(200);
       const runBody = (await run.json()) as { navigate: string; ok: boolean };
       expect(runBody.ok).toBe(true);
@@ -451,7 +455,7 @@ describe("hero plugin: bookmarks", () => {
       expect(entry.status).toBe("running");
 
       const contributions = (await (
-        await fetch(`${server.baseUrl}/api/v1/plugins/contributions`)
+        await appFetch(`${server.baseUrl}/api/v1/plugins/contributions`)
       ).json()) as {
         browserNewTabWidgets: { pluginId: string; widgetId: string }[];
         browserToolbarItems: { itemId: string; hasState: boolean }[];
@@ -487,7 +491,7 @@ describe("hero plugin: bookmarks", () => {
 
       const url = "https://example.test/docs";
       const state = async () => {
-        const response = await fetch(
+        const response = await appFetch(
           `${server.baseUrl}/api/v1/plugins/browser/toolbar-state?tabId=browser:a&url=${encodeURIComponent(url)}`,
         );
         return (await response.json()) as {
@@ -495,7 +499,7 @@ describe("hero plugin: bookmarks", () => {
         };
       };
       const newTab = async () => {
-        const response = await fetch(
+        const response = await appFetch(
           `${server.baseUrl}/api/v1/plugins/browser/new-tab?tabId=browser:a`,
         );
         return (await response.json()) as {
@@ -503,7 +507,7 @@ describe("hero plugin: bookmarks", () => {
         };
       };
       const press = async () =>
-        fetch(`${server.baseUrl}/api/v1/plugins/browser/toolbar-item`, {
+        appFetch(`${server.baseUrl}/api/v1/plugins/browser/toolbar-item`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -610,7 +614,7 @@ describe("hero plugin: explain-selection", () => {
       // The user selects text and picks the entry. Only the click travels back:
       // the shell composed the menu from the declared list above.
       const selection = "Retries must be idempotent.";
-      const picked = await fetch(
+      const picked = await appFetch(
         `${server.baseUrl}/api/v1/plugins/browser/context-menu`,
         {
           method: "POST",
@@ -630,7 +634,7 @@ describe("hero plugin: explain-selection", () => {
       expect(await picked.json()).toEqual({ ok: true });
 
       // One thread, attributed to the plugin, titled from the selection.
-      const listResponse = await fetch(
+      const listResponse = await appFetch(
         `${server.baseUrl}/api/v1/threads?originPluginId=explain-selection`,
       );
       expect(listResponse.status).toBe(200);
@@ -647,7 +651,7 @@ describe("hero plugin: explain-selection", () => {
 
       // …and the agent received the selected text, as quoted content behind the
       // prompt's marker rather than as instructions.
-      const timelineResponse = await fetch(
+      const timelineResponse = await appFetch(
         `${server.baseUrl}/api/v1/threads/${threadId}/timeline`,
       );
       expect(timelineResponse.status).toBe(200);

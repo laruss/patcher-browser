@@ -21,6 +21,11 @@ import {
   APP_SURFACE_DESKTOP,
   APP_SURFACE_ENV_NAME,
 } from "@patcher/config/app-surface";
+import {
+  PATCHER_APP_KEY_HEADER,
+  PATCHER_APP_KEY_QUERY_PARAM,
+  resolveAppApiKey,
+} from "@patcher/config/app-key";
 import { PATCHER_PROD_DATA_DIR_NAME } from "@patcher/config/runtime";
 import type { AppKeybindings } from "@patcher/domain";
 import {
@@ -482,6 +487,33 @@ function resolveDataDirFromEnv(args: ResolveDataDirFromEnvArgs): string {
   return resolve(rawDataDir);
 }
 
+/**
+ * The key this shell presents to `/api/v1` and `/ws`.
+ *
+ * Read fresh rather than cached: the file appears when the server first
+ * starts, and the desktop can be up before that — it is the thing that starts
+ * it. `PATCHER_APP_KEY` wins, which is how a custom remote target is given the
+ * key of a server whose data directory this machine cannot read.
+ *
+ * Undefined means the request will be refused, and the probe says so in words
+ * a user can act on.
+ */
+function resolveDesktopAppApiKey(): string | undefined {
+  return resolveAppApiKey({
+    dataDir: resolveDataDirFromEnv({
+      env: process.env,
+      homeDir: homedir(),
+    }),
+    env: process.env,
+  });
+}
+
+/** Headers for a plain local `fetch` at the server. */
+function desktopAppKeyHeaders(): Record<string, string> {
+  const key = resolveDesktopAppApiKey();
+  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+}
+
 function formatLogDirectory(): string {
   return join(
     resolveDataDirFromEnv({
@@ -811,11 +843,20 @@ function formatRealtimeUrl(serverUrl: string): string {
   url.pathname = "/ws";
   url.search = "";
   url.hash = "";
+  // The global `WebSocket` sets no request headers, so this socket presents
+  // the key the other way the server accepts it. Same reason the app's own
+  // socket does — see PATCHER_APP_KEY_QUERY_PARAM.
+  const key = resolveDesktopAppApiKey();
+  if (key !== undefined) {
+    url.searchParams.set(PATCHER_APP_KEY_QUERY_PARAM, key);
+  }
   return url.toString();
 }
 
 async function fetchSystemConfig(args: FetchSystemConfigArgs) {
-  const response = await args.fetchImpl(formatApiUrl(args));
+  const response = await args.fetchImpl(formatApiUrl(args), {
+    headers: desktopAppKeyHeaders(),
+  });
   if (!response.ok) {
     throw new Error(
       `System config request failed with HTTP ${response.status}`,
@@ -826,7 +867,6 @@ async function fetchSystemConfig(args: FetchSystemConfigArgs) {
 }
 
 function createSystemConfigSync(serverUrl: string): SystemConfigSync {
-  const realtimeUrl = formatRealtimeUrl(serverUrl);
   const subscribeMessage: ClientMessage = {
     type: "subscribe",
     target: { kind: "system" },
@@ -879,7 +919,9 @@ function createSystemConfigSync(serverUrl: string): SystemConfigSync {
     if (stopped) {
       return;
     }
-    socket = new WebSocket(realtimeUrl);
+    // Rebuilt per attempt, not once: the app key arrives in this URL and the
+    // file it comes from may not have existed when this sync was created.
+    socket = new WebSocket(formatRealtimeUrl(serverUrl));
     socket.addEventListener("open", () => {
       socket?.send(JSON.stringify(subscribeMessage));
       void refreshSystemConfig({ fetchImpl: fetch, serverUrl });
@@ -2069,6 +2111,7 @@ async function runDesktopApp(): Promise<void> {
   serverUrlDialogPreloadPath = resolvedServerUrlDialogPreloadPath;
   existingServerDialogPreloadPath = resolvedExistingServerDialogPreloadPath;
   desktopWindowFactory = createDesktopWindowFactory({
+    appKey: resolveDesktopAppApiKey,
     browserWindowCreator,
     createWindowStateKey() {
       return `window-${randomUUID()}`;

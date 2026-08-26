@@ -15,6 +15,7 @@ import {
   setParcelWatcherBackend,
   type HostWatcher,
 } from "@patcher/host-watcher";
+import { resolveAppApiKey } from "@patcher/config/app-key";
 import { createLogger } from "@patcher/logger";
 import { type CreateHostDaemonAppOptions, createHostDaemonApp } from "./app.js";
 import {
@@ -228,14 +229,19 @@ export async function startHostDaemon(
       );
       hostWatcher = createHostWatcher();
     }
-    const resolveRuntimeShellEnv = async () =>
-      prepareRuntimeShellEnv({
+    const resolveRuntimeShellEnv = async () => {
+      // Re-read every time rather than once: the key file appears when the
+      // server first starts, which may be after this daemon did.
+      const appApiKey = resolveAppApiKey({ dataDir });
+      return prepareRuntimeShellEnv({
         patcherExecutableDirectory,
         patcherExecutablePath,
         hostDaemonPort: localApiConfig?.port,
         inheritedPath: (await resolveUserShellPath()) ?? process.env.PATH,
         serverUrl,
+        ...(appApiKey === undefined ? {} : { appApiKey }),
       });
+    };
     const runtimeShellEnv = await resolveRuntimeShellEnv();
     const runtimeShellEnvResolvedAtMs = Date.now();
     app = await createHostDaemonApp({
