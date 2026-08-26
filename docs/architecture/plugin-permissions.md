@@ -10,8 +10,8 @@ what the second half — the process boundary — is built against.
 ## The declaration is enforced. It is still not a sandbox
 
 A plugin you installed runs in its own process, one process per plugin
-(`plugin-placement.ts`, `plugin-supervisor.ts`), and every permission below is
-checked on the **host's** side of that boundary:
+(`plugin-placement.ts`, `plugin-supervisor.ts`). What a plugin _calls_ is
+charged on the **host's** side of that boundary:
 
 - `patcher.browser.*` is charged in `plugin-host-call-server.ts`, against the
   parsed command, before the host performs it. The copy of the gate that runs
@@ -21,8 +21,20 @@ checked on the **host's** side of that boundary:
   `server.ts`, which now refuses a request that identifies itself as nothing —
   so `patcher.server.loopbackBaseUrl` plus `fetch` gets the same answer
   `patcher.sdk` does, rather than skipping the map.
-- `patcher.sites` for page contributions is enforced in the browser process, by
-  pattern match per navigation.
+- `patcher.sites` for a page contribution is enforced in the browser process,
+  by pattern match per navigation, against the patterns that contribution was
+  registered with.
+
+What a plugin _registers_ is not, and that gap is open. A plugin's
+registrations arrive as one snapshot at bootstrap, and the host adopts it
+whole — `plugin-supervisor.ts` casts the reply to
+`PluginRegistrationSnapshot` without re-parsing it, and the gates on
+`registerPageScript` and `registerPageStyle` live in `plugin-api.ts`, which for
+an out-of-process plugin runs over there. So a plugin that writes the snapshot
+itself, rather than calling the object it was handed, can register a page
+script it never declared `patcher.sites` for. Closing it means validating that
+snapshot on the host against the declared set, the same way the call path is
+validated.
 
 What no part of that closes is the process itself. It is a plain `fork`:
 `node:child_process`, `node:fs`, the network, running as you. A plugin can read

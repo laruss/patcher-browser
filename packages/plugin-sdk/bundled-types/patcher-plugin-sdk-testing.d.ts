@@ -10,12 +10,18 @@ import { PatcherPluginApi, PluginSettingValue, PluginAgentToolExperimentalStatus
 /**
  * What a plugin declares it will use, and what the host lets it reach.
  *
- * Read this before adding one: **these are enforced, and they are still not a
- * sandbox.** A plugin you installed runs in its own process, one process per
- * plugin, and every entry below is checked on the *host's* side of that pipe —
+ * Read this before adding one: **these are enforced where a plugin calls, and
+ * they are still not a sandbox.** A plugin you installed runs in its own
+ * process, one process per plugin, and every entry below is charged on the
+ * *host's* side of that pipe when the plugin asks for it —
  * `plugin-host-call-server.ts` for the browser, the `/api/v1` middleware for
  * the rest. What a plugin cannot do any more is pick its own price by writing
  * to the channel itself, or skip the map by sending no header.
+ *
+ * The exception is what a plugin *registers* rather than calls: the bootstrap
+ * snapshot is adopted by the host without being re-checked against this list,
+ * so a page script can still be registered for sites the plugin never
+ * declared. See docs/architecture/plugin-permissions.md.
  *
  * What it can still do is everything any program you start can do. The process
  * is a plain `fork`: `node:child_process`, `node:fs`, the network, running as
