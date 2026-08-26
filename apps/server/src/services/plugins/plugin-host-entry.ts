@@ -1,9 +1,10 @@
 /**
  * The process plugins run in.
  *
- * Plural: one process hosts as many plugins as the supervisor places in it,
- * each on its own multiplexed channel. See ./plugin-port-multiplexer.ts for
- * why sharing is the default and ./plugin-supervisor.ts for who decides.
+ * One process per plugin, which is the supervisor's default and the reason it
+ * is — see ./plugin-supervisor.ts. It still hosts as many channels as it is
+ * given, each multiplexed over the one pipe: a reload swap puts a plugin's two
+ * instances in here together, and `SHARED_PLACEMENT` puts several plugins in.
  *
  * Everything interesting is in ./plugin-child-runtime.ts, which is testable
  * over a linked port pair. This file is only the part that cannot be: turning
@@ -35,10 +36,9 @@ createPortMultiplexer({
   },
 });
 
-// A plugin's unhandled rejection must not take the process down silently — in
-// a shared process it would take every other plugin with it, and the host
-// would see a pipe close with no reason, which is the least useful possible
-// report.
+// A plugin's unhandled rejection must not take the process down silently — it
+// would take every channel in the process with it, and the host would see a
+// pipe close with no reason, which is the least useful possible report.
 process.on("unhandledRejection", (reason) => {
   problem(
     `unhandled rejection: ${

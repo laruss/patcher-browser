@@ -7,14 +7,20 @@
  * rather than merely claimed: a real port in, N virtual ports out, keyed by
  * plugin id.
  *
- * It exists because of a measurement, not a preference. A bundled plugin-host
- * process costs ~67MB resident before it loads any plugin at all, against
- * ~50MB for a bare Node process. Thirteen at one process each is ~870MB, which
- * is more than a desktop browser should spend on idle plugin hosts. So plugins
- * share a process by default, and sharing a process means sharing a pipe.
+ * It existed first because of a measurement: a bundled plugin-host process
+ * costs ~67MB resident before it loads any plugin at all, against ~50MB for a
+ * bare Node process, so plugins shared a process and sharing a process meant
+ * sharing a pipe. That default is gone — **a key here routes, it does not
+ * isolate**, and two plugins in one process could read each other's frames off
+ * `process.on("message")` regardless of what this file did with them. See
+ * ./plugin-supervisor.ts.
  *
- * Nothing above this layer changes: each plugin still gets a `PluginPort` that
- * behaves exactly like a dedicated one.
+ * What still shares a pipe is one plugin's two instances during a reload swap,
+ * which is co-residency that gives nothing away, plus any caller that asks for
+ * `SHARED_PLACEMENT` knowing what it is.
+ *
+ * Nothing above this layer changes: each channel still gets a `PluginPort`
+ * that behaves exactly like a dedicated one.
  */
 
 import type { PluginPort } from "./plugin-channel.js";
