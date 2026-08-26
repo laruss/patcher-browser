@@ -59,15 +59,21 @@ function resolveHostDaemonUrl(cliConfig?: CliConfig): string {
 }
 
 /**
- * Sign every request as this client. Caller headers are preserved and then
- * overridden, the same way `createPluginApiFetch` does it for a plugin.
+ * Sign every request as this client, unless the caller already said who it is.
+ *
+ * Seeded from the `Request` when the caller built one and named no init
+ * headers: an `init.headers` replaces a `Request`'s header list rather than
+ * merging into it, so building from `init` alone would drop the caller's.
  */
 function withAppKey(
   inner: FetchImplementation,
   appKey: string,
 ): FetchImplementation {
   return (input, init) => {
-    const headers = new Headers(init?.headers);
+    const headers = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    );
+    if (headers.has(PATCHER_APP_KEY_HEADER)) return inner(input, init);
     headers.set(PATCHER_APP_KEY_HEADER, appKey);
     return inner(input, { ...init, headers });
   };

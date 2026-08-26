@@ -22,7 +22,7 @@ import {
   APP_SURFACE_ENV_NAME,
 } from "@patcher/config/app-surface";
 import {
-  PATCHER_APP_KEY_HEADER,
+  appApiKeyHeaders,
   PATCHER_APP_KEY_QUERY_PARAM,
   resolveAppApiKey,
 } from "@patcher/config/app-key";
@@ -490,28 +490,42 @@ function resolveDataDirFromEnv(args: ResolveDataDirFromEnvArgs): string {
 /**
  * The key this shell presents to `/api/v1` and `/ws`.
  *
- * Read fresh rather than cached: the file appears when the server first
- * starts, and the desktop can be up before that — it is the thing that starts
- * it. `PATCHER_APP_KEY` wins, which is how a custom remote target is given the
- * key of a server whose data directory this machine cannot read.
+ * Re-read until it is found rather than once: the file appears when the server
+ * first starts, and the desktop can be up before that — it is the thing that
+ * starts it. Once found it is cached, because the reconnect loop and the
+ * config poll both ask on a timer and this is a blocking read on the main
+ * process's thread. `PATCHER_APP_KEY` wins, which is how a custom remote
+ * target is given the key of a server whose data directory this machine cannot
+ * read.
  *
  * Undefined means the request will be refused, and the probe says so in words
  * a user can act on.
  */
+let cachedDesktopAppApiKey: string | undefined;
 function resolveDesktopAppApiKey(): string | undefined {
-  return resolveAppApiKey({
+  if (cachedDesktopAppApiKey !== undefined) return cachedDesktopAppApiKey;
+  cachedDesktopAppApiKey = resolveAppApiKey({
     dataDir: resolveDataDirFromEnv({
       env: process.env,
       homeDir: homedir(),
     }),
     env: process.env,
   });
+  return cachedDesktopAppApiKey;
 }
 
 /** Headers for a plain local `fetch` at the server. */
 function desktopAppKeyHeaders(): Record<string, string> {
+  return appApiKeyHeaders(resolveDesktopAppApiKey());
+}
+
+/**
+ * The key as a one-shot probe takes it. `waitForCompatibleServer` takes the
+ * resolver instead, because it polls a server that is still starting.
+ */
+function appApiKeyProbeArgs(): { appApiKey?: string } {
   const key = resolveDesktopAppApiKey();
-  return key === undefined ? {} : { [PATCHER_APP_KEY_HEADER]: key };
+  return key === undefined ? {} : { appApiKey: key };
 }
 
 function formatLogDirectory(): string {
@@ -1054,6 +1068,7 @@ async function ensureBuiltinRuntimeAttached(): Promise<boolean> {
   }
 
   const existingProbe = await probePatcherServer({
+    ...appApiKeyProbeArgs(),
     serverUrl: builtinServerUrl,
     timeoutMs: ATTACH_PROBE_TIMEOUT_MS,
   });
@@ -1362,10 +1377,25 @@ async function loadStartupError(args: LoadStartupErrorArgs): Promise<void> {
 
 async function loadPatcherApp(serverUrl: string): Promise<void> {
   patcherAppLoaded = true;
-  await loadWindowUrl({ url: serverUrl });
+  // The key travels in the URL, and only there. A launch argument would have
+  // reached the renderer sooner, but a process's command line is readable by
+  // anything running as the same user — the reason plugin-child-runtime.ts
+  // refuses argv for the same kind of secret — and the windows exist before
+  // the server does anyway, so the argument would be empty on a first run.
+  // The app strips it out of `location` before anything reads it.
+  await loadWindowUrl({ url: withDesktopAppKeyQuery(serverUrl) });
   if (shouldOpenDevTools()) {
     desktopWindowFactory?.openDevTools();
   }
+}
+
+/** The app URL this shell navigates to, carrying its identity. */
+function withDesktopAppKeyQuery(serverUrl: string): string {
+  const key = resolveDesktopAppApiKey();
+  if (key === undefined) return serverUrl;
+  const url = new URL(serverUrl);
+  url.searchParams.set(PATCHER_APP_KEY_QUERY_PARAM, key);
+  return url.toString();
 }
 
 function shouldOpenDevTools(): boolean {
@@ -1616,6 +1646,7 @@ async function startOwnedRuntime(
 
   const raceResult = await Promise.race<StartupRaceResult>([
     waitForCompatibleServer({
+      appApiKey: resolveDesktopAppApiKey,
       intervalMs: STARTUP_POLL_INTERVAL_MS,
       serverUrl: args.serverUrl,
       timeoutMs: STARTUP_TIMEOUT_MS,
@@ -1691,6 +1722,7 @@ async function waitForServerToStop(serverUrl: string): Promise<boolean> {
   const deadline = Date.now() + FOREIGN_RUNTIME_STOP_TIMEOUT_MS;
   while (Date.now() <= deadline) {
     const probe = await probePatcherServer({
+      ...appApiKeyProbeArgs(),
       serverUrl,
       timeoutMs: ATTACH_PROBE_TIMEOUT_MS,
     });
@@ -1782,6 +1814,7 @@ async function decideOnExistingServer(
 
 async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
   const existingProbe = await probePatcherServer({
+    ...appApiKeyProbeArgs(),
     serverUrl: args.serverUrl,
     timeoutMs: ATTACH_PROBE_TIMEOUT_MS,
   });
@@ -2111,7 +2144,6 @@ async function runDesktopApp(): Promise<void> {
   serverUrlDialogPreloadPath = resolvedServerUrlDialogPreloadPath;
   existingServerDialogPreloadPath = resolvedExistingServerDialogPreloadPath;
   desktopWindowFactory = createDesktopWindowFactory({
-    appKey: resolveDesktopAppApiKey,
     browserWindowCreator,
     createWindowStateKey() {
       return `window-${randomUUID()}`;

@@ -11,7 +11,10 @@ import {
 import { PERSONAL_PROJECT_ID } from "@patcher/domain";
 import { HOST_DAEMON_PROTOCOL_VERSION } from "@patcher/host-daemon-contract";
 import { initDb } from "../../src/db.js";
-
+// `createApp` directly, not the harness's wrapper, for the `/install/*` tests:
+// those routes are what a keyless host daemon polls to update itself, and a
+// request that gets the app key added for free cannot assert that.
+import { createApp } from "../../src/server.js";
 import { readJson } from "../helpers/json.js";
 import {
   seedHostSession,
@@ -64,7 +67,7 @@ describe("server skeleton", () => {
 
   it("serves install version metadata without auth", async () => {
     const harness = await createTestAppHarness();
-    const { app } = createTestApp(harness.deps, {
+    const { app } = createApp(harness.deps, {
       patcherAppArtifactService: {
         getTarballPath: async () => "/unused",
         getVersion: async () => "3.2.1-test",
@@ -87,7 +90,7 @@ describe("server skeleton", () => {
     const tarballPath = join(harness.config.dataDir, "fixture.tgz");
     writeFileSync(tarballPath, "tarball-bytes");
     const getTarballPath = vi.fn(async () => tarballPath);
-    const { app } = createTestApp(harness.deps, {
+    const { app } = createApp(harness.deps, {
       patcherAppArtifactService: {
         getTarballPath,
         getVersion: async () => "test",
@@ -109,7 +112,7 @@ describe("server skeleton", () => {
     const tarballPath = join(harness.config.dataDir, "fixture.tgz");
     writeFileSync(tarballPath, "tarball-bytes");
     const getTarballPath = vi.fn(async () => tarballPath);
-    const { app } = createTestApp(harness.deps, {
+    const { app } = createApp(harness.deps, {
       patcherAppArtifactService: {
         getTarballPath,
         getVersion: async () => "test",

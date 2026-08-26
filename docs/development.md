@@ -103,8 +103,10 @@ Then open `https://<machine>.<tailnet>.ts.net`. Source dev binds both the Vite
 app and main server to loopback by default; Vite continues to proxy API and
 WebSocket traffic.
 
-The public API is unauthenticated. Do not expose it to a network you do not
-control — see [Security](security.md#the-local-api-is-unauthenticated).
+The public API takes a per-install key, not a user account, and the key is only
+as private as your data directory. Do not expose it to a network you do not
+control — see
+[Security](security.md#the-local-api-takes-a-key-and-the-key-is-only-as-private-as-your-disk).
 
 ## Storybook
 

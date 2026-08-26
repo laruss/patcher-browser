@@ -63,7 +63,13 @@ export interface ProbePatcherServerArgs {
 }
 
 export interface WaitForCompatibleServerArgs {
-  appApiKey?: string;
+  /**
+   * Resolved per attempt rather than taken as a value: this waits for a server
+   * that is still starting, and the key file appears when it does. A key read
+   * once, before the first poll, would be the `undefined` from before the
+   * server existed — for every attempt after it.
+   */
+  appApiKey?: () => string | undefined;
   intervalMs: number;
   serverUrl: string;
   timeoutMs: number;
@@ -256,8 +262,9 @@ export async function waitForCompatibleServer(
   };
 
   while (Date.now() <= deadline) {
+    const appApiKey = args.appApiKey?.();
     lastResult = await probePatcherServer({
-      ...(args.appApiKey === undefined ? {} : { appApiKey: args.appApiKey }),
+      ...(appApiKey === undefined ? {} : { appApiKey }),
       serverUrl: args.serverUrl,
       timeoutMs: Math.min(args.intervalMs, 1_000),
     });

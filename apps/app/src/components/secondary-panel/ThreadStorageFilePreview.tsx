@@ -6,6 +6,7 @@ import {
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
 import { HttpError } from "@/lib/api";
 import { buildThreadStorageRawContentUrl } from "@/lib/file-content-urls";
+import { useSignedObjectUrl } from "@/lib/use-signed-object-url";
 import type {
   FilePreview,
   FilePreviewLineRange,
@@ -113,6 +114,15 @@ export function SecondaryPanelFilePreview({
   onRefresh,
   statusLabel = null,
 }: SecondaryPanelFilePreviewProps) {
+  // Before the early returns, because it is a hook — and fetched by the app
+  // rather than by the iframe, because the iframe runs agent-written script
+  // and a keyed URL would be readable from inside it. See useSignedObjectUrl.
+  const wantsHtmlPreview =
+    htmlPreviewUrl !== null && isHtmlFilePreviewPath(activePath);
+  const htmlPreview = useSignedObjectUrl(
+    wantsHtmlPreview ? htmlPreviewUrl : null,
+  );
+
   if (error) {
     const isNotFound = error instanceof HttpError && error.status === 404;
     return (
@@ -144,7 +154,42 @@ export function SecondaryPanelFilePreview({
     );
   }
 
-  if (htmlPreviewUrl !== null && isHtmlFilePreviewPath(activePath)) {
+  if (wantsHtmlPreview) {
+    // The bytes are still on their way, or would not come. A text file still
+    // has its source view below; anything else has nothing else to show.
+    if (htmlPreview.objectUrl === null) {
+      if (filePreview.kind !== "text") {
+        return (
+          <FilePreviewSurface
+            path={activePath}
+            copyPath={copyPath}
+            onSelectionAddToChat={onSelectionAddToChat}
+            onOpenInEditor={onOpenInEditor}
+            onRefresh={onRefresh}
+            isRefreshing={isRefreshing}
+            statusLabel={statusLabel}
+            state={htmlPreview.failed ? { kind: "error" } : { kind: "loading" }}
+          />
+        );
+      }
+      return (
+        <FilePreviewSurface
+          path={activePath}
+          copyPath={copyPath}
+          onSelectionAddToChat={onSelectionAddToChat}
+          onOpenInEditor={onOpenInEditor}
+          onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
+          statusLabel={statusLabel}
+          state={{
+            kind: "ready",
+            file: buildTextPreviewFile({ activePath, filePreview }),
+            lineRange,
+            textPreviewKind: getTextPreviewKind(filePreview),
+          }}
+        />
+      );
+    }
     if (filePreview.kind !== "text") {
       return (
         <FilePreviewSurface
@@ -159,7 +204,7 @@ export function SecondaryPanelFilePreview({
             kind: "iframe",
             sandbox: GENERIC_HTML_IFRAME_SANDBOX,
             title: activePath,
-            url: htmlPreviewUrl,
+            url: htmlPreview.objectUrl,
           }}
         />
       );
@@ -180,7 +225,7 @@ export function SecondaryPanelFilePreview({
           iframe: {
             sandbox: GENERIC_HTML_IFRAME_SANDBOX,
             title: activePath,
-            url: htmlPreviewUrl,
+            url: htmlPreview.objectUrl,
           },
           lineRange,
         }}

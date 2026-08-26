@@ -238,7 +238,6 @@ describe("desktop window factory", () => {
       },
     };
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator,
       createWindowStateKey() {
         return generatedStateKeys.shift() ?? "window-fallback";
@@ -329,7 +328,6 @@ describe("desktop window factory", () => {
     const createdWindows: FakeDesktopWindow[] = [];
     const generatedStateKeys: WindowStateKey[] = ["window-second"];
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator: {
         create(options) {
           const browserWindow = new FakeDesktopWindow({ options });
@@ -381,7 +379,6 @@ describe("desktop window factory", () => {
       },
     };
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator,
       createWindowStateKey() {
         return generatedStateKeys.shift() ?? "window-fallback";
@@ -439,7 +436,6 @@ describe("desktop window factory", () => {
       },
     };
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator,
       createWindowStateKey() {
         return "window-link-test";
@@ -494,7 +490,6 @@ describe("desktop window factory", () => {
       },
     };
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator,
       createWindowStateKey() {
         return "window-navigation-test";
@@ -551,7 +546,6 @@ describe("desktop window factory", () => {
       },
     };
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator,
       createWindowStateKey() {
         return "window-send-test";
@@ -611,7 +605,6 @@ describe("desktop window factory", () => {
       },
     };
     const factory = createDesktopWindowFactory({
-      appKey: () => undefined,
       browserWindowCreator,
       createWindowStateKey() {
         return generatedStateKeys.shift() ?? "focused-window-fallback";

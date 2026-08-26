@@ -59,8 +59,12 @@ function websocketStatus(
       }
       resolve(status);
     });
-    socket.once("error", () => {
-      // The status arrives on unexpected-response, asserted above.
+    socket.once("error", (error) => {
+      // The status normally arrives on `unexpected-response`, which fires
+      // first and settles this. Reaching here means the handshake failed some
+      // other way — a destroyed connection, a server that never bound — and
+      // saying so beats hanging until the suite times out on "no status yet".
+      reject(error);
     });
   });
 }

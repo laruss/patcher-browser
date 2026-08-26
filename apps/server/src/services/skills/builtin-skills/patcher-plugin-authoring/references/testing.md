@@ -145,7 +145,10 @@ multi-plugin arbitration. Use a live loop for those host boundaries.
   handler stats, and the CLI command; `patcher plugin logs <id> -f` follows
   `patcher.log` output. Add `--json` to any plugin command for machine output.
 - Exercise wire surfaces directly: `curl -X POST -H "content-type:
-application/json" -d '{}' <server>/api/v1/plugins/<id>/rpc/<method>`,
+application/json" -H "x-patcher-app-key: $PATCHER_APP_KEY" -d '{}'
+<server>/api/v1/plugins/<id>/rpc/<method>`; `/api/v1` refuses a request that
+  identifies itself as nothing, and the key is in `PATCHER_APP_KEY` inside a
+  thread's shell and in `app-api-key` under the data directory otherwise. Then
   `patcher <command> …` for the CLI, `patcher plugin run <id> …` as the explicit form.
 - Keep pure logic in plain functions/modules so it is unit-testable without
   a Patcher server; the factory file should mostly wire registrations.

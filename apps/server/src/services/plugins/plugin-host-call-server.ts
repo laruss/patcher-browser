@@ -120,13 +120,14 @@ export function createPluginHostCallServer(
    */
   function chargeBrowserCommand(command: BrowserCommand): void {
     const permission = permissionForBrowserCommand(command);
-    if (!gate.has(permission)) {
-      capabilities.logger.warn(
-        `plugin "${capabilities.pluginId}" asked the host for browser command ` +
-          `"${command.type}", which needs "${permission}" and was not ` +
-          `declared; refused`,
-      );
-    }
+    if (gate.has(permission)) return;
+    capabilities.logger.warn(
+      `plugin "${capabilities.pluginId}" asked the host for browser command ` +
+        `"${command.type}", which needs "${permission}" and was not ` +
+        `declared; refused`,
+    );
+    // One decision, one place: `assert` re-derives the same answer, and
+    // splitting the log from the refusal is how the two drift apart.
     gate.assert(permission, `patcher.browser command "${command.type}"`);
   }
 

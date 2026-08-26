@@ -1,10 +1,13 @@
-import { resolveAppApiKey } from "@patcher/config/app-key";
+import {
+  appApiKeyHeaders,
+  PATCHER_APP_KEY_HEADER,
+  resolveAppApiKey,
+} from "@patcher/config/app-key";
 import {
   createNodePatcherSdk,
   type PatcherSdk,
   type PatcherSdkContext,
 } from "@patcher/sdk/node";
-import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { PATCHER_THREAD_ID_HEADER } from "@patcher/server-contract";
 import { resolveContextThreadId } from "./context-env.js";
 
@@ -26,6 +29,15 @@ let appApiKey: string | undefined | null = null;
 function cachedAppApiKey(): string | undefined {
   if (appApiKey === null) appApiKey = resolveAppApiKey();
   return appApiKey;
+}
+
+/**
+ * The same key as headers, for the one CLI socket that is not the SDK's: the
+ * terminal attach in commands/terminal.ts opens `/ws/terminals/:id` itself, and
+ * that route takes the same identity `/api/v1/terminals` does.
+ */
+export function cliAppKeyHeaders(): Record<string, string> {
+  return appApiKeyHeaders(cachedAppApiKey());
 }
 
 function declaredThreadId(): string | undefined {
@@ -51,7 +63,12 @@ export function cliFetch(
   if (threadId === undefined && key === undefined) {
     return fetch(input, init);
   }
-  const headers = new Headers(init?.headers);
+  // Seeded from the `Request` when the caller built one and named no init
+  // headers: an `init.headers` replaces a `Request`'s header list rather than
+  // merging into it, so building from `init` alone would drop the caller's.
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined),
+  );
   // An explicit header wins: a caller that set it meant it.
   if (threadId !== undefined && !headers.has(PATCHER_THREAD_ID_HEADER)) {
     headers.set(PATCHER_THREAD_ID_HEADER, threadId);

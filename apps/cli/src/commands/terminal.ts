@@ -13,7 +13,7 @@ import {
   type TerminalSession,
 } from "@patcher/server-contract";
 import { action, CliExitError } from "../action.js";
-import { createCliPatcherSdk } from "../client.js";
+import { cliAppKeyHeaders, createCliPatcherSdk } from "../client.js";
 import { renderBorderlessTable } from "../table.js";
 import { outputJson } from "./helpers.js";
 import { resolveMachineHostId, resolveMachineTargetOption } from "./machine.js";
@@ -561,7 +561,9 @@ async function attachTerminal(args: {
     throw new Error("Attach requires an interactive terminal");
   }
 
-  const socket = createNodeWebsocketFactory()(
+  // Headers rather than the query: this is Node's `ws`, which can set them,
+  // and `/ws/terminals/:id` refuses a socket that identifies itself as nothing.
+  const socket = createNodeWebsocketFactory({ headers: cliAppKeyHeaders() })(
     terminalWebsocketUrl({
       baseUrl: args.baseUrl,
       terminalId: args.terminalId,

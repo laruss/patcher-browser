@@ -86,16 +86,6 @@ export type PatcherDesktopCloseWindowRequestHandler = () => boolean;
 export const PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX =
   "--patcher-window-key=";
 
-/**
- * The app key, handed over the same way and for the same reason as the window
- * key: the renderer's first request to `/api/v1` happens as its modules
- * initialise, and the API refuses a request that identifies itself as nothing.
- *
- * A launch argument rather than a fetch, because there is nothing to fetch it
- * *with* — every route that could answer is behind the gate this opens.
- */
-export const PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX = "--patcher-app-key=";
-
 export interface PatcherDesktopApi extends PatcherDesktopInfo {
   /**
    * Control surface for the desktop-only web browser tab. The renderer drives
@@ -116,15 +106,6 @@ export interface PatcherDesktopApi extends PatcherDesktopInfo {
    * build did before.
    */
   windowKey?: string;
-  /**
-   * What this renderer presents to `/api/v1` and `/ws`; see
-   * {@link PATCHER_DESKTOP_APP_KEY_ARGUMENT_PREFIX}.
-   *
-   * A plain property, read before anything can await, like `windowKey`.
-   * Absent when the shell could not find a key — the web build has no
-   * `window.patcherDesktop` at all, and reads it from the URL instead.
-   */
-  appKey?: string;
   checkForUpdates(): Promise<PatcherDesktopInfo>;
   getInfo(): Promise<PatcherDesktopInfo>;
   /**
