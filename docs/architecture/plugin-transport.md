@@ -210,9 +210,10 @@ from measuring rather than arguing:
 | the same host before any of this               | 204 MB   |
 | × 13 bundled plugins, one process each         | ~870 MB  |
 
-So **plugins share a process by default.** Process-per-plugin is the better
-failure model and only cost rules it out, which made the 204 MB worth
-attacking — twice. `apps/server/scripts/measure-plugin-host.mjs` reproduces
+So plugins shared a process, and the 204 MB was worth attacking — twice —
+because process-per-plugin was the better failure model and only cost ruled it
+out. **They no longer share one, and cost is no longer the deciding argument:**
+see _Sharing a process is sharing a trust domain_ below. `apps/server/scripts/measure-plugin-host.mjs` reproduces
 every number here: it builds the host the way the release does, forks it, and
 reads resident memory from the outside, because what a package costs is what it
 _runs_, not how many bytes of it were bundled. (A bundle-size breakdown says
@@ -255,25 +256,48 @@ separate modules. It bought little memory (~1 MB; `better-sqlite3` itself is
 longer needs the native module resolvable just to start.
 
 What is left is ~34 MB over bare Node: browser-control's schemas (~22 MB) and
-cron-parser's luxon (~11 MB). Both are deferrable the same way if
-process-per-plugin ever becomes worth it — and 13 × 84 MB is ~1.1 GB, which is
-not yet a reason to change the default.
+cron-parser's luxon (~11 MB). Both are deferrable the same way, and now that
+process-per-plugin is the default they are the next thing worth attacking: the
+~67 MB is paid once per installed plugin rather than once.
 
 The bundled host is also **built** now (`apps/server/package.json`), which it
 was not: `defaultSpawn` looks for `plugin-host-entry.js` next to the server
 bundle and would have found nothing in a packaged release.
 
 `placement` keeps that a one-line policy rather than a shape the code is built
-around: `SHARED_PLACEMENT` is the default, `ISOLATED_PLACEMENT` gives a plugin
-its own process, and anything in between is a function. Reproduce the numbers
-by bundling `plugin-host-entry.ts` with esbuild and reading RSS; the analysis
-above is `--analyze=verbose` on the same bundle.
+around: `ISOLATED_PLACEMENT` is the default and gives a plugin its own process,
+`SHARED_PLACEMENT` puts everything in one, and anything in between is a
+function. Reproduce the numbers by bundling `plugin-host-entry.ts` with esbuild
+and reading RSS; the analysis above is `--analyze=verbose` on the same bundle.
 
-Sharing means plugins in one process die together. That is bounded and
+Sharing means the channels in one process die together. That is bounded and
 honest: `plugin-port-multiplexer.ts` propagates the pipe's close to every
-virtual channel, so **one crash rejects every in-flight call in every plugin
-that shared the process** rather than leaving promises pending, and the
-supervisor restarts the process and re-bootstraps everyone who was in it.
+virtual channel, so **one crash rejects every in-flight call on every channel
+in that process** rather than leaving promises pending, and the supervisor
+restarts the process and re-bootstraps everyone who was in it.
+
+### Sharing a process is sharing a trust domain
+
+The measurement above answered "how many processes" and the answer held until
+someone asked what a shared one _is_. `process.on("message")` is process-global
+and plugin code runs in that process, so a plugin in a shared host could read
+every co-resident plugin's bootstrap frame — which carries the API key that
+signs that plugin's `/api/v1` traffic — and could send frames on their channel
+keys, issuing host calls as them. The multiplexer's keys route; they do not
+partition, and nothing at that layer could make them.
+
+Splitting the pipe would not have been enough either. Two plugins in one
+process share a V8 realm as well as a pipe: the module registry is right there,
+and so is every other plugin's `patcher`. The unit of separation is the process
+or it is nothing.
+
+So the default is one process per plugin, and the table above is the price
+rather than the argument. What is left is the pair of settings
+`PATCHER_PLUGIN_PROCESS` already had — a process per installed plugin, or every
+plugin in the server — and both are coherent in a way the middle was not.
+Sharing survives for a reload swap, whose two instances of one plugin key alike
+and land together; that is the co-residency that gives nothing away, and it is
+what the multiplexer now earns its place on.
 
 Restart backoff caps at five consecutive crashes. The crash budget resets on
 **uptime, not on a successful bootstrap** — the first version used the latter

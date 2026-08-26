@@ -17,6 +17,12 @@
  * see plugin-remote-handle.ts). Installed and generated plugins are the
  * opposite case on both counts.
  *
+ * Which process each of them gets is `plugin-supervisor.ts`, and the answer is
+ * one apiece: several plugins in one unsandboxed process are one trust domain,
+ * whatever the pipe between them is keyed by. So the two settings of
+ * `PATCHER_PLUGIN_PROCESS` are the whole choice — a process per installed
+ * plugin, or everything in the server.
+ *
  * Placement is still best effort — `plugin-runtime.ts` falls back to the
  * server, loudly, for a plugin whose process will not start. This decides
  * where a plugin is *asked* to run, not where it ends up.

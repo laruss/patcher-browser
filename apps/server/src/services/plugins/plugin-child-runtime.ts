@@ -12,8 +12,9 @@
  * fake plugin host drifted from the real one, and the JS permission gate
  * drifted from the HTTP one. A hand-written plugin-side `patcher` would be the third.
  *
- * Not wired into the loader yet: nothing spawns this. It is exercised over a
- * linked port pair and, in one test, as a real forked process.
+ * Exercised over a linked port pair and, in several tests, as a real forked
+ * process. In a shipped server it is what every plugin that did not ship with
+ * Patcher runs in — see ./plugin-placement.ts.
  */
 
 import { createRequire } from "node:module";
@@ -62,7 +63,9 @@ import type { PluginServiceCommand } from "./plugin-service-message.js";
  *
  * A message rather than argv or the environment: the API key is in here, and a
  * process's command line and environment are readable by anything running as
- * the same user.
+ * the same user. Nor is the pipe it arrives on private — `process.on("message")`
+ * is process-global — which is why one plugin per process is the supervisor's
+ * default rather than an option.
  */
 export interface PluginHostConfig {
   pluginId: string;

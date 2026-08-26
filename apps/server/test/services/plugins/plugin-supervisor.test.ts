@@ -14,7 +14,7 @@ import {
 } from "../../helpers/fake-plugin-host.js";
 import {
   createPluginSupervisor,
-  ISOLATED_PLACEMENT,
+  SHARED_PLACEMENT,
   type PluginSupervisor,
   type SupervisedPlugin,
 } from "../../../src/services/plugins/plugin-supervisor.js";
@@ -102,8 +102,62 @@ describe("the plugin supervisor", () => {
     return { supervisor, spawned, warnings };
   }
 
-  it("puts plugins in one process by default", async () => {
+  // The default, and the reason it is the default: one plugin's process never
+  // carries another's channel, so there is no co-resident bootstrap frame to
+  // read an API key out of and no other key to send frames on.
+  it("gives each plugin its own process by default", async () => {
     const { supervisor, spawned } = await makeSupervisor();
+
+    await supervisor.start(plugin("alpha"));
+    await supervisor.start(plugin("beta"));
+
+    expect(spawned).toHaveLength(2);
+    expect(
+      supervisor
+        .processes()
+        .map((one) => one.key)
+        .sort(),
+    ).toEqual(["alpha", "beta"]);
+    expect(spawned.map((one) => one.hosted())).toEqual([["alpha"], ["beta"]]);
+  });
+
+  // What that buys, stated as the leak it closes. `process.on("message")` is
+  // process-global and plugin code runs in that process, so every frame the
+  // server writes into a host is a frame every plugin in it can read — and a
+  // bootstrap frame carries the API key that signs that plugin's /api/v1
+  // traffic. Keys must therefore never meet in one process.
+  it("never writes one plugin's API key into another's process", async () => {
+    const frames: string[][] = [];
+    const { supervisor } = await makeSupervisor({
+      spawn: () => {
+        const written: string[] = [];
+        frames.push(written);
+        const fake = createFakePluginHostProcess();
+        const send = fake.child.send.bind(fake.child);
+        Object.assign(fake.child, {
+          send(message: unknown, callback?: (error: Error | null) => void) {
+            written.push(JSON.stringify(message));
+            return send(message as never, callback as never);
+          },
+        });
+        return fake.child;
+      },
+    });
+
+    await supervisor.start({ ...plugin("alpha"), apiKey: "alpha-key" });
+    await supervisor.start({ ...plugin("beta"), apiKey: "beta-key" });
+
+    expect(frames).toHaveLength(2);
+    expect(frames[0]?.join("")).toContain("alpha-key");
+    expect(frames[0]?.join("")).not.toContain("beta-key");
+    expect(frames[1]?.join("")).toContain("beta-key");
+    expect(frames[1]?.join("")).not.toContain("alpha-key");
+  });
+
+  it("shares one when the placement says so", async () => {
+    const { supervisor, spawned } = await makeSupervisor({
+      placement: SHARED_PLACEMENT,
+    });
 
     await supervisor.start(plugin("alpha"));
     await supervisor.start(plugin("beta"));
@@ -113,23 +167,6 @@ describe("the plugin supervisor", () => {
       expect.objectContaining({ key: "shared", pluginIds: ["alpha", "beta"] }),
     ]);
     expect(spawned[0]?.hosted()).toEqual(["alpha", "beta"]);
-  });
-
-  it("isolates them when the placement says so", async () => {
-    const { supervisor, spawned } = await makeSupervisor({
-      placement: ISOLATED_PLACEMENT,
-    });
-
-    await supervisor.start(plugin("alpha"));
-    await supervisor.start(plugin("beta"));
-
-    expect(spawned).toHaveLength(2);
-    expect(
-      supervisor
-        .processes()
-        .map((p) => p.key)
-        .sort(),
-    ).toEqual(["alpha", "beta"]);
   });
 
   it("returns what the plugin registered", async () => {
@@ -157,9 +194,13 @@ describe("the plugin supervisor", () => {
   });
 
   // A shared process means a shared fate, and the whole design rests on that
-  // fate being *reported* rather than silent.
+  // fate being *reported* rather than silent. Asked for explicitly here: the
+  // shipped placement gives each plugin its own process, and these are about
+  // what the mechanism still has to do for a caller that shares one.
   it("rejects in-flight work in every plugin when the process dies", async () => {
-    const { supervisor, spawned } = await makeSupervisor();
+    const { supervisor, spawned } = await makeSupervisor({
+      placement: SHARED_PLACEMENT,
+    });
     const alpha = await supervisor.start(plugin("alpha"));
     const beta = await supervisor.start(plugin("beta"));
 
@@ -180,7 +221,9 @@ describe("the plugin supervisor", () => {
   });
 
   it("brings every plugin in a dead process back", async () => {
-    const { supervisor, spawned, warnings } = await makeSupervisor();
+    const { supervisor, spawned, warnings } = await makeSupervisor({
+      placement: SHARED_PLACEMENT,
+    });
     await supervisor.start(plugin("alpha"));
     await supervisor.start(plugin("beta"));
 
@@ -198,6 +241,7 @@ describe("the plugin supervisor", () => {
     // registered with the loader, and from here they are unreachable.
     const abandoned: { ids: string[]; problem: string }[] = [];
     const { supervisor, spawned, warnings } = await makeSupervisor({
+      placement: SHARED_PLACEMENT,
       onGaveUp: (plugins, problem) =>
         abandoned.push({ ids: plugins.map((one) => one.pluginId), problem }),
       restart: {
@@ -257,7 +301,9 @@ describe("the plugin supervisor", () => {
   });
 
   it("disposes a plugin and keeps the process for the others", async () => {
-    const { supervisor, spawned } = await makeSupervisor();
+    const { supervisor, spawned } = await makeSupervisor({
+      placement: SHARED_PLACEMENT,
+    });
     await supervisor.start(plugin("alpha"));
     await supervisor.start(plugin("beta"));
 
@@ -399,8 +445,9 @@ describe("the plugin supervisor", () => {
 
   // The fake child is fast and deterministic, and it is still a fake. This one
   // forks the real entry so the spawn path, the IPC pipe and the multiplexer
-  // are all the production ones.
-  it("runs two plugins in one real forked process", async () => {
+  // are all the production ones — with the co-residency production actually
+  // has, which is a reload swap's two instances of one plugin.
+  it("runs two channels over one real forked process's pipe", async () => {
     const kv = new Map<string, string>();
     const sharedDataDir = await dataDir();
     const supervisor = createPluginSupervisor({
@@ -435,24 +482,24 @@ describe("the plugin supervisor", () => {
     });
     supervisors.push(supervisor);
 
-    const alpha = await supervisor.start(plugin("alpha"));
-    const beta = await supervisor.start(plugin("beta"));
+    const previous = await supervisor.start(plugin("alpha"));
+    const successor = await supervisor.start(plugin("alpha", "alpha#2"));
 
     expect(supervisor.processes()).toHaveLength(1);
-    expect(alpha.snapshot.contextMenuItems.map((item) => item.id)).toEqual([
+    expect(previous.snapshot.contextMenuItems.map((item) => item.id)).toEqual([
       "shout",
     ]);
 
     // Both answer on their own channels, over the same pipe.
     await expect(
-      alpha.channel.request({
+      previous.channel.request({
         method: "browserContextMenu",
         target: "shout",
         payload: { selectionText: "первый" },
       }),
     ).resolves.toBe("ПЕРВЫЙ");
     await expect(
-      beta.channel.request({
+      successor.channel.request({
         method: "browserContextMenu",
         target: "shout",
         payload: { selectionText: "второй" },

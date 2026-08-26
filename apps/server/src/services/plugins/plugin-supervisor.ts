@@ -1,22 +1,34 @@
 /**
  * Who spawns plugin processes, and what happens when one dies.
  *
- * The topology question the transport deliberately left open is answered here,
- * and by a measurement rather than a preference. A bundled plugin-host process
- * costs **~67MB resident before it loads a single plugin**, against ~50MB for a
- * bare Node process — down from ~204MB once everything a given plugin does not
- * use stopped being imported at startup. Thirteen at one process each is
- * ~870MB.
+ * The topology question the transport deliberately left open is answered here.
+ * It was answered by a measurement first: a bundled plugin-host process costs
+ * **~67MB resident before it loads a single plugin**, against ~50MB for a bare
+ * Node process — down from ~204MB once everything a given plugin does not use
+ * stopped being imported at startup. Thirteen at one process each is ~870MB.
+ * So plugins shared a process, and `placement` decided which.
  *
- * So: **plugins share a process by default**, and `placement` decides which.
- * That keeps the expensive decision a one-line policy instead of a shape the
- * rest of the code is built around — and it stays worth revisiting, because
- * process-per-plugin is the better failure model and only cost rules it out.
+ * **They no longer do, and the reason is that sharing a process is sharing a
+ * trust domain.** `process.on("message")` is process-global and plugin code
+ * runs in that process, so a plugin in a shared host read every co-resident
+ * plugin's bootstrap frame — which carries that plugin's API key — and could
+ * send frames on their channel keys. The multiplexer's keys are a routing
+ * mechanism, never a partition. Nor is the pipe the only thing shared: two
+ * plugins in one process share a V8 realm and can reach each other through the
+ * module registry, so splitting the pipe alone would have been theatre.
+ *
+ * So the default is now one process per plugin, and the memory is the price of
+ * the thing it buys. The way back is `PATCHER_PLUGIN_PROCESS=false`, which puts
+ * every plugin in the server — fewer processes and less isolation, which is a
+ * coherent trade in a way "several plugins in one unsandboxed process" was not.
+ * `SHARED_PLACEMENT` stays for a caller that wants it with its eyes open.
  *
  * Which plugins get a process at all is `plugin-placement.ts`; this file only
  * asks where to put the ones it is handed.
  *
- * What sharing costs is honest and bounded: plugins in one process die
+ * Sharing is still what a reload swap does — one plugin's two instances key
+ * alike and land together, which is the case the multiplexer earns its place
+ * on. What it costs is honest and bounded: instances in one process die
  * together. The channel already makes that survivable — every in-flight
  * request rejects when the pipe closes — and this file makes it recoverable by
  * restarting the process and re-bootstrapping everyone who was in it.
@@ -77,9 +89,14 @@ export type PluginProcessKey = string;
 /**
  * Which process a plugin belongs in. Same key, same process.
  *
- * The default puts everything in one, for the reason at the top of this file.
- * Returning the plugin's own id isolates it — which is what a plugin that has
- * earned distrust, or a plugin under development, should get.
+ * The default is the plugin's own id, for the reason at the top of this file:
+ * two plugins in one process are one trust domain, and nothing below this
+ * layer can make them two. `SHARED_PLACEMENT` puts everything in one, which is
+ * a memory trade a caller may still want and must now ask for.
+ *
+ * Keying by plugin id rather than instance id is deliberate: a reload swap's
+ * two instances of one plugin share a process, which is the only sharing that
+ * gives nothing away.
  */
 export type PluginPlacement = (plugin: SupervisedPlugin) => PluginProcessKey;
 
@@ -112,6 +129,7 @@ export interface PluginSupervisorOptions {
     "pluginId" | "permissions" | "sites" | "serverEntry" | "apiKey"
   >;
   handlers: SupervisorHostHandlers;
+  /** Defaults to {@link ISOLATED_PLACEMENT}; see the note on the type. */
   placement?: PluginPlacement;
   spawn?: PluginProcessSpawner;
   logger?: {
@@ -202,7 +220,7 @@ const DEFAULT_RESTART = {
 export function createPluginSupervisor(
   options: PluginSupervisorOptions,
 ): PluginSupervisor {
-  const placement = options.placement ?? SHARED_PLACEMENT;
+  const placement = options.placement ?? ISOLATED_PLACEMENT;
   const spawn = options.spawn ?? defaultSpawn;
   const logger = options.logger ?? { warn: () => {}, info: () => {} };
   const restart = { ...DEFAULT_RESTART, ...options.restart };
