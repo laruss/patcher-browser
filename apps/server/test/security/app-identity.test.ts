@@ -1,9 +1,16 @@
+import { mkdtemp, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  PATCHER_APP_KEY_FILE_NAME,
   PATCHER_APP_KEY_HEADER,
   PATCHER_APP_KEY_QUERY_PARAM,
+  resolveAppApiKey,
 } from "@patcher/config/app-key";
+import { readOrCreateSecretFile } from "@patcher/secret-storage";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { createAppApiIdentity } from "../../src/app-identity.js";
 import {
   startTestServer,
   TEST_APP_API_KEY,
@@ -184,5 +191,97 @@ describe("the sockets, which the request gate never sees", () => {
     await expect(
       websocketStatus(websocketUrl(server.baseUrl, "/ws/terminals/whatever")),
     ).resolves.toBe(401);
+  });
+});
+
+/**
+ * The seam the suite above cannot see: the server writes this key and a
+ * *different process* reads it. Nothing else pins the two ends to the same
+ * file, and a mismatch would not fail a build — it would refuse the CLI at
+ * runtime, on a machine nobody was watching.
+ */
+describe("the key the server writes and the key a client finds", () => {
+  const dirs: string[] = [];
+
+  afterEach(async () => {
+    for (const dir of dirs.splice(0)) {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  async function dataDir(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "patcher-app-key-"));
+    dirs.push(dir);
+    return dir;
+  }
+
+  /** Exactly what `start-server.ts` does at startup. */
+  function writeAsServer(dir: string): Promise<string> {
+    return readOrCreateSecretFile({
+      bytes: 32,
+      dataDir: dir,
+      encoding: "base64url",
+      fileName: PATCHER_APP_KEY_FILE_NAME,
+    });
+  }
+
+  it("are the same key", async () => {
+    const dir = await dataDir();
+
+    const written = await writeAsServer(dir);
+
+    // What the CLI, the launcher and the desktop shell each do.
+    expect(resolveAppApiKey({ dataDir: dir, env: {} })).toBe(written);
+  });
+
+  it("is written so only this user can read it", async () => {
+    const dir = await dataDir();
+    await writeAsServer(dir);
+
+    const mode = (await stat(join(dir, PATCHER_APP_KEY_FILE_NAME))).mode;
+
+    expect(mode & 0o777).toBe(0o600);
+  });
+
+  it("survives a restart, because clients outlive one", async () => {
+    const dir = await dataDir();
+
+    const first = await writeAsServer(dir);
+    const second = await writeAsServer(dir);
+
+    expect(second).toBe(first);
+  });
+
+  it("lets the environment override the file", async () => {
+    // How a shell, a container, or a desktop pointed at a server whose data
+    // directory this machine cannot read is given a key.
+    const dir = await dataDir();
+    await writeAsServer(dir);
+
+    expect(
+      resolveAppApiKey({ dataDir: dir, env: { PATCHER_APP_KEY: "from-env" } }),
+    ).toBe("from-env");
+  });
+
+  it("answers undefined rather than throwing when there is no key yet", async () => {
+    // A client reaching a server that has never started. The 401 it then gets
+    // says more than an exception from inside config resolution would.
+    const dir = await dataDir();
+
+    expect(resolveAppApiKey({ dataDir: dir, env: {} })).toBeUndefined();
+  });
+
+  it("verifies what it wrote, and refuses a near miss", async () => {
+    const dir = await dataDir();
+    const written = await writeAsServer(dir);
+    const identity = createAppApiIdentity(written);
+    const request = (key: string | undefined) => ({
+      header: () => key,
+      url: "http://127.0.0.1:1/api/v1/projects",
+    });
+
+    expect(identity.verify(request(written))).toBe(true);
+    expect(identity.verify(request("x".repeat(written.length)))).toBe(false);
+    expect(identity.verify(request(undefined))).toBe(false);
   });
 });
