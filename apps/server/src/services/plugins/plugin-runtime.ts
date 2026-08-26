@@ -29,6 +29,7 @@ import { linkCancellation } from "./plugin-cancellation.js";
 import { readPluginSettingsValues } from "./plugin-settings.js";
 import { pluginExternalsAlias } from "./plugin-externals-alias.js";
 import { createPluginHostCallServer } from "./plugin-host-call-server.js";
+import { PluginRegistrationRefusedError } from "./plugin-registration-guard.js";
 import { createRemotePluginApiHandle } from "./plugin-remote-handle.js";
 import { readThreadEventHandlers } from "./plugin-thread-event-registry.js";
 import {
@@ -1318,7 +1319,22 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       } else {
         // Null means "load it here instead", and the reason is recorded in
         // `placementFallbacks`. Nothing below this branch differs.
-        const placed = await loadOutOfProcess(row, manifest, capabilities);
+        let placed: Awaited<ReturnType<typeof loadOutOfProcess>>;
+        try {
+          placed = await loadOutOfProcess(row, manifest, capabilities);
+        } catch (error) {
+          // A refused snapshot, or one of the few throws `loadOutOfProcess`
+          // does not absorb into a fallback. A refusal must not become one:
+          // the process answered and the host would not adopt the answer
+          // (./plugin-registration-guard.ts), so loading it here anyway would
+          // put exactly that plugin in the server's own realm — the thing the
+          // boundary was bought for — and let it choose that by lying about
+          // what it registered.
+          const detail = error instanceof Error ? error.message : String(error);
+          failBeforeFactory("error", detail);
+          logger.warn(`plugin ${row.id} failed to load: ${detail}`);
+          return;
+        }
         if (placed !== null) {
           handle = placed.handle;
           remoteInstanceId = placed.instanceId;
@@ -1872,6 +1888,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         void stopRemoteInstance(row.id, instanceId);
       };
       attempt.then(cleanUp, cleanUp);
+      // Everything else here is "the process did not work out", and the server
+      // is the floor for those. This one is the process working fine and
+      // saying something the host will not adopt, so there is no floor to fall
+      // to: `load` turns it into the plugin's load error.
+      if (error instanceof PluginRegistrationRefusedError) throw error;
       return fallBackToServer(
         row.id,
         `plugin process failed: ${error instanceof Error ? error.message : String(error)}`,

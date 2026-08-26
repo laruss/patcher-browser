@@ -25,16 +25,27 @@ charged on the **host's** side of that boundary:
   by pattern match per navigation, against the patterns that contribution was
   registered with.
 
-What a plugin _registers_ is not, and that gap is open. A plugin's
-registrations arrive as one snapshot at bootstrap, and the host adopts it
-whole — `plugin-supervisor.ts` casts the reply to
-`PluginRegistrationSnapshot` without re-parsing it, and the gates on
+What a plugin _registers_ is charged here too, and it took a second gate. A
+plugin's registrations arrive as one snapshot at bootstrap, and the host used to
+adopt it whole — `plugin-supervisor.ts` cast the reply to
+`PluginRegistrationSnapshot` without re-parsing it, while the gates on
 `registerPageScript` and `registerPageStyle` live in `plugin-api.ts`, which for
-an out-of-process plugin runs over there. So a plugin that writes the snapshot
-itself, rather than calling the object it was handed, can register a page
-script it never declared `patcher.sites` for. Closing it means validating that
-snapshot on the host against the declared set, the same way the call path is
-validated.
+an out-of-process plugin runs over there. So a plugin that wrote the snapshot
+itself, rather than calling the object it was handed, could register a page
+script it never declared `patcher.sites` for, and the app would run it on every
+page the user visits: the browser-side check per navigation tests _url ∈
+matches_, never _matches ⊆ `patcher.sites`_, because the patterns arrive with
+the contribution.
+
+`plugin-registration-guard.ts` is the host asking the same questions of the
+answer: the reply is parsed with a zod schema rather than cast, anything it
+claims that costs a permission is charged against what the manifest declared,
+and every page contribution's `matches` goes through the one membership rule in
+`plugin-declared-sites.ts` — the same function `plugin-api.ts` calls, so the two
+sides cannot drift. A refusal ends the load and says so in the log, and
+deliberately does **not** fall back to running the plugin in the server the way
+a process that fails to start does: that fallback would hand a plugin the realm
+the boundary was bought to keep it out of, and let it choose that by lying.
 
 What no part of that closes is the process itself. It is a plain `fork`:
 `node:child_process`, `node:fs`, the network, running as you. A plugin can read

@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
 import type { PluginPort } from "../../src/services/plugins/plugin-channel.js";
+import type { PluginMessage } from "../../src/services/plugins/plugin-protocol.js";
 import { createPluginChildRuntime } from "../../src/services/plugins/plugin-child-runtime.js";
 import { createPortMultiplexer } from "../../src/services/plugins/plugin-port-multiplexer.js";
 
@@ -21,8 +22,21 @@ export interface FakePluginHostProcess {
   hosted(): string[];
 }
 
+export interface FakePluginHostOptions {
+  /**
+   * Rewrite what the process answers, on its way out.
+   *
+   * Not a convenience: once a plugin's own code runs in there, the frames on
+   * the pipe are the plugin's to write, and the host has to hold what arrives
+   * to its own rules rather than to what the child runtime would have sent. A
+   * test needs a way to be that plugin.
+   */
+  rig?: (message: PluginMessage) => PluginMessage;
+}
+
 export function createFakePluginHostProcess(
   onCreated?: (host: FakePluginHostProcess) => void,
+  options: FakePluginHostOptions = {},
 ): FakePluginHostProcess {
   const outward = new EventEmitter();
   const child = new EventEmitter() as unknown as ChildProcess & {
@@ -78,7 +92,18 @@ export function createFakePluginHostProcess(
     acceptUnknownKeys: true,
     onChannelOpened: (key, port) => {
       hosted.push(key);
-      createPluginChildRuntime({ port });
+      const rig = options.rig;
+      createPluginChildRuntime({
+        port:
+          rig === undefined
+            ? port
+            : {
+                send: (message) => port.send(rig(message)),
+                onMessage: (listener) => port.onMessage(listener),
+                onClose: (listener) => port.onClose(listener),
+                close: () => port.close(),
+              },
+      });
     },
   });
 

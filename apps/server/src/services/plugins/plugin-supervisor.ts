@@ -52,6 +52,7 @@ import {
   type PluginRegistrationSnapshot,
 } from "./plugin-child-runtime.js";
 import type { PluginCallbackKind } from "./plugin-callbacks.js";
+import { adoptPluginRegistrationSnapshot } from "./plugin-registration-guard.js";
 import type { PluginHostCallPath } from "./plugin-host-calls.js";
 import {
   createPortMultiplexer,
@@ -388,7 +389,7 @@ export function createPluginSupervisor(
 
     let snapshot: PluginRegistrationSnapshot;
     try {
-      snapshot = (await channel.request({
+      const reply = await channel.request({
         method: BOOTSTRAP_METHOD as PluginCallbackKind,
         payload: {
           ...options.shared(),
@@ -398,7 +399,19 @@ export function createPluginSupervisor(
           serverEntry: plugin.serverEntry,
           apiKey: plugin.apiKey,
         } as never,
-      })) as unknown as PluginRegistrationSnapshot;
+      });
+      // Parsed and charged, never cast. What comes back is the plugin's own
+      // account of what it registered, and it is held to the two fields sent in
+      // the payload directly above — the permission gate's other half, which
+      // until now ran only inside the process it was meant to bind. See
+      // ./plugin-registration-guard.ts.
+      snapshot = adoptPluginRegistrationSnapshot({
+        pluginId: plugin.pluginId,
+        permissions: plugin.permissions,
+        sites: plugin.sites,
+        reply,
+        logger,
+      });
     } catch (error) {
       // A plugin whose factory throws must not leave a channel and a
       // multiplexer slot behind — the next attempt to start it would be

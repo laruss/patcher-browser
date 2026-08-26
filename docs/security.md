@@ -26,9 +26,12 @@ What moving out of the server did buy: the plugin no longer shares a realm with
 Patcher's own modules, cannot monkey-patch them or read what the server holds in
 memory, and cannot take the server down when it crashes. It also put the
 permission gate somewhere a plugin cannot reach past — every
-`patcher.browser` command is charged on the host's side of the pipe, every
-`/api/v1` request is charged by the middleware, and a request that identifies
-itself as nothing is now refused rather than taken for the app. One plugin per
+`patcher.browser` command is charged on the host's side of the pipe, what a
+plugin reports having _registered_ is parsed and charged there too (a page
+script still has to name a site the manifest declared, whoever wrote the
+reply), every `/api/v1` request is charged by the middleware, and a request
+that identifies itself as nothing is now refused rather than taken for the
+app. One plugin per
 process is part of that: two in one process would share a pipe and a V8 realm,
 which is one trust domain however carefully the pipe is keyed.
 
