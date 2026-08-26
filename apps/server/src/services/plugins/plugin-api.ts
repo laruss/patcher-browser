@@ -822,6 +822,83 @@ function wrapSdkForPlugin(
   return applySdkPermissions(attributed, pluginId, gate);
 }
 
+/**
+ * Validate and normalize one `patcher.ui.requestInput` request.
+ *
+ * Module level rather than a closure inside `createPluginApi`, because the
+ * host serves this call for an out-of-process plugin too and the request that
+ * arrives there came off a pipe — see ./plugin-host-call-server.ts. Same
+ * reasoning as the browser gate beside it: the copy that runs in the plugin's
+ * own process is the one that gives a plugin author a good error, and the copy
+ * on the host's side is the one that decides.
+ */
+export function normalizePluginInteractionRequest(request: unknown): {
+  threadId: string;
+  rendererId: string;
+  title: string;
+  payload: JsonValue;
+  timeoutMs: number;
+} {
+  if (!request || typeof request !== "object") {
+    throw new Error("ui.requestInput requires an options object");
+  }
+  const fields = request as {
+    threadId?: unknown;
+    rendererId?: unknown;
+    title?: unknown;
+    payload?: unknown;
+    timeoutMs?: unknown;
+  };
+  if (typeof fields.threadId !== "string" || fields.threadId.length === 0) {
+    throw new Error("ui.requestInput threadId must be a non-empty string");
+  }
+  if (
+    typeof fields.rendererId !== "string" ||
+    !/^[a-zA-Z0-9_-]+$/.test(fields.rendererId)
+  ) {
+    throw new Error(
+      "ui.requestInput rendererId must use letters, digits, '-' or '_'",
+    );
+  }
+  if (
+    typeof fields.title !== "string" ||
+    fields.title.trim().length === 0 ||
+    fields.title.trim().length > PLUGIN_INTERACTION_MAX_TITLE_LENGTH
+  ) {
+    throw new Error(
+      `ui.requestInput title must be 1-${PLUGIN_INTERACTION_MAX_TITLE_LENGTH} characters`,
+    );
+  }
+  let payload: JsonValue;
+  try {
+    const json = JSON.stringify(fields.payload);
+    if (json === undefined) throw new Error();
+    if (Buffer.byteLength(json, "utf8") > 64 * 1024) {
+      throw new Error("ui.requestInput payload exceeds 64 KiB");
+    }
+    payload = JSON.parse(json) as JsonValue;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("64 KiB")) throw error;
+    throw new Error("ui.requestInput payload must be JSON-serializable");
+  }
+  const timeoutMs = fields.timeoutMs ?? 10 * 60 * 1000;
+  if (
+    typeof timeoutMs !== "number" ||
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > 60 * 60 * 1000
+  ) {
+    throw new Error("ui.requestInput timeoutMs must be between 1 and 3600000");
+  }
+  return {
+    threadId: fields.threadId,
+    rendererId: fields.rendererId,
+    title: fields.title.trim(),
+    payload,
+    timeoutMs,
+  };
+}
+
 export function createPluginApi(options: {
   pluginId: string;
   /**
@@ -943,58 +1020,8 @@ export function createPluginApi(options: {
     requestOptions?: Parameters<PluginUi["requestInput"]>[1],
   ) {
     assertLive();
-    if (!request || typeof request !== "object") {
-      throw new Error("ui.requestInput requires an options object");
-    }
-    if (typeof request.threadId !== "string" || request.threadId.length === 0) {
-      throw new Error("ui.requestInput threadId must be a non-empty string");
-    }
-    if (
-      typeof request.rendererId !== "string" ||
-      !/^[a-zA-Z0-9_-]+$/.test(request.rendererId)
-    ) {
-      throw new Error(
-        "ui.requestInput rendererId must use letters, digits, '-' or '_'",
-      );
-    }
-    if (
-      typeof request.title !== "string" ||
-      request.title.trim().length === 0 ||
-      request.title.trim().length > PLUGIN_INTERACTION_MAX_TITLE_LENGTH
-    ) {
-      throw new Error(
-        `ui.requestInput title must be 1-${PLUGIN_INTERACTION_MAX_TITLE_LENGTH} characters`,
-      );
-    }
-    let payload: JsonValue;
-    try {
-      const json = JSON.stringify(request.payload);
-      if (json === undefined) throw new Error();
-      if (Buffer.byteLength(json, "utf8") > 64 * 1024) {
-        throw new Error("ui.requestInput payload exceeds 64 KiB");
-      }
-      payload = JSON.parse(json) as JsonValue;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("64 KiB"))
-        throw error;
-      throw new Error("ui.requestInput payload must be JSON-serializable");
-    }
-    const timeoutMs = request.timeoutMs ?? 10 * 60 * 1000;
-    if (
-      !Number.isInteger(timeoutMs) ||
-      timeoutMs <= 0 ||
-      timeoutMs > 60 * 60 * 1000
-    ) {
-      throw new Error(
-        "ui.requestInput timeoutMs must be between 1 and 3600000",
-      );
-    }
     return requestInteraction({
-      threadId: request.threadId,
-      rendererId: request.rendererId,
-      title: request.title.trim(),
-      payload,
-      timeoutMs,
+      ...normalizePluginInteractionRequest(request),
       signal: requestOptions?.signal,
     });
   }
