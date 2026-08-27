@@ -169,6 +169,14 @@ export function BrowserSurfaceChrome({
   const [isSiteInfoOpen, setIsSiteInfoOpen] = useState(false);
   const downloadsPanelRef = useRef<HTMLDivElement>(null);
   const downloadsButtonRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the click in progress is the one bringing focus to the address bar
+   * — the click that selects the whole address, rather than the one after it
+   * that places the caret in it.
+   *
+   * Read on mousedown, because that is the last moment before focus moves.
+   */
+  const clickWillFocusAddressRef = useRef(false);
 
   const toggleDownloads = useCallback(() => {
     const next = !isDownloadsOpen;
@@ -487,6 +495,29 @@ export function BrowserSurfaceChrome({
                 value={isEditing ? draft : url}
                 onChange={(event) => {
                   handleChange(event.target.value);
+                }}
+                onMouseDown={() => {
+                  clickWillFocusAddressRef.current =
+                    document.activeElement !== inputRef.current;
+                }}
+                onMouseUp={(event) => {
+                  if (!clickWillFocusAddressRef.current) {
+                    return;
+                  }
+                  clickWillFocusAddressRef.current = false;
+                  const input = inputRef.current;
+                  // A drag picked out a range on purpose; only a plain click
+                  // means "I want the address, all of it".
+                  if (
+                    input === null ||
+                    input.selectionStart !== input.selectionEnd
+                  ) {
+                    return;
+                  }
+                  // Without this the click's own caret placement lands after
+                  // the selection and collapses it.
+                  event.preventDefault();
+                  input.select();
                 }}
                 onFocus={() => {
                   // A draft that is already there stays: this is also the event

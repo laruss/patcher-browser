@@ -331,6 +331,33 @@ describe("BrowserSurfaceChrome", () => {
     expect(document.activeElement).not.toBe(loaded.input);
   });
 
+  // Clicking a bar that holds an address means "replace this", which is what
+  // every browser's address bar does and what typing over it needs.
+  it("selects the whole address on the click that focuses the bar", () => {
+    const { input } = renderChrome();
+
+    fireEvent.mouseDown(input);
+    input.focus();
+    fireEvent.mouseUp(input);
+
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(CURRENT_URL.length);
+  });
+
+  // The click after it is how a user edits one part of a URL, so it must place
+  // the caret rather than select everything again.
+  it("leaves the caret alone on a click in a focused bar", () => {
+    const { input } = renderChrome();
+
+    input.focus();
+    input.setSelectionRange(4, 4);
+    fireEvent.mouseDown(input);
+    fireEvent.mouseUp(input);
+
+    expect(input.selectionStart).toBe(4);
+    expect(input.selectionEnd).toBe(4);
+  });
+
   // The list belongs to the address bar, not to the window: it shares the input's
   // column so it cannot be wider than the control being typed into.
   it("puts the suggestion list in the address bar's own column", async () => {
