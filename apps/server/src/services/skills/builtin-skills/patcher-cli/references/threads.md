@@ -46,6 +46,12 @@ isolated|reuse`, or anchor with `--source-seq-end`. Permission mode inherits
   provider's automatic reviewer. `full` explicitly bypasses sandbox and
   approval protections. Plan mode remains separate. The product default is
   `auto` when no inherited or project default applies.
+- The machine has the last word. Its permission limit caps every thread on it,
+  and a request above the limit is lowered rather than honoured — or refused
+  with `host_permission_ceiling_conflict` when the provider supports nothing
+  that low, which is what happens for a Full-Access-only provider on a machine
+  at the sandbox limit. Raising that limit is the owner's to do and is refused
+  from inside a turn; ask them.
 - Subagents inherit the parent's permission mode by default; pass
   `--permission-mode full` only when the user or task needs unsandboxed
   execution.
@@ -77,15 +83,26 @@ isolated|reuse`, or anchor with `--source-seq-end`. Permission mode inherits
 
 ## Files and voice
 
-- Use `patcher file read|write|list|paths|mkdir|move|remove` for SDK-equivalent host
-  file access. `--host` targets another machine; `--root` confines mutations.
+- Use `patcher file read|list|paths` for SDK-equivalent host file access.
+  `--host` targets another machine.
+- **`write`, `mkdir`, `move` and `remove` are refused when you call them from
+  inside a turn**, with a 403 naming the reason: they write to any path on the
+  machine, which would step around the workspace sandbox the turn runs in. Use
+  your own file tools inside the workspace instead, and ask the person in the
+  thread for anything outside it.
 - Use `patcher voice transcribe <file>` to invoke the configured voice transcription
   service without the app composer.
 
 ## Long-running commands
 
-- Use `patcher terminal ...` for long-running commands the user may need to inspect
-  or stop later: dev servers, watch tasks, REPLs, database consoles, and similar
+- **`patcher terminal` is refused when you call it from inside a turn**, with a
+  403 naming the reason: a terminal is a real persistent PTY on the host,
+  outside the turn's sandbox and running as the user. Everything below describes
+  the surface as the person at the machine uses it — ask them to start a
+  long-running process, or run it in the foreground within your own turn and
+  report what it printed.
+- Its purpose is long-running commands the user may need to inspect or stop
+  later: dev servers, watch tasks, REPLs, database consoles, and similar
   processes. The terminal is a real persistent PTY shown in the Patcher UI.
 - `list` and `create` require exactly one explicit scope: `--thread <id>`,
   `--environment <id>`, or `--machine <id-or-name>` (`--host` is an alias).

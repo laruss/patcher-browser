@@ -41,7 +41,10 @@ unless you pass `--auto-update` explicitly.
     --action <install|update>
 
 Each machine has a permission limit: the highest permission mode any thread on
-that machine can run with. The default is Full Access. A thread that asks for
+that machine can run with. A newly enrolled machine starts at the sandbox
+limit, so agents on it keep a workspace sandbox unless you raise the limit
+yourself; machines enrolled before that became the default keep what they had.
+A thread that asks for
 more resolves down to the limit, and a provider that supports no mode under the
 limit cannot run there. Set it in Settings → Machines → the machine → Permission
 limit; that page also shows the machine's projects, provider CLIs, update state,
