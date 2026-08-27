@@ -70,6 +70,8 @@ export const PLUGIN_THEME_CSS = `@theme inline {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-browser-tab-strip: var(--browser-tab-strip);
+  --color-browser-tab-active: var(--browser-tab-active);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
