@@ -51,6 +51,51 @@ export function permissionModeRank(permissionMode: PermissionMode): number {
 }
 
 /**
+ * The modes that keep a turn inside the workspace sandbox. "full" is the only
+ * preset that removes it, which is why it is not a fallback: every resolver
+ * that cannot honour a requested mode picks the most capable sandboxed mode the
+ * provider supports, and a provider that supports none is refused by the
+ * machine ceiling rather than quietly promoted.
+ */
+export const sandboxedPermissionModeValues = [
+  "accept-edits",
+  "auto",
+] as const satisfies readonly PermissionMode[];
+
+export function isSandboxedPermissionMode(
+  permissionMode: PermissionMode,
+): boolean {
+  return sandboxedPermissionModeValues.some(
+    (sandboxedMode) => sandboxedMode === permissionMode,
+  );
+}
+
+/**
+ * The most capable sandboxed mode in `supported`, or null when the provider
+ * offers none. Null is the signal to stop resolving and refuse — a caller that
+ * still needs a mode has to reach for "full" explicitly, at a line a reader
+ * can find.
+ */
+export function highestSandboxedPermissionMode(
+  supported: readonly PermissionMode[],
+): PermissionMode | null {
+  return (
+    supported
+      .filter(isSandboxedPermissionMode)
+      .sort(
+        (left, right) => permissionModeRank(right) - permissionModeRank(left),
+      )[0] ?? null
+  );
+}
+
+/**
+ * The ceiling a machine gets when nobody has chosen one for it. Sandbox is the
+ * product default, so a newly enrolled machine allows everything up to "auto"
+ * and refuses "full" until its owner raises the limit.
+ */
+export const DEFAULT_HOST_MAX_PERMISSION_MODE: PermissionMode = "auto";
+
+/**
  * Lower a mode to the machine's ceiling. A mode already at or below the ceiling
  * passes through untouched — including one the provider does not support, which
  * stays a provider-capability error rather than becoming a silent upgrade.

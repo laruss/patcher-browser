@@ -17,15 +17,16 @@ describe("resolvePermissionModeSelection", () => {
     ).toBe("full");
   });
 
-  it("falls back to full when auto is unsupported", () => {
-    // ACP advertises accept-edits/full only. Full is the product fallback when
-    // the provider has no native automatic reviewer.
+  it("keeps the sandbox when auto is unsupported", () => {
+    // ACP advertises accept-edits/full only. Losing the automatic reviewer is a
+    // smaller change than losing the sandbox, so an unsupported Auto resolves
+    // to Accept Edits and never silently to Full Access.
     expect(
       resolvePermissionModeSelection({
         rawPermissionMode: "auto",
         supportedPermissionModes: ["accept-edits", "full"],
       }),
-    ).toBe("full");
+    ).toBe("accept-edits");
   });
 
   it("prefers the auto default when the raw mode is unsupported", () => {

@@ -10,6 +10,7 @@ import {
   createProject,
   createThread,
   openSession,
+  updateHost,
   upsertHost,
 } from "@patcher/db";
 import {
@@ -70,19 +71,33 @@ export interface SeedTurnStartedArgs {
   turnId: string;
 }
 
+/**
+ * A test machine is uncapped unless a test says otherwise. Enrolment defaults a
+ * real machine to the sandbox ceiling (`DEFAULT_HOST_MAX_PERMISSION_MODE`),
+ * which would otherwise clamp or refuse the work in every suite that is about
+ * something else entirely. What the default itself does is covered where it is
+ * decided: `test/hosts/permission-ceiling.test.ts` and the `@patcher/db` host
+ * data tests.
+ */
 export function seedHost(
   deps: Pick<AppDeps, "db" | "hub">,
   args: {
     id?: string;
+    maxPermissionMode?: PermissionMode;
     name?: string;
     type?: "persistent";
   } = {},
 ) {
-  return upsertHost(deps.db, deps.hub, {
+  const host = upsertHost(deps.db, deps.hub, {
     id: args.id,
     name: args.name ?? "Test Host",
     type: args.type ?? "persistent",
   });
+  return (
+    updateHost(deps.db, deps.hub, host.id, {
+      maxPermissionMode: args.maxPermissionMode ?? "full",
+    }) ?? host
+  );
 }
 
 export function seedHostSession(

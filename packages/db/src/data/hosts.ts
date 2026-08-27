@@ -1,5 +1,10 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { HostChangeKind, HostType, PermissionMode } from "@patcher/domain";
+import {
+  DEFAULT_HOST_MAX_PERMISSION_MODE,
+  type HostChangeKind,
+  type HostType,
+  type PermissionMode,
+} from "@patcher/domain";
 import type { DbConnection, DbTransaction } from "../connection.js";
 import type { DbNotifier } from "../notifier.js";
 import { hosts } from "../schema.js";
@@ -97,6 +102,12 @@ export function upsertHost(
         destroyedAt: input.destroyedAt ?? null,
         lastSeenAt: null,
         lastRejectedProtocolVersion: null,
+        // Written rather than left to the column default, which still reads
+        // "full" on every database created before sandbox became the product
+        // default. Changing that default would need a SQLite table recreate to
+        // reach existing installs; the insert reaches them today. An owner's
+        // later choice lives in the row and `updateHost` never touches it here.
+        maxPermissionMode: DEFAULT_HOST_MAX_PERMISSION_MODE,
         createdAt: now,
         updatedAt: now,
       })

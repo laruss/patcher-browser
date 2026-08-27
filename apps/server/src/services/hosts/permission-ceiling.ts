@@ -1,6 +1,7 @@
 import { getEnvironment, getHost } from "@patcher/db";
 import {
   clampPermissionModeToCeiling,
+  DEFAULT_HOST_MAX_PERMISSION_MODE,
   type PermissionMode,
 } from "@patcher/domain";
 import { getSupportedPermissionModes } from "@patcher/agent-providers";
@@ -30,16 +31,26 @@ export function isHostPermissionCeilingConflictError(
 }
 
 /**
- * The machine's permission ceiling. An unknown host reports "full" so a
- * missing row never silently downgrades work; the caller fails later on the
- * real "host not found" path instead.
+ * The machine's permission ceiling.
+ *
+ * A missing row is a bug, not a machine that allows everything, so it reports
+ * the sandbox default: the caller still fails on the real "host not found"
+ * path, and until it does the fallback grants less rather than more.
+ *
+ * No host id at all is a different question — nothing has been chosen yet, so
+ * there is no machine whose limit could apply, and the compose flow still has
+ * to be able to offer every mode before a machine exists. That answer stays
+ * "full"; what gates a mode there is the provider's own capability list.
  */
 export function getHostPermissionCeiling(
   deps: PermissionCeilingDeps,
   hostId: string | null,
 ): PermissionMode {
   if (hostId === null) return "full";
-  return getHost(deps.db, hostId)?.maxPermissionMode ?? "full";
+  return (
+    getHost(deps.db, hostId)?.maxPermissionMode ??
+    DEFAULT_HOST_MAX_PERMISSION_MODE
+  );
 }
 
 /** The machine a thread's work lands on, or null before it has an environment. */
