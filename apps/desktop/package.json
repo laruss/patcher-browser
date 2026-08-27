@@ -16,6 +16,7 @@
     "dist": "bun run prepare-runtime && bun run desktop:build",
     "package": "bun run prepare-runtime && bun run build && node scripts/run-electron-builder.mjs --mac --dir --arm64",
     "prepare-runtime": "turbo run build --filter=patcher-app --output-logs=new-only",
+    "smoke:app-boot": "node scripts/smoke-app-boot.mjs",
     "smoke:packaged": "node scripts/smoke-packaged-app.mjs",
     "start": "bun run package && node scripts/run-packaged-app.mjs",
     "test": "vitest run --config vitest.config.ts",
