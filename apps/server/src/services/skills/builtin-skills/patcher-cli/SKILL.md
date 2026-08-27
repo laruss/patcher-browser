@@ -47,7 +47,15 @@ all of them.
   provider session instead of starting fresh.
 - Public permission modes are `accept-edits`, `auto`, and `full`. Subagents
   inherit the parent's mode; pass `--permission-mode full` only when the user
-  or task needs unsandboxed execution.
+  or task needs unsandboxed execution. The machine's own limit caps all three,
+  and raising it is the owner's to do.
+- Some of this CLI is refused while you are the one calling it, because it would
+  step around the sandbox your turn runs in. Each refusal is a 403 that names
+  the reason, so you do not have to guess: `patcher file write|mkdir|move|remove`
+  (use your own file tools inside the workspace), `patcher terminal` (ask the
+  person in the thread to start a long-running process), and the machine
+  routes — permission limit, join codes, provider-CLI installs. Reads are not
+  affected.
 
 Give spawned threads clear prompts: objective, constraints, expected deliverable,
 validation to perform, and what to report back. Ask for outcome, changed files
