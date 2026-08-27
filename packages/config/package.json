@@ -53,6 +53,11 @@
       "types": "./src/app-key.ts",
       "default": "./src/app-key.ts"
     },
+    "./app-key-file": {
+      "source": "./src/app-key-file.ts",
+      "types": "./src/app-key-file.ts",
+      "default": "./src/app-key-file.ts"
+    },
     "./cli": {
       "source": "./src/cli.ts",
       "types": "./src/cli.ts",

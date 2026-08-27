@@ -15,7 +15,7 @@ import {
   setParcelWatcherBackend,
   type HostWatcher,
 } from "@patcher/host-watcher";
-import { resolveAppApiKey } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { createLogger } from "@patcher/logger";
 import { type CreateHostDaemonAppOptions, createHostDaemonApp } from "./app.js";
 import {
