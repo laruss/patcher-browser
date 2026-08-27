@@ -268,6 +268,7 @@ function createAgentRuntimeInternal(
 ): AgentRuntime {
   const additionalWorkspaceWriteRoots =
     options.additionalWorkspaceWriteRoots ?? [];
+  const protectedCredentialPaths = options.protectedCredentialPaths ?? [];
   const skillRoots = normalizeSkillRoots({
     skillRoots: options.skillRoots,
   });
@@ -288,6 +289,7 @@ function createAgentRuntimeInternal(
 
   const providerProcesses = new RuntimeProviderProcessManager({
     additionalWorkspaceWriteRoots,
+    protectedCredentialPaths,
     adapterFactory: options.adapterFactory,
     bridgeBundleDir: options.bridgeBundleDir,
     ...(bridgeNodeEnv !== undefined ? { bridgeNodeEnv } : {}),

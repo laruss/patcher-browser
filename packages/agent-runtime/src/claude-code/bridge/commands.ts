@@ -20,6 +20,9 @@ const bridgeReasoningLevelSchema = z.enum(reasoningLevelValues);
 const bridgeAdditionalWorkspaceWriteRootsSchema = z
   .array(z.string())
   .optional();
+// Omission means the session protects nothing extra, for the same
+// compatibility reason as the roots above.
+const bridgeProtectedCredentialPathsSchema = z.array(z.string()).optional();
 
 const bridgeClaudeLocalPluginSchema = z.object({
   type: z.literal("local"),
@@ -53,6 +56,7 @@ const claudeCodeCommandSchema = z.discriminatedUnion("method", [
       cwd: z.string(),
       baseInstructions: z.string(),
       additionalWorkspaceWriteRoots: bridgeAdditionalWorkspaceWriteRootsSchema,
+      protectedCredentialPaths: bridgeProtectedCredentialPathsSchema,
       plugins: bridgeClaudePluginsSchema,
       permissionMode: claudePermissionModeSchema,
       // The mode the session returns to once the user approves a plan. `/plan`
@@ -83,6 +87,7 @@ const claudeCodeCommandSchema = z.discriminatedUnion("method", [
       providerThreadId: z.string().nullable(),
       baseInstructions: z.string().optional(),
       additionalWorkspaceWriteRoots: bridgeAdditionalWorkspaceWriteRootsSchema,
+      protectedCredentialPaths: bridgeProtectedCredentialPathsSchema,
       plugins: bridgeClaudePluginsSchema,
       permissionMode: claudePermissionModeSchema,
       // The mode the session returns to once the user approves a plan. `/plan`
@@ -114,6 +119,7 @@ const claudeCodeCommandSchema = z.discriminatedUnion("method", [
       sourceProviderCheckpointId: z.string().min(1).optional(),
       baseInstructions: z.string().optional(),
       additionalWorkspaceWriteRoots: bridgeAdditionalWorkspaceWriteRootsSchema,
+      protectedCredentialPaths: bridgeProtectedCredentialPathsSchema,
       plugins: bridgeClaudePluginsSchema,
       permissionMode: claudePermissionModeSchema,
       // The mode the session returns to once the user approves a plan. `/plan`

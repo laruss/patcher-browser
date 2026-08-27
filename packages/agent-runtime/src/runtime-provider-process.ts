@@ -44,6 +44,7 @@ export interface RuntimeProviderProcessLineArgs {
 
 export interface RuntimeProviderProcessManagerArgs {
   additionalWorkspaceWriteRoots: readonly string[];
+  protectedCredentialPaths?: readonly string[];
   adapterFactory?: ProviderAdapterFactory;
   bridgeBundleDir: string | undefined;
   bridgeNodeEnv?: Record<string, string>;
@@ -322,6 +323,7 @@ export class RuntimeProviderProcessManager {
   ): ProviderAdapter {
     const adapterOptions = {
       additionalWorkspaceWriteRoots: this.args.additionalWorkspaceWriteRoots,
+      protectedCredentialPaths: this.args.protectedCredentialPaths,
       ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
       bridgeBundleDir: this.args.bridgeBundleDir,
       ...(this.args.bridgeNodeEnv !== undefined

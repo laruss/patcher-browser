@@ -1,5 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
+import {
+  PATCHER_AUTH_SECRET_FILE_NAME,
+  PATCHER_SQLITE_DATABASE_FILE_NAME,
+} from "@patcher/config/runtime";
 import {
   createAgentRuntime,
   type AgentRuntime,
@@ -326,6 +331,34 @@ export class RuntimeManager {
     this.provisionWorkspace = options.provisionWorkspace ?? provisionWorkspace;
     this.baseShellEnv = { ...(options.shellEnv ?? {}) };
     this.ensureDataDirSkillsWatcher();
+  }
+
+  /**
+   * Credential files a sandboxed turn must not read.
+   *
+   * A turn is handed a thread-scoped key rather than the app key, and this is
+   * what stops it reading the app key off disk and being the app again. The
+   * database is here for the same reason and more: it holds host keys, plugin
+   * storage and every other thread. Per-plugin secrets under
+   * `<dataDir>/plugins` are deliberately not denied wholesale — that directory
+   * also holds installed plugin code an agent has reason to read.
+   *
+   * Only a provider whose sandbox can protect a path honours this; Codex's
+   * leaves reads open with nothing to say otherwise.
+   */
+  private runtimeProtectedCredentialPaths(): string[] {
+    const dataDir = this.options.dataDir;
+    if (!dataDir) return [];
+    const databasePath = path.join(dataDir, PATCHER_SQLITE_DATABASE_FILE_NAME);
+    return [
+      path.join(dataDir, PATCHER_APP_KEY_FILE_NAME),
+      path.join(dataDir, PATCHER_AUTH_SECRET_FILE_NAME),
+      databasePath,
+      // SQLite keeps recent writes beside the database until they are
+      // checkpointed, so denying only the main file leaks the newest rows.
+      `${databasePath}-wal`,
+      `${databasePath}-shm`,
+    ];
   }
 
   private runtimeWorkspaceWriteRoots(
@@ -1303,6 +1336,7 @@ export class RuntimeManager {
     runtime = this.createRuntime({
       workspacePath: workspace.path,
       additionalWorkspaceWriteRoots,
+      protectedCredentialPaths: this.runtimeProtectedCredentialPaths(),
       ...(args.skillConfig ? { skillRoots: args.skillConfig.skillRoots } : {}),
       ...(providerProcessEnv ? { env: providerProcessEnv } : {}),
       shellEnv,

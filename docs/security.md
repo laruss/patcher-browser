@@ -108,12 +108,29 @@ agent mid-turn, because each one hands back exactly what the sandbox took away:
 Reads are not on the list: an agent reads files through its own tools anyway, so
 gating `files/read` would gate the polite path and nothing else.
 
-**The app key is still a file the agent can read.** It runs as you, and the
-sandbox restricts writes rather than reads, so an agent that goes looking can
-read the key and present itself as the app. Not handing it over is what makes
-that a deliberate act rather than the default arrangement — the same position
-the plugin permission map holds, and it closes the same way: a sandbox that
-restricts reads, or a machine whose data directory belongs to another user.
+**The app key file is denied to a sandboxed turn.** Not handing the key over
+would mean little while the file sat there to be read: a sandbox restricts
+writes and the network and leaves reads open, and Bash is auto-approved
+*because* it is sandboxed, so one `cat` would have handed the turn back the
+credential it is deliberately not given, without a prompt. Claude Code's
+sandbox can protect a path, so Patcher names four: the app key, the machine
+auth secret, and the database with its write-ahead sidecars — the database
+because it holds host keys, plugin storage and every other thread. A read of
+one is refused inside the sandbox, and the only way onward is running the
+command unsandboxed, which is a permission request the person in the thread
+sees and an escalation-denied turn has refused for it.
+
+Two edges remain, and they are edges rather than the default:
+
+- **Codex.** Its sandbox leaves reads open with nothing to say otherwise, so a
+  Codex turn can still read these files. Closing it needs a boundary Patcher
+  owns rather than one its provider offers.
+- **Full Access.** It builds no sandbox, so there is nowhere for the denial to
+  live. That is what the mode means.
+
+Per-plugin secrets under the data directory's `plugins` are deliberately not
+denied wholesale: that directory also holds installed plugin code an agent has
+reason to read.
 
 Every outcome where nobody could have seen the prompt refuses, because a prompt
 nobody saw is not consent: an archived or destroying thread is refused before a
