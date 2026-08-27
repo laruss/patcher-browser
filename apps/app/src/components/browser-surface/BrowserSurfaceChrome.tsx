@@ -533,7 +533,6 @@ export function BrowserSurfaceChrome({
             <BrowserOmniboxSuggestions
               highlightedIndex={highlightedIndex}
               listboxId={OMNIBOX_LISTBOX_ID}
-              onHighlight={highlightRow}
               onSelect={(suggestion) => {
                 runAction(suggestion.action);
               }}

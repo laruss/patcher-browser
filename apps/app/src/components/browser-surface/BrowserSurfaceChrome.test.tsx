@@ -287,6 +287,26 @@ describe("BrowserSurfaceChrome", () => {
     expect(input.value).toBe("https://elsewhere.test/");
   });
 
+  // The list opens in the layout under the input, so a row lands wherever the
+  // pointer was already resting — over the page, most of the time. Enter must
+  // still do what the typed text says, not what the cursor happens to cover.
+  it("leaves Enter on the default action when a row is only hovered", async () => {
+    const { input, navigate, onActivateTab } = renderChrome();
+
+    await typeQuery(input, "docs");
+    // Row 1 is the open tab: the row that used to hijack Enter.
+    fireEvent.mouseEnter(screen.getAllByRole("option")[1]);
+    expect(input.getAttribute("aria-activedescendant")).toBeNull();
+
+    pressEnter(input);
+
+    expect(onActivateTab).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({
+      tabId: ACTIVE_TAB_ID,
+      url: "https://www.google.com/search?q=docs",
+    });
+  });
+
   it("navigates to a clicked history row", async () => {
     const { input, navigate } = renderChrome();
 
