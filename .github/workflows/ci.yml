@@ -81,6 +81,18 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
           cache-prefix: test-${{ matrix.shard }}
 
+      - name: Install the Linux sandbox backend
+        # A workspace permission mode refuses to start on a machine that cannot
+        # build a sandbox, by design — see `resolveWorkspaceSandboxAvailability`
+        # in claude-code/bridge/session-options.ts. macOS composes one from
+        # Seatbelt; Linux needs bubblewrap, so without it the bridge tests that
+        # drive a sandboxed mode through the real JSON-RPC path fail on the
+        # runner's own platform. Installing it also means Linux CI exercises the
+        # sandbox rather than the refusal.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+
       - name: Test
         # --concurrency matches the root `test` script: the packages shard runs
         # everything that spawns git, watchers and daemons, and vitest already

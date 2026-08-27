@@ -3,6 +3,7 @@ import type {
   Environment,
   Host,
   PendingInteraction,
+  PermissionMode,
   Thread,
   ThreadExecutionOptions,
   ThreadEventRow,
@@ -362,6 +363,30 @@ export async function getAvailableModels(
   await expectStatus(response, 200, "get available models");
   return systemExecutionOptionsResponseSchema.parse(await response.json())
     .models;
+}
+
+/**
+ * Raise a machine's permission limit.
+ *
+ * An enrolled machine now starts at the sandbox ceiling, so a provider that
+ * only offers Full Access — Pi — cannot run on it until its owner raises the
+ * limit. A test that is about something else and happens to use such a provider
+ * has to do what the owner would.
+ */
+export async function setHostPermissionCeiling(
+  api: PublicApiClient,
+  hostId: string,
+  maxPermissionMode: PermissionMode,
+): Promise<void> {
+  const response = await api.hosts[":id"]["permission-ceiling"].$patch({
+    param: { id: hostId },
+    json: { maxPermissionMode },
+  });
+  await expectStatus(
+    response,
+    200,
+    `set permission ceiling for host ${hostId}`,
+  );
 }
 
 export async function getHosts(api: PublicApiClient): Promise<Host[]> {
