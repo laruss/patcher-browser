@@ -7,10 +7,12 @@ import {
 } from "@/lib/omnibox";
 
 export interface BrowserOmniboxSuggestionsProps {
-  /** `-1` means no row is selected, so Enter runs the default action. */
+  /**
+   * `-1` means no row is selected, so Enter runs the default action. Only the
+   * keyboard moves it: see the hover note on the rows below.
+   */
   highlightedIndex: number;
   listboxId: string;
-  onHighlight: (index: number) => void;
   onSelect: (suggestion: OmniboxSuggestion) => void;
   optionId: (index: number) => string;
   suggestions: readonly OmniboxSuggestion[];
@@ -43,7 +45,6 @@ const SUGGESTION_KIND_PRESENTATION: Record<
 export function BrowserOmniboxSuggestions({
   highlightedIndex,
   listboxId,
-  onHighlight,
   onSelect,
   optionId,
   suggestions,
@@ -77,9 +78,12 @@ export function BrowserOmniboxSuggestions({
               onMouseDown={(event) => {
                 event.preventDefault();
               }}
-              onMouseEnter={() => {
-                onHighlight(index);
-              }}
+              // Deliberately no hover -> selection. The list opens in the
+              // layout, directly under the input and over whatever the pointer
+              // was resting on, so a row can arrive beneath a stationary cursor
+              // — and selecting it would silently change what Enter does. The
+              // pointer commits by clicking; the keyboard is what moves the
+              // selection. `hover:` below still shows what a click would hit.
               onClick={() => {
                 onSelect(suggestion);
               }}
