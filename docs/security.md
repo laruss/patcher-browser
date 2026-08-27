@@ -221,8 +221,11 @@ Two routes stay open to an unidentified caller, on purpose: a plugin's own
 plugin and which carry their own `auth` mode, and its frontend assets, which
 your browser loads with no headers at all.
 
-`PATCHER_APP_KEY` overrides the file, which is how a shell, a container, or a
-desktop pointed at a remote server is given a key it cannot read from disk.
+`PATCHER_APP_KEY` overrides the file, which is how a container, a host daemon on
+another machine from the server, or a desktop pointed at a remote server is
+given a key it cannot read from disk. A turn's processes are not among them:
+they get a thread-scoped key instead, and the section above says what that does
+and does not buy.
 
 The key never goes on a command line. The desktop shell hands it to its own
 window in the URL it navigates to, and the app takes it out of `location`
