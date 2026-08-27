@@ -1,4 +1,4 @@
-import { getBrowserUrlHost } from "@/lib/browser-url";
+import { getBrowserUrlHost, normalizeBrowserUrl } from "@/lib/browser-url";
 import { omniboxUrlMatchCandidates, scoreOmniboxTextMatch } from "../match";
 import type { OmniboxProvider, OmniboxProviderSuggestion } from "../types";
 
@@ -30,6 +30,15 @@ export interface CreateOmniboxOpenTabsProviderArgs {
  * navigations — the point is to not open a second copy of a page that is
  * already loaded.
  *
+ * **Nothing is offered for a typed address.** Typing one is not a search for a
+ * page, it is an instruction to go there, and the row that offered to switch to
+ * a tab already showing it sat next to the address row carrying a different
+ * kind of action — so the list answered a question the user had not asked, and
+ * a stray selection turned Enter into a tab switch. The condition is the
+ * navigation provider's own (`normalizeBrowserUrl`), so the rule reads as one
+ * sentence: where the address row is, tab rows are not. Searching by name
+ * (`docs`, `jira`) is untouched, and that is what this provider is for.
+ *
  * Tabs with no URL yet (a fresh new-tab row) are skipped: there is nothing to
  * switch to.
  */
@@ -39,6 +48,9 @@ export function createOmniboxOpenTabsProvider(
   return {
     id: OMNIBOX_OPEN_TABS_PROVIDER_ID,
     suggest(query): readonly OmniboxProviderSuggestion[] {
+      if (normalizeBrowserUrl(query) !== null) {
+        return [];
+      }
       const suggestions: OmniboxProviderSuggestion[] = [];
       for (const tab of args.tabs) {
         if (tab.id === args.activeTabId || tab.url.length === 0) {

@@ -307,6 +307,25 @@ describe("BrowserSurfaceChrome", () => {
     });
   });
 
+  // The bug as it was reported: a tab restored from the last session, its
+  // address typed into a new tab, and Enter landing on that tab instead of the
+  // page. No row offering the switch, no way for Enter to reach one.
+  it("offers no tab row for a typed address, and goes there on Enter", async () => {
+    const { input, navigate, onActivateTab } = renderChrome("");
+
+    await typeQuery(input, "docs.test");
+
+    expect(optionLabels().some((label) => label.includes("Tab"))).toBe(false);
+
+    pressEnter(input);
+
+    expect(onActivateTab).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({
+      tabId: ACTIVE_TAB_ID,
+      url: "https://docs.test",
+    });
+  });
+
   it("navigates to a clicked history row", async () => {
     const { input, navigate } = renderChrome();
 
