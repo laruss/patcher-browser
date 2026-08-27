@@ -260,6 +260,22 @@ function toWorkspaceWriteCodexSandboxPolicy(
   return {
     type: "workspaceWrite",
     writableRoots: [...writableRoots],
+    // Open, and it has to stay open until the local API stops being a TCP
+    // port. Codex's restricted mode is all-or-nothing and takes loopback with
+    // it: measured on codex-cli 0.150.1 with
+    // `-s workspace-write -c sandbox_workspace_write.network_access=false`, a
+    // curl to a loopback port fails to connect (exit 7) and an external host
+    // fails to resolve (exit 6), while the same probe with the flag true
+    // answers 200 on both. Nor does Codex ask — unlike Claude, which turns a
+    // blocked connection into a `SandboxNetworkAccess` permission request that
+    // Patcher raises in the thread, Codex simply fails the command. So
+    // restricting here would cost every Codex thread the `patcher` CLI, with no
+    // prompt to grant it back and nothing gained but silence.
+    //
+    // The way to close this is the one Claude already has for the same reason:
+    // reach the local API over something the sandbox can allow on its own,
+    // rather than "all of localhost". That belongs with the launcher work, not
+    // to this flag.
     networkAccess: true,
     excludeTmpdirEnvVar: false,
     excludeSlashTmp: false,

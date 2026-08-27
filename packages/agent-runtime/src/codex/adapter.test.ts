@@ -2121,6 +2121,25 @@ describe("codex provider adapter", () => {
     });
   });
 
+  it("buildCommand turn/start leaves Full Access turns with the network", () => {
+    // The restriction belongs to the workspace sandbox. Full Access is the mode
+    // that means working without one, and it asks nothing — so it must not
+    // inherit a network gate from the mode beside it.
+    const adapter = createCodexProviderAdapter();
+    const cmd = adapter.buildCommandPlan({
+      type: "turn/start",
+      clientRequestId: "creq_222222229z",
+      threadId: "t1",
+      providerThreadId: "codex-1",
+      input: [promptTextInput({ text: "edit it" })],
+      options: fullProviderExecutionContext,
+    });
+    expect(cmd).toMatchObject({
+      method: "turn/start",
+      params: { sandboxPolicy: { type: "dangerFullAccess" } },
+    });
+  });
+
   it("buildCommand turn/start includes additional workspace-write roots", () => {
     const adapter = createCodexProviderAdapter({
       additionalWorkspaceWriteRoots: [
