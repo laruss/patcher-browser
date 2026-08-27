@@ -77,14 +77,43 @@ at the machine is the one answering.
 The local API could not tell an agent's `patcher plugin enable` from yours:
 both arrive on the same loopback server with the same credentials.
 
-Now the caller says. Patcher sets `PATCHER_THREAD_ID` in the environment of the
-processes a turn spawns, and the CLI forwards it as `x-patcher-thread-id`. No
-declared thread means a person at their own terminal, and that behaves as it
-always did. A declared thread means an agent mid-turn, and `enable`, `disable`,
-`install`, `update`, `remove` and a settings write each raise a prompt in that
-thread — the plugin's name, its declared permissions, its declared sites — and
-block on the answer for up to four minutes. The change happens only if you
-allow it.
+Now the caller proves it. A turn's processes no longer receive the app key.
+They receive a key derived from it and from the thread id, which verifies for
+that one thread and cannot be turned back into the app key, and the CLI presents
+it as `x-patcher-thread-key` beside the `x-patcher-thread-id` it always sent. No
+thread identity means a person at their own terminal, and that behaves as it
+always did — but an agent cannot become that person by dropping the header,
+because the key verifies against the id and a request with neither identifies
+as nothing, which is refused. A verified thread means an agent mid-turn, and
+`enable`, `disable`, `install`, `update`, `remove` and a settings write each
+raise a prompt in that thread — the plugin's name, its declared permissions, its
+declared sites — and block on the answer for up to four minutes. The change
+happens only if you allow it.
+
+## An agent cannot reach the routes that would undo its sandbox
+
+A thread key is a narrower credential than the app key, so the server can charge
+it a policy. Three route families are refused outright for a caller that is an
+agent mid-turn, because each one hands back exactly what the sandbox took away:
+
+- **File mutation** — `files/write`, `mkdir`, `move`, `remove`. `rootPath` is
+  optional on these, and without it the daemon writes wherever it is told, on
+  whichever machine the request names. A sandbox that confines writes to the
+  workspace means nothing beside a write-anywhere RPC.
+- **Terminals.** Opening one is a PTY on the host, outside any sandbox, running
+  as you.
+- **A machine's permission ceiling.** Raising it is how a sandboxed turn would
+  arrange to stop being one.
+
+Reads are not on the list: an agent reads files through its own tools anyway, so
+gating `files/read` would gate the polite path and nothing else.
+
+**The app key is still a file the agent can read.** It runs as you, and the
+sandbox restricts writes rather than reads, so an agent that goes looking can
+read the key and present itself as the app. Not handing it over is what makes
+that a deliberate act rather than the default arrangement — the same position
+the plugin permission map holds, and it closes the same way: a sandbox that
+restricts reads, or a machine whose data directory belongs to another user.
 
 Every outcome where nobody could have seen the prompt refuses, because a prompt
 nobody saw is not consent: an archived or destroying thread is refused before a

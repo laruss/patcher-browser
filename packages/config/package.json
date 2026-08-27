@@ -53,6 +53,11 @@
       "types": "./src/app-key.ts",
       "default": "./src/app-key.ts"
     },
+    "./thread-api-key": {
+      "source": "./src/thread-api-key.ts",
+      "types": "./src/thread-api-key.ts",
+      "default": "./src/thread-api-key.ts"
+    },
     "./app-key-file": {
       "source": "./src/app-key-file.ts",
       "types": "./src/app-key-file.ts",

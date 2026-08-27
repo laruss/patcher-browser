@@ -17,7 +17,9 @@ import {
   type BuildLocalAppOriginsArgs,
 } from "@patcher/config/local-app-origins";
 import type { AppDeps, ServerAppDeps } from "./types.js";
+import { agentRoutePolicyDenial } from "./agent-route-policy.js";
 import { createAppApiIdentity } from "./app-identity.js";
+import { createThreadApiIdentity } from "./thread-identity.js";
 import { ApiError, errorToResponse } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
 import { registerFileRoutes } from "./routes/files.js";
@@ -294,6 +296,7 @@ export function createApp(
 ): ServerApp {
   const app = new Hono();
   const appIdentity = createAppApiIdentity(deps.appApiKey);
+  const threadIdentity = createThreadApiIdentity(deps.appApiKey);
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });
@@ -469,6 +472,26 @@ export function createApp(
     // something else local. So every other client says who it is too, and the
     // anonymous case is refused rather than trusted — see app-identity.ts.
     if (pluginId === null) {
+      // An agent mid-turn is the third kind of caller, and the one whose
+      // credential says which thread it is. Checked before the app key because
+      // it is a narrower identity: a turn's processes are handed a thread key
+      // instead of the app key precisely so this branch, and not the one
+      // below, is the one they land in. See thread-identity.ts.
+      const threadId = threadIdentity.resolve(context.req);
+      if (threadId !== null) {
+        const denial = agentRoutePolicyDenial({
+          method: context.req.method,
+          path: context.req.path,
+        });
+        if (denial !== null) {
+          deps.logger.warn(
+            { route: denial.route, threadId },
+            "Refused an agent-scoped request",
+          );
+          throw new ApiError(403, "forbidden", denial.message);
+        }
+        return next();
+      }
       // Two exceptions, and they have to be: a plugin's own HTTP routes are
       // meant to be callable by a third party, and its frontend assets are
       // loaded by the browser itself, which sets no headers. See the pattern.
