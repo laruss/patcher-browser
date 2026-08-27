@@ -1,3 +1,4 @@
+import { DEFAULT_HOST_MAX_PERMISSION_MODE } from "@patcher/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createConnection } from "../../src/connection.js";
 import { migrate } from "../../src/migrate.js";
@@ -33,6 +34,33 @@ describe("hosts", () => {
     expect(host.name).toBe("My Machine");
     expect(host.type).toBe("persistent");
     expect(host.lastSeenAt).toBeNull();
+  });
+
+  it("upsert creates a new host at the sandbox ceiling", () => {
+    const { db } = setup();
+    const host = upsertHost(db, noopNotifier, {
+      name: "My Machine",
+      type: "persistent",
+    });
+
+    expect(host.maxPermissionMode).toBe(DEFAULT_HOST_MAX_PERMISSION_MODE);
+  });
+
+  it("upsert leaves a raised ceiling alone when the machine re-enrolls", () => {
+    const { db } = setup();
+    const created = upsertHost(db, noopNotifier, {
+      name: "My Machine",
+      type: "persistent",
+    });
+    updateHost(db, noopNotifier, created.id, { maxPermissionMode: "full" });
+
+    const reEnrolled = upsertHost(db, noopNotifier, {
+      id: created.id,
+      name: "My Machine",
+      type: "persistent",
+    });
+
+    expect(reEnrolled.maxPermissionMode).toBe("full");
   });
 
   it("upsert with same ID preserves lastSeenAt", () => {

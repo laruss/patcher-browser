@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_HOST_MAX_PERMISSION_MODE,
+  highestSandboxedPermissionMode,
+  isSandboxedPermissionMode,
   permissionModeInputSchema,
   permissionModeSchema,
+  sandboxedPermissionModeValues,
   promptInputHasCommandMention,
   promptMentionCommandTriggerSchema,
   promptMentionCommandTriggerValues,
@@ -78,6 +82,42 @@ describe("permission modes", () => {
         permissionEscalation: "ask",
       }).success,
     ).toBe(false);
+  });
+
+  it("counts every workspace-scoped preset as sandboxed, and only those", () => {
+    expect(sandboxedPermissionModeValues).toEqual(["accept-edits", "auto"]);
+    expect(isSandboxedPermissionMode("accept-edits")).toBe(true);
+    expect(isSandboxedPermissionMode("auto")).toBe(true);
+    expect(isSandboxedPermissionMode("full")).toBe(false);
+  });
+
+  it("defaults a machine to the sandbox ceiling", () => {
+    expect(DEFAULT_HOST_MAX_PERMISSION_MODE).toBe("auto");
+    expect(isSandboxedPermissionMode(DEFAULT_HOST_MAX_PERMISSION_MODE)).toBe(
+      true,
+    );
+  });
+});
+
+describe("highestSandboxedPermissionMode", () => {
+  it("prefers the most capable sandboxed mode on offer", () => {
+    expect(
+      highestSandboxedPermissionMode(["accept-edits", "auto", "full"]),
+    ).toBe("auto");
+    expect(highestSandboxedPermissionMode(["auto"])).toBe("auto");
+  });
+
+  it("picks Accept Edits for a provider with no automatic reviewer", () => {
+    // ACP advertises accept-edits/full. Dropping the sandbox is the bigger
+    // difference, so the reviewer is what gives way.
+    expect(highestSandboxedPermissionMode(["accept-edits", "full"])).toBe(
+      "accept-edits",
+    );
+  });
+
+  it("returns null when nothing on offer is sandboxed", () => {
+    expect(highestSandboxedPermissionMode(["full"])).toBeNull();
+    expect(highestSandboxedPermissionMode([])).toBeNull();
   });
 });
 

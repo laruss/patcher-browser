@@ -11,7 +11,10 @@ import type {
   ServiceTier,
   Thread,
 } from "@patcher/domain";
-import { PERSONAL_PROJECT_ID } from "@patcher/domain";
+import {
+  highestSandboxedPermissionMode,
+  PERSONAL_PROJECT_ID,
+} from "@patcher/domain";
 import type { EnvironmentArgs } from "@patcher/server-contract";
 import type { AppDeps } from "../../types.js";
 import { requireConnectedPrimaryHostId } from "../hosts/primary-host.js";
@@ -156,12 +159,24 @@ function resolveSupportedPermissionMode(
   if (supportedPermissionModes.includes(args.preferredPermissionMode)) {
     return args.preferredPermissionMode;
   }
-  if (supportedPermissionModes.includes(DEFAULT_PERMISSION_MODE)) {
-    return DEFAULT_PERMISSION_MODE;
+
+  // Sandbox before privilege. An unsupported preference resolves to the most
+  // capable sandboxed mode the provider does support — for a provider with no
+  // native automatic reviewer that is Accept Edits, not Full Access, because
+  // dropping the sandbox is a bigger difference than dropping the reviewer.
+  // The most capable sandboxed mode is also DEFAULT_PERMISSION_MODE wherever
+  // the provider supports it, so this subsumes the old default branch.
+  const sandboxedPermissionMode = highestSandboxedPermissionMode(
+    supportedPermissionModes,
+  );
+  if (sandboxedPermissionMode !== null) {
+    return sandboxedPermissionMode;
   }
-  if (supportedPermissionModes.includes("full")) {
-    return "full";
-  }
+
+  // Nothing sandboxed on offer. A mode still has to be reported, so a
+  // full-only provider reports "full" — and a machine at the sandbox ceiling
+  // then refuses the pairing outright in `clampPermissionModeToHost` instead of
+  // running it unsandboxed.
   return supportedPermissionModes[0] ?? DEFAULT_PERMISSION_MODE;
 }
 

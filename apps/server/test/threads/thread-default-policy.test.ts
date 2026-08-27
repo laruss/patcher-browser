@@ -260,7 +260,7 @@ describe("resolveThreadDefaultPermissionMode", () => {
     ).toBe("full");
   });
 
-  it("uses full for ACP threads when the Auto default is unsupported", () => {
+  it("keeps ACP threads sandboxed when the Auto default is unsupported", () => {
     expect(
       resolveThreadDefaultPermissionMode({
         thread: makeThread({
@@ -268,7 +268,7 @@ describe("resolveThreadDefaultPermissionMode", () => {
           providerId: "acp-my-agent",
         }),
       }),
-    ).toBe("full");
+    ).toBe("accept-edits");
   });
 
   it("uses auto for Codex threads", () => {

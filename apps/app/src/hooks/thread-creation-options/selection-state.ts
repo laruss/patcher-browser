@@ -3,6 +3,7 @@ import type {
   ReasoningLevel,
   ServiceTier,
 } from "@patcher/domain";
+import { highestSandboxedPermissionMode } from "@patcher/domain";
 import type {
   CreateExecutionInputSources,
   ExecutionInputFieldSource,
@@ -307,14 +308,15 @@ export function resolvePermissionModeSelection({
   if (supportedPermissionModes.includes(rawPermissionMode)) {
     return rawPermissionMode;
   }
-  // Auto is the product default. Providers without native automatic review
-  // fall back to Full Access rather than implying that Accept Edits provides
-  // equivalent automatic approval behavior.
-  if (supportedPermissionModes.includes("auto")) {
-    return "auto";
-  }
-  if (supportedPermissionModes.includes("full")) {
-    return "full";
+  // The same lattice the server resolves with, from the same helper, so the
+  // picker cannot drift from what a turn actually runs at: an unsupported
+  // choice lands on the most capable sandboxed mode the provider supports, and
+  // Full Access is reached only by a provider that offers nothing else.
+  const sandboxedPermissionMode = highestSandboxedPermissionMode(
+    supportedPermissionModes,
+  );
+  if (sandboxedPermissionMode !== null) {
+    return sandboxedPermissionMode;
   }
   return supportedPermissionModes[0] ?? "auto";
 }
