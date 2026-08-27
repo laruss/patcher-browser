@@ -120,6 +120,12 @@
       "outputs": ["release/**"],
       "passThroughEnv": ["*"]
     },
+    "@patcher/desktop#smoke:app-boot": {
+      "dependsOn": ["@patcher/app#build"],
+      "cache": false,
+      "outputs": [],
+      "passThroughEnv": ["*"]
+    },
     "@patcher/desktop#smoke:packaged": {
       "cache": false,
       "outputs": [],
