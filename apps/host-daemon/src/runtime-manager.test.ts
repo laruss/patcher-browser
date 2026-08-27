@@ -1041,6 +1041,7 @@ describe("RuntimeManager", () => {
     expect(runtimeOptions.current?.protectedCredentialPaths).toEqual([
       path.join(dataDir, "app-api-key"),
       path.join(dataDir, "auth-secret"),
+      path.join(dataDir, "auth.json"),
       databasePath,
       `${databasePath}-wal`,
       `${databasePath}-shm`,

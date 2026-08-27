@@ -1071,10 +1071,7 @@ describe("bridge", () => {
         permissionMode: "auto",
         permissionScope: "workspace",
         platform: "darwin",
-        protectedCredentialPaths: [
-          "/data/app-api-key",
-          "/data/patcher.db",
-        ],
+        protectedCredentialPaths: ["/data/app-api-key", "/data/patcher.db"],
       },
       {},
     );

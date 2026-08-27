@@ -4,7 +4,10 @@ import {
   type PublicApiSchema,
 } from "@patcher/server-contract";
 import type { Hono } from "hono";
-import { isConsentPendingInteraction } from "@patcher/domain";
+import {
+  isApprovalPendingInteractionResolution,
+  isConsentPendingInteraction,
+} from "@patcher/domain";
 import { z } from "zod";
 import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
@@ -67,6 +70,31 @@ export function registerThreadInteractionRoutes(
   });
 
   post(routes.resolveInteraction, (context, payload) => {
+    // Before the thread lookup: this is a fact about the caller and the shape of
+    // what it is asking for, not about the resource, so it neither needs the row
+    // nor should leak whether one exists.
+    //
+    // The same refusal the consent prompt below makes, for the same reason, on
+    // the prompts that actually gate privilege. An approval interaction is what
+    // a blocked tool call raises — a sandboxed command asking to run
+    // unsandboxed, a write outside the workspace, a permission grant — so a turn
+    // that could allow its own would hold every boundary the sandbox draws, and
+    // the timeline would record the user as having allowed it.
+    //
+    // Only *allowing* is refused. `deny` lowers privilege, and `answer`
+    // (a user question) and a plugin's form submit are other shapes entirely, so
+    // `patcher thread interactions deny/answer --self` keeps working.
+    if (
+      declaresThread(context) &&
+      isApprovalPendingInteractionResolution(payload) &&
+      payload.decision !== "deny"
+    ) {
+      throw new ApiError(
+        403,
+        "invalid_request",
+        "A permission prompt is allowed by the user, not from inside the turn that raised it. Nothing changed. Explain what you need and why in your reply instead.",
+      );
+    }
     const thread = requirePublicThread(deps.db, context.req.param("id"));
     return context.json(
       deps.pendingInteractions.resolvePendingInteraction({

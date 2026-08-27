@@ -168,17 +168,39 @@ const reasoningLevelAtomFamily = atomFamily((providerId: string) =>
 // Legacy "readonly" (and any other unknown value) is dropped rather than
 // reinterpreted — localStorage is untrusted, and a read-only preference must
 // never silently become a writable mode.
+//
+// Full Access is not carried forward either, for the stronger version of the
+// same reason. The confirmation the composer shows before leaving the sandbox
+// says "This applies to this thread… the next one starts from it again" — so a
+// stored "full" would make that sentence false, and would do it silently: the
+// picker only stops on the *transition* to Full Access, so a composer that
+// opened already at "full" would never ask again. One confirmation must not
+// become the standing default for every future thread.
+export function parseStoredPermissionMode(
+  storedValue: string | null,
+  initialValue: StoredPermissionMode,
+): StoredPermissionMode {
+  if (storedValue === "workspace-write") {
+    return "accept-edits";
+  }
+  if (storedValue === "full") {
+    return initialValue;
+  }
+  return storedValue !== null && isStoredPermissionMode(storedValue)
+    ? storedValue
+    : initialValue;
+}
+
+export function serializeStoredPermissionMode(
+  value: StoredPermissionMode,
+): StoredPermissionMode {
+  return value === "full" ? "" : value;
+}
+
 const permissionModePreferenceStorage =
   createLocalStorageSyncStorage<StoredPermissionMode>({
-    parse: (storedValue, initialValue) => {
-      if (storedValue === "workspace-write") {
-        return "accept-edits";
-      }
-      return storedValue !== null && isStoredPermissionMode(storedValue)
-        ? storedValue
-        : initialValue;
-    },
-    serialize: (value) => value,
+    parse: parseStoredPermissionMode,
+    serialize: serializeStoredPermissionMode,
   });
 
 const permissionModeAtom = atomWithStorage<StoredPermissionMode>(

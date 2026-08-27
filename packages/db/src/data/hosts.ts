@@ -17,6 +17,8 @@ export interface UpsertHostInput {
   name: string;
   type: HostType;
   destroyedAt?: number | null;
+  /** Only honoured on insert; a re-enrolment never resets an owner's choice. */
+  maxPermissionMode?: PermissionMode;
 }
 
 export interface UpdateHostInput {
@@ -107,7 +109,8 @@ export function upsertHost(
         // default. Changing that default would need a SQLite table recreate to
         // reach existing installs; the insert reaches them today. An owner's
         // later choice lives in the row and `updateHost` never touches it here.
-        maxPermissionMode: DEFAULT_HOST_MAX_PERMISSION_MODE,
+        maxPermissionMode:
+          input.maxPermissionMode ?? DEFAULT_HOST_MAX_PERMISSION_MODE,
         createdAt: now,
         updatedAt: now,
       })

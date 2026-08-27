@@ -604,10 +604,9 @@ describe("repository config cannot execute in Patcher's git", () => {
     );
     await runGit(["config", "core.fsmonitor", scriptPath], { cwd: repoPath });
 
-    await runGit(
-      ["--no-optional-locks", "status", "--porcelain=v1"],
-      { cwd: repoPath },
-    );
+    await runGit(["--no-optional-locks", "status", "--porcelain=v1"], {
+      cwd: repoPath,
+    });
 
     expect(await canaryFired(canaryPath)).toBe(false);
   });

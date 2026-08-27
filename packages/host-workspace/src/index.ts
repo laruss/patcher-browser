@@ -36,6 +36,7 @@ export {
   getWorkspaceGitOperation,
   getGitCommonDir,
   gitBlobSize,
+  hardenedGitChildProcessEnv,
   hasUncommittedChanges,
   listBranches,
   listRemoteBranches,

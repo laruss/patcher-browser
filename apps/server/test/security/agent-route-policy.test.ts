@@ -73,12 +73,33 @@ describe("agentRoutePolicyDenial", () => {
     ).not.toBeNull();
   });
 
-  it("leaves the rest of the hosts routes alone", () => {
+  it("refuses the other host routes that reach outside the sandbox", () => {
+    expect(
+      agentRoutePolicyDenial({
+        method: "POST",
+        path: "/api/v1/hosts/host-1/provider-clis/install",
+      }),
+    ).not.toBeNull();
+    expect(
+      agentRoutePolicyDenial({
+        method: "POST",
+        path: "/api/v1/hosts/join-codes",
+      }),
+    ).not.toBeNull();
+  });
+
+  it("leaves the rest of the hosts and threads routes alone", () => {
     expect(
       agentRoutePolicyDenial({ method: "PATCH", path: "/api/v1/hosts/host-1" }),
     ).toBeNull();
     expect(
       agentRoutePolicyDenial({ method: "GET", path: "/api/v1/hosts" }),
+    ).toBeNull();
+    expect(
+      agentRoutePolicyDenial({
+        method: "POST",
+        path: "/api/v1/threads/thr-1/send",
+      }),
     ).toBeNull();
   });
 
@@ -288,5 +309,51 @@ describe("an agent mid-turn", () => {
       headers: { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY },
     });
     expect(listed.status).toBe(200);
+  });
+});
+
+/**
+ * The route policy deliberately leaves `/threads/:id/interactions` reachable —
+ * `patcher thread interactions deny/answer --self` are agent affordances. The
+ * one shape that is not is a turn *allowing* its own permission prompt, which is
+ * refused in the handler, where the resolution's shape is visible.
+ */
+describe("a turn allowing its own permission prompt", () => {
+  async function resolveAsAgent(decision: string): Promise<Response> {
+    server = await startTestServer();
+    return fetch(
+      `${server.baseUrl}/api/v1/threads/thr-agent-1/interactions/pint_abc234567z/resolve`,
+      {
+        method: "POST",
+        headers: agentHeaders(),
+        body: JSON.stringify(
+          decision === "deny"
+            ? { decision: "deny" }
+            : { decision, grantedPermissions: null },
+        ),
+      },
+    );
+  }
+
+  it("is refused for allow_once", async () => {
+    const response = await resolveAsAgent("allow_once");
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("allowed by the user");
+  });
+
+  it("is refused for allow_for_session", async () => {
+    const response = await resolveAsAgent("allow_for_session");
+
+    expect(response.status).toBe(403);
+  });
+
+  it("does not stand in the way of denying, which lowers privilege", async () => {
+    // Reaches the handler, which then answers on the request's own merits — the
+    // thread and interaction do not exist here, so any status but this policy's
+    // 403 is the assertion.
+    const response = await resolveAsAgent("deny");
+
+    expect(response.status).not.toBe(403);
   });
 });

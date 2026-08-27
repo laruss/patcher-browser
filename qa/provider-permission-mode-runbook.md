@@ -134,29 +134,48 @@ each is closed, and each has a test that fails when the fix is removed — which
 was verified by removing it, not assumed. Listed here so a manual run does not
 re-do them and an auditor can find them.
 
-| Vector                                                                                        | Closed by                                                                    | Test                                                                                                                  |
-| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Agent writes any path on the machine over `POST /api/v1/files/write` (`rootPath` is optional) | Thread-scoped credential plus a route policy                                 | `apps/server/test/security/agent-route-policy.test.ts`                                                                |
-| Agent opens a PTY on the host over `POST /api/v1/terminals`                                   | Same                                                                         | Same                                                                                                                  |
-| Agent raises its own machine's permission ceiling                                             | Same                                                                         | Same                                                                                                                  |
-| Agent drops the thread header to be taken for the app                                         | The key verifies against the id, so dropping it leaves nothing that verifies | Same                                                                                                                  |
-| Agent's shell holds the app key                                                               | `buildThreadShellEnvironment` trades it for a derived key                    | `packages/agent-runtime/src/thread-shell-environment.test.ts`                                                         |
-| CLI inside a turn reads the app key back off disk                                             | `cliFetch` and both socket paths stop resolving it                           | `apps/cli/src/__tests__/client.test.ts`                                                                               |
-| Sandboxed Bash reads the app key, the auth secret or the database                             | `sandbox.credentials.files` deny                                             | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
-| `core.fsmonitor` planted in `.git/config` runs in the daemon on a status poll                 | Git config hardening via the environment                                     | `packages/host-workspace/test/git.test.ts`                                                                            |
-| A `post-checkout` hook planted in `.git/hooks` runs when a worktree is created                | Same                                                                         | Same                                                                                                                  |
-| A sandboxed mode runs unsandboxed because the backend is missing                              | Refusal naming the dependency and Full Access                                | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
-| An unsupported permission mode resolves upward to Full Access                                 | Fallbacks resolve to the most capable sandboxed mode instead                 | `apps/server/test/threads/thread-default-policy.test.ts`, `apps/app/src/hooks/resolvePermissionModeSelection.test.ts` |
-| Full Access is one click away in the same menu as the sandboxed presets                       | Confirmation naming what it gives up                                         | `apps/app/src/components/pickers/PermissionModePicker.test.tsx`                                                       |
+| Vector                                                                                           | Closed by                                                                    | Test                                                                                                                  |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Agent writes any path on the machine over `POST /api/v1/files/write` (`rootPath` is optional)    | Thread-scoped credential plus a route policy                                 | `apps/server/test/security/agent-route-policy.test.ts`                                                                |
+| Agent opens a PTY on the host over `POST /api/v1/terminals`                                      | Same                                                                         | Same                                                                                                                  |
+| Agent raises its own machine's permission ceiling                                                | Same                                                                         | Same                                                                                                                  |
+| Agent drops the thread header to be taken for the app                                            | The key verifies against the id, so dropping it leaves nothing that verifies | Same                                                                                                                  |
+| Agent's shell holds the app key                                                                  | `buildThreadShellEnvironment` trades it for a derived key                    | `packages/agent-runtime/src/thread-shell-environment.test.ts`                                                         |
+| CLI inside a turn reads the app key back off disk                                                | `cliFetch` and both socket paths stop resolving it                           | `apps/cli/src/__tests__/client.test.ts`                                                                               |
+| Sandboxed Bash reads the app key, the auth secret or the database                                | `sandbox.credentials.files` deny                                             | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
+| `core.fsmonitor` planted in `.git/config` runs in the daemon on a status poll                    | Git config hardening via the environment, on every git spawn                 | `packages/host-workspace/test/git.test.ts`                                                                            |
+| Agent reads the app key, auth secret, `auth.json` or the database over `POST /api/v1/files/read` | The daemon refuses to serve its own credential files over the host file RPC  | `apps/host-daemon/src/command-dispatch.test.ts`                                                                       |
+| Agent resolves its own approval prompt and approves its own unsandboxed retry                    | An allowing approval decision is refused from inside a turn                  | `apps/server/test/security/agent-route-policy.test.ts`                                                                |
+| Agent installs a provider CLI on the host, or mints a machine join code                          | Both denied to an agent                                                      | Same                                                                                                                  |
+| One Full Access confirmation becomes the standing default for every new thread                   | Full Access is not written to the composer's stored preference               | `apps/app/src/hooks/thread-creation-options/persisted-selection-fields.test.ts`                                       |
+| A `post-checkout` hook planted in `.git/hooks` runs when a worktree is created                   | Same                                                                         | Same                                                                                                                  |
+| A sandboxed mode runs unsandboxed because the backend is missing                                 | Refusal naming the dependency and Full Access                                | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
+| An unsupported permission mode resolves upward to Full Access                                    | Fallbacks resolve to the most capable sandboxed mode instead                 | `apps/server/test/threads/thread-default-policy.test.ts`, `apps/app/src/hooks/resolvePermissionModeSelection.test.ts` |
+| Full Access is one click away in the same menu as the sandboxed presets                          | Confirmation naming what it gives up                                         | `apps/app/src/components/pickers/PermissionModePicker.test.tsx`                                                       |
 
-Two things on this list are deliberately still open, and a manual run should
-know them rather than report them as findings:
+These are deliberately still open, and a manual run should know them rather than
+report them as findings. `docs/security.md` carries the same list under "What
+this does not yet close".
 
 - **Codex leaves reads open.** Its sandbox has nothing that protects a path, so a
-  Codex turn can still read the files denied to a Claude one.
+  Codex turn can still read the files denied to a Claude one. The daemon-side
+  refusal in `command-handlers/daemon-credential-paths.ts` still covers the file
+  RPC for Codex, because that read happens in the daemon.
 - **Codex leaves the network open.** Measured: restricting it takes loopback with
   it and Codex raises no approval, so it would cost every Codex thread the
   `patcher` CLI. See the note beside `networkAccess` in `codex/adapter.ts`.
+- **An agent can act on another thread.** The thread key is verified but is not
+  compared with the `:id` in the path.
+- **An agent can choose the next turn's permission mode and workspace path.**
+  Bounded only by the machine ceiling, which a pre-existing install still has at
+  `full` — there is no migration.
+- **`plugins/:id/cli` and `plugins/:id/rpc/:method` run plugin code with no
+  consent prompt.**
+- **The host daemon's local API has no credential check**, and a turn is handed
+  its port.
+- **`filter.<driver>.smudge` planted in `.git/config`** still runs on
+  `git checkout` and `git worktree add` — the driver name comes from
+  `.gitattributes`, so no fixed config deny-list can pre-empt it.
 
 ## Probe Prompt
 

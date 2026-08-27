@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   providerCliInstallEventSchema,
   type ProviderCliInstallEvent,
@@ -46,6 +47,7 @@ import {
   readHostRelativeFile,
 } from "./command-handlers/host-files.js";
 import { writeHostFile } from "./command-handlers/file-write.js";
+import { assertNotDaemonCredentialPath } from "./command-handlers/daemon-credential-paths.js";
 import {
   mkdirHostPath,
   moveHostPath,
@@ -578,12 +580,64 @@ const commandHandlers: CommandHandlerMap = {
   },
 };
 
+/**
+ * Run a host-file handler, but not on Patcher's own credential files.
+ *
+ * Applied here rather than inside each handler so a new path-bearing host file
+ * command cannot be added without passing through it — the same reason the
+ * sandbox's deny list lives in one place on the runtime side.
+ */
+async function guardCredentialPaths<Command extends { type: string }, Result>(
+  command: Command,
+  options: CommandDispatchOptions,
+  handler: (command: Command) => Promise<Result>,
+): Promise<Result> {
+  const candidate = command as {
+    path?: unknown;
+    rootPath?: unknown;
+    sourcePath?: unknown;
+    destinationPath?: unknown;
+  };
+  const asPath = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
+  const targetPath = asPath(candidate.path);
+  const rootPath = asPath(candidate.rootPath);
+  // `host.read_file_relative` resolves its path *under* the root, so the joined
+  // path is the one that reaches disk.
+  const resolvedTarget =
+    command.type === "host.read_file_relative" &&
+    rootPath !== undefined &&
+    targetPath !== undefined
+      ? path.resolve(rootPath, targetPath)
+      : targetPath;
+  const targets = [
+    resolvedTarget,
+    asPath(candidate.sourcePath),
+    asPath(candidate.destinationPath),
+  ];
+  assertNotDaemonCredentialPath({
+    dataDir: options.dataDir,
+    targets,
+    // A remove or a move takes a whole tree with it, so these are also refused
+    // when they merely contain a credential file.
+    ...(command.type === "host.remove_path" || command.type === "host.move_path"
+      ? { containers: targets }
+      : {}),
+  });
+  return handler(command);
+}
+
 const onlineRpcHandlers: OnlineRpcHandlerMap = {
-  "host.list_files": listHostFiles,
-  "host.list_paths": listHostPaths,
-  "host.mkdir": mkdirHostPath,
-  "host.move_path": moveHostPath,
-  "host.remove_path": removeHostPath,
+  "host.list_files": async (command, options) =>
+    guardCredentialPaths(command, options, listHostFiles),
+  "host.list_paths": async (command, options) =>
+    guardCredentialPaths(command, options, listHostPaths),
+  "host.mkdir": async (command, options) =>
+    guardCredentialPaths(command, options, mkdirHostPath),
+  "host.move_path": async (command, options) =>
+    guardCredentialPaths(command, options, moveHostPath),
+  "host.remove_path": async (command, options) =>
+    guardCredentialPaths(command, options, removeHostPath),
   "host.browse_directory": browseHostDirectory,
   "host.paths_exist": checkHostPathsExist,
   "project.inspect": async (command) => inspectProjectPath(command.path),
@@ -601,10 +655,14 @@ const onlineRpcHandlers: OnlineRpcHandlerMap = {
   "host.global_skills_status": async (command) =>
     readGlobalSkillsStatus(command, {}),
   "host.list_branches": listHostBranches,
-  "host.file_metadata": readHostFileMetadata,
-  "host.read_file": readHostFile,
-  "host.read_file_relative": readHostRelativeFile,
-  "host.write_file": writeHostFile,
+  "host.file_metadata": async (command, options) =>
+    guardCredentialPaths(command, options, readHostFileMetadata),
+  "host.read_file": async (command, options) =>
+    guardCredentialPaths(command, options, readHostFile),
+  "host.read_file_relative": async (command, options) =>
+    guardCredentialPaths(command, options, readHostRelativeFile),
+  "host.write_file": async (command, options) =>
+    guardCredentialPaths(command, options, writeHostFile),
   "provider.list_models": async (command, options) =>
     (options.listModels ?? defaultListModels)({
       providerId: command.providerId,
