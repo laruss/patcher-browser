@@ -35,6 +35,7 @@ import {
   hostCanRetryUpdate,
 } from "@/lib/host-update-status";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
+import { FullAccessConfirmDialog } from "@/components/dialogs/FullAccessConfirmDialog";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { formatRelativeTime } from "@/lib/relative-time";
 import {
@@ -88,6 +89,8 @@ function headerMeta({
 
 interface PermissionLimitCardProps {
   disabled: boolean;
+  /** Named in the Full Access confirmation, which says what it applies to. */
+  machineName: string;
   onSelect: (permissionMode: PermissionMode) => void;
   value: PermissionMode;
 }
@@ -98,11 +101,26 @@ interface PermissionLimitCardProps {
  */
 function PermissionLimitCards({
   disabled,
+  machineName,
   onSelect,
   value,
 }: PermissionLimitCardProps) {
+  // Raising a machine's limit is the standing answer for every thread on it, so
+  // it stops for the same confirmation the composer does — and says which of
+  // the two scopes this one is.
+  const [pendingFullAccess, setPendingFullAccess] = useState(false);
   return (
     <div className="space-y-2" role="radiogroup" aria-label="Permission limit">
+      <FullAccessConfirmDialog
+        open={pendingFullAccess}
+        onOpenChange={setPendingFullAccess}
+        scope="machine"
+        machineName={machineName}
+        onConfirm={() => {
+          setPendingFullAccess(false);
+          onSelect("full");
+        }}
+      />
       {PERMISSION_MODE_OPTIONS.map((option) => {
         const selected = option.value === value;
         return (
@@ -113,7 +131,12 @@ function PermissionLimitCards({
             aria-checked={selected}
             disabled={disabled}
             onClick={() => {
-              if (!selected) onSelect(option.value);
+              if (selected) return;
+              if (option.value === "full") {
+                setPendingFullAccess(true);
+                return;
+              }
+              onSelect(option.value);
             }}
             className={cn(
               "flex w-full items-start gap-2.5 rounded-lg border px-3.5 py-3 text-left transition-colors",
@@ -292,6 +315,7 @@ export function MachineSettingsView() {
           description={PERMISSION_LIMIT_DESCRIPTION}
         >
           <PermissionLimitCards
+            machineName={host.name}
             value={host.maxPermissionMode}
             disabled={updatePermissionCeiling.isPending}
             onSelect={(maxPermissionMode) =>
