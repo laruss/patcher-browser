@@ -137,13 +137,62 @@ function getExitCode(error: ExecFileException | undefined): number {
   return 1;
 }
 
+/**
+ * Config a repository must not be able to talk this process into.
+ *
+ * Patcher runs git inside a checkout the agent can write, and `.git` sits
+ * inside the workspace, so `.git/config` and `.git/hooks` are inside a
+ * sandboxed turn's writable roots. Several git config keys name a command git
+ * then executes — and it executes them here, in the daemon, outside the sandbox
+ * and as the user. Measured: a `core.fsmonitor` planted in `.git/config` runs on
+ * the plain `git --no-optional-locks status` this package polls with, and a
+ * `post-checkout` hook runs when a worktree is created.
+ *
+ * Only the two that this package's own command set actually triggers are here.
+ * `diff.external` was checked and does not fire on the `--stat` diffs Patcher
+ * asks for, so it is deliberately absent rather than added on the strength of
+ * sounding dangerous. Repo-config code execution is a class, not two bugs — the
+ * durable fix is keeping `.git` out of the agent's writable roots, which is the
+ * sandbox's side of it.
+ *
+ * Hooks are disabled for Patcher's own plumbing, not for the user: a terminal
+ * they open runs git normally. A repository that needs setup work on checkout
+ * has `.patcher-env-setup.sh`, which is the sanctioned place for it.
+ */
+const GIT_HARDENED_CONFIG: readonly (readonly [string, string])[] = [
+  ["core.fsmonitor", "false"],
+  ["core.hooksPath", "/dev/null"],
+];
+
+/**
+ * Git reads config from the environment as well as from files, and treats it
+ * like `-c` — so this reaches nested git processes too, including the ones
+ * inside `runShellPipeline`'s `sh -c`, which no argument list could.
+ *
+ * An inherited `GIT_CONFIG_COUNT` is preserved and Patcher's entries are
+ * appended after it, because the last index wins.
+ */
+function withHardenedGitConfig(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const inheritedCount = Number.parseInt(env.GIT_CONFIG_COUNT ?? "", 10);
+  const base = Number.isInteger(inheritedCount) && inheritedCount > 0
+    ? inheritedCount
+    : 0;
+  const hardened: NodeJS.ProcessEnv = { ...env };
+  GIT_HARDENED_CONFIG.forEach(([key, value], offset) => {
+    hardened[`GIT_CONFIG_KEY_${base + offset}`] = key;
+    hardened[`GIT_CONFIG_VALUE_${base + offset}`] = value;
+  });
+  hardened.GIT_CONFIG_COUNT = String(base + GIT_HARDENED_CONFIG.length);
+  return hardened;
+}
+
 function resolveGitProcessEnv(
   args: ResolveGitProcessEnvArgs,
 ): NodeJS.ProcessEnv {
-  return {
+  return withHardenedGitConfig({
     ...sanitizeInheritedChildProcessEnv({ env: process.env }),
     ...args.env,
-  };
+  });
 }
 
 function isMaxBufferExceededError(error: unknown): boolean {

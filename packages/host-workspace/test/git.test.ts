@@ -550,3 +550,118 @@ describe("parseNumstatEntriesZ", () => {
     expect(parseNumstatEntriesZ("")).toEqual([]);
   });
 });
+
+describe("repository config cannot execute in Patcher's git", () => {
+  async function initRepoWithCanary() {
+    const repoPath = await fs.mkdtemp(
+      path.join(os.tmpdir(), "patcher-git-hardening-"),
+    );
+    tempDirs.push(repoPath);
+    await runGit(["init", "-b", "main"], { cwd: repoPath });
+    await runGit(["config", "user.name", "Patcher Tests"], { cwd: repoPath });
+    await runGit(["config", "user.email", "patcher@example.com"], {
+      cwd: repoPath,
+    });
+    await fs.writeFile(path.join(repoPath, "tracked.txt"), "one\n", "utf8");
+    await runGit(["add", "-A"], { cwd: repoPath });
+    await runGit(["commit", "-m", "init"], { cwd: repoPath });
+    return { canaryPath: path.join(repoPath, "canary.txt"), repoPath };
+  }
+
+  /** What an agent can plant: `.git` sits inside the workspace it may write. */
+  async function plantExecutable(
+    repoPath: string,
+    scriptName: string,
+    canaryPath: string,
+    marker: string,
+  ) {
+    const scriptPath = path.join(repoPath, ".git", scriptName);
+    await fs.writeFile(
+      scriptPath,
+      `#!/bin/sh\nprintf '${marker}' > ${canaryPath}\nexit 1\n`,
+      "utf8",
+    );
+    await fs.chmod(scriptPath, 0o755);
+    return scriptPath;
+  }
+
+  async function canaryFired(canaryPath: string): Promise<boolean> {
+    try {
+      await fs.access(canaryPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  it("does not run a planted core.fsmonitor on a status poll", async () => {
+    const { canaryPath, repoPath } = await initRepoWithCanary();
+    const scriptPath = await plantExecutable(
+      repoPath,
+      "fsmonitor-probe.sh",
+      canaryPath,
+      "fsmonitor",
+    );
+    await runGit(["config", "core.fsmonitor", scriptPath], { cwd: repoPath });
+
+    await runGit(
+      ["--no-optional-locks", "status", "--porcelain=v1"],
+      { cwd: repoPath },
+    );
+
+    expect(await canaryFired(canaryPath)).toBe(false);
+  });
+
+  it("does not run a planted core.fsmonitor inside a shell pipeline either", async () => {
+    // `runShellPipeline` execs `sh -c`, which no argument list could reach —
+    // the hardening travels in the environment for exactly this case.
+    const { canaryPath, repoPath } = await initRepoWithCanary();
+    const scriptPath = await plantExecutable(
+      repoPath,
+      "fsmonitor-pipeline-probe.sh",
+      canaryPath,
+      "fsmonitor",
+    );
+    await runGit(["config", "core.fsmonitor", scriptPath], { cwd: repoPath });
+
+    await runShellPipeline(
+      "git --no-optional-locks status --porcelain=v1 | wc -l",
+      [],
+      { cwd: repoPath },
+    );
+
+    expect(await canaryFired(canaryPath)).toBe(false);
+  });
+
+  it("does not run a planted hook when a branch is checked out", async () => {
+    const { canaryPath, repoPath } = await initRepoWithCanary();
+    const hookPath = path.join(repoPath, ".git", "hooks", "post-checkout");
+    await fs.writeFile(
+      hookPath,
+      `#!/bin/sh\nprintf 'hook' > ${canaryPath}\n`,
+      "utf8",
+    );
+    await fs.chmod(hookPath, 0o755);
+
+    await runGit(["checkout", "-b", "probe"], { cwd: repoPath });
+
+    expect(await canaryFired(canaryPath)).toBe(false);
+  });
+
+  it("keeps a caller's own git config entries alongside the hardening", async () => {
+    const { repoPath } = await initRepoWithCanary();
+
+    // The caller's entry lands at index 0 and Patcher's are appended after it,
+    // so both apply and the hardening wins any collision.
+    const result = await runGit(["config", "--get", "user.name"], {
+      cwd: repoPath,
+      env: {
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "user.name",
+        GIT_CONFIG_VALUE_0: "Caller Wins",
+      },
+    });
+
+    expect(result.stdout.trim()).toBe("Caller Wins");
+  });
+});
