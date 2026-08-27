@@ -10,8 +10,12 @@ import {
   type GitHostPullRequestReviewDecision,
   gitHostPullRequestSchema,
 } from "@patcher/domain";
-import { sanitizeInheritedChildProcessEnv } from "@patcher/process-utils";
-import { runGit, type GitCommandResult, WorkspaceError } from "./git.js";
+import {
+  hardenedGitChildProcessEnv,
+  runGit,
+  type GitCommandResult,
+  WorkspaceError,
+} from "./git.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -642,7 +646,7 @@ export async function getPullRequestForCurrentBranch(
     ({ stdout } = await execFileAsync("gh", ghArgs, {
       cwd: args.cwd,
       encoding: "utf8",
-      env: sanitizeInheritedChildProcessEnv({ env: process.env }),
+      env: hardenedGitChildProcessEnv(),
       timeout: GH_PR_VIEW_TIMEOUT_MS,
       maxBuffer: GH_PR_VIEW_MAX_BUFFER_BYTES,
     }));
@@ -679,7 +683,7 @@ export async function runPullRequestActionForCurrentBranch(
     await execFileAsync("gh", ghArgs, {
       cwd: args.cwd,
       encoding: "utf8",
-      env: sanitizeInheritedChildProcessEnv({ env: process.env }),
+      env: hardenedGitChildProcessEnv(),
       timeout: GH_PR_ACTION_TIMEOUT_MS,
       maxBuffer: GH_PR_ACTION_MAX_BUFFER_BYTES,
     });

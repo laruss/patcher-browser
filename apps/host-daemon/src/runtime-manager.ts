@@ -3,8 +3,9 @@ import path from "node:path";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
 import {
   PATCHER_AUTH_SECRET_FILE_NAME,
-  PATCHER_SQLITE_DATABASE_FILE_NAME,
+  resolveDataDirDatabasePath,
 } from "@patcher/config/runtime";
+import { HOST_AUTH_FILE_NAME } from "@patcher/host-daemon-contract";
 import {
   createAgentRuntime,
   type AgentRuntime,
@@ -349,10 +350,15 @@ export class RuntimeManager {
   private runtimeProtectedCredentialPaths(): string[] {
     const dataDir = this.options.dataDir;
     if (!dataDir) return [];
-    const databasePath = path.join(dataDir, PATCHER_SQLITE_DATABASE_FILE_NAME);
+    const databasePath = resolveDataDirDatabasePath({ dataDir });
     return [
       path.join(dataDir, PATCHER_APP_KEY_FILE_NAME),
       path.join(dataDir, PATCHER_AUTH_SECRET_FILE_NAME),
+      // This daemon's own bearer token. `/internal/*` accepts it as
+      // `Authorization: Bearer`, and that surface is not behind the agent route
+      // policy at all — so leaving it readable hands a turn a way past every
+      // denial the policy makes.
+      path.join(dataDir, HOST_AUTH_FILE_NAME),
       databasePath,
       // SQLite keeps recent writes beside the database until they are
       // checkpointed, so denying only the main file leaks the newest rows.
@@ -1264,6 +1270,9 @@ export class RuntimeManager {
     runtime = this.createRuntime({
       workspacePath,
       additionalWorkspaceWriteRoots: [],
+      // This workspace sits *inside* the data dir, so it is the last place the
+      // credential deny should be missing.
+      protectedCredentialPaths: this.runtimeProtectedCredentialPaths(),
       ...(providerProcessEnv ? { env: providerProcessEnv } : {}),
       shellEnv,
       threadStorageRootPath: this.options.threadStorageRootPath ?? undefined,

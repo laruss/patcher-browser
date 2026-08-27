@@ -182,7 +182,9 @@ function buildAdditionalWorkspaceWriteRootsParams(
 function buildProtectedCredentialPathsParams(
   paths: readonly string[],
 ): ProtectedCredentialPathsParams | undefined {
-  return paths.length > 0 ? { protectedCredentialPaths: [...paths] } : undefined;
+  return paths.length > 0
+    ? { protectedCredentialPaths: [...paths] }
+    : undefined;
 }
 
 function buildClaudeSkillConfigEntry(

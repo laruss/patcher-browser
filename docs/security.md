@@ -93,7 +93,7 @@ happens only if you allow it.
 ## An agent cannot reach the routes that would undo its sandbox
 
 A thread key is a narrower credential than the app key, so the server can charge
-it a policy. Three route families are refused outright for a caller that is an
+it a policy. These route families are refused outright for a caller that is an
 agent mid-turn, because each one hands back exactly what the sandbox took away:
 
 - **File mutation** — `files/write`, `mkdir`, `move`, `remove`. `rootPath` is
@@ -102,23 +102,41 @@ agent mid-turn, because each one hands back exactly what the sandbox took away:
   workspace means nothing beside a write-anywhere RPC.
 - **Terminals.** Opening one is a PTY on the host, outside any sandbox, running
   as you.
-- **A machine's permission ceiling.** Raising it is how a sandboxed turn would
-  arrange to stop being one.
+- **A machine's permission ceiling, machine enrolment, and provider-CLI
+  installs.** Raising the ceiling is how a sandboxed turn would arrange to stop
+  being one; an install runs an installer on the host, outside the sandbox, as
+  you.
+- **Allowing its own permission prompt.** A turn that can resolve its own
+  approval interaction can approve its own unsandboxed retry, and the timeline
+  then records you as having allowed it. Refused in the interactions handler
+  rather than by route, so that denying, answering a question, and a plugin's
+  form submit all keep working from inside a turn — only _allowing_ does not.
 
-Reads are not on the list: an agent reads files through its own tools anyway, so
-gating `files/read` would gate the polite path and nothing else.
+Generic reads are not on the list: an agent reads files through its own tools
+anyway, so gating `files/read` would gate the polite path and nothing else. The
+one read that did matter is closed a layer down instead — see below.
 
 **The app key file is denied to a sandboxed turn.** Not handing the key over
 would mean little while the file sat there to be read: a sandbox restricts
 writes and the network and leaves reads open, and Bash is auto-approved
-*because* it is sandboxed, so one `cat` would have handed the turn back the
+_because_ it is sandboxed, so one `cat` would have handed the turn back the
 credential it is deliberately not given, without a prompt. Claude Code's
-sandbox can protect a path, so Patcher names four: the app key, the machine
-auth secret, and the database with its write-ahead sidecars — the database
-because it holds host keys, plugin storage and every other thread. A read of
-one is refused inside the sandbox, and the only way onward is running the
-command unsandboxed, which is a permission request the person in the thread
-sees and an escalation-denied turn has refused for it.
+sandbox can protect a path, so Patcher names five: the app key, the machine
+auth secret, this daemon's own bearer token (`auth.json`, which `/internal/*`
+accepts and which the `/api/v1` route policy therefore never sees), and the
+database with its write-ahead sidecars — the database because it holds host
+keys, plugin storage and every other thread. A read of one is refused inside
+the sandbox, and the only way onward is running the command unsandboxed, which
+is a permission request the person in the thread sees and an escalation-denied
+turn has refused for it.
+
+**And the daemon refuses to serve those same files at all.** The sandbox deny
+covers a read from inside the sandbox; the host file RPC is a second way to the
+same bytes, and it is the _daemon_ that reads — `rootPath` is optional and
+`files/read` is deliberately reachable by an agent. So the refusal also lives at
+the daemon, for every caller, in
+`command-handlers/daemon-credential-paths.ts`. Nothing legitimate reads
+Patcher's own credentials back through Patcher's own file API.
 
 Two edges remain, and they are edges rather than the default:
 
@@ -131,6 +149,32 @@ Two edges remain, and they are edges rather than the default:
 Per-plugin secrets under the data directory's `plugins` are deliberately not
 denied wholesale: that directory also holds installed plugin code an agent has
 reason to read.
+
+### What this does not yet close
+
+Named here rather than left to be rediscovered:
+
+- **Another thread.** The thread key proves _which_ thread is calling, but the
+  server does not compare that with the `:id` a request acts on, so an agent can
+  drive another thread — including one running at Full Access. Narrowing it
+  would take away `patcher thread spawn`, which agents are meant to have.
+- **Choosing the next turn's sandbox.** `permissionMode` on thread
+  create/send/fork is bounded only by the machine ceiling, and
+  `workspace: { type: "unmanaged", path }` decides where the next turn's
+  workspace — and so its sandbox — points. A managed worktree also runs the
+  repository's own `.patcher-env-setup.sh`, outside any sandbox.
+- **A machine enrolled before this release.** The sandbox ceiling is written when
+  a machine is enrolled; there is no migration, so an existing install's
+  machines stay at `full` until their owner lowers the limit.
+- **Plugin code.** `plugins/:id/cli` and `plugins/:id/rpc/:method` execute
+  plugin code with no consent prompt, unlike the install/enable/settings routes
+  beside them.
+- **The daemon's own loopback API.** It has no credential check at all, and a
+  turn is handed its port.
+- **`.git` is inside the agent's writable roots.** Patcher's git runs with a
+  hardened config (see `GIT_HARDENED_CONFIG`), but `filter.<driver>.smudge` is
+  looked up by a name a tracked `.gitattributes` chooses, so no fixed list can
+  pre-empt it. The durable fix is keeping `.git` out of those roots.
 
 Every outcome where nobody could have seen the prompt refuses, because a prompt
 nobody saw is not consent: an archived or destroying thread is refused before a

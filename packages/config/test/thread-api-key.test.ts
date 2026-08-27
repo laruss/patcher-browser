@@ -13,9 +13,9 @@ describe("deriveThreadApiKey", () => {
       threadId: "thr-1",
     });
 
-    expect(
-      deriveThreadApiKey({ appApiKey: APP_KEY, threadId: "thr-1" }),
-    ).toBe(first);
+    expect(deriveThreadApiKey({ appApiKey: APP_KEY, threadId: "thr-1" })).toBe(
+      first,
+    );
     expect(
       deriveThreadApiKey({ appApiKey: APP_KEY, threadId: "thr-2" }),
     ).not.toBe(first);

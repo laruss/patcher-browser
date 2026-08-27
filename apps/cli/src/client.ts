@@ -3,6 +3,7 @@ import {
   PATCHER_APP_KEY_HEADER,
 } from "@patcher/config/app-key";
 import { resolveAppApiKey } from "@patcher/config/app-key-file";
+import { toOptionalString } from "@patcher/config/strings";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import {
   createNodePatcherSdk,
@@ -45,8 +46,7 @@ function cachedAppApiKey(): string | undefined {
  * a narrower credential. See `thread-api-key.ts` in @patcher/config.
  */
 function cachedThreadApiKey(): string | undefined {
-  const value = process.env[PATCHER_THREAD_KEY_ENV]?.trim();
-  return value === undefined || value.length === 0 ? undefined : value;
+  return toOptionalString(process.env[PATCHER_THREAD_KEY_ENV]);
 }
 
 /**
@@ -92,7 +92,7 @@ export function cliFetch(
 ): Promise<Response> {
   const threadId = declaredThreadId();
   const threadKey = cachedThreadApiKey();
-  const key = threadKey === undefined ? cachedAppApiKey() : undefined;
+  const key = cliSocketAppKey();
   if (threadId === undefined && threadKey === undefined && key === undefined) {
     return fetch(input, init);
   }

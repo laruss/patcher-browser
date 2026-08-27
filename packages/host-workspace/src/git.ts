@@ -144,16 +144,23 @@ function getExitCode(error: ExecFileException | undefined): number {
  * inside the workspace, so `.git/config` and `.git/hooks` are inside a
  * sandboxed turn's writable roots. Several git config keys name a command git
  * then executes — and it executes them here, in the daemon, outside the sandbox
- * and as the user. Measured: a `core.fsmonitor` planted in `.git/config` runs on
- * the plain `git --no-optional-locks status` this package polls with, and a
- * `post-checkout` hook runs when a worktree is created.
+ * and as the user.
  *
- * Only the two that this package's own command set actually triggers are here.
- * `diff.external` was checked and does not fire on the `--stat` diffs Patcher
- * asks for, so it is deliberately absent rather than added on the strength of
- * sounding dangerous. Repo-config code execution is a class, not two bugs — the
- * durable fix is keeping `.git` out of the agent's writable roots, which is the
- * sandbox's side of it.
+ * Every key here names such a command and is reachable from a subcommand this
+ * package runs (`status`, `checkout`, `worktree add`, `stash`, `add`, `fetch`,
+ * `diff`). Measured: a `core.fsmonitor` planted in `.git/config` runs on the
+ * plain `git --no-optional-locks status` this package polls with, a
+ * `post-checkout` hook runs when a worktree is created, and
+ * `remote.<name>.url = ext::sh -c …` runs on `fetch` until
+ * `protocol.ext.allow` refuses the transport.
+ *
+ * **This is not the whole class, and cannot be.** `filter.<driver>.smudge` and
+ * `.clean` are looked up by a driver name a `.gitattributes` line chooses, so
+ * no fixed list can pre-empt them — measured firing on `git checkout` and
+ * `git worktree add` with every key below already applied. Repo-config code
+ * execution stays open until `.git` is out of the agent's writable roots, which
+ * is the sandbox's side of it; this narrows the reachable set, it does not close
+ * it.
  *
  * Hooks are disabled for Patcher's own plumbing, not for the user: a terminal
  * they open runs git normally. A repository that needs setup work on checkout
@@ -162,6 +169,17 @@ function getExitCode(error: ExecFileException | undefined): number {
 const GIT_HARDENED_CONFIG: readonly (readonly [string, string])[] = [
   ["core.fsmonitor", "false"],
   ["core.hooksPath", "/dev/null"],
+  // Each of these names a command git runs on a path this package reaches:
+  // ssh transport and credential lookup on `fetch`, the `ext::` transport on
+  // any remote URL, textconv/external diff on the diffs behind the viewer.
+  ["core.sshCommand", ""],
+  ["core.askpass", ""],
+  ["core.gitProxy", ""],
+  ["core.alternateRefsCommand", ""],
+  ["credential.helper", ""],
+  ["uploadpack.packObjectsHook", ""],
+  ["diff.external", ""],
+  ["protocol.ext.allow", "never"],
 ];
 
 /**
@@ -172,11 +190,13 @@ const GIT_HARDENED_CONFIG: readonly (readonly [string, string])[] = [
  * An inherited `GIT_CONFIG_COUNT` is preserved and Patcher's entries are
  * appended after it, because the last index wins.
  */
-function withHardenedGitConfig(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function withHardenedGitConfig(
+  env: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  // `Number.parseInt` yields an integer or NaN, and `NaN > 0` is false, so the
+  // comparison alone rejects both a missing and a malformed inherited count.
   const inheritedCount = Number.parseInt(env.GIT_CONFIG_COUNT ?? "", 10);
-  const base = Number.isInteger(inheritedCount) && inheritedCount > 0
-    ? inheritedCount
-    : 0;
+  const base = inheritedCount > 0 ? inheritedCount : 0;
   const hardened: NodeJS.ProcessEnv = { ...env };
   GIT_HARDENED_CONFIG.forEach(([key, value], offset) => {
     hardened[`GIT_CONFIG_KEY_${base + offset}`] = key;
@@ -193,6 +213,18 @@ function resolveGitProcessEnv(
     ...sanitizeInheritedChildProcessEnv({ env: process.env }),
     ...args.env,
   });
+}
+
+/**
+ * The env for a child that runs git, or runs something that runs git.
+ *
+ * Every such spawn needs the hardening, not just the ones in this file: `gh`
+ * shells out to git in the same checkout, and the workspace watcher polls
+ * `git status` in it. A spawn site that builds its own env silently opts out,
+ * which is the shape the original two-call-site fix had.
+ */
+export function hardenedGitChildProcessEnv(): NodeJS.ProcessEnv {
+  return resolveGitProcessEnv({ env: undefined });
 }
 
 function isMaxBufferExceededError(error: unknown): boolean {
@@ -748,7 +780,12 @@ export async function getWorkspaceGitOperation(
     // --no-optional-locks: status must not take index.lock, or background
     // polling races concurrent commits in the same checkout.
     runGit(
-      ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all"],
+      [
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+      ],
       { cwd },
     ),
   ]);
@@ -965,7 +1002,10 @@ function resolvePreferredLocalDefaultBranch(
   localBranches: readonly string[],
   originDefaultBranchName: string | undefined,
 ): string | undefined {
-  if (originDefaultBranchName && localBranches.includes(originDefaultBranchName)) {
+  if (
+    originDefaultBranchName &&
+    localBranches.includes(originDefaultBranchName)
+  ) {
     return originDefaultBranchName;
   }
   if (localBranches.includes("main")) {
@@ -1091,7 +1131,12 @@ async function readDefaultBranchRelation(
     return "equal";
   }
 
-  const localIsAncestor = await isAncestorRef(cwd, localRef, originRef, options);
+  const localIsAncestor = await isAncestorRef(
+    cwd,
+    localRef,
+    originRef,
+    options,
+  );
   if (localIsAncestor === true) {
     return "local-behind";
   }
@@ -1099,7 +1144,12 @@ async function readDefaultBranchRelation(
     return "unknown";
   }
 
-  const originIsAncestor = await isAncestorRef(cwd, originRef, localRef, options);
+  const originIsAncestor = await isAncestorRef(
+    cwd,
+    originRef,
+    localRef,
+    options,
+  );
   if (originIsAncestor === true) {
     return "local-ahead";
   }
@@ -1169,7 +1219,10 @@ export async function fetchRemoteBranches(
     });
     return { status: result.exitCode === 0 ? "fetched" : "failed" };
   } catch (error) {
-    if (error instanceof WorkspaceError && error.code === "git_command_timeout") {
+    if (
+      error instanceof WorkspaceError &&
+      error.code === "git_command_timeout"
+    ) {
       return { status: "failed" };
     }
     throw error;
@@ -1343,7 +1396,12 @@ export async function listRemoteBranches(cwd: string): Promise<string[]> {
 export async function hasUncommittedChanges(cwd: string): Promise<boolean> {
   await ensureGitRepo(cwd);
   const status = await runGit(
-    ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all"],
+    [
+      "--no-optional-locks",
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ],
     { cwd },
   );
   return status.stdout.trim().length > 0;

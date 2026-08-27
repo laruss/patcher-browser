@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { calculateExponentialBackoffDelay } from "@patcher/domain";
+import { hardenedGitChildProcessEnv } from "@patcher/host-workspace";
 import {
   RootSubscription,
   type ParcelWatcherEventBatch,
@@ -72,6 +73,11 @@ function runGitIgnoredMatchingStatus(
       {
         cwd: args.cwd,
         encoding: "utf8",
+        // The repository being polled is one a sandboxed agent may write, and
+        // `.git/config` names commands git executes — here, in the daemon,
+        // outside the sandbox. This poll runs on its own cadence with no user
+        // action, so it needs the same hardening `runGit` carries.
+        env: hardenedGitChildProcessEnv(),
         maxBuffer: WORKSPACE_ROOT_IGNORE_STATUS_MAX_BUFFER_BYTES,
         timeout: WORKSPACE_ROOT_IGNORE_STATUS_TIMEOUT_MS,
       },

@@ -53,9 +53,7 @@ describe("PermissionModePicker", () => {
   }
 
   function pick(label: string) {
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: new RegExp(label) }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(label) }));
   }
 
   it("does not leave the sandbox on a single click", () => {

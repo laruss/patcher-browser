@@ -10,7 +10,6 @@ import {
   createProject,
   createThread,
   openSession,
-  updateHost,
   upsertHost,
 } from "@patcher/db";
 import {
@@ -88,16 +87,12 @@ export function seedHost(
     type?: "persistent";
   } = {},
 ) {
-  const host = upsertHost(deps.db, deps.hub, {
+  return upsertHost(deps.db, deps.hub, {
     id: args.id,
     name: args.name ?? "Test Host",
     type: args.type ?? "persistent",
+    maxPermissionMode: args.maxPermissionMode ?? "full",
   });
-  return (
-    updateHost(deps.db, deps.hub, host.id, {
-      maxPermissionMode: args.maxPermissionMode ?? "full",
-    }) ?? host
-  );
 }
 
 export function seedHostSession(

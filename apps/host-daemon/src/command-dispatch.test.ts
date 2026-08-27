@@ -1574,3 +1574,111 @@ describe("dispatchCommand", () => {
     );
   });
 });
+
+describe("the daemon's own credential files", () => {
+  /**
+   * `POST /api/v1/files/read` is deliberately reachable by an agent mid-turn,
+   * `rootPath` is optional, and the read happens here rather than inside the
+   * turn's sandbox — so the sandbox's `credentials.files` deny cannot see it.
+   * One `files/read` of the app key would hand the turn the app's identity,
+   * which the route policy does not restrict at all.
+   */
+  function dispatchOptions(dataDir: string) {
+    return {
+      dataDir,
+      eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
+      fetchProjectAttachment: async () => {
+        throw new Error("Unexpected project attachment fetch");
+      },
+      runtimeManager: new RuntimeManager({
+        provisionWorkspace: async () => {
+          throw new Error("Unexpected workspace provision");
+        },
+        dataDir,
+      }),
+      threadStorageRootPath: "/tmp/patcher-thread-storage",
+    };
+  }
+
+  it("are not served over the host file RPC", async () => {
+    const dataDir = await makeTempDir("patcher-credential-guard-");
+    await fs.writeFile(path.join(dataDir, "app-api-key"), "the-app-key");
+
+    for (const fileName of [
+      "app-api-key",
+      "auth-secret",
+      "auth.json",
+      "patcher.db",
+      "patcher.db-wal",
+    ]) {
+      await expect(
+        dispatchOnlineRpcCommand(
+          {
+            type: "host.read_file",
+            path: path.join(dataDir, fileName),
+          } as CommandOf<"host.read_file">,
+          dispatchOptions(dataDir),
+        ),
+      ).rejects.toThrow(/credential files/);
+    }
+  });
+
+  it("cannot be reached under a root that is the data dir", async () => {
+    const dataDir = await makeTempDir("patcher-credential-guard-");
+
+    await expect(
+      dispatchOnlineRpcCommand(
+        {
+          type: "host.read_file_relative",
+          rootPath: dataDir,
+          path: "app-api-key",
+        } as CommandOf<"host.read_file_relative">,
+        dispatchOptions(dataDir),
+      ),
+    ).rejects.toThrow(/credential files/);
+  });
+
+  it("cannot be reached by dressing the path up with a traversal", async () => {
+    const dataDir = await makeTempDir("patcher-credential-guard-");
+
+    await expect(
+      dispatchOnlineRpcCommand(
+        {
+          type: "host.read_file",
+          path: path.join(dataDir, "plugins", "..", "app-api-key"),
+        } as CommandOf<"host.read_file">,
+        dispatchOptions(dataDir),
+      ),
+    ).rejects.toThrow(/credential files/);
+  });
+
+  it("cannot be taken out by removing the directory that holds them", async () => {
+    const dataDir = await makeTempDir("patcher-credential-guard-");
+
+    await expect(
+      dispatchOnlineRpcCommand(
+        {
+          type: "host.remove_path",
+          path: dataDir,
+        } as CommandOf<"host.remove_path">,
+        dispatchOptions(dataDir),
+      ),
+    ).rejects.toThrow(/credential files/);
+  });
+
+  it("does not stand in the way of an ordinary file under the data dir", async () => {
+    const dataDir = await makeTempDir("patcher-credential-guard-");
+    const readmePath = path.join(dataDir, "readme.txt");
+    await fs.writeFile(readmePath, "hello");
+
+    const result = await dispatchOnlineRpcCommand(
+      {
+        type: "host.read_file",
+        path: readmePath,
+      } as CommandOf<"host.read_file">,
+      dispatchOptions(dataDir),
+    );
+
+    expect(result).toMatchObject({ content: "hello" });
+  });
+});
