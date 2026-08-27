@@ -9,10 +9,24 @@ export type { EmptyInput, Endpoint, Untyped } from "@patcher/hono-typed-routes";
  * processes a turn spawns, and the CLI forwards it here, which is what lets the
  * server ask the user before a plugin change an agent requested.
  *
- * A declaration rather than a credential: anything with a shell can omit it.
- * It buys attribution and a default, not a boundary.
+ * On its own this is a declaration rather than a credential, and anything with
+ * a shell can omit it. What makes it answerable for is the key beside it: a
+ * turn's processes are handed a thread-scoped key, not the app key, and it
+ * verifies for exactly the thread named here. An agent cannot drop the header
+ * to look like the person at the terminal, because dropping it leaves nothing
+ * that verifies at all.
  */
 export const PATCHER_THREAD_ID_HEADER = "x-patcher-thread-id";
+
+/**
+ * Proves the request really is that thread's agent, mid-turn.
+ *
+ * Derived from the app key and the thread id, so it names one thread and
+ * cannot be turned back into the app key — see `thread-api-key.ts` in
+ * @patcher/config for the construction, and `agent-route-policy.ts` in the
+ * server for what a caller holding one may and may not reach.
+ */
+export const PATCHER_THREAD_KEY_HEADER = "x-patcher-thread-key";
 
 export type PathId = { param: { id: string } };
 export type PathProjectId = { param: { id: string } };

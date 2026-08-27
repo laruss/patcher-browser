@@ -10,9 +10,12 @@
  * desktop shell, the launcher, the QA harnesses.
  *
  * `PATCHER_APP_KEY` wins over the file, and that is what makes the key
- * reachable from places that cannot read the data dir — an agent's shell (the
- * host daemon exports it beside `PATCHER_SERVER_URL`), a container, a `curl`
- * in the runbook.
+ * reachable from places that cannot read the data dir — a host daemon on
+ * another machine from the server, a container, a `curl` in the runbook.
+ *
+ * **A turn's processes are not among them.** An agent's shell used to carry
+ * this key and now carries one derived for its thread instead; see
+ * `thread-api-key.ts` beside this file for what that buys and what it does not.
  *
  * **This is not a secret from a plugin.** A plugin process is a plain `fork`
  * with `node:fs`, running as the user, so it can read this file exactly as the
