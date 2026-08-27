@@ -54,9 +54,22 @@ a link that silently does nothing. That is exactly what this surface shipped
 with: `ThreadDetailView` and `RootComposeView` each subscribe for their own
 panel, neither is mounted on `/browser`, and the surface subscribed nowhere.
 
-It prefers `onScopedOpenTab`, which names the tab that asked, and opens the
-popup only for a tab this surface owns — the thread panel's popups are that
-panel's business. `onOpenTab` is the fallback for a shell predating attribution
+It prefers `onPlacedOpenTab`, then `onScopedOpenTab`, and subscribes to exactly
+one of them: the shell sends all three channels, so a second subscription would
+open the same link twice. Both name the tab that asked, so the popup opens only
+for a tab this surface owns — the thread panel's popups are that panel's
+business. The newest one adds where the tab goes: a middle-click or
+Cmd/Ctrl+click asks Chromium for a _background_ tab, and a tab that takes the
+window is not that gesture — queueing three links is the whole reason it exists.
+Placement rides a third channel rather than a field on the second, which is what
+invariant 2 asks for; a shell without it can only mean the foreground, which is
+what every renderer did before.
+
+Background here is also lazier than Chrome's. The deck mounts one view at a
+time, so a background tab has no `WebContentsView` and its page loads when the
+tab is first selected — the same as a tab restored from the last session.
+
+`onOpenTab` is the fallback for a shell predating attribution
 (invariant 2's version skew, again), where a route path is filtered out because
 it belongs to `RouteNavigationProvider`.
 

@@ -27,6 +27,12 @@ export const PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL =
   "patcher-desktop:browser:open-tab";
 export const PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL =
   "patcher-desktop:browser:scoped-open-tab";
+// A third one, carrying where the tab goes: a middle-click or Cmd/Ctrl+click
+// asks for the background. A channel rather than a field, because the request
+// schemas are wire-frozen (docs/architecture/bb-migration.md, invariant 2) — the
+// shell sends all three and a renderer subscribes to the newest it understands.
+export const PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL =
+  "patcher-desktop:browser:placed-open-tab";
 export const PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL =
   "patcher-desktop:browser:snapshot";
 // Tab icons ride their own channel rather than a field on the wire-frozen state

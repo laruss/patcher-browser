@@ -291,6 +291,31 @@ export type PatcherDesktopBrowserScopedOpenTabRequest = z.infer<
 >;
 
 /**
+ * The same request, plus where the tab goes.
+ *
+ * A middle-click or Cmd/Ctrl+click asks Chromium for a *background* tab, and a
+ * tab that steals the window is not the thing that was asked for — queueing
+ * three links is the whole reason that gesture exists. The placement rides a
+ * third channel rather than a field on the scoped one, which is what invariant
+ * 2 asks for (docs/architecture/bb-migration.md): the old parser never sees this
+ * payload, and feature-detecting
+ * {@link PatcherDesktopBrowserApi.onPlacedOpenTab} is the negotiation. A shell
+ * without it can only ever mean the foreground, which is what every renderer
+ * did before this existed.
+ */
+export const patcherDesktopBrowserPlacedOpenTabRequestSchema = z
+  .object({
+    /** Open it without leaving the page the link was on. */
+    background: z.boolean(),
+    tabId: z.string().min(1),
+    url: z.string().min(1).max(PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
+  })
+  .strict();
+export type PatcherDesktopBrowserPlacedOpenTabRequest = z.infer<
+  typeof patcherDesktopBrowserPlacedOpenTabRequestSchema
+>;
+
+/**
  * The links macOS handed the shell because Patcher is the user's default browser,
  * answered to the surface that asked for them and emptied in the asking.
  *
@@ -2449,6 +2474,9 @@ export type PatcherDesktopBrowserOpenTabHandler = (
 export type PatcherDesktopBrowserScopedOpenTabHandler = (
   request: PatcherDesktopBrowserScopedOpenTabRequest,
 ) => void;
+export type PatcherDesktopBrowserPlacedOpenTabHandler = (
+  request: PatcherDesktopBrowserPlacedOpenTabRequest,
+) => void;
 export type PatcherDesktopBrowserExternalUrlsPendingHandler = () => void;
 export type PatcherDesktopBrowserSnapshotHandler = (
   snapshot: PatcherDesktopBrowserSnapshot,
@@ -2481,6 +2509,16 @@ export interface PatcherDesktopBrowserApi {
    */
   onScopedOpenTab?(
     listener: PatcherDesktopBrowserScopedOpenTabHandler,
+  ): PatcherDesktopBrowserUnsubscribe;
+  /**
+   * Subscribe to the same requests carrying where the tab goes — a Cmd-clicked
+   * or middle-clicked link asks for the background. Optional for version skew
+   * with shells that predate placement; a renderer that has this one must not
+   * also subscribe to {@link PatcherDesktopBrowserApi.onScopedOpenTab}, since
+   * the shell sends both and the tab would be opened twice.
+   */
+  onPlacedOpenTab?(
+    listener: PatcherDesktopBrowserPlacedOpenTabHandler,
   ): PatcherDesktopBrowserUnsubscribe;
   /**
    * Take the links macOS handed the shell because Patcher is the user's default

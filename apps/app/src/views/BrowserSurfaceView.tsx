@@ -187,9 +187,14 @@ export function BrowserSurfaceView({
   );
 
   const openSurfaceTab = useCallback(
-    (url?: string) => {
-      const tab = openTab(url);
-      goToTabRoute(tab);
+    (url?: string, { background = false }: { background?: boolean } = {}) => {
+      const tab = openTab(url, { activate: !background });
+      // A background tab is not a selection, so the window stays where it is:
+      // routing to it is exactly the "took my page away" that Cmd-clicking a
+      // link is meant to avoid.
+      if (!background) {
+        goToTabRoute(tab);
+      }
       return tab;
     },
     [goToTabRoute, openTab],
@@ -292,6 +297,15 @@ export function BrowserSurfaceView({
     const browserApi = getDesktopBrowserApi();
     if (browserApi === null) {
       return;
+    }
+    // Newest channel first, and only one: the shell sends all three, so a
+    // second subscription here would open the same link twice.
+    if (browserApi.onPlacedOpenTab) {
+      return browserApi.onPlacedOpenTab(({ background, tabId, url }) => {
+        if (surfaceTabIds.has(tabId)) {
+          openSurfaceTab(url, { background });
+        }
+      });
     }
     if (browserApi.onScopedOpenTab) {
       return browserApi.onScopedOpenTab(({ tabId, url }) => {

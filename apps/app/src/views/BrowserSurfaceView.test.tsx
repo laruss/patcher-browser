@@ -450,6 +450,77 @@ describe("BrowserSurfaceView", () => {
     expect(attach.mock.calls.at(-1)?.[0].url).toBe("https://example.com/popup");
   });
 
+  // Cmd/Ctrl+click and the middle button queue a page to come back to. The tab
+  // has to appear without the window leaving the page the links are on —
+  // otherwise the second link of three is unreachable.
+  it("opens a middle-clicked link in the background, leaving the page alone", () => {
+    const attach = vi.fn();
+    const placedListeners: Array<
+      (request: { background: boolean; tabId: string; url: string }) => void
+    > = [];
+    const scopedListener = vi.fn();
+    renderSurface({
+      ...createNoopDesktopBrowserApi(),
+      attach,
+      onPlacedOpenTab(listener) {
+        placedListeners.push(listener);
+        return () => {};
+      },
+      onScopedOpenTab(listener) {
+        scopedListener(listener);
+        return () => {};
+      },
+    });
+    const tabId = attach.mock.calls[0]?.[0].tabId as string;
+    const attachCallsBefore = attach.mock.calls.length;
+
+    act(() => {
+      placedListeners.at(-1)?.({
+        background: true,
+        tabId,
+        url: "https://example.com/queued",
+      });
+    });
+
+    // The tab is there…
+    expect(tabButtons()).toHaveLength(2);
+    // …the first one is still the selected one, and the deck never attached
+    // the new page, which is what "background" means for a deck that mounts
+    // one view at a time.
+    expect(tabButtons()[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(attach.mock.calls).toHaveLength(attachCallsBefore);
+    // Both channels carry the same request, so subscribing to both would open
+    // the link twice.
+    expect(scopedListener).not.toHaveBeenCalled();
+  });
+
+  it("opens a placed request that is not background in the foreground", () => {
+    const attach = vi.fn();
+    const placedListeners: Array<
+      (request: { background: boolean; tabId: string; url: string }) => void
+    > = [];
+    renderSurface({
+      ...createNoopDesktopBrowserApi(),
+      attach,
+      onPlacedOpenTab(listener) {
+        placedListeners.push(listener);
+        return () => {};
+      },
+    });
+    const tabId = attach.mock.calls[0]?.[0].tabId as string;
+
+    act(() => {
+      placedListeners.at(-1)?.({
+        background: false,
+        tabId,
+        url: "https://example.com/popup",
+      });
+    });
+
+    expect(tabButtons()).toHaveLength(2);
+    expect(attach.mock.calls.at(-1)?.[0].url).toBe("https://example.com/popup");
+  });
+
   // Real popups: the shell created the window and chose the tab id, because the
   // page had its `window.open()` handle before this surface heard of the tab.
   it("adopts a popup the shell created, and drops it when it closes itself", () => {
