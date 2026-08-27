@@ -12,15 +12,27 @@ Providers under test:
 - `codex`
 - `claude-code`
 
-Permission modes under test:
+Permission modes under test — the three presets a thread can actually run
+with, which is what the app calls Accept Edits, Approve for me and Full Access:
 
-- `readonly`
-- `workspace-write`
-- `full`
+- `accept-edits` — workspace sandbox, escalations reviewed by the person
+- `auto` — workspace sandbox, escalations reviewed by the provider
+- `full` — no sandbox, no approvals
+
+`readonly` and `workspace-write` appear below in places this runbook has not
+caught up on: `workspace-write` was renamed to `accept-edits`, and `readonly` is
+no longer reachable at all — `toClaudePermissionMode` maps only the three
+presets, and the Claude session-mode override accepts nothing but `plan`. The
+readonly implementation is still in the tree
+(`claude-code/bridge/readonly-bash-policy.ts` and the hooks that use it), which
+is why its probe is kept rather than deleted; treat that section as exercising
+code no preset reaches today.
 
 Pi currently supports `full` only. Confirm that unsupported Pi permission modes
 are rejected by existing server/runtime tests; do not include Pi in this matrix
-unless its advertised capabilities change.
+unless its advertised capabilities change. A machine at the default sandbox
+ceiling refuses the pairing outright — that is
+`host_permission_ceiling_conflict`, not a bug.
 
 Core behaviors under test:
 
@@ -114,6 +126,37 @@ developer's main product worktree.
   Patcher CLI access, and subagents/delegation.
 - Use only in disposable QA environments or when the test explicitly requires
   unrestricted host access.
+
+## Escape Vectors Covered Automatically
+
+These do not need a manual pass. Each one was a live escape from the sandbox,
+each is closed, and each has a test that fails when the fix is removed — which
+was verified by removing it, not assumed. Listed here so a manual run does not
+re-do them and an auditor can find them.
+
+| Vector                                                                                        | Closed by                                                                    | Test                                                                                                                  |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Agent writes any path on the machine over `POST /api/v1/files/write` (`rootPath` is optional) | Thread-scoped credential plus a route policy                                 | `apps/server/test/security/agent-route-policy.test.ts`                                                                |
+| Agent opens a PTY on the host over `POST /api/v1/terminals`                                   | Same                                                                         | Same                                                                                                                  |
+| Agent raises its own machine's permission ceiling                                             | Same                                                                         | Same                                                                                                                  |
+| Agent drops the thread header to be taken for the app                                         | The key verifies against the id, so dropping it leaves nothing that verifies | Same                                                                                                                  |
+| Agent's shell holds the app key                                                               | `buildThreadShellEnvironment` trades it for a derived key                    | `packages/agent-runtime/src/thread-shell-environment.test.ts`                                                         |
+| CLI inside a turn reads the app key back off disk                                             | `cliFetch` and both socket paths stop resolving it                           | `apps/cli/src/__tests__/client.test.ts`                                                                               |
+| Sandboxed Bash reads the app key, the auth secret or the database                             | `sandbox.credentials.files` deny                                             | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
+| `core.fsmonitor` planted in `.git/config` runs in the daemon on a status poll                 | Git config hardening via the environment                                     | `packages/host-workspace/test/git.test.ts`                                                                            |
+| A `post-checkout` hook planted in `.git/hooks` runs when a worktree is created                | Same                                                                         | Same                                                                                                                  |
+| A sandboxed mode runs unsandboxed because the backend is missing                              | Refusal naming the dependency and Full Access                                | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
+| An unsupported permission mode resolves upward to Full Access                                 | Fallbacks resolve to the most capable sandboxed mode instead                 | `apps/server/test/threads/thread-default-policy.test.ts`, `apps/app/src/hooks/resolvePermissionModeSelection.test.ts` |
+| Full Access is one click away in the same menu as the sandboxed presets                       | Confirmation naming what it gives up                                         | `apps/app/src/components/pickers/PermissionModePicker.test.tsx`                                                       |
+
+Two things on this list are deliberately still open, and a manual run should
+know them rather than report them as findings:
+
+- **Codex leaves reads open.** Its sandbox has nothing that protects a path, so a
+  Codex turn can still read the files denied to a Claude one.
+- **Codex leaves the network open.** Measured: restricting it takes loopback with
+  it and Codex raises no approval, so it would cost every Codex thread the
+  `patcher` CLI. See the note beside `networkAccess` in `codex/adapter.ts`.
 
 ## Probe Prompt
 
@@ -273,14 +316,14 @@ done
 
 Record PASS, FAIL, BLOCKED, or NOT ATTEMPTED.
 
-| Provider    | Mode            | Shell | Git status | Git merge-base | Git diff | Git show | File read | Workspace write           | Git add/reset             | Commit                          | Patcher CLI read | Subagent                          | Expected result         |
-| ----------- | --------------- | ----- | ---------- | -------------- | -------- | -------- | --------- | ------------------------- | ------------------------- | ------------------------------- | ---------------- | --------------------------------- | ----------------------- |
-| Codex       | readonly        |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional         | should work if readonly-contained | review-capable readonly |
-| Codex       | workspace-write |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work      | should work                       | implementation-capable  |
-| Codex       | full            |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work        | should work                       | unrestricted            |
-| Claude Code | readonly        |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional         | should work if readonly-contained | review-capable readonly |
-| Claude Code | workspace-write |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work      | should work                       | implementation-capable  |
-| Claude Code | full            |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work        | should work                       | unrestricted            |
+| Provider    | Mode                   | Shell | Git status | Git merge-base | Git diff | Git show | File read | Workspace write           | Git add/reset             | Commit                          | Patcher CLI read | Subagent                          | Expected result         |
+| ----------- | ---------------------- | ----- | ---------- | -------------- | -------- | -------- | --------- | ------------------------- | ------------------------- | ------------------------------- | ---------------- | --------------------------------- | ----------------------- |
+| Codex       | readonly (unreachable) |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional         | should work if readonly-contained | review-capable readonly |
+| Codex       | accept-edits           |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work      | should work                       | implementation-capable  |
+| Codex       | full                   |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work        | should work                       | unrestricted            |
+| Claude Code | readonly (unreachable) |       |            |                |          |          |           | should fail/not attempted | should fail/not attempted | should fail/not attempted       | optional         | should work if readonly-contained | review-capable readonly |
+| Claude Code | accept-edits           |       |            |                |          |          |           | must work                 | must work                 | must work in disposable QA repo | should work      | should work                       | implementation-capable  |
+| Claude Code | full                   |       |            |                |          |          |           | must work                 | must work                 | must work                       | must work        | should work                       | unrestricted            |
 
 ## Failure Triage
 

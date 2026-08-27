@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PATCHER_THREAD_ID_HEADER } from "@patcher/server-contract";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
+import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
+import {
+  PATCHER_THREAD_ID_HEADER,
+  PATCHER_THREAD_KEY_HEADER,
+} from "@patcher/server-contract";
 import { cliFetch } from "../client.js";
 
 afterEach(() => {
@@ -85,5 +90,63 @@ describe("cliFetch", () => {
         ? null
         : new Headers(init.headers).get(PATCHER_THREAD_ID_HEADER),
     ).toBeNull();
+  });
+
+  /**
+   * The other half of the thread-scoped credential: a CLI inside a turn must
+   * present the thread key and must not go looking for the app key on disk.
+   * Reading the file back would undo the whole point of handing over a narrower
+   * credential, and it would do it silently — nothing else in the system can
+   * tell the difference afterwards.
+   *
+   * The app key is resolved once per process and cached, so each of these
+   * re-imports the module: sharing the cache would let one case pass on another
+   * case's empty key rather than on the behaviour under test.
+   */
+  async function captureHeadersWithFreshModule(): Promise<Headers> {
+    vi.resetModules();
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response("ok"),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { cliFetch: freshCliFetch } = await import("../client.js");
+    await freshCliFetch("http://127.0.0.1:38986/api/v1/threads");
+    const init = fetchMock.mock.calls[0]?.[1];
+    if (!init) throw new Error("fetch was called without an init");
+    return new Headers(init.headers);
+  }
+
+  it("presents the thread key when it runs inside a turn", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thr_abc123");
+    vi.stubEnv(PATCHER_THREAD_KEY_ENV, "derived-thread-key");
+
+    const headers = await captureHeadersWithFreshModule();
+
+    expect(headers.get(PATCHER_THREAD_KEY_HEADER)).toBe("derived-thread-key");
+    expect(headers.get(PATCHER_THREAD_ID_HEADER)).toBe("thr_abc123");
+  });
+
+  it("does not present an app key alongside a thread key", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thr_abc123");
+    vi.stubEnv(PATCHER_THREAD_KEY_ENV, "derived-thread-key");
+    // Set deliberately: even with one there for the taking, a turn's CLI is not
+    // the app and must not present itself as one.
+    vi.stubEnv("PATCHER_APP_KEY", "the-app-key");
+
+    const headers = await captureHeadersWithFreshModule();
+
+    expect(headers.has(PATCHER_APP_KEY_HEADER)).toBe(false);
+  });
+
+  it("still presents the app key for the person at their own terminal", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "");
+    vi.stubEnv(PATCHER_THREAD_KEY_ENV, "");
+    vi.stubEnv("PATCHER_APP_KEY", "the-app-key");
+
+    const headers = await captureHeadersWithFreshModule();
+
+    expect(headers.get(PATCHER_APP_KEY_HEADER)).toBe("the-app-key");
+    expect(headers.has(PATCHER_THREAD_KEY_HEADER)).toBe(false);
   });
 });
