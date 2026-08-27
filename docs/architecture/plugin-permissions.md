@@ -80,11 +80,18 @@ API could not tell: an agent's `patcher plugin enable` and its user's arrive on
 the same loopback server with the same credentials, and `POST
 /plugins/:id/enable` had no notion of who was asking.
 
-Now the caller says. Patcher sets `PATCHER_THREAD_ID` in the environment of the
-processes a turn spawns, and `cliFetch` forwards it as
-`x-patcher-thread-id` (`PATCHER_THREAD_ID_HEADER`, defined with the rest of the
-HTTP contract). No declared thread means a person at their own terminal or the
-app's own toggle, and those behave exactly as they did. A declared thread means
+Now the caller proves it. Patcher sets `PATCHER_THREAD_ID` in the environment of
+the processes a turn spawns, and `cliFetch` forwards it as `x-patcher-thread-id`
+(`PATCHER_THREAD_ID_HEADER`, defined with the rest of the HTTP contract) — but
+the header alone would be a declaration anything with a shell could omit. What
+makes it answerable for is the key beside it: a turn is handed a thread-scoped
+key rather than the app key, it verifies for exactly the thread named in the
+header, and a request with the key and no header identifies as nothing and is
+refused. Dropping the declaration costs an agent the ability to call at all
+rather than promoting it to the app. See the security notes on the
+[thread-scoped credential](../security.md). No thread identity means a person at
+their own terminal or the app's own toggle, and those behave exactly as they
+did. A declared thread means
 an agent mid-turn, and `enable`, `disable`, `install`, `update`, `remove` and a
 settings write each raise a prompt in that thread — the plugin's name, its
 declared permissions, its declared sites — and block on the answer for up to
