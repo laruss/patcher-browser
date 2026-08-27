@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { PermissionMode } from "@patcher/domain";
 import { LIST_HOVER_TRANSITION } from "@patcher/shared-ui/motion";
 import { cn } from "@patcher/shared-ui/lib/utils";
+import { FullAccessConfirmDialog } from "@/components/dialogs/FullAccessConfirmDialog";
 import { OptionPicker, type PickerOption } from "./OptionPicker";
 
 type PermissionModeOption = PickerOption<PermissionMode>;
@@ -79,24 +80,47 @@ export function PermissionModePicker({
     () => addPermissionModeCompactLabels(options),
     [options],
   );
+  // Leaving the sandbox stops here rather than at each call site: the guard
+  // belongs to the control, so a surface that adds the picker later cannot
+  // forget it. Picking a sandboxed mode is unchanged — going back needs no
+  // ceremony.
+  const [pendingFullAccess, setPendingFullAccess] = useState(false);
+  const handleChange = (next: PermissionMode) => {
+    if (next === "full" && value !== "full") {
+      setPendingFullAccess(true);
+      return;
+    }
+    onChange(next);
+  };
   if (!supported || value === undefined || options.length <= 1) {
     return null;
   }
   return (
-    <OptionPicker
-      label="Permission mode"
-      value={value}
-      options={compactOptions}
-      onChange={onChange}
-      className={cn(LIST_HOVER_TRANSITION, className)}
-      contentClassName="max-w-72"
-      muted={muted}
-      defaultOpen={defaultOpen}
-      modal={modal}
-      align="end"
-      displayOverride={displayOverride}
-      disabled={disabled}
-      showChevronWhenDisabled={showChevronWhenDisabled}
-    />
+    <>
+      <FullAccessConfirmDialog
+        open={pendingFullAccess}
+        onOpenChange={setPendingFullAccess}
+        scope="thread"
+        onConfirm={() => {
+          setPendingFullAccess(false);
+          onChange("full");
+        }}
+      />
+      <OptionPicker
+        label="Permission mode"
+        value={value}
+        options={compactOptions}
+        onChange={handleChange}
+        className={cn(LIST_HOVER_TRANSITION, className)}
+        contentClassName="max-w-72"
+        muted={muted}
+        defaultOpen={defaultOpen}
+        modal={modal}
+        align="end"
+        displayOverride={displayOverride}
+        disabled={disabled}
+        showChevronWhenDisabled={showChevronWhenDisabled}
+      />
+    </>
   );
 }
