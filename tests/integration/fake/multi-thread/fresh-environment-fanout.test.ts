@@ -7,6 +7,7 @@ import {
   createHostThread,
   getThreadEvents,
   getThreadOutput,
+  setHostPermissionCeiling,
 } from "../../helpers/api.js";
 import { waitForThreadStatus } from "../../helpers/assertions.js";
 import { createProjectFixture } from "../../helpers/fixtures.js";
@@ -127,6 +128,11 @@ describe.sequential(
           const project = await createProjectFixture(harness, {
             name: "Fresh Environment Fanout",
           });
+          // Pi is in the fanout and offers Full Access only, which a machine at
+          // the default sandbox ceiling refuses outright. This test is about
+          // concurrent fresh-environment setup, not about permissions, so it
+          // does what the machine's owner would have to do.
+          await setHostPermissionCeiling(harness.api, harness.hostId, "full");
           const requests = FANOUT_PROVIDERS.flatMap((providerId) =>
             Array.from({ length: THREADS_PER_PROVIDER }, (_, index) => ({
               index: index + 1,
