@@ -26,8 +26,14 @@ export class PluginSettingsValidationError extends Error {
   }
 }
 
-// Keys become file names (secrets) and CLI arguments; keep them tame.
-const SETTING_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
+/**
+ * Keys become file names (secrets) and CLI arguments; keep them tame.
+ *
+ * Exported for the same reason the schema below is: a plugin in its own process
+ * reports its keys rather than defining them here, so the host holds that
+ * report to this pattern too (plugin-registration-guard.ts).
+ */
+export const PLUGIN_SETTING_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 /**
  * Built on the first `patcher.settings.define`, not at import.
@@ -40,7 +46,12 @@ const SETTING_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
  */
 let descriptorSchemaCache: z.ZodType<PluginSettingDescriptor> | undefined;
 
-function descriptorSchema(): z.ZodType<PluginSettingDescriptor> {
+/**
+ * Exported for the host's side of the same question: a plugin in its own
+ * process *reports* its descriptors rather than defining them here, and
+ * plugin-registration-guard.ts holds that report to this schema.
+ */
+export function pluginSettingDescriptorSchema(): z.ZodType<PluginSettingDescriptor> {
   if (descriptorSchemaCache !== undefined) return descriptorSchemaCache;
   const { z: zod } =
     typeof require === "function"
@@ -96,7 +107,7 @@ export function registerSettingDescriptors(
 ): PluginSettingDescriptors {
   const validated: PluginSettingDescriptors = {};
   for (const [key, raw] of Object.entries(added)) {
-    if (!SETTING_KEY_PATTERN.test(key)) {
+    if (!PLUGIN_SETTING_KEY_PATTERN.test(key)) {
       throw new Error(
         `invalid setting key "${key}" — use letters, digits, "-" and "_"`,
       );
@@ -104,7 +115,7 @@ export function registerSettingDescriptors(
     if (key in target) {
       throw new Error(`setting "${key}" is already defined`);
     }
-    const parsed = descriptorSchema().safeParse(raw);
+    const parsed = pluginSettingDescriptorSchema().safeParse(raw);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       const path = issue?.path.join(".") ?? "";

@@ -133,6 +133,7 @@ import type { PatcherSdk, ThreadForkArgs, ThreadSpawnArgs } from "@patcher/sdk";
 import type { ServerLogger } from "../../types.js";
 import type { PluginInteractionResult } from "../interactions/pending-interactions.js";
 import { appendPluginLogLine } from "./plugin-log.js";
+import { resolveDeclaredMatches } from "./plugin-declared-sites.js";
 import {
   applySdkPermissions,
   createPluginPermissionGate,
@@ -711,48 +712,6 @@ export type PluginAgentConfigurationProvider = (
 
 /** Duck-typed zod detection: plugin sources may carry their own zod copy,
  * so instanceof is useless — anything with safeParse is treated as zod. */
-/**
- * The site patterns one page contribution may use, or a refusal naming the list
- * it has to pick from.
- *
- * Shared by page styles and page scripts because this is the rule the whole
- * consent model rests on, and two copies of it could drift: `matches` must be a
- * **member** of what the manifest declared, verbatim. Not a subset by glob — "is
- * this pattern inside that one" is a question with no answer worth trusting code
- * on a signed-in page to, and the manifest is the line a human read before
- * installing.
- */
-function resolveDeclaredMatches(args: {
-  kind: string;
-  id: string;
-  matches: unknown;
-  maxMatches: number;
-  declared: readonly string[];
-  pluginId: string;
-}): string[] {
-  const { kind, id, matches, maxMatches, declared, pluginId } = args;
-  if (
-    !Array.isArray(matches) ||
-    matches.length === 0 ||
-    matches.length > maxMatches
-  ) {
-    throw new Error(
-      `${kind} "${id}" must match between 1 and ${maxMatches} of the plugin's declared sites`,
-    );
-  }
-  for (const pattern of matches) {
-    if (typeof pattern !== "string" || !declared.includes(pattern)) {
-      throw new Error(
-        `${kind} "${id}" matches ${JSON.stringify(pattern)}, which plugin "${pluginId}" does not declare in "patcher.sites". ` +
-          (declared.length === 0
-            ? `That list is empty — add the site there, then run \`patcher plugin reload ${pluginId}\`.`
-            : `It declares: ${declared.join(", ")}.`),
-      );
-    }
-  }
-  return [...(matches as string[])];
-}
-
 function isZodSchemaLike(value: unknown): boolean {
   return (
     typeof value === "object" &&

