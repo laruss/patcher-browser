@@ -141,6 +141,12 @@ async function startDistServer() {
   };
 }
 
+/** Colour codes, which a terminal hides and a regex does not. */
+function stripAnsi(value) {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/\u001B\[[0-9;]*m/g, "");
+}
+
 /** A port nothing is on right now, so this never fights a running checkout. */
 async function findFreePort() {
   const probe = createServer();
@@ -189,7 +195,19 @@ async function startDevServer() {
       "--clearScreen",
       "false",
     ],
-    { cwd: appDir, env: { ...process.env, NODE_ENV: "development" } },
+    {
+      cwd: appDir,
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        // CI is a colour-forcing environment, and a coloured URL is a URL with
+        // escape codes inside the port. Ask for none, and strip what arrives
+        // anyway (see `stripAnsi`) — the first run of this failed on exactly
+        // that, reading `127.0.0.1:\x1b[1m49436` as no URL at all.
+        FORCE_COLOR: "0",
+        NO_COLOR: "1",
+      },
+    },
   );
 
   const output = [];
@@ -200,13 +218,17 @@ async function startDevServer() {
     const timeout = setTimeout(() => {
       rejectPromise(
         new Error(
-          `The app dev server never printed a URL.\n${output.join("").trim()}`,
+          `The app dev server never printed a URL.\n${stripAnsi(
+            output.join(""),
+          ).trim()}`,
         ),
       );
     }, devServerStartTimeoutMs);
     const onChunk = (chunk) => {
       appendOutput(output, chunk);
-      const match = /(http:\/\/127\.0\.0\.1:\d+\/?)/.exec(output.join(""));
+      const match = /(http:\/\/127\.0\.0\.1:\d+\/?)/.exec(
+        stripAnsi(output.join("")),
+      );
       if (match !== null) {
         clearTimeout(timeout);
         resolvePromise(match[1]);
