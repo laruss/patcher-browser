@@ -386,8 +386,22 @@ type FakePermissionCheckHandler = (
 ) => boolean;
 
 interface FakeWindowOpenDetails {
+  /**
+   * How Chromium was asked to open the window. Only `background-tab` — a
+   * middle-click or Cmd/Ctrl+click — is told apart here, and it is the one for
+   * which Chromium creates no guest `webContents`.
+   */
+  disposition: FakeWindowOpenDisposition;
   url: string;
 }
+
+/** Electron's own set, from `HandlerDetails.disposition`. */
+type FakeWindowOpenDisposition =
+  | "default"
+  | "foreground-tab"
+  | "background-tab"
+  | "new-window"
+  | "other";
 
 interface FakeWindowOpenDecision {
   action: "deny" | "allow";
@@ -1060,11 +1074,14 @@ const electronMock = vi.hoisted(() => {
       return event.defaultPrevented;
     }
 
-    emitWindowOpen(url: string): FakeWindowOpenDecision {
+    emitWindowOpen(
+      url: string,
+      disposition: FakeWindowOpenDisposition = "new-window",
+    ): FakeWindowOpenDecision {
       if (this.windowOpenHandler === null) {
         throw new Error("Expected a window open handler to be registered.");
       }
-      return this.windowOpenHandler({ url });
+      return this.windowOpenHandler({ disposition, url });
     }
 
     /** What Chromium's DevTools were pointed at, and how they were opened. */
@@ -7322,6 +7339,26 @@ describe("real popups", () => {
     const { decision } = openPopup(view, "https://accounts.example.com/oauth");
 
     expect(decision.outlivesOpener).toBe(true);
+  });
+
+  // Cmd/Ctrl+click and the middle button. Chromium creates no guest
+  // `webContents` for a background tab, so hosting one as a popup reached
+  // `createWindow` with neither a `webContents` nor `webPreferences` and threw
+  // in the main process — a dialog across the whole app instead of a new tab.
+  it("opens a modified click as a tab, even on a tab that claims popups", () => {
+    const { hostWindow, view } = attachOpener({ claimsPopups: true });
+
+    const decision = view.webContents.emitWindowOpen(
+      "https://example.com/docs",
+      "background-tab",
+    );
+
+    expect(decision).toEqual({ action: "deny" });
+    expect(popupPushes(hostWindow)).toEqual([]);
+    expect(hostWindow.webContents.sentPayloads).toContainEqual({
+      tabId: OPENER,
+      url: "https://example.com/docs",
+    });
   });
 
   // The shape half the OAuth SDKs use: open a blank window, then write into it.

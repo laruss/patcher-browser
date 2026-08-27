@@ -3603,7 +3603,17 @@ export function createDesktopBrowserViewManager(
     // popup-blocked. Everywhere else the older behaviour stands: deny, and push
     // the URL over for the renderer to open as a plain tab.
     webContents.setWindowOpenHandler((details) => {
+      // A modified click is a tab, not a popup. Cmd/Ctrl+click and the middle
+      // button ask Chromium for a *background tab*, and for that disposition it
+      // creates no guest `webContents` ahead of the call: `createWindow` then
+      // gets options carrying neither a `webContents` to adopt nor
+      // `webPreferences` to build from, and constructing a view out of that
+      // threw — in the main process, which means the whole app stops at an
+      // "A JavaScript error occurred" dialog. It is also not what was asked
+      // for: nobody middle-clicking a link wants a popup window.
+      const opensTab = details.disposition === "background-tab";
       const hostsRealPopup =
+        !opensTab &&
         popupTabKeys.has(browserViewKey(hostWindow, tabId)) &&
         isAllowedBrowserPopupTarget(details.url);
       const fallbackUrl = hostsRealPopup
@@ -4181,12 +4191,23 @@ export function createDesktopBrowserViewManager(
     popupSequence += 1;
     const tabId = `browser-popup:${popupSequence}`;
     const adopted = (args.options as { webContents?: WebContents }).webContents;
-    const view = new WebContentsView(
+    // Neither a guest to adopt nor preferences to inherit means Chromium made
+    // no `webContents` for this window at all, and `new WebContentsView({
+    // webPreferences: undefined })` throws — in the main process, where an
+    // uncaught error is a dialog across the whole app rather than a failed
+    // click. The dispositions known to arrive that way never get here (they are
+    // turned into ordinary tabs above); this is the floor under that, and it
+    // lands the user in the same place by a longer road: no view means
+    // `createEntry` builds a hardened one, and the tab the renderer adopts
+    // loads the URL on attach the way any tab does. What it cannot recover is
+    // the opener link, which only Chromium can make.
+    const view =
       adopted === undefined
-        ? { webPreferences: args.options.webPreferences }
-        : { webContents: adopted },
-    );
-    createEntry({
+        ? args.options.webPreferences === undefined
+          ? undefined
+          : new WebContentsView({ webPreferences: args.options.webPreferences })
+        : new WebContentsView({ webContents: adopted });
+    const entry = createEntry({
       // Where the opener sits, so the popup lands in the panel rather than at
       // the window's corner for the frame before the renderer measures it.
       desiredBounds: args.openerEntry.desiredBounds,
@@ -4200,7 +4221,7 @@ export function createDesktopBrowserViewManager(
       tabId,
       url: truncate(args.url, PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
     });
-    return view.webContents;
+    return entry.view.webContents;
   }
 
   function createEntry(args: CreateEntryArgs): BrowserViewEntry {
