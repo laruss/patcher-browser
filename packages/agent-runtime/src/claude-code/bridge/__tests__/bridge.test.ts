@@ -969,6 +969,7 @@ describe("bridge", () => {
         getPermissionEscalation: () => "ask",
         permissionMode: "acceptEdits",
         permissionScope: "workspace",
+        platform: "darwin",
       },
       {},
     );
@@ -981,6 +982,7 @@ describe("bridge", () => {
         getPermissionEscalation: () => "deny",
         permissionMode: "auto",
         permissionScope: "workspace",
+        platform: "darwin",
       },
       {},
     );
@@ -988,7 +990,7 @@ describe("bridge", () => {
     expect(askOptions.permissionMode).toBe("acceptEdits");
     expect(askOptions.sandbox).toEqual({
       enabled: true,
-      failIfUnavailable: false,
+      failIfUnavailable: true,
       autoAllowBashIfSandboxed: true,
       allowUnsandboxedCommands: true,
       network: { allowLocalBinding: true },
@@ -996,7 +998,7 @@ describe("bridge", () => {
     expect(denyOptions.permissionMode).toBe("auto");
     expect(denyOptions.sandbox).toEqual({
       enabled: true,
-      failIfUnavailable: false,
+      failIfUnavailable: true,
       autoAllowBashIfSandboxed: true,
       allowUnsandboxedCommands: true,
       network: { allowLocalBinding: true },
@@ -1037,6 +1039,7 @@ describe("bridge", () => {
         getPermissionEscalation: () => "deny",
         permissionMode: "auto",
         permissionScope: "workspace",
+        platform: "darwin",
       },
       {},
     );
@@ -1047,7 +1050,7 @@ describe("bridge", () => {
     ]);
     expect(options.sandbox).toEqual({
       enabled: true,
-      failIfUnavailable: false,
+      failIfUnavailable: true,
       autoAllowBashIfSandboxed: true,
       allowUnsandboxedCommands: true,
       network: { allowLocalBinding: true },
@@ -1055,6 +1058,92 @@ describe("bridge", () => {
         allowWrite: ["/repo/.git/worktrees/patcher13", "/repo/.git/objects"],
       },
     });
+  });
+
+  it("sandboxes a Linux session that has bubblewrap installed", () => {
+    const binDir = mkdtempSync(join(tmpdir(), "patcher-bwrap-"));
+    tempDirs.push(binDir);
+    const helperPath = join(binDir, "bwrap");
+    writeFileSync(helperPath, "#!/bin/sh\nexit 0\n");
+    chmodSync(helperPath, 0o755);
+
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "ask",
+        permissionMode: "acceptEdits",
+        permissionScope: "workspace",
+        platform: "linux",
+      },
+      { PATH: binDir },
+    );
+
+    expect(options.sandbox).toMatchObject({
+      enabled: true,
+      failIfUnavailable: true,
+    });
+  });
+
+  it("refuses a sandboxed session on a Linux machine without bubblewrap", () => {
+    expect(() =>
+      buildSessionOptions(
+        {
+          workflowsEnabled: false,
+          baseInstructions: "You are a coder.",
+          cwd: "/tmp/worktree",
+          instructionMode: "append",
+          getPermissionEscalation: () => "ask",
+          permissionMode: "auto",
+          permissionScope: "workspace",
+          platform: "linux",
+        },
+        { PATH: "/nonexistent-patcher-sandbox-path" },
+      ),
+    ).toThrow(/bubblewrap[\s\S]*Full Access/);
+  });
+
+  it("refuses a sandboxed session on a platform with no sandbox backend", () => {
+    expect(() =>
+      buildSessionOptions(
+        {
+          workflowsEnabled: false,
+          baseInstructions: "You are a coder.",
+          cwd: "/tmp/worktree",
+          instructionMode: "append",
+          getPermissionEscalation: () => "ask",
+          permissionMode: "acceptEdits",
+          permissionScope: "workspace",
+          platform: "win32",
+        },
+        {},
+      ),
+    ).toThrow(/no sandbox backend for win32/);
+  });
+
+  it("still starts an unsandboxed mode on a machine that cannot sandbox", () => {
+    // Full Access and plan never asked for a sandbox, so a missing backend is
+    // not their problem — Full Access is the documented way to work without
+    // one, and refusing it would leave no way to work at all.
+    for (const permissionMode of ["dontAsk", "plan"] as const) {
+      expect(
+        buildSessionOptions(
+          {
+            workflowsEnabled: false,
+            baseInstructions: "You are a coder.",
+            cwd: "/tmp/worktree",
+            instructionMode: "append",
+            getPermissionEscalation: () => "ask",
+            permissionMode,
+            permissionScope: "full",
+            platform: "linux",
+          },
+          { PATH: "/nonexistent-patcher-sandbox-path" },
+        ).sandbox,
+      ).toBeUndefined();
+    }
   });
 
   it("configures readonly sessions with PreToolUse policy hooks", async () => {

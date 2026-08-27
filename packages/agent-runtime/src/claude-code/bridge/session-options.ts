@@ -32,6 +32,12 @@ export interface BuildSessionOptionsArgs {
   ) => PermissionEscalation | null;
   permissionMode: ClaudePermissionMode;
   permissionScope: RuntimePermissionScope;
+  /**
+   * Which sandbox backend to expect. Defaults to the host's own platform; a
+   * caller passes it so a test can pin one, since whether a sandbox can be
+   * built is exactly what changes between platforms.
+   */
+  platform?: NodeJS.Platform;
   plugins?: Options["plugins"];
   reasoningLevel?: ReasoningLevel;
   workflowsEnabled: boolean;
@@ -52,6 +58,18 @@ interface ResolveExecutableOnPathArgs {
 interface ResolveClaudeCodeExecutableArgs {
   env: NodeJS.ProcessEnv;
 }
+
+export interface ResolveWorkspaceSandboxAvailabilityArgs {
+  env: NodeJS.ProcessEnv;
+  platform: NodeJS.Platform;
+}
+
+export type WorkspaceSandboxAvailability =
+  | { available: true }
+  | { available: false; reason: string; remedy: string };
+
+/** The helper the SDK's Linux sandbox is built on. */
+const LINUX_SANDBOX_HELPER_EXECUTABLE = "bwrap";
 
 const READONLY_ALLOWED_TOOLS = new Set([
   // Agent is a read/delegation tool here; child Bash calls still flow through
@@ -201,23 +219,78 @@ function usesWorkspaceSandbox(params: BuildSessionOptionsArgs): boolean {
   );
 }
 
+/**
+ * Whether this machine can build the sandbox the workspace modes promise.
+ *
+ * macOS composes one from Seatbelt, which ships with the OS, so there is
+ * nothing to find. Linux needs bubblewrap installed, and a machine without it
+ * cannot sandbox at all — which is worth saying before a turn starts rather
+ * than discovering it as an absence.
+ *
+ * A present `bwrap` is not proof of a working one: a container without user
+ * namespaces has the binary and still cannot sandbox. That case belongs to the
+ * SDK's own `failIfUnavailable` abort, which is why this check does not replace
+ * it.
+ */
+export function resolveWorkspaceSandboxAvailability(
+  args: ResolveWorkspaceSandboxAvailabilityArgs,
+): WorkspaceSandboxAvailability {
+  if (args.platform === "darwin") {
+    return { available: true };
+  }
+
+  if (args.platform === "linux") {
+    const helperPath = resolveExecutableOnPath({
+      executableName: LINUX_SANDBOX_HELPER_EXECUTABLE,
+      pathEnv: args.env.PATH,
+    });
+    return helperPath
+      ? { available: true }
+      : {
+          available: false,
+          reason: `the Linux sandbox is built with bubblewrap, and no \`${LINUX_SANDBOX_HELPER_EXECUTABLE}\` was found on PATH`,
+          remedy: "install bubblewrap on this machine",
+        };
+  }
+
+  return {
+    available: false,
+    reason: `Claude Code has no sandbox backend for ${args.platform}`,
+    remedy: "run this thread on a machine that can sandbox",
+  };
+}
+
 function buildWorkspaceWriteSandbox(
   params: BuildSessionOptionsArgs,
+  env: NodeJS.ProcessEnv,
 ): Options["sandbox"] | undefined {
   if (!usesWorkspaceSandbox(params)) {
     return undefined;
   }
 
+  const availability = resolveWorkspaceSandboxAvailability({
+    env,
+    platform: params.platform ?? process.platform,
+  });
+  if (!availability.available) {
+    // Refusing beats starting. The session used to run anyway, with Patcher's
+    // own `canUseTool` gating standing in for the sandbox — which presents as a
+    // sandboxed turn and is not one. Now that a sandboxed mode is what a
+    // machine gets by default, that silence would be the common case rather
+    // than the exotic one. Full Access is the way to work without a sandbox,
+    // and the message says so.
+    throw new Error(
+      `Permission mode "${params.permissionMode}" runs the agent inside a workspace sandbox, and this machine cannot build one: ${availability.reason}. Either ${availability.remedy}, or run the thread at Full Access to work without a sandbox.`,
+    );
+  }
+
   const allowWrite = params.additionalWorkspaceWriteRoots ?? [];
   return {
     enabled: true,
-    // The SDK defaults this to true, which aborts the whole session when the
-    // host lacks sandbox dependencies (bubblewrap on Linux). Headless servers
-    // routinely lack them, and a missing sandbox should cost the session its
-    // auto-allow, not its ability to run: `autoAllowBashIfSandboxed` only
-    // auto-approves while the sandbox is actually active, so degrading falls
-    // back to Patcher's own `canUseTool` gating instead of running wide open.
-    failIfUnavailable: false,
+    // Left at the SDK's own default now that an absent backend is refused
+    // above: this is what still catches a backend that is installed but
+    // unusable, which no pre-flight check on this side can see.
+    failIfUnavailable: true,
     autoAllowBashIfSandboxed: true,
     // Sandbox settings are session-fixed while escalation changes per turn;
     // the unsandboxed retry stays enabled and `canUseTool` auto-denies it on
@@ -235,7 +308,8 @@ function buildWorkspaceWriteSandbox(
 }
 
 // X_OK alone also passes for searchable directories, so require a regular
-// file (following symlinks) before treating a candidate as the Claude CLI.
+// file (following symlinks) before treating a candidate as the executable
+// being looked for — the Claude CLI, or the sandbox helper.
 function isExecutableFile(candidatePath: string): boolean {
   try {
     accessSync(candidatePath, constants.X_OK);
@@ -337,7 +411,7 @@ export function buildSessionOptions(
             : {}),
         };
   const model = params.model;
-  const sandbox = buildWorkspaceWriteSandbox(params);
+  const sandbox = buildWorkspaceWriteSandbox(params, env);
   const hooks = buildReadonlyHooks(params);
   const additionalDirectories = usesWorkspaceSandbox(params)
     ? (params.additionalWorkspaceWriteRoots ?? [])
