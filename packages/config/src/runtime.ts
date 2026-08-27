@@ -82,6 +82,12 @@ export const PATCHER_PROD_SERVER_PORT = 38986;
 export const PATCHER_PROD_HOST_DAEMON_PORT = 38987;
 export const PATCHER_LOOPBACK_HOST = "127.0.0.1";
 export const PATCHER_SQLITE_DATABASE_FILE_NAME = "patcher.db";
+/**
+ * The secret the server signs machine credentials with. Named here rather than
+ * privately in the server because the host daemon has to name it too, to keep a
+ * sandboxed turn from reading it.
+ */
+export const PATCHER_AUTH_SECRET_FILE_NAME = "auth-secret";
 
 const DEV_HASH_LENGTH = 12;
 const DEV_PORT_BUCKETS = 8_000;

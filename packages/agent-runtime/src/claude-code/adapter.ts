@@ -154,6 +154,10 @@ interface AdditionalWorkspaceWriteRootsParams {
   additionalWorkspaceWriteRoots: string[];
 }
 
+interface ProtectedCredentialPathsParams {
+  protectedCredentialPaths: string[];
+}
+
 interface ClaudeLocalPluginConfig {
   type: "local";
   path: string;
@@ -173,6 +177,12 @@ function buildAdditionalWorkspaceWriteRootsParams(
   return roots.length > 0
     ? { additionalWorkspaceWriteRoots: [...roots] }
     : undefined;
+}
+
+function buildProtectedCredentialPathsParams(
+  paths: readonly string[],
+): ProtectedCredentialPathsParams | undefined {
+  return paths.length > 0 ? { protectedCredentialPaths: [...paths] } : undefined;
 }
 
 function buildClaudeSkillConfigEntry(
@@ -859,6 +869,7 @@ export function createClaudeCodeProviderAdapter(
 ): ProviderAdapter {
   const additionalWorkspaceWriteRoots =
     opts?.additionalWorkspaceWriteRoots ?? [];
+  const protectedCredentialPaths = opts?.protectedCredentialPaths ?? [];
   const providerInfo = getBuiltInAgentProviderInfo("claude-code");
   const capabilities = providerInfo.capabilities;
 
@@ -1110,6 +1121,10 @@ export function createClaudeCodeProviderAdapter(
                   additionalWorkspaceWriteRoots,
                 )
               : undefined;
+          const protectedCredentialPathsParams =
+            permissionPolicy.permissionScope === "workspace"
+              ? buildProtectedCredentialPathsParams(protectedCredentialPaths)
+              : undefined;
           const skillConfig = buildClaudeSkillConfigParams(
             command.options.skillRoots,
           );
@@ -1132,6 +1147,9 @@ export function createClaudeCodeProviderAdapter(
               permissionEscalation: permissionPolicy.permissionEscalation,
               ...(additionalWorkspaceWriteRootsParams
                 ? additionalWorkspaceWriteRootsParams
+                : {}),
+              ...(protectedCredentialPathsParams
+                ? protectedCredentialPathsParams
                 : {}),
               ...(skillConfig ? skillConfig : {}),
               ...(config ? { config } : {}),
@@ -1181,6 +1199,10 @@ export function createClaudeCodeProviderAdapter(
                   additionalWorkspaceWriteRoots,
                 )
               : undefined;
+          const protectedCredentialPathsParams =
+            permissionPolicy.permissionScope === "workspace"
+              ? buildProtectedCredentialPathsParams(protectedCredentialPaths)
+              : undefined;
           const skillConfig = buildClaudeSkillConfigParams(
             command.options.skillRoots,
           );
@@ -1204,6 +1226,9 @@ export function createClaudeCodeProviderAdapter(
               permissionEscalation: permissionPolicy.permissionEscalation,
               ...(additionalWorkspaceWriteRootsParams
                 ? additionalWorkspaceWriteRootsParams
+                : {}),
+              ...(protectedCredentialPathsParams
+                ? protectedCredentialPathsParams
                 : {}),
               ...(skillConfig ? skillConfig : {}),
               ...(resumeConfig ? { config: resumeConfig } : {}),
@@ -1322,6 +1347,10 @@ export function createClaudeCodeProviderAdapter(
                   additionalWorkspaceWriteRoots,
                 )
               : undefined;
+          const protectedCredentialPathsParams =
+            permissionPolicy.permissionScope === "workspace"
+              ? buildProtectedCredentialPathsParams(protectedCredentialPaths)
+              : undefined;
           const skillConfig = buildClaudeSkillConfigParams(
             command.options.skillRoots,
           );
@@ -1351,6 +1380,9 @@ export function createClaudeCodeProviderAdapter(
               permissionEscalation: permissionPolicy.permissionEscalation,
               ...(additionalWorkspaceWriteRootsParams
                 ? additionalWorkspaceWriteRootsParams
+                : {}),
+              ...(protectedCredentialPathsParams
+                ? protectedCredentialPathsParams
                 : {}),
               ...(skillConfig ? skillConfig : {}),
               ...(forkConfig ? { config: forkConfig } : {}),

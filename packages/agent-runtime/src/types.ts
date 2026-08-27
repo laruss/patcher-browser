@@ -85,6 +85,17 @@ export interface AgentRuntimeOptions {
   /** Extra paths workspace-write providers may mutate in addition to workspacePath. */
   additionalWorkspaceWriteRoots?: readonly string[];
 
+  /**
+   * Credential files a sandboxed turn must not read, however it asks.
+   *
+   * A workspace sandbox restricts writes and the network; reads stay open, and
+   * `autoAllowBashIfSandboxed` auto-approves Bash precisely because it is
+   * sandboxed — so a `cat` of the app key file was the one read that undid the
+   * thread-scoped credential an agent is given instead of it. Only providers
+   * whose sandbox can protect a path honour this.
+   */
+  protectedCredentialPaths?: readonly string[];
+
   /** Environment variables passed to ALL provider processes. */
   env?: Record<string, string>;
 

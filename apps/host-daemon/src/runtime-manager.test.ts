@@ -1016,6 +1016,59 @@ describe("RuntimeManager", () => {
     expect(provisionSignals[0]?.aborted).toBe(true);
   });
 
+  it("passes the data dir's credential files to created runtimes", async () => {
+    const repoPath = await initRepo();
+    const dataDir = await makeTempDir("patcher-runtime-manager-datadir-");
+    const runtimeOptions: RuntimeOptionsRef = { current: null };
+    const manager = new RuntimeManager({
+      provisionWorkspace,
+      dataDir,
+      createRuntime: (options) => {
+        runtimeOptions.current = options;
+        return createFakeRuntime();
+      },
+    });
+
+    await manager.ensureEnvironment({
+      environmentId: "env-credentials",
+      provision: {
+        workspaceProvisionType: "unmanaged",
+        path: repoPath,
+      },
+    });
+
+    const databasePath = path.join(dataDir, "patcher.db");
+    expect(runtimeOptions.current?.protectedCredentialPaths).toEqual([
+      path.join(dataDir, "app-api-key"),
+      path.join(dataDir, "auth-secret"),
+      databasePath,
+      `${databasePath}-wal`,
+      `${databasePath}-shm`,
+    ]);
+  });
+
+  it("protects nothing when the daemon has no data dir to protect", async () => {
+    const repoPath = await initRepo();
+    const runtimeOptions: RuntimeOptionsRef = { current: null };
+    const manager = new RuntimeManager({
+      provisionWorkspace,
+      createRuntime: (options) => {
+        runtimeOptions.current = options;
+        return createFakeRuntime();
+      },
+    });
+
+    await manager.ensureEnvironment({
+      environmentId: "env-no-datadir",
+      provision: {
+        workspaceProvisionType: "unmanaged",
+        path: repoPath,
+      },
+    });
+
+    expect(runtimeOptions.current?.protectedCredentialPaths).toEqual([]);
+  });
+
   it("passes managed worktree git metadata roots to created runtimes", async () => {
     const repoPath = await initRepo();
     const parentDir = await makeTempDir("patcher-runtime-manager-worktree-");

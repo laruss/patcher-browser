@@ -1060,6 +1060,74 @@ describe("bridge", () => {
     });
   });
 
+  it("denies a sandboxed session the credential files it was not given", () => {
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "ask",
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        platform: "darwin",
+        protectedCredentialPaths: [
+          "/data/app-api-key",
+          "/data/patcher.db",
+        ],
+      },
+      {},
+    );
+
+    expect(options.sandbox).toMatchObject({
+      credentials: {
+        files: [
+          { path: "/data/app-api-key", mode: "deny" },
+          { path: "/data/patcher.db", mode: "deny" },
+        ],
+      },
+    });
+  });
+
+  it("omits the credentials block when there is nothing to protect", () => {
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "ask",
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        platform: "darwin",
+      },
+      {},
+    );
+
+    expect(options.sandbox).not.toHaveProperty("credentials");
+  });
+
+  it("does not pretend to protect credentials on an unsandboxed session", () => {
+    // Full Access builds no sandbox, so there is nowhere for a credentials deny
+    // to live. Silently accepting the paths here would read as protection.
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "ask",
+        permissionMode: "dontAsk",
+        permissionScope: "full",
+        platform: "darwin",
+        protectedCredentialPaths: ["/data/app-api-key"],
+      },
+      {},
+    );
+
+    expect(options.sandbox).toBeUndefined();
+  });
+
   it("sandboxes a Linux session that has bubblewrap installed", () => {
     const binDir = mkdtempSync(join(tmpdir(), "patcher-bwrap-"));
     tempDirs.push(binDir);

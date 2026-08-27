@@ -33,6 +33,8 @@ export interface ProviderAcceptedCommandTranslationArgs {
 
 export interface ProviderAdapterFactoryOptions {
   additionalWorkspaceWriteRoots: readonly string[];
+  /** Optional: absent and empty both mean "nothing to protect here". */
+  protectedCredentialPaths?: readonly string[];
   acpLaunchSpec?: HostDaemonAcpLaunchSpec;
   bridgeBundleDir?: string;
   bridgeNodeEnv?: Record<string, string>;

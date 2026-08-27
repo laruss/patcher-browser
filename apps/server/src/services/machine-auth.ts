@@ -5,11 +5,11 @@ import { apiKey } from "@better-auth/api-key";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { authApiKeys, authUsers, type DbConnection } from "@patcher/db";
 import { hostTypeSchema, type HostType } from "@patcher/domain";
+import { PATCHER_AUTH_SECRET_FILE_NAME } from "@patcher/config/runtime";
 import { readOrCreateSecretFile } from "@patcher/secret-storage";
 import { z } from "zod";
 import type { ServerLogger } from "../types.js";
 
-const AUTH_SECRET_FILE_NAME = "auth-secret";
 const DAEMON_ENROLL_CONFIG_ID = "daemon-enroll";
 const DAEMON_HOST_CONFIG_ID = "daemon-host";
 const ENROLL_KEY_TTL_SECONDS = 60 * 15;
@@ -135,7 +135,7 @@ async function readOrCreateAuthSecret(dataDir: string): Promise<string> {
     bytes: 32,
     dataDir,
     encoding: "hex",
-    fileName: AUTH_SECRET_FILE_NAME,
+    fileName: PATCHER_AUTH_SECRET_FILE_NAME,
   });
 }
 

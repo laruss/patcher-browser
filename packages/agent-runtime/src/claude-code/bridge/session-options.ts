@@ -17,6 +17,7 @@ import type {
 
 export interface BuildSessionOptionsArgs {
   additionalWorkspaceWriteRoots?: readonly string[];
+  protectedCredentialPaths?: readonly string[];
   baseInstructions?: string;
   cwd: string;
   disallowedTools?: readonly string[];
@@ -285,8 +286,26 @@ function buildWorkspaceWriteSandbox(
   }
 
   const allowWrite = params.additionalWorkspaceWriteRoots ?? [];
+  const protectedCredentialPaths = params.protectedCredentialPaths ?? [];
   return {
     enabled: true,
+    // The one read the sandbox has to stop. It restricts writes and the
+    // network and leaves reads open, and `autoAllowBashIfSandboxed` below
+    // auto-approves Bash *because* the command is sandboxed — so a `cat` of the
+    // app key file would hand the turn back the credential it is deliberately
+    // not given, and would do it without a prompt. The agent's own Read tool is
+    // a different path and already gated: a read outside the workspace becomes
+    // a permission request naming the file.
+    ...(protectedCredentialPaths.length > 0
+      ? {
+          credentials: {
+            files: protectedCredentialPaths.map((path) => ({
+              path,
+              mode: "deny" as const,
+            })),
+          },
+        }
+      : {}),
     // Left at the SDK's own default now that an absent backend is refused
     // above: this is what still catches a backend that is installed but
     // unusable, which no pre-flight check on this side can see.

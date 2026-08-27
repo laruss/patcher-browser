@@ -569,6 +569,7 @@ function toSessionConstructionConfig(
     dynamicTools: params.dynamicTools,
     sessionOptions: {
       additionalWorkspaceWriteRoots: params.additionalWorkspaceWriteRoots,
+      protectedCredentialPaths: params.protectedCredentialPaths,
       baseInstructions: params.baseInstructions,
       cwd: params.cwd,
       disallowedTools: params.disallowedTools,
