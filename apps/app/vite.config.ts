@@ -5,6 +5,7 @@ import babel from "@rolldown/plugin-babel";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { bundleStats } from "./vite-bundle-stats.js";
+import { noNodeBuiltins } from "./vite-no-node-builtins.js";
 import { sharedUiEnvSeam } from "./vite-shared-ui-seam.js";
 
 const appDir = dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,8 @@ const appDir = dirname(fileURLToPath(import.meta.url));
 // across installs (TS2883).
 export const sharedViteConfig: UserConfig = {
   plugins: [
+    // First, so it sees a specifier before anything can rewrite it.
+    noNodeBuiltins(),
     sharedUiEnvSeam(),
     react(),
     babel({ presets: [reactCompilerPreset()] }),
