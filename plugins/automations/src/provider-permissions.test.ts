@@ -40,7 +40,7 @@ describe("resolvePermissionMode", () => {
       },
     ]);
 
-    expect(await resolvePermissionMode(api, "codex")).toBe("auto");
+    expect(await resolvePermissionMode(api, "codex", undefined)).toBe("auto");
   });
 
   it("keeps the sandbox for a provider with no automatic reviewer", async () => {
@@ -50,13 +50,15 @@ describe("resolvePermissionMode", () => {
       { id: "acp-cursor", supportedPermissionModes: ["accept-edits", "full"] },
     ]);
 
-    expect(await resolvePermissionMode(api, "acp-cursor")).toBe("accept-edits");
+    expect(await resolvePermissionMode(api, "acp-cursor", undefined)).toBe(
+      "accept-edits",
+    );
   });
 
   it("uses Full Access only for a provider that offers nothing else", async () => {
     const api = fakeApi([{ id: "pi", supportedPermissionModes: ["full"] }]);
 
-    expect(await resolvePermissionMode(api, "pi")).toBe("full");
+    expect(await resolvePermissionMode(api, "pi", undefined)).toBe("full");
   });
 
   it("honours a mode the caller stated", async () => {
@@ -85,8 +87,8 @@ describe("resolvePermissionMode", () => {
       { id: "codex", available: false, supportedPermissionModes: ["auto"] },
     ]);
 
-    await expect(resolvePermissionMode(api, "codex")).rejects.toThrow(
-      /is not available/,
-    );
+    await expect(
+      resolvePermissionMode(api, "codex", undefined),
+    ).rejects.toThrow(/is not available/);
   });
 });
