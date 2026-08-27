@@ -3627,9 +3627,13 @@ export function createDesktopBrowserViewManager(
       if (hostsRealPopup) {
         return {
           action: "allow",
-          // Chromium's own rule, and the one an OAuth flow depends on: a popup
-          // dies with the page that opened it.
-          outlivesOpener: false,
+          // A popup hosted as a tab must not die with the tab that opened it.
+          // Closing the page you searched from is not a request to close the
+          // page you opened from it, and here both are tabs in one strip, so
+          // Electron's default took a second tab down with the first. What an
+          // OAuth flow depends on is the popup being able to close *itself*
+          // (`window.close()`), which is a different event entirely.
+          outlivesOpener: true,
           createWindow: (options) =>
             createPopupEntry({
               hostWindow,
