@@ -100,7 +100,10 @@ jobs:
   app-boot-smoke:
     name: App Boot Smoke (macos-latest, Node 22.x)
     runs-on: macos-latest
-    timeout-minutes: 30
+    # Short on purpose: this job either opens the app in a couple of minutes or
+    # something is wrong with it, and the first run of it spent half an hour
+    # hanging silently before the runner killed it.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -113,8 +116,15 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
           cache-prefix: app-boot-smoke
 
+      - name: Build the app
+        run: bunx turbo run build --filter=@patcher/app --cache-dir=.turbo/cache --output-logs=new-only
+
+      # The script rather than the turbo task: turbo buffers a task's output
+      # until it finishes, so a smoke that hangs prints nothing at all — which
+      # is how the first run of this job left a log with no clue in it. Run
+      # directly, the stages stream as they happen.
       - name: Boot the app and fail on any start-up error
-        run: bunx turbo run smoke:app-boot --filter=@patcher/desktop --cache-dir=.turbo/cache --output-logs=new-only
+        run: node apps/desktop/scripts/smoke-app-boot.mjs
 
   package-smoke:
     name: Package Smoke (${{ matrix.os }}, Node ${{ matrix.node-version }})
