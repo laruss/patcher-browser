@@ -164,9 +164,19 @@ describe("open tabs provider", () => {
     ]);
   });
 
-  it("matches on host without the scheme the user never types", () => {
-    expect(suggest(provider, "docs.example")).toHaveLength(1);
+  it("matches inside the host, not only from its start", () => {
+    expect(suggest(provider, "example")).toHaveLength(1);
     expect(suggest(provider, "https://docs")).toEqual([]);
+  });
+
+  // Typing an address is an instruction to go there, not a search for a page:
+  // the address row answers it, and a switch-to-tab row beside it offers a
+  // different kind of action to a question nobody asked. The condition is the
+  // navigation provider's own, so the two can never both be right.
+  it("offers nothing once the typed text is an address", () => {
+    expect(suggest(provider, "docs.example")).toEqual([]);
+    expect(suggest(provider, "docs.example.com/guide")).toEqual([]);
+    expect(suggest(provider, "https://docs.example.com/guide")).toEqual([]);
   });
 
   // Switching to the tab you are typing in is a no-op row, and a tab with no

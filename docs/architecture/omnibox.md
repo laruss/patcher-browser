@@ -97,13 +97,21 @@ list would reshuffle under the user's cursor as answers trickle in.
 
 ## Providers
 
-| Provider     | Offers                                        | Action       |
-| ------------ | --------------------------------------------- | ------------ |
-| `navigation` | the typed text as an address, when it is one  | navigate     |
-| `search`     | a search for the typed text (always)          | navigate     |
-| `open-tabs`  | open tabs matching by title or host           | activate-tab |
-| `history`    | previously visited pages                      | navigate     |
-| `app-routes` | Patcher's own screens, and every plugin panel | open-app-tab |
+| Provider     | Offers                                           | Action       |
+| ------------ | ------------------------------------------------ | ------------ |
+| `navigation` | the typed text as an address, when it is one     | navigate     |
+| `search`     | a search for the typed text (always)             | navigate     |
+| `open-tabs`  | open tabs matching by name, never for an address | activate-tab |
+| `history`    | previously visited pages                         | navigate     |
+| `app-routes` | Patcher's own screens, and every plugin panel    | open-app-tab |
+
+`open-tabs` goes quiet the moment the typed text is an address, on the
+navigation provider's own condition (`normalizeBrowserUrl`). Typing an address is
+an instruction to go there, not a search for a page, so where the address row is,
+tab rows are not — a row offering to switch to a tab already showing that page
+answers a question nobody asked, and it carries a different kind of action than
+the row above it, so a stray selection turns Enter into a tab switch. Searching
+by name (`docs`, `jira`) is what the provider is for and is untouched.
 
 `app-routes` is what makes Settings reachable by typing "settings" rather than by
 knowing Patcher spells Extensions `/tools/plugins`. Its action is `open-app-tab`, not
