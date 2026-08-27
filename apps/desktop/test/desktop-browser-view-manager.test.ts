@@ -7272,7 +7272,7 @@ describe("real popups", () => {
     view: (typeof electronMock.fakeViews)[number],
     url: string,
     options: { webContents?: unknown } = {},
-  ): { contents: unknown; decision: { action: string } } {
+  ): { contents: unknown; decision: FakeWindowOpenDecision } {
     const decision = view.webContents.emitWindowOpen(url);
     const contents = decision.createWindow?.({
       webPreferences: { sandbox: true },
@@ -7288,7 +7288,7 @@ describe("real popups", () => {
 
     const { decision } = openPopup(view, "https://accounts.example.com/oauth");
 
-    expect(decision).toMatchObject({ action: "allow", outlivesOpener: false });
+    expect(decision).toMatchObject({ action: "allow", outlivesOpener: true });
     expect(popupPushes(hostWindow)).toEqual([
       {
         kind: "opened",
@@ -7311,6 +7311,17 @@ describe("real popups", () => {
     });
 
     expect(contents).toBe(guest);
+  });
+
+  // Closing the page you searched from is not a request to close the page you
+  // opened from it — and here both are tabs in one strip, so Electron's default
+  // took the second down with the first.
+  it("opens a popup that outlives the tab that opened it", () => {
+    const { view } = attachOpener({ claimsPopups: true });
+
+    const { decision } = openPopup(view, "https://accounts.example.com/oauth");
+
+    expect(decision.outlivesOpener).toBe(true);
   });
 
   // The shape half the OAuth SDKs use: open a blank window, then write into it.
