@@ -76,6 +76,8 @@ interface RenderChromeResult {
   navigate: ReturnType<typeof vi.fn>;
   onActivateTab: ReturnType<typeof vi.fn>;
   onPageOverlayChange: ReturnType<typeof vi.fn>;
+  /** Re-render with the address the tab has moved to, as the deck would. */
+  setUrl: (url: string) => void;
 }
 
 function renderChrome(
@@ -93,7 +95,7 @@ function renderChrome(
   // A query client because the site-info panel fetches what plugins know about
   // the site when it opens; the rest of the chrome needs none.
   const { wrapper: Wrapper } = createQueryClientTestHarness();
-  render(
+  const chrome = (nextUrl: string) => (
     <Wrapper>
       <BrowserSurfaceChrome
         certificateTrustedByUser={certificateTrustedByUser}
@@ -102,10 +104,11 @@ function renderChrome(
         onPageOverlayChange={onPageOverlayChange}
         providers={builtInProviders()}
         tabId={ACTIVE_TAB_ID}
-        url={url}
+        url={nextUrl}
       />
-    </Wrapper>,
+    </Wrapper>
   );
+  const { rerender } = render(chrome(url));
 
   return {
     browser,
@@ -113,6 +116,11 @@ function renderChrome(
     navigate,
     onActivateTab,
     onPageOverlayChange,
+    setUrl: (nextUrl: string) => {
+      act(() => {
+        rerender(chrome(nextUrl));
+      });
+    },
   };
 }
 
@@ -246,6 +254,37 @@ describe("BrowserSurfaceChrome", () => {
 
     expect(onActivateTab).toHaveBeenCalledWith("tab-docs");
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // Switching to another application blurs the input. The half-typed address
+  // has to survive that, or coming back shows a bar that lost the typing.
+  it("keeps a half-typed address when focus leaves the bar", () => {
+    const { input } = renderChrome("");
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "exampl" } });
+    fireEvent.blur(input);
+
+    expect(input.value).toBe("exampl");
+    expect(screen.queryByRole("listbox")).toBeNull();
+
+    // Coming back is a focus event, and it must not adopt the tab's address
+    // over the draft.
+    fireEvent.focus(input);
+    expect(input.value).toBe("exampl");
+  });
+
+  // The other half of the rule: a draft describes the page it was typed over,
+  // so a navigation that lands while nobody is typing ends it.
+  it("drops the draft when the tab navigates behind the bar", () => {
+    const { input, setUrl } = renderChrome();
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "exampl" } });
+    fireEvent.blur(input);
+    setUrl("https://elsewhere.test/");
+
+    expect(input.value).toBe("https://elsewhere.test/");
   });
 
   it("navigates to a clicked history row", async () => {

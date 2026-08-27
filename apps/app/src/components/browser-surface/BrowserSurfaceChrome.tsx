@@ -249,11 +249,40 @@ export function BrowserSurfaceChrome({
     [omnibox.query],
   );
 
-  const closeOmnibox = useCallback(() => {
+  const collapseSuggestions = useCallback(() => {
     omnibox.clear();
     setHighlight(NO_OMNIBOX_HIGHLIGHT);
-    setIsEditing(false);
   }, [omnibox]);
+
+  const closeOmnibox = useCallback(() => {
+    collapseSuggestions();
+    setIsEditing(false);
+  }, [collapseSuggestions]);
+
+  /**
+   * Losing focus is not abandoning the address: switching to another
+   * application, or clicking on the page, must leave a half-typed address where
+   * the user can see it — otherwise coming back shows an empty bar and the
+   * typing is simply gone.
+   *
+   * The list still goes, because a stale set of suggestions for text the user
+   * has stopped editing is worse than none; typing again brings it back.
+   */
+  const handleBlur = useCallback(() => {
+    collapseSuggestions();
+  }, [collapseSuggestions]);
+
+  // What does end a draft: the bar coming to describe a different address. A
+  // tab switch, or a navigation landing while nobody is typing, makes the text
+  // stale — but a navigation that lands *while* the bar has focus must not take
+  // the user's text away mid-word.
+  useEffect(() => {
+    if (document.activeElement === inputRef.current) {
+      return;
+    }
+    setIsEditing(false);
+    setDraft("");
+  }, [tabId, url]);
 
   const runAction = useCallback(
     (action: OmniboxAction) => {
@@ -344,12 +373,16 @@ export function BrowserSurfaceChrome({
     if (desktopBrowser === null) {
       return false;
     }
-    setDraft(url);
+    // Selects whatever the bar holds — the page's address, or a draft the user
+    // left in it — rather than replacing a draft with the address.
+    if (!isEditing) {
+      setDraft(url);
+    }
     setIsEditing(true);
     inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.select();
     return true;
-  }, [desktopBrowser, url]);
+  }, [desktopBrowser, isEditing, url]);
 
   // Above `BrowserTabContent`'s handler: while this chrome is mounted, it owns
   // the address bar. (That one also declines when its own chrome is hidden.)
@@ -456,13 +489,18 @@ export function BrowserSurfaceChrome({
                   handleChange(event.target.value);
                 }}
                 onFocus={() => {
-                  setDraft(url);
-                  setIsEditing(true);
+                  // A draft that is already there stays: this is also the event
+                  // that fires when the window is focused again, and adopting
+                  // the URL here is what used to erase a half-typed address.
+                  if (!isEditing) {
+                    setDraft(url);
+                    setIsEditing(true);
+                  }
                   // Both take the same strip of layout under the toolbar, so the
                   // one the user just reached for wins.
                   setIsDownloadsOpen(false);
                 }}
-                onBlur={closeOmnibox}
+                onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 placeholder="Search or enter address"
                 role="combobox"
