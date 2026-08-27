@@ -5,8 +5,8 @@ import {
   PATCHER_APP_KEY_FILE_NAME,
   PATCHER_APP_KEY_HEADER,
   PATCHER_APP_KEY_QUERY_PARAM,
-  resolveAppApiKey,
 } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { readOrCreateSecretFile } from "@patcher/secret-storage";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";

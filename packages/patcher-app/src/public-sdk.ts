@@ -1,4 +1,4 @@
-import { resolveAppApiKey } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import {
   PatcherHttpError,
   PatcherRequestTimeoutError,

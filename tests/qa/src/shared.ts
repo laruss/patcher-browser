@@ -10,8 +10,8 @@ import { fileURLToPath } from "node:url";
 import {
   appApiKeyHeaders,
   PATCHER_APP_KEY_HEADER,
-  resolveAppApiKey,
 } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { hostSchema } from "@patcher/domain";
 import type { Host } from "@patcher/domain";
 import {

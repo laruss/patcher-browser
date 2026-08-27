@@ -1,11 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { resolveEnvLoader, type EnvLoaderArgs } from "./env.js";
-import { resolveRuntimeDataDir } from "./runtime.js";
-import { toOptionalString } from "./strings.js";
-
 /**
- * How a local process finds the key that identifies it to `/api/v1` and `/ws`.
+ * The names the key that identifies a client to `/api/v1` and `/ws` travels
+ * under — and nothing else, on purpose: this module is imported by the SPA, so
+ * it must stay free of Node. Finding the key on disk is `app-key-file.ts`.
  *
  * The server writes this file (0600) at startup and refuses a request that is
  * neither a plugin nor a holder of the key — see `app-identity.ts` in the
@@ -65,53 +61,3 @@ export function appApiKeyHeaders(
 
 /** The file the server writes under the data dir. */
 export const PATCHER_APP_KEY_FILE_NAME = "app-api-key";
-
-export interface ResolveAppApiKeyArgs extends EnvLoaderArgs {
-  /** Where the key file lives, when the caller already knows the data dir. */
-  dataDir?: string;
-  repoRoot?: string;
-}
-
-/** Read one key file, or undefined when it is not there or is empty. */
-export function readAppApiKeyFile(dataDir: string): string | undefined {
-  try {
-    return toOptionalString(
-      readFileSync(join(dataDir, PATCHER_APP_KEY_FILE_NAME), "utf8"),
-    );
-  } catch {
-    // No file is the normal case for a server that has never run, and the
-    // caller's own error ("refused: no app key") says more than this could.
-    return undefined;
-  }
-}
-
-/**
- * The key for this install, or undefined when there is none to find.
- *
- * Undefined rather than a throw: a client that cannot find the key still has
- * something useful to say — it is about to be refused with a 401 that names
- * the reason — and a caller reaching a server that has never started should
- * not die inside config resolution.
- */
-export function resolveAppApiKey(
-  args: ResolveAppApiKeyArgs = {},
-): string | undefined {
-  const loader = resolveEnvLoader(args);
-  const fromEnv = toOptionalString(loader.env.PATCHER_APP_KEY);
-  if (fromEnv !== undefined) return fromEnv;
-  if (args.dataDir !== undefined) return readAppApiKeyFile(args.dataDir);
-  try {
-    return readAppApiKeyFile(
-      resolveRuntimeDataDir({
-        env: loader.env,
-        homeDir: loader.context.homeDir,
-        mode: loader.mode,
-        ...(args.repoRoot === undefined ? {} : { repoRoot: args.repoRoot }),
-      }),
-    );
-  } catch {
-    // A dev checkout with no repoRoot cannot name its data dir. Same answer:
-    // there is no key to find from here.
-    return undefined;
-  }
-}

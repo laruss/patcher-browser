@@ -1,4 +1,4 @@
-import { resolveAppApiKey } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

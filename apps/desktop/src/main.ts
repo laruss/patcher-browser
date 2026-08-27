@@ -24,8 +24,8 @@ import {
 import {
   appApiKeyHeaders,
   PATCHER_APP_KEY_QUERY_PARAM,
-  resolveAppApiKey,
 } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { PATCHER_PROD_DATA_DIR_NAME } from "@patcher/config/runtime";
 import type { AppKeybindings } from "@patcher/domain";
 import {

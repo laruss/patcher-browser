@@ -1,8 +1,8 @@
 import {
   appApiKeyHeaders,
   PATCHER_APP_KEY_HEADER,
-  resolveAppApiKey,
 } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import {
   createNodePatcherSdk,
   type PatcherSdk,

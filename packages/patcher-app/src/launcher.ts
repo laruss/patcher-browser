@@ -22,7 +22,8 @@ import {
   formatPatcherAppRuntimeFilePath,
   readPatcherAppRuntimeFile,
 } from "@patcher/config/app-runtime-file";
-import { appApiKeyHeaders, resolveAppApiKey } from "@patcher/config/app-key";
+import { appApiKeyHeaders } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { stopVerifiedProcess } from "@patcher/config/verified-process-stop";
 import {
   APP_SURFACE_ENV_NAME,
