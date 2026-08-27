@@ -39,6 +39,30 @@ toolchain the install aborts and npm rolls the whole tree back, leaving nothing
 behind to debug. Install `build-essential` (Debian and Ubuntu) first, then
 install again. See [Installation](installation.md#supported-platforms).
 
+## A thread refuses to start because the machine cannot build a sandbox
+
+Accept Edits and Approve for me run the agent inside a workspace sandbox, and
+Patcher now refuses to start a turn on a machine that cannot build one rather
+than running the turn unsandboxed and calling it the same thing. The message
+names the missing piece:
+
+```
+Permission mode "auto" runs the agent inside a workspace sandbox, and this
+machine cannot build one: the Linux sandbox is built with bubblewrap, and no
+`bwrap` was found on PATH. Either install bubblewrap on this machine, or run the
+thread at Full Access to work without a sandbox.
+```
+
+macOS composes its sandbox from Seatbelt, which ships with the OS, so this is a
+Linux machine. Install bubblewrap (`apt install bubblewrap`,
+`dnf install bubblewrap`) and start the turn again.
+
+A machine that has `bwrap` and still cannot sandbox — a container without user
+namespaces, most often — fails later and differently, from the Claude SDK's own
+check rather than this one. The fix is the same: give the container the
+namespaces, or run at Full Access, having read what that means in
+[Security](security.md).
+
 ## npm refuses to install on Windows
 
 `patcher-app` declares `os: ["darwin", "linux"]`, so npm's own platform check
