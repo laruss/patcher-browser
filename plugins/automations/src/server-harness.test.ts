@@ -435,7 +435,13 @@ describe("automations server plugin harness", () => {
       expected: "auto",
     },
     {
+      // No automatic reviewer on offer, so the sandbox is what gives way last:
+      // an unattended run must not default to the whole machine.
       supported: ["accept-edits", "full"] as const,
+      expected: "accept-edits",
+    },
+    {
+      supported: ["full"] as const,
       expected: "full",
     },
   ])(

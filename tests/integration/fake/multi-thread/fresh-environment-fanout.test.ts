@@ -1,7 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createFakeAdapter } from "@patcher/agent-runtime/test";
-import { shellSingleQuote, waitForSetupMarkerCount } from "@patcher/test-helpers";
+import {
+  shellSingleQuote,
+  waitForSetupMarkerCount,
+} from "@patcher/test-helpers";
 import { describe, expect, it } from "vitest";
 import {
   createHostThread,
@@ -115,86 +118,91 @@ describe.sequential(
         );
       }));
 
-    it("starts five fresh managed-worktree threads per provider concurrently", () =>
-      withHarness(
-        {
-          adapterFactory: (providerId) =>
-            createFakeAdapter({
-              displayName: providerId,
-              id: providerId,
-            }),
-        },
-        async (harness) => {
-          const project = await createProjectFixture(harness, {
-            name: "Fresh Environment Fanout",
-          });
-          // Pi is in the fanout and offers Full Access only, which a machine at
-          // the default sandbox ceiling refuses outright. This test is about
-          // concurrent fresh-environment setup, not about permissions, so it
-          // does what the machine's owner would have to do.
-          await setHostPermissionCeiling(harness.api, harness.hostId, "full");
-          const requests = FANOUT_PROVIDERS.flatMap((providerId) =>
-            Array.from({ length: THREADS_PER_PROVIDER }, (_, index) => ({
-              index: index + 1,
-              providerId,
-            })),
-          );
+    it(
+      "starts five fresh managed-worktree threads per provider concurrently",
+      () =>
+        withHarness(
+          {
+            adapterFactory: (providerId) =>
+              createFakeAdapter({
+                displayName: providerId,
+                id: providerId,
+              }),
+          },
+          async (harness) => {
+            const project = await createProjectFixture(harness, {
+              name: "Fresh Environment Fanout",
+            });
+            // Pi is in the fanout and offers Full Access only, which a machine at
+            // the default sandbox ceiling refuses outright. This test is about
+            // concurrent fresh-environment setup, not about permissions, so it
+            // does what the machine's owner would have to do.
+            await setHostPermissionCeiling(harness.api, harness.hostId, "full");
+            const requests = FANOUT_PROVIDERS.flatMap((providerId) =>
+              Array.from({ length: THREADS_PER_PROVIDER }, (_, index) => ({
+                index: index + 1,
+                providerId,
+              })),
+            );
 
-          const spawned = await Promise.all(
-            requests.map(async (request) => {
-              const token = `${request.providerId}-fresh-${request.index}`;
-              const thread = await createHostThread(harness.api, {
-                hostId: harness.hostId,
-                input: [{ type: "text", text: token, mentions: [] }],
-                projectId: project.id,
-                providerId: request.providerId,
-                workspace: { type: "managed-worktree" },
-              });
-              return { ...request, thread, token };
-            }),
-          );
+            const spawned = await Promise.all(
+              requests.map(async (request) => {
+                const token = `${request.providerId}-fresh-${request.index}`;
+                const thread = await createHostThread(harness.api, {
+                  hostId: harness.hostId,
+                  input: [{ type: "text", text: token, mentions: [] }],
+                  projectId: project.id,
+                  providerId: request.providerId,
+                  workspace: { type: "managed-worktree" },
+                });
+                return { ...request, thread, token };
+              }),
+            );
 
-          const readyThreads = await Promise.all(
-            spawned.map(async (entry) => ({
-              ...entry,
-              thread: await waitForThreadStatus(
-                harness.api,
-                entry.thread.id,
-                "idle",
-                FRESH_FANOUT_TIMEOUT_MS,
-              ),
-            })),
-          );
+            const readyThreads = await Promise.all(
+              spawned.map(async (entry) => ({
+                ...entry,
+                thread: await waitForThreadStatus(
+                  harness.api,
+                  entry.thread.id,
+                  "idle",
+                  FRESH_FANOUT_TIMEOUT_MS,
+                ),
+              })),
+            );
 
-          for (const entry of readyThreads) {
-            expect(entry.thread.environmentId).toBeTruthy();
-            const output = await getThreadOutput(harness.api, entry.thread.id);
-            if (!output?.includes(entry.token)) {
-              const events = await getThreadEvents(
+            for (const entry of readyThreads) {
+              expect(entry.thread.environmentId).toBeTruthy();
+              const output = await getThreadOutput(
                 harness.api,
                 entry.thread.id,
               );
-              throw new Error(
-                [
-                  `Missing output for ${entry.thread.id}`,
-                  `provider=${entry.providerId}`,
-                  `token=${entry.token}`,
-                  `status=${entry.thread.status}`,
-                  `output=${JSON.stringify(output)}`,
-                  `events=${events
-                    .map((event) => `${event.seq}:${event.type}`)
-                    .join(",")}`,
-                ].join("; "),
-              );
+              if (!output?.includes(entry.token)) {
+                const events = await getThreadEvents(
+                  harness.api,
+                  entry.thread.id,
+                );
+                throw new Error(
+                  [
+                    `Missing output for ${entry.thread.id}`,
+                    `provider=${entry.providerId}`,
+                    `token=${entry.token}`,
+                    `status=${entry.thread.status}`,
+                    `output=${JSON.stringify(output)}`,
+                    `events=${events
+                      .map((event) => `${event.seq}:${event.type}`)
+                      .join(",")}`,
+                  ].join("; "),
+                );
+              }
+              expect(
+                (await getThreadEvents(harness.api, entry.thread.id)).every(
+                  (event) => event.threadId === entry.thread.id,
+                ),
+              ).toBe(true);
             }
-            expect(
-              (await getThreadEvents(harness.api, entry.thread.id)).every(
-                (event) => event.threadId === entry.thread.id,
-              ),
-            ).toBe(true);
-          }
-        },
-      ),
+          },
+        ),
       // Its own budget, larger than the wait it contains. This test starts
       // five fresh managed worktrees per provider at once — the heaviest
       // fixture in the suite — and the internal wait alone may spend 45s of
