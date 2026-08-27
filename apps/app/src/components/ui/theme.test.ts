@@ -233,6 +233,45 @@ describe("theme.css neutral ramp", () => {
   });
 });
 
+describe("theme.css browser tab strip", () => {
+  it("registers the tab strip utilities with Tailwind", () => {
+    expect(css).toContain(
+      "--color-browser-tab-strip: var(--browser-tab-strip);",
+    );
+    expect(css).toContain(
+      "--color-browser-tab-active: var(--browser-tab-active);",
+    );
+  });
+
+  for (const mode of MODES) {
+    // A tab strip is read by one thing: how far the selected tab stands off the
+    // ones beside it. Unselected tabs are the strip showing through, so this is
+    // the only relationship that has to hold — and it held in neither mode when
+    // the selected tab borrowed the canvas, which sits a step from the strip.
+    // The direction is the same in both modes even though the ramp inverts:
+    // whichever end is lighter is the one that comes forward.
+    it(`lifts the selected ${mode} tab clear of the strip`, () => {
+      const block = modeBlock(mode);
+      const steps = rampSteps(block);
+      const canvas = parseOklch(variableValue(block, "canvas"));
+      const ink = parseOklch(variableValue(block, "ink"));
+      const lightnessAt = (token: string): number => {
+        const step = steps.get(token);
+        if (step === undefined) {
+          throw new Error(`--${token} must derive from the anchors`);
+        }
+        return (
+          canvas.lightness + (step / 100) * (ink.lightness - canvas.lightness)
+        );
+      };
+
+      expect(
+        lightnessAt("browser-tab-active") - lightnessAt("browser-tab-strip"),
+      ).toBeGreaterThanOrEqual(0.035);
+    });
+  }
+});
+
 describe("theme.css Cadence text tokens", () => {
   it("registers Cadence color and type utilities with Tailwind", () => {
     expect(css).toMatch(

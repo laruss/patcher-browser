@@ -362,8 +362,13 @@ function BrowserSurfaceTabStripTab({
           style={{ transform: CSS.Translate.toString(transform), transition }}
           className={cn(
             "group relative flex items-stretch rounded-md transition-colors",
+            // The selected tab is a plate lifted off the strip, not the page's
+            // own surface: the strip and the page area are a step apart at
+            // most, so borrowing the canvas made the selected tab a shade no
+            // one could find. `--browser-tab-active` is the lighter end of that
+            // pair in either mode (theme.css).
             isActive
-              ? "bg-background text-foreground"
+              ? "bg-browser-tab-active text-foreground"
               : "text-muted-foreground hover:bg-state-hover hover:text-foreground",
             isPinned ? PINNED_TAB_WIDTH_CLASS : TAB_WIDTH_CLASS,
             // The tab being carried draws above its neighbours, and its own
@@ -600,7 +605,10 @@ export function BrowserSurfaceTabStrip({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-stretch gap-1 border-b border-border bg-sidebar px-4 py-1",
+        // Its own recessed step rather than the sidebar's: an unselected tab is
+        // the strip showing through, so the strip is what has to sit below the
+        // selected tab's plate.
+        "flex shrink-0 items-stretch gap-1 border-b border-border bg-browser-tab-strip px-4 py-1",
         // The shared title-bar row: the pinned trigger and the traffic lights are
         // centered on this height, so a shorter strip would let them spill onto
         // the omnibox row below.
