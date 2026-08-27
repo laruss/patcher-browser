@@ -11,6 +11,30 @@ type ProviderRouting = NonNullable<
   Parameters<ProviderPermissionApi["sdk"]["providers"]["list"]>[0]
 >;
 
+/**
+ * Modes that keep the agent inside the workspace sandbox, most capable first.
+ *
+ * The same lattice `highestSandboxedPermissionMode` implements in
+ * @patcher/domain, spelled locally because a plugin bundles standalone and does
+ * not depend on domain. It matters more here than anywhere: an automation runs
+ * on a schedule with nobody watching, so resolving an unstated default *up* to
+ * Full Access — which is what preferring "full" over "accept-edits" did for a
+ * provider with no automatic reviewer, such as Cursor — makes the longest-lived
+ * unsandboxed grant in the product the silent default.
+ */
+const SANDBOXED_PERMISSION_MODES: readonly PermissionMode[] = [
+  "auto",
+  "accept-edits",
+];
+
+function highestSandboxedPermissionMode(
+  supported: readonly PermissionMode[],
+): PermissionMode | null {
+  return (
+    SANDBOXED_PERMISSION_MODES.find((mode) => supported.includes(mode)) ?? null
+  );
+}
+
 export function providerRoutingForEnvironment(
   environment: AgentEnvironment,
 ): ProviderRouting {
@@ -43,9 +67,10 @@ export async function resolvePermissionMode(
     );
   }
   if (requested !== undefined) return requested;
-  if (provider.capabilities.supportedPermissionModes.includes("auto")) {
-    return "auto";
-  }
+  const sandboxed = highestSandboxedPermissionMode(
+    provider.capabilities.supportedPermissionModes,
+  );
+  if (sandboxed !== null) return sandboxed;
   if (provider.capabilities.supportedPermissionModes.includes("full")) {
     return "full";
   }
