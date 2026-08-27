@@ -44,8 +44,20 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopPackageRoot = resolve(scriptDirectory, "..");
 const appDir = resolve(desktopPackageRoot, "..", "app");
 const appDistDir = join(appDir, "dist");
-const bootTimeoutMs = 30_000;
+const devServerStartTimeoutMs = 60_000;
+// The dev server compiles on demand, so its first paint waits for a dependency
+// optimization the built bundle has already had.
+const bootTimeoutMs = { dev: 120_000, dist: 60_000 };
+// Nothing here may outlive this. A hang with no output is the one failure mode
+// that costs a whole CI job and says nothing, which is exactly how the first
+// run of this smoke ended.
+const watchdogTimeoutMs = 8 * 60_000;
 const maxCapturedOutputCharacters = 20_000;
+
+/** Progress, so a hang names the stage it hung in. */
+function log(message) {
+  console.log(`app boot smoke: ${message}`);
+}
 
 const CONTENT_TYPES = new Map(
   Object.entries({
@@ -181,6 +193,9 @@ async function startDevServer() {
   );
 
   const output = [];
+  const kill = () => {
+    child.kill("SIGKILL");
+  };
   const url = await new Promise((resolvePromise, rejectPromise) => {
     const timeout = setTimeout(() => {
       rejectPromise(
@@ -188,7 +203,7 @@ async function startDevServer() {
           `The app dev server never printed a URL.\n${output.join("").trim()}`,
         ),
       );
-    }, bootTimeoutMs);
+    }, devServerStartTimeoutMs);
     const onChunk = (chunk) => {
       appendOutput(output, chunk);
       const match = /(http:\/\/127\.0\.0\.1:\d+\/?)/.exec(output.join(""));
@@ -209,6 +224,11 @@ async function startDevServer() {
         ),
       );
     });
+  }).catch((error) => {
+    // Otherwise a dev server that never answered keeps this process alive with
+    // its pipes, and the job hangs until the runner kills it.
+    kill();
+    throw error;
   });
 
   return {
@@ -355,15 +375,17 @@ function parseVerdict(output) {
 }
 
 /** One boot: point Electron at `url`, and report what the start-up raised. */
-async function bootOnce({ url, preloadPath, mainPath }) {
+async function bootOnce({ url, preloadPath, mainPath, deadlineMs }) {
   const stdout = [];
   const stderr = [];
-  const child = spawn(require("electron"), [mainPath], {
+  const electronBinary = require("electron");
+  log(`booting ${url} in ${electronBinary}`);
+  const child = spawn(electronBinary, [mainPath], {
     env: {
       ...process.env,
       PATCHER_BOOT_SMOKE_URL: url,
       PATCHER_BOOT_SMOKE_PRELOAD: preloadPath,
-      PATCHER_BOOT_SMOKE_TIMEOUT_MS: String(bootTimeoutMs),
+      PATCHER_BOOT_SMOKE_TIMEOUT_MS: String(deadlineMs),
       // A CI runner has no user namespaces to build a sandbox out of, and this
       // window shows one page: our own build.
       ELECTRON_DISABLE_SANDBOX: "1",
@@ -372,15 +394,19 @@ async function bootOnce({ url, preloadPath, mainPath }) {
   child.stdout.on("data", (chunk) => {
     appendOutput(stdout, chunk);
   });
+  // Electron's own complaints — a window server it cannot reach, a GPU process
+  // that will not start — go straight to the log rather than into a buffer
+  // nobody prints when the run is killed.
   child.stderr.on("data", (chunk) => {
     appendOutput(stderr, chunk);
+    process.stderr.write(chunk);
   });
 
   const exitCode = await new Promise((resolvePromise) => {
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
       resolvePromise("timeout");
-    }, bootTimeoutMs * 2);
+    }, deadlineMs + 30_000);
     child.on("exit", (code) => {
       clearTimeout(timeout);
       resolvePromise(code ?? 1);
@@ -428,39 +454,52 @@ async function main() {
   await writeFile(mainPath, MAIN_SOURCE, "utf8");
 
   const problems = [];
+  const watchdog = setTimeout(() => {
+    console.error(
+      `app boot smoke: nothing finished within ${watchdogTimeoutMs}ms — killing the run so the log says where it stopped`,
+    );
+    process.exit(1);
+  }, watchdogTimeoutMs);
+
   try {
+    log("starting the app dev server");
     const devServer = await startDevServer();
+    log(`dev server at ${devServer.url}`);
     try {
       const failures = await bootOnce({
         url: devServer.url,
         preloadPath,
         mainPath,
+        deadlineMs: bootTimeoutMs.dev,
       });
       if (failures.length > 0) {
         problems.push(formatFailures("dev server", failures));
       } else {
-        console.log("app boot smoke: the dev server started with no errors");
+        log("the dev server started with no errors");
       }
     } finally {
       await devServer.close();
     }
 
+    log("serving the built bundle");
     const distServer = await startDistServer();
     try {
       const failures = await bootOnce({
         url: `http://127.0.0.1:${distServer.port}/`,
         preloadPath,
         mainPath,
+        deadlineMs: bootTimeoutMs.dist,
       });
       if (failures.length > 0) {
         problems.push(formatFailures("built bundle", failures));
       } else {
-        console.log("app boot smoke: the built bundle started with no errors");
+        log("the built bundle started with no errors");
       }
     } finally {
       await distServer.close();
     }
   } finally {
+    clearTimeout(watchdog);
     await rm(smokeRoot, { force: true, recursive: true });
   }
 
