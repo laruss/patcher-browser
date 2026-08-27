@@ -14,6 +14,7 @@ import {
   patcherDesktopBrowserObserveResultSchema,
   patcherDesktopBrowserOpenTabRequestSchema,
   patcherDesktopBrowserPageReadResultSchema,
+  patcherDesktopBrowserPlacedOpenTabRequestSchema,
   patcherDesktopBrowserScopedOpenTabRequestSchema,
   patcherDesktopBrowserExternalUrlsSchema,
   patcherDesktopDefaultBrowserStatusSchema,
@@ -56,6 +57,7 @@ import {
   type PatcherDesktopBrowserObserveResult,
   type PatcherDesktopBrowserOpenTabHandler,
   type PatcherDesktopBrowserPageReadResult,
+  type PatcherDesktopBrowserPlacedOpenTabHandler,
   type PatcherDesktopBrowserScopedOpenTabHandler,
   type PatcherDesktopBrowserDialogHandler,
   type PatcherDesktopBrowserPagePromptHandler,
@@ -128,6 +130,7 @@ import {
   PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_RELOAD_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_TAKE_EXTERNAL_URLS_CHANNEL,
   PATCHER_DESKTOP_BROWSER_EXTERNAL_URLS_PENDING_CHANNEL,
@@ -266,6 +269,8 @@ const browserStateListeners = new Set<PatcherDesktopBrowserStateHandler>();
 const browserOpenTabListeners = new Set<PatcherDesktopBrowserOpenTabHandler>();
 const browserScopedOpenTabListeners =
   new Set<PatcherDesktopBrowserScopedOpenTabHandler>();
+const browserPlacedOpenTabListeners =
+  new Set<PatcherDesktopBrowserPlacedOpenTabHandler>();
 const browserExternalUrlsPendingListeners =
   new Set<PatcherDesktopBrowserExternalUrlsPendingHandler>();
 const defaultBrowserStatusListeners =
@@ -391,6 +396,12 @@ const patcherBrowserApi: PatcherDesktopBrowserApi = {
     browserScopedOpenTabListeners.add(listener);
     return () => {
       browserScopedOpenTabListeners.delete(listener);
+    };
+  },
+  onPlacedOpenTab(listener): PatcherDesktopBrowserUnsubscribe {
+    browserPlacedOpenTabListeners.add(listener);
+    return () => {
+      browserPlacedOpenTabListeners.delete(listener);
     };
   },
   async takeExternalUrls(): Promise<string[]> {
@@ -922,6 +933,20 @@ ipcRenderer.on(
       return;
     }
     for (const listener of browserScopedOpenTabListeners) {
+      listener(parsed.data);
+    }
+  },
+);
+
+ipcRenderer.on(
+  PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
+  (_event, payload: unknown) => {
+    const parsed =
+      patcherDesktopBrowserPlacedOpenTabRequestSchema.safeParse(payload);
+    if (!parsed.success) {
+      return;
+    }
+    for (const listener of browserPlacedOpenTabListeners) {
       listener(parsed.data);
     }
   },

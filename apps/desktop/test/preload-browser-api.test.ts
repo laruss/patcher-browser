@@ -34,6 +34,7 @@ import {
   PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
   PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_RELOAD_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_BOUNDS_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_POPUP_TABS_CHANNEL,
@@ -275,6 +276,7 @@ describe("desktop preload browser API", () => {
       "onPagePrompt",
       "onPageScriptCall",
       "onPageSecurity",
+      "onPlacedOpenTab",
       "onPopup",
       "onScopedOpenTab",
       "onSearchSelection",
@@ -549,6 +551,12 @@ describe("desktop preload browser API", () => {
       tabId: "browser:a",
       dataUrl: null,
     };
+    const placedOpenTabs: unknown[] = [];
+    const placedOpenTab = {
+      background: true,
+      tabId: "browser:a",
+      url: "https://example.com/middle-clicked",
+    };
 
     api.browser.onState((nextState) => {
       states.push(nextState);
@@ -558,6 +566,9 @@ describe("desktop preload browser API", () => {
     });
     api.browser.onScopedOpenTab?.((request) => {
       scopedOpenTabs.push(request);
+    });
+    api.browser.onPlacedOpenTab?.((request) => {
+      placedOpenTabs.push(request);
     });
     api.browser.onSnapshot?.((nextSnapshot) => {
       snapshots.push(nextSnapshot);
@@ -589,6 +600,10 @@ describe("desktop preload browser API", () => {
       payload: { tabId: "", url: "https://example.com/scoped-popup" },
     });
     emitIpcPayload({
+      channel: PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
+      payload: { tabId: "browser:a", url: "https://example.com/no-placement" },
+    });
+    emitIpcPayload({
       channel: PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
       payload: { tabId: "browser:a", dataUrl: 42 },
     });
@@ -607,6 +622,10 @@ describe("desktop preload browser API", () => {
     emitIpcPayload({
       channel: PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
       payload: scopedOpenTab,
+    });
+    emitIpcPayload({
+      channel: PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
+      payload: placedOpenTab,
     });
     emitIpcPayload({
       channel: PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
@@ -636,6 +655,9 @@ describe("desktop preload browser API", () => {
     expect(states).toEqual([state]);
     expect(openTabs).toEqual([openTab]);
     expect(scopedOpenTabs).toEqual([scopedOpenTab]);
+    // The placement is required, so a payload without it is not a placed open
+    // tab — it is an older shell's, and it must not reach a listener as one.
+    expect(placedOpenTabs).toEqual([placedOpenTab]);
     expect(snapshots).toEqual([snapshot]);
     expect(windowStates).toEqual([{ isFullScreen: true }]);
     expect(closeWindowRequestCount).toBe(1);

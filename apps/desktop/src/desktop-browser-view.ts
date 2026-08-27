@@ -17,6 +17,7 @@ import {
   type PatcherDesktopBrowserAttachRequest,
   type PatcherDesktopBrowserNavigateRequest,
   type PatcherDesktopBrowserOpenTabRequest,
+  type PatcherDesktopBrowserPlacedOpenTabRequest,
   type PatcherDesktopBrowserScopedOpenTabRequest,
   type PatcherDesktopBrowserSetBoundsRequest,
   type PatcherDesktopBrowserSetVisibleRequest,
@@ -105,6 +106,7 @@ import {
   PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
   PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_CONTEXT_MENU_INVOKE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
@@ -590,6 +592,7 @@ export type DesktopBrowserHostWebContentsPayload =
   | PatcherDesktopBrowserState
   | PatcherDesktopBrowserOpenTabRequest
   | PatcherDesktopBrowserScopedOpenTabRequest
+  | PatcherDesktopBrowserPlacedOpenTabRequest
   | PatcherDesktopBrowserSnapshot
   | PatcherDesktopBrowserDialog
   | PatcherDesktopBrowserDownload
@@ -3655,10 +3658,22 @@ export function createDesktopBrowserViewManager(
         };
       }
       if (fallbackUrl !== null) {
+        // All three, oldest first: a renderer subscribes to the newest channel
+        // it understands, and the two older ones are what a renderer from
+        // before placement, or from before attribution, is listening on.
         send(hostWindow, PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL, {
           url: fallbackUrl,
         });
         send(hostWindow, PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL, {
+          tabId,
+          url: fallbackUrl,
+        });
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL, {
+          // Chromium's own reading of the gesture: the middle button and
+          // Cmd/Ctrl+click queue a page to come back to, and taking the window
+          // away from the one the links are on is what makes queueing three of
+          // them impossible.
+          background: details.disposition === "background-tab",
           tabId,
           url: fallbackUrl,
         });
@@ -3786,8 +3801,16 @@ export function createDesktopBrowserViewManager(
           },
           openInNewTab: (url) => {
             // The path popups already take: the renderer owns where a tab goes,
-            // and the surface only opens one for a tab it owns.
+            // and the surface only opens one for a tab it owns. Both channels,
+            // because a renderer that understands placement listens only on the
+            // newer one — and this entry means the foreground, being a menu
+            // item the user picked rather than a click they modified.
             send(hostWindow, PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL, {
+              tabId,
+              url,
+            });
+            send(hostWindow, PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL, {
+              background: false,
               tabId,
               url,
             });

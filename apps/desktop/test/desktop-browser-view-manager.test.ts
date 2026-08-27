@@ -17,6 +17,9 @@ import {
   PATCHER_DESKTOP_BROWSER_FIND_RESULT_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
   PATCHER_DESKTOP_BROWSER_DEV_TOOLS_STATE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
@@ -1553,26 +1556,32 @@ function browserRequestBlocked(args: BrowserRequestBlockedArgs): boolean {
   return response.cancel;
 }
 
-function openTabPushesOf(hostWindow: FakeHostWindow): string[] {
-  const pushes: string[] = [];
-  for (const payload of hostWindow.webContents.sentPayloads) {
-    if ("url" in payload && !("tabId" in payload)) {
-      pushes.push(payload.url);
-    }
-  }
-  return pushes;
+// By channel, not by payload shape: the three open-tab channels differ only in
+// which fields they carry, so shape-matching read one channel's push as
+// another's the moment a third was added.
+function pushesOnChannel(
+  hostWindow: FakeHostWindow,
+  channel: string,
+): unknown[] {
+  return hostWindow.webContents.sentMessages
+    .filter((message) => message.channel === channel)
+    .map((message) => message.payload);
 }
 
-function scopedOpenTabPushesOf(
-  hostWindow: FakeHostWindow,
-): Array<{ tabId: string; url: string }> {
-  const pushes: Array<{ tabId: string; url: string }> = [];
-  for (const payload of hostWindow.webContents.sentPayloads) {
-    if ("url" in payload && "tabId" in payload && !("title" in payload)) {
-      pushes.push(payload);
-    }
-  }
-  return pushes;
+function openTabPushesOf(hostWindow: FakeHostWindow): string[] {
+  return pushesOnChannel(hostWindow, PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL)
+    .filter(
+      (payload): payload is { url: string } =>
+        typeof payload === "object" && payload !== null && "url" in payload,
+    )
+    .map((payload) => payload.url);
+}
+
+function scopedOpenTabPushesOf(hostWindow: FakeHostWindow): unknown[] {
+  return pushesOnChannel(
+    hostWindow,
+    PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
+  );
 }
 
 function faviconPushesOf(
@@ -7276,6 +7285,16 @@ describe("real popups", () => {
     return { hostWindow, manager, view: requireFakeView(0) };
   }
 
+  /** What the newest open-tab channel carried, placement included. */
+  function placedOpenTabPushes(hostWindow: FakeHostWindow): unknown[] {
+    return hostWindow.webContents.sentMessages
+      .filter(
+        (message) =>
+          message.channel === PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
+      )
+      .map((message) => message.payload);
+  }
+
   function popupPushes(hostWindow: FakeHostWindow): unknown[] {
     return hostWindow.webContents.sentMessages
       .filter(
@@ -7359,6 +7378,36 @@ describe("real popups", () => {
       tabId: OPENER,
       url: "https://example.com/docs",
     });
+    // And it goes to the background: the gesture queues a page to come back
+    // to, so taking the window away from the links is the one thing it must
+    // not do.
+    expect(placedOpenTabPushes(hostWindow)).toEqual([
+      {
+        background: true,
+        tabId: OPENER,
+        url: "https://example.com/docs",
+      },
+    ]);
+  });
+
+  // An unmodified `target="_blank"` on a surface that hosts no popups is still
+  // the foreground: the page asked to be somewhere else, and no gesture said
+  // otherwise.
+  it("opens a plain popup fallback in the foreground", () => {
+    const { hostWindow, view } = attachOpener({ claimsPopups: false });
+
+    view.webContents.emitWindowOpen(
+      "https://example.com/docs",
+      "foreground-tab",
+    );
+
+    expect(placedOpenTabPushes(hostWindow)).toEqual([
+      {
+        background: false,
+        tabId: OPENER,
+        url: "https://example.com/docs",
+      },
+    ]);
   });
 
   // The shape half the OAuth SDKs use: open a blank window, then write into it.
