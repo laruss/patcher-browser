@@ -41,9 +41,10 @@ unless you pass `--auto-update` explicitly.
     --action <install|update>
 
 Each machine has a permission limit: the highest permission mode any thread on
-that machine can run with. A newly enrolled machine starts at the sandbox
-limit, so agents on it keep a workspace sandbox unless you raise the limit
-yourself; machines enrolled before that became the default keep what they had.
+that machine can run with. Every machine starts at the sandbox limit — newly
+enrolled ones by default, and ones from an earlier install by migration — so
+agents keep a workspace sandbox unless you raise the limit yourself. A provider
+that offers Full Access only, such as Pi, cannot run until you do.
 A thread that asks for
 more resolves down to the limit, and a provider that supports no mode under the
 limit cannot run there. Set it in Settings → Machines → the machine → Permission

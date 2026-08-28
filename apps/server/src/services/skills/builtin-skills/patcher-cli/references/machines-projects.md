@@ -50,8 +50,9 @@ environments, and the provider/model catalog.
 - Each machine carries a permission limit (`maxPermissionMode`): the highest
   permission mode a thread on that machine may run with. A newly enrolled
   machine starts at the sandbox limit (`auto`), so a provider that offers Full
-  Access only cannot run on it until its owner raises the limit. Machines
-  enrolled before that became the default keep whatever they had.
+  Access only cannot run on it until its owner raises the limit. An install that
+  predates that default had its machines lowered to it by migration, so this is
+  the state everywhere rather than only on new machines.
   The server resolves any higher request down to it, and refuses a provider
   that supports no mode under it. Only the owner can change it, on the machine
   page at Settings → Machines → the machine — there is no CLI, SDK, or API
