@@ -326,11 +326,6 @@ export type HostDaemonLocalRoutes = Hono<{}, HostDaemonLocalSchema, "/">;
 // Client factory
 // ---------------------------------------------------------------------------
 
-/**
- * Create a typed Hono client for the daemon's local API.
- *
- * No auth — the local API is bound to 127.0.0.1 only.
- */
 export interface CreateHostDaemonLocalClientOptions {
   /**
    * Signs the request. The daemon's local API takes the app key like every
@@ -341,6 +336,13 @@ export interface CreateHostDaemonLocalClientOptions {
   fetch?: typeof fetch;
 }
 
+/**
+ * Create a typed Hono client for the daemon's local API.
+ *
+ * Every path except `/health` takes the app key. Bound to 127.0.0.1 is not a
+ * credential: a turn is handed the port and reaches loopback, so a caller that
+ * means to be served passes `options.fetch` and signs the request.
+ */
 export function createHostDaemonLocalClient(
   baseUrl: string,
   options: CreateHostDaemonLocalClientOptions = {},

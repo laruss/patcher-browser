@@ -1376,52 +1376,6 @@ describe("migrate", () => {
     }
   });
 
-  // Side chats used to be their own origin kind. 0084 hands every existing one
-  // to the builtin side-chat plugin, so old side chats keep opening in the
-  // plugin's panel instead of stranding on a removed origin kind.
-  it("lowers an existing machine from Full Access to the sandbox ceiling", () => {
-    // The default alone reaches only machines enrolled after it: `upsertHost`
-    // writes the column on insert and never on update. Without the data half of
-    // 0095 the sandbox default does nothing on any install that already exists,
-    // which is the whole reason this migration has one.
-    const db = createConnection(":memory:");
-    migrate(db);
-
-    db.$client
-      .prepare(
-        "INSERT INTO hosts (id, name, type, max_permission_mode, created_at, updated_at) " +
-          "VALUES ('host_upgraded','Laptop','persistent','full',1,1)",
-      )
-      .run();
-    db.$client
-      .prepare(
-        "INSERT INTO hosts (id, name, type, max_permission_mode, created_at, updated_at) " +
-          "VALUES ('host_lowered','Locked down','persistent','accept-edits',1,1)",
-      )
-      .run();
-    db.$client
-      .prepare<
-        [number]
-      >("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
-      .run(sandboxCeilingMigrationWhen);
-
-    migrate(db);
-
-    const ceilingFor = (id: string) =>
-      db.$client
-        .prepare<
-          [string],
-          { max_permission_mode: string }
-        >("SELECT max_permission_mode FROM hosts WHERE id = ?")
-        .get(id)?.max_permission_mode;
-    expect(ceilingFor("host_upgraded")).toBe("auto");
-    // Already below the sandbox ceiling, so the migration leaves it alone rather
-    // than raising it.
-    expect(ceilingFor("host_lowered")).toBe("accept-edits");
-
-    closeConnection(db);
-  });
-
   it("stamps existing installs as onboarded so upgrades skip the first-run flow", () => {
     const db = createConnection(":memory:");
     migrate(db);
@@ -1484,6 +1438,77 @@ describe("migrate", () => {
     closeConnection(db);
   });
 
+  it("lowers an existing machine from Full Access to the sandbox ceiling", () => {
+    // The default alone reaches only machines enrolled after it: `upsertHost`
+    // writes the column on insert and never on update. Without the data half of
+    // 0095 the sandbox default does nothing on any install that already exists,
+    // which is the whole reason this migration has one.
+    const db = createConnection(":memory:");
+    migrate(db);
+
+    db.$client
+      .prepare(
+        "INSERT INTO hosts (id, name, type, max_permission_mode, created_at, updated_at) " +
+          "VALUES ('host_upgraded','Laptop','persistent','full',1,1)",
+      )
+      .run();
+    db.$client
+      .prepare(
+        "INSERT INTO hosts (id, name, type, max_permission_mode, created_at, updated_at) " +
+          "VALUES ('host_lowered','Locked down','persistent','accept-edits',1,1)",
+      )
+      .run();
+    // A row that cascades from `hosts`. 0095 changes the default by recreating
+    // the table, and its own `PRAGMA foreign_keys=OFF` is a no-op inside
+    // drizzle's transaction — so what keeps `DROP TABLE hosts` from deleting
+    // every environment, terminal session and project source is the pragma
+    // `migrate()` sets around the whole run. This is the assertion that fails
+    // if that ever moves.
+    db.$client
+      .prepare(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES ('proj_ceiling','App',1,1)",
+      )
+      .run();
+    db.$client
+      .prepare(
+        "INSERT INTO environments (id, project_id, host_id, workspace_provision_type, created_at, updated_at) " +
+          "VALUES ('env_ceiling','proj_ceiling','host_upgraded','unmanaged',1,1)",
+      )
+      .run();
+    db.$client
+      .prepare<
+        [number]
+      >("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
+      .run(sandboxCeilingMigrationWhen);
+
+    migrate(db);
+
+    const ceilingFor = (id: string) =>
+      db.$client
+        .prepare<
+          [string],
+          { max_permission_mode: string }
+        >("SELECT max_permission_mode FROM hosts WHERE id = ?")
+        .get(id)?.max_permission_mode;
+    expect(ceilingFor("host_upgraded")).toBe("auto");
+    // Already below the sandbox ceiling, so the migration leaves it alone rather
+    // than raising it.
+    expect(ceilingFor("host_lowered")).toBe("accept-edits");
+    expect(
+      db.$client
+        .prepare<
+          [],
+          { count: number }
+        >("SELECT COUNT(*) AS count FROM environments WHERE host_id = 'host_upgraded'")
+        .get()?.count,
+    ).toBe(1);
+
+    closeConnection(db);
+  });
+
+  // Side chats used to be their own origin kind. 0084 hands every existing one
+  // to the builtin side-chat plugin, so old side chats keep opening in the
+  // plugin's panel instead of stranding on a removed origin kind.
   it("adopts legacy side chats as the side-chat plugin's hidden forks", () => {
     const db = createConnection(":memory:");
 

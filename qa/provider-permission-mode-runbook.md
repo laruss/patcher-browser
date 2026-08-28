@@ -152,7 +152,7 @@ re-do them and an auditor can find them.
 | A sandboxed mode runs unsandboxed because the backend is missing                                 | Refusal naming the dependency and Full Access                                | `packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts`                                              |
 | An unsupported permission mode resolves upward to Full Access                                    | Fallbacks resolve to the most capable sandboxed mode instead                 | `apps/server/test/threads/thread-default-policy.test.ts`, `apps/app/src/hooks/resolvePermissionModeSelection.test.ts` |
 | Full Access is one click away in the same menu as the sandboxed presets                          | Confirmation naming what it gives up                                         | `apps/app/src/components/pickers/PermissionModePicker.test.tsx`                                                       |
-| The daemon's own loopback API takes no credential, and a turn is handed its port                 | The app key, like every other local surface                                  | `apps/host-daemon/src/local-api.test.ts`                                                                              |
+| A turn reaches `POST /open-in-target` on the daemon's loopback API, which took no credential     | The app key, which a turn's environment no longer carries                    | `apps/host-daemon/src/local-api.test.ts`                                                                              |
 | A machine from an install predating the sandbox default stays at Full Access                     | Migration `0095` lowers every machine still at `full`                        | `packages/db/test/migrate.test.ts`                                                                                    |
 | A Linux host that has bubblewrap is called unable to sandbox because PATH omits it               | Distribution paths checked after PATH                                        | `packages/agent-runtime/src/claude-code/bridge/__tests__/sandbox-availability.test.ts`                                |
 
@@ -170,12 +170,10 @@ this does not yet close".
 - **An agent can act on another thread.** The thread key is verified but is not
   compared with the `:id` in the path.
 - **An agent can choose the next turn's permission mode and workspace path.**
-  Bounded only by the machine ceiling, which a pre-existing install still has at
-  `full` — there is no migration.
+  Bounded only by the machine ceiling, which migration `0095` lowered to the
+  sandbox on every machine that was still at `full`.
 - **`plugins/:id/cli` and `plugins/:id/rpc/:method` run plugin code with no
   consent prompt.**
-- **The host daemon's local API has no credential check**, and a turn is handed
-  its port.
 - **`filter.<driver>.smudge` planted in `.git/config`** still runs on
   `git checkout` and `git worktree add` — the driver name comes from
   `.gitattributes`, so no fixed config deny-list can pre-empt it.

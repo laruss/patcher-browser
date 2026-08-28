@@ -1,5 +1,5 @@
 import { accessSync, constants, statSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import type { Options, Settings } from "@anthropic-ai/claude-agent-sdk";
 import type {
   InstructionMode,
@@ -41,6 +41,13 @@ export interface BuildSessionOptionsArgs {
   platform?: NodeJS.Platform;
   plugins?: Options["plugins"];
   reasoningLevel?: ReasoningLevel;
+  /**
+   * Absolute sandbox-helper candidates, forwarded to the availability probe.
+   * See `ResolveWorkspaceSandboxAvailabilityArgs`: production passes nothing,
+   * and a test that means "this machine has no bubblewrap" has to say so here,
+   * because the real distribution paths exist on the machines CI runs on.
+   */
+  wellKnownSandboxHelperPaths?: readonly string[];
   workflowsEnabled: boolean;
   memoryEnabled?: boolean;
 }
@@ -73,7 +80,15 @@ export interface ResolveWorkspaceSandboxAvailabilityArgs {
 }
 
 export type WorkspaceSandboxAvailability =
-  | { available: true }
+  | {
+      available: true;
+      /**
+       * Where the helper was found when PATH did not name it. The session's
+       * PATH has to carry it: the SDK does its own `bwrap` lookup, and it looks
+       * on PATH.
+       */
+      helperDirectory?: string;
+    }
   | { available: false; reason: string; remedy: string };
 
 /** The helper the SDK's Linux sandbox is built on. */
@@ -265,19 +280,26 @@ export function resolveWorkspaceSandboxAvailability(
     // directory, so a PATH-only probe reported "no bubblewrap" on hosts that
     // have it and refused every sandboxed turn. Same reason
     // `wellKnownClaudeExecutablePaths` exists below.
-    const helperPath =
+    if (
       resolveExecutableOnPath({
         executableName: LINUX_SANDBOX_HELPER_EXECUTABLE,
         pathEnv: args.env.PATH,
-      }) ??
-      (args.wellKnownHelperPaths ?? WELL_KNOWN_LINUX_SANDBOX_HELPER_PATHS).find(
-        (candidate) => isExecutableFile(candidate),
-      );
-    return helperPath
-      ? { available: true }
+      })
+    ) {
+      return { available: true };
+    }
+    const wellKnownHelperPath = (
+      args.wellKnownHelperPaths ?? WELL_KNOWN_LINUX_SANDBOX_HELPER_PATHS
+    ).find((candidate) => isExecutableFile(candidate));
+    return wellKnownHelperPath
+      ? // The directory, not the path: the SDK auto-detects `bwrap` from PATH
+        // (`bwrapPath` in its settings is admin-managed only), so finding the
+        // helper here and stopping would start a session the SDK then aborts on
+        // `failIfUnavailable`. The caller puts this on the session's PATH.
+        { available: true, helperDirectory: dirname(wellKnownHelperPath) }
       : {
           available: false,
-          reason: `the Linux sandbox is built with bubblewrap, and no \`${LINUX_SANDBOX_HELPER_EXECUTABLE}\` was found on PATH`,
+          reason: `the Linux sandbox is built with bubblewrap, and no \`${LINUX_SANDBOX_HELPER_EXECUTABLE}\` was found on PATH or in the usual install locations`,
           remedy: "install bubblewrap on this machine",
         };
   }
@@ -300,6 +322,9 @@ function buildWorkspaceWriteSandbox(
   const availability = resolveWorkspaceSandboxAvailability({
     env,
     platform: params.platform ?? process.platform,
+    ...(params.wellKnownSandboxHelperPaths === undefined
+      ? {}
+      : { wellKnownHelperPaths: params.wellKnownSandboxHelperPaths }),
   });
   if (!availability.available) {
     // Refusing beats starting. The session used to run anyway, with Patcher's
@@ -311,6 +336,17 @@ function buildWorkspaceWriteSandbox(
     throw new Error(
       `Permission mode "${params.permissionMode}" runs the agent inside a workspace sandbox, and this machine cannot build one: ${availability.reason}. Either ${availability.remedy}, or run the thread at Full Access to work without a sandbox.`,
     );
+  }
+
+  if (availability.helperDirectory !== undefined) {
+    // The helper was found off PATH, and the SDK will look for it on the PATH
+    // this same env carries — so put it there. Mutating `env` rather than
+    // returning it: this is the object that becomes `sessionOptions.env`, and
+    // the CLI the SDK spawns is what has to see the directory.
+    env.PATH =
+      env.PATH === undefined || env.PATH.length === 0
+        ? availability.helperDirectory
+        : `${availability.helperDirectory}${delimiter}${env.PATH}`;
   }
 
   const allowWrite = params.additionalWorkspaceWriteRoots ?? [];

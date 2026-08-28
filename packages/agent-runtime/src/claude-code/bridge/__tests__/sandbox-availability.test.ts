@@ -49,7 +49,10 @@ describe("resolveWorkspaceSandboxAvailability", () => {
   });
 
   it("finds the Linux helper at a distribution path when PATH does not say", () => {
-    // The case the PATH-only probe got wrong.
+    // The case the PATH-only probe got wrong. The directory comes back with it
+    // because the SDK repeats the lookup on PATH, so the caller has to put it
+    // there — finding the helper and saying only "available" starts a session
+    // the SDK then aborts.
     const helper = createHelper();
 
     expect(
@@ -58,7 +61,10 @@ describe("resolveWorkspaceSandboxAvailability", () => {
         platform: "linux",
         wellKnownHelperPaths: [helper],
       }),
-    ).toEqual({ available: true });
+    ).toEqual({
+      available: true,
+      helperDirectory: helper.slice(0, helper.lastIndexOf("/")),
+    });
   });
 
   it("refuses when the helper is nowhere", () => {
