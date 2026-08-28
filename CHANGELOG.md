@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.1.1-alpha.2
+
+Agents now run sandboxed by default, and stepping outside the sandbox is a
+choice you make on purpose. Plus a round of browser fixes, tighter plugin
+isolation, and a start-up that no longer lands on a white screen.
+
+Still macOS on Apple Silicon, still ad-hoc signed, and still without
+auto-update: the first launch needs one explicit approval in System Settings,
+and a newer alpha has to be downloaded rather than offered.
+
+### Agents are sandboxed by default
+
+A thread runs inside the operating system's own sandbox: the agent writes in its
+workspace and nowhere else. macOS ships that sandbox; on Linux Patcher needs
+`bubblewrap` installed.
+
+- A machine that cannot sandbox refuses the turn and names what to install,
+  instead of running the turn without one.
+- A provider that does not offer the mode you picked now resolves **down** to
+  the sandbox instead of up to Full Access.
+- Every machine still set to Full Access is lowered to the sandbox ceiling when
+  you update. Raise it again in Settings if that is what you want — the message
+  a refused turn shows names the limit and whose it is to change.
+- **Full Access** is no longer the third item in a menu. Choosing it opens a
+  dialog that says what it turns off, and waits for you to confirm.
+
+### What a sandboxed turn no longer reaches
+
+- **Patcher's own secrets.** The app key, the machine auth secret, the daemon's
+  bearer token, and the database that holds every thread are denied to the turn
+  inside the sandbox — and the daemon refuses to serve those same paths through
+  its file API, to any caller.
+- **The app key itself.** A turn's processes are handed a key scoped to that one
+  thread instead. It answers for that thread, and the routes that would undo a
+  sandbox refuse it: writing files anywhere, opening a terminal, raising a
+  machine's ceiling, enrolling a machine, installing a provider CLI, and
+  approving the turn's own permission prompt.
+- **A repository's own git config.** A clone whose config or `.gitattributes`
+  names a hook, a filter, or an external diff no longer runs it inside Patcher's
+  git.
+
+[Security](https://github.com/laruss/patcher-browser/blob/main/docs/security.md) names what this does not close yet, Codex reads and
+`.git` inside the writable roots among them.
+
+### Plugins
+
+- Each plugin runs in its own process, so one plugin's key and channel never
+  meet another's.
+- A plugin is held to what it declared it registers, not only to what it calls.
+  A page script matching every site needs the sites to say so.
+- A plugin cannot reach a browser command it never declared by writing to its
+  channel instead of calling the API it was handed.
+- A second connection can no longer take the browser role off the window that
+  holds it.
+
+### The browser
+
+- Cmd-click opens a link as a background tab instead of crashing the shell.
+- The address bar keeps a half-typed address, selects the whole address on the
+  click that focuses it, and stops offering to switch tabs while you type one.
+- A hovered omnibox row no longer decides what Enter does.
+- Closing a tab no longer closes the popup it opened.
+- The selected tab is a shade you can find.
+
+### Start-up
+
+The app no longer opens on a white screen. A Node builtin reaching the app
+bundle fails the build instead of warning, and CI opens the packaged app and
+fails the build when the start-up errors.
+
 ## 0.1.1-alpha.1
 
 The first downloadable Patcher desktop build: macOS on Apple Silicon, published
