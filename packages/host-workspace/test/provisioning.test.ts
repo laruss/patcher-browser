@@ -490,6 +490,100 @@ describe("workspace provisioning", () => {
     );
   });
 
+  it("treats a provision cancelled while the question is open as a cancellation", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-cancel-consent-");
+    const markerDir = await makeTempDir(
+      "patcher-setup-cancel-consent-markers-",
+    );
+    await fs.writeFile(
+      path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
+      `touch ${shellSingleQuote(path.join(markerDir, "ran"))}\n`,
+      "utf8",
+    );
+    const abortController = new AbortController();
+
+    await expect(
+      runSetupScript({
+        // What cancelling a provision looks like from here: the abort takes the
+        // question down with it, and the far end answers with a refusal. Read
+        // as a refusal it would leave the worktree standing and this provision
+        // reporting success.
+        requestApproval: async () => {
+          abortController.abort(new Error("test cancel"));
+          return {
+            approved: false,
+            reason: "asking you failed (This operation was aborted)",
+          };
+        },
+        workspacePath,
+        timeoutMs: 900000,
+        signal: abortController.signal,
+      }),
+    ).rejects.toMatchObject({ code: "provision_cancelled" });
+    await expect(fs.stat(path.join(markerDir, "ran"))).rejects.toThrow();
+  });
+
+  it("does not hash a setup script that is not a regular file", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-not-a-file-");
+    // Tracked symlinks are checked out into the worktree, so this path is one a
+    // repository can choose. Reading it is the hazard the guard exists for: a
+    // link to a device is read until the daemon dies, and one to a FIFO never
+    // returns — both before anybody has been asked anything.
+    await fs.symlink(
+      "/dev/null",
+      path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
+    );
+    const entries: string[] = [];
+    let asked = 0;
+
+    const result = await runSetupScript({
+      requestApproval: async () => {
+        asked += 1;
+        return { approved: true };
+      },
+      workspacePath,
+      timeoutMs: 900000,
+      onProgress: (entry) => entries.push(`${entry.key}:${entry.text}`),
+    });
+
+    expect(result).toEqual({ ran: false });
+    expect(asked).toBe(0);
+    expect(entries).toContain(
+      "setup-not-approved:Skipped .patcher-env-setup.sh: it is not a regular file",
+    );
+  });
+
+  it("does not run a script that changed after it was allowed", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-changed-");
+    const markerDir = await makeTempDir("patcher-setup-changed-markers-");
+    const scriptPath = path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME);
+    await fs.writeFile(scriptPath, "echo the allowed one\n", "utf8");
+    const entries: string[] = [];
+
+    const result = await runSetupScript({
+      // The prompt can stand for minutes, and `env bash` opens the path again
+      // afterwards: whoever can write the worktree in between decides what runs
+      // unless the bytes are checked against the answer.
+      requestApproval: async () => {
+        await fs.writeFile(
+          scriptPath,
+          `touch ${shellSingleQuote(path.join(markerDir, "ran"))}\n`,
+          "utf8",
+        );
+        return { approved: true };
+      },
+      workspacePath,
+      timeoutMs: 900000,
+      onProgress: (entry) => entries.push(`${entry.key}:${entry.text}`),
+    });
+
+    expect(result).toEqual({ ran: false });
+    await expect(fs.stat(path.join(markerDir, "ran"))).rejects.toThrow();
+    expect(entries).toContain(
+      "setup-not-approved:Skipped .patcher-env-setup.sh: it changed after you allowed it",
+    );
+  });
+
   it("asks about the script by its content, so a changed script asks again", async () => {
     const workspacePath = await makeTempDir("patcher-setup-hash-");
     const body = "echo hello\n";

@@ -225,6 +225,63 @@ async function resolveSetupScriptPath(
   return (await pathExists(scriptPath)) ? scriptPath : null;
 }
 
+/**
+ * Ceiling on the setup script the daemon is willing to hash.
+ *
+ * The hash is taken by reading the file into the daemon's own memory, and the
+ * file is whatever the repository checked out at that path — so the read needs a
+ * limit no shell script will ever reach. Past it, provisioning skips the script
+ * rather than reading a tracked blob into the process that runs every thread.
+ */
+const SETUP_SCRIPT_MAX_BYTES = 1024 * 1024;
+
+type SetupScriptIdentity =
+  | { hashed: true; sha256: string; byteLength: number }
+  | { hashed: false; reason: string };
+
+/**
+ * What the user is asked about: the sha256 of the bytes at the script's path.
+ *
+ * `stat` rather than `lstat`, because `env bash` follows the same symlink this
+ * hash has to describe — but a path that resolves to anything other than a
+ * regular file is refused instead of read. A tracked `.patcher-env-setup.sh`
+ * symlinked to `/dev/zero` would otherwise be read until the daemon is
+ * OOM-killed, and one pointing at a FIFO would block a libuv thread with no
+ * deadline over it, both before anybody has been asked anything.
+ *
+ * A read that fails is a script that cannot be asked about, not a failed
+ * provision: the worktree is still what the user wanted.
+ */
+async function readSetupScriptIdentity(
+  scriptPath: string,
+): Promise<SetupScriptIdentity> {
+  try {
+    const stats = await fs.stat(scriptPath);
+    if (!stats.isFile()) {
+      return { hashed: false, reason: "it is not a regular file" };
+    }
+    if (stats.size > SETUP_SCRIPT_MAX_BYTES) {
+      return {
+        hashed: false,
+        reason: `it is larger than ${SETUP_SCRIPT_MAX_BYTES} bytes`,
+      };
+    }
+    const bytes = await fs.readFile(scriptPath);
+    return {
+      hashed: true,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      byteLength: bytes.byteLength,
+    };
+  } catch (error) {
+    return {
+      hashed: false,
+      reason: `it could not be read (${
+        error instanceof Error ? error.message : String(error)
+      })`,
+    };
+  }
+}
+
 export function buildSetupScriptCommand(
   args: BuildSetupScriptCommandArgs,
 ): SetupScriptCommand {
@@ -561,33 +618,58 @@ export async function runSetupScript(
     return { ran: false };
   }
 
-  throwIfProvisionAborted(args.signal);
-  const scriptBytes = await fs.readFile(scriptPath);
-  const approval = await args.requestApproval({
-    scriptPath,
-    scriptSha256: createHash("sha256").update(scriptBytes).digest("hex"),
-    scriptByteLength: scriptBytes.byteLength,
-    ...(args.signal ? { signal: args.signal } : {}),
-  });
-  if (!approval.approved) {
-    // Not a provisioning failure: the worktree is what the user asked for, and
-    // only the script is in question. Reported rather than thrown so the
-    // environment opens and the transcript says what did not run and why.
-    emitStep({
-      onProgress: args.onProgress,
-      key: "setup-not-approved",
-      text: `Skipped ${DEFAULT_ENV_SETUP_SCRIPT_NAME}: ${approval.reason}`,
-      status: "completed",
-      startedAt: Date.now(),
-    });
-    return { ran: false };
-  }
-
-  throwIfProvisionAborted(args.signal);
+  // Resolved before anybody is asked: a platform that cannot run this script at
+  // all has nothing to ask about, and raising a prompt there would hold the
+  // thread's one interaction slot for minutes only to fail afterwards anyway.
   const command = buildSetupScriptCommand({
     platform: process.platform,
     scriptPath,
   });
+
+  // Not a provisioning failure: the worktree is what the user asked for, and
+  // only the script is in question. Reported rather than thrown so the
+  // environment opens and the transcript says what did not run and why.
+  const skipSetupScript = (reason: string): { ran: false } => {
+    emitStep({
+      onProgress: args.onProgress,
+      key: "setup-not-approved",
+      text: `Skipped ${DEFAULT_ENV_SETUP_SCRIPT_NAME}: ${reason}`,
+      status: "completed",
+      startedAt: Date.now(),
+    });
+    return { ran: false };
+  };
+
+  throwIfProvisionAborted(args.signal);
+  const identity = await readSetupScriptIdentity(scriptPath);
+  if (!identity.hashed) {
+    return skipSetupScript(identity.reason);
+  }
+  const approval = await args.requestApproval({
+    scriptPath,
+    scriptSha256: identity.sha256,
+    scriptByteLength: identity.byteLength,
+    ...(args.signal ? { signal: args.signal } : {}),
+  });
+  // Cancelling the provision aborts the question with it, and the answer comes
+  // back as a refusal. Checked here so a cancel stays a cancel: reported as a
+  // skipped script it would leave the worktree standing and this provision
+  // looking like it succeeded.
+  throwIfProvisionAborted(args.signal);
+  if (!approval.approved) {
+    return skipSetupScript(approval.reason);
+  }
+
+  // `env bash` opens the path again, so what was allowed and what runs are two
+  // separate reads with the whole answer in between — and the prompt can stand
+  // for minutes over a worktree this machine can write. A script that changed
+  // under the answer is a script nobody has allowed.
+  const identityAtRun = await readSetupScriptIdentity(scriptPath);
+  if (!identityAtRun.hashed || identityAtRun.sha256 !== identity.sha256) {
+    return skipSetupScript("it changed after you allowed it");
+  }
+
+  throwIfProvisionAborted(args.signal);
   const startedAt = Date.now();
   emitStep({
     onProgress: args.onProgress,

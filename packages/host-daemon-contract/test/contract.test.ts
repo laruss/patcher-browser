@@ -1071,10 +1071,16 @@ describe("host-daemon command schemas", () => {
   // pass the version check and then be refused the socket with a 400 it has no
   // way to read, so the version is what turns that into "Needs update".
   //
-  // Nothing on the wire changed for those last two, which is why the version has
+  // Nothing on the wire changed for 108 and 109, which is why the version has
   // to say it — enrolled machines must update rather than connect and quietly
   // break.
-  it("uses protocol version 109 after renaming the daemon subprotocol", () => {
+  //
+  // 110 added `/session/env-setup-script-consent`: the daemon asks the server
+  // before it runs a repository's own `.patcher-env-setup.sh`. A 109 daemon has
+  // no such call, so it would run that script with nobody asked — the version
+  // is what stops it opening a session against a server that expects to be
+  // asked.
+  it("uses protocol version 110 after adding the setup-script consent call", () => {
     expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(110);
   });
 

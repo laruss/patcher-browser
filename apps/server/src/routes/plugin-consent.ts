@@ -2,29 +2,17 @@ import type { Context } from "hono";
 import { PATCHER_THREAD_ID_HEADER } from "@patcher/server-contract";
 import type { PendingInteractionConsentAction } from "@patcher/domain";
 import type { AppDeps } from "../types.js";
-
-/**
- * How long a consent prompt waits before it gives up.
- *
- * Four minutes rather than the ten a plugin question gets: this one blocks a
- * command an agent is sitting on, and a turn parked on a prompt nobody is
- * looking at is worse than a turn told to ask again.
- *
- * Four rather than five because the answer travels back as the response to a
- * request the CLI is still holding open, and undici — Node's `fetch` — gives up
- * on a response whose headers have not arrived in 300 s. At five, the client
- * always loses the race: the agent gets `UND_ERR_HEADERS_TIMEOUT` instead of the
- * sentence below, and the socket closing aborts the prompt off the user's screen
- * at the exact moment they may be deciding.
- */
-const PLUGIN_CONSENT_TIMEOUT_MS = 4 * 60 * 1000;
+import {
+  capConsentText,
+  CONSENT_DETAIL_MAX,
+  CONSENT_INTERACTION_TIMEOUT_MS,
+  CONSENT_SUBJECT_NAME_MAX,
+} from "../services/interactions/consent-text.js";
 
 const SUBJECT_ID_MAX = 200;
-const SUBJECT_NAME_MAX = 200;
 const PERMISSION_MAX = 100;
 const SITE_MAX = 255;
 const LIST_MAX = 50;
-const DETAIL_MAX = 500;
 
 export interface PluginConsentDeps {
   /**
@@ -55,23 +43,6 @@ export interface RequirePluginConsentArgs {
 export type PluginConsentOutcome =
   | { allowed: true }
   | { allowed: false; error: string; status: 403 | 409 | 503 };
-
-/**
- * The consent payload's caps are wire limits, and these strings come from a
- * plugin manifest or a caller's install source, neither of which is bounded by
- * anything a route controls. Truncating keeps a long source from failing the
- * schema and reaching the agent as an unexplained refusal.
- */
-function capConsentText(value: string, max: number): string {
-  if (value.length <= max) return value;
-  // Never cut a surrogate pair in half. A lone surrogate renders as a
-  // replacement glyph, and this string is the identity the user is being asked
-  // to trust — corrupting it at the one boundary a caller controls is exactly
-  // what should not happen here.
-  const lastKept = value.charCodeAt(max - 2);
-  const end = lastKept >= 0xd800 && lastKept <= 0xdbff ? max - 2 : max - 1;
-  return `${value.slice(0, end)}…`;
-}
 
 function capConsentList(values: readonly string[], itemMax: number): string[] {
   return values
@@ -134,7 +105,7 @@ export async function requirePluginConsent(
   try {
     result = await args.deps.pendingInteractions.requestConsentInteraction({
       threadId,
-      timeoutMs: PLUGIN_CONSENT_TIMEOUT_MS,
+      timeoutMs: CONSENT_INTERACTION_TIMEOUT_MS,
       signal: args.context.req.raw.signal,
       payload: {
         kind: "consent",
@@ -142,14 +113,14 @@ export async function requirePluginConsent(
         subjectId: capConsentText(args.subjectId, SUBJECT_ID_MAX),
         subjectName: capConsentText(
           args.subjectName ?? args.subjectId,
-          SUBJECT_NAME_MAX,
+          CONSENT_SUBJECT_NAME_MAX,
         ),
         permissions: capConsentList(args.permissions ?? [], PERMISSION_MAX),
         sites: capConsentList(args.sites ?? [], SITE_MAX),
         detail:
           args.detail === undefined || args.detail === null
             ? null
-            : capConsentText(args.detail, DETAIL_MAX),
+            : capConsentText(args.detail, CONSENT_DETAIL_MAX),
       },
     });
   } catch (error) {

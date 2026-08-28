@@ -46,20 +46,23 @@ export function formatPendingInteractionConsentSummary(
 export function formatPendingInteractionConsentDetailLines(
   payload: ConsentPendingInteractionPayload,
 ): string[] {
+  // The setup script is the one consent here that is not about a plugin and not
+  // necessarily about an agent's request, so it says what running it means and
+  // does not claim anybody asked. It also says that the answer is kept: an
+  // allow is remembered against this repository and this script's content, so
+  // "Allow" is not a one-off and the prompt has to admit it.
+  if (payload.action === "run-setup-script") {
+    return [
+      ...(payload.detail === null ? [] : [payload.detail]),
+      "Runs on the machine, outside any agent sandbox, as you.",
+      "Allowing is remembered for this repository until the script changes.",
+    ];
+  }
   // On enable, install, update and configure the list is what saying yes hands
   // over. On disable and remove it is what the plugin holds today and saying yes
   // takes away, so the same "Permissions:" label would read as a grant request
   // for the two actions that grant nothing.
   const revokes = payload.action === "disable" || payload.action === "remove";
-  // The setup script is the one consent here that is not about a plugin and not
-  // necessarily about an agent's request, so it says what running it means and
-  // does not claim anybody asked.
-  if (payload.action === "run-setup-script") {
-    return [
-      ...(payload.detail === null ? [] : [payload.detail]),
-      "Runs on the machine, outside any agent sandbox, as you.",
-    ];
-  }
   return [
     ...(payload.permissions.length > 0
       ? [

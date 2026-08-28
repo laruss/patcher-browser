@@ -183,6 +183,15 @@ through — leaves the script unrun and says which it was in the provisioning
 transcript. Provisioning itself still succeeds: the worktree is what was asked
 for, and only the script was in question.
 
+**What the hash does not cover.** It is the hash of that one file. A setup
+script whose body is `make setup` or `bash scripts/bootstrap.sh` never changes,
+while the Makefile or the script it calls — tracked files an agent can write
+just as easily — decide what actually runs. So one allow of an indirecting
+script is a standing channel, and "the script changed" is a weaker statement
+than "what it runs changed". Closing that needs a boundary around the run
+rather than a fact about the file, which is the same answer the rest of this
+section keeps arriving at.
+
 Two edges remain, and they are edges rather than the default:
 
 - **Codex.** Its sandbox leaves reads open with nothing to say otherwise, so a
@@ -209,7 +218,7 @@ Named here rather than left to be rediscovered:
   `workspace: { type: "unmanaged", path }` decides where the next turn's
   workspace — and so its sandbox — points. A managed worktree also runs the
   repository's own `.patcher-env-setup.sh` outside any sandbox, though that now
-  asks first — see below.
+  asks first — see above.
 - ~~**A machine enrolled before this release.**~~ Closed: migration `0095`
   lowers every machine still at `full` to the sandbox ceiling, so the default
   reaches installs that already exist. A machine whose owner wanted Full Access
