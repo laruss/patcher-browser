@@ -560,6 +560,8 @@ function dropSteerActiveThreadOnEnterColumn(db: DbConnection): void {
 
 // Journal `when` for 0085, used to rewind exactly that migration.
 const onboardingMigrationWhen = 1785947206119;
+/** Migration 0095 lowers a machine still sitting at Full Access to the sandbox. */
+const sandboxCeilingMigrationWhen = 1787913616310;
 
 // Migration 0085 adds the onboarding completion timestamp. Rewind scenarios
 // that clear its migration row must drop the column before replay, for the same
@@ -1377,6 +1379,49 @@ describe("migrate", () => {
   // Side chats used to be their own origin kind. 0084 hands every existing one
   // to the builtin side-chat plugin, so old side chats keep opening in the
   // plugin's panel instead of stranding on a removed origin kind.
+  it("lowers an existing machine from Full Access to the sandbox ceiling", () => {
+    // The default alone reaches only machines enrolled after it: `upsertHost`
+    // writes the column on insert and never on update. Without the data half of
+    // 0095 the sandbox default does nothing on any install that already exists,
+    // which is the whole reason this migration has one.
+    const db = createConnection(":memory:");
+    migrate(db);
+
+    db.$client
+      .prepare(
+        "INSERT INTO hosts (id, name, type, max_permission_mode, created_at, updated_at) " +
+          "VALUES ('host_upgraded','Laptop','persistent','full',1,1)",
+      )
+      .run();
+    db.$client
+      .prepare(
+        "INSERT INTO hosts (id, name, type, max_permission_mode, created_at, updated_at) " +
+          "VALUES ('host_lowered','Locked down','persistent','accept-edits',1,1)",
+      )
+      .run();
+    db.$client
+      .prepare<
+        [number]
+      >("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
+      .run(sandboxCeilingMigrationWhen);
+
+    migrate(db);
+
+    const ceilingFor = (id: string) =>
+      db.$client
+        .prepare<
+          [string],
+          { max_permission_mode: string }
+        >("SELECT max_permission_mode FROM hosts WHERE id = ?")
+        .get(id)?.max_permission_mode;
+    expect(ceilingFor("host_upgraded")).toBe("auto");
+    // Already below the sandbox ceiling, so the migration leaves it alone rather
+    // than raising it.
+    expect(ceilingFor("host_lowered")).toBe("accept-edits");
+
+    closeConnection(db);
+  });
+
   it("stamps existing installs as onboarded so upgrades skip the first-run flow", () => {
     const db = createConnection(":memory:");
     migrate(db);
