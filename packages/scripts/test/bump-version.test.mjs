@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { readFile, rename, unlink, writeFile } from "node:fs/promises";
@@ -17,9 +18,13 @@ import {
   deriveNightlyVersion,
   prepareNightlyVersion,
 } from "../../../scripts/prepare-nightly-version.mjs";
+import { extractChangelogEntry } from "../../../scripts/changelog-release-notes.mjs";
 
 const scriptPath = fileURLToPath(
   new URL("../../../scripts/bump-version.mjs", import.meta.url),
+);
+const changelogNotesScriptPath = fileURLToPath(
+  new URL("../../../scripts/changelog-release-notes.mjs", import.meta.url),
 );
 const testRoots = [];
 
@@ -220,5 +225,109 @@ describe("prepare-nightly-version", () => {
     expect(readVersion(repoRoot, "apps/desktop/package.json")).toBe(
       "1.2.4-nightly.987654.1",
     );
+  });
+});
+
+describe("changelog-release-notes", () => {
+  const changelog = [
+    "# Changelog",
+    "",
+    "## 1.2.0-alpha.2",
+    "",
+    "What this build changed.",
+    "",
+    "### A section",
+    "",
+    "- A line.",
+    "",
+    "## 1.2.0-alpha.1",
+    "",
+    "The older entry.",
+    "",
+  ].join("\n");
+
+  it("returns the entry body up to the next version heading", () => {
+    expect(extractChangelogEntry({ changelog, version: "1.2.0-alpha.2" })).toBe(
+      "What this build changed.\n\n### A section\n\n- A line.",
+    );
+    expect(extractChangelogEntry({ changelog, version: "1.2.0-alpha.1" })).toBe(
+      "The older entry.",
+    );
+  });
+
+  it("returns null for a version the changelog does not carry", () => {
+    expect(extractChangelogEntry({ changelog, version: "9.9.9" })).toBeNull();
+    expect(
+      extractChangelogEntry({
+        changelog: "# Changelog\n\n## 1.0.0\n\n## 0.9.0\n\nBody.\n",
+        version: "1.0.0",
+      }),
+    ).toBeNull();
+  });
+
+  it("prints the entry, and fails naming the version when there is none", () => {
+    const changelogPath = join(
+      mkdtempSync(join(tmpdir(), "patcher-changelog-notes-")),
+      "CHANGELOG.md",
+    );
+    writeFileSync(changelogPath, changelog);
+
+    const found = spawnSync(
+      process.execPath,
+      [changelogNotesScriptPath, "1.2.0-alpha.2", changelogPath],
+      { encoding: "utf8" },
+    );
+    expect(found.status).toBe(0);
+    expect(found.stdout).toBe(
+      "What this build changed.\n\n### A section\n\n- A line.\n",
+    );
+
+    const missing = spawnSync(
+      process.execPath,
+      [changelogNotesScriptPath, "9.9.9", changelogPath],
+      { encoding: "utf8" },
+    );
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("No CHANGELOG entry for 9.9.9");
+  });
+
+  // The workflow calls the script by a relative path, and a checkout reached
+  // through a symlink used to make the entry-point check disagree with
+  // `import.meta.url` — printing nothing and exiting 0, which reads as "no
+  // entry" rather than as a failure.
+  it("prints the entry when it is invoked through a symlink", () => {
+    const linkDir = mkdtempSync(join(tmpdir(), "patcher-changelog-link-"));
+    const linkPath = join(linkDir, "changelog-release-notes.mjs");
+    const changelogPath = join(linkDir, "CHANGELOG.md");
+    symlinkSync(changelogNotesScriptPath, linkPath);
+    writeFileSync(changelogPath, changelog);
+
+    const result = spawnSync(
+      process.execPath,
+      [linkPath, "1.2.0-alpha.2", changelogPath],
+      { encoding: "utf8" },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("What this build changed.");
+  });
+
+  // The release notes on the desktop release page come from this entry, so a
+  // version bump that forgets one publishes a build that says nothing about
+  // itself. Caught here rather than on the release page.
+  it("carries an entry for the version the packages are on", () => {
+    const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+    const version = JSON.parse(
+      readFileSync(
+        join(repoRoot, "packages", "patcher-app", "package.json"),
+        "utf8",
+      ),
+    ).version;
+
+    expect(
+      extractChangelogEntry({
+        changelog: readFileSync(join(repoRoot, "CHANGELOG.md"), "utf8"),
+        version,
+      }),
+    ).not.toBeNull();
   });
 });
