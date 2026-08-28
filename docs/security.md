@@ -138,11 +138,39 @@ the daemon, for every caller, in
 `command-handlers/daemon-credential-paths.ts`. Nothing legitimate reads
 Patcher's own credentials back through Patcher's own file API.
 
+**The files that decide what git executes are denied as well.** `.git` sits
+inside the workspace, so the workspace being writable is what made `.git/config`
+writable — and git reads that config in the daemon, outside the sandbox, as you.
+`GIT_HARDENED_CONFIG` narrows which keys are reachable and cannot close the
+class: `filter.<driver>.smudge` is looked up by a name a tracked `.gitattributes`
+chooses. So a sandboxed Claude Code turn now has `.git/config`,
+`.git/config.worktree`, `.git/hooks` and `.git/info/attributes` denied, together
+with the `.git` pointer file of a worktree or a `--separate-git-dir` checkout,
+which would otherwise aim git at a gitdir the turn owns outright.
+`resolveProtectedRepositoryPaths` in @patcher/host-workspace is the list.
+
+Narrow rather than all of `.git`, and that is measured rather than assumed:
+denying the whole directory takes `git add` with it, because `index.lock` is
+inside, so a sandboxed turn could no longer commit its own work — and a more
+specific `allowWrite` does not win the deny back. `.git/modules` and
+`.git/worktrees` stay writable for the same reason from the other side. Config
+planted under either runs only for a git process that recurses into it, which
+Patcher's plumbing never does, while denying them would take `git submodule
+update` and `git worktree add` from every sandboxed turn.
+
+The deny holds for the agent's own Write tool as well as for Bash, and it holds
+through symlink, hardlink, `cp`/`tar`/`rsync` and rename indirection — measured
+attempt by attempt against a live session. Where Bash gets a plain "operation not
+permitted", the Write tool raises a permission request instead, so on a turn
+whose escalation is _ask_ the person in the thread decides; a turn whose
+escalation is denied is refused outright.
+
 Two edges remain, and they are edges rather than the default:
 
 - **Codex.** Its sandbox leaves reads open with nothing to say otherwise, so a
-  Codex turn can still read these files. Closing it needs a boundary Patcher
-  owns rather than one its provider offers.
+  Codex turn can still read these files — and it has no deny for a path either,
+  so the git files above stay writable to it. Closing either needs a boundary
+  Patcher owns rather than one its provider offers.
 - **Full Access.** It builds no sandbox, so there is nowhere for the denial to
   live. That is what the mode means.
 
@@ -185,10 +213,11 @@ Named here rather than left to be rediscovered:
   credential the daemon can have — its own, minted locally and handed to the app
   through the server it is already connected to — which is a protocol change
   rather than a middleware.
-- **`.git` is inside the agent's writable roots.** Patcher's git runs with a
-  hardened config (see `GIT_HARDENED_CONFIG`), but `filter.<driver>.smudge` is
-  looked up by a name a tracked `.gitattributes` chooses, so no fixed list can
-  pre-empt it. The durable fix is keeping `.git` out of those roots.
+- **`.git`, for a turn that is not Claude Code's.** Narrowed, not closed. The
+  deny described above is a Claude Code sandbox feature: a Codex turn can still
+  write `.git/config`, and Pi and ACP build no OS sandbox at all, so for them the
+  class stands as it did. The answer is the same one the reads need — a boundary
+  Patcher owns rather than one a provider offers.
 
 Every outcome where nobody could have seen the prompt refuses, because a prompt
 nobody saw is not consent: an archived or destroying thread is refused before a

@@ -1060,6 +1060,82 @@ describe("bridge", () => {
     });
   });
 
+  it("denies a sandboxed session the repository files git would execute", () => {
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "deny",
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        platform: "darwin",
+        protectedRepositoryPaths: [
+          "/tmp/worktree/.git/config",
+          "/tmp/worktree/.git/hooks",
+        ],
+      },
+      {},
+    );
+
+    expect(options.sandbox).toMatchObject({
+      filesystem: {
+        denyWrite: ["/tmp/worktree/.git/config", "/tmp/worktree/.git/hooks"],
+      },
+    });
+  });
+
+  it("carries the writable roots and the denied paths side by side", () => {
+    // A worktree needs both at once: its own gitdir is writable so the index
+    // and refs work, and the config inside it is not.
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        additionalWorkspaceWriteRoots: ["/repo/.git/worktrees/patcher13"],
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "deny",
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        platform: "darwin",
+        protectedRepositoryPaths: [
+          "/repo/.git/worktrees/patcher13/config.worktree",
+        ],
+      },
+      {},
+    );
+
+    expect(options.sandbox).toMatchObject({
+      filesystem: {
+        allowWrite: ["/repo/.git/worktrees/patcher13"],
+        denyWrite: ["/repo/.git/worktrees/patcher13/config.worktree"],
+      },
+    });
+  });
+
+  it("omits the filesystem block when neither list has anything in it", () => {
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "deny",
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        platform: "darwin",
+      },
+      {},
+    );
+
+    expect(options.sandbox).toBeDefined();
+    expect(
+      (options.sandbox as { filesystem?: unknown }).filesystem,
+    ).toBeUndefined();
+  });
+
   it("denies a sandboxed session the credential files it was not given", () => {
     const options = buildSessionOptions(
       {

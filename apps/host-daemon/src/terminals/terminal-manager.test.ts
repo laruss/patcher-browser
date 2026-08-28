@@ -253,6 +253,7 @@ function createFakeWorkspace(path: string): HostWorkspace {
     getLocalStateFingerprint: vi.fn(async () => "local-1"),
     getSharedGitRefsFingerprint: vi.fn(async () => "refs-1"),
     getAdditionalWorkspaceWriteRoots: vi.fn(async () => []),
+    getProtectedRepositoryPaths: vi.fn(async () => []),
     getStatus: vi.fn(async () =>
       makeWorkspaceStatus({
         mergeBase: makeWorkspaceMergeBase(),

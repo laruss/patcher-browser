@@ -96,6 +96,18 @@ export interface AgentRuntimeOptions {
    */
   protectedCredentialPaths?: readonly string[];
 
+  /**
+   * Paths inside the workspace a sandboxed turn must not write.
+   *
+   * The workspace is writable, and `.git` sits inside it — so the files that
+   * decide what git executes are writable too, and git executes them in the
+   * daemon, outside the sandbox, as the user. See
+   * `resolveProtectedRepositoryPaths` in @patcher/host-workspace for which
+   * paths and why those. Only providers whose sandbox can deny a path honour
+   * this; for the others the exposure stands, and `docs/security.md` says so.
+   */
+  protectedRepositoryPaths?: readonly string[];
+
   /** Environment variables passed to ALL provider processes. */
   env?: Record<string, string>;
 

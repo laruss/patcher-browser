@@ -18,6 +18,7 @@ import type {
 export interface BuildSessionOptionsArgs {
   additionalWorkspaceWriteRoots?: readonly string[];
   protectedCredentialPaths?: readonly string[];
+  protectedRepositoryPaths?: readonly string[];
   baseInstructions?: string;
   cwd: string;
   disallowedTools?: readonly string[];
@@ -351,6 +352,7 @@ function buildWorkspaceWriteSandbox(
 
   const allowWrite = params.additionalWorkspaceWriteRoots ?? [];
   const protectedCredentialPaths = params.protectedCredentialPaths ?? [];
+  const denyWrite = params.protectedRepositoryPaths ?? [];
   return {
     enabled: true,
     // The one read the sandbox has to stop. It restricts writes and the
@@ -384,8 +386,23 @@ function buildWorkspaceWriteSandbox(
     // macOS-only and coarse (all localhost ports, binding on all interfaces);
     // the Linux sandbox ignores the flag.
     network: { allowLocalBinding: true },
-    ...(allowWrite.length > 0
-      ? { filesystem: { allowWrite: [...allowWrite] } }
+    // `.git` is inside the workspace, so the workspace being writable makes the
+    // files that decide what git executes writable too — and git executes them
+    // in the daemon, outside this sandbox. A deny is what takes them back.
+    //
+    // Measured, because the shape is not obvious: a deny beats the workspace's
+    // own implicit allow, it holds for the agent's Write tool as well as Bash
+    // (there it surfaces as a permission request rather than an error), and it
+    // survives symlink, hardlink, `cp`/`tar`/`rsync` and rename indirection. A
+    // more specific `allowWrite` does *not* beat a broader deny, which is why
+    // the denied list is narrow instead of `.git` wholesale.
+    ...(allowWrite.length > 0 || denyWrite.length > 0
+      ? {
+          filesystem: {
+            ...(allowWrite.length > 0 ? { allowWrite: [...allowWrite] } : {}),
+            ...(denyWrite.length > 0 ? { denyWrite: [...denyWrite] } : {}),
+          },
+        }
       : {}),
   };
 }

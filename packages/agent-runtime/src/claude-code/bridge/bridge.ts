@@ -570,6 +570,7 @@ function toSessionConstructionConfig(
     sessionOptions: {
       additionalWorkspaceWriteRoots: params.additionalWorkspaceWriteRoots,
       protectedCredentialPaths: params.protectedCredentialPaths,
+      protectedRepositoryPaths: params.protectedRepositoryPaths,
       baseInstructions: params.baseInstructions,
       cwd: params.cwd,
       disallowedTools: params.disallowedTools,

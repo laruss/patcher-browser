@@ -23,6 +23,9 @@ const bridgeAdditionalWorkspaceWriteRootsSchema = z
 // Omission means the session protects nothing extra, for the same
 // compatibility reason as the roots above.
 const bridgeProtectedCredentialPathsSchema = z.array(z.string()).optional();
+// Same convention again: an older bridge bundle that never sends this must keep
+// starting sessions, so absent means "deny nothing extra".
+const bridgeProtectedRepositoryPathsSchema = z.array(z.string()).optional();
 
 const bridgeClaudeLocalPluginSchema = z.object({
   type: z.literal("local"),
@@ -57,6 +60,7 @@ const claudeCodeCommandSchema = z.discriminatedUnion("method", [
       baseInstructions: z.string(),
       additionalWorkspaceWriteRoots: bridgeAdditionalWorkspaceWriteRootsSchema,
       protectedCredentialPaths: bridgeProtectedCredentialPathsSchema,
+      protectedRepositoryPaths: bridgeProtectedRepositoryPathsSchema,
       plugins: bridgeClaudePluginsSchema,
       permissionMode: claudePermissionModeSchema,
       // The mode the session returns to once the user approves a plan. `/plan`
@@ -88,6 +92,7 @@ const claudeCodeCommandSchema = z.discriminatedUnion("method", [
       baseInstructions: z.string().optional(),
       additionalWorkspaceWriteRoots: bridgeAdditionalWorkspaceWriteRootsSchema,
       protectedCredentialPaths: bridgeProtectedCredentialPathsSchema,
+      protectedRepositoryPaths: bridgeProtectedRepositoryPathsSchema,
       plugins: bridgeClaudePluginsSchema,
       permissionMode: claudePermissionModeSchema,
       // The mode the session returns to once the user approves a plan. `/plan`
@@ -120,6 +125,7 @@ const claudeCodeCommandSchema = z.discriminatedUnion("method", [
       baseInstructions: z.string().optional(),
       additionalWorkspaceWriteRoots: bridgeAdditionalWorkspaceWriteRootsSchema,
       protectedCredentialPaths: bridgeProtectedCredentialPathsSchema,
+      protectedRepositoryPaths: bridgeProtectedRepositoryPathsSchema,
       plugins: bridgeClaudePluginsSchema,
       permissionMode: claudePermissionModeSchema,
       // The mode the session returns to once the user approves a plan. `/plan`

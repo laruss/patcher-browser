@@ -158,6 +158,10 @@ interface ProtectedCredentialPathsParams {
   protectedCredentialPaths: string[];
 }
 
+interface ProtectedRepositoryPathsParams {
+  protectedRepositoryPaths: string[];
+}
+
 interface ClaudeLocalPluginConfig {
   type: "local";
   path: string;
@@ -184,6 +188,14 @@ function buildProtectedCredentialPathsParams(
 ): ProtectedCredentialPathsParams | undefined {
   return paths.length > 0
     ? { protectedCredentialPaths: [...paths] }
+    : undefined;
+}
+
+function buildProtectedRepositoryPathsParams(
+  paths: readonly string[],
+): ProtectedRepositoryPathsParams | undefined {
+  return paths.length > 0
+    ? { protectedRepositoryPaths: [...paths] }
     : undefined;
 }
 
@@ -872,6 +884,7 @@ export function createClaudeCodeProviderAdapter(
   const additionalWorkspaceWriteRoots =
     opts?.additionalWorkspaceWriteRoots ?? [];
   const protectedCredentialPaths = opts?.protectedCredentialPaths ?? [];
+  const protectedRepositoryPaths = opts?.protectedRepositoryPaths ?? [];
   const providerInfo = getBuiltInAgentProviderInfo("claude-code");
   const capabilities = providerInfo.capabilities;
 
@@ -1127,6 +1140,10 @@ export function createClaudeCodeProviderAdapter(
             permissionPolicy.permissionScope === "workspace"
               ? buildProtectedCredentialPathsParams(protectedCredentialPaths)
               : undefined;
+          const protectedRepositoryPathsParams =
+            permissionPolicy.permissionScope === "workspace"
+              ? buildProtectedRepositoryPathsParams(protectedRepositoryPaths)
+              : undefined;
           const skillConfig = buildClaudeSkillConfigParams(
             command.options.skillRoots,
           );
@@ -1152,6 +1169,9 @@ export function createClaudeCodeProviderAdapter(
                 : {}),
               ...(protectedCredentialPathsParams
                 ? protectedCredentialPathsParams
+                : {}),
+              ...(protectedRepositoryPathsParams
+                ? protectedRepositoryPathsParams
                 : {}),
               ...(skillConfig ? skillConfig : {}),
               ...(config ? { config } : {}),
@@ -1205,6 +1225,10 @@ export function createClaudeCodeProviderAdapter(
             permissionPolicy.permissionScope === "workspace"
               ? buildProtectedCredentialPathsParams(protectedCredentialPaths)
               : undefined;
+          const protectedRepositoryPathsParams =
+            permissionPolicy.permissionScope === "workspace"
+              ? buildProtectedRepositoryPathsParams(protectedRepositoryPaths)
+              : undefined;
           const skillConfig = buildClaudeSkillConfigParams(
             command.options.skillRoots,
           );
@@ -1231,6 +1255,9 @@ export function createClaudeCodeProviderAdapter(
                 : {}),
               ...(protectedCredentialPathsParams
                 ? protectedCredentialPathsParams
+                : {}),
+              ...(protectedRepositoryPathsParams
+                ? protectedRepositoryPathsParams
                 : {}),
               ...(skillConfig ? skillConfig : {}),
               ...(resumeConfig ? { config: resumeConfig } : {}),
@@ -1353,6 +1380,10 @@ export function createClaudeCodeProviderAdapter(
             permissionPolicy.permissionScope === "workspace"
               ? buildProtectedCredentialPathsParams(protectedCredentialPaths)
               : undefined;
+          const protectedRepositoryPathsParams =
+            permissionPolicy.permissionScope === "workspace"
+              ? buildProtectedRepositoryPathsParams(protectedRepositoryPaths)
+              : undefined;
           const skillConfig = buildClaudeSkillConfigParams(
             command.options.skillRoots,
           );
@@ -1385,6 +1416,9 @@ export function createClaudeCodeProviderAdapter(
                 : {}),
               ...(protectedCredentialPathsParams
                 ? protectedCredentialPathsParams
+                : {}),
+              ...(protectedRepositoryPathsParams
+                ? protectedRepositoryPathsParams
                 : {}),
               ...(skillConfig ? skillConfig : {}),
               ...(forkConfig ? { config: forkConfig } : {}),

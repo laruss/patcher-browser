@@ -196,6 +196,7 @@ function createFakeWorkspace(path: string, isGitRepo = true) {
       return sharedGitRefsFingerprint;
     }),
     getAdditionalWorkspaceWriteRoots: vi.fn(async () => []),
+    getProtectedRepositoryPaths: vi.fn(async () => []),
     getStatus: vi.fn(async () => status),
     getDiff: vi.fn(async () => diff),
     diffFiles: vi.fn(async () => ({
