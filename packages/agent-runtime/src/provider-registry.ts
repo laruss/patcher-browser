@@ -116,6 +116,7 @@ function toProviderAdapterFactoryOptions(
   return {
     additionalWorkspaceWriteRoots: options?.additionalWorkspaceWriteRoots ?? [],
     protectedCredentialPaths: options?.protectedCredentialPaths ?? [],
+    protectedRepositoryPaths: options?.protectedRepositoryPaths ?? [],
     ...(options?.acpLaunchSpec !== undefined
       ? { acpLaunchSpec: options.acpLaunchSpec }
       : {}),

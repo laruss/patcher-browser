@@ -39,7 +39,10 @@ import {
   runGit,
   WorkspaceError,
 } from "./git.js";
-import { resolveAdditionalWorkspaceWriteRoots } from "./workspace-write-roots.js";
+import {
+  resolveAdditionalWorkspaceWriteRoots,
+  resolveProtectedRepositoryPaths,
+} from "./workspace-write-roots.js";
 
 // ---------------------------------------------------------------------------
 // Options (discriminated union on workspaceProvisionType from @patcher/domain)
@@ -152,6 +155,7 @@ export interface HostWorkspace {
   getLocalStateFingerprint(): Promise<string>;
   getSharedGitRefsFingerprint(): Promise<string>;
   getAdditionalWorkspaceWriteRoots(): Promise<string[]>;
+  getProtectedRepositoryPaths(): Promise<string[]>;
   getStatus(options?: StatusOptions): Promise<WorkspaceStatus>;
   getDiff(options?: DiffOptions): Promise<DiffResult>;
   diffFiles(args: DiffFilesArgs): Promise<DiffFilesResult>;
@@ -248,6 +252,15 @@ class ProvisionedHostWorkspace implements HostWorkspace {
       return Promise.resolve([]);
     }
     return resolveAdditionalWorkspaceWriteRoots(this.path);
+  }
+
+  getProtectedRepositoryPaths(): Promise<string[]> {
+    // Every git repository, not worktrees alone: a project checkout is the case
+    // where `.git` is a real directory inside the workspace, which is the hole.
+    if (!this.isGitRepo) {
+      return Promise.resolve([]);
+    }
+    return resolveProtectedRepositoryPaths(this.path);
   }
 
   getStatus(options?: StatusOptions): Promise<WorkspaceStatus> {

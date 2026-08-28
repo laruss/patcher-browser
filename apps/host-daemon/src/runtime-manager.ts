@@ -1333,8 +1333,10 @@ export class RuntimeManager {
         : {}),
       signal: args.provisionSignal,
     });
-    const workspaceWriteRoots =
-      await workspace.getAdditionalWorkspaceWriteRoots();
+    const [workspaceWriteRoots, protectedRepositoryPaths] = await Promise.all([
+      workspace.getAdditionalWorkspaceWriteRoots(),
+      workspace.getProtectedRepositoryPaths(),
+    ]);
     const additionalWorkspaceWriteRoots = this.runtimeWorkspaceWriteRoots({
       threadStorageRootPath: this.options.threadStorageRootPath,
       workspaceRoots: workspaceWriteRoots,
@@ -1346,6 +1348,7 @@ export class RuntimeManager {
       workspacePath: workspace.path,
       additionalWorkspaceWriteRoots,
       protectedCredentialPaths: this.runtimeProtectedCredentialPaths(),
+      protectedRepositoryPaths,
       ...(args.skillConfig ? { skillRoots: args.skillConfig.skillRoots } : {}),
       ...(providerProcessEnv ? { env: providerProcessEnv } : {}),
       shellEnv,

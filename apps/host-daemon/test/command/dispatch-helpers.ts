@@ -175,6 +175,9 @@ export function createFakeWorkspace(pathname: string) {
     async getAdditionalWorkspaceWriteRoots() {
       return [];
     },
+    async getProtectedRepositoryPaths() {
+      return [];
+    },
     async getStatus(options?: { mergeBaseBranch?: string }) {
       state.statusReads += 1;
       return makeWorkspaceStatus({
