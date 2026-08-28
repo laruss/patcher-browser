@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { getAbsoluteGitDir, getGitCommonDir } from "./git.js";
 
@@ -73,12 +74,24 @@ const GIT_EXECUTION_ENTRIES = [
 export async function resolveProtectedRepositoryPaths(
   workspacePath: string,
 ): Promise<string[]> {
-  const resolvedWorkspacePath = path.resolve(workspacePath);
+  // Resolved through realpath before anything else, because a sandbox rule
+  // naming an unresolved path is a rule about a path the kernel never sees —
+  // and because `git rev-parse` reports a path with no symlinks in it, while a
+  // workspace can perfectly well be reached through one (/tmp on macOS above
+  // all). Comparing the two as given makes a project checkout's own `.git`
+  // directory look like somebody else's gitdir, and denies all of it. That
+  // takes `git add` with it.
+  const resolvedWorkspacePath = await realpath(workspacePath).catch(() =>
+    path.resolve(workspacePath),
+  );
   const [gitDir, commonGitDir] = await Promise.all([
     getAbsoluteGitDir(resolvedWorkspacePath),
     getGitCommonDir(resolvedWorkspacePath),
   ]);
   const workspaceGitEntry = path.join(resolvedWorkspacePath, ".git");
+  const workspaceGitEntryRealPath = await realpath(workspaceGitEntry).catch(
+    () => workspaceGitEntry,
+  );
   return dedupeResolvedPaths([
     ...GIT_EXECUTION_ENTRIES.map((entry) => path.join(commonGitDir, entry)),
     // A linked worktree's own gitdir is writable on purpose — its index and
@@ -87,7 +100,7 @@ export async function resolveProtectedRepositoryPaths(
     // A worktree, or a checkout made with `--separate-git-dir`, reaches its
     // metadata through this one file. Rewriting it points git at a gitdir the
     // turn owns outright, which is the same hole one indirection further out.
-    ...(workspaceGitEntry === gitDir ? [] : [workspaceGitEntry]),
+    ...(workspaceGitEntryRealPath === gitDir ? [] : [workspaceGitEntryRealPath]),
   ]);
 }
 

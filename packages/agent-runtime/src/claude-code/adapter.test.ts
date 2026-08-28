@@ -308,6 +308,36 @@ describe("claude-code provider adapter", () => {
     });
   });
 
+  it("buildCommand thread/start carries the denied repository paths for a workspace-scoped turn", () => {
+    const adapter = createClaudeCodeProviderAdapter({
+      additionalWorkspaceWriteRoots: [],
+      protectedRepositoryPaths: ["/tmp/worktree/.git/config"],
+    });
+
+    const workspaceScoped = adapter.buildCommandPlan({
+      type: "thread/start",
+      cwd: "/tmp/worktree",
+      threadId: "patcher-thread-1",
+      input: [promptTextInput({ text: "hello" })],
+      instructionMode: "append",
+      options: workspaceWriteProviderExecutionContext,
+    });
+    expect(workspaceScoped?.params).toMatchObject({
+      protectedRepositoryPaths: ["/tmp/worktree/.git/config"],
+    });
+
+    // Full Access builds no sandbox, so there is nowhere for a deny to live.
+    const fullAccess = adapter.buildCommandPlan({
+      type: "thread/start",
+      cwd: "/tmp/worktree",
+      threadId: "patcher-thread-2",
+      input: [promptTextInput({ text: "hello" })],
+      instructionMode: "append",
+      options: fullProviderExecutionContext,
+    });
+    expect(fullAccess?.params).not.toHaveProperty("protectedRepositoryPaths");
+  });
+
   it("buildCommand thread/fork forwards the provider checkpoint", () => {
     const adapter = createClaudeCodeProviderAdapter();
     const cmd = adapter.buildCommandPlan({

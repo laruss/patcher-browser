@@ -1156,6 +1156,88 @@ describe("RuntimeManager", () => {
     ]);
   });
 
+  it("passes the repository files git executes to created runtimes", async () => {
+    const repoPath = await initRepo();
+    const runtimeOptions: RuntimeOptionsRef = { current: null };
+    const manager = new RuntimeManager({
+      provisionWorkspace,
+      createRuntime: (options) => {
+        runtimeOptions.current = options;
+        return createFakeRuntime();
+      },
+    });
+
+    await manager.ensureEnvironment({
+      environmentId: "env-git-paths",
+      provision: {
+        workspaceProvisionType: "unmanaged",
+        path: repoPath,
+      },
+    });
+
+    const gitDir = path.join(await fs.realpath(repoPath), ".git");
+    expect(runtimeOptions.current?.protectedRepositoryPaths).toEqual([
+      path.join(gitDir, "config"),
+      path.join(gitDir, "config.worktree"),
+      path.join(gitDir, "hooks"),
+      path.join(gitDir, "info", "attributes"),
+    ]);
+    // The gitdir itself stays writable, or the turn cannot stage its own work.
+    expect(runtimeOptions.current?.protectedRepositoryPaths).not.toContain(
+      gitDir,
+    );
+  });
+
+  it("denies a managed worktree's pointer file along with the shared config", async () => {
+    const repoPath = await initRepo();
+    const parentDir = await makeTempDir("patcher-runtime-manager-wt-deny-");
+    const targetPath = path.join(parentDir, "env");
+    const runtimeOptions: RuntimeOptionsRef = { current: null };
+    const manager = new RuntimeManager({
+      provisionWorkspace,
+      createRuntime: (options) => {
+        runtimeOptions.current = options;
+        return createFakeRuntime();
+      },
+    });
+
+    await manager.ensureEnvironment({
+      environmentId: "env-wt-deny",
+      provision: {
+        workspaceProvisionType: "managed-worktree",
+        sourcePath: repoPath,
+        targetPath,
+        branchName: "patcher/env-wt-deny",
+        baseBranch: "main",
+        timeoutMs: 900000,
+      },
+    });
+
+    const realTargetPath = await fs.realpath(targetPath);
+    const gitDir = path.resolve(
+      (
+        await runGit(["rev-parse", "--absolute-git-dir"], {
+          cwd: realTargetPath,
+        })
+      ).trim(),
+    );
+    const commonGitDir = path.resolve(
+      realTargetPath,
+      (
+        await runGit(["rev-parse", "--git-common-dir"], { cwd: realTargetPath })
+      ).trim(),
+    );
+
+    expect(runtimeOptions.current?.protectedRepositoryPaths).toEqual([
+      path.join(commonGitDir, "config"),
+      path.join(commonGitDir, "config.worktree"),
+      path.join(commonGitDir, "hooks"),
+      path.join(commonGitDir, "info", "attributes"),
+      path.join(gitDir, "config.worktree"),
+      path.join(realTargetPath, ".git"),
+    ]);
+  });
+
   it("passes thread storage root to created runtimes as a workspace-write root", async () => {
     const provisionWorkspace = createProvisionWorkspaceMock("/tmp/env-1");
     const runtimeOptions: RuntimeOptionsRef = { current: null };
