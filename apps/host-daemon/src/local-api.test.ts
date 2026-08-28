@@ -112,6 +112,30 @@ describe("local API server", () => {
     expect(response.status).toBe(401);
   });
 
+  it("allows the app key header on a preflight from an app origin", async () => {
+    // Browser-only failure mode, invisible to every other test here: the app
+    // key is not a safelisted request header, so the app's `/open-in-target`
+    // call is preflighted. A preflight that does not name the header means the
+    // browser blocks the request while a `fetch` from Node sails through.
+    const { port } = await startGatedServer();
+
+    const response = await fetch(`http://localhost:${port}/open-in-target`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://localhost:3334",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": `content-type, ${PATCHER_APP_KEY_HEADER}`,
+      },
+    });
+
+    expect(response.status).toBeLessThan(400);
+    expect(
+      (
+        response.headers.get("access-control-allow-headers") ?? ""
+      ).toLowerCase(),
+    ).toContain(PATCHER_APP_KEY_HEADER);
+  });
+
   it("leaves the readiness probes open to a caller with no key", async () => {
     // `/status` is what the launcher, `install-machine.sh`, the SDK's local-host
     // lookup, the app's reachability check and the dev restart all read — and a
