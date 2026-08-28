@@ -29,6 +29,14 @@ Making your repo work with patcher:
   finishes without running the hook and says so in its transcript rather than
   failing.
 
+  On a machine with no app open, answer it from a terminal:
+
+    patcher thread interactions list <thread-id>
+    patcher thread interactions approve <interaction-id> <thread-id>
+
+  `deny` declines it. Neither works from inside a turn — an agent cannot allow
+  the script it may have written.
+
   Patcher runs the hook as `env bash .patcher-env-setup.sh` with cwd set to the new
   workspace. POSIX shell setup scripts are not supported on Windows. The hook
   inherits the host daemon's sanitized environment: NODE_ENV and every PATCHER_*

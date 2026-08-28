@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 import type {
+  ConsentPendingInteraction,
+  ConsentPendingInteractionPayload,
   Environment,
   PendingInteractionApprovalDecision,
   ProviderPendingInteraction,
@@ -177,6 +179,38 @@ export function makePendingInteraction(
     status: "pending",
     statusReason: null,
     ...overrides,
+  };
+}
+
+/**
+ * A consent prompt, which is a server-origin interaction rather than a
+ * provider's: no provider ids, and answered rather than resolved.
+ */
+export function makeConsentPendingInteraction(args: {
+  id: string;
+  threadId: string;
+  action?: ConsentPendingInteractionPayload["action"];
+  subjectName?: string;
+}): ConsentPendingInteraction {
+  return {
+    id: args.id,
+    threadId: args.threadId,
+    createdAt: Date.now(),
+    turnId: null,
+    origin: { kind: "server" },
+    payload: {
+      kind: "consent",
+      action: args.action ?? "run-setup-script",
+      subjectId: "a".repeat(64),
+      subjectName: args.subjectName ?? ".patcher-env-setup.sh",
+      permissions: [],
+      sites: [],
+      detail: null,
+    },
+    resolution: null,
+    resolvedAt: null,
+    status: "pending",
+    statusReason: null,
   };
 }
 
