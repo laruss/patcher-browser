@@ -63,6 +63,13 @@ interface ResolveClaudeCodeExecutableArgs {
 export interface ResolveWorkspaceSandboxAvailabilityArgs {
   env: NodeJS.ProcessEnv;
   platform: NodeJS.Platform;
+  /**
+   * Absolute candidates to check when PATH does not name the helper. Defaults to
+   * the distribution locations below; a test passes its own, because the real
+   * ones cannot be created and the positive case is the half worth proving. A
+   * pure input rather than a behaviour switch: production passes nothing.
+   */
+  wellKnownHelperPaths?: readonly string[];
 }
 
 export type WorkspaceSandboxAvailability =
@@ -71,6 +78,17 @@ export type WorkspaceSandboxAvailability =
 
 /** The helper the SDK's Linux sandbox is built on. */
 const LINUX_SANDBOX_HELPER_EXECUTABLE = "bwrap";
+
+/**
+ * Where a distribution installs it, for a daemon whose PATH does not say.
+ * Absolute and root-owned, so unlike the Claude CLI lookup there is nothing here
+ * a non-root user could plant — this list stays in effect under any uid.
+ */
+const WELL_KNOWN_LINUX_SANDBOX_HELPER_PATHS: readonly string[] = [
+  "/usr/bin/bwrap",
+  "/bin/bwrap",
+  "/usr/local/bin/bwrap",
+];
 
 const READONLY_ALLOWED_TOOLS = new Set([
   // Agent is a read/delegation tool here; child Bash calls still flow through
@@ -241,10 +259,20 @@ export function resolveWorkspaceSandboxAvailability(
   }
 
   if (args.platform === "linux") {
-    const helperPath = resolveExecutableOnPath({
-      executableName: LINUX_SANDBOX_HELPER_EXECUTABLE,
-      pathEnv: args.env.PATH,
-    });
+    // PATH first, then the places a distribution puts it. The PATH here is the
+    // daemon's, resolved from a login shell — and a daemon started by a systemd
+    // unit with no inherited PATH gets little more than Patcher's own bin
+    // directory, so a PATH-only probe reported "no bubblewrap" on hosts that
+    // have it and refused every sandboxed turn. Same reason
+    // `wellKnownClaudeExecutablePaths` exists below.
+    const helperPath =
+      resolveExecutableOnPath({
+        executableName: LINUX_SANDBOX_HELPER_EXECUTABLE,
+        pathEnv: args.env.PATH,
+      }) ??
+      (args.wellKnownHelperPaths ?? WELL_KNOWN_LINUX_SANDBOX_HELPER_PATHS).find(
+        (candidate) => isExecutableFile(candidate),
+      );
     return helperPath
       ? { available: true }
       : {
