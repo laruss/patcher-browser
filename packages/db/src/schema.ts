@@ -98,7 +98,13 @@ export const hosts = sqliteTable(
     maxPermissionMode: text("max_permission_mode")
       .$type<PermissionMode>()
       .notNull()
-      .default("full"),
+      // Sandbox is the product default — the literal spelling of
+      // `DEFAULT_HOST_MAX_PERMISSION_MODE` in @patcher/domain, kept literal
+      // because drizzle-kit loads this file through a CJS require that cannot
+      // resolve the domain barrel (which is why `threadStatusValues` above comes
+      // from a subpath). `upsertHost` writes the value explicitly anyway; this
+      // is here so a fresh database and a migrated one agree.
+      .default("auto"),
     destroyedAt: integer("destroyed_at"),
     lastSeenAt: integer("last_seen_at"),
     lastRejectedProtocolVersion: integer("last_rejected_protocol_version"),
