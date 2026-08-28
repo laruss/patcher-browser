@@ -49,8 +49,9 @@ names the missing piece:
 ```
 Permission mode "auto" runs the agent inside a workspace sandbox, and this
 machine cannot build one: the Linux sandbox is built with bubblewrap, and no
-`bwrap` was found on PATH. Either install bubblewrap on this machine, or run the
-thread at Full Access to work without a sandbox.
+`bwrap` was found on PATH or in the usual install locations. Either install
+bubblewrap on this machine, or run the thread at Full Access to work without a
+sandbox.
 ```
 
 macOS composes its sandbox from Seatbelt, which ships with the OS, so this is a

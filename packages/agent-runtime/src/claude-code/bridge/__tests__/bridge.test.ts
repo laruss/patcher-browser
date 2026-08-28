@@ -1152,6 +1152,37 @@ describe("bridge", () => {
     });
   });
 
+  it("puts a helper found off PATH onto the session's PATH", () => {
+    // The SDK repeats the `bwrap` lookup itself, on PATH — so a helper the
+    // pre-flight found at a distribution path has to reach that PATH, or the
+    // session starts and the SDK aborts it on `failIfUnavailable`.
+    const binDir = mkdtempSync(join(tmpdir(), "patcher-bwrap-well-known-"));
+    tempDirs.push(binDir);
+    const helperPath = join(binDir, "bwrap");
+    writeFileSync(helperPath, "#!/bin/sh\nexit 0\n");
+    chmodSync(helperPath, 0o755);
+
+    const options = buildSessionOptions(
+      {
+        workflowsEnabled: false,
+        baseInstructions: "You are a coder.",
+        cwd: "/tmp/worktree",
+        instructionMode: "append",
+        getPermissionEscalation: () => "ask",
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        platform: "linux",
+        wellKnownSandboxHelperPaths: [helperPath],
+      },
+      { PATH: "/nonexistent-patcher-sandbox-path" },
+    );
+
+    expect(options.sandbox).toMatchObject({ enabled: true });
+    expect(options.env?.PATH).toBe(
+      `${binDir}:/nonexistent-patcher-sandbox-path`,
+    );
+  });
+
   it("refuses a sandboxed session on a Linux machine without bubblewrap", () => {
     expect(() =>
       buildSessionOptions(
@@ -1164,6 +1195,10 @@ describe("bridge", () => {
           permissionMode: "auto",
           permissionScope: "workspace",
           platform: "linux",
+          // Empty rather than absent: the probe falls back to `/usr/bin/bwrap`
+          // and friends, which exist on the Linux runner CI installs bubblewrap
+          // on — an unset PATH alone no longer describes a machine without it.
+          wellKnownSandboxHelperPaths: [],
         },
         { PATH: "/nonexistent-patcher-sandbox-path" },
       ),

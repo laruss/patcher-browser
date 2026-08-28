@@ -226,6 +226,11 @@ export async function startLocalApiServer(
         }
         return null;
       },
+      // The app key is not a safelisted request header, so every call from the
+      // app is now preflighted — and without this, at a ~5s browser default,
+      // that is two round trips per call rather than one. What the preflight
+      // answers does not change for the life of the process.
+      maxAge: 600,
     }),
   );
 
@@ -240,48 +245,60 @@ export async function startLocalApiServer(
   });
 
   /**
-   * Who is calling the daemon's own loopback API.
+   * Who is calling the one route on this API that does something.
    *
-   * It used to be nobody's business to say. CORS is a browser control and does
-   * nothing to a `curl`, and an agent mid-turn is handed
-   * `PATCHER_HOST_DAEMON_PORT` in its environment while the sandbox permits
-   * loopback — so `POST /open-in-target`, which ends in an `execFile` on the
-   * host outside the turn's sandbox, was reachable from inside one. The app key
-   * is what every other local surface takes, and this takes it too.
+   * `POST /open-in-target` ends in an `execFile` on the host — outside the
+   * sandbox of whatever turn is running, as the user — and an agent mid-turn is
+   * handed `PATCHER_HOST_DAEMON_PORT` in its environment while its sandbox
+   * permits loopback. CORS did not stand in the way of that: it is a browser
+   * control and does nothing to a `curl`.
    *
-   * Resolved lazily and cached on first success, because the key file appears
-   * when the server first starts and this daemon may have started before it. No
-   * key means refuse: a daemon whose server has not written one yet has nothing
-   * useful to serve, and the alternative is the anonymous caller this exists to
-   * remove.
+   * **Only that route.** The first version of this gate covered the whole API
+   * and broke three supported topologies, because it asked for a credential the
+   * caller cannot always have. `/status` is what every readiness probe reads —
+   * the launcher, `install-machine.sh`, the SDK's local-host lookup, the app's
+   * reachability check, the dev restart — and a machine enrolled from another
+   * one has no app key at all: nothing writes it into that machine's data dir.
+   * Gating a side-effect-free read bought nothing and cost enrolment. Listing
+   * editors is a read too, and the menu it fills is the same shape.
    *
-   * The health path is above this and stays open — it answers whether the
-   * process is alive, which a launcher asks before anything holds a key.
+   * So this is the narrow answer, and it is honest about being narrow: on a
+   * machine with no key, opening a file in an editor is refused and the rest
+   * works. The wider answer is a credential the daemon can actually have — its
+   * own, minted locally and handed to the app through the server it is already
+   * connected to — and that needs a protocol change rather than a middleware.
+   *
+   * Resolved lazily and cached on first success: the key file appears when the
+   * server first starts, and a daemon on the same machine may start before it.
    */
-  let cachedAppApiKey: string | undefined;
-  const appApiKeyForRequest = (): string | undefined => {
+  let cachedAppApiKey: Buffer | undefined;
+  const appApiKeyForRequest = (): Buffer | undefined => {
     if (cachedAppApiKey !== undefined) return cachedAppApiKey;
-    cachedAppApiKey = resolveAppApiKey(
-      options.dataDir === undefined ? {} : { dataDir: options.dataDir },
-    );
+    const key = resolveAppApiKey({ dataDir: options.dataDir });
+    cachedAppApiKey = key === undefined ? undefined : Buffer.from(key, "utf8");
     return cachedAppApiKey;
   };
-  app.use("*", async (c, next) => {
+  /**
+   * Takes the presented header rather than a context: a narrower input, and the
+   * typed route's context is not hono's own.
+   */
+  const requireAppApiKey = (presented: string | undefined): void => {
     const expected = appApiKeyForRequest();
-    const presented = c.req.header(PATCHER_APP_KEY_HEADER);
+    const offered =
+      presented === undefined ? undefined : Buffer.from(presented, "utf8");
     if (
       expected === undefined ||
-      presented === undefined ||
-      presented.length !== expected.length ||
-      !timingSafeEqual(
-        Buffer.from(presented, "utf8"),
-        Buffer.from(expected, "utf8"),
-      )
+      offered === undefined ||
+      // Byte length, not string length: `timingSafeEqual` throws on a mismatch,
+      // and a header of the same character count in multi-byte characters is
+      // not the same number of bytes — comparing the strings turned a refusal
+      // into a 500. Same shape as `createAppApiIdentity` in the server.
+      offered.length !== expected.length ||
+      !timingSafeEqual(offered, expected)
     ) {
       throw new HTTPException(401, { message: "Unauthorized" });
     }
-    await next();
-  });
+  };
 
   const { get, post } = typedRoutes<HostDaemonLocalSchema>(app);
   const platform = resolveHostPlatform();
@@ -309,6 +326,7 @@ export async function startLocalApiServer(
   );
 
   post("/open-in-target", openInTargetRequestSchema, async (c, payload) => {
+    requireAppApiKey(c.req.header(PATCHER_APP_KEY_HEADER));
     try {
       await (options.openInTarget ?? openPathInTarget)(
         await resolveOpenPathInTargetArgs({

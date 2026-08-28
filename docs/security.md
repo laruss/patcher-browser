@@ -172,11 +172,19 @@ Named here rather than left to be rediscovered:
 - **Plugin code.** `plugins/:id/cli` and `plugins/:id/rpc/:method` execute
   plugin code with no consent prompt, unlike the install/enable/settings routes
   beside them.
-- ~~**The daemon's own loopback API.**~~ Closed: it takes the app key like every
-  other local surface, so the turn that is handed its port can no longer reach
-  `POST /open-in-target` and the `execFile` behind it. The health path stays open,
-  because a launcher asks whether the process is alive before anything holds a
-  key.
+- **The daemon's own loopback API.** Narrowed, not closed. `POST /open-in-target`
+  — the one route that runs something, an `execFile` on the host outside any
+  turn's sandbox — takes the app key, which a turn's environment no longer
+  carries. Three things are left. A Codex turn, or a Full Access one, can read
+  the key file off disk and present it, the same edge as the credential deny
+  above. `/status` and the editor list stay open on purpose: every readiness
+  probe reads the first, and a machine enrolled from another one has no app key
+  at all, so gating them refused enrolment and bought nothing. And on such a
+  machine opening a file in an editor is refused, because the credential asked
+  for is the server's and that machine has no server. The wider answer is a
+  credential the daemon can have — its own, minted locally and handed to the app
+  through the server it is already connected to — which is a protocol change
+  rather than a middleware.
 - **`.git` is inside the agent's writable roots.** Patcher's git runs with a
   hardened config (see `GIT_HARDENED_CONFIG`), but `filter.<driver>.smudge` is
   looked up by a name a tracked `.gitattributes` chooses, so no fixed list can

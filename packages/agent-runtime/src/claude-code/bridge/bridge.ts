@@ -1878,17 +1878,35 @@ async function handleThreadFork(
     });
   }
 
-  // Built before the fork, deliberately: these options do not depend on the
-  // fork result, and building them can throw — the sandbox pre-flight refuses a
-  // machine that cannot build one. Forking first meant every attempt on such a
-  // machine created a provider session and then threw, leaking it.
+  // Built before the fork, deliberately: none of this depends on the fork
+  // result, and building it can throw — the sandbox pre-flight refuses a machine
+  // that cannot build one. Forking first meant every attempt on such a machine
+  // created a provider session and then threw, leaking it.
   const preparedEnv = await prepareSessionEnv(params);
   const threadIdRef = { current: threadId };
-  const sessionOptions = buildTrackedSessionOptions(
-    params,
-    preparedEnv.env,
-    threadIdRef,
-  );
+  let sessionOptions: SdkSessionOptions;
+  try {
+    sessionOptions = buildTrackedSessionOptions(
+      params,
+      preparedEnv.env,
+      threadIdRef,
+    );
+    sessionOptions.canUseTool = createCanUseTool(threadIdRef);
+    if (params.dynamicTools && params.dynamicTools.length > 0) {
+      const mcpServer = buildBridgeMcpServer(
+        params.dynamicTools,
+        createForwardToolCall(threadIdRef),
+      );
+      sessionOptions.mcpServers = { [BRIDGE_MCP_SERVER_NAME]: mcpServer };
+      sessionOptions.allowedTools = getAllowedToolNames(params.dynamicTools);
+    }
+  } catch (error) {
+    // Nothing owns the prepared environment until `createThreadSession` takes
+    // it, and it can hold a listening proxy — so whatever fails between here
+    // and there closes it rather than leaving the socket behind.
+    await preparedEnv.mockCliTrafficProxy?.close();
+    throw error;
+  }
 
   let forkedProviderThreadId: string;
   try {
@@ -1900,20 +1918,12 @@ async function handleThreadFork(
     });
     forkedProviderThreadId = forkResult.sessionId;
   } catch (error) {
+    await preparedEnv.mockCliTrafficProxy?.close();
     const message = error instanceof Error ? error.message : String(error);
     sendError(id, -32000, message);
     return;
   }
 
-  sessionOptions.canUseTool = createCanUseTool(threadIdRef);
-  if (params.dynamicTools && params.dynamicTools.length > 0) {
-    const mcpServer = buildBridgeMcpServer(
-      params.dynamicTools,
-      createForwardToolCall(threadIdRef),
-    );
-    sessionOptions.mcpServers = { [BRIDGE_MCP_SERVER_NAME]: mcpServer };
-    sessionOptions.allowedTools = getAllowedToolNames(params.dynamicTools);
-  }
   const threadSession = createThreadSession({
     mockCliTrafficProxy: preparedEnv.mockCliTrafficProxy,
     liveSettings: toInitialLiveSessionSettings(params),

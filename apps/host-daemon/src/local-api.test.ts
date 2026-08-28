@@ -56,10 +56,7 @@ describe("local API server", () => {
     server = null;
   });
 
-  it("refuses a caller that presents no app key", async () => {
-    // The case this gate exists for: an agent mid-turn holds
-    // `PATCHER_HOST_DAEMON_PORT` and reaches loopback, and `/open-in-target`
-    // ends in an execFile on the host outside its sandbox.
+  async function startGatedServer() {
     server = await startLocalApiServer({
       hostId: "host-1",
       localApiConfig: createLocalApiConfig(),
@@ -67,39 +64,69 @@ describe("local API server", () => {
       serverPort: 3334,
       getConnected: () => true,
     });
+    return server;
+  }
 
-    const status = await fetch(`http://localhost:${server.port}/status`);
-    const open = await fetch(`http://localhost:${server.port}/open-in-target`, {
+  function openInTarget(port: number, headers: Record<string, string> = {}) {
+    return fetch(`http://localhost:${port}/open-in-target`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify({
         path: "/tmp/patcher-escape",
         targetId: "vscode",
         lineNumber: null,
       }),
     });
+  }
 
-    expect(status.status).toBe(401);
-    expect(open.status).toBe(401);
+  it("refuses an open request that presents no app key", async () => {
+    // The case this gate exists for: an agent mid-turn holds
+    // `PATCHER_HOST_DAEMON_PORT` and reaches loopback, and this route ends in an
+    // execFile on the host outside its sandbox.
+    const { port } = await startGatedServer();
+
+    expect((await openInTarget(port)).status).toBe(401);
   });
 
-  it("refuses a caller whose app key is wrong", async () => {
-    server = await startLocalApiServer({
-      hostId: "host-1",
-      localApiConfig: createLocalApiConfig(),
-      serverUrl: "http://server.test",
-      serverPort: 3334,
-      getConnected: () => true,
-    });
+  it("refuses an open request whose app key is wrong", async () => {
+    const { port } = await startGatedServer();
 
-    const response = await fetch(`http://localhost:${server.port}/status`, {
+    const response = await openInTarget(port, {
       // Same length as the real one: the comparison is `timingSafeEqual`, which
-      // throws on a length mismatch, so equal-but-wrong is the case that
-      // actually reaches it.
-      headers: { [PATCHER_APP_KEY_HEADER]: "x".repeat(TEST_APP_KEY.length) },
+      // throws on a mismatch, so equal-but-wrong is the case that reaches it.
+      [PATCHER_APP_KEY_HEADER]: "x".repeat(TEST_APP_KEY.length),
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it("refuses a key whose characters are not its bytes", async () => {
+    const { port } = await startGatedServer();
+
+    // Equal character count, more bytes. Comparing string lengths let this reach
+    // `timingSafeEqual`, which threw and answered 500 with a stack trace.
+    const response = await openInTarget(port, {
+      [PATCHER_APP_KEY_HEADER]: "é".repeat(TEST_APP_KEY.length),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("leaves the readiness probes open to a caller with no key", async () => {
+    // `/status` is what the launcher, `install-machine.sh`, the SDK's local-host
+    // lookup, the app's reachability check and the dev restart all read — and a
+    // machine enrolled from another one has no app key at all, because nothing
+    // writes one into its data dir. Gating this refused enrolment and bought
+    // nothing: the route has no side effect.
+    const { port } = await startGatedServer();
+
+    const status = await fetch(`http://localhost:${port}/status`);
+    const targets = await fetch(
+      `http://localhost:${port}/workspace-open-targets?path=%2Ftmp`,
+    );
+
+    expect(status.status).toBe(200);
+    expect(targets.status).toBe(200);
   });
 
   it("keeps the health path open to a caller with no key", async () => {
@@ -275,14 +302,19 @@ describe("local API server", () => {
       });
       const client = signedClient(server.port);
 
+      // Signed, and the status is asserted: a 401 carries the CORS headers too,
+      // so header-only assertions here would pass against a refusal and prove
+      // nothing about a configured remote origin reaching the route.
       const corsResponse = await fetch(
         `http://localhost:${server.port}/workspace-open-targets?path=/tmp/file.ts`,
         {
           headers: {
             Origin: "https://remote-patcher.example.test",
+            [PATCHER_APP_KEY_HEADER]: TEST_APP_KEY,
           },
         },
       );
+      expect(corsResponse.status).toBe(200);
       expect(corsResponse.headers.get("access-control-allow-origin")).toBe(
         "https://remote-patcher.example.test",
       );

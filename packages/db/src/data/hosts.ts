@@ -104,11 +104,11 @@ export function upsertHost(
         destroyedAt: input.destroyedAt ?? null,
         lastSeenAt: null,
         lastRejectedProtocolVersion: null,
-        // Written rather than left to the column default, which still reads
-        // "full" on every database created before sandbox became the product
-        // default. Changing that default would need a SQLite table recreate to
-        // reach existing installs; the insert reaches them today. An owner's
-        // later choice lives in the row and `updateHost` never touches it here.
+        // Written rather than left to the column default: the caller may name a
+        // ceiling, and the value belongs in the row either way. Migration 0095
+        // moved the default itself to the sandbox ceiling and lowered the
+        // machines an older install already had. An owner's later choice lives
+        // in the row and `updateHost` never touches it here.
         maxPermissionMode:
           input.maxPermissionMode ?? DEFAULT_HOST_MAX_PERMISSION_MODE,
         createdAt: now,
