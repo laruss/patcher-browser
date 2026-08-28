@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+import { timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import {
@@ -11,6 +13,8 @@ import {
   resolveClientSshAuthority,
   type ClientConfig,
 } from "@patcher/config/client-config";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
+import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { assignIfDefined } from "@patcher/config/objects";
 import {
   healthResponseSchema,
@@ -231,6 +235,50 @@ export async function startLocalApiServer(
   app.use("*", async (c, next) => {
     if (options.localApiConfig.mode === "health-only") {
       return c.notFound();
+    }
+    await next();
+  });
+
+  /**
+   * Who is calling the daemon's own loopback API.
+   *
+   * It used to be nobody's business to say. CORS is a browser control and does
+   * nothing to a `curl`, and an agent mid-turn is handed
+   * `PATCHER_HOST_DAEMON_PORT` in its environment while the sandbox permits
+   * loopback — so `POST /open-in-target`, which ends in an `execFile` on the
+   * host outside the turn's sandbox, was reachable from inside one. The app key
+   * is what every other local surface takes, and this takes it too.
+   *
+   * Resolved lazily and cached on first success, because the key file appears
+   * when the server first starts and this daemon may have started before it. No
+   * key means refuse: a daemon whose server has not written one yet has nothing
+   * useful to serve, and the alternative is the anonymous caller this exists to
+   * remove.
+   *
+   * The health path is above this and stays open — it answers whether the
+   * process is alive, which a launcher asks before anything holds a key.
+   */
+  let cachedAppApiKey: string | undefined;
+  const appApiKeyForRequest = (): string | undefined => {
+    if (cachedAppApiKey !== undefined) return cachedAppApiKey;
+    cachedAppApiKey = resolveAppApiKey(
+      options.dataDir === undefined ? {} : { dataDir: options.dataDir },
+    );
+    return cachedAppApiKey;
+  };
+  app.use("*", async (c, next) => {
+    const expected = appApiKeyForRequest();
+    const presented = c.req.header(PATCHER_APP_KEY_HEADER);
+    if (
+      expected === undefined ||
+      presented === undefined ||
+      presented.length !== expected.length ||
+      !timingSafeEqual(
+        Buffer.from(presented, "utf8"),
+        Buffer.from(expected, "utf8"),
+      )
+    ) {
+      throw new HTTPException(401, { message: "Unauthorized" });
     }
     await next();
   });
