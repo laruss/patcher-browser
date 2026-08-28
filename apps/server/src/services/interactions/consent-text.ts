@@ -16,6 +16,12 @@
  * Shared rather than restated per caller: the constraint belongs to the
  * transport, not to any one question, so a change to it has to reach every
  * prompt at once.
+ *
+ * The setup-script route sends its response head before the answer and streams
+ * the answer in the body, so undici's ceiling does not bind there — the four
+ * minutes are about people, not the socket. It keeps the same figure anyway: a
+ * prompt nobody is looking at should not hold a provisioning lane open longer
+ * than the one an agent is sitting on.
  */
 export const CONSENT_INTERACTION_TIMEOUT_MS = 4 * 60 * 1000;
 

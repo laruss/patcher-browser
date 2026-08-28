@@ -133,6 +133,42 @@ describe("setup script consent", () => {
     });
   });
 
+  it("sends the response head before anybody has decided", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, session, thread } = seedSetupScriptThread(
+        harness,
+        "streamed-head",
+      );
+
+      const response = await askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+
+      // Awaited above, and the question is still standing: the head does not
+      // wait for the answer. A hop that wants an origin response head within
+      // thirty seconds would otherwise tear this down mid-decision, and the
+      // failure would look like "setup scripts never run" rather than an error.
+      expect(response.status).toBe(200);
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+      expect(interaction.status).toBe("pending");
+
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId: thread.id,
+        interactionId: interaction.id,
+        approved: true,
+      });
+
+      // And the answer arrives in the body afterwards.
+      await expect(readJson(response)).resolves.toEqual({
+        outcome: "approved",
+      });
+    });
+  });
+
   it("asks again when the script changed", async () => {
     await withTestHarness(async (harness) => {
       const { environment, session, thread } = seedSetupScriptThread(
