@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createFakeAdapter } from "@patcher/agent-runtime/test";
+import { recordEnvSetupScriptApproval } from "@patcher/db";
 import {
   shellSingleQuote,
   waitForSetupMarkerCount,
@@ -35,6 +37,17 @@ describe.sequential(
         );
         const markerDir = path.join(coordinationDir, "markers");
         const releaseFile = path.join(coordinationDir, "release");
+        const setupScript =
+          [
+            "set -euo pipefail",
+            `marker_dir=${shellSingleQuote(markerDir)}`,
+            `release_file=${shellSingleQuote(releaseFile)}`,
+            'marker_name="$(basename "$(dirname "$PWD")")-$(basename "$PWD")"',
+            'mkdir -p "$marker_dir"',
+            'touch "$marker_dir/started-$marker_name"',
+            'while [ ! -f "$release_file" ]; do sleep 0.05; done',
+            "echo setup released",
+          ].join("\n") + "\n";
         const sourceRepo = await createTestGitRepo({
           repoDir: path.join(path.dirname(harness.repoDir), "setup-project"),
           files: [
@@ -44,23 +57,22 @@ describe.sequential(
             },
             {
               relativePath: ".patcher-env-setup.sh",
-              content:
-                [
-                  "set -euo pipefail",
-                  `marker_dir=${shellSingleQuote(markerDir)}`,
-                  `release_file=${shellSingleQuote(releaseFile)}`,
-                  'marker_name="$(basename "$(dirname "$PWD")")-$(basename "$PWD")"',
-                  'mkdir -p "$marker_dir"',
-                  'touch "$marker_dir/started-$marker_name"',
-                  'while [ ! -f "$release_file" ]; do sleep 0.05; done',
-                  "echo setup released",
-                ].join("\n") + "\n",
+              content: setupScript,
             },
           ],
         });
         const project = await createProjectFixture(harness, {
           name: "Concurrent Setup Fanout",
           path: sourceRepo,
+        });
+        // Provisioning asks before it runs a repository's setup script, and
+        // nothing here is watching a thread to answer. This test is about two
+        // setup scripts running at once, so it takes the path a repository
+        // whose script was already allowed takes: the remembered allow, keyed
+        // on this content.
+        recordEnvSetupScriptApproval(harness.db, {
+          projectId: project.id,
+          scriptSha256: createHash("sha256").update(setupScript).digest("hex"),
         });
 
         const [firstThread, secondThread] = await Promise.all([

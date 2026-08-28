@@ -12,26 +12,22 @@ import type { Hono } from "hono";
 import type { AppDeps } from "../types.js";
 import { ApiError } from "../errors.js";
 import { requireThreadEnvironment } from "../services/lib/entity-lookup.js";
+import {
+  capConsentText,
+  CONSENT_DETAIL_MAX,
+  CONSENT_INTERACTION_TIMEOUT_MS,
+  CONSENT_SUBJECT_NAME_MAX,
+} from "../services/interactions/consent-text.js";
 import { requireAuthenticatedDaemonSession } from "./session-state.js";
 
 /**
- * How long the daemon's request waits before the answer stops being possible.
+ * Room the detail line keeps for what it is actually about.
  *
- * Four minutes, the same figure the plugin consent uses and for the same
- * reason: the answer travels back as the response to a request the daemon is
- * still holding open, and undici — Node's `fetch` — gives up on a response
- * whose headers have not arrived in 300 s. At five the daemon always loses the
- * race, and losing it aborts the prompt off the screen at the moment somebody
- * may be deciding.
+ * The path is the only unbounded part of that line, so it is the part that gets
+ * capped — capping the composed line instead would truncate away the size and
+ * the hash, which are the two things the line exists to show.
  */
-const ENV_SETUP_SCRIPT_CONSENT_TIMEOUT_MS = 4 * 60 * 1000;
-
-const DETAIL_MAX = 500;
-const SUBJECT_NAME_MAX = 200;
-
-function cap(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
-}
+const DETAIL_PATH_MAX = 400;
 
 /**
  * Asked before this machine runs a repository's own `.patcher-env-setup.sh`.
@@ -98,7 +94,7 @@ export function registerInternalEnvSetupScriptConsentRoute(
       try {
         result = await deps.pendingInteractions.requestConsentInteraction({
           threadId: payload.threadId,
-          timeoutMs: ENV_SETUP_SCRIPT_CONSENT_TIMEOUT_MS,
+          timeoutMs: CONSENT_INTERACTION_TIMEOUT_MS,
           signal: context.req.raw.signal,
           payload: {
             kind: "consent",
@@ -106,12 +102,15 @@ export function registerInternalEnvSetupScriptConsentRoute(
             // The hash is the identity: it is what the allow is remembered
             // against, so it is what the user is being asked about.
             subjectId: payload.scriptSha256,
-            subjectName: cap(basename(payload.scriptPath), SUBJECT_NAME_MAX),
+            subjectName: capConsentText(
+              basename(payload.scriptPath),
+              CONSENT_SUBJECT_NAME_MAX,
+            ),
             permissions: [],
             sites: [],
-            detail: cap(
-              `${payload.scriptPath} — ${payload.scriptByteLength} bytes, sha256 ${payload.scriptSha256.slice(0, 12)}…`,
-              DETAIL_MAX,
+            detail: capConsentText(
+              `${capConsentText(payload.scriptPath, DETAIL_PATH_MAX)} — ${payload.scriptByteLength} bytes, sha256 ${payload.scriptSha256.slice(0, 12)}…`,
+              CONSENT_DETAIL_MAX,
             ),
           },
         });
@@ -125,12 +124,17 @@ export function registerInternalEnvSetupScriptConsentRoute(
       }
 
       if (result.outcome === "cancelled") {
+        // This reason is read by a person, in the provisioning transcript, so
+        // the two ways a prompt ordinarily ends without a decision say so in
+        // words. The rest are internal lifecycle names and are named as such.
         return context.json({
           outcome: "refused",
           reason:
             result.reason === "timeout"
               ? "the question went unanswered for four minutes"
-              : `the question ended without an answer (${result.reason})`,
+              : result.reason === "user"
+                ? "you dismissed the question without answering it"
+                : `the question ended without an answer (${result.reason})`,
         } as const);
       }
 
