@@ -71,6 +71,23 @@ describe("resolveProtectedRepositoryPaths", () => {
     }
   });
 
+  it("still leaves it alone when the workspace is reached through a symlink", async () => {
+    // git reports a path with no symlinks in it. Comparing that against the
+    // workspace path as given decides a project checkout's own `.git` belongs
+    // to somebody else and denies the whole of it — which is the case that
+    // takes `git add` away, so it is the case worth a test of its own.
+    const repoPath = await initRepo("patcher-protected-symlinked-");
+    const linkParent = await mkTempDir("patcher-protected-symlink-parent-");
+    const linkPath = path.join(linkParent, "link");
+    await fs.symlink(repoPath, linkPath, "dir");
+
+    const paths = await resolveProtectedRepositoryPaths(linkPath);
+
+    expect(paths).not.toContain(path.join(linkPath, ".git"));
+    expect(paths).not.toContain(path.join(repoPath, ".git"));
+    expect(paths).toContain(path.join(repoPath, ".git", "config"));
+  });
+
   it("leaves submodule and worktree metadata writable on purpose", async () => {
     // Config planted under either runs only for a git process that recurses
     // into it, and Patcher's plumbing never does — while denying them would
