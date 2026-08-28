@@ -45,6 +45,78 @@ describe("patcher thread interactions command output", () => {
     expect(lines[2]).toBe("");
   });
 
+  it("patcher thread interactions approve allows a consent prompt", async () => {
+    // The reason this path exists: a machine with no app open still has to be
+    // able to say yes to the repository's setup script, or a documented feature
+    // stops working there without anything reporting an error.
+    const getInteraction = vi.fn(async () =>
+      fixtures.makeConsentPendingInteraction({
+        id: "int-consent",
+        threadId: "thread-1",
+      }),
+    );
+    const respond = vi.fn(async () =>
+      fixtures.makeConsentPendingInteraction({
+        id: "int-consent",
+        threadId: "thread-1",
+      }),
+    );
+    const resolve = vi.fn(async () => {
+      throw new Error("a consent is answered, not resolved");
+    });
+    stubServerApi({
+      "v1.threads.:id.interactions.:interactionId.$get": getInteraction,
+      "v1.threads.:id.interactions.:interactionId.respond.$post": respond,
+      "v1.threads.:id.interactions.:interactionId.resolve.$post": resolve,
+    });
+
+    await runCommand(
+      ["thread", "interactions", "approve", "int-consent", "thread-1"],
+      register,
+    );
+
+    expect(respond).toHaveBeenCalledWith({
+      param: { id: "thread-1", interactionId: "int-consent" },
+      json: { value: { approved: true } },
+    });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(collectLogLines(vi.mocked(console.log))).toContain(
+      "Interaction int-consent allowed",
+    );
+  });
+
+  it("patcher thread interactions deny declines a consent prompt", async () => {
+    const getInteraction = vi.fn(async () =>
+      fixtures.makeConsentPendingInteraction({
+        id: "int-consent-no",
+        threadId: "thread-1",
+      }),
+    );
+    const respond = vi.fn(async () =>
+      fixtures.makeConsentPendingInteraction({
+        id: "int-consent-no",
+        threadId: "thread-1",
+      }),
+    );
+    stubServerApi({
+      "v1.threads.:id.interactions.:interactionId.$get": getInteraction,
+      "v1.threads.:id.interactions.:interactionId.respond.$post": respond,
+    });
+
+    await runCommand(
+      ["thread", "interactions", "deny", "int-consent-no", "thread-1"],
+      register,
+    );
+
+    expect(respond).toHaveBeenCalledWith({
+      param: { id: "thread-1", interactionId: "int-consent-no" },
+      json: { value: { approved: false } },
+    });
+    expect(collectLogLines(vi.mocked(console.log))).toContain(
+      "Interaction int-consent-no declined",
+    );
+  });
+
   it("patcher thread interactions show prints interaction details", async () => {
     vi.stubEnv("PATCHER_THREAD_ID", "thread-show-interaction");
     const getInteraction = vi.fn(async () =>

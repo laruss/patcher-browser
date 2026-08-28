@@ -149,8 +149,9 @@ function formatInteractionKind(interaction: PendingInteraction): string {
 function isApprovalInteraction(
   interaction: PendingInteraction,
 ): interaction is ApprovalPendingInteraction {
-  // A consent prompt is answered from the app, or by the plugin command that
-  // raised it timing out — never by these resolve subcommands.
+  // A consent prompt is not an approval interaction: it is answered on a
+  // different route with a different payload. `approve` and `deny` route it
+  // there themselves before reaching this; everything else refuses.
   if (isConsentPendingInteraction(interaction)) {
     return false;
   }
@@ -322,7 +323,7 @@ function printInteraction(interaction: PendingInteraction): void {
   }
 
   if (isConsentPendingInteraction(interaction)) {
-    // Nothing here to resolve — a consent prompt is answered from the app — but
+    // Nothing here to resolve — `approve` and `deny` answer a consent — but
     // `show` reads an interaction rather than resolving one, and falling through
     // to requireApprovalInteraction would half-print it and then throw
     // "cannot be resolved with this command" at someone who asked to look.
@@ -555,6 +556,19 @@ interface ResolveInteractionArgs {
   buildResolution: (
     interaction: PendingInteraction,
   ) => PendingInteractionResolution;
+  /**
+   * What to answer if the interaction turns out to be a consent prompt.
+   *
+   * A consent is answered rather than resolved — a different route with a
+   * different payload — so the commands that can mean "yes" or "no" about one
+   * say which they mean here, and the commands that cannot (`grant`, `answer`)
+   * leave it unset and keep refusing.
+   *
+   * The server refuses a consent answered from inside the turn that raised it,
+   * and the CLI declares its thread, so an agent running this gets that refusal
+   * rather than its own approval.
+   */
+  consentApproved?: boolean;
   failureAction: string;
   getUrl: () => string;
   interactionId: string;
@@ -586,6 +600,20 @@ async function resolveInteraction(args: ResolveInteractionArgs): Promise<void> {
     interactionId: args.interactionId,
     threadId: args.threadId,
   });
+  if (
+    isConsentPendingInteraction(interaction) &&
+    args.consentApproved !== undefined
+  ) {
+    await answerConsentInteraction({
+      approved: args.consentApproved,
+      failureAction: args.failureAction,
+      getUrl: args.getUrl,
+      interactionId: args.interactionId,
+      json: args.json,
+      threadId: args.threadId,
+    });
+    return;
+  }
   const resolution = args.buildResolution(interaction);
   const sdk = createCliPatcherSdk(args.getUrl());
   const updated = await sdk.threads.interactions
@@ -612,6 +640,51 @@ async function resolveInteraction(args: ResolveInteractionArgs): Promise<void> {
       resolution,
       updated,
     }),
+  );
+}
+
+interface AnswerConsentInteractionArgs {
+  approved: boolean;
+  failureAction: string;
+  getUrl: () => string;
+  interactionId: string;
+  json: boolean | undefined;
+  threadId: string;
+}
+
+/**
+ * Answers a consent prompt from a terminal.
+ *
+ * The reason this exists: a managed worktree asks before it runs the
+ * repository's `.patcher-env-setup.sh`, and that question is put wherever the
+ * provision happens — including machines nobody has the app open to. Without a
+ * terminal answer the prompt stands until it times out and the script is
+ * skipped, every provision, which is a documented feature quietly not working.
+ */
+async function answerConsentInteraction(
+  args: AnswerConsentInteractionArgs,
+): Promise<void> {
+  const sdk = createCliPatcherSdk(args.getUrl());
+  const updated = await sdk.threads.interactions
+    .respond({
+      interactionId: args.interactionId,
+      threadId: args.threadId,
+      value: { approved: args.approved },
+    })
+    .catch((error: unknown) => {
+      throw prependErrorContext(
+        `Failed to ${args.failureAction} interaction ${args.interactionId}`,
+        error,
+      );
+    });
+
+  if (args.json) {
+    outputJson({ json: args.json }, updated);
+    return;
+  }
+
+  console.log(
+    `Interaction ${args.interactionId} ${args.approved ? "allowed" : "declined"}`,
   );
 }
 
@@ -797,7 +870,7 @@ export function registerInteractionCommands(
   interactions
     .command("approve <interactionId> [id]")
     .description(
-      "Approve a command, file-change, or plan interaction for this turn",
+      "Approve a command, file-change, or plan interaction for this turn, or allow a consent prompt",
     )
     .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
@@ -812,6 +885,7 @@ export function registerInteractionCommands(
           await resolveInteraction({
             buildResolution: (interaction) =>
               buildBinaryResolution(interaction, "approve"),
+            consentApproved: true,
             failureAction: "approve",
             getUrl,
             interactionId,
@@ -911,7 +985,9 @@ export function registerInteractionCommands(
 
   interactions
     .command("deny <interactionId> [id]")
-    .description("Deny a command, file-change, plan, or permission interaction")
+    .description(
+      "Deny a command, file-change, plan, or permission interaction, or decline a consent prompt",
+    )
     .option("--self", "Target the current thread (from PATCHER_THREAD_ID)")
     .option("--json", "Print machine-readable JSON output")
     .action(
@@ -925,6 +1001,7 @@ export function registerInteractionCommands(
           await resolveInteraction({
             buildResolution: (interaction) =>
               buildBinaryResolution(interaction, "deny"),
+            consentApproved: false,
             failureAction: "deny",
             getUrl,
             interactionId,
