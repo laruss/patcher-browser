@@ -6,7 +6,9 @@ import {
   type StatusResponse,
   type WorkspaceOpenTarget,
 } from "@patcher/host-daemon-contract";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { z } from "zod";
+import { appKey } from "./app-key";
 
 let client: ReturnType<typeof createHostDaemonLocalClient> | null = null;
 let clientPort: number | null = null;
@@ -18,6 +20,31 @@ const hostDaemonErrorResponseSchema = z.object({
 });
 
 /**
+ * Signs a daemon request as this install's app client.
+ *
+ * The daemon's local API refuses an unidentified caller, for the reason its own
+ * middleware gives: an agent mid-turn is handed the daemon's port and can reach
+ * loopback, and `POST /open-in-target` ends in an `execFile` on the host outside
+ * the turn's sandbox. The global key wrapper in `app-key-fetch.ts` covers
+ * same-origin `/api/v1` only, on purpose, so this attaches the header explicitly
+ * for the one other surface that takes it.
+ */
+function hostDaemonFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const key = appKey();
+  if (key === undefined) return fetch(input, init);
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined),
+  );
+  if (!headers.has(PATCHER_APP_KEY_HEADER)) {
+    headers.set(PATCHER_APP_KEY_HEADER, key);
+  }
+  return fetch(input, { ...init, headers });
+}
+
+/**
  * Get or create the host daemon client.
  * Recreates the client if the port changes.
  */
@@ -25,6 +52,7 @@ export function getHostDaemonClient(port: number) {
   if (!client || clientPort !== port) {
     client = createHostDaemonLocalClient(
       `http://${DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST}:${port}`,
+      { fetch: hostDaemonFetch },
     );
     clientPort = port;
   }

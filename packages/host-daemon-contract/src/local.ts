@@ -331,7 +331,23 @@ export type HostDaemonLocalRoutes = Hono<{}, HostDaemonLocalSchema, "/">;
  *
  * No auth — the local API is bound to 127.0.0.1 only.
  */
-export function createHostDaemonLocalClient(baseUrl: string) {
+export interface CreateHostDaemonLocalClientOptions {
+  /**
+   * Signs the request. The daemon's local API takes the app key like every
+   * other local surface, and the app's global key wrapper deliberately covers
+   * only same-origin `/api/v1` — so reaching the daemon means saying so here
+   * rather than widening that rule to another origin.
+   */
+  fetch?: typeof fetch;
+}
+
+export function createHostDaemonLocalClient(
+  baseUrl: string,
+  options: CreateHostDaemonLocalClientOptions = {},
+) {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
-  return hc<HostDaemonLocalRoutes>(normalizedBaseUrl);
+  return hc<HostDaemonLocalRoutes>(
+    normalizedBaseUrl,
+    options.fetch ? { fetch: options.fetch } : undefined,
+  );
 }

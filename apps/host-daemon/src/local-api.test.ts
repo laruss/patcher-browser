@@ -1,8 +1,9 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HOST_DAEMON_PROTOCOL_VERSION,
   createHostDaemonLocalClient,
@@ -29,9 +30,92 @@ describe("local API server", () => {
     };
   }
 
+  /**
+   * The daemon's local API takes the app key, so a test client presents it. The
+   * key comes from the environment rather than a data dir here: it is the same
+   * resolution path a daemon on another machine from the server uses.
+   */
+  const TEST_APP_KEY = "test-daemon-local-api-key";
+
+  function signedClient(port: number) {
+    return createHostDaemonLocalClient(`http://localhost:${port}`, {
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_KEY);
+        return fetch(input, { ...init, headers });
+      },
+    });
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("PATCHER_APP_KEY", TEST_APP_KEY);
+  });
+
   afterEach(async () => {
     await server?.close();
     server = null;
+  });
+
+  it("refuses a caller that presents no app key", async () => {
+    // The case this gate exists for: an agent mid-turn holds
+    // `PATCHER_HOST_DAEMON_PORT` and reaches loopback, and `/open-in-target`
+    // ends in an execFile on the host outside its sandbox.
+    server = await startLocalApiServer({
+      hostId: "host-1",
+      localApiConfig: createLocalApiConfig(),
+      serverUrl: "http://server.test",
+      serverPort: 3334,
+      getConnected: () => true,
+    });
+
+    const status = await fetch(`http://localhost:${server.port}/status`);
+    const open = await fetch(`http://localhost:${server.port}/open-in-target`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/tmp/patcher-escape",
+        targetId: "vscode",
+        lineNumber: null,
+      }),
+    });
+
+    expect(status.status).toBe(401);
+    expect(open.status).toBe(401);
+  });
+
+  it("refuses a caller whose app key is wrong", async () => {
+    server = await startLocalApiServer({
+      hostId: "host-1",
+      localApiConfig: createLocalApiConfig(),
+      serverUrl: "http://server.test",
+      serverPort: 3334,
+      getConnected: () => true,
+    });
+
+    const response = await fetch(`http://localhost:${server.port}/status`, {
+      // Same length as the real one: the comparison is `timingSafeEqual`, which
+      // throws on a length mismatch, so equal-but-wrong is the case that
+      // actually reaches it.
+      headers: { [PATCHER_APP_KEY_HEADER]: "x".repeat(TEST_APP_KEY.length) },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("keeps the health path open to a caller with no key", async () => {
+    // A launcher asks whether the process is alive before anything holds a key.
+    server = await startLocalApiServer({
+      hostId: "host-1",
+      localApiConfig: createLocalApiConfig(),
+      serverUrl: "http://server.test",
+      serverPort: 3334,
+      getConnected: () => true,
+    });
+
+    const response = await fetch(`http://localhost:${server.port}/health`);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("ok");
   });
 
   it("serves host identity and status over localhost", async () => {
@@ -43,9 +127,7 @@ describe("local API server", () => {
       devAppPort: 5173,
       getConnected: () => true,
     });
-    const client = createHostDaemonLocalClient(
-      `http://localhost:${server.port}`,
-    );
+    const client = signedClient(server.port);
 
     const statusResponse = await client.status.$get();
 
@@ -131,9 +213,7 @@ describe("local API server", () => {
       listWorkspaceOpenTargets,
       openInTarget,
     });
-    const client = createHostDaemonLocalClient(
-      `http://localhost:${server.port}`,
-    );
+    const client = signedClient(server.port);
 
     const targetsResponse = await client["workspace-open-targets"].$get({
       query: {},
@@ -193,9 +273,7 @@ describe("local API server", () => {
         getConnected: () => true,
         openInTarget,
       });
-      const client = createHostDaemonLocalClient(
-        `http://localhost:${server.port}`,
-      );
+      const client = signedClient(server.port);
 
       const corsResponse = await fetch(
         `http://localhost:${server.port}/workspace-open-targets?path=/tmp/file.ts`,
@@ -267,9 +345,7 @@ describe("local API server", () => {
         devAppPort: 5173,
         getConnected: () => true,
       });
-      const client = createHostDaemonLocalClient(
-        `http://localhost:${server.port}`,
-      );
+      const client = signedClient(server.port);
 
       const response = await client["open-in-target"].$post({
         json: {
@@ -310,9 +386,7 @@ describe("local API server", () => {
       getConnected: () => true,
       openInTarget,
     });
-    const client = createHostDaemonLocalClient(
-      `http://localhost:${server.port}`,
-    );
+    const client = signedClient(server.port);
 
     const response = await client["open-in-target"].$post({
       json: {
