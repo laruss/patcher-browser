@@ -6,6 +6,8 @@ import type {
 import {
   getPersonalWorkspaceRoot,
   validatePersonalWorkspaceTargetPath,
+  type EnvSetupScriptApproval,
+  type EnvSetupScriptApprovalRequest,
   type ProvisionWorkspaceArgs,
 } from "@patcher/host-workspace";
 import {
@@ -177,9 +179,68 @@ function buildOnProgress(args: BuildOnProgressArgs): ProvisionProgressEmitter {
   };
 }
 
+/**
+ * Turns the server's answer into what provisioning expects, and turns every
+ * absence into a refusal.
+ *
+ * Two absences to be explicit about, because both are cases where nobody could
+ * have been asked: a daemon with no server connection, and provisioning with no
+ * initiating thread (a project source, say) — a prompt has nowhere to appear.
+ * The script stays unrun and the transcript says which of the two it was.
+ */
+function buildSetupScriptApprovalRequester(args: {
+  consent: CommandDispatchOptions["requestEnvSetupScriptConsent"];
+  environmentId: string;
+  threadId: string | null;
+}): (
+  request: EnvSetupScriptApprovalRequest,
+) => Promise<EnvSetupScriptApproval> {
+  return async (request) => {
+    if (!args.consent) {
+      return {
+        approved: false,
+        reason: "this machine is not connected to a server that could ask you",
+      };
+    }
+    if (args.threadId === null) {
+      return {
+        approved: false,
+        reason: "there is no thread this could be asked in",
+      };
+    }
+    // A throw here would fail provisioning and take the new worktree with it,
+    // over a question that could not be delivered. The worktree is what the
+    // user asked for; only the script is in question, so this is a refusal.
+    let response;
+    try {
+      response = await args.consent({
+        environmentId: args.environmentId,
+        threadId: args.threadId,
+        scriptPath: request.scriptPath,
+        scriptSha256: request.scriptSha256,
+        scriptByteLength: request.scriptByteLength,
+        ...(request.signal ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      return {
+        approved: false,
+        reason: `asking you failed (${
+          error instanceof Error ? error.message : String(error)
+        })`,
+      };
+    }
+    return response.outcome === "approved"
+      ? { approved: true }
+      : { approved: false, reason: response.reason };
+  };
+}
+
 export function toProvisionWorkspaceOptions(
   command: EnvironmentProvisionCommand,
-  options: Pick<CommandDispatchOptions, "dataDir">,
+  options: Pick<
+    CommandDispatchOptions,
+    "dataDir" | "requestEnvSetupScriptConsent"
+  >,
   onProgress?: ProvisionProgressCallback,
 ): ProvisionWorkspaceArgs {
   switch (command.workspaceProvisionType) {
@@ -199,6 +260,11 @@ export function toProvisionWorkspaceOptions(
         branchName: command.branchName,
         baseBranch: command.baseBranch,
         timeoutMs: command.setupTimeoutMs,
+        requestSetupScriptApproval: buildSetupScriptApprovalRequester({
+          consent: options.requestEnvSetupScriptConsent,
+          environmentId: command.environmentId,
+          threadId: command.initiator?.threadId ?? null,
+        }),
         onProgress,
       };
     }

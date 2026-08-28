@@ -7,6 +7,9 @@ import { createWorktree } from "../src/provisioning.js";
 import { runGit } from "../src/git.js";
 import { copyWorktreeIncludeFiles } from "../src/worktree-include.js";
 
+/** Provisioning asks before it runs a setup script; these tests say yes. */
+const approveSetupScript = async () => ({ approved: true }) as const;
+
 const tempDirs: string[] = [];
 
 async function makeTempDir(prefix: string): Promise<string> {
@@ -221,6 +224,7 @@ describe("createWorktree with .worktreeinclude", () => {
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath,
       targetPath,
       branchName: "feature",
@@ -243,6 +247,7 @@ describe("createWorktree with .worktreeinclude", () => {
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath,
       targetPath,
       branchName: "feature",

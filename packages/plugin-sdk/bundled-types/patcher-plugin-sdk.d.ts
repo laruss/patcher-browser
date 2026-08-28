@@ -528,6 +528,7 @@ declare const consentPendingInteractionSchema: z$1.ZodObject<{
             install: "install";
             remove: "remove";
             configure: "configure";
+            "run-setup-script": "run-setup-script";
         }>;
         subjectId: z$1.ZodString;
         subjectName: z$1.ZodString;
@@ -9949,6 +9950,7 @@ declare const threadPendingInteractionsResponseSchema: z$1.ZodArray<z$1.ZodUnion
             disable: "disable";
             remove: "remove";
             configure: "configure";
+            "run-setup-script": "run-setup-script";
         }>;
         subjectId: z$1.ZodString;
         subjectName: z$1.ZodString;

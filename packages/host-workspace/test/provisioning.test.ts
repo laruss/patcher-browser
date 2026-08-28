@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,8 +15,12 @@ import {
   removeDirectory,
   removeWorktree,
   runSetupScript,
+  type EnvSetupScriptApprovalRequest,
 } from "../src/provisioning.js";
 import { runGit } from "../src/git.js";
+
+/** Provisioning asks before it runs a setup script; these tests say yes. */
+const approveSetupScript = async () => ({ approved: true }) as const;
 
 const tempDirs: string[] = [];
 
@@ -78,14 +83,33 @@ async function pushRemoteMainCommit(remotePath: string): Promise<string> {
   return head.stdout.trim();
 }
 
+/**
+ * Aborts at the moment the code under test registers its abort listener, which
+ * is the race this exercises: the signal fires between spawning the script and
+ * being able to hear about it.
+ *
+ * Keyed on the registration itself rather than on a count of `aborted` reads,
+ * because a count makes the fake fire wherever the reads happen to fall — one
+ * extra check anywhere upstream moved the abort to a different step entirely.
+ */
 class AbortAtSetupListenerSignal extends EventTarget implements AbortSignal {
   onabort: ((this: AbortSignal, event: Event) => void) | null = null;
   readonly reason = new Error("test abort");
-  private abortedReadCount = 0;
+  private listenerRegistered = false;
 
   get aborted(): boolean {
-    this.abortedReadCount += 1;
-    return this.abortedReadCount >= 3;
+    return this.listenerRegistered;
+  }
+
+  override addEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    if (type === "abort") {
+      this.listenerRegistered = true;
+    }
+    super.addEventListener(type, callback, options);
   }
 
   throwIfAborted(): void {
@@ -111,6 +135,7 @@ describe("workspace provisioning", () => {
     const targetPath = path.join(parentDir, "feature");
 
     const first = await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "feature",
@@ -118,6 +143,7 @@ describe("workspace provisioning", () => {
       timeoutMs: 900000,
     });
     const second = await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "feature",
@@ -142,6 +168,7 @@ describe("workspace provisioning", () => {
     expect(staleOriginMain.stdout.trim()).not.toBe(remoteHead);
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: repoPath,
       targetPath,
       branchName: "feature",
@@ -167,6 +194,7 @@ describe("workspace provisioning", () => {
 
     await expect(
       createWorktree({
+        requestSetupScriptApproval: approveSetupScript,
         sourcePath: sourceRepo,
         targetPath,
         branchName: "broken",
@@ -202,6 +230,7 @@ describe("workspace provisioning", () => {
 
     const provisions = Promise.all([
       createWorktree({
+        requestSetupScriptApproval: approveSetupScript,
         sourcePath: sourceRepo,
         targetPath: firstTargetPath,
         branchName: "feature-a",
@@ -209,6 +238,7 @@ describe("workspace provisioning", () => {
         timeoutMs: 900000,
       }),
       createWorktree({
+        requestSetupScriptApproval: approveSetupScript,
         sourcePath: sourceRepo,
         targetPath: secondTargetPath,
         branchName: "feature-b",
@@ -247,6 +277,7 @@ describe("workspace provisioning", () => {
     );
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "feature",
@@ -281,6 +312,7 @@ describe("workspace provisioning", () => {
 
     const entries: string[] = [];
     const result = await runSetupScript({
+      requestApproval: approveSetupScript,
       workspacePath,
       timeoutMs: 900000,
       onProgress: (entry) => entries.push(`${entry.type}:${entry.text}`),
@@ -296,6 +328,7 @@ describe("workspace provisioning", () => {
     );
     await expect(
       runSetupScript({
+        requestApproval: approveSetupScript,
         workspacePath,
         timeoutMs: 50,
       }),
@@ -319,6 +352,7 @@ describe("workspace provisioning", () => {
     const abortController = new AbortController();
     const entries: string[] = [];
     const run = runSetupScript({
+      requestApproval: approveSetupScript,
       workspacePath,
       timeoutMs: 900000,
       signal: abortController.signal,
@@ -364,6 +398,7 @@ describe("workspace provisioning", () => {
 
     await expect(
       runSetupScript({
+        requestApproval: approveSetupScript,
         workspacePath,
         timeoutMs: 900000,
         signal: new AbortAtSetupListenerSignal(),
@@ -392,6 +427,7 @@ describe("workspace provisioning", () => {
     const targetPath = path.join(parentDir, "cancelled");
     const abortController = new AbortController();
     const provision = createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "cancelled",
@@ -422,6 +458,65 @@ describe("workspace provisioning", () => {
     expect(worktrees.stdout).not.toContain(targetPath);
   });
 
+  it("does not run a setup script the answer did not allow", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-refused-");
+    const markerDir = await makeTempDir("patcher-setup-refused-markers-");
+    await fs.writeFile(
+      path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
+      `touch ${shellSingleQuote(path.join(markerDir, "ran"))}\n`,
+      "utf8",
+    );
+    const entries: string[] = [];
+
+    const result = await runSetupScript({
+      requestApproval: async () => ({
+        approved: false,
+        reason: "the user did not allow it",
+      }),
+      workspacePath,
+      timeoutMs: 900000,
+      onProgress: (entry) => entries.push(`${entry.key}:${entry.text}`),
+    });
+
+    expect(result).toEqual({ ran: false });
+    // The evidence is the marker, not the return value: a refusal that still
+    // executed the script would return `ran: false` just as convincingly.
+    await expect(fs.stat(path.join(markerDir, "ran"))).rejects.toThrow();
+    expect(entries).toContain(
+      "setup-not-approved:Skipped .patcher-env-setup.sh: the user did not allow it",
+    );
+    expect(entries.some((entry) => entry.startsWith("setup-started"))).toBe(
+      false,
+    );
+  });
+
+  it("asks about the script by its content, so a changed script asks again", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-hash-");
+    const body = "echo hello\n";
+    await fs.writeFile(
+      path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
+      body,
+      "utf8",
+    );
+    const asked: EnvSetupScriptApprovalRequest[] = [];
+
+    await runSetupScript({
+      requestApproval: async (request) => {
+        asked.push(request);
+        return { approved: true };
+      },
+      workspacePath,
+      timeoutMs: 900000,
+    });
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toEqual({
+      scriptPath: path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
+      scriptSha256: createHash("sha256").update(body).digest("hex"),
+      scriptByteLength: Buffer.byteLength(body),
+    });
+  });
+
   it("compacts carriage-return setup script progress in transcript output", async () => {
     const workspacePath = await makeTempDir("patcher-setup-progress-");
     await fs.writeFile(
@@ -432,6 +527,7 @@ describe("workspace provisioning", () => {
 
     const outputEntries: string[] = [];
     const result = await runSetupScript({
+      requestApproval: approveSetupScript,
       workspacePath,
       timeoutMs: 900000,
       onProgress: (entry) => {
@@ -454,6 +550,7 @@ describe("workspace provisioning", () => {
     );
 
     const result = await runSetupScript({
+      requestApproval: approveSetupScript,
       workspacePath,
       timeoutMs: 500,
     });
@@ -481,6 +578,7 @@ describe("workspace provisioning", () => {
     );
 
     const result = await runSetupScript({
+      requestApproval: approveSetupScript,
       workspacePath,
       timeoutMs: 900000,
     });
@@ -502,6 +600,7 @@ describe("workspace provisioning", () => {
     );
 
     const result = await runSetupScript({
+      requestApproval: approveSetupScript,
       workspacePath,
       timeoutMs: 900000,
       setupPath: `${binPath}${path.delimiter}/usr/bin:/bin`,
@@ -537,7 +636,11 @@ describe("workspace provisioning", () => {
     const workspacePath = await makeTempDir("patcher-setup-noop-");
 
     await expect(
-      runSetupScript({ workspacePath, timeoutMs: 900000 }),
+      runSetupScript({
+        workspacePath,
+        timeoutMs: 900000,
+        requestApproval: approveSetupScript,
+      }),
     ).resolves.toEqual({ ran: false });
   });
 
@@ -547,6 +650,7 @@ describe("workspace provisioning", () => {
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "feature",
@@ -573,6 +677,7 @@ describe("workspace provisioning", () => {
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "feature-orphan-gitfile",
@@ -601,6 +706,7 @@ describe("workspace provisioning", () => {
     const targetPath = path.join(parentDir, "feature");
 
     await createWorktree({
+      requestSetupScriptApproval: approveSetupScript,
       sourcePath: sourceRepo,
       targetPath,
       branchName: "feature-metadata-failure",

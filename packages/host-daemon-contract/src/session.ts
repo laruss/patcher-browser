@@ -712,6 +712,47 @@ export type HostDaemonInteractiveRequestResponse = z.infer<
   typeof hostDaemonInteractiveRequestResponseSchema
 >;
 
+/**
+ * The daemon asking whether it may run a repository's own setup script.
+ *
+ * Asked while provisioning a managed worktree, before the script runs: the
+ * daemon executes it on the host, outside any sandbox, as the user, and a
+ * tracked file in the repository is something an agent can write. The hash is
+ * the question — the same repository asks again when its script changes — and
+ * the daemon holds this request open while the person answers, the way the CLI
+ * holds one open for a plugin consent.
+ */
+export const hostDaemonEnvSetupScriptConsentRequestSchema = z.object({
+  sessionId: z.string().min(1),
+  /** Environment being provisioned; the server resolves its project from this. */
+  environmentId: z.string().min(1),
+  /** Thread the prompt is raised on. Provisioning without one cannot ask. */
+  threadId: z.string().min(1),
+  /** Absolute path of the script inside the new workspace, for the prompt. */
+  scriptPath: z.string().min(1),
+  scriptSha256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/, "expected a lowercase hex sha256"),
+  scriptByteLength: z.number().int().nonnegative(),
+});
+export type HostDaemonEnvSetupScriptConsentRequest = z.infer<
+  typeof hostDaemonEnvSetupScriptConsentRequestSchema
+>;
+
+/**
+ * `refused` covers every outcome that is not an allow — a denial, a timeout, a
+ * thread that cannot show a prompt — because they mean the same thing to the
+ * daemon: do not run it, and say why in the transcript.
+ */
+export const hostDaemonEnvSetupScriptConsentResponseSchema =
+  z.discriminatedUnion("outcome", [
+    z.object({ outcome: z.literal("approved") }),
+    z.object({ outcome: z.literal("refused"), reason: z.string().min(1) }),
+  ]);
+export type HostDaemonEnvSetupScriptConsentResponse = z.infer<
+  typeof hostDaemonEnvSetupScriptConsentResponseSchema
+>;
+
 export const hostDaemonInteractiveInterruptRequestSchema = z.object({
   sessionId: z.string().min(1),
   providerId: z.string().min(1),
@@ -802,6 +843,13 @@ export type HostDaemonInternalSchema = {
     $post: Endpoint<
       { json: HostDaemonInteractiveRequest },
       HostDaemonInteractiveRequestResponse
+    >;
+  };
+  "/session/env-setup-script-consent": {
+    /** Used by the daemon to ask before it runs a repository's setup script on the host, outside any sandbox. */
+    $post: Endpoint<
+      { json: HostDaemonEnvSetupScriptConsentRequest },
+      HostDaemonEnvSetupScriptConsentResponse
     >;
   };
   "/session/interactive-request/interrupt": {

@@ -154,6 +154,31 @@ export const projectExecutionDefaults = sqliteTable(
   ],
 );
 
+/**
+ * Which `.patcher-env-setup.sh` contents this project's owner has allowed to run.
+ *
+ * Keyed by content hash rather than by path, because the question is what the
+ * script does: a repository whose setup script changes — an agent committing to
+ * it included — asks again. Cascades with the project, so forgetting a project
+ * forgets what was allowed for it.
+ */
+export const envSetupScriptApprovals = sqliteTable(
+  "env_setup_script_approvals",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    scriptSha256: text("script_sha256").notNull(),
+    approvedAt: integer("approved_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("env_setup_script_approvals_project_sha_idx").on(
+      table.projectId,
+      table.scriptSha256,
+    ),
+  ],
+);
+
 export const systemExperiments = sqliteTable("system_experiments", {
   key: text("key").primaryKey(),
   value: integer("value", { mode: "boolean" }).notNull(),

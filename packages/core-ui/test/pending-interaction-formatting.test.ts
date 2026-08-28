@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type {
+  ConsentPendingInteractionPayload,
   PendingInteraction,
   PendingInteractionPayload,
 } from "@patcher/domain";
 import {
   buildPendingInteractionApprovalResolution,
+  formatPendingInteractionConsentDetailLines,
+  formatPendingInteractionConsentSummary,
   formatPendingInteractionApprovalResolutionOutcome,
   formatPendingInteractionSubjectDetailLines,
   summarizePendingInteractionRequestedPermissions,
@@ -28,6 +31,35 @@ function createInteraction(
     resolvedAt: null,
   };
 }
+
+describe("setup script consent copy", () => {
+  const payload = {
+    kind: "consent",
+    action: "run-setup-script",
+    subjectId: "a".repeat(64),
+    subjectName: ".patcher-env-setup.sh",
+    permissions: [],
+    sites: [],
+    detail:
+      "/tmp/worktree/.patcher-env-setup.sh — 42 bytes, sha256 aaaaaaaaaaaa…",
+  } as const satisfies ConsentPendingInteractionPayload;
+
+  it("names the script rather than a plugin", () => {
+    expect(formatPendingInteractionConsentSummary(payload)).toBe(
+      "Run .patcher-env-setup.sh from this repository",
+    );
+  });
+
+  it("says what running it means, and does not claim an agent asked", () => {
+    // The plugin consents all end on "Asked for by an agent in this thread",
+    // which is the one thing that is not true here: the person answering may be
+    // the one who asked for the worktree.
+    expect(formatPendingInteractionConsentDetailLines(payload)).toEqual([
+      payload.detail,
+      "Runs on the machine, outside any agent sandbox, as you.",
+    ]);
+  });
+});
 
 describe("pending interaction formatting", () => {
   it("summarizes requested permissions consistently", () => {

@@ -25,7 +25,12 @@ import {
   withCheckoutMutationAdmission,
   withCheckoutMutationLock,
 } from "./checkout-mutation-lock.js";
-import { createWorktree, removeWorktree } from "./provisioning.js";
+import {
+  createWorktree,
+  removeWorktree,
+  type EnvSetupScriptApproval,
+  type EnvSetupScriptApprovalRequest,
+} from "./provisioning.js";
 import {
   detectGitRepo,
   getAbsoluteGitDir,
@@ -98,6 +103,15 @@ export interface ManagedWorkspaceBaseOpts extends ProvisionBase {
   timeoutMs: number;
   /** Resolved user-shell PATH for the setup script. */
   setupPath?: string;
+  /**
+   * Asked before the repository's own setup script runs on the host.
+   *
+   * See `RunSetupScriptArgs.requestApproval`. Required so that a caller with
+   * nobody to ask has to say so, rather than inherit a silent yes.
+   */
+  requestSetupScriptApproval: (
+    request: EnvSetupScriptApprovalRequest,
+  ) => Promise<EnvSetupScriptApproval>;
 }
 
 export interface ManagedWorktreeOpts extends ManagedWorkspaceBaseOpts {
@@ -728,6 +742,7 @@ async function provisionWorktree(
     baseBranch: opts.baseBranch,
     timeoutMs: opts.timeoutMs,
     setupPath: opts.setupPath,
+    requestSetupScriptApproval: opts.requestSetupScriptApproval,
     onProgress: opts.onProgress,
     pruneEmptyParent: true,
     signal: opts.signal,

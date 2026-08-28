@@ -342,6 +342,11 @@ export const pendingInteractionConsentActionValues = [
   "update",
   "remove",
   "configure",
+  // Not a plugin action, and not necessarily one an agent asked for: the
+  // repository's own `.patcher-env-setup.sh`, which the daemon runs on the host
+  // outside any sandbox. Asked once per repository per script content, so a
+  // script an agent committed cannot run on the strength of an older approval.
+  "run-setup-script",
 ] as const;
 export const pendingInteractionConsentActionSchema = z.enum(
   pendingInteractionConsentActionValues,
@@ -351,12 +356,18 @@ export type PendingInteractionConsentAction = z.infer<
 >;
 
 /**
- * A plugin change an agent asked for, waiting for the user to allow it.
+ * Something waiting for the user to allow it, on a thread.
  *
- * Raised by the server rather than by a provider or a plugin: the CLI declares
- * the thread it runs in, and a declared thread is what turns a plugin mutation
- * into a question. `subjectId` is the plugin for every action but `install`,
- * where it is the source being installed and no plugin exists yet.
+ * Mostly a plugin change an agent asked for, raised by the server rather than
+ * by a provider or a plugin: the CLI declares the thread it runs in, and a
+ * declared thread is what turns a plugin mutation into a question. `subjectId`
+ * is the plugin for every action but `install`, where it is the source being
+ * installed and no plugin exists yet.
+ *
+ * The exception is `run-setup-script`, which the daemon asks for while it
+ * provisions: there `subjectId` is the script's content hash and `subjectName`
+ * its file name, and the person answering may well be the one who asked for the
+ * worktree — the question is about the script's content, not about who typed.
  *
  * The permissions ride the payload rather than being looked up by whatever
  * renders it, because they are the reason to ask at all: whether this should be

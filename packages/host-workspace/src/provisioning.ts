@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
@@ -56,16 +57,47 @@ export interface CreateWorkspaceArgs {
   timeoutMs: number;
   /** Resolved user-shell PATH for the setup script. */
   setupPath?: string;
+  /** See `RunSetupScriptArgs.requestApproval`; required for the same reason. */
+  requestSetupScriptApproval: (
+    request: EnvSetupScriptApprovalRequest,
+  ) => Promise<EnvSetupScriptApproval>;
   onProgress?: ProgressCallback;
   pruneEmptyParent?: boolean;
   signal?: AbortSignal;
 }
+
+export interface EnvSetupScriptApprovalRequest {
+  scriptPath: string;
+  scriptSha256: string;
+  scriptByteLength: number;
+  /**
+   * Aborts with the provisioning it belongs to. Forwarded so that cancelling a
+   * provision takes the question off the user's screen, instead of leaving a
+   * prompt standing for whatever the far end's timeout happens to be.
+   */
+  signal?: AbortSignal;
+}
+
+export type EnvSetupScriptApproval =
+  | { approved: true }
+  | { approved: false; reason: string };
 
 export interface RunSetupScriptArgs {
   workspacePath: string;
   timeoutMs: number;
   /** Resolved user-shell PATH. Falls back to the daemon process PATH. */
   setupPath?: string;
+  /**
+   * Asked before the script runs, every time there is one.
+   *
+   * Required rather than optional on purpose: this script runs on the host,
+   * outside any sandbox, as the user, and it is a tracked file in a repository
+   * an agent can write to. A caller that has nobody to ask says so by returning
+   * a refusal, so that forgetting to wire the question cannot read as consent.
+   */
+  requestApproval: (
+    request: EnvSetupScriptApprovalRequest,
+  ) => Promise<EnvSetupScriptApproval>;
   onProgress?: ProgressCallback;
   signal?: AbortSignal;
 }
@@ -408,6 +440,7 @@ export async function createWorktree(
       workspacePath: args.targetPath,
       timeoutMs: args.timeoutMs,
       setupPath: args.setupPath,
+      requestApproval: args.requestSetupScriptApproval,
       onProgress: args.onProgress,
       signal: args.signal,
     });
@@ -525,6 +558,28 @@ export async function runSetupScript(
   throwIfProvisionAborted(args.signal);
   const scriptPath = await resolveSetupScriptPath(args.workspacePath);
   if (!scriptPath) {
+    return { ran: false };
+  }
+
+  throwIfProvisionAborted(args.signal);
+  const scriptBytes = await fs.readFile(scriptPath);
+  const approval = await args.requestApproval({
+    scriptPath,
+    scriptSha256: createHash("sha256").update(scriptBytes).digest("hex"),
+    scriptByteLength: scriptBytes.byteLength,
+    ...(args.signal ? { signal: args.signal } : {}),
+  });
+  if (!approval.approved) {
+    // Not a provisioning failure: the worktree is what the user asked for, and
+    // only the script is in question. Reported rather than thrown so the
+    // environment opens and the transcript says what did not run and why.
+    emitStep({
+      onProgress: args.onProgress,
+      key: "setup-not-approved",
+      text: `Skipped ${DEFAULT_ENV_SETUP_SCRIPT_NAME}: ${approval.reason}`,
+      status: "completed",
+      startedAt: Date.now(),
+    });
     return { ran: false };
   }
 

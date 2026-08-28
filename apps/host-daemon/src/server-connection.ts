@@ -57,7 +57,8 @@ export type ServerSessionInvalidationSource =
   | "fetchSkillTree"
   | "interruptInteractiveRequests"
   | "postEvents"
-  | "registerInteractiveRequest";
+  | "registerInteractiveRequest"
+  | "requestEnvSetupScriptConsent";
 
 export interface HandleServerSessionInvalidatedArgs {
   code: "inactive_session";

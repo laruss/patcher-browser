@@ -86,6 +86,7 @@ function createServerClientFixture(args: CreateServerClientFixtureArgs = {}) {
     callTool: unused,
     registerInteractiveRequest: unused,
     interruptInteractiveRequests: unused,
+    requestEnvSetupScriptConsent: unused,
   } satisfies ServerClient;
 
   return {

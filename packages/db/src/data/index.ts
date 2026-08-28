@@ -1,4 +1,8 @@
 export {
+  hasEnvSetupScriptApproval,
+  recordEnvSetupScriptApproval,
+} from "./env-setup-script-approvals.js";
+export {
   createProject,
   ensurePersonalProject,
   findOrCreateProjectByLocalPathSource,
