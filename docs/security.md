@@ -163,14 +163,20 @@ Named here rather than left to be rediscovered:
   `workspace: { type: "unmanaged", path }` decides where the next turn's
   workspace — and so its sandbox — points. A managed worktree also runs the
   repository's own `.patcher-env-setup.sh`, outside any sandbox.
-- **A machine enrolled before this release.** The sandbox ceiling is written when
-  a machine is enrolled; there is no migration, so an existing install's
-  machines stay at `full` until their owner lowers the limit.
+- ~~**A machine enrolled before this release.**~~ Closed: migration `0095`
+  lowers every machine still at `full` to the sandbox ceiling, so the default
+  reaches installs that already exist. A machine whose owner wanted Full Access
+  says so on its next turn, with a message naming the limit and whose it is to
+  change — the reversible direction, since the other one leaves the sandbox off
+  in silence.
 - **Plugin code.** `plugins/:id/cli` and `plugins/:id/rpc/:method` execute
   plugin code with no consent prompt, unlike the install/enable/settings routes
   beside them.
-- **The daemon's own loopback API.** It has no credential check at all, and a
-  turn is handed its port.
+- ~~**The daemon's own loopback API.**~~ Closed: it takes the app key like every
+  other local surface, so the turn that is handed its port can no longer reach
+  `POST /open-in-target` and the `execFile` behind it. The health path stays open,
+  because a launcher asks whether the process is alive before anything holds a
+  key.
 - **`.git` is inside the agent's writable roots.** Patcher's git runs with a
   hardened config (see `GIT_HARDENED_CONFIG`), but `filter.<driver>.smudge` is
   looked up by a name a tracked `.gitattributes` chooses, so no fixed list can
