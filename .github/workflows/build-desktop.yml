@@ -302,7 +302,24 @@ jobs:
             SIGNING_NOTE="signed with a Developer ID and notarized"
           fi
 
-          cat > release-notes.md <<NOTES
+          # The release page should say what is in the build, and CHANGELOG.md
+          # is where that is already written. A version with no entry still
+          # publishes: the install instructions below stand on their own.
+          CHANGELOG_ENTRY=""
+          if CHANGELOG_ENTRY="$(node scripts/changelog-release-notes.mjs "$VERSION")" && [[ -n "$CHANGELOG_ENTRY" ]]; then
+            echo "Release notes lead with the CHANGELOG entry for ${VERSION}."
+          else
+            CHANGELOG_ENTRY=""
+            echo "::warning::CHANGELOG.md carries no entry for ${VERSION}; the release notes are the install instructions alone."
+          fi
+
+          : > release-notes.md
+
+          if [[ -n "$CHANGELOG_ENTRY" ]]; then
+            printf '%s\n\n' "$CHANGELOG_ENTRY" >> release-notes.md
+          fi
+
+          cat >> release-notes.md <<NOTES
           Patcher desktop ${VERSION} — alpha. macOS on Apple Silicon only.
 
           Download the \`.dmg\`, open it, and drag Patcher to Applications.
