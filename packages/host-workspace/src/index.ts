@@ -5,6 +5,10 @@ export {
   validatePersonalWorkspaceTargetPath,
 } from "./provision.js";
 export type {
+  EnvSetupScriptApproval,
+  EnvSetupScriptApprovalRequest,
+} from "./provisioning.js";
+export type {
   HostWorkspace,
   PersonalWorkspaceOpts,
   ProvisionWorkspaceArgs,

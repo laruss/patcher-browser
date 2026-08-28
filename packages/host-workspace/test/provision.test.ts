@@ -11,6 +11,9 @@ import { provisionWorkspace } from "../src/index.js";
 import { runGit } from "../src/git.js";
 import { withCheckoutMutationLock } from "../src/checkout-mutation-lock.js";
 
+/** Provisioning asks before it runs a setup script; these tests say yes. */
+const approveSetupScript = async () => ({ approved: true }) as const;
+
 const tempDirs: string[] = [];
 
 type Deferred = {
@@ -476,6 +479,7 @@ describe("provisionWorkspace", () => {
       const targetPath = path.join(parentDir, "env");
 
       const ws = await provisionWorkspace({
+        requestSetupScriptApproval: approveSetupScript,
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
@@ -497,6 +501,7 @@ describe("provisionWorkspace", () => {
       const targetPath = path.join(parentDir, "env");
 
       const ws = await provisionWorkspace({
+        requestSetupScriptApproval: approveSetupScript,
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
@@ -529,6 +534,7 @@ describe("provisionWorkspace", () => {
       const targetPath = path.join(envDir, "patcher");
 
       const ws = await provisionWorkspace({
+        requestSetupScriptApproval: approveSetupScript,
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
@@ -556,6 +562,7 @@ describe("provisionWorkspace", () => {
       const targetPath = path.join(parentDir, "env");
 
       const ws = await provisionWorkspace({
+        requestSetupScriptApproval: approveSetupScript,
         workspaceProvisionType: "managed-worktree",
         sourcePath: repoPath,
         targetPath,
@@ -581,6 +588,7 @@ describe("provisionWorkspace", () => {
 
       await expect(
         provisionWorkspace({
+          requestSetupScriptApproval: approveSetupScript,
           workspaceProvisionType: "managed-worktree",
           sourcePath: repoPath,
           targetPath,

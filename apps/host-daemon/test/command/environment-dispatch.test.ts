@@ -5,6 +5,7 @@ import {
   type HostWorkspace,
 } from "@patcher/host-workspace";
 import { dispatchCommand } from "../../src/command-dispatch.js";
+import { toProvisionWorkspaceOptions } from "../../src/command-handlers/environment.js";
 import type { EventSinkInput } from "../../src/event-sink.js";
 import {
   TerminalManager,
@@ -247,10 +248,69 @@ describe("environment command dispatch", () => {
         branchName: "patcher/test",
         baseBranch: "main",
         timeoutMs: 900000,
+        requestSetupScriptApproval: expect.any(Function),
         onProgress: expect.any(Function),
         signal: expect.any(AbortSignal),
       },
     ]);
+
+    // This harness wires no consent dependency, which is a daemon with no
+    // server to ask through. The answer has to be no: the script runs on the
+    // host outside every sandbox, so the direction that needs no answer is the
+    // one that does not run it. The same goes for a question that throws on the
+    // way out — see the refusal built around the call in `environment.ts`.
+    const [provision] = harness.provisions;
+    expect(
+      provision !== undefined &&
+        provision.workspaceProvisionType === "managed-worktree"
+        ? await provision.requestSetupScriptApproval({
+            scriptPath: "/tmp/worktree/.patcher-env-setup.sh",
+            scriptSha256: "0".repeat(64),
+            scriptByteLength: 12,
+          })
+        : undefined,
+    ).toEqual({
+      approved: false,
+      reason: "this machine is not connected to a server that could ask you",
+    });
+  });
+
+  it("treats a question it could not deliver as a refusal", async () => {
+    const dataDir = await makeTempDir("patcher-dispatch-consent-throw-");
+    const options = toProvisionWorkspaceOptions(
+      {
+        type: "environment.provision",
+        environmentId: "env_throwing_consent",
+        initiator: { threadId: "thr_1", provisioningId: "prov_1" },
+        workspaceProvisionType: "managed-worktree",
+        sourcePath: "/tmp/source",
+        targetPath: "/tmp/worktree",
+        branchName: "patcher/test",
+        baseBranch: "main",
+        setupTimeoutMs: 900000,
+      },
+      {
+        dataDir,
+        requestEnvSetupScriptConsent: async () => {
+          throw new Error("session is not open");
+        },
+      },
+    );
+
+    expect(options.workspaceProvisionType).toBe("managed-worktree");
+    if (options.workspaceProvisionType !== "managed-worktree") return;
+    // A throw would otherwise fail provisioning and remove the new worktree,
+    // over a question that never reached anyone.
+    await expect(
+      options.requestSetupScriptApproval({
+        scriptPath: "/tmp/worktree/.patcher-env-setup.sh",
+        scriptSha256: "0".repeat(64),
+        scriptByteLength: 12,
+      }),
+    ).resolves.toEqual({
+      approved: false,
+      reason: "asking you failed (session is not open)",
+    });
   });
 
   it("covers environment.provision in personal mode", async () => {

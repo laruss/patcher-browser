@@ -43,6 +43,7 @@ import { setPluginAgentContributions } from "./services/plugins/plugin-agent-con
 import { setPluginThreadEventEmitter } from "./services/plugins/plugin-thread-events.js";
 import { registerInternalEventRoutes } from "./internal/events.js";
 import { registerInternalHostRoutes } from "./internal/hosts.js";
+import { registerInternalEnvSetupScriptConsentRoute } from "./internal/env-setup-script-consent.js";
 import { registerInternalInteractiveRequestRoutes } from "./internal/interactive-requests.js";
 import { registerInternalSessionRoutes } from "./internal/session.js";
 import { registerInternalSkillRoutes } from "./internal/skills.js";
@@ -544,6 +545,7 @@ export function createApp(
   registerInternalEventRoutes(internalApi, deps);
   registerInternalToolCallRoutes(internalApi, deps);
   registerInternalInteractiveRequestRoutes(internalApi, deps);
+  registerInternalEnvSetupScriptConsentRoute(internalApi, deps);
   app.route("/internal", internalApi);
 
   app.get(

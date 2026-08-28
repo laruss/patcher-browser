@@ -9,6 +9,7 @@ import type { EventSinkInput } from "./event-sink.js";
 import type {
   HostDaemonCommand,
   HostDaemonAcpLaunchSpec,
+  HostDaemonEnvSetupScriptConsentResponse,
   HostDaemonInjectedSkillSource,
   HostDaemonOnlineRpcCommand,
   ProviderCliInstallRequest,
@@ -64,6 +65,22 @@ export interface CommandDispatchOptions {
   resolveInteractiveRequest?: (
     request: InteractiveResolveCommandInput,
   ) => Promise<void>;
+  /**
+   * Asks the server whether this machine may run a repository's own
+   * `.patcher-env-setup.sh`, and waits for the answer.
+   *
+   * Optional because a daemon standing up without a server connection has
+   * nobody to ask. Absent means refused, never allowed: the script runs on the
+   * host outside every sandbox, so the direction that needs no answer is "no".
+   */
+  requestEnvSetupScriptConsent?: (args: {
+    environmentId: string;
+    threadId: string;
+    scriptPath: string;
+    scriptSha256: string;
+    scriptByteLength: number;
+    signal?: AbortSignal;
+  }) => Promise<HostDaemonEnvSetupScriptConsentResponse>;
   caffeinateManager?: CaffeinateManager;
   threadStorageRootPath: string;
 }

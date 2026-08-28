@@ -23,6 +23,9 @@ import {
   SkillCatalogConflictError,
 } from "./runtime-manager.js";
 
+/** Provisioning asks before running a setup script; these tests say yes. */
+const approveSetupScript = async () => ({ approved: true }) as const;
+
 type GetCurrentBranchArgs = Parameters<HostWorkspace["getCurrentBranch"]>;
 type GetStatusResult = Awaited<ReturnType<HostWorkspace["getStatus"]>>;
 type GetDiffResult = Awaited<ReturnType<HostWorkspace["getDiff"]>>;
@@ -1088,6 +1091,7 @@ describe("RuntimeManager", () => {
       environmentId: "env-roots",
       provision: {
         workspaceProvisionType: "managed-worktree",
+        requestSetupScriptApproval: approveSetupScript,
         sourcePath: repoPath,
         targetPath,
         branchName: "patcher/env-roots",
@@ -1205,6 +1209,7 @@ describe("RuntimeManager", () => {
       environmentId: "env-wt-deny",
       provision: {
         workspaceProvisionType: "managed-worktree",
+        requestSetupScriptApproval: approveSetupScript,
         sourcePath: repoPath,
         targetPath,
         branchName: "patcher/env-wt-deny",
@@ -1300,6 +1305,7 @@ describe("RuntimeManager", () => {
       environmentId: "env-1",
       provision: {
         workspaceProvisionType: "managed-worktree",
+        requestSetupScriptApproval: approveSetupScript,
         sourcePath: "/tmp/source",
         targetPath: "/tmp/env-1",
         branchName: "patcher/env-1",

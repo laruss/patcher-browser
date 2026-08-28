@@ -165,6 +165,24 @@ permitted", the Write tool raises a permission request instead, so on a turn
 whose escalation is _ask_ the person in the thread decides; a turn whose
 escalation is denied is refused outright.
 
+**And the repository's own setup script asks before it runs.** A managed
+worktree runs `.patcher-env-setup.sh` from the repository it was created from —
+`env bash`, on the host, outside every sandbox, as you. The script is a tracked
+file, so it is something an agent can commit, and the thing that runs it is not
+the agent's turn but Patcher's own provisioning. Narrowing who may ask for a
+worktree would not close it either: the person who creates one by hand after an
+agent's commit runs the same script.
+
+So the question is asked about the script's content. The daemon hashes the
+script it has actually checked out and holds its request open while the person
+in the thread answers; an allow is remembered against the project and that
+hash, so later worktrees from the same repository ask nothing until the script
+changes. Every outcome that is not an allow — a decline, four minutes of
+silence, a thread that cannot show a prompt, a machine with no server to ask
+through — leaves the script unrun and says which it was in the provisioning
+transcript. Provisioning itself still succeeds: the worktree is what was asked
+for, and only the script was in question.
+
 Two edges remain, and they are edges rather than the default:
 
 - **Codex.** Its sandbox leaves reads open with nothing to say otherwise, so a
@@ -190,7 +208,8 @@ Named here rather than left to be rediscovered:
   create/send/fork is bounded only by the machine ceiling, and
   `workspace: { type: "unmanaged", path }` decides where the next turn's
   workspace — and so its sandbox — points. A managed worktree also runs the
-  repository's own `.patcher-env-setup.sh`, outside any sandbox.
+  repository's own `.patcher-env-setup.sh` outside any sandbox, though that now
+  asks first — see below.
 - ~~**A machine enrolled before this release.**~~ Closed: migration `0095`
   lowers every machine still at `full` to the sandbox ceiling, so the default
   reaches installs that already exist. A machine whose owner wanted Full Access

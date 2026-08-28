@@ -21,6 +21,14 @@ Making your repo work with patcher:
   files, so an untracked .patcher-env-setup.sh in your source checkout will not be
   present and will not run.
 
+  The first worktree that would run a given version of the script asks you first:
+  the hook runs on the machine, outside any agent sandbox, as you, and the script
+  is a tracked file an agent can commit to. Allowing it is remembered for that
+  repository and that exact script content, so later worktrees ask nothing until
+  the script changes. If the prompt is declined or nobody answers it, provisioning
+  finishes without running the hook and says so in its transcript rather than
+  failing.
+
   Patcher runs the hook as `env bash .patcher-env-setup.sh` with cwd set to the new
   workspace. POSIX shell setup scripts are not supported on Windows. The hook
   inherits the host daemon's sanitized environment: NODE_ENV and every PATCHER_*

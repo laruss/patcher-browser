@@ -1,12 +1,15 @@
 import pRetry, { AbortError } from "p-retry";
 import {
   HOST_DAEMON_PROTOCOL_VERSION,
+  hostDaemonEnvSetupScriptConsentResponseSchema,
   hostDaemonEventBatchResponseSchema,
   hostDaemonInteractiveInterruptResponseSchema,
   hostDaemonInteractiveRequestResponseSchema,
   hostDaemonSessionOpenResponseSchema,
   hostDaemonSkillTreeSchema,
   hostDaemonToolCallResponseSchema,
+  type HostDaemonEnvSetupScriptConsentRequest,
+  type HostDaemonEnvSetupScriptConsentResponse,
   type HostDaemonInteractiveInterruptResponse,
   type HostDaemonInteractiveRequestResponse,
   type HostDaemonActiveThread,
@@ -194,6 +197,14 @@ export interface ServerClient {
     reason: string;
     threadIds: readonly string[];
   }): Promise<HostDaemonInteractiveInterruptResponse>;
+  requestEnvSetupScriptConsent(args: {
+    environmentId: string;
+    threadId: string;
+    scriptPath: string;
+    scriptSha256: string;
+    scriptByteLength: number;
+    signal?: AbortSignal;
+  }): Promise<HostDaemonEnvSetupScriptConsentResponse>;
 }
 
 const INTERACTIVE_REQUEST_REGISTRATION_RETRIES = 5;
@@ -528,6 +539,51 @@ export function createServerClient(
             );
           },
         },
+      );
+    },
+
+    /**
+     * Asks whether this machine may run a repository's setup script, and holds
+     * the request open while a person decides.
+     *
+     * Deliberately not retried: a retry would put the same question a second
+     * time, and a question asked twice is a question that can be answered
+     * differently by accident. A transport failure is a refusal — the caller
+     * turns it into a skipped script and a line in the transcript.
+     */
+    async requestEnvSetupScriptConsent(
+      args,
+    ): Promise<HostDaemonEnvSetupScriptConsentResponse> {
+      const payload: HostDaemonEnvSetupScriptConsentRequest = {
+        sessionId: requireSessionId(),
+        environmentId: args.environmentId,
+        threadId: args.threadId,
+        scriptPath: args.scriptPath,
+        scriptSha256: args.scriptSha256,
+        scriptByteLength: args.scriptByteLength,
+      };
+      const response = await fetchFn(
+        buildInternalUrl("/session/env-setup-script-consent"),
+        {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(payload),
+          // Cancelling the provision cancels the question with it; the server
+          // sees the abort and takes the prompt down rather than holding the
+          // thread's one interaction slot until it times out.
+          ...(args.signal ? { signal: args.signal } : {}),
+        },
+      );
+
+      if (!response.ok) {
+        throw await createResponseError(
+          "ask whether the setup script may run",
+          response,
+        );
+      }
+
+      return hostDaemonEnvSetupScriptConsentResponseSchema.parse(
+        await response.json(),
       );
     },
 

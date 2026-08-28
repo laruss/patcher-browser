@@ -1075,7 +1075,7 @@ describe("host-daemon command schemas", () => {
   // to say it — enrolled machines must update rather than connect and quietly
   // break.
   it("uses protocol version 109 after renaming the daemon subprotocol", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(109);
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(110);
   });
 
   // The subprotocol is agreed between two processes by string, so no build

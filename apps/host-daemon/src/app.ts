@@ -729,6 +729,11 @@ export async function createHostDaemonApp(
     resolveInteractiveRequest: async (request) => {
       interactiveRequestRegistry.resolve(request);
     },
+    requestEnvSetupScriptConsent: (args) =>
+      runSessionRequest({
+        source: "requestEnvSetupScriptConsent",
+        request: () => serverClient.requestEnvSetupScriptConsent(args),
+      }),
     caffeinateManager,
     threadStorageRootPath,
     logger: options.logger,

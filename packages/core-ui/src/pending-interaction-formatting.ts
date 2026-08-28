@@ -36,6 +36,8 @@ export function formatPendingInteractionConsentSummary(
       return `Remove the ${payload.subjectName} plugin`;
     case "configure":
       return `Change the ${payload.subjectName} plugin's settings`;
+    case "run-setup-script":
+      return `Run ${payload.subjectName} from this repository`;
     default:
       return assertNever(payload.action);
   }
@@ -49,6 +51,15 @@ export function formatPendingInteractionConsentDetailLines(
   // takes away, so the same "Permissions:" label would read as a grant request
   // for the two actions that grant nothing.
   const revokes = payload.action === "disable" || payload.action === "remove";
+  // The setup script is the one consent here that is not about a plugin and not
+  // necessarily about an agent's request, so it says what running it means and
+  // does not claim anybody asked.
+  if (payload.action === "run-setup-script") {
+    return [
+      ...(payload.detail === null ? [] : [payload.detail]),
+      "Runs on the machine, outside any agent sandbox, as you.",
+    ];
+  }
   return [
     ...(payload.permissions.length > 0
       ? [
