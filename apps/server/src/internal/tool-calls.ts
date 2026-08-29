@@ -17,34 +17,7 @@ import {
   UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME,
 } from "../services/threads/thread-environment-directory.js";
 import { requireAuthenticatedDaemonSession } from "./session-state.js";
-
-const textEncoder = new TextEncoder();
-
-/**
- * Return the response head before a plugin tool finishes. Interactive plugin
- * tools can wait for user input for minutes, while Patcher Connect requires an
- * origin response head within 30 seconds. The response body can stay open.
- */
-function streamToolCallResponse(result: Promise<ToolCallResponse>): Response {
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      void result.then(
-        (response) => {
-          try {
-            controller.enqueue(textEncoder.encode(JSON.stringify(response)));
-            controller.close();
-          } catch (error) {
-            controller.error(error);
-          }
-        },
-        (error) => controller.error(error),
-      );
-    },
-  });
-  return new Response(body, {
-    headers: { "content-type": "application/json; charset=UTF-8" },
-  });
-}
+import { streamJsonResponse } from "./stream-json-response.js";
 
 export function registerInternalToolCallRoutes(app: Hono, deps: AppDeps): void {
   const { post } = typedRoutes<HostDaemonInternalSchema>(app, {
@@ -89,7 +62,7 @@ export function registerInternalToolCallRoutes(app: Hono, deps: AppDeps): void {
 
       const pluginTool = findPluginAgentTool(payload.tool);
       if (pluginTool) {
-        return streamToolCallResponse(
+        return streamJsonResponse<ToolCallResponse>(
           invokePluginAgentTool(pluginTool, {
             input: payload.arguments,
             ctx: {

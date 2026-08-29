@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import {
   DEFAULT_ENV_SETUP_SCRIPT_NAME,
@@ -242,12 +243,22 @@ type SetupScriptIdentity =
 /**
  * What the user is asked about: the sha256 of the bytes at the script's path.
  *
- * `stat` rather than `lstat`, because `env bash` follows the same symlink this
- * hash has to describe — but a path that resolves to anything other than a
- * regular file is refused instead of read. A tracked `.patcher-env-setup.sh`
- * symlinked to `/dev/zero` would otherwise be read until the daemon is
- * OOM-killed, and one pointing at a FIFO would block a libuv thread with no
- * deadline over it, both before anybody has been asked anything.
+ * One descriptor for the whole thing, and every check made against it rather
+ * than against the path. Following the path twice — `stat` and then a separate
+ * read — would put both guards on a different open than the read they guard: a
+ * `.patcher-env-setup.sh` swapped for a symlink to a FIFO between the two calls
+ * blocks a libuv thread with no deadline, and one swapped for a file that grew
+ * is read past the ceiling, both being the things this function exists to
+ * prevent. The worktree is writable by the turn, so that swap is a move
+ * somebody can make.
+ *
+ * `O_NONBLOCK` because opening the path is itself the blocking step on a FIFO,
+ * and the fd has to exist before `fstat` can say what it is. It changes nothing
+ * for the regular file this is normally about.
+ *
+ * The link is followed, not inspected, because `env bash` follows the same one
+ * this hash has to describe — but anything that resolves to other than a
+ * regular file is refused rather than read.
  *
  * A read that fails is a script that cannot be asked about, not a failed
  * provision: the worktree is still what the user wanted.
@@ -255,8 +266,13 @@ type SetupScriptIdentity =
 async function readSetupScriptIdentity(
   scriptPath: string,
 ): Promise<SetupScriptIdentity> {
+  let handle: FileHandle | undefined;
   try {
-    const stats = await fs.stat(scriptPath);
+    handle = await fs.open(
+      scriptPath,
+      fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0),
+    );
+    const stats = await handle.stat();
     if (!stats.isFile()) {
       return { hashed: false, reason: "it is not a regular file" };
     }
@@ -266,11 +282,29 @@ async function readSetupScriptIdentity(
         reason: `it is larger than ${SETUP_SCRIPT_MAX_BYTES} bytes`,
       };
     }
-    const bytes = await fs.readFile(scriptPath);
+    // One byte of headroom past what `fstat` promised, so a file that grows
+    // under this read is caught rather than hashed as the prefix of itself.
+    const buffer = Buffer.alloc(stats.size + 1);
+    let byteLength = 0;
+    for (;;) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        byteLength,
+        buffer.byteLength - byteLength,
+        byteLength,
+      );
+      if (bytesRead === 0) break;
+      byteLength += bytesRead;
+      if (byteLength > stats.size) {
+        return { hashed: false, reason: "it changed while it was being read" };
+      }
+    }
     return {
       hashed: true,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-      byteLength: bytes.byteLength,
+      sha256: createHash("sha256")
+        .update(buffer.subarray(0, byteLength))
+        .digest("hex"),
+      byteLength,
     };
   } catch (error) {
     return {
@@ -279,6 +313,8 @@ async function readSetupScriptIdentity(
         error instanceof Error ? error.message : String(error)
       })`,
     };
+  } finally {
+    await handle?.close().catch(() => {});
   }
 }
 
@@ -665,7 +701,12 @@ export async function runSetupScript(
   // for minutes over a worktree this machine can write. A script that changed
   // under the answer is a script nobody has allowed.
   const identityAtRun = await readSetupScriptIdentity(scriptPath);
-  if (!identityAtRun.hashed || identityAtRun.sha256 !== identity.sha256) {
+  if (!identityAtRun.hashed) {
+    // Not "it changed": a read that failed for its own reason says that reason,
+    // rather than reporting an unrelated fault to the user as tampering.
+    return skipSetupScript(identityAtRun.reason);
+  }
+  if (identityAtRun.sha256 !== identity.sha256) {
     return skipSetupScript("it changed after you allowed it");
   }
 

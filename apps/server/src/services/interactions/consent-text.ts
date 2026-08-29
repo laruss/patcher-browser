@@ -18,10 +18,12 @@
  * prompt at once.
  *
  * The setup-script route sends its response head before the answer and streams
- * the answer in the body, so undici's ceiling does not bind there — the four
- * minutes are about people, not the socket. It keeps the same figure anyway: a
- * prompt nobody is looking at should not hold a provisioning lane open longer
- * than the one an agent is sitting on.
+ * the answer in the body. That buys it past a hop wanting an origin head early,
+ * but not past undici: `bodyTimeout` is 300 s too, and it kills a body that has
+ * produced no bytes for that long. So four minutes is the ceiling on both
+ * routes, with the same one minute of slack, and raising this figure past 300 s
+ * needs a dispatcher on the daemon's side of that call before it needs anything
+ * else.
  */
 export const CONSENT_INTERACTION_TIMEOUT_MS = 4 * 60 * 1000;
 

@@ -600,34 +600,65 @@ async function resolveInteraction(args: ResolveInteractionArgs): Promise<void> {
     interactionId: args.interactionId,
     threadId: args.threadId,
   });
+  const sdk = createCliPatcherSdk(args.getUrl());
+  const failed = (error: unknown): never => {
+    throw prependErrorContext(
+      `Failed to ${args.failureAction} interaction ${args.interactionId}`,
+      error,
+    );
+  };
+
+  // A consent is answered rather than resolved: a different route with a
+  // different payload, on an interaction `buildResolution` would refuse.
+  //
+  // The reason a terminal can answer one at all: a managed worktree asks before
+  // it runs the repository's `.patcher-env-setup.sh`, and that question is put
+  // wherever the provision happens — including machines nobody has the app open
+  // to. Without a terminal answer the prompt stands until it times out and the
+  // script is skipped, every provision, which is a documented feature quietly
+  // not working.
   if (
     isConsentPendingInteraction(interaction) &&
     args.consentApproved !== undefined
   ) {
-    await answerConsentInteraction({
-      approved: args.consentApproved,
-      failureAction: args.failureAction,
-      getUrl: args.getUrl,
-      interactionId: args.interactionId,
-      json: args.json,
-      threadId: args.threadId,
-    });
+    const approved = args.consentApproved;
+    const updated = await sdk.threads.interactions
+      .respond({
+        interactionId: args.interactionId,
+        threadId: args.threadId,
+        value: { approved },
+      })
+      .catch(failed);
+
+    if (args.json) {
+      outputJson({ json: args.json }, updated);
+      return;
+    }
+
+    // What was allowed, not just that something was. These commands answer
+    // every consent, and a plugin's is a permission grant — printing only
+    // "allowed" would hand one over having shown nothing about it.
+    console.log(
+      `Interaction ${args.interactionId} ${approved ? "allowed" : "declined"}: ${formatPendingInteractionSummary(
+        { interaction, surface: "cli" },
+      )}`,
+    );
+    for (const line of formatPendingInteractionSubjectDetailLines(
+      interaction,
+    )) {
+      console.log(`  ${line}`);
+    }
     return;
   }
+
   const resolution = args.buildResolution(interaction);
-  const sdk = createCliPatcherSdk(args.getUrl());
   const updated = await sdk.threads.interactions
     .resolve({
       interactionId: args.interactionId,
       resolution,
       threadId: args.threadId,
     })
-    .catch((error: unknown) => {
-      throw prependErrorContext(
-        `Failed to ${args.failureAction} interaction ${args.interactionId}`,
-        error,
-      );
-    });
+    .catch(failed);
 
   if (args.json) {
     outputJson({ json: args.json }, updated);
@@ -640,51 +671,6 @@ async function resolveInteraction(args: ResolveInteractionArgs): Promise<void> {
       resolution,
       updated,
     }),
-  );
-}
-
-interface AnswerConsentInteractionArgs {
-  approved: boolean;
-  failureAction: string;
-  getUrl: () => string;
-  interactionId: string;
-  json: boolean | undefined;
-  threadId: string;
-}
-
-/**
- * Answers a consent prompt from a terminal.
- *
- * The reason this exists: a managed worktree asks before it runs the
- * repository's `.patcher-env-setup.sh`, and that question is put wherever the
- * provision happens — including machines nobody has the app open to. Without a
- * terminal answer the prompt stands until it times out and the script is
- * skipped, every provision, which is a documented feature quietly not working.
- */
-async function answerConsentInteraction(
-  args: AnswerConsentInteractionArgs,
-): Promise<void> {
-  const sdk = createCliPatcherSdk(args.getUrl());
-  const updated = await sdk.threads.interactions
-    .respond({
-      interactionId: args.interactionId,
-      threadId: args.threadId,
-      value: { approved: args.approved },
-    })
-    .catch((error: unknown) => {
-      throw prependErrorContext(
-        `Failed to ${args.failureAction} interaction ${args.interactionId}`,
-        error,
-      );
-    });
-
-  if (args.json) {
-    outputJson({ json: args.json }, updated);
-    return;
-  }
-
-  console.log(
-    `Interaction ${args.interactionId} ${args.approved ? "allowed" : "declined"}`,
   );
 }
 

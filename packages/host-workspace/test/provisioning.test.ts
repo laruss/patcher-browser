@@ -584,6 +584,62 @@ describe("workspace provisioning", () => {
     );
   });
 
+  it("refuses a setup script too large to hash, measured by the read", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-huge-");
+    const scriptPath = path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME);
+    // The ceiling exists to keep a tracked blob out of the process that runs
+    // every thread, so it has to be enforced against the bytes actually read —
+    // a size taken from a separate `stat` is a size the file can leave behind.
+    await fs.writeFile(scriptPath, "x".repeat(1024 * 1024 + 1), "utf8");
+    const entries: string[] = [];
+    let asked = 0;
+
+    const result = await runSetupScript({
+      requestApproval: async () => {
+        asked += 1;
+        return { approved: true };
+      },
+      workspacePath,
+      timeoutMs: 900000,
+      onProgress: (entry) => entries.push(`${entry.key}:${entry.text}`),
+    });
+
+    expect(result).toEqual({ ran: false });
+    expect(asked).toBe(0);
+    expect(entries).toContain(
+      `setup-not-approved:Skipped ${DEFAULT_ENV_SETUP_SCRIPT_NAME}: it is larger than ${1024 * 1024} bytes`,
+    );
+  });
+
+  it("says why the second read failed rather than calling it tampering", async () => {
+    const workspacePath = await makeTempDir("patcher-setup-vanished-");
+    const scriptPath = path.join(workspacePath, DEFAULT_ENV_SETUP_SCRIPT_NAME);
+    await fs.writeFile(scriptPath, "echo hello\n", "utf8");
+    const entries: string[] = [];
+
+    const result = await runSetupScript({
+      // A script that is gone by the time the answer lands did not change
+      // under the prompt, and telling the user it did would report an
+      // unrelated fault as somebody swapping their script.
+      requestApproval: async () => {
+        await fs.rm(scriptPath);
+        return { approved: true };
+      },
+      workspacePath,
+      timeoutMs: 900000,
+      onProgress: (entry) => entries.push(`${entry.key}:${entry.text}`),
+    });
+
+    expect(result).toEqual({ ran: false });
+    expect(
+      entries.some((entry) =>
+        entry.startsWith(
+          `setup-not-approved:Skipped ${DEFAULT_ENV_SETUP_SCRIPT_NAME}: it could not be read (`,
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("asks about the script by its content, so a changed script asks again", async () => {
     const workspacePath = await makeTempDir("patcher-setup-hash-");
     const body = "echo hello\n";

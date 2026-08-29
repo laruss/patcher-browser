@@ -57,7 +57,7 @@ describe("setup script consent copy", () => {
     expect(formatPendingInteractionConsentDetailLines(payload)).toEqual([
       payload.detail,
       "Runs on the machine, outside any agent sandbox, as you.",
-      "Allowing is remembered for this repository until the script changes.",
+      "Allowing is remembered for this project until the script changes.",
     ]);
   });
 });

@@ -225,6 +225,26 @@ Named here rather than left to be rediscovered:
   says so on its next turn, with a message naming the limit and whose it is to
   change — the reversible direction, since the other one leaves the sandbox off
   in silence.
+- **A plugin can answer a consent prompt.** The self-approval gate on
+  `interactions/:id/respond` is the declared-thread header, which an agent's
+  `patcher` sends and a plugin does not: a plugin authenticates with its own
+  id and key, and `/threads/*` maps to the `threads` permission. So a plugin
+  holding it can allow a prompt raised for somebody else, and the timeline
+  records the user as having allowed it. That was true before the setup-script
+  consent existed — a plugin could allow another plugin's install, which also
+  runs unsandboxed code — but this widens what one click of it buys. Closing it
+  needs the caller's identity at that route rather than the absence of a header.
+- **A remembered setup-script allow is keyed to a project, not a repository.**
+  `project_sources.path` is mutable through a route no policy denies an agent,
+  and nothing invalidates an approval when a source is repointed: a repository
+  with a byte-identical script inherits the allow. The key carries no host
+  either, so a project spanning two machines is allowed on both by one answer,
+  and there is no list, revoke or expiry — only deleting the project forgets it.
+- **Nobody to ask.** A scheduled automation or a delegated child thread
+  provisions a worktree on a thread no one is watching, so the prompt times out
+  and the script is skipped — every run, because a timeout is deliberately not
+  remembered. The answer is allowing ahead of time rather than in the four
+  minutes the prompt stands, which is a surface that does not exist yet.
 - **Plugin code.** `plugins/:id/cli` and `plugins/:id/rpc/:method` execute
   plugin code with no consent prompt, unlike the install/enable/settings routes
   beside them.
