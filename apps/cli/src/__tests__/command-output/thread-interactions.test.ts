@@ -80,8 +80,14 @@ describe("patcher thread interactions command output", () => {
       json: { value: { approved: true } },
     });
     expect(resolve).not.toHaveBeenCalled();
-    expect(collectLogLines(vi.mocked(console.log))).toContain(
-      "Interaction int-consent allowed",
+    // Naming what was allowed, not only that something was: these commands
+    // answer every consent, and a plugin's is a permission grant.
+    const lines = collectLogLines(vi.mocked(console.log));
+    expect(lines).toContain(
+      "Interaction int-consent allowed: Run .patcher-env-setup.sh from this repository",
+    );
+    expect(lines).toContain(
+      "  Runs on the machine, outside any agent sandbox, as you.",
     );
   });
 
@@ -113,7 +119,7 @@ describe("patcher thread interactions command output", () => {
       json: { value: { approved: false } },
     });
     expect(collectLogLines(vi.mocked(console.log))).toContain(
-      "Interaction int-consent-no declined",
+      "Interaction int-consent-no declined: Run .patcher-env-setup.sh from this repository",
     );
   });
 

@@ -49,13 +49,15 @@ export function formatPendingInteractionConsentDetailLines(
   // The setup script is the one consent here that is not about a plugin and not
   // necessarily about an agent's request, so it says what running it means and
   // does not claim anybody asked. It also says that the answer is kept: an
-  // allow is remembered against this repository and this script's content, so
-  // "Allow" is not a one-off and the prompt has to admit it.
+  // allow is remembered against this project and this script's content, so
+  // "Allow" is not a one-off and the prompt has to admit it. Project, not
+  // repository: the row is keyed on the project id, so it covers every source
+  // that project has, on every machine.
   if (payload.action === "run-setup-script") {
     return [
       ...(payload.detail === null ? [] : [payload.detail]),
       "Runs on the machine, outside any agent sandbox, as you.",
-      "Allowing is remembered for this repository until the script changes.",
+      "Allowing is remembered for this project until the script changes.",
     ];
   }
   // On enable, install, update and configure the list is what saying yes hands

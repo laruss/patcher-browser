@@ -4,6 +4,7 @@ import {
   isConsentPendingInteraction,
   type ConsentPendingInteraction,
 } from "@patcher/domain";
+import { recordEnvSetupScriptApproval } from "@patcher/db";
 import { internalAuthHeaders } from "../helpers/commands.js";
 import { readJson } from "../helpers/json.js";
 import {
@@ -255,6 +256,79 @@ describe("setup script consent", () => {
         approved: false,
       });
       await again;
+    });
+  });
+
+  it("takes a sibling provision's allow rather than refusing its own prompt", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project, session, thread } = seedSetupScriptThread(
+        harness,
+        "sibling",
+      );
+
+      const pending = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+
+      // What a fanout looks like from here: several provisions of one
+      // repository ask at once, all of them past the remembered-answer check
+      // before any of them is answered. Somebody allows the one they are
+      // looking at; this one ends without a decision of its own.
+      recordEnvSetupScriptApproval(harness.deps.db, {
+        projectId: project.id,
+        scriptSha256: SHA_A,
+      });
+      harness.deps.pendingInteractions.cancelConsentInteraction({
+        threadId: thread.id,
+        interactionId: interaction.id,
+        reason: "user",
+      });
+
+      // Allowing the script is allowing the script, so the sibling worktree
+      // runs it too rather than skipping it over a prompt nobody answered
+      // twice.
+      await expect(readJson(await pending)).resolves.toEqual({
+        outcome: "approved",
+      });
+    });
+  });
+
+  it("still refuses a decline, whatever a sibling allowed", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project, session, thread } = seedSetupScriptThread(
+        harness,
+        "declined-wins",
+      );
+
+      const pending = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+      recordEnvSetupScriptApproval(harness.deps.db, {
+        projectId: project.id,
+        scriptSha256: SHA_A,
+      });
+      // A decline is a decision, not an absence of one, so it is not something
+      // a remembered answer speaks for.
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId: thread.id,
+        interactionId: interaction.id,
+        approved: false,
+      });
+
+      await expect(readJson(await pending)).resolves.toEqual({
+        outcome: "refused",
+        reason: "you did not allow it",
+      });
     });
   });
 
