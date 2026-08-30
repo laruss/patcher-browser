@@ -200,6 +200,7 @@ describe("user message telemetry", () => {
       });
 
       await sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           input: textInput("telemetry user send"),
@@ -237,6 +238,7 @@ describe("user message telemetry", () => {
       });
 
       await sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           input: textInput("telemetry agent send"),
@@ -265,6 +267,7 @@ describe("idle cold-start activation", () => {
       });
 
       await sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           input: textInput("cold start from idle"),
@@ -351,6 +354,7 @@ describe("idle cold-start activation", () => {
       }
 
       await sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment: targetEnvironment,
         payload: {
           input: textInput("start after switch"),

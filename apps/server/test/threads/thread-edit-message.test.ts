@@ -237,6 +237,7 @@ describe("editThreadMessage", () => {
 
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -287,6 +288,7 @@ describe("editThreadMessage", () => {
 
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -316,6 +318,7 @@ describe("editThreadMessage", () => {
       });
 
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload: {
@@ -353,6 +356,7 @@ describe("editThreadMessage", () => {
 
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -399,6 +403,7 @@ describe("editThreadMessage", () => {
 
         await expect(
           editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
             environment,
             thread,
             payload: {
@@ -467,6 +472,7 @@ describe("editThreadMessage", () => {
         permissionMode: "full" as const,
       };
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload,
@@ -537,6 +543,7 @@ describe("editThreadMessage", () => {
       await reportQueuedCommandSuccess(harness, discard, {});
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload,
@@ -576,11 +583,13 @@ describe("editThreadMessage", () => {
       };
 
       const firstEdit = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload,
       });
       const secondEdit = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload,
@@ -642,6 +651,7 @@ describe("editThreadMessage", () => {
           providerId,
         });
         const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -682,6 +692,7 @@ describe("editThreadMessage", () => {
         firstProviderThreadId: "provider-before-restart",
       });
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload: {
@@ -726,6 +737,7 @@ describe("editThreadMessage", () => {
 
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -755,6 +767,7 @@ describe("editThreadMessage", () => {
       });
 
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload: {
@@ -796,6 +809,7 @@ describe("editThreadMessage", () => {
 
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -812,6 +826,7 @@ describe("editThreadMessage", () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedEditableThread(harness);
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload: {
@@ -886,6 +901,7 @@ describe("editThreadMessage", () => {
         });
       try {
         const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {
@@ -923,6 +939,7 @@ describe("editThreadMessage", () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedEditableThread(harness);
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload: {
@@ -973,6 +990,7 @@ describe("editThreadMessage", () => {
 
         await expect(
           editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
             environment,
             thread,
             payload: {
@@ -993,6 +1011,7 @@ describe("editThreadMessage", () => {
     await withTestHarness(async (harness) => {
       const { environment, thread } = seedEditableThread(harness);
       const editPromise = editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         thread,
         payload: {
@@ -1028,6 +1047,7 @@ describe("editThreadMessage", () => {
 
       await expect(
         editThreadMessage(harness.deps, {
+    requestedByThreadId: null,
           environment,
           thread,
           payload: {

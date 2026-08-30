@@ -70,6 +70,8 @@ type SendThreadMessagePayload = SendMessageRequest & {
 };
 
 export interface SendThreadMessageArgs {
+  /** The turn that asked, or null for a person or the server itself. */
+  requestedByThreadId: string | null;
   beforeAppendInTransaction?: SendThreadMessageTransactionPreflight;
   environment: Environment;
   /**
@@ -467,6 +469,7 @@ export async function sendThreadMessage(
     deps,
     payload,
     {
+      requestedByThreadId: args.requestedByThreadId,
       threadId: thread.id,
     },
     "client/turn/requested",

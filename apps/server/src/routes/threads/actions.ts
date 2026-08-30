@@ -32,6 +32,7 @@ import {
 } from "@patcher/domain";
 import { supportsManualCompaction } from "@patcher/agent-providers";
 import type { AppDeps } from "../../types.js";
+import { getAgentThreadId } from "../../agent-thread-scope.js";
 import { ApiError } from "../../errors.js";
 import { toThreadQueuedMessage } from "../../services/threads/thread-queued-messages.js";
 import {
@@ -132,6 +133,8 @@ function toQueuedMessageOrderResponse(
 async function compactThreadContext(
   deps: AppDeps,
   thread: Thread,
+  /** The turn that asked, or null for a person. */
+  requestedByThreadId: string | null,
 ): Promise<void> {
   ensureThreadIsWritable(thread);
   if (!supportsManualCompaction(thread.providerId)) {
@@ -152,6 +155,7 @@ async function compactThreadContext(
   const environment = await requireThreadCommandEnvironment(deps, { thread });
   await sendThreadMessage(deps, {
     environment,
+    requestedByThreadId,
     payload: {
       input: createStandaloneBuiltinCompactCommandInput(),
       mode: "start",
@@ -231,6 +235,8 @@ function assertPinnedThreadOrderResult(
 
 interface CreateQueuedMessageForThreadArgs {
   payload: CreateQueuedMessageRequest;
+  /** The turn that asked, or null for a person or the server itself. */
+  requestedByThreadId: string | null;
   thread: Thread;
 }
 
@@ -273,6 +279,7 @@ async function createQueuedMessageForThread(
     deps,
     payload,
     {
+      requestedByThreadId: args.requestedByThreadId,
       threadId: thread.id,
     },
     "client/turn/requested",
@@ -328,6 +335,7 @@ export function registerThreadActionRoutes(app: Hono, deps: AppDeps): void {
       ensureThreadIsNotAwaitingUserInteraction(deps, thread.id);
       await createQueuedMessageForThread(deps, {
         payload: queuedMessagePayloadFromSendRequest(payload),
+        requestedByThreadId: getAgentThreadId(context) ?? null,
         thread,
       });
       return context.json({ ok: true });
@@ -338,6 +346,7 @@ export function registerThreadActionRoutes(app: Hono, deps: AppDeps): void {
     await sendThreadMessage(deps, {
       environment,
       payload,
+      requestedByThreadId: getAgentThreadId(context) ?? null,
       thread,
       trigger: "user",
     });
@@ -376,6 +385,7 @@ export function registerThreadActionRoutes(app: Hono, deps: AppDeps): void {
     const result = await editThreadMessage(deps, {
       environment,
       payload,
+      requestedByThreadId: getAgentThreadId(context) ?? null,
       thread,
     });
     return context.json(result);
@@ -385,6 +395,7 @@ export function registerThreadActionRoutes(app: Hono, deps: AppDeps): void {
     const thread = requirePublicThread(deps.db, context.req.param("id"));
     const queuedMessage = await createQueuedMessageForThread(deps, {
       payload,
+      requestedByThreadId: getAgentThreadId(context) ?? null,
       thread,
     });
     return context.json(queuedMessage, 201);
@@ -505,7 +516,7 @@ export function registerThreadActionRoutes(app: Hono, deps: AppDeps): void {
 
   post(routes.compact, async (context) => {
     const thread = requirePublicThread(deps.db, context.req.param("id"));
-    await compactThreadContext(deps, thread);
+    await compactThreadContext(deps, thread, getAgentThreadId(context) ?? null);
     return context.json({ ok: true });
   });
 
@@ -571,7 +582,10 @@ export function registerThreadActionRoutes(app: Hono, deps: AppDeps): void {
     const execution = await buildExecutionOptions(
       deps,
       {},
-      { threadId: thread.id },
+      {
+        requestedByThreadId: getAgentThreadId(context) ?? null,
+        threadId: thread.id,
+      },
       "client/turn/requested",
     );
     const preparedRuntimeCommand = await prepareTurnSubmitCommandPayload(deps, {

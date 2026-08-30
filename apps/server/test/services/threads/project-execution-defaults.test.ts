@@ -52,7 +52,7 @@ describe("project execution defaults persistence", () => {
         serviceTier: "fast",
         input: textInput("Reuse one-off"),
         environment: { type: "reuse", environmentId: environment.id },
-      });
+      }, { requestedByThreadId: null });
 
       expect(
         getProjectExecutionDefaults(harness.db, {
@@ -102,7 +102,7 @@ describe("project execution defaults persistence", () => {
           hostId: host.id,
           workspace: { type: "unmanaged", path: null },
         },
-      });
+      }, { requestedByThreadId: null });
 
       // Sanity: host-mode submissions still update project defaults — proves
       // the reuse-only carve-out above isn't accidentally turning the whole
@@ -172,7 +172,7 @@ describe("project execution defaults persistence", () => {
           hostId: host.id,
           workspace: { type: "unmanaged", path: null },
         },
-      });
+      }, { requestedByThreadId: null });
 
       expect(
         getProjectExecutionDefaults(harness.db, {

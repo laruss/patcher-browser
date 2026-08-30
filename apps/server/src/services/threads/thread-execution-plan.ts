@@ -55,6 +55,11 @@ export interface ExistingThreadExecutionInputRequestSources {
 export interface ResolveExistingThreadExecutionPlanArgs {
   executionSource: ThreadExecutionSource;
   /**
+   * The mode of the turn that asked, when a turn asked. See
+   * `ClampPermissionModeToHostArgs.requesterCeiling`.
+   */
+  requesterCeiling?: PermissionMode | null;
+  /**
    * Machine the resolved execution runs on. Omitted means "read it from the
    * thread's environment"; thread creation passes it because the environment
    * is still being provisioned.
@@ -338,6 +343,9 @@ export async function resolveExistingThreadExecutionPlan(
       args.hostId === undefined
         ? resolveEnvironmentHostId(deps, thread.environmentId)
         : args.hostId,
+    ...(args.requesterCeiling !== undefined
+      ? { requesterCeiling: args.requesterCeiling }
+      : {}),
     permissionMode: resolveThreadExecutionPermissionMode({
       requestedPermissionMode: args.input.permissionMode?.value,
       lastExecutionPermissionMode: lastExecution?.permissionMode,

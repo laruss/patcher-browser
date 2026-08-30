@@ -355,6 +355,8 @@ export async function editThreadMessage(
   args: {
     environment: Parameters<typeof requireReadyThreadEnvironment>[0];
     payload: EditMessageRequest;
+    /** The turn that asked, or null for a person or the server itself. */
+    requestedByThreadId: string | null;
     thread: Thread;
   },
 ): Promise<EditMessageResponse> {
@@ -400,7 +402,10 @@ export async function editThreadMessage(
   const execution = await buildExecutionOptions(
     deps,
     args.payload,
-    { threadId: args.thread.id },
+    {
+      requestedByThreadId: args.requestedByThreadId,
+      threadId: args.thread.id,
+    },
     "client/turn/requested",
   );
 
@@ -526,7 +531,8 @@ export async function editThreadMessage(
       },
       payload: { ...sendPayload, mode: "start" },
       thread: args.thread,
-      trigger: "user",
+      requestedByThreadId: args.requestedByThreadId,
+    trigger: "user",
     });
     deps.hub.notifyThread(args.thread.id, ["history-rewritten"], {
       projectId: args.thread.projectId,

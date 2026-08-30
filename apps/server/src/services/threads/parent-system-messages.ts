@@ -431,6 +431,8 @@ export async function queueParentSystemMessage(
     deps,
     {},
     {
+      // Patcher telling a parent what its child did. No turn asked for this.
+      requestedByThreadId: null,
       threadId: parentThread.id,
     },
     "client/turn/requested",

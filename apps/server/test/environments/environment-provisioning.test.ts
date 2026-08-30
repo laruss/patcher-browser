@@ -310,7 +310,7 @@ describe("environment reprovisioning", () => {
           origin: "cli",
           projectId: project.id,
           providerId: "codex",
-        });
+        }, { requestedByThreadId: null });
       } catch (error) {
         if (error instanceof ApiError) {
           thrownError = error;
@@ -360,7 +360,7 @@ describe("environment reprovisioning", () => {
         origin: "cli",
         projectId: project.id,
         providerId: "codex",
-      });
+      }, { requestedByThreadId: null });
       const provisionCommand = await waitForQueuedCommand(
         harness,
         ({ command }) =>
@@ -429,7 +429,7 @@ describe("environment reprovisioning", () => {
         origin: "cli",
         projectId: project.id,
         providerId: "codex",
-      });
+      }, { requestedByThreadId: null });
       const provisionCommand = await waitForQueuedCommand(
         harness,
         ({ command }) =>
@@ -520,7 +520,7 @@ describe("environment reprovisioning", () => {
         projectId: project.id,
         providerId: "codex",
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
       const provisionCommand = await waitForQueuedCommand(
         harness,
         ({ command }) =>
@@ -588,7 +588,7 @@ describe("environment reprovisioning", () => {
         origin: "cli",
         projectId: project.id,
         providerId: "codex",
-      });
+      }, { requestedByThreadId: null });
       const provisionCommand = await waitForQueuedCommand(
         harness,
         ({ command }) =>
@@ -618,7 +618,7 @@ describe("environment reprovisioning", () => {
         origin: "cli",
         projectId: project.id,
         providerId: "codex",
-      });
+      }, { requestedByThreadId: null });
       await advanceThreadProvisioning(harness.deps, {
         threadId: secondThread.id,
       });

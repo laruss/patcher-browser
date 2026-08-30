@@ -334,7 +334,13 @@ async function sendClaimedQueuedMessageForIdleProviderThread(
   const execution = await buildExecutionOptions(
     deps,
     payload,
-    { threadId: thread.id },
+    {
+      // Nobody is asking now: this message's options were resolved and bounded
+      // when it was enqueued, and the machine's ceiling is re-applied on the
+      // way to the daemon regardless.
+      requestedByThreadId: null,
+      threadId: thread.id,
+    },
     "client/turn/requested",
   );
   const permissionEscalation = resolvePermissionEscalation({
@@ -473,6 +479,7 @@ async function sendClaimedQueuedMessageForThread(
       ...(inputGroups.length > 1 ? { inputGroups } : {}),
     },
     thread: args.thread,
+    requestedByThreadId: null,
     trigger: "auto-dispatch",
   });
   return queuedMessage;

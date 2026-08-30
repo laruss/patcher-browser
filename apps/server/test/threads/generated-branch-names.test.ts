@@ -662,7 +662,7 @@ describe("generated managed branch names", () => {
         providerId: "codex",
         sourceThreadId: sourceThread.id,
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
 
       expect(getThread(harness.db, fork.id)?.titleFallback).toBe(
         "Continue this fork and generate a useful title",
