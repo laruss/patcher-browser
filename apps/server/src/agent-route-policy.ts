@@ -34,10 +34,12 @@
  * every caller, because that read happens outside the sandbox and so the
  * sandbox's `credentials.files` deny could not see it.
  *
- * **Known gaps, deliberately left rather than papered over.** The resolved
- * thread id is not compared with the `:id` a request acts on, so an agent can
- * still drive another thread (`/threads/:id/send` and friends) — narrowing that
- * would take away `patcher thread spawn`, which agents are meant to have.
+ * **Which thread, as well as which route.** The resolved thread id is compared
+ * with the `:id` a request acts on, one layer out in `agent-thread-scope.ts`:
+ * that check needs the database and this one does not, and a turn may act on
+ * its own thread and on the ones it spawned. Reads stay open there.
+ *
+ * **Known gaps, deliberately left rather than papered over.**
  * `permissionMode` on thread create/send/fork is bounded only by the machine
  * ceiling, and `workspace: { type: "unmanaged", path }` lets a caller choose
  * where the next turn's sandbox points. `/plugins/:id/cli` and
