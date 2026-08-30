@@ -1080,8 +1080,13 @@ describe("host-daemon command schemas", () => {
   // no such call, so it would run that script with nobody asked — the version
   // is what stops it opening a session against a server that expects to be
   // asked.
-  it("uses protocol version 110 after adding the setup-script consent call", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(110);
+  //
+  // 111 added `sandbox` to `terminal.open`: a terminal an agent asked for runs
+  // inside the boundary its turn runs in. A 110 daemon ignores the field and
+  // would open an unconfined shell for a sandboxed turn — silently, which is
+  // the one outcome this whole boundary exists to remove.
+  it("uses protocol version 111 after sandboxing an agent's terminal", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(111);
   });
 
   // The subprotocol is agreed between two processes by string, so no build

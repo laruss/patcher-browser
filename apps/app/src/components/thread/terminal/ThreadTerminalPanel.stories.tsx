@@ -20,6 +20,7 @@ const BASE_TERMINAL_SESSION: TerminalSession = {
   cols: 100,
   rows: 30,
   status: "running",
+  sandboxed: false,
   exitCode: null,
   closeReason: null,
   createdAt: 1,
@@ -30,23 +31,27 @@ const BASE_TERMINAL_SESSION: TerminalSession = {
 const RUNNING_SESSION: TerminalSession = {
   ...BASE_TERMINAL_SESSION,
   status: "running",
+  sandboxed: false,
 };
 
 const DISCONNECTED_SESSION: TerminalSession = {
   ...BASE_TERMINAL_SESSION,
   status: "disconnected",
+  sandboxed: false,
   updatedAt: 2,
 };
 
 const STARTING_SESSION: TerminalSession = {
   ...BASE_TERMINAL_SESSION,
   status: "starting",
+  sandboxed: false,
   updatedAt: 2,
 };
 
 const EXITED_SESSION: TerminalSession = {
   ...BASE_TERMINAL_SESSION,
   status: "exited",
+  sandboxed: false,
   exitCode: 0,
   closeReason: "user",
   updatedAt: 2,

@@ -27,6 +27,7 @@ import type {
   TerminalSession,
   UpdateTerminalRequest,
 } from "@patcher/server-contract";
+import { agentMayDriveThread } from "../../agent-thread-scope.js";
 import { ApiError } from "../../errors.js";
 import type { AppDeps, ServerLogger } from "../../types.js";
 import { assertUsableHostId } from "../hosts/primary-host.js";
@@ -241,6 +242,19 @@ interface ListTerminalsArgs {
 
 interface CreateTerminalArgs {
   payload: CreateTerminalRequest;
+  /**
+   * A restart keeps the confinement of the terminal it replaces, whoever asked
+   * for it. Otherwise a person restarting an agent's terminal would hand the
+   * agent an unconfined shell on a terminal it is allowed to drive.
+   */
+  sandboxed?: boolean;
+  /**
+   * The thread whose turn asked, or null when a person did.
+   *
+   * Both halves of what an agent's terminal is turn on this: which target it
+   * may name, and whether the daemon is told to confine the shell.
+   */
+  requestedByThreadId: string | null;
 }
 
 interface GetTerminalArgs {
@@ -256,6 +270,8 @@ interface TerminalCreatePayload {
 
 interface CreateTerminalForTargetArgs {
   payload: TerminalCreatePayload;
+  /** Confine the shell to the workspace the way the thread's turn is confined. */
+  sandboxed: boolean;
   target: TerminalLaunchTarget;
   threadId: string | null;
   title: string;
@@ -445,6 +461,7 @@ export function toTerminalSession(row: TerminalSessionRow): TerminalSession {
     cols: row.cols,
     rows: row.rows,
     status: row.status,
+    sandboxed: row.sandboxed,
     exitCode: row.exitCode,
     closeReason: row.closeReason,
     createdAt: row.createdAt,
@@ -469,6 +486,44 @@ function updateTerminalById(
     scope: { kind: "terminal", terminalId },
     update,
   });
+}
+
+interface RequireAgentMayOpenTerminalArgs {
+  callerThreadId: string;
+  db: AppDeps["db"];
+  target: TerminalCreateTarget;
+}
+
+/**
+ * What a turn's agent may open a terminal for: its own thread, or one it
+ * spawned.
+ *
+ * An environment or a host path names no thread, so there would be no turn to
+ * take the boundary from and nobody the terminal belongs to — and a host path
+ * is the shell-anywhere case this whole boundary exists to close.
+ */
+function requireAgentMayOpenTerminal(
+  args: RequireAgentMayOpenTerminalArgs,
+): void {
+  if (args.target.kind !== "thread") {
+    throw new ApiError(
+      403,
+      "forbidden",
+      `A turn opens a terminal for a thread, not for ${args.target.kind === "environment" ? "an environment" : "a path on the machine"}: the terminal runs inside the boundary its thread's turn runs in, and there is no turn to take it from here. Nothing changed.`,
+    );
+  }
+  if (
+    !agentMayDriveThread(args.db, {
+      callerThreadId: args.callerThreadId,
+      targetThreadId: args.target.threadId,
+    })
+  ) {
+    throw new ApiError(
+      403,
+      "forbidden",
+      `Thread ${args.target.threadId} is not this turn's to open a terminal for: a turn acts on its own thread and on the threads it spawned. Nothing changed.`,
+    );
+  }
 }
 
 export class TerminalSessionLifecycle {
@@ -602,6 +657,13 @@ export class TerminalSessionLifecycle {
 
   async createTerminal(args: CreateTerminalArgs): Promise<TerminalSession> {
     const { target } = args.payload;
+    if (args.requestedByThreadId !== null) {
+      requireAgentMayOpenTerminal({
+        callerThreadId: args.requestedByThreadId,
+        db: this.options.db,
+        target,
+      });
+    }
     const existingSessionCount = this.countExistingSessionsForTarget(target);
     const launchTarget =
       target.kind === "thread"
@@ -609,6 +671,9 @@ export class TerminalSessionLifecycle {
         : target;
     return this.createTerminalForTarget({
       payload: args.payload,
+      // A person opening a terminal on their own machine is not something to
+      // confine; a turn's agent opening one is the whole reason this exists.
+      sandboxed: args.sandboxed ?? args.requestedByThreadId !== null,
       target: launchTarget,
       threadId: target.kind === "thread" ? target.threadId : null,
       title: initialTitleForTerminal(args.payload, existingSessionCount),
@@ -674,6 +739,7 @@ export class TerminalSessionLifecycle {
       hostId: launchTarget.hostId,
       initialCwd: launchTarget.initialCwd,
       rows: args.payload.rows,
+      sandboxed: args.sandboxed,
       status: "starting",
       threadId: args.threadId,
       title: args.title,
@@ -684,6 +750,7 @@ export class TerminalSessionLifecycle {
       requestId,
       terminalId: startingSession.id,
       ...(args.threadId !== null ? { threadId: args.threadId } : {}),
+      ...(args.sandboxed ? { sandbox: { mode: "workspace" as const } } : {}),
       target: launchTarget.daemonTarget,
       cols: args.payload.cols,
       rows: args.payload.rows,
@@ -888,6 +955,10 @@ export class TerminalSessionLifecycle {
         target: terminalRestartTarget(current),
         title: current.title,
       },
+      // Who may restart this terminal was settled before the route ran; what
+      // the replacement may do is settled by the terminal it replaces.
+      requestedByThreadId: null,
+      sandboxed: current.sandboxed,
     });
     if (current.status === "exited") {
       return replacement;

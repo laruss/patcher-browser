@@ -489,12 +489,27 @@ const hostDaemonTerminalOpenTargetSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 
+/**
+ * Confine this terminal the way the thread's turn is confined.
+ *
+ * Present when an agent asked for the terminal, absent when a person did: a
+ * person opening a terminal on their own machine is not something to sandbox,
+ * while a shell an agent opens would otherwise be the shortest way out of the
+ * turn that opened it. Only one mode, because the policy is the turn's own and
+ * the daemon is the side that knows it — this field says which boundary, not
+ * what is in it.
+ */
+const hostDaemonTerminalSandboxSchema = z
+  .object({ mode: z.literal("workspace") })
+  .strict();
+
 const hostDaemonTerminalOpenMessageSchema = z
   .object({
     type: z.literal("terminal.open"),
     requestId: terminalRequestIdSchema,
     terminalId: terminalIdSchema,
     threadId: z.string().min(1).optional(),
+    sandbox: hostDaemonTerminalSandboxSchema.optional(),
     target: hostDaemonTerminalOpenTargetSchema,
     cols: terminalColsSchema,
     rows: terminalRowsSchema,

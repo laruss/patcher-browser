@@ -100,8 +100,6 @@ agent mid-turn, because each one hands back exactly what the sandbox took away:
   optional on these, and without it the daemon writes wherever it is told, on
   whichever machine the request names. A sandbox that confines writes to the
   workspace means nothing beside a write-anywhere RPC.
-- **Terminals.** Opening one is a PTY on the host, outside any sandbox, running
-  as you.
 - **A machine's permission ceiling, machine enrolment, and provider-CLI
   installs.** Raising the ceiling is how a sandboxed turn would arrange to stop
   being one; an install runs an installer on the host, outside the sandbox, as
@@ -111,6 +109,11 @@ agent mid-turn, because each one hands back exactly what the sandbox took away:
   then records you as having allowed it. Refused in the interactions handler
   rather than by route, so that denying, answering a question, and a plugin's
   form submit all keep working from inside a turn — only _allowing_ does not.
+
+Terminals were on this list, and the reason was true: opening one is a PTY on
+the host, outside any sandbox, running as you — the shortest way out there was.
+They came off it when the terminal changed rather than the judgement, which is
+its own section below.
 
 Generic reads are not on the list: an agent reads files through its own tools
 anyway, so gating `files/read` would gate the polite path and nothing else. The
@@ -164,6 +167,44 @@ attempt by attempt against a live session. Where Bash gets a plain "operation no
 permitted", the Write tool raises a permission request instead, so on a turn
 whose escalation is _ask_ the person in the thread decides; a turn whose
 escalation is denied is refused outright.
+
+**A terminal an agent opens runs inside its turn's boundary.** This one is a
+sandbox Patcher builds rather than one a provider offers, which is what makes it
+the same for every provider — a Pi or ACP turn, whose own tools are confined by
+nothing, still gets a confined terminal. The policy is the turn's own, path for
+path: the workspace and the git roots beside it are writable, the four
+git-execution files are read-only, and Patcher's credential files cannot be
+read. macOS composes it from Seatbelt, Linux from bubblewrap, and a machine that
+can build neither is refused the terminal rather than handed an unconfined one —
+the same answer a sandboxed Claude turn already gets there.
+
+Measured on both backends, not asserted: a login shell on a real PTY under the
+macOS profile, and `bwrap` in a Linux container, each writing inside the
+workspace and refused outside it, reading `.git/config` and refused a write to
+it, committing through `.git/index`, and refused the credential file — "Operation
+not permitted" under Seatbelt, "Permission denied" under the `/dev/null` bind
+that replaces the file on Linux. The paths are resolved through `realpath`
+before they are named, because both backends match what a lookup resolves to,
+and a rule about `/var/folders/...` is a rule about nothing on a machine where
+that is a symlink.
+
+The terminal websocket is not part of this: it takes the app key or a plugin
+holding `shell`, and a turn holds neither — so an agent reads and writes its
+terminal through the HTTP routes, which are the ones scoped below.
+
+Whose terminal it is, is the other half. A turn drives the terminals of its own
+thread and of the threads it spawned, and only the confined ones: a terminal a
+person opened for the same thread is refused it, because that shell is theirs
+and runs outside the boundary. A restart keeps the confinement of the terminal
+it replaces, whoever asks for it — otherwise "please restart my terminal" would
+be a way out of the turn. The row records which kind it is, and `patcher
+terminal list` prints it.
+
+**The network is not confined, and that is a decision.** A blocked connection in
+a terminal has nowhere to raise a prompt — there is no permission request for a
+shell somebody is typing into — so confining it would turn `npm install` and
+`git push` into silent failures. What the boundary closes is the filesystem
+class, which is what made the route a hole.
 
 **And the repository's own setup script asks before it runs.** A managed
 worktree runs `.patcher-env-setup.sh` from the repository it was created from —
@@ -282,6 +323,16 @@ Named here rather than left to be rediscovered:
   and the script is skipped — every run, because a timeout is deliberately not
   remembered. The answer is allowing ahead of time rather than in the four
   minutes the prompt stands, which is a surface that does not exist yet.
+- **A terminal's network.** Named above and repeated here because it is the
+  shape of what is left: an agent's terminal is confined on the filesystem and
+  not on the network, so `curl` inside one reaches whatever the machine can. It
+  is no wider than the turn's own shell under Codex, which also has the network,
+  and narrower than what the route gave before — but it is not nothing, and the
+  answer is the same one the rest of this section keeps arriving at.
+- **The app does not say which terminals are confined.** The row records it and
+  the API returns it; `patcher terminal list` has a column for it and the app's
+  terminal tabs do not. Somebody typing into an agent's terminal in the app
+  meets "operation not permitted" with nothing on screen explaining why.
 - **Plugin code, by decision rather than by omission.** `plugins/:id/cli` and
   `plugins/:id/rpc/:method` execute plugin code with no consent prompt, and
   that is the model rather than a gap in it: the grant happens at install and

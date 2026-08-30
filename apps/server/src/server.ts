@@ -10,6 +10,7 @@ import {
   agentThreadScopeDenial,
   setAgentThreadId,
 } from "./agent-thread-scope.js";
+import { agentTerminalScopeDenial } from "./agent-terminal-scope.js";
 import {
   PLUGIN_API_ID_HEADER,
   PLUGIN_API_KEY_HEADER,
@@ -509,6 +510,20 @@ export function createApp(
             "Refused an agent request against another thread",
           );
           throw new ApiError(403, "forbidden", scopeDenial.message);
+        }
+        // And the same question about a terminal, which belongs to a thread the
+        // way a turn does.
+        const terminalDenial = agentTerminalScopeDenial(deps.db, {
+          callerThreadId: threadId,
+          method: context.req.method,
+          path: context.req.path,
+        });
+        if (terminalDenial !== null) {
+          deps.logger.warn(
+            { terminalId: terminalDenial.terminalId, threadId },
+            "Refused an agent request against another thread's terminal",
+          );
+          throw new ApiError(403, "forbidden", terminalDenial.message);
         }
         setAgentThreadId(context, threadId);
         return next();

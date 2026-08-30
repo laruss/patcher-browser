@@ -952,6 +952,17 @@ export const terminalSessions = sqliteTable(
     status: text("status").$type<TerminalSessionStatus>().notNull(),
     exitCode: integer("exit_code"),
     closeReason: text("close_reason").$type<TerminalSessionCloseReason>(),
+    /**
+     * Whether the shell runs inside the boundary its thread's turn runs in.
+     *
+     * Recorded rather than derived: a terminal belongs to a thread whether a
+     * person opened it or an agent did, and only the second kind is confined.
+     * Without the row saying which, a restart would quietly hand back an
+     * unconfined shell on a terminal an agent is allowed to drive.
+     */
+    sandboxed: integer("sandboxed", { mode: "boolean" })
+      .notNull()
+      .default(false),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     lastUserInputAt: integer("last_user_input_at"),

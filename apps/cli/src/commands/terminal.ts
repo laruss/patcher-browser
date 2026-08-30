@@ -514,15 +514,18 @@ function printTerminalTable(sessions: TerminalSession[]): void {
     session.title,
     session.status,
     `${session.cols}x${session.rows}`,
+    // Worth a column of its own: a confined shell refuses writes outside the
+    // workspace, which is otherwise a surprise with no explanation attached.
+    session.sandboxed ? "sandboxed" : "-",
   ]);
-  const colWidths = [12, 24, 14, 10].map((minWidth, index) =>
+  const colWidths = [12, 24, 14, 10, 10].map((minWidth, index) =>
     Math.max(minWidth, ...rows.map((row) => row[index].length)),
   );
   console.log("");
   console.log(
     renderBorderlessTable(
       {
-        head: ["ID", "Title", "Status", "Size"],
+        head: ["ID", "Title", "Status", "Size", "Sandbox"],
         colWidths,
       },
       rows,

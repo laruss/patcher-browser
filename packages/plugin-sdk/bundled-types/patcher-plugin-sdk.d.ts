@@ -7524,6 +7524,7 @@ declare const terminalSessionSchema: z$1.ZodObject<{
         running: "running";
         exited: "exited";
     }>;
+    sandboxed: z$1.ZodBoolean;
     exitCode: z$1.ZodNullable<z$1.ZodNumber>;
     closeReason: z$1.ZodNullable<z$1.ZodEnum<{
         user: "user";
@@ -7555,6 +7556,7 @@ declare const terminalListResponseSchema: z$1.ZodObject<{
             running: "running";
             exited: "exited";
         }>;
+        sandboxed: z$1.ZodBoolean;
         exitCode: z$1.ZodNullable<z$1.ZodNumber>;
         closeReason: z$1.ZodNullable<z$1.ZodEnum<{
             user: "user";

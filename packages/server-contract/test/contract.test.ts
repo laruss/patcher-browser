@@ -550,6 +550,7 @@ describe("public terminal contracts", () => {
         cols: 80,
         rows: 24,
         status: "running",
+        sandboxed: false,
         exitCode: null,
         closeReason: null,
         createdAt: 1,
@@ -557,6 +558,33 @@ describe("public terminal contracts", () => {
         lastUserInputAt: null,
       }).success,
     ).toBe(true);
+  });
+
+  it("requires a terminal session to say whether it is confined", () => {
+    // A response that omits it would read as "not sandboxed" to anything that
+    // treats the field as optional, which is the wrong way for this one to
+    // fail.
+    const { sandboxed, ...withoutSandboxed } = {
+      id: "term_1",
+      threadId: "thr_1",
+      environmentId: "env_1",
+      hostId: "host_1",
+      title: "Terminal 1",
+      initialCwd: "/tmp/workspace",
+      cols: 80,
+      rows: 24,
+      status: "running" as const,
+      sandboxed: true,
+      exitCode: null,
+      closeReason: null,
+      createdAt: 1,
+      updatedAt: 1,
+      lastUserInputAt: null,
+    };
+    expect(sandboxed).toBe(true);
+    expect(terminalSessionSchema.safeParse(withoutSandboxed).success).toBe(
+      false,
+    );
   });
 
   it("bounds terminal dimensions", () => {
