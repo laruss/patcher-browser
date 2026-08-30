@@ -120,8 +120,8 @@ one read that did matter is closed a layer down instead — see below.
 would mean little while the file sat there to be read: a sandbox restricts
 writes and the network and leaves reads open, and Bash is auto-approved
 _because_ it is sandboxed, so one `cat` would have handed the turn back the
-credential it is deliberately not given, without a prompt. Claude Code's
-sandbox can protect a path, so Patcher names five: the app key, the machine
+credential it is deliberately not given, without a prompt. Both sandboxing
+providers can protect a path, so Patcher names five: the app key, the machine
 auth secret, this daemon's own bearer token (`auth.json`, which `/internal/*`
 accepts and which the `/api/v1` route policy therefore never sees), and the
 database with its write-ahead sidecars — the database because it holds host
@@ -192,12 +192,38 @@ than "what it runs changed". Closing that needs a boundary around the run
 rather than a fact about the file, which is the same answer the rest of this
 section keeps arriving at.
 
-Two edges remain, and they are edges rather than the default:
+**A Codex turn is held to the same list, through a policy of its own shape.**
+Codex's older `workspace-write` says only which roots are writable, and could
+not say "not this path inside them" — so this section used to end at Claude
+Code. Its permission profiles can: `filesystem` maps a path to `read`, `write`
+or `deny`, and Patcher builds one per thread in
+`codex/permission-profile.ts`. The credential files are `deny` and the git
+execution files are `read`, and the difference is not decoration — Codex's
+`deny` is a level rather than a verb, so it takes the read with the write, and
+a denied `.git/config` stops git from running at all.
 
-- **Codex.** Its sandbox leaves reads open with nothing to say otherwise, so a
-  Codex turn can still read these files — and it has no deny for a path either,
-  so the git files above stay writable to it. Closing either needs a boundary
-  Patcher owns rather than one its provider offers.
+The shape of it is measured, against codex-cli 0.150.1 and then against a live
+turn built by Patcher's own adapter: a `cat` of the app key through a symlink
+inside the workspace answers "Operation not permitted", `.git/config` still
+reads and no longer takes a write, and `git commit` works. That last one is new
+rather than preserved. Codex excludes `.git` from the workspace grant by itself,
+in every sandbox mode, so a Codex turn in a plain checkout could not stage its
+own work — `git add` failed on `index.lock` — and only a managed worktree
+escaped it, because its gitdir lives outside the workspace and Patcher grants
+that as a writable root. The profile grants `.git` back and marks the four
+files inside it read-only, which is both halves at once.
+
+Two things about the profile are load-bearing and easy to undo by accident.
+`thread/start`'s own `sandbox` field and a turn's `sandboxPolicy` each switch
+the profile off — `activePermissionProfile` comes back null and the grants
+revert — so a workspace turn sends neither, and the tests assert their absence.
+And `sandbox_mode` travels in the same config map as a floor: an unknown config
+key is not an error, so a Codex that did not understand `default_permissions`
+would otherwise fall back to whatever the machine's own `config.toml` says,
+which may well be `danger-full-access`.
+
+One edge remains, and it is an edge rather than the default:
+
 - **Full Access.** It builds no sandbox, so there is nowhere for the denial to
   live. That is what the mode means.
 
@@ -269,9 +295,10 @@ Named here rather than left to be rediscovered:
 - **The daemon's own loopback API.** Narrowed, not closed. `POST /open-in-target`
   — the one route that runs something, an `execFile` on the host outside any
   turn's sandbox — takes the app key, which a turn's environment no longer
-  carries. Three things are left. A Codex turn, or a Full Access one, can read
-  the key file off disk and present it, the same edge as the credential deny
-  above. `/status` and the editor list stay open on purpose: every readiness
+  carries. Three things are left. A Full Access turn, or one on a provider that
+  builds no sandbox, can read the key file off disk and present it — the same
+  edge as the credential deny above, and the same list of who is left outside
+  it. `/status` and the editor list stay open on purpose: every readiness
   probe reads the first, and a machine enrolled from another one has no app key
   at all, so gating them refused enrolment and bought nothing. And on such a
   machine opening a file in an editor is refused, because the credential asked
@@ -279,11 +306,21 @@ Named here rather than left to be rediscovered:
   credential the daemon can have — its own, minted locally and handed to the app
   through the server it is already connected to — which is a protocol change
   rather than a middleware.
-- **`.git`, for a turn that is not Claude Code's.** Narrowed, not closed. The
-  deny described above is a Claude Code sandbox feature: a Codex turn can still
-  write `.git/config`, and Pi and ACP build no OS sandbox at all, so for them the
-  class stands as it did. The answer is the same one the reads need — a boundary
-  Patcher owns rather than one a provider offers.
+- **`.git` and the credential files, for a turn that is Pi's or ACP's.**
+  Narrowed, not closed. Claude Code and Codex both hold the list now, each
+  through its own sandbox; Pi and ACP build no OS sandbox at all, so for them
+  the class stands as it did. The answer for those two is the one this section
+  keeps arriving at — a boundary Patcher owns rather than one a provider offers.
+- **Codex's network is open, and it is the local API that keeps it open.**
+  Restricting it is one field in the profile, and Codex 0.150.1 now turns a
+  blocked connection into an approval request rather than a silent failure — so
+  the cost is no longer "the command dies with nothing to grant it back". The
+  cost that remains is the `patcher` CLI: it reaches the local server over a
+  loopback TCP port, and Codex's restricted mode takes loopback with it, so
+  every CLI call inside a turn would become a prompt. Taking the local API off
+  a TCP port comes first — a unix socket, which Codex can be told to allow, or
+  the tool surface as an MCP server, which the app-server runs outside the
+  command sandbox the way Claude Code's bridge already is.
 
 Every outcome where nobody could have seen the prompt refuses, because a prompt
 nobody saw is not consent: an archived or destroying thread is refused before a

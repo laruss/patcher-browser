@@ -18,6 +18,7 @@ import {
 import type { PromptInput, PromptMentionCommandOrigin } from "@patcher/domain";
 
 import { createCodexProviderAdapter } from "./adapter.js";
+import { CODEX_WORKSPACE_PERMISSION_PROFILE_ID } from "./permission-profile.js";
 import type { CodexEvent } from "./adapter.js";
 import type { ThreadItem } from "./generated/codex-app-server/schema/v2/ThreadItem.js";
 import type { Turn } from "./generated/codex-app-server/schema/v2/Turn.js";
@@ -223,16 +224,67 @@ function prepareTurnStart(
   expect(adapter.prepareTurnStart(command)).not.toBeNull();
 }
 
-function expectWorkspaceWriteWritableRootsConfigAbsent(
+interface CodexWorkspaceProfileFilesystem {
+  [path: string]: "read" | "write" | "deny";
+}
+
+/**
+ * The workspace policy a command carries, read out of the permission profile.
+ *
+ * A workspace-scope turn no longer names its roots in `sandbox_workspace_write`
+ * or in a turn's `sandboxPolicy` — either of those turns the profile off — so
+ * the assertions below read the profile's own filesystem map.
+ */
+function workspaceProfileFilesystem(
+  command: CodexProviderCommandPlan,
+): CodexWorkspaceProfileFilesystem {
+  const config = (
+    command.params as {
+      config?: Record<string, unknown>;
+    }
+  ).config;
+  const permissions = config?.["permissions"] as
+    | Record<string, { filesystem?: CodexWorkspaceProfileFilesystem }>
+    | undefined;
+  const filesystem =
+    permissions?.[CODEX_WORKSPACE_PERMISSION_PROFILE_ID]?.filesystem;
+  expect(filesystem).toBeDefined();
+  return filesystem ?? {};
+}
+
+/** The paths the profile grants writes to, in the order it names them. */
+function workspaceProfileWriteRoots(
+  command: CodexProviderCommandPlan,
+): string[] {
+  return Object.entries(workspaceProfileFilesystem(command))
+    .filter(([, access]) => access === "write")
+    .map(([grantedPath]) => grantedPath);
+}
+
+/**
+ * A workspace turn must not carry a `sandboxPolicy`: sending one replaces the
+ * profile's grants for that turn, which is measurably how the deny entries and
+ * the git roots get lost.
+ */
+function expectTurnStartCarriesNoSandboxPolicy(
   command: CodexProviderCommandPlan,
 ): void {
-  expect(command).toMatchObject({
-    params: {
-      config: expect.not.objectContaining({
-        "sandbox_workspace_write.writable_roots": expect.anything(),
-      }),
-    },
-  });
+  expect(command.method).toBe("turn/start");
+  expect(
+    (command.params as { sandboxPolicy?: unknown }).sandboxPolicy,
+  ).toBeUndefined();
+}
+
+/** What the profile grants beyond the workspace itself and its own `.git`. */
+function expectProfileWritableRootsBeyondWorkspace(
+  command: CodexProviderCommandPlan,
+  args: { cwd: string; roots: readonly string[] },
+): void {
+  expect(workspaceProfileWriteRoots(command)).toEqual([
+    args.cwd,
+    ...args.roots,
+    path.join(args.cwd, ".git"),
+  ]);
 }
 
 function dedupeRoots(roots: readonly string[]): string[] {
@@ -623,9 +675,15 @@ describe("codex provider adapter", () => {
       params: {
         approvalPolicy: "on-request",
         approvalsReviewer: "user",
-        sandbox: "workspace-write",
+        config: {
+          default_permissions: CODEX_WORKSPACE_PERMISSION_PROFILE_ID,
+          sandbox_mode: "workspace-write",
+        },
       },
     });
+    // The legacy field, not merely unset but forbidden: sending it is what
+    // turns the profile off.
+    expect((cmd.params as { sandbox?: unknown }).sandbox).toBeUndefined();
   });
 
   it("keeps automatic review on-request under deny escalation for every command", () => {
@@ -680,29 +738,17 @@ describe("codex provider adapter", () => {
     }
   });
 
-  it("buildCommand thread/start and turn/start include captured linked worktree git writable roots", () => {
+  it("buildCommand thread/start grants the linked worktree's git roots", () => {
     const fixture = createLinkedWorktreeFixture();
     const adapter = createCodexProviderAdapter();
     try {
       const startCommand = buildLinkedWorktreeThreadStartCommand({ fixture });
       const startCmd = adapter.buildCommandPlan(startCommand);
 
-      expect(startCmd).toMatchObject({
-        method: "thread/start",
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots":
-              fixture.expectedWritableRoots,
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: fixture.expectedWritableRoots,
       });
-      acceptThreadCommand({
-        adapter,
-        command: startCommand,
-        providerThreadId: "codex-thread-1",
-      });
-
-      writeFileSync(path.join(fixture.workspacePath, ".git"), "gitdir: /\n");
 
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
@@ -713,15 +759,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: fixture.expectedWritableRoots,
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
     }
@@ -747,13 +785,9 @@ describe("codex provider adapter", () => {
       });
       const startCmd = adapter.buildCommandPlan(startCommand);
 
-      expect(startCmd).toMatchObject({
-        method: "thread/start",
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots": expectedWritableRoots,
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: expectedWritableRoots,
       });
       acceptThreadCommand({
         adapter,
@@ -768,13 +802,9 @@ describe("codex provider adapter", () => {
       });
       const resumeCmd = adapter.buildCommandPlan(resumeCommand);
 
-      expect(resumeCmd).toMatchObject({
-        method: "thread/resume",
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots": expectedWritableRoots,
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(resumeCmd, {
+        cwd: fixture.workspacePath,
+        roots: expectedWritableRoots,
       });
       acceptThreadCommand({
         adapter,
@@ -801,140 +831,10 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(startTurnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: expectedWritableRoots,
-          },
-        },
-      });
-      expect(resumeTurnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: expectedWritableRoots,
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(startTurnCmd);
+      expectTurnStartCarriesNoSandboxPolicy(resumeTurnCmd);
     } finally {
       fixture.cleanup();
-    }
-  });
-
-  it("buildCommand turn/start waits for successful thread/start before using linked worktree git writable roots", () => {
-    const fixture = createLinkedWorktreeFixture();
-    const adapter = createCodexProviderAdapter();
-    try {
-      const startCommand = buildLinkedWorktreeThreadStartCommand({ fixture });
-      const startCmd = adapter.buildCommandPlan(startCommand);
-
-      expect(startCmd).toMatchObject({
-        method: "thread/start",
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots":
-              fixture.expectedWritableRoots,
-          },
-        },
-      });
-
-      const turnCmd = adapter.buildCommandPlan({
-        type: "turn/start",
-        clientRequestId: "creq_222222228i",
-        threadId: "patcher-thread-1",
-        providerThreadId: "codex-thread-1",
-        input: [promptTextInput({ text: "edit it" })],
-        options: workspaceWriteAskProviderExecutionContext,
-      });
-
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it("translateAcceptedCommand binds git roots to the accepted provider thread id", () => {
-    const firstFixture = createLinkedWorktreeFixture();
-    const secondFixture = createLinkedWorktreeFixture();
-    const adapter = createCodexProviderAdapter();
-    try {
-      const firstStartCommand = buildLinkedWorktreeThreadStartCommand({
-        fixture: firstFixture,
-        threadId: "patcher-thread-1",
-      });
-      const secondStartCommand = buildLinkedWorktreeThreadStartCommand({
-        fixture: secondFixture,
-        threadId: "patcher-thread-2",
-      });
-      adapter.buildCommandPlan(firstStartCommand);
-      adapter.buildCommandPlan(secondStartCommand);
-
-      acceptThreadCommand({
-        adapter,
-        command: secondStartCommand,
-        providerThreadId: "codex-thread-2",
-      });
-      acceptThreadCommand({
-        adapter,
-        command: firstStartCommand,
-        providerThreadId: "codex-thread-1",
-      });
-
-      adapter.translateEvent(
-        codexEvent("thread/closed", {
-          threadId: "codex-thread-1",
-        }),
-      );
-
-      const firstTurnCmd = adapter.buildCommandPlan({
-        type: "turn/start",
-        clientRequestId: "creq_222222228j",
-        threadId: "patcher-thread-1",
-        providerThreadId: "codex-thread-1",
-        input: [promptTextInput({ text: "edit it" })],
-        options: workspaceWriteAskProviderExecutionContext,
-      });
-      const secondTurnCmd = adapter.buildCommandPlan({
-        type: "turn/start",
-        clientRequestId: "creq_222222228k",
-        threadId: "patcher-thread-2",
-        providerThreadId: "codex-thread-2",
-        input: [promptTextInput({ text: "edit it" })],
-        options: workspaceWriteAskProviderExecutionContext,
-      });
-
-      expect(firstTurnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
-      expect(secondTurnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: secondFixture.expectedWritableRoots,
-          },
-        },
-      });
-    } finally {
-      firstFixture.cleanup();
-      secondFixture.cleanup();
     }
   });
 
@@ -953,12 +853,9 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(startCmd).not.toMatchObject({
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots": expect.any(Array),
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: [],
       });
 
       const turnCmd = adapter.buildCommandPlan({
@@ -970,15 +867,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
     }
@@ -1003,12 +892,9 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(startCmd).not.toMatchObject({
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots": expect.any(Array),
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: [],
       });
 
       const turnCmd = adapter.buildCommandPlan({
@@ -1020,15 +906,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
       foreignFixture.cleanup();
@@ -1049,7 +927,10 @@ describe("codex provider adapter", () => {
       const startCommand = buildLinkedWorktreeThreadStartCommand({ fixture });
       const startCmd = adapter.buildCommandPlan(startCommand);
 
-      expectWorkspaceWriteWritableRootsConfigAbsent(startCmd);
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: [],
+      });
       acceptThreadCommand({
         adapter,
         command: startCommand,
@@ -1065,15 +946,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
       foreignFixture.cleanup();
@@ -1106,13 +979,9 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(startCmd).toMatchObject({
-        method: "thread/start",
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots": expectedWritableRoots,
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: expectedWritableRoots,
       });
     } finally {
       fixture.cleanup();
@@ -1140,13 +1009,9 @@ describe("codex provider adapter", () => {
           options: workspaceWriteAskProviderExecutionContext,
         });
 
-        expect(startCmd).toMatchObject({
-          method: "thread/start",
-          params: {
-            config: {
-              "sandbox_workspace_write.writable_roots": expectedWritableRoots,
-            },
-          },
+        expectProfileWritableRootsBeyondWorkspace(startCmd, {
+          cwd: fixture.workspacePath,
+          roots: expectedWritableRoots,
         });
       } finally {
         fixture.cleanup();
@@ -1172,13 +1037,9 @@ describe("codex provider adapter", () => {
       const startCommand = buildLinkedWorktreeThreadStartCommand({ fixture });
       const startCmd = adapter.buildCommandPlan(startCommand);
 
-      expect(startCmd).toMatchObject({
-        method: "thread/start",
-        params: {
-          config: {
-            "sandbox_workspace_write.writable_roots": expectedWritableRoots,
-          },
-        },
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: expectedWritableRoots,
       });
       acceptThreadCommand({
         adapter,
@@ -1195,15 +1056,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: expectedWritableRoots,
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
     }
@@ -1226,7 +1079,10 @@ describe("codex provider adapter", () => {
           options: workspaceWriteAskProviderExecutionContext,
         });
 
-        expectWorkspaceWriteWritableRootsConfigAbsent(startCmd);
+        expectProfileWritableRootsBeyondWorkspace(startCmd, {
+          cwd: fixture.workspacePath,
+          roots: [],
+        });
 
         const turnCmd = adapter.buildCommandPlan({
           type: "turn/start",
@@ -1237,15 +1093,7 @@ describe("codex provider adapter", () => {
           options: workspaceWriteAskProviderExecutionContext,
         });
 
-        expect(turnCmd).toMatchObject({
-          method: "turn/start",
-          params: {
-            sandboxPolicy: {
-              type: "workspaceWrite",
-              writableRoots: [],
-            },
-          },
-        });
+        expectTurnStartCarriesNoSandboxPolicy(turnCmd);
       } finally {
         fixture.cleanup();
       }
@@ -1280,7 +1128,10 @@ describe("codex provider adapter", () => {
 
       const startCmdText = JSON.stringify(startCmd);
       expect(startCmdText).not.toContain(outsideObjectsPath);
-      expectWorkspaceWriteWritableRootsConfigAbsent(startCmd);
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: [],
+      });
 
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
@@ -1291,15 +1142,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
       rmSync(outsideObjectsPath, { recursive: true, force: true });
@@ -1349,7 +1192,10 @@ describe("codex provider adapter", () => {
 
       const startCmdText = JSON.stringify(startCmd);
       expect(startCmdText).not.toContain(outsideWorktreesPath);
-      expectWorkspaceWriteWritableRootsConfigAbsent(startCmd);
+      expectProfileWritableRootsBeyondWorkspace(startCmd, {
+        cwd: fixture.workspacePath,
+        roots: [],
+      });
 
       const turnCmd = adapter.buildCommandPlan({
         type: "turn/start",
@@ -1360,15 +1206,7 @@ describe("codex provider adapter", () => {
         options: workspaceWriteAskProviderExecutionContext,
       });
 
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
+      expectTurnStartCarriesNoSandboxPolicy(turnCmd);
     } finally {
       fixture.cleanup();
       rmSync(outsideWorktreesPath, { recursive: true, force: true });
@@ -1405,7 +1243,10 @@ describe("codex provider adapter", () => {
 
         const startCmdText = JSON.stringify(startCmd);
         expect(startCmdText).not.toContain(outsidePath);
-        expectWorkspaceWriteWritableRootsConfigAbsent(startCmd);
+        expectProfileWritableRootsBeyondWorkspace(startCmd, {
+          cwd: fixture.workspacePath,
+          roots: [],
+        });
 
         const turnCmd = adapter.buildCommandPlan({
           type: "turn/start",
@@ -1416,109 +1257,13 @@ describe("codex provider adapter", () => {
           options: workspaceWriteAskProviderExecutionContext,
         });
 
-        expect(turnCmd).toMatchObject({
-          method: "turn/start",
-          params: {
-            sandboxPolicy: {
-              type: "workspaceWrite",
-              writableRoots: [],
-            },
-          },
-        });
+        expectTurnStartCarriesNoSandboxPolicy(turnCmd);
       } finally {
         fixture.cleanup();
         rmSync(outsidePath, { recursive: true, force: true });
       }
     },
   );
-
-  it("translateEvent clears captured Codex workspace-write git roots when a thread closes", () => {
-    const fixture = createLinkedWorktreeFixture();
-    const adapter = createCodexProviderAdapter();
-    try {
-      const resumeCommand: ThreadResumeAdapterCommand = {
-        type: "thread/resume",
-        cwd: fixture.workspacePath,
-        threadId: "patcher-thread-1",
-        providerThreadId: "codex-thread-1",
-        instructionMode: "append",
-        options: workspaceWriteAskProviderExecutionContext,
-      };
-      adapter.buildCommandPlan(resumeCommand);
-      acceptThreadCommand({
-        adapter,
-        command: resumeCommand,
-        providerThreadId: "codex-thread-1",
-      });
-
-      adapter.translateEvent(
-        codexEvent("thread/closed", {
-          threadId: "codex-thread-1",
-        }),
-      );
-
-      const turnCmd = adapter.buildCommandPlan({
-        type: "turn/start",
-        clientRequestId: "creq_222222228v",
-        threadId: "patcher-thread-1",
-        providerThreadId: "codex-thread-1",
-        input: [promptTextInput({ text: "edit it" })],
-        options: workspaceWriteAskProviderExecutionContext,
-      });
-
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it("translateEvent clears captured Codex workspace-write git roots after accepted start provider identity", () => {
-    const fixture = createLinkedWorktreeFixture();
-    const adapter = createCodexProviderAdapter();
-    try {
-      const startCommand = buildLinkedWorktreeThreadStartCommand({ fixture });
-      adapter.buildCommandPlan(startCommand);
-      acceptThreadCommand({
-        adapter,
-        command: startCommand,
-        providerThreadId: "codex-thread-1",
-      });
-      adapter.translateEvent(
-        codexEvent("thread/closed", {
-          threadId: "codex-thread-1",
-        }),
-      );
-
-      const turnCmd = adapter.buildCommandPlan({
-        type: "turn/start",
-        clientRequestId: "creq_222222228w",
-        threadId: "patcher-thread-1",
-        providerThreadId: "codex-thread-1",
-        input: [promptTextInput({ text: "edit it" })],
-        options: workspaceWriteAskProviderExecutionContext,
-      });
-
-      expect(turnCmd).toMatchObject({
-        method: "turn/start",
-        params: {
-          sandboxPolicy: {
-            type: "workspaceWrite",
-            writableRoots: [],
-          },
-        },
-      });
-    } finally {
-      fixture.cleanup();
-    }
-  });
 
   it("buildCommand thread/start maps deny escalation to no approval prompts", () => {
     const adapter = createCodexProviderAdapter();
@@ -1542,7 +1287,9 @@ describe("codex provider adapter", () => {
       method: "thread/start",
       params: {
         approvalPolicy: "never",
-        sandbox: "workspace-write",
+        config: {
+          default_permissions: CODEX_WORKSPACE_PERMISSION_PROFILE_ID,
+        },
       },
     });
   });
@@ -2097,9 +1844,40 @@ describe("codex provider adapter", () => {
     });
   });
 
-  it("buildCommand turn/start maps workspace-write permissions to workspace-write sandbox policy", () => {
+  it("buildCommand puts a workspace turn's policy in the profile, not in the turn", () => {
     const adapter = createCodexProviderAdapter();
-    const cmd = adapter.buildCommandPlan({
+    const startCmd = adapter.buildCommandPlan({
+      type: "thread/start",
+      cwd: "/tmp/worktree",
+      threadId: "t1",
+      input: [promptTextInput({ text: "edit it" })],
+      instructionMode: "append",
+      options: workspaceWriteAskProviderExecutionContext,
+    });
+
+    expect(workspaceProfileFilesystem(startCmd)).toEqual({
+      ":root": "read",
+      "/tmp/worktree": "write",
+      "/tmp/worktree/.git": "write",
+    });
+    expect(startCmd).toMatchObject({
+      params: {
+        config: {
+          // The floor for a Codex that does not understand the profile: without
+          // it the session would fall back to the machine's own config.toml.
+          sandbox_mode: "workspace-write",
+          permissions: {
+            [CODEX_WORKSPACE_PERMISSION_PROFILE_ID]: {
+              // Said out loud because a profile that omits it inherits the
+              // restricted default, which takes the loopback the CLI needs.
+              network: { enabled: true },
+            },
+          },
+        },
+      },
+    });
+
+    const turnCmd = adapter.buildCommandPlan({
       type: "turn/start",
       clientRequestId: "creq_222222228z",
       threadId: "t1",
@@ -2107,18 +1885,7 @@ describe("codex provider adapter", () => {
       input: [promptTextInput({ text: "edit it" })],
       options: workspaceWriteAskProviderExecutionContext,
     });
-    expect(cmd).toMatchObject({
-      method: "turn/start",
-      params: {
-        sandboxPolicy: {
-          type: "workspaceWrite",
-          writableRoots: [],
-          networkAccess: true,
-          excludeTmpdirEnvVar: false,
-          excludeSlashTmp: false,
-        },
-      },
-    });
+    expectTurnStartCarriesNoSandboxPolicy(turnCmd);
   });
 
   it("buildCommand turn/start leaves Full Access turns with the network", () => {
@@ -2140,34 +1907,86 @@ describe("codex provider adapter", () => {
     });
   });
 
-  it("buildCommand turn/start includes additional workspace-write roots", () => {
+  it("buildCommand thread/start denies the credentials and protects the git files", () => {
+    // The reads are why this exists: Codex's sandbox leaves them open, and Bash
+    // is auto-approved there, so one `cat` of the app key file would hand a
+    // sandboxed turn back the credential it is deliberately not given.
     const adapter = createCodexProviderAdapter({
-      additionalWorkspaceWriteRoots: [
-        "/repo/.git/worktrees/patcher13",
-        "/repo/.git/objects",
-        "/repo/.git/refs",
-        "/repo/.git/logs",
-      ],
+      additionalWorkspaceWriteRoots: ["/repo/.git"],
+      protectedCredentialPaths: ["/data/app-key.json", "/data/patcher.db"],
+      protectedRepositoryPaths: ["/repo/.git/config", "/repo/.git/hooks"],
     });
     const cmd = adapter.buildCommandPlan({
-      type: "turn/start",
-      clientRequestId: "creq_2222222292",
+      type: "thread/start",
+      cwd: "/repo/worktree",
       threadId: "t1",
-      providerThreadId: "codex-1",
-      input: [promptTextInput({ text: "commit it" })],
+      input: [promptTextInput({ text: "hello" })],
+      instructionMode: "append",
       options: workspaceWriteAskProviderExecutionContext,
     });
+
+    expect(workspaceProfileFilesystem(cmd)).toMatchObject({
+      "/data/app-key.json": "deny",
+      "/data/patcher.db": "deny",
+      // Read rather than deny: git cannot run without reading its own config.
+      "/repo/.git/config": "read",
+      "/repo/.git/hooks": "read",
+    });
+  });
+
+  it("buildCommand thread/start builds no profile for a Full Access turn", () => {
+    // Full Access means working without a sandbox, so there is nowhere for the
+    // denial to live — and the legacy mode is what says so to Codex.
+    const adapter = createCodexProviderAdapter({
+      additionalWorkspaceWriteRoots: [],
+      protectedCredentialPaths: ["/data/app-key.json"],
+    });
+    const cmd = adapter.buildCommandPlan({
+      type: "thread/start",
+      cwd: "/repo/worktree",
+      threadId: "t1",
+      input: [promptTextInput({ text: "hello" })],
+      instructionMode: "append",
+      options: fullProviderExecutionContext,
+    });
+
     expect(cmd).toMatchObject({
-      method: "turn/start",
       params: {
-        sandboxPolicy: {
-          type: "workspaceWrite",
-          writableRoots: [
-            "/repo/.git/worktrees/patcher13",
-            "/repo/.git/objects",
-            "/repo/.git/refs",
-            "/repo/.git/logs",
-          ],
+        sandbox: "danger-full-access",
+        config: expect.not.objectContaining({
+          default_permissions: expect.anything(),
+        }),
+      },
+    });
+  });
+
+  it("buildCommand thread/start grants the additional workspace-write roots", () => {
+    const additionalWorkspaceWriteRoots = [
+      "/repo/.git/worktrees/patcher13",
+      "/repo/.git/objects",
+      "/repo/.git/refs",
+      "/repo/.git/logs",
+    ];
+    const adapter = createCodexProviderAdapter({
+      additionalWorkspaceWriteRoots,
+    });
+    const cmd = adapter.buildCommandPlan({
+      type: "thread/start",
+      cwd: "/repo/worktree",
+      threadId: "t1",
+      input: [promptTextInput({ text: "commit it" })],
+      instructionMode: "append",
+      options: workspaceWriteAskProviderExecutionContext,
+    });
+    expectProfileWritableRootsBeyondWorkspace(cmd, {
+      cwd: "/repo/worktree",
+      roots: additionalWorkspaceWriteRoots,
+    });
+    expect(cmd).toMatchObject({
+      method: "thread/start",
+      params: {
+        config: {
+          default_permissions: CODEX_WORKSPACE_PERMISSION_PROFILE_ID,
         },
       },
     });
@@ -2195,10 +2014,6 @@ describe("codex provider adapter", () => {
       params: {
         approvalPolicy: "on-request",
         approvalsReviewer: "auto_review",
-        sandboxPolicy: {
-          type: "workspaceWrite",
-          networkAccess: true,
-        },
       },
     });
   });
@@ -2225,11 +2040,9 @@ describe("codex provider adapter", () => {
       params: {
         approvalPolicy: "on-request",
         approvalsReviewer: "auto_review",
-        sandboxPolicy: {
-          type: "workspaceWrite",
-        },
       },
     });
+    expectTurnStartCarriesNoSandboxPolicy(cmd);
   });
 
   it("buildCommand turn/steer includes expectedTurnId", () => {

@@ -344,8 +344,9 @@ export class RuntimeManager {
    * `<dataDir>/plugins` are deliberately not denied wholesale — that directory
    * also holds installed plugin code an agent has reason to read.
    *
-   * Only a provider whose sandbox can protect a path honours this; Codex's
-   * leaves reads open with nothing to say otherwise.
+   * Only a provider whose sandbox can protect a path honours this: Claude Code
+   * through `credentials.files`, Codex through its permission profile. Pi and
+   * ACP build no OS sandbox at all, so for them the list is inert.
    */
   private runtimeProtectedCredentialPaths(): string[] {
     const dataDir = this.options.dataDir;
