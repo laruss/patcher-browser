@@ -67,6 +67,22 @@ export function targetThreadIdFromPath(path: string): string | null {
   return id === undefined || id.length === 0 ? null : decodeURIComponent(id);
 }
 
+/**
+ * May this turn's agent act on that thread — its own, or one it spawned?
+ *
+ * Shared with the terminal scope: a terminal belongs to the thread it was
+ * opened for, so "whose terminal is this to drive" is the same question one
+ * indirection out.
+ */
+export function agentMayDriveThread(
+  db: DbConnection,
+  args: { callerThreadId: string; targetThreadId: string },
+): boolean {
+  return (
+    args.targetThreadId === args.callerThreadId || isCallerAncestorOf(db, args)
+  );
+}
+
 function isCallerAncestorOf(
   db: DbConnection,
   args: { callerThreadId: string; targetThreadId: string },
@@ -110,9 +126,8 @@ export function agentThreadScopeDenial(
   if (!MUTATION_METHODS.has(args.method.toUpperCase())) return null;
   const targetThreadId = targetThreadIdFromPath(args.path);
   if (targetThreadId === null) return null;
-  if (targetThreadId === args.callerThreadId) return null;
   if (
-    isCallerAncestorOf(db, {
+    agentMayDriveThread(db, {
       callerThreadId: args.callerThreadId,
       targetThreadId,
     })

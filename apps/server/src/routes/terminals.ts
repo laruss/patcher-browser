@@ -4,6 +4,7 @@ import {
   type PublicApiSchema,
 } from "@patcher/server-contract";
 import type { Hono } from "hono";
+import { getAgentThreadId } from "../agent-thread-scope.js";
 import { ApiError } from "../errors.js";
 import type { AppDeps } from "../types.js";
 
@@ -19,7 +20,12 @@ export function registerTerminalRoutes(app: Hono, deps: AppDeps): void {
   });
 
   post(routes.create, async (context, payload) => {
-    const session = await deps.terminalSessions.createTerminal({ payload });
+    const session = await deps.terminalSessions.createTerminal({
+      payload,
+      // Who asked decides both halves: which target may be named, and whether
+      // the daemon is told to confine the shell.
+      requestedByThreadId: getAgentThreadId(context) ?? null,
+    });
     return context.json(session, 201);
   });
 

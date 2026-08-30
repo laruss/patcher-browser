@@ -19,9 +19,7 @@ interface TabIdentity {
   id: string;
 }
 
-function terminalSession(
-  overrides: TerminalSessionOverrides,
-): TerminalSession {
+function terminalSession(overrides: TerminalSessionOverrides): TerminalSession {
   return {
     id: "term_1",
     threadId: "thr_1",
@@ -32,6 +30,7 @@ function terminalSession(
     cols: 100,
     rows: 30,
     status: "running",
+    sandboxed: false,
     exitCode: null,
     closeReason: null,
     createdAt: 1,
@@ -104,10 +103,12 @@ describe("terminalPanelTabs", () => {
           terminalSession({
             id: "term_retained",
             status: "disconnected",
+            sandboxed: false,
           }),
           terminalSession({
             id: "term_unretained",
             status: "disconnected",
+            sandboxed: false,
           }),
           terminalSession({ id: "term_running" }),
         ],
@@ -188,6 +189,7 @@ describe("terminalPanelTabs", () => {
       terminalSession({
         id: "term_disconnected",
         status: "disconnected",
+        sandboxed: false,
       }),
       terminalSession({ id: "term_running" }),
     ];
@@ -300,9 +302,7 @@ describe("terminalPanelTabs", () => {
       terminalSessions: [terminalSession({ id: "term_1" })],
     });
 
-    expect(tabIds(nextState.secondary.tabs)).toEqual([
-      "terminal:term_1:none",
-    ]);
+    expect(tabIds(nextState.secondary.tabs)).toEqual(["terminal:term_1:none"]);
     expect(nextState.secondary.activeTabId).toBeNull();
   });
 
@@ -333,6 +333,7 @@ describe("terminalPanelTabs", () => {
         terminalSession({
           id: "term_disconnected",
           status: "disconnected",
+          sandboxed: false,
           title: "zsh",
         }),
       ],
@@ -382,10 +383,12 @@ describe("terminalPanelTabs", () => {
         terminalSession({
           id: "term_disconnected",
           status: "disconnected",
+          sandboxed: false,
         }),
         terminalSession({
           id: "term_unretained",
           status: "disconnected",
+          sandboxed: false,
         }),
       ],
     });

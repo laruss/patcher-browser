@@ -52,16 +52,20 @@ describe("agentRoutePolicyDenial", () => {
     }
   });
 
-  it("refuses opening a terminal, whatever the sub-route", () => {
+  it("no longer refuses a terminal by route, because the terminal changed", () => {
+    // A terminal an agent opens runs inside the boundary its turn runs in, so
+    // this policy has nothing to say about it. Which terminal, and whether it
+    // is confined at all, is `agent-terminal-scope.ts` — the route shape cannot
+    // tell those apart, and a blanket refusal here took the feature away.
     expect(
       agentRoutePolicyDenial({ method: "POST", path: "/api/v1/terminals" }),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       agentRoutePolicyDenial({
         method: "POST",
         path: "/api/v1/terminals/term-1/input",
       }),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("refuses raising the machine's permission ceiling", () => {
@@ -138,11 +142,11 @@ describe("agentRoutePolicyDenial", () => {
   it("names the route and the way to do it properly", () => {
     const denial = agentRoutePolicyDenial({
       method: "POST",
-      path: "/api/v1/terminals",
+      path: "/api/v1/files/write",
     });
 
-    expect(denial?.route).toBe("/terminals");
-    expect(denial?.message).toContain("outside this turn's sandbox");
+    expect(denial?.route).toBe("/files/write");
+    expect(denial?.message).toContain("workspace sandbox");
     expect(denial?.message).toContain("Ask the person in the thread");
   });
 });
@@ -228,16 +232,25 @@ describe("an agent mid-turn", () => {
     expect(await response.text()).toContain("workspace sandbox");
   });
 
-  it("is refused a terminal on the host", async () => {
+  it("is refused a terminal that belongs to no turn", async () => {
     server = await startTestServer();
 
-    const response = await fetch(`${server.baseUrl}/api/v1/terminals`, {
-      method: "POST",
-      headers: agentHeaders(),
-      body: JSON.stringify({ environmentId: "env-1" }),
-    });
+    // The route came back when the terminal changed, but only for a thread:
+    // an environment names no turn to take the boundary from, and a host path
+    // is the shell-anywhere case the boundary exists to close.
+    for (const target of [
+      { kind: "environment", environmentId: "env-1" },
+      { kind: "host_path", hostId: "host-1", cwd: "/tmp" },
+    ]) {
+      const response = await fetch(`${server.baseUrl}/api/v1/terminals`, {
+        method: "POST",
+        headers: agentHeaders(),
+        body: JSON.stringify({ cols: 100, rows: 30, target }),
+      });
 
-    expect(response.status).toBe(403);
+      expect(response.status).toBe(403);
+      expect(await response.text()).toContain("opens a terminal for a thread");
+    }
   });
 
   it("is refused a raise of its machine's permission ceiling", async () => {

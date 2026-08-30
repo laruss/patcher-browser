@@ -9,10 +9,14 @@ import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import { sanitizeInheritedChildProcessEnv } from "@patcher/process-utils";
 import type { HostDaemonServerTerminalMessage } from "../server-connection-support.js";
 import type { HostDaemonLogger } from "../logger.js";
-import { RuntimeManager } from "../runtime-manager.js";
+import { RuntimeManager, type RuntimeEntry } from "../runtime-manager.js";
 import { runtimeErrorLogFields } from "../error-utils.js";
 import { requireResolvedWorkspaceForCommand } from "../workspace-resolution.js";
 import { ExpectedCommandDispatchError } from "../command-dispatch-support.js";
+import {
+  buildTerminalSandboxLaunch,
+  type TerminalSandboxPolicy,
+} from "./terminal-sandbox.js";
 
 const DEFAULT_SCROLLBACK_MAX_BYTES = 4 * 1024 * 1024;
 const DEFAULT_SCROLLBACK_MAX_CHUNKS = 10_000;
@@ -145,6 +149,13 @@ interface ResizeTerminalArgs {
 interface ResolvedTerminalOpenTarget {
   cwd: string;
   environmentId: string | null;
+  /**
+   * The policy this terminal runs under, or null when it runs unconfined.
+   *
+   * Built here rather than sent over the wire: the paths are this machine's,
+   * and the daemon is the side that already computes them for the turn.
+   */
+  sandboxPolicy: TerminalSandboxPolicy | null;
 }
 
 interface FinishTerminalSessionArgs {
@@ -349,6 +360,47 @@ function terminalSpawnArgsForStart(message: TerminalOpenMessage): string[] {
   }
 }
 
+interface TerminalSpawnCommandArgs {
+  command: { args: string[]; file: string };
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  platform: NodeJS.Platform;
+  sandboxPolicy: TerminalSandboxPolicy | null;
+}
+
+/**
+ * The shell to spawn, wrapped in the turn's boundary when there is one.
+ *
+ * A machine that cannot build the boundary gets no terminal rather than an
+ * unconfined one: the caller is an agent whose turn *is* sandboxed, so starting
+ * anyway would hand it the shell the sandbox exists to withhold, and nothing
+ * would say so.
+ */
+function terminalSpawnCommand(args: TerminalSpawnCommandArgs): {
+  args: string[];
+  file: string;
+} {
+  if (args.sandboxPolicy === null) {
+    return { args: args.command.args, file: args.command.file };
+  }
+  const launch = buildTerminalSandboxLaunch({
+    command: args.command,
+    cwd: args.cwd,
+    env: args.env,
+    platform: args.platform,
+    policy: args.sandboxPolicy,
+  });
+  if (!launch.sandboxed) {
+    throw new Error(
+      `This terminal runs inside the thread's sandbox, and this machine cannot build one: ${launch.reason}. Either ${launch.remedy}.`,
+    );
+  }
+  return {
+    args: [...launch.command.args],
+    file: launch.command.file,
+  };
+}
+
 function terminalTitleForStart(
   message: TerminalOpenMessage,
   shell: string,
@@ -531,15 +583,23 @@ export class TerminalManager {
     try {
       const target = await this.resolveTerminalOpenTarget(message);
       const shell = await this.resolveShell();
+      const env = buildTerminalEnv({
+        shellEnv: this.options.runtimeManager.getShellEnv(),
+        terminalId: message.terminalId,
+      });
+      const command = terminalSpawnCommand({
+        command: { args: terminalSpawnArgsForStart(message), file: shell },
+        cwd: target.cwd,
+        env,
+        platform: this.platform,
+        sandboxPolicy: target.sandboxPolicy,
+      });
       const pty = this.ptyAdapter.spawn({
-        args: terminalSpawnArgsForStart(message),
+        args: command.args,
         cols: message.cols,
         cwd: target.cwd,
-        env: buildTerminalEnv({
-          shellEnv: this.options.runtimeManager.getShellEnv(),
-          terminalId: message.terminalId,
-        }),
-        file: shell,
+        env,
+        file: command.file,
         logger: this.options.logger,
         rows: message.rows,
       });
@@ -634,14 +694,47 @@ export class TerminalManager {
         return {
           cwd: entry.path,
           environmentId: message.target.environmentId,
+          sandboxPolicy: message.sandbox
+            ? await this.resolveTerminalSandboxPolicy(entry)
+            : null,
         };
       }
       case "host_path":
+        if (message.sandbox) {
+          // A sandboxed terminal is confined to a workspace, so there has to be
+          // one. Refusing beats picking a boundary nobody asked for.
+          throw new Error(
+            "A sandboxed terminal needs a workspace, and this one names a host path",
+          );
+        }
         return {
           cwd: await requireTerminalCwd(message.target.cwd),
           environmentId: null,
+          sandboxPolicy: null,
         };
     }
+  }
+
+  /**
+   * The same paths the turn's own sandbox is built from, for the same reason.
+   *
+   * A terminal that could write what the turn cannot, or read the credential
+   * files the turn is denied, would hand back exactly what the turn's sandbox
+   * took away — so the list is not a second opinion, it is the same one.
+   */
+  private async resolveTerminalSandboxPolicy(
+    entry: RuntimeEntry,
+  ): Promise<TerminalSandboxPolicy> {
+    const [writableRoots, readOnlyPaths] = await Promise.all([
+      entry.workspace.getAdditionalWorkspaceWriteRoots(),
+      entry.workspace.getProtectedRepositoryPaths(),
+    ]);
+    return {
+      deniedReadPaths: this.options.runtimeManager.protectedCredentialPaths(),
+      readOnlyPaths,
+      workspacePath: entry.path,
+      writableRoots,
+    };
   }
 
   private attachTerminal(message: TerminalAttachMessage): void {

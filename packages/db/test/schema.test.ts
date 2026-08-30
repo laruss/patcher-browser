@@ -135,6 +135,11 @@ describe("db rebuild schema", () => {
         "created_at",
         "updated_at",
         "last_user_input_at",
+        // Last because it was added by an `ALTER TABLE`, not where the schema
+        // declares it. Persisted rather than runtime-only on purpose: a restart
+        // has to know whether the terminal it replaces was confined, and a
+        // person's terminal and an agent's differ in nothing else on the row.
+        "sandboxed",
       ]);
     } finally {
       closeConnection(db);
