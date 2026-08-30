@@ -209,10 +209,13 @@ reason to read.
 
 Named here rather than left to be rediscovered:
 
-- **Another thread.** The thread key proves _which_ thread is calling, but the
-  server does not compare that with the `:id` a request acts on, so an agent can
-  drive another thread — including one running at Full Access. Narrowing it
-  would take away `patcher thread spawn`, which agents are meant to have.
+- ~~**Another thread.**~~ Closed: the thread key proves which thread is calling,
+  and `agent-thread-scope.ts` now compares that with the `:id` the request acts
+  on. A turn may act on its own thread and on the ones it spawned — delegation
+  is what `patcher thread spawn` is for, and a grandchild is the same
+  relationship one link further — and anything else is refused. Reads are not
+  scoped: learning what another thread says is a smaller thing than making it
+  act, and the app's own views are built from those routes.
 - **Choosing the next turn's sandbox.** `permissionMode` on thread
   create/send/fork is bounded only by the machine ceiling, and
   `workspace: { type: "unmanaged", path }` decides where the next turn's

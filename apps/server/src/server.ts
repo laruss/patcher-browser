@@ -7,6 +7,10 @@ import { Hono } from "hono";
 import { terminalWebSocketQuerySchema } from "@patcher/server-contract";
 import { permissionsForApiPath } from "@patcher/domain";
 import {
+  agentThreadScopeDenial,
+  setAgentThreadId,
+} from "./agent-thread-scope.js";
+import {
   PLUGIN_API_ID_HEADER,
   PLUGIN_API_KEY_HEADER,
 } from "./services/plugins/plugin-api-identity.js";
@@ -491,6 +495,22 @@ export function createApp(
           );
           throw new ApiError(403, "forbidden", denial.message);
         }
+        // Which routes, then which thread. The policy above is about the shape
+        // of the request and needs no database; this one is about the row it
+        // acts on and does.
+        const scopeDenial = agentThreadScopeDenial(deps.db, {
+          callerThreadId: threadId,
+          method: context.req.method,
+          path: context.req.path,
+        });
+        if (scopeDenial !== null) {
+          deps.logger.warn(
+            { targetThreadId: scopeDenial.targetThreadId, threadId },
+            "Refused an agent request against another thread",
+          );
+          throw new ApiError(403, "forbidden", scopeDenial.message);
+        }
+        setAgentThreadId(context, threadId);
         return next();
       }
       // Two exceptions, and they have to be: a plugin's own HTTP routes are
