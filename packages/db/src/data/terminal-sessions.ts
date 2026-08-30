@@ -19,6 +19,8 @@ export interface CreateTerminalSessionInput {
   initialCwd: string;
   now?: number;
   rows: number;
+  /** Whether the shell runs inside the boundary its thread's turn runs in. */
+  sandboxed: boolean;
   status: TerminalSessionStatus;
   threadId: string | null;
   title: string;
@@ -208,6 +210,7 @@ export function createTerminalSession(
       initialCwd: input.initialCwd,
       cols: input.cols,
       rows: input.rows,
+      sandboxed: input.sandboxed,
       status: input.status,
       exitCode: null,
       closeReason: null,

@@ -68,6 +68,7 @@ function terminalSession(overrides: TerminalSessionOverrides): TerminalSession {
     cols: 100,
     rows: 30,
     status: "running",
+    sandboxed: false,
     exitCode: null,
     closeReason: null,
     createdAt: 1,
@@ -141,6 +142,7 @@ describe("useThreadFileTabs terminal pruning", () => {
           terminalSession({
             id: "term_disconnected",
             status: "disconnected",
+            sandboxed: false,
           }),
           terminalSession({ id: "term_running" }),
         ],
@@ -187,6 +189,7 @@ describe("useThreadFileTabs terminal pruning", () => {
           terminalSession({
             id: "term_disconnected",
             status: "disconnected",
+            sandboxed: false,
           }),
           terminalSession({ id: "term_running" }),
         ],

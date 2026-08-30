@@ -1,0 +1,1 @@
+ALTER TABLE `terminal_sessions` ADD `sandboxed` integer DEFAULT false NOT NULL;

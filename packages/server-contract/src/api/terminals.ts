@@ -17,6 +17,15 @@ export const terminalSessionSchema = z.object({
   cols: terminalColsSchema,
   rows: terminalRowsSchema,
   status: terminalSessionStatusSchema,
+  /**
+   * Whether the shell runs inside the boundary its thread's turn runs in.
+   *
+   * True for a terminal a turn's agent opened, false for one a person did — and
+   * worth saying out loud to whoever is looking at it, because a confined shell
+   * refuses writes outside the workspace and reads of Patcher's own credentials,
+   * which is otherwise a surprise with no explanation attached.
+   */
+  sandboxed: z.boolean(),
   exitCode: z.number().int().nullable(),
   closeReason: terminalSessionCloseReasonSchema.nullable(),
   createdAt: z.number().int().nonnegative(),

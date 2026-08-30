@@ -59,6 +59,7 @@ type TerminalMessageObserver = (message: HostDaemonDaemonWsMessage) => void;
 
 interface CreateHarnessOptions {
   closeGracePeriodMs?: number;
+  dataDir?: string;
   onSendMessage: TerminalMessageObserver;
   resolveShell: ResolveTerminalShell;
 }
@@ -317,6 +318,7 @@ function createHarnessWithOptions(
   const workspace = createFakeWorkspace("/tmp/terminal-workspace");
   const runtimeManager = new RuntimeManager({
     createRuntime: () => runtime,
+    ...(args.dataDir !== undefined ? { dataDir: args.dataDir } : {}),
     provisionWorkspace: async () => workspace,
     shellEnv: {
       PATCHER_BASE_ENV: "1",
@@ -397,6 +399,85 @@ async function openTerminal(
   }
   return spawned.pty;
 }
+
+describe("a terminal an agent asked for", () => {
+  afterEach(async () => {
+    await cleanupTempDirs();
+  });
+
+  it("runs inside the boundary the thread's turn runs in", async () => {
+    const dataDir = await makeTempDir("patcher-terminal-data-");
+    const harness = createHarnessWithOptions({
+      dataDir,
+      onSendMessage: () => undefined,
+      resolveShell: async () => "/bin/zsh",
+    });
+
+    await harness.manager.handleMessage({
+      type: "terminal.open",
+      requestId: "open-sandboxed",
+      terminalId: "term-sandboxed",
+      threadId: "thr-1",
+      sandbox: { mode: "workspace" },
+      target: {
+        kind: "workspace",
+        environmentId: "env-1",
+        workspaceContext: {
+          workspacePath: "/tmp/terminal-workspace",
+          workspaceProvisionType: "unmanaged",
+        },
+      },
+      cols: 100,
+      rows: 30,
+      start: DEFAULT_TERMINAL_START,
+    });
+
+    const spawned = harness.adapter.spawned[0];
+    expect(spawned).toBeDefined();
+    if (!spawned) return;
+    // The shell is what runs, but it is no longer what is spawned: the sandbox
+    // launcher is, with the shell inside it.
+    expect(spawned.args.file).not.toBe("/bin/zsh");
+    const launchArgs = JSON.stringify(spawned.args.args);
+    expect(spawned.args.args).toContain("/bin/zsh");
+    expect(launchArgs).toContain("terminal-workspace");
+    // And the credential files the turn is denied are named in the policy, so
+    // the terminal cannot read back what the turn was not given.
+    expect(launchArgs).toContain(dataDir);
+  });
+
+  it("is refused rather than opened unconfined when it names a host path", async () => {
+    const harness = createHarness();
+
+    await harness.manager.handleMessage({
+      type: "terminal.open",
+      requestId: "open-host-path",
+      terminalId: "term-host-path",
+      threadId: "thr-1",
+      sandbox: { mode: "workspace" },
+      target: { kind: "host_path", cwd: "/tmp" },
+      cols: 100,
+      rows: 30,
+      start: DEFAULT_TERMINAL_START,
+    });
+
+    expect(harness.adapter.spawned).toHaveLength(0);
+    expect(harness.messages).toContainEqual(
+      expect.objectContaining({
+        type: "terminal.error",
+        terminalId: "term-host-path",
+        message: expect.stringContaining("needs a workspace"),
+      }),
+    );
+  });
+
+  it("leaves a terminal nobody sandboxed spawning the shell itself", async () => {
+    const harness = createHarness();
+    await openTerminal(harness);
+
+    expect(harness.adapter.spawned[0]?.args.file).toBe("/bin/zsh");
+  });
+});
 
 describe("TerminalManager", () => {
   afterEach(async () => {

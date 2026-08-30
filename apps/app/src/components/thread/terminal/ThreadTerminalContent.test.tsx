@@ -24,6 +24,7 @@ const session: TerminalSession = {
   cols: 100,
   rows: 30,
   status: "running",
+  sandboxed: false,
   exitCode: null,
   closeReason: null,
   createdAt: 1,

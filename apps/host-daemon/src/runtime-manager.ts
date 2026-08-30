@@ -335,7 +335,7 @@ export class RuntimeManager {
   }
 
   /**
-   * Credential files a sandboxed turn must not read.
+   * Credential files a sandboxed turn — and a terminal it opens — must not read.
    *
    * A turn is handed a thread-scoped key rather than the app key, and this is
    * what stops it reading the app key off disk and being the app again. The
@@ -348,7 +348,7 @@ export class RuntimeManager {
    * through `credentials.files`, Codex through its permission profile. Pi and
    * ACP build no OS sandbox at all, so for them the list is inert.
    */
-  private runtimeProtectedCredentialPaths(): string[] {
+  protectedCredentialPaths(): string[] {
     const dataDir = this.options.dataDir;
     if (!dataDir) return [];
     const databasePath = resolveDataDirDatabasePath({ dataDir });
@@ -1273,7 +1273,7 @@ export class RuntimeManager {
       additionalWorkspaceWriteRoots: [],
       // This workspace sits *inside* the data dir, so it is the last place the
       // credential deny should be missing.
-      protectedCredentialPaths: this.runtimeProtectedCredentialPaths(),
+      protectedCredentialPaths: this.protectedCredentialPaths(),
       ...(providerProcessEnv ? { env: providerProcessEnv } : {}),
       shellEnv,
       threadStorageRootPath: this.options.threadStorageRootPath ?? undefined,
@@ -1348,7 +1348,7 @@ export class RuntimeManager {
     runtime = this.createRuntime({
       workspacePath: workspace.path,
       additionalWorkspaceWriteRoots,
-      protectedCredentialPaths: this.runtimeProtectedCredentialPaths(),
+      protectedCredentialPaths: this.protectedCredentialPaths(),
       protectedRepositoryPaths,
       ...(args.skillConfig ? { skillRoots: args.skillConfig.skillRoots } : {}),
       ...(providerProcessEnv ? { env: providerProcessEnv } : {}),

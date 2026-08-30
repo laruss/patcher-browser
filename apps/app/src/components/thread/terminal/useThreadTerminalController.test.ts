@@ -18,6 +18,7 @@ function terminalSession(overrides: Partial<TerminalSession>): TerminalSession {
     cols: 100,
     rows: 30,
     status: "running",
+    sandboxed: false,
     exitCode: null,
     closeReason: null,
     createdAt: 1,
@@ -32,6 +33,7 @@ describe("terminal visibility", () => {
     const disconnected = terminalSession({
       id: "term_disconnected",
       status: "disconnected",
+      sandboxed: false,
     });
 
     expect(
@@ -58,6 +60,7 @@ describe("terminal visibility", () => {
     const disconnected = terminalSession({
       id: "term_disconnected",
       status: "disconnected",
+      sandboxed: false,
     });
 
     expect(

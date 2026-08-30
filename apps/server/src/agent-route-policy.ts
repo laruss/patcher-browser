@@ -9,14 +9,19 @@
  * - **File mutation.** `rootPath` is optional on these, and without it the
  *   daemon writes wherever it is told. A sandbox that restricts writes to the
  *   workspace means nothing beside a write-anywhere RPC.
- * - **Terminals.** Creating one is a PTY on the host, outside any sandbox,
- *   running as the user. It is the shortest way out that exists.
  * - **A machine's permission ceiling, machine enrolment, and provider-CLI
  *   installs.** Raising the ceiling is how a sandboxed turn would arrange to
  *   stop being one; an install runs an installer on the host outside the
  *   sandbox. All three were already meant to be app-only — deliberately absent
  *   from the SDK and the CLI — and this is what makes that true of an agent
  *   that calls the route directly.
+ *
+ * Terminals were on this list, for the same reason and just as truly: a PTY on
+ * the host, outside any sandbox, running as the user — the shortest way out
+ * that existed. They came off it when the terminal changed rather than the
+ * judgement. One an agent opens now runs inside the boundary its turn runs in,
+ * and `agent-terminal-scope.ts` keeps a turn to the terminals of its own thread
+ * and of the ones it spawned.
  *
  * Approving a thread's prompts from inside the turn that raised them is refused
  * too — a turn that can resolve its own approval interaction can approve its own
@@ -80,11 +85,6 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
   { path: "/files/mkdir", reason: FILE_MUTATION_REASON },
   { path: "/files/move", reason: FILE_MUTATION_REASON },
   { path: "/files/remove", reason: FILE_MUTATION_REASON },
-  {
-    path: "/terminals",
-    reason:
-      "it opens a shell on the host outside this turn's sandbox, running as the user",
-  },
   {
     path: "/hosts/:id/permission-ceiling",
     reason:

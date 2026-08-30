@@ -301,6 +301,7 @@ function dropRewindAddedTables(db: DbConnection): void {
     .run();
   dropHostMaxPermissionModeColumn(db);
   dropEnvironmentRetireRequestedAtColumn(db);
+  dropTerminalSandboxedColumn(db);
   dropThreadSectionSchema(db);
   restoreWideExperimentsTable(db);
   // system_experiments predates thread search, so the table itself isn't
@@ -530,6 +531,19 @@ function dropNewOnboardingExperimentColumn(db: DbConnection): void {
   }
 }
 
+// Migration 0097 adds the terminal sandbox flag. Rewind scenarios that clear
+// its migration row must drop the column before replay.
+function dropTerminalSandboxedColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(terminal_sessions)")
+    .all();
+  if (columns.some((column) => column.name === "sandboxed")) {
+    db.$client
+      .prepare("ALTER TABLE terminal_sessions DROP COLUMN sandboxed")
+      .run();
+  }
+}
+
 // Migration 0083 adds the machine permission ceiling. Rewind scenarios that
 // clear its migration row must drop the column before replay.
 function dropHostMaxPermissionModeColumn(db: DbConnection): void {
@@ -690,6 +704,7 @@ function dropQueuedMessageSenderThreadIdColumn(db: DbConnection): void {
 /** Tables created by migrations after 0023, dropped so migrate() re-applies. */
 function dropPost0023Tables(db: DbConnection): void {
   dropEnvironmentRetireRequestedAtColumn(db);
+  dropTerminalSandboxedColumn(db);
   dropProjectGitRemoteUrlColumn(db);
   db.$client.prepare("DROP TABLE IF EXISTS thread_tabs").run();
   db.$client.exec(`
@@ -1389,6 +1404,7 @@ describe("migrate", () => {
     dropBrowserSearchEngineIdColumn(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
+    dropTerminalSandboxedColumn(db);
     // Delete by the journal timestamp, not a hash substring: migration hashes
     // are hex and can contain "0085" by coincidence.
     db.$client
@@ -1482,6 +1498,9 @@ describe("migrate", () => {
         [number]
       >("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
       .run(sandboxCeilingMigrationWhen);
+    // 0097 is one of the rows just cleared, and its `ALTER TABLE ... ADD` is
+    // not re-appliable.
+    dropTerminalSandboxedColumn(db);
 
     migrate(db);
 
@@ -1750,6 +1769,7 @@ describe("migrate", () => {
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
+      dropTerminalSandboxedColumn(db);
 
       migrate(db);
 
@@ -2150,6 +2170,7 @@ describe("migrate", () => {
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
+      dropTerminalSandboxedColumn(db);
 
       expect(
         db.$client
@@ -2247,6 +2268,7 @@ describe("migrate", () => {
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
+      dropTerminalSandboxedColumn(db);
 
       expect(() => migrate(db)).not.toThrow();
 

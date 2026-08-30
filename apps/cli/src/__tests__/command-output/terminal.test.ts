@@ -27,6 +27,7 @@ function makeTerminalSession(overrides: Record<string, unknown> = {}) {
     cols: 100,
     rows: 30,
     status: "running",
+    sandboxed: false,
     exitCode: null,
     closeReason: null,
     createdAt: 1,
@@ -83,6 +84,25 @@ describe("patcher terminal command output", () => {
     expect(collectLogLines(vi.mocked(console.log)).join("\n")).toContain(
       "Terminal 1",
     );
+  });
+
+  it("says which terminals are confined", async () => {
+    // A confined shell refuses writes outside the workspace, so whoever is
+    // looking at the list has to be able to tell which kind it is.
+    const list = vi.fn(async () => ({
+      sessions: [
+        makeTerminalSession({ id: "term-agent", sandboxed: true }),
+        makeTerminalSession({ id: "term-person", title: "Terminal 2" }),
+      ],
+    }));
+    stubServerApi({ "v1.terminals.$get": list });
+
+    await runCommand(["terminal", "list", "--thread", "thr-1"], register);
+
+    const output = collectLogLines(vi.mocked(console.log)).join("\n");
+    expect(output).toContain("Sandbox");
+    expect(output).toMatch(/term-agent.*sandboxed/);
+    expect(output).not.toMatch(/term-person.*sandboxed/);
   });
 
   it("resolves an explicit machine and cwd without a primary-host fallback", async () => {
