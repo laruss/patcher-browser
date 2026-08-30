@@ -216,12 +216,20 @@ Named here rather than left to be rediscovered:
   relationship one link further — and anything else is refused. Reads are not
   scoped: learning what another thread says is a smaller thing than making it
   act, and the app's own views are built from those routes.
-- **Choosing the next turn's sandbox.** `permissionMode` on thread
-  create/send/fork is bounded only by the machine ceiling, and
-  `workspace: { type: "unmanaged", path }` decides where the next turn's
-  workspace — and so its sandbox — points. A managed worktree also runs the
-  repository's own `.patcher-env-setup.sh` outside any sandbox, though that now
-  asks first — see above.
+- ~~**Asking for a more privileged turn.**~~ Closed: a requested
+  `permissionMode` is now bounded by the asking turn's own mode as well as by
+  the machine's ceiling, so a turn cannot arrange more privilege than it has —
+  for a thread it spawns or for its own next turn. The bound is applied in
+  `clampPermissionModeToHost`, and every path that resolves a turn's options
+  has to name who asked, so a new one cannot inherit "nobody" by leaving it out.
+- **Choosing where the next turn's workspace points.** Still open, and a
+  decision rather than an oversight: `workspace: { type: "unmanaged", path }`
+  takes any path the collision checks allow, so a turn can ask for the next
+  one's workspace to be `/` — and a sandbox whose writable root is `/` bounds
+  nothing, even at the mode it was clamped to. Binding the path to the
+  project's own sources is the shape that would close it. A managed worktree
+  also runs the repository's own `.patcher-env-setup.sh` outside any sandbox,
+  though that now asks first — see above.
 - ~~**A machine enrolled before this release.**~~ Closed: migration `0095`
   lowers every machine still at `full` to the sandbox ceiling, so the default
   reaches installs that already exist. A machine whose owner wanted Full Access
@@ -248,9 +256,16 @@ Named here rather than left to be rediscovered:
   and the script is skipped — every run, because a timeout is deliberately not
   remembered. The answer is allowing ahead of time rather than in the four
   minutes the prompt stands, which is a surface that does not exist yet.
-- **Plugin code.** `plugins/:id/cli` and `plugins/:id/rpc/:method` execute
-  plugin code with no consent prompt, unlike the install/enable/settings routes
-  beside them.
+- **Plugin code, by decision rather than by omission.** `plugins/:id/cli` and
+  `plugins/:id/rpc/:method` execute plugin code with no consent prompt, and
+  that is the model rather than a gap in it: the grant happens at install and
+  enable, which _are_ gated for an agent, and invoking a plugin command is
+  using what was granted. What follows from that is worth saying plainly — a
+  plugin is an unsandboxed process running as you, so enabling one is trusting
+  its code with everything this document describes, and an agent that can call
+  it inherits that trust for the arguments it passes. A prompt per invocation
+  would put the question where the answer cannot be informed by anything the
+  install prompt did not already say.
 - **The daemon's own loopback API.** Narrowed, not closed. `POST /open-in-target`
   — the one route that runs something, an `execFile` on the host outside any
   turn's sandbox — takes the app key, which a turn's environment no longer

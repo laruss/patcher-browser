@@ -347,6 +347,7 @@ describe("plugin mention providers (patcher.ui.registerMentionProvider)", () => 
     const { environment, thread } = seedColdIdleThreadFixture(harness, 1);
 
     await sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
       environment,
       payload: {
         input: pluginMentionInput({
@@ -452,6 +453,7 @@ describe("plugin mention providers (patcher.ui.registerMentionProvider)", () => 
 
     await expect(
       sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           input: pluginMentionInput({
@@ -498,6 +500,7 @@ describe("plugin mention providers (patcher.ui.registerMentionProvider)", () => 
     await harness.pluginService.setEnabled("mentions", false);
     await expect(
       sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           ...basePayload,
@@ -519,6 +522,7 @@ describe("plugin mention providers (patcher.ui.registerMentionProvider)", () => 
 
     await expect(
       sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           ...basePayload,
@@ -538,6 +542,7 @@ describe("plugin mention providers (patcher.ui.registerMentionProvider)", () => 
     // non-string context) also blocks.
     await expect(
       sendThreadMessage(harness.deps, {
+    requestedByThreadId: null,
         environment,
         payload: {
           ...basePayload,

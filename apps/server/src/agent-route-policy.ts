@@ -39,12 +39,15 @@
  * that check needs the database and this one does not, and a turn may act on
  * its own thread and on the ones it spawned. Reads stay open there.
  *
- * **Known gaps, deliberately left rather than papered over.**
- * `permissionMode` on thread create/send/fork is bounded only by the machine
- * ceiling, and `workspace: { type: "unmanaged", path }` lets a caller choose
- * where the next turn's sandbox points. `/plugins/:id/cli` and
- * `/plugins/:id/rpc/:method` execute plugin code with no consent prompt, unlike
- * the install/enable/settings routes beside them. See docs/security.md.
+ * **What a turn may ask for the next one.** `permissionMode` is bounded by the
+ * asking turn's own mode as well as by the machine's ceiling, in
+ * `permission-ceiling.ts`. `workspace: { type: "unmanaged", path }` is not
+ * bounded: a turn can still choose where the next one's workspace points, which
+ * is a decision recorded in docs/security.md rather than an oversight.
+ *
+ * `/plugins/:id/cli` and `/plugins/:id/rpc/:method` execute plugin code with no
+ * consent prompt because the grant happens at install and enable, which are
+ * gated; invoking is using what was granted. See docs/security.md.
  *
  * Both halves of a denial matter for how it reads to whoever hits it, so the
  * message names the route and the reason rather than saying "forbidden".

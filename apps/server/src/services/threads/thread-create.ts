@@ -88,6 +88,8 @@ interface ExistingUnmanagedEnvironmentIntentResult {
 
 interface CreateProvisioningThreadArgs {
   environmentId: string | null;
+  /** The turn that asked for this thread, or null when a person did. */
+  requestedByThreadId: string | null;
   executionDefaults: Parameters<
     typeof buildExecutionOptions
   >[2]["projectDefaults"];
@@ -524,6 +526,7 @@ async function createProvisioningThread(
         // The environment usually does not exist yet, so the machine's
         // permission ceiling comes from the provisioning intent.
         hostId: intentHostId(deps, args.environmentIntent),
+        requestedByThreadId: args.requestedByThreadId,
         threadId: thread.id,
       },
       "client/turn/requested",
@@ -593,7 +596,15 @@ export async function createThreadFromRequest(
     providerInput?: ThreadCreateServiceRequestInput["input"];
     /** Source environment selected by the public fork route. */
     forkSourceEnvironmentId?: string;
-  } = {},
+    /**
+     * The turn that asked for this thread, when a turn asked. A turn cannot
+     * spawn a child more privileged than itself.
+     *
+     * Required, so that a new way to create a thread has to say who asked
+     * rather than inherit "nobody" by leaving it out.
+     */
+    requestedByThreadId: string | null;
+  },
 ) {
   const project = requirePublicProjectForThreadCreate(
     deps,
@@ -920,6 +931,7 @@ export async function createThreadFromRequest(
   const thread = await createProvisioningThread(deps, {
     environmentId,
     environmentIntent,
+    requestedByThreadId: options.requestedByThreadId,
     executionDefaults: resolvedExecutionDefaults,
     fork,
     ...(options.providerInput !== undefined

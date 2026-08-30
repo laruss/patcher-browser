@@ -46,7 +46,7 @@ describe("thread creation on a path another project already uses", () => {
         projectId: project.id,
         providerId: "codex",
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
 
       expect(thread.projectId).toBe(project.id);
       // The new project gets its own environment for the folder; the personal
@@ -113,7 +113,7 @@ describe("thread creation on a path another project already uses", () => {
           projectId: project.id,
           providerId: "codex",
           startedOnBehalfOf: null,
-        }),
+        }, { requestedByThreadId: null }),
       ).rejects.toThrow("Cannot checkout branch while another thread is using");
 
       // Rejected before any environment or checkout command existed.
@@ -158,7 +158,7 @@ describe("thread creation on a path another project already uses", () => {
           projectId: project.id,
           providerId: "codex",
           startedOnBehalfOf: null,
-        }),
+        }, { requestedByThreadId: null }),
       ).rejects.toThrow("Patcher-managed workspace owned by another project");
 
       expect(listEnvironments(harness.deps.db, project.id)).toEqual([]);
@@ -208,7 +208,7 @@ describe("thread creation on a path another project already uses", () => {
           projectId: project.id,
           providerId: "codex",
           startedOnBehalfOf: null,
-        }),
+        }, { requestedByThreadId: null }),
       ).rejects.toThrow("Patcher-managed workspace owned by another project");
 
       expect(listEnvironments(harness.deps.db, project.id)).toEqual([]);

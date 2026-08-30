@@ -85,7 +85,7 @@ describe("thread creation telemetry", () => {
         projectId: project.id,
         providerId: "codex",
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
 
       expect(capture).toHaveBeenCalledWith({
         name: "user_message_sent",
@@ -148,7 +148,7 @@ describe("thread creation with startedOnBehalfOf (seed-without-run)", () => {
           initiator: "agent",
           senderThreadId: sourceThread.id,
         },
-      });
+      }, { requestedByThreadId: null });
 
       // The displayed thread-start turn is attributed to the source agent so it
       // renders as "Message from {source}".
@@ -232,7 +232,7 @@ describe("thread creation with startedOnBehalfOf (seed-without-run)", () => {
           initiator: "agent",
           senderThreadId: sourceThread.id,
         },
-      });
+      }, { requestedByThreadId: null });
 
       const queuedStart = await waitForQueuedCommand(
         harness,
@@ -276,7 +276,7 @@ describe("thread creation with startedOnBehalfOf (seed-without-run)", () => {
         projectId: project.id,
         providerId: "codex",
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
 
       const turnRequest = threadStartTurnRequest(harness, thread.id);
       expect(turnRequest.initiator).toBe("user");
@@ -374,7 +374,7 @@ describe("canThreadSpawnChild", () => {
           providerId: "codex",
           sourceThreadId: level4.id,
           startedOnBehalfOf: null,
-        });
+        }, { requestedByThreadId: null });
       } catch (error) {
         if (!(error instanceof ApiError)) {
           throw error;
@@ -464,7 +464,7 @@ describe("thread creation child-thread boundary validation", () => {
               initiator: "agent",
               senderThreadId: "thr_someone_else",
             },
-          }),
+          }, { requestedByThreadId: null }),
         );
         expect(error.status).toBe(400);
         expect(error.body.code).toBe("invalid_request");
@@ -495,7 +495,7 @@ describe("thread creation child-thread boundary validation", () => {
               initiator: "agent",
               senderThreadId: sourceThreadId,
             },
-          }),
+          }, { requestedByThreadId: null }),
         );
         expect(error.status).toBe(400);
         expect(error.body.code).toBe("invalid_request");
@@ -521,7 +521,7 @@ describe("thread creation child-thread boundary validation", () => {
             projectId,
             providerId: "codex",
             startedOnBehalfOf: null,
-          }),
+          }, { requestedByThreadId: null }),
         );
         expect(error.status).toBe(400);
         expect(error.body.code).toBe("invalid_request");
@@ -551,7 +551,7 @@ describe("thread creation child-thread boundary validation", () => {
               initiator: "agent",
               senderThreadId: sourceThreadId,
             },
-          }),
+          }, { requestedByThreadId: null }),
         );
         expect(error.status).toBe(400);
         expect(error.body.code).toBe("invalid_request");
@@ -588,7 +588,7 @@ describe("thread creation child-thread boundary validation", () => {
             initiator: "agent",
             senderThreadId: sourceThreadId,
           },
-        });
+        }, { requestedByThreadId: null });
         const persistedFork = getThread(harness.db, fork.id);
         expect(persistedFork?.originKind).toBe("fork");
         expect(persistedFork?.sourceThreadId).toBe(sourceThreadId);
@@ -624,7 +624,7 @@ describe("thread creation child-thread boundary validation", () => {
             initiator: "agent",
             senderThreadId: sourceThreadId,
           },
-        });
+        }, { requestedByThreadId: null });
         const queued = await waitForQueuedCommand(
           harness,
           ({ command }) =>
@@ -679,7 +679,7 @@ describe("thread creation child-thread boundary validation", () => {
             permissionMode,
             sourceThreadId,
             startedOnBehalfOf: null,
-          });
+          }, { requestedByThreadId: null });
 
           // The fork's thread.start carries the source provider session id so
           // it clones the full history, AND it still carries the user's
@@ -760,7 +760,7 @@ describe("thread creation child-thread boundary validation", () => {
           providerId: "codex",
           sourceThreadId,
           startedOnBehalfOf: null,
-        });
+        }, { requestedByThreadId: null });
 
         const queuedStart = await waitForQueuedCommand(
           harness,
@@ -832,7 +832,7 @@ describe("thread creation child-thread boundary validation", () => {
         providerId: "codex",
         sourceThreadId: sourceThread.id,
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
 
       expect(getEnvironment(harness.db, environment.id)?.status).toBe("ready");
       expect(getThread(harness.db, sideChat.id)).toMatchObject({
@@ -891,7 +891,7 @@ describe("thread creation child-thread boundary validation", () => {
         providerId: "codex",
         sourceThreadId: sourceThread.id,
         startedOnBehalfOf: null,
-      });
+      }, { requestedByThreadId: null });
 
       expect(getThread(harness.db, fork.id)?.environmentId).toBe(
         sourceEnvironment.id,
@@ -952,7 +952,7 @@ describe("thread creation child-thread boundary validation", () => {
           providerId: "codex",
           sourceThreadId: sourceThread.id,
           startedOnBehalfOf: null,
-        }),
+        }, { requestedByThreadId: null }),
       ).rejects.toMatchObject({
         body: {
           message: "Personal project threads must reuse a personal workspace",
@@ -985,7 +985,7 @@ describe("thread creation child-thread boundary validation", () => {
           providerId: "codex",
           sourceThreadId,
           startedOnBehalfOf: null,
-        });
+        }, { requestedByThreadId: null });
 
         const queuedStart = await waitForQueuedCommand(
           harness,
@@ -1047,7 +1047,7 @@ describe("thread creation child-thread boundary validation", () => {
               initiator: "agent",
               senderThreadId: sourceThreadId,
             },
-          }),
+          }, { requestedByThreadId: null }),
         );
         expect(error.status).toBe(400);
         expect(error.body.code).toBe("fork_source_session_unavailable");
@@ -1076,7 +1076,7 @@ describe("thread creation child-thread boundary validation", () => {
             providerId: "codex",
             sourceThreadId,
             startedOnBehalfOf: null,
-          }),
+          }, { requestedByThreadId: null }),
         );
         expect(error.status).toBe(400);
         expect(error.body.code).toBe("fork_source_session_unavailable");
@@ -1110,7 +1110,7 @@ describe("thread creation child-thread boundary validation", () => {
           providerId: "codex",
           sourceThreadId,
           startedOnBehalfOf: null,
-        });
+        }, { requestedByThreadId: null });
         const persistedSideChat = getThread(harness.db, sideChat.id);
         expect(persistedSideChat?.originKind).toBe("fork");
         expect(persistedSideChat?.sourceThreadId).toBe(sourceThreadId);

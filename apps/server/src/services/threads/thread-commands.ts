@@ -46,6 +46,7 @@ import { resolveWorkflowsEnabledPolicy } from "./thread-default-policy.js";
 import {
   buildExistingThreadExecutionInput,
   resolveExistingThreadExecutionPlan,
+  resolveExistingThreadPermissionMode,
   type ExistingThreadExecutionInputRequest,
 } from "./thread-execution-plan.js";
 import { clampPermissionModeToHost } from "../hosts/permission-ceiling.js";
@@ -148,6 +149,11 @@ interface BuildExecutionOptionsArgs {
   /** Machine the work lands on; omit to read it from the thread's environment. */
   hostId?: string | null;
   projectDefaults?: ProjectExecutionDefaults | null;
+  /**
+   * The thread whose turn asked for this work, or null when a person or the
+   * server itself did. Required so that every path states which it is.
+   */
+  requestedByThreadId: string | null;
   threadId: string;
 }
 
@@ -285,6 +291,12 @@ function toRuntimeExecutionOptions(
   };
 }
 
+/**
+ * Every turn's options pass through here, which is why the asking turn is a
+ * required argument rather than an optional one: a new caller has to say who
+ * asked, and "nobody in particular" has to be written down as `null` rather
+ * than inherited by omission. See `ClampPermissionModeToHostArgs`.
+ */
 export async function buildExecutionOptions(
   deps: Pick<AppDeps, "db" | "hub">,
   request: ExecutionOptionsRequest,
@@ -292,6 +304,10 @@ export async function buildExecutionOptions(
   source: BuildExecutionOptionsSource,
 ): Promise<ResolvedThreadExecutionOptions> {
   const plan = await resolveExistingThreadExecutionPlan(deps, {
+    requesterCeiling:
+      args.requestedByThreadId === null
+        ? null
+        : resolveExistingThreadPermissionMode(deps, args.requestedByThreadId),
     ...(args.projectDefaults !== undefined
       ? { projectDefaults: args.projectDefaults }
       : {}),

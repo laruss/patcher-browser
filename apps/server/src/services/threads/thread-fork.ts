@@ -100,6 +100,8 @@ function resolveForkEnvironment(
 export async function createThreadForkFromRequest(
   deps: ThreadForkDeps,
   request: ForkThreadRequest,
+  /** The turn that asked, or null when a person did. */
+  requestedByThreadId: string | null,
 ) {
   const sourceThread = requireForkSourceThread(deps, request.sourceThreadId);
   requireForkCapableProvider(sourceThread);
@@ -150,6 +152,7 @@ export async function createThreadForkFromRequest(
     },
     {
       forkSourceEnvironmentId: sourceEnvironment.id,
+      requestedByThreadId,
       ...(isSeedOnlyIdleFork ? { providerInput: [] } : {}),
     },
   );
