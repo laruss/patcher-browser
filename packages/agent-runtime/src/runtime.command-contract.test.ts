@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadEvent } from "@patcher/domain";
 import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
 import { createCodexProviderAdapter } from "./codex/adapter.js";
+import { CODEX_WORKSPACE_PERMISSION_PROFILE_ID } from "./codex/permission-profile.js";
 import { createAgentRuntimeWithAdapters } from "./runtime.js";
 import { fakeProviderScriptPath } from "./test/index.js";
 import {
@@ -447,9 +448,10 @@ rl.on("line", (line) => {
     }
   });
 
-  it("preserves Codex captured linked-worktree git roots from start to turn/start", async () => {
+  it("hands Codex the linked-worktree git roots in the workspace profile", async () => {
     const fixture = createRuntimeLinkedWorktreeFixture({ rootPath: tmpDir });
     const providerScriptPath = join(tmpDir, "codex-runtime-provider.cjs");
+    const threadStartLogPath = join(tmpDir, "roots-thread-start.json");
     const turnStartLogPath = join(tmpDir, "turn-start.json");
     const workspaceWriteOptions = {
       ...fullRuntimeOptions,
@@ -464,6 +466,7 @@ rl.on("line", (line) => {
       `
 const fs = require("node:fs");
 const readline = require("node:readline");
+const threadStartLogPath = ${JSON.stringify(threadStartLogPath)};
 const turnStartLogPath = ${JSON.stringify(turnStartLogPath)};
 
 function send(message) {
@@ -484,6 +487,7 @@ rl.on("line", (line) => {
   }
 
   if (message.method === "thread/start") {
+    fs.writeFileSync(threadStartLogPath, JSON.stringify(message.params), "utf8");
     send({
       jsonrpc: "2.0",
       id: message.id,
@@ -534,13 +538,28 @@ rl.on("line", (line) => {
         threadId: "t1",
       });
 
-      expect(JSON.parse(readFileSync(turnStartLogPath, "utf8"))).toMatchObject({
-        sandboxPolicy: {
-          type: "workspaceWrite",
-          writableRoots: fixture.expectedWritableRoots,
-        },
-        threadId: "codex-thread-runtime",
-      });
+      const threadStartParams: {
+        config?: {
+          permissions?: Record<
+            string,
+            { filesystem?: Record<string, string> } | undefined
+          >;
+        };
+      } = JSON.parse(readFileSync(threadStartLogPath, "utf8"));
+      const filesystem =
+        threadStartParams.config?.permissions?.[
+          CODEX_WORKSPACE_PERMISSION_PROFILE_ID
+        ]?.filesystem ?? {};
+      for (const root of fixture.expectedWritableRoots) {
+        expect(filesystem[root]).toBe("write");
+      }
+
+      // And the turn carries no policy of its own, which is what leaves the
+      // profile in force.
+      const turnStartParams: { sandboxPolicy?: unknown; threadId?: string } =
+        JSON.parse(readFileSync(turnStartLogPath, "utf8"));
+      expect(turnStartParams.threadId).toBe("codex-thread-runtime");
+      expect(turnStartParams.sandboxPolicy).toBeUndefined();
     } finally {
       await runtime.shutdown();
     }
@@ -627,7 +646,7 @@ rl.on("line", (line) => {
       ).toMatchObject({
         approvalPolicy: "on-request",
         approvalsReviewer: "auto_review",
-        sandbox: "workspace-write",
+        config: { sandbox_mode: "workspace-write" },
       });
 
       await runtime.runTurn({
@@ -636,11 +655,14 @@ rl.on("line", (line) => {
         options: agentInitiatedOptions,
         threadId: "t1",
       });
-      expect(JSON.parse(readFileSync(turnStartLogPath, "utf8"))).toMatchObject({
+      const turnStartParams: { sandboxPolicy?: unknown } = JSON.parse(
+        readFileSync(turnStartLogPath, "utf8"),
+      );
+      expect(turnStartParams).toMatchObject({
         approvalPolicy: "on-request",
         approvalsReviewer: "auto_review",
-        sandboxPolicy: { type: "workspaceWrite" },
       });
+      expect(turnStartParams.sandboxPolicy).toBeUndefined();
     } finally {
       await runtime.shutdown();
     }

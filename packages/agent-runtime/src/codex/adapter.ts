@@ -49,6 +49,7 @@ import {
 import { buildAcceptedUserMessageEvent } from "../shared/accepted-user-messages.js";
 import { decodeNativeProviderToolCallRequest } from "../shared/provider-tool-call-contract.js";
 import { resolveAdapterPermissionPolicy } from "../shared/permission-policy.js";
+import { buildCodexWorkspacePermissionProfileConfig } from "./permission-profile.js";
 import type {
   AdapterCommand,
   DecodedToolCallRequest,
@@ -88,17 +89,22 @@ import {
   type CodexTrackedSubAgent,
 } from "./subagent-activity-translation.js";
 
+/**
+ * `sandbox` and `sandboxPolicy` are absent for a workspace-scope turn on
+ * purpose: either one turns the permission profile off, and the profile is
+ * where that turn's policy now lives. See `permission-profile.ts`.
+ */
 interface CodexPermissionSettings {
   approvalPolicy: AskForApproval;
   approvalsReviewer: ApprovalsReviewer;
-  sandbox: CodexSandboxMode;
-  sandboxPolicy: SandboxPolicy;
+  sandbox?: CodexSandboxMode;
+  sandboxPolicy?: SandboxPolicy;
 }
 
 interface CodexThreadPermissionSettings {
   approvalPolicy: AskForApproval;
   approvalsReviewer: ApprovalsReviewer;
-  sandbox: CodexSandboxMode;
+  sandbox?: CodexSandboxMode;
 }
 
 type PatcherThreadStartParams = ThreadStartParams & {
@@ -120,17 +126,14 @@ type PatcherThreadForkParams = {
   dynamicTools?: DynamicToolSpec[];
 };
 
-interface ToCodexPermissionSettingsArgs {
-  additionalWorkspaceWriteRoots: readonly string[];
-  gitWritableRoots: readonly string[];
-  options: ProviderExecutionContext;
-}
-
 interface BuildCodexConfigArgs {
   additionalWorkspaceWriteRoots: readonly string[];
   gitWritableRoots: readonly string[];
   options?: ProviderExecutionContext;
+  protectedCredentialPaths: readonly string[];
+  protectedRepositoryPaths: readonly string[];
   threadId: string;
+  workspacePath?: string | undefined;
 }
 
 interface CodexSkillsExtraRootsSetParams {
@@ -170,24 +173,6 @@ interface LinkedWorktreeGitDirBelongsToWorkspaceArgs {
   gitDir: string;
   workspaceGitFile: string;
   workspacePath: string;
-}
-
-interface RecordThreadGitWritableRootsArgs {
-  threadId: string;
-  writableRoots: readonly string[];
-}
-
-interface ActivateThreadGitWritableRootsArgs {
-  providerThreadId: string;
-  threadId: string;
-}
-
-interface ClearGitWritableRootsByPatcherThreadIdArgs {
-  threadId: string;
-}
-
-interface ClearGitWritableRootsByProviderThreadIdArgs {
-  providerThreadId: string;
 }
 
 interface PreparedWorkspaceWriteGitRoots {
@@ -252,34 +237,6 @@ function codexSkillRootPath(args: CodexSkillRootPathArgs): string {
     );
   }
   return args.skillRoot.skillDirectoryRootPath;
-}
-
-function toWorkspaceWriteCodexSandboxPolicy(
-  writableRoots: readonly string[],
-): SandboxPolicy {
-  return {
-    type: "workspaceWrite",
-    writableRoots: [...writableRoots],
-    // Open, and it has to stay open until the local API stops being a TCP
-    // port. Codex's restricted mode is all-or-nothing and takes loopback with
-    // it: measured on codex-cli 0.150.1 with
-    // `-s workspace-write -c sandbox_workspace_write.network_access=false`, a
-    // curl to a loopback port fails to connect (exit 7) and an external host
-    // fails to resolve (exit 6), while the same probe with the flag true
-    // answers 200 on both. Nor does Codex ask — unlike Claude, which turns a
-    // blocked connection into a `SandboxNetworkAccess` permission request that
-    // Patcher raises in the thread, Codex simply fails the command. So
-    // restricting here would cost every Codex thread the `patcher` CLI, with no
-    // prompt to grant it back and nothing gained but silence.
-    //
-    // The way to close this is the one Claude already has for the same reason:
-    // reach the local API over something the sandbox can allow on its own,
-    // rather than "all of localhost". That belongs with the launcher work, not
-    // to this flag.
-    networkAccess: true,
-    excludeTmpdirEnvVar: false,
-    excludeSlashTmp: false,
-  };
 }
 
 function toEscalationApprovalPolicy(
@@ -639,7 +596,6 @@ function toCodexThreadPermissionSettings(
       return {
         approvalPolicy: toWorkspaceApprovalPolicy(permissionPolicy),
         approvalsReviewer: toCodexApprovalsReviewer(options),
-        sandbox: "workspace-write",
       };
     case "full":
       return {
@@ -651,26 +607,19 @@ function toCodexThreadPermissionSettings(
 }
 
 function toCodexPermissionSettings(
-  args: ToCodexPermissionSettingsArgs,
+  options: ProviderExecutionContext,
 ): CodexPermissionSettings {
-  const permissionPolicy = resolveAdapterPermissionPolicy(args.options);
+  const permissionPolicy = resolveAdapterPermissionPolicy(options);
   switch (permissionPolicy.permissionScope) {
     case "workspace":
       return {
         approvalPolicy: toWorkspaceApprovalPolicy(permissionPolicy),
-        approvalsReviewer: toCodexApprovalsReviewer(args.options),
-        sandbox: "workspace-write",
-        sandboxPolicy: toWorkspaceWriteCodexSandboxPolicy(
-          combineWorkspaceWriteRoots(
-            args.gitWritableRoots,
-            args.additionalWorkspaceWriteRoots,
-          ),
-        ),
+        approvalsReviewer: toCodexApprovalsReviewer(options),
       };
     case "full":
       return {
         approvalPolicy: "never",
-        approvalsReviewer: toCodexApprovalsReviewer(args.options),
+        approvalsReviewer: toCodexApprovalsReviewer(options),
         sandbox: "danger-full-access",
         sandboxPolicy: { type: "dangerFullAccess" },
       };
@@ -743,13 +692,18 @@ function buildCodexConfig(
   config["memories.use_memories"] = args.options?.memoryEnabled ?? true;
   config["memories.generate_memories"] = args.options?.memoryEnabled ?? true;
   if (args.options?.permissionScope === "workspace") {
-    const writableRoots = combineWorkspaceWriteRoots(
-      args.gitWritableRoots,
-      args.additionalWorkspaceWriteRoots,
+    Object.assign(
+      config,
+      buildCodexWorkspacePermissionProfileConfig({
+        protectedCredentialPaths: args.protectedCredentialPaths,
+        protectedRepositoryPaths: args.protectedRepositoryPaths,
+        workspacePath: args.workspacePath,
+        writableRoots: combineWorkspaceWriteRoots(
+          args.gitWritableRoots,
+          args.additionalWorkspaceWriteRoots,
+        ),
+      }),
     );
-    if (writableRoots.length > 0) {
-      config["sandbox_workspace_write.writable_roots"] = [...writableRoots];
-    }
   }
   return Object.keys(config).length > 0 ? config : undefined;
 }
@@ -1053,6 +1007,8 @@ export function createCodexProviderAdapter(
 ): ProviderAdapter {
   const additionalWorkspaceWriteRoots =
     opts?.additionalWorkspaceWriteRoots ?? [];
+  const protectedCredentialPaths = opts?.protectedCredentialPaths ?? [];
+  const protectedRepositoryPaths = opts?.protectedRepositoryPaths ?? [];
   const providerInfo = getBuiltInAgentProviderInfo("codex");
   const capabilities = providerInfo.capabilities;
   const eventTranslationState = createCodexEventTranslationState();
@@ -1060,12 +1016,6 @@ export function createCodexProviderAdapter(
     string,
     ClientTurnRequestId[]
   >();
-  const pendingWorkspaceWriteGitWritableRootsByThreadId = new Map<
-    string,
-    string[]
-  >();
-  const workspaceWriteGitWritableRootsByThreadId = new Map<string, string[]>();
-  const patcherThreadIdByProviderThreadId = new Map<string, string>();
   const rawCommandOutputStateByProviderThreadId = new Map<
     string,
     CodexRawCommandOutputState
@@ -1083,58 +1033,6 @@ export function createCodexProviderAdapter(
   const trackedSubAgentsByCallId = new Map<string, CodexTrackedSubAgent>();
   const trackedSubAgentCallIdsByAgentThreadId = new Map<string, string>();
 
-  function stageThreadGitWritableRoots(
-    args: RecordThreadGitWritableRootsArgs,
-  ): void {
-    pendingWorkspaceWriteGitWritableRootsByThreadId.set(args.threadId, [
-      ...args.writableRoots,
-    ]);
-  }
-
-  function activateThreadGitWritableRoots(
-    args: ActivateThreadGitWritableRootsArgs,
-  ): void {
-    const writableRoots = pendingWorkspaceWriteGitWritableRootsByThreadId.get(
-      args.threadId,
-    );
-    if (!writableRoots) {
-      return;
-    }
-    pendingWorkspaceWriteGitWritableRootsByThreadId.delete(args.threadId);
-    workspaceWriteGitWritableRootsByThreadId.set(args.threadId, [
-      ...writableRoots,
-    ]);
-    patcherThreadIdByProviderThreadId.set(args.providerThreadId, args.threadId);
-  }
-
-  function clearGitWritableRootsByPatcherThreadId(
-    args: ClearGitWritableRootsByPatcherThreadIdArgs,
-  ): void {
-    pendingWorkspaceWriteGitWritableRootsByThreadId.delete(args.threadId);
-    workspaceWriteGitWritableRootsByThreadId.delete(args.threadId);
-    for (const [
-      providerThreadId,
-      threadId,
-    ] of patcherThreadIdByProviderThreadId) {
-      if (threadId === args.threadId) {
-        patcherThreadIdByProviderThreadId.delete(providerThreadId);
-      }
-    }
-  }
-
-  function clearGitWritableRootsByProviderThreadId(
-    args: ClearGitWritableRootsByProviderThreadIdArgs,
-  ): void {
-    const threadId = patcherThreadIdByProviderThreadId.get(
-      args.providerThreadId,
-    );
-    patcherThreadIdByProviderThreadId.delete(args.providerThreadId);
-    if (!threadId) {
-      return;
-    }
-    clearGitWritableRootsByPatcherThreadId({ threadId });
-  }
-
   function prepareWorkspaceWriteGitRoots(
     args: PrepareWorkspaceWriteGitRootsArgs,
   ): PreparedWorkspaceWriteGitRoots {
@@ -1145,20 +1043,15 @@ export function createCodexProviderAdapter(
     const writableRoots = captureWorkspaceWriteGitRoots
       ? gitWritableRootsForWorkspace(command.cwd)
       : [];
-    if (captureWorkspaceWriteGitRoots) {
-      stageThreadGitWritableRoots({
-        threadId: command.threadId,
-        writableRoots,
-      });
-    } else {
-      clearGitWritableRootsByPatcherThreadId({ threadId: command.threadId });
-    }
     return {
       config: buildCodexConfig({
         additionalWorkspaceWriteRoots,
         gitWritableRoots: writableRoots,
         options: command.options,
+        protectedCredentialPaths,
+        protectedRepositoryPaths,
         threadId: command.threadId,
+        workspacePath: command.cwd,
       }),
       permissionSettings: toCodexThreadPermissionSettings(command.options),
     };
@@ -1210,9 +1103,6 @@ export function createCodexProviderAdapter(
     }
     rawCommandOutputStateByProviderThreadId.delete(paramsResult.data.threadId);
     clearCodexDelegationParentState(paramsResult.data.threadId);
-    clearGitWritableRootsByProviderThreadId({
-      providerThreadId: paramsResult.data.threadId,
-    });
   }
 
   function clearCodexDelegationParentState(providerThreadId: string): void {
@@ -1972,14 +1862,7 @@ export function createCodexProviderAdapter(
               params,
             };
           }
-          const writableRoots =
-            workspaceWriteGitWritableRootsByThreadId.get(command.threadId) ??
-            [];
-          const permissionSettings = toCodexPermissionSettings({
-            additionalWorkspaceWriteRoots,
-            gitWritableRoots: writableRoots,
-            options: command.options,
-          });
+          const permissionSettings = toCodexPermissionSettings(command.options);
           return {
             kind: "request",
             method: "turn/start",
@@ -2101,18 +1984,7 @@ export function createCodexProviderAdapter(
       return applyRecoveredCommandOutput(completedSubAgentEvents);
     },
 
-    translateAcceptedCommand({ command, providerThreadId }) {
-      if (
-        (command.type === "thread/start" ||
-          command.type === "thread/resume" ||
-          command.type === "thread/fork") &&
-        providerThreadId
-      ) {
-        activateThreadGitWritableRoots({
-          providerThreadId,
-          threadId: command.threadId,
-        });
-      }
+    translateAcceptedCommand({ command }) {
       if (command.type !== "turn/steer") {
         return [];
       }
