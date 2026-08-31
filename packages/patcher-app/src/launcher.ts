@@ -596,6 +596,19 @@ interface RefreshRunningServerConfigArgs {
   serverUrl: string;
 }
 
+/**
+ * What came of asking a running server to re-read its config.
+ *
+ * Three answers rather than a boolean, because the two failures are different
+ * to whoever is reading the terminal: nothing was listening, or something was
+ * and said no. `patcher-app config set` has already written the value by the
+ * time it asks, so "no" must not read as "your change did not happen".
+ */
+type RefreshRunningServerConfigOutcome =
+  | { kind: "reloaded" }
+  | { kind: "unreachable" }
+  | { kind: "refused"; message: string };
+
 interface RunHostDaemonOnlyArgs {
   args: string[];
   context: PatcherAppStartContext;
@@ -1729,9 +1742,25 @@ function formatClientSshTargets(config: ClientConfig, json: boolean): string {
     : "No client SSH targets set.\n";
 }
 
+/**
+ * Ask the server at `serverUrl` to re-read its managed config.
+ *
+ * `required` is the difference between "I asked for this" and "I did it as a
+ * courtesy". `config refresh` is the request itself, so every failure is that
+ * command failing. A `config set` or `env set` reloads afterwards so the value
+ * takes effect now instead of at the next start — and there the write has
+ * already happened, so a refusal is a fact to report, not a reason to exit 1
+ * on a command that did its job.
+ *
+ * That distinction was missing, and the case it costs is not exotic: a server
+ * running under a different data dir refuses the app key this one resolves —
+ * or there is no app key here at all, the topology `local-api.ts` in the daemon
+ * documents — and `patcher-app config set` then wrote the value and died with
+ * `Unauthorized`, with nothing on screen saying the value was saved.
+ */
 async function refreshRunningServerConfig(
   args: RefreshRunningServerConfigArgs,
-): Promise<boolean> {
+): Promise<RefreshRunningServerConfigOutcome> {
   const reloadUrl = new URL("/api/v1/system/config/reload", args.serverUrl);
   let response: Response;
   try {
@@ -1743,11 +1772,11 @@ async function refreshRunningServerConfig(
     if (args.required) {
       throw new Error(`Could not reach Patcher server at ${args.serverUrl}`);
     }
-    return false;
+    return { kind: "unreachable" };
   }
 
   if (response.ok) {
-    return true;
+    return { kind: "reloaded" };
   }
 
   let message = `Patcher server rejected config reload with HTTP ${response.status}`;
@@ -1759,7 +1788,10 @@ async function refreshRunningServerConfig(
   } catch {
     // Keep the generic HTTP status message.
   }
-  throw new Error(message);
+  if (args.required) {
+    throw new Error(message);
+  }
+  return { kind: "refused", message };
 }
 
 function isStartupOnlyManagedKey(
@@ -1812,17 +1844,25 @@ async function refreshRunningServerConfigAfterWrite(
   source: "config" | "env",
   key: string,
 ): Promise<void> {
-  const refreshed = await refreshRunningServerConfig({
+  const outcome = await refreshRunningServerConfig({
     dataDir,
     required: false,
     serverUrl,
   });
-  if (refreshed) {
+  if (outcome.kind === "reloaded") {
     if (isStartupOnlyManagedKey(source, key)) {
       printStartupOnlyChangeNotice(key);
     } else {
       process.stdout.write("Reloaded running Patcher server config.\n");
     }
+    return;
+  }
+  if (outcome.kind === "refused") {
+    // Named rather than folded into the line below: "no running server found"
+    // would be false, and the difference is what the person has to fix.
+    process.stdout.write(
+      `A Patcher server is running at ${serverUrl} but refused the config reload (${outcome.message}); the value is saved and applies on next start.\n`,
+    );
     return;
   }
   process.stdout.write(
