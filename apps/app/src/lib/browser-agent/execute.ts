@@ -81,6 +81,28 @@ export interface BrowserCommandDeps {
     tabId: string;
   }) => void;
   /**
+   * Give a tab a live page without putting it on screen — what makes
+   * `tabs.open({ activate: false })` a tab that can be read.
+   *
+   * The deck mounts only the active tab's `WebContentsView`, on purpose: a
+   * thread restoring twenty persisted tabs must not load twenty pages. That
+   * rule is about *restore*, and it made a background open useless for the one
+   * caller that wants one — an agent working in a browser a human is also
+   * using, which should not be dragging their focus onto its own pages. So a
+   * background open attaches its own view, hidden, and only ever for the tab it
+   * was asked to open.
+   *
+   * A seam like {@link BrowserCommandDeps.destroyView}: absent means the old
+   * behaviour, where the URL is stored and loads when the tab is next shown.
+   * That is what the web build gets, and what a test gets unless it says
+   * otherwise.
+   */
+  attachBackgroundView?: (args: {
+    desktopBrowser: PatcherDesktopBrowserApi;
+    tabId: string;
+    url: string;
+  }) => void;
+  /**
    * Ask plugins for the text of a PDF the browser read but found no text in
    * (`browser.pdf.textProviders`). A seam like the others: absent means no
    * plugin is consulted at all, which is what the web build and most tests
@@ -197,6 +219,7 @@ const NOT_LIVE_HINT =
 function pageReadFailure(
   result: Extract<PatcherDesktopBrowserPageReadResult, { ok: false }>,
   tabId: string,
+  selector: string | null = null,
 ): BrowserCommandOutcome {
   switch (result.reason) {
     case "no-view":
@@ -213,6 +236,29 @@ function pageReadFailure(
       return failure(
         "page_read_timeout",
         `The page in browser tab ${tabId} did not respond in time.`,
+      );
+    // The three a scoped read can add. Kept apart because they call for three
+    // different fixes — the selector's syntax, the page, and DevTools — which is
+    // the same reason the scoped snapshot separates them.
+    case "invalid-selector":
+      return failure(
+        "invalid_selector",
+        `That is not a CSS selector the browser can parse${
+          result.message === undefined ? "" : ` (${result.message})`
+        }.`,
+      );
+    case "no-match":
+      return failure(
+        "no_match",
+        result.message ??
+          `Nothing on the page in browser tab ${tabId} matches ${JSON.stringify(selector)}.`,
+      );
+    case "debugger-unavailable":
+      return failure(
+        "debugger_unavailable",
+        `The browser debugger could not attach to tab ${tabId}${
+          result.message === undefined ? "" : ` (${result.message})`
+        }. Close DevTools for that tab and try again. Reading the whole page needs no debugger.`,
       );
     default:
       return failure(
@@ -552,6 +598,7 @@ async function recordTraceStep(
 async function readPage(
   tabId: string,
   desktopBrowser: PatcherDesktopBrowserApi,
+  selector: string | null = null,
 ): Promise<
   | {
       ok: true;
@@ -569,13 +616,33 @@ async function readPage(
       ),
     };
   }
+  const finish = (result: PatcherDesktopBrowserPageReadResult) =>
+    result.ok
+      ? ({ ok: true, content: result } as const)
+      : ({
+          ok: false,
+          outcome: pageReadFailure(result, tabId, selector),
+        } as const);
+  // Scoping rides its own channel, so it is detected separately — exactly as a
+  // scoped snapshot is. Refusing is the only honest answer: reading the whole
+  // page instead would hand back a document the caller had asked to narrow, and
+  // it would look like a success.
+  if (selector !== null) {
+    const readScoped = desktopBrowser.readPageIn;
+    if (readScoped === undefined) {
+      return {
+        ok: false,
+        outcome: failure(
+          "unsupported_command",
+          "This version of the Patcher desktop app cannot read part of a page. Read the whole page instead.",
+        ),
+      };
+    }
+    return finish(await readScoped.call(desktopBrowser, { tabId, selector }));
+  }
   // Let the shell answer rather than pre-checking liveness here: it is the only
   // side that authoritatively knows which views exist.
-  const result = await desktopBrowser.readPage(tabId);
-  if (!result.ok) {
-    return { ok: false, outcome: pageReadFailure(result, tabId) };
-  }
-  return { ok: true, content: result };
+  return finish(await desktopBrowser.readPage(tabId));
 }
 
 export async function executeBrowserCommand(
@@ -666,6 +733,18 @@ async function runBrowserCommand(
           ? opened
           : { ...opened, activeTabId: current.activeTabId ?? tab.id };
       });
+      // A background tab gets its page here rather than when someone looks at
+      // it. Without this the answer is a tab with a stored URL and no live
+      // view, so the very next read fails `tab_not_live` — which makes "open
+      // without stealing focus" a thing you cannot then use. Waiting for it to
+      // settle is what lets the caller read the page in its next command, the
+      // same promise `navigation.open` makes.
+      if (!command.activate && url.length > 0) {
+        deps.attachBackgroundView?.({ desktopBrowser, tabId: tab.id, url });
+        if (deps.attachBackgroundView !== undefined) {
+          await deps.waitForSettled(tab.id);
+        }
+      }
       const state = deps.getState();
       return success({
         type: "tab",
@@ -792,7 +871,7 @@ async function runBrowserCommand(
         return resolution.outcome;
       }
       const { tab } = resolution.resolved;
-      const read = await readPage(tab.id, desktopBrowser);
+      const read = await readPage(tab.id, desktopBrowser, command.selector);
       if (!read.ok) {
         return read.outcome;
       }

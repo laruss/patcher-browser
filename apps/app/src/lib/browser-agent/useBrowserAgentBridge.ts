@@ -2,9 +2,15 @@ import { useEffect } from "react";
 import { useStore } from "jotai";
 import { resolvePluginBrowserPdfText } from "@/hooks/queries/plugin-contribution-queries";
 import { getDesktopBrowserApi } from "../patcher-desktop";
-import { browserSurfaceTabsAtom } from "../browser-surface-tabs";
+import {
+  BROWSER_SURFACE_SCOPE_ID,
+  browserSurfaceTabsAtom,
+} from "../browser-surface-tabs";
 import { browserMutedTabsAtom, withBrowserTabMuted } from "../browser-tab-mute";
-import { destroyPersistedBrowserView } from "@/components/secondary-panel/browserViewVisibilityCoordinator";
+import {
+  destroyPersistedBrowserView,
+  registerBrowserView,
+} from "@/components/secondary-panel/browserViewVisibilityCoordinator";
 import { wsManager } from "../ws";
 import { executeBrowserCommand } from "./execute";
 import { BrowserTraceRecorder } from "./trace";
@@ -28,6 +34,23 @@ import {
 function createBrowserHostId(): string {
   return `browser-host-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+/**
+ * Bounds for a view nobody is looking at.
+ *
+ * Deliberately not zeroes. The view is hidden, but it is laid out, and layout is
+ * what `innerText`, `scrollHeight` and every actionability check read: a 0×0
+ * page reports each of its elements as invisible, so a background tab would
+ * accept commands and refuse all of them. The shell clamps a rect to the
+ * window's content area (`clampPatcherDesktopBrowserViewBounds`), so asking for
+ * more than any window has is how you ask for "whatever a real tab gets here".
+ */
+const BACKGROUND_BROWSER_VIEW_BOUNDS = {
+  x: 0,
+  y: 0,
+  width: 100_000,
+  height: 100_000,
+} as const;
 
 export function useBrowserAgentBridge(): void {
   const store = useStore();
@@ -55,6 +78,27 @@ export function useBrowserAgentBridge(): void {
         getLiveState: getBrowserLiveState,
         waitForSettled: (tabId) => waitForBrowserTabSettled(tabId),
         destroyView: destroyPersistedBrowserView,
+        attachBackgroundView: ({ desktopBrowser: shell, tabId, url }) => {
+          // Registered under the same identity the deck will use when the user
+          // finally selects this tab, so the view it finds is this one: an
+          // `attach` on an existing entry re-applies bounds and visibility and
+          // loads nothing it is already on. It also means the deck's own
+          // reaping — and a thread teardown — can destroy a view the agent
+          // created, which is what keeps this from leaking pages.
+          registerBrowserView({
+            environmentId: null,
+            tabId,
+            threadId: BROWSER_SURFACE_SCOPE_ID,
+          });
+          shell.attach({
+            tabId,
+            url,
+            bounds: BACKGROUND_BROWSER_VIEW_BOUNDS,
+            // The whole point. Attaching is what loads the page; visibility is
+            // what would take the window away from the person using it.
+            visible: false,
+          });
+        },
         recordMuted: ({ muted, tabId }) => {
           store.set(browserMutedTabsAtom, (current) =>
             withBrowserTabMuted(current, { muted, tabId }),

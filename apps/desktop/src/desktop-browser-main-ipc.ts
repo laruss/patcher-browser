@@ -25,6 +25,7 @@ import {
   patcherDesktopBrowserRecordRequestSchema,
   patcherDesktopBrowserInteractRequestSchema,
   patcherDesktopBrowserObserveRequestSchema,
+  patcherDesktopBrowserPageReadInRequestSchema,
   patcherDesktopBrowserSnapshotRequestSchema,
   patcherDesktopBrowserSnapshotInRequestSchema,
   patcherDesktopBrowserStorageRequestSchema,
@@ -61,6 +62,7 @@ import {
   PATCHER_DESKTOP_BROWSER_SET_DEV_TOOLS_VISIBLE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_FIND_CHANNEL,
   PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
   PATCHER_DESKTOP_BROWSER_DIALOG_RESPOND_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_RESPOND_CHANNEL,
   PATCHER_DESKTOP_BROWSER_CAPTURE_FULL_PAGE_CHANNEL,
@@ -516,6 +518,37 @@ export function registerDesktopBrowserIpc(
           hostWindow,
           tabId: parsed.data.tabId,
         });
+      } catch {
+        return { ok: false, reason: "unreadable" };
+      }
+    },
+  );
+
+  // The same read, scoped to a selector. A malformed payload answers
+  // `unreadable` rather than `no-view`, the same choice the scoped snapshot
+  // makes below: the tab is not the problem, the request is, and "go activate a
+  // tab" would send the caller after the wrong fix.
+  ipcMain.handle(
+    PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
+    async (
+      event,
+      payload: unknown,
+    ): Promise<PatcherDesktopBrowserPageReadResult> => {
+      const hostWindow = BrowserWindow.fromWebContents(event.sender);
+      if (hostWindow === null) {
+        return { ok: false, reason: "no-view" };
+      }
+      const parsed =
+        patcherDesktopBrowserPageReadInRequestSchema.safeParse(payload);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          reason: "unreadable",
+          message: "That is not a page read this browser understands.",
+        };
+      }
+      try {
+        return await manager.readPageIn({ hostWindow, request: parsed.data });
       } catch {
         return { ok: false, reason: "unreadable" };
       }

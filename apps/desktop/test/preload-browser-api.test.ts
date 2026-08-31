@@ -33,6 +33,7 @@ import {
   PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
   PATCHER_DESKTOP_BROWSER_POPUP_CHANNEL,
   PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
   PATCHER_DESKTOP_BROWSER_RELOAD_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
@@ -285,6 +286,7 @@ describe("desktop preload browser API", () => {
       "onZoom",
       "print",
       "readPage",
+      "readPageIn",
       "record",
       "reload",
       "respondToDialog",
@@ -429,6 +431,17 @@ describe("desktop preload browser API", () => {
     });
   }, 10_000);
 
+  it("reads a scoped page read as unreadable when it cannot be delivered", async () => {
+    const api = await loadPreload();
+
+    // The fallback matters more here than for the unscoped read: an empty
+    // string would look like "that element has no text", which is a different
+    // and quieter wrong answer than "this could not be read".
+    await expect(
+      api.browser.readPageIn?.({ tabId: "browser:a", selector: "article" }),
+    ).resolves.toEqual({ ok: false, reason: "unreadable" });
+  }, 10_000);
+
   it("sends each answering command down its own channel", async () => {
     const api = await loadPreload();
 
@@ -460,6 +473,7 @@ describe("desktop preload browser API", () => {
       operation: { kind: "video-stop" },
     });
     await api.browser.snapshotIn?.({ tabId: "browser:a", selector: "#main" });
+    await api.browser.readPageIn?.({ tabId: "browser:a", selector: "article" });
     await api.browser.captureFullPage?.({
       tabId: "browser:a",
       format: "jpeg",
@@ -482,6 +496,7 @@ describe("desktop preload browser API", () => {
       PATCHER_DESKTOP_BROWSER_CONTROL_CHANNEL,
       PATCHER_DESKTOP_BROWSER_RECORD_CHANNEL,
       PATCHER_DESKTOP_BROWSER_SNAPSHOT_IN_CHANNEL,
+      PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
       PATCHER_DESKTOP_BROWSER_CAPTURE_FULL_PAGE_CHANNEL,
     ]);
   }, 10_000);

@@ -14525,11 +14525,16 @@ type PluginBrowserHistoryFilter = (visit: PluginBrowserHistoryVisit) => PluginBr
  * Live is **earned once and then kept**: switching away hides the view but
  * leaves the page loaded and running, so a tab the user is not looking at is
  * still readable and drivable. Closing the tab ends it, and so does restarting
- * the app — nothing is live again until it has been shown again. What this rules
- * out is only the tab that has *never* been shown: `tabs.open({ activate: false
- * })` stores a URL and loads nothing, so anything but `navigation.open` on it
- * fails with `tab_not_live`. A background job that reads pages therefore has to
- * bring each tab forward once per run of the app, not once per pass.
+ * the app — nothing is live again until it has been shown again.
+ *
+ * `tabs.open({ activate: false })` is live too, and that is a deliberate
+ * exception rather than the general rule: a tab opened in the background gets a
+ * hidden view and loads its URL, because "open this without taking the window
+ * away from the user" is worthless if the next read fails. What stays cold is
+ * the tab nobody asked to load — one restored from a previous session, which
+ * holds a URL and nothing else until it is shown. A background job over
+ * *restored* tabs therefore still has to bring each one forward once per run of
+ * the app; one over tabs it opened itself does not.
  */
 interface PluginBrowserTab {
     tabId: string;
@@ -14553,7 +14558,16 @@ interface PluginBrowserCallOptions {
 }
 interface PluginBrowserTabs {
     list(options?: PluginBrowserCallOptions): Promise<PluginBrowserTab[]>;
-    /** Omit `url` to open the browser's new-tab screen. */
+    /**
+     * Open a tab. Omit `url` for the browser's new-tab screen.
+     *
+     * `activate` defaults to true. Passing false opens the tab **without moving
+     * the user's focus off what they were reading**, and the tab is still live: it
+     * loads in a hidden view and this call waits for it, so the page can be read
+     * in the next call. That is the one thing to know about it — a background open
+     * costs a real page load whether or not anyone ever looks at the tab, so it is
+     * for a tab you mean to use, not a way to queue up twenty.
+     */
     open(args?: {
         url?: string;
         activate?: boolean;
@@ -14883,9 +14897,23 @@ interface PluginBrowserPage {
     getTitle(args?: {
         tabId?: string;
     }, options?: PluginBrowserCallOptions): Promise<string | null>;
+    /**
+     * The page's rendered text, or one element's.
+     *
+     * `selector` narrows the read to what a CSS selector matches — the whole
+     * point being that a caller who says "the article" gets the article and not a
+     * document with the article in it. The two are not the same read underneath:
+     * the unscoped one runs a constant script in an isolated world and needs no
+     * debugger, while a scoped one has to ask the browser which element the
+     * selector means, so it **attaches the tab's debugger** exactly as
+     * {@link PluginBrowserPage.snapshot} does — and can therefore fail with
+     * `debugger_unavailable`, `invalid_selector` or `no_match`, none of which an
+     * unscoped read produces.
+     */
     getText(args?: {
         tabId?: string;
         maxLength?: number;
+        selector?: string;
     }, options?: PluginBrowserCallOptions): Promise<{
         text: string;
         truncated: boolean;

@@ -66,6 +66,57 @@ export const PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT = `(() => {
   };
 })()`;
 
+/**
+ * The same read, of one element — the body of `readPageIn`.
+ *
+ * A **function declaration**, not a script, and that is the whole point. The
+ * unscoped read's request carries `tabId` and nothing else because any knob on
+ * it would be a caller's value spliced into a privileged snippet running in an
+ * untrusted page. Nothing is spliced here either: the selector is resolved by
+ * `DOM.querySelector` over the debugger, the element arrives as a CDP object id,
+ * and this constant is called *on* it. `this` and the first argument are both
+ * the element, matching the shape `eval` already accepts.
+ *
+ * It slices in the page for the same reason the script does: a `<main>` holding
+ * megabytes of text should not cross the process boundary to be cut here.
+ */
+export const PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION = `(function () {
+  const raw = String(this.innerText ?? "");
+  return {
+    text: raw.slice(0, ${PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH}),
+    textTruncated: raw.length > ${PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH},
+  };
+})`;
+
+/** What {@link PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION} resolves to. */
+export interface BrowserElementReadContent {
+  text: string;
+  textTruncated: boolean;
+}
+
+/**
+ * Validate and re-truncate a scoped read, for the reasons
+ * {@link parseBrowserPageReadContent} gives at length. Returns null for
+ * anything malformed, which the caller reports as `unreadable`.
+ */
+export function parseBrowserElementReadContent(
+  raw: unknown,
+): BrowserElementReadContent | null {
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+  const { text, textTruncated } = raw as Record<string, unknown>;
+  if (typeof text !== "string" || typeof textTruncated !== "boolean") {
+    return null;
+  }
+  return {
+    text: truncate(text, PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    textTruncated:
+      textTruncated ||
+      text.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+  };
+}
+
 /** What {@link PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT} resolves to. */
 export interface BrowserPageReadContent {
   /**
@@ -121,8 +172,12 @@ export function parseBrowserPageReadContent(
     contentType: typeof contentType === "string" ? contentType : "",
     text: truncate(text, PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
     textTruncated:
-      textTruncated || text.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
-    selection: truncate(selection, PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH),
+      textTruncated ||
+      text.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+    selection: truncate(
+      selection,
+      PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
+    ),
     selectionTruncated:
       selectionTruncated ||
       selection.length > PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,

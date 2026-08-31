@@ -99,10 +99,128 @@ equivalent of `install --skills`.
 | Vision — mousemove/down/up/wheel                                    | done                          | `Input.dispatchMouseEvent` by coordinate                                                                      |
 | Core — `eval`                                                       | done                          | `Runtime.callFunctionOn` in the page's own world                                                              |
 | Core — `run-code`                                                   | **out**                       | PW's is a driver-side script with the Playwright API; ours would be arbitrary code in the shell — see Stage E |
+| Core — `wait-for`                                                   | **Stage G**                   | polled in the CLI over the primitives that exist — text, snapshot, URL, the tab's network log                 |
+| Core — `scroll`                                                     | **Stage G**                   | fixed expressions through `control.evaluate`; see the note in Stage G on where it belongs                     |
 | DevTools — tracing                                                  | done                          | our own action log, kept in the app (see Stage F)                                                             |
 | DevTools — video                                                    | done                          | `Page.startScreencast` → frames + timings; the system's ffmpeg encodes on `--encode`                          |
 | Sessions (`-s`, `--profile`, `--persistent`)                        | **n/a**                       | PW runs separate browsers; ours is the user's one browser, and tabs are the unit                              |
 | Testing (assertions, locator generation)                            | **out**                       | we are not a test runner                                                                                      |
+
+## Stage G — what an agent actually trips over
+
+Everything above is about capability. This stage is about the four things a
+capable surface still got wrong, all four found by an agent driving it against
+x.com rather than by a test.
+
+**`--help` worked only at the top level.** `patcher browser --help` and
+`patcher browser snapshot --help` both answered `unknown option --help`, because
+the plugin CLI's argument parser refused every flag it did not know and `--help`
+was not one of them. For an agent `--help` is the first reflex, so the first call
+was spent on an error and the second on a bare `patcher browser`, whose summary
+lines cannot carry an argument form — there was nowhere to learn what `route`,
+`video-stop` or `state-load` actually take.
+
+The fix is a table (`BROWSER_CLI_COMMANDS` in `plugins/browser-tools/src/cli.ts`)
+that is the single source for three things: the metadata the host renders in
+`patcher --help`, the per-command help, and **which flags each command reads**.
+That last one closed a separate bug of the same shape: `text --selector` was
+documented, accepted and dropped, so a caller that narrowed to one region got the
+whole document and reasoned about the region it thought it had. A flag a command
+does not read is now refused by name, and the refusal says which commands do read
+it.
+
+**A 401 named nothing.** `client.ts` had always claimed that resolving no app key
+was fine because "the request then gets a 401 that says so". It said
+`HTTP 401: Unauthorized`. Neither `PATCHER_APP_KEY` nor `<dataDir>/app-api-key`
+appeared, and the data dir is exactly the part that cannot be guessed — a dev
+checkout resolves a different one from an installed Patcher, which is why the same
+command works in one shell and not the next. Worse, the _first_ symptom was not
+even a 401: a refused `GET /plugins/contributions` was classified `invalid`, which
+falls through to commander, which reports `patcher browser` as an unknown command.
+
+`apps/cli/src/app-credential-hint.ts` now reports what this process actually
+looked at, with the path filled in, and says so from all three places that print
+a 401 (`action.ts`, the contributions probe, the proxy). Inside a turn it says
+something different on purpose: an agent's shell carries a thread-scoped
+credential _instead of_ the app key, so "go read the key file" is advice that
+would undo the narrower credential if followed.
+
+**Nothing waited.** `navigation.open` waits for the load event, and on any
+self-rendering site the document is loaded before its content is fetched — so the
+first read came back with the page chrome and an agent concluded the page was
+empty. That failure is silent, which makes it the worst of the four.
+
+Two answers, and the CLI has both. `patcher browser wait` takes one of `--text`,
+`--selector`, `--url` or `--network-idle` and exits 124 on timeout, like
+`timeout(1)` and like `patcher terminal wait`. And every acting and navigating
+command now waits for the tab to stop finishing requests before it answers, with
+`--no-settle` to turn that off.
+
+Two details worth keeping:
+
+- **Quiet is measured by fingerprint, not by clock.** Network entries are stamped
+  by the machine running the desktop app; this code runs in the server process,
+  which on a remote install is a different machine. Two samples of the newest
+  entries, an interval apart measured locally, say "nothing finished in between"
+  without the two clocks having to agree.
+- **A settle can never fail a command that already succeeded.** A tab with no live
+  page cannot serve a network log; that reports "still busy" on stderr and leaves
+  the exit code alone.
+
+**`scroll`, and where it belongs.** Scrolling a feed was only reachable through
+`mousewheel`, in the section headed "Direct control — these skip what makes the
+commands above safe". What makes those unsafe is that the code or the coordinates
+are the caller's; scrolling is neither. `patcher browser scroll` is in Acting,
+takes `--page` (the default), `--top`, `--bottom`, `--by <px>` or a ref, and
+answers with the offset, the document height and the viewport — so an endless feed
+can say "there is more" instead of leaving the caller to guess.
+
+It rides `control.evaluate` with four fixed expressions, which is the one
+compromise in this stage: that channel costs `page.inject`, the arbitrary-JS
+permission, for something that should cost `page.interact`. Nothing a caller
+supplies reaches the page (`--by` is an integer by the time it gets there), so it
+is safe — but a plugin wanting `scroll` would have to declare `page.inject` for
+it. The right home is a new interaction on its own shell channel, next to the
+actionability wait; that is a follow-up, not a blocker, and this note is here so
+it is a decision rather than an oversight.
+
+**Two smaller ones, same shape.** `status` answered `{connected, windowCount}` —
+true, and not the question, which is "can I act, and where am I": it now carries
+the active tab with its URL, and a next step when nothing is connected. And
+`snapshot` ended on `generation 0`, a number with no stated use; it now says what
+to pass it to.
+
+### Reading part of a page, and a tab that loads without being seen
+
+Two of Stage G's asks needed more than the CLI.
+
+`text --selector` could not be faked. The unscoped read runs a constant script in
+an isolated world, and its request carries `tabId` **and nothing else on purpose**
+— every knob on it would be a caller's value spliced into a privileged snippet
+inside an untrusted page. So a scoped read takes the shape `snapshotIn` already
+established: its own shell channel (`readPageIn`), feature-detected, with the
+selector travelling as a `DOM.querySelector` parameter over the debugger and a
+constant function called on the node that comes back. It resolves into the
+automation world, so a scoped read is no more forgeable than an unscoped one — and
+it costs a CDP attach the unscoped read does not, which is why it can answer
+`debugger_unavailable`, `invalid_selector` or `no_match`, and why omitting the
+selector stays the cheap path. An older shell is told it cannot do this rather
+than being allowed to read the whole document and call it a success.
+
+`open --background` could not be faked either, and for a while it looked like it
+could not be honest. `tabs.open({ activate: false })` already existed, but
+`BrowserTabDeck` mounts a `WebContentsView` only for the active tab — deliberately,
+so a thread restoring twenty persisted tabs does not load twenty pages. That rule
+is about _restore_, and it made a background open useless for the one caller that
+wants one: the tab had no live page, so the next read failed `tab_not_live`.
+
+The fix keeps the rule and carves out the tab that was asked for: a background
+open attaches its own hidden view (`attachBackgroundView` in the agent bridge,
+registered under the same identity the deck will use when the user finally selects
+that tab) and waits for it to settle. The bounds it attaches with are deliberately
+not zeroes — a hidden view is still laid out, and layout is what `innerText`,
+`scrollHeight` and every actionability check read, so a 0×0 page would accept
+commands and refuse all of them.
 
 ## Stages
 

@@ -40,7 +40,12 @@ const SURFACE: ReadonlyArray<{
   {
     label: "page.getText",
     charged: "page.read",
-    command: { type: "page.get_text", tabId: null, maxLength: 100 },
+    command: {
+      type: "page.get_text",
+      tabId: null,
+      maxLength: 100,
+      selector: null,
+    },
     call: (b: never) => (b as PluginBrowserish).page.getText(),
   },
   {

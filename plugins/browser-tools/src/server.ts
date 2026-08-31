@@ -55,7 +55,11 @@ export default function plugin(patcher: PatcherPluginApi) {
     execute: (input, ctx) =>
       run(async () => {
         const result = await patcher.browser.page.snapshot(
-          { tabId: input.tabId, maxDepth: input.maxDepth },
+          {
+            tabId: input.tabId,
+            maxDepth: input.maxDepth,
+            selector: input.selector,
+          },
           { signal: ctx.signal },
         );
         if (result.snapshot.trim().length === 0) {
@@ -285,6 +289,7 @@ export default function plugin(patcher: PatcherPluginApi) {
           {
             tabId: input.tabId,
             maxLength: input.maxLength ?? DEFAULT_PAGE_TEXT_MAX_LENGTH,
+            selector: input.selector,
           },
           { signal: ctx.signal },
         );

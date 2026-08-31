@@ -25,7 +25,7 @@ const SAMPLE_COMMANDS: readonly BrowserCommand[] = [
   { type: "page.get_url", tabId: null },
   { type: "page.get_title", tabId: null },
   { type: "page.zoom", tabId: null, factor: 1.25 },
-  { type: "page.get_text", tabId: null, maxLength: 100 },
+  { type: "page.get_text", tabId: null, maxLength: 100, selector: null },
   { type: "page.get_selection", tabId: null },
   { type: "page.handle_dialog", tabId: null, accept: true, promptText: null },
   { type: "page.snapshot", tabId: null, maxDepth: null, selector: null },
@@ -96,6 +96,7 @@ describe("permissionForBrowserCommand", () => {
         type: "page.get_text",
         tabId: null,
         maxLength: 100,
+        selector: null,
       }),
     ).toBe("page.read");
     expect(

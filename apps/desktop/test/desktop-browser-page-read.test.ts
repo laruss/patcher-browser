@@ -5,8 +5,10 @@ import {
   patcherDesktopBrowserPageReadResultSchema,
 } from "@patcher/desktop-contract";
 import {
+  PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+  parseBrowserElementReadContent,
   parseBrowserPageReadContent,
 } from "../src/desktop-browser-page-read.js";
 
@@ -146,5 +148,103 @@ describe("parseBrowserPageReadContent", () => {
         ...parsed,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("browser element read", () => {
+  it("carries no caller-supplied value into the page", () => {
+    // This is the property the whole scoped read is shaped around. The unscoped
+    // request is `tabId` and nothing else so that no argument can be spliced
+    // into a privileged snippet; the selector reaches the element over the
+    // debugger instead, and this constant never sees it.
+    expect(PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION).not.toMatch(/\$\{/);
+    expect(PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION).not.toContain(
+      "querySelector",
+    );
+    expect(PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION).toContain(
+      String(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH),
+    );
+  });
+
+  it("is a function declaration, since it is called on a resolved element", () => {
+    // `Runtime.callFunctionOn` takes a function, not an expression; an IIFE
+    // here would be called with the element as `this` and evaluate to a value
+    // rather than to something callable.
+    expect(PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION.trim()).toMatch(
+      /^\(function \(\)/u,
+    );
+  });
+
+  it("accepts a well-formed element read and rejects anything else", () => {
+    expect(
+      parseBrowserElementReadContent({ text: "hi", textTruncated: false }),
+    ).toEqual({ text: "hi", textTruncated: false });
+    expect(parseBrowserElementReadContent(null)).toBeNull();
+    expect(parseBrowserElementReadContent({ text: 42 })).toBeNull();
+    expect(
+      parseBrowserElementReadContent({ text: "hi", textTruncated: "no" }),
+    ).toBeNull();
+  });
+
+  it("re-truncates an element read the in-page slice did not bound", () => {
+    const parsed = parseBrowserElementReadContent({
+      text: "a".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 10),
+      textTruncated: false,
+    });
+
+    expect(parsed?.text).toHaveLength(
+      PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
+    );
+    expect(parsed?.textTruncated).toBe(true);
+  });
+
+  it("produces a page-read payload the contract accepts", () => {
+    const parsed = parseBrowserElementReadContent({
+      text: "a".repeat(PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH + 1),
+      textTruncated: true,
+    });
+
+    expect(
+      patcherDesktopBrowserPageReadResultSchema.safeParse({
+        ok: true,
+        tabId: "browser:a",
+        url: "https://example.com/",
+        title: "Example",
+        isLoading: false,
+        contentKind: "html",
+        // An element is not a selection, and the shell answers so.
+        selection: "",
+        selectionTruncated: false,
+        ...parsed,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("carries the three refusals only a scoped read can produce", () => {
+    for (const reason of [
+      "invalid-selector",
+      "no-match",
+      "debugger-unavailable",
+    ]) {
+      const parsed = patcherDesktopBrowserPageReadResultSchema.safeParse({
+        ok: false,
+        reason,
+        message: "why",
+      });
+      expect(parsed.success, reason).toBe(true);
+      expect(
+        parsed.success && !parsed.data.ok ? parsed.data.reason : null,
+        reason,
+      ).toBe(reason);
+    }
+    // And an older SPA's `.catch` still degrades an unknown one rather than
+    // failing to parse the shell's answer.
+    const unknown = patcherDesktopBrowserPageReadResultSchema.safeParse({
+      ok: false,
+      reason: "something-new",
+    });
+    expect(
+      unknown.success && !unknown.data.ok ? unknown.data.reason : null,
+    ).toBe("unreadable");
   });
 });

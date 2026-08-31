@@ -3,6 +3,7 @@ import {
   resolveContextThreadId,
 } from "./context-env.js";
 import { cliFetch } from "./client.js";
+import { describeRefusedCredential } from "./app-credential-hint.js";
 
 /**
  * Plugin-contributed `patcher` subcommands (server design §4.4). The CLI fetches
@@ -30,6 +31,7 @@ const CONTRIBUTIONS_TIMEOUT_MS = 2000;
 export type PluginCliContributionsResult =
   | { outcome: "ok"; contributions: PluginCliContributionEntry[] }
   | { outcome: "unreachable"; cause: unknown }
+  | { outcome: "unauthorized" }
   | { outcome: "invalid" };
 
 /**
@@ -130,6 +132,11 @@ export async function fetchPluginCliContributions(
     return { outcome: "unreachable", cause: error };
   }
   try {
+    // A refusal, not a malformed answer. Told apart because "invalid" falls
+    // through to commander, which then reports `patcher browser` as an unknown
+    // command — advice about a command that exists, for a problem that is a
+    // missing credential.
+    if (response.status === 401) return { outcome: "unauthorized" };
     if (!response.ok) return { outcome: "invalid" };
     const parsed = (await response.json()) as {
       cliCommands?: unknown;
@@ -287,11 +294,15 @@ export async function runPluginCliCommand(
     error?: unknown;
   } | null;
   if (result === null || typeof result.exitCode !== "number") {
-    await writePluginCliOutput(
-      streams.stderr,
+    const credential =
+      response.status === 401 ? describeRefusedCredential() : null;
+    const message =
       typeof result?.error === "string"
         ? result.error
-        : `Unexpected response from the plugin CLI endpoint (HTTP ${response.status})`,
+        : `Unexpected response from the plugin CLI endpoint (HTTP ${response.status})`;
+    await writePluginCliOutput(
+      streams.stderr,
+      credential === null ? message : `${message}\n${credential}`,
     );
     return 1;
   }

@@ -32,6 +32,7 @@ import {
   runPluginCliCommand,
 } from "./plugin-cli-proxy.js";
 import { resolvePatcherCliVersion } from "./version.js";
+import { describeRefusedCredential } from "./app-credential-hint.js";
 
 // Hop to the daemon-managed binary when PATCHER_CLI is set (agent shell env). Must
 // run before Commander so flags/help match the intended build.
@@ -123,6 +124,17 @@ async function tryPluginCommandProxy(): Promise<void> {
     // an unreachable server must not degrade into commander's "unknown
     // command".
     console.error(describeUnreachableServer(getUrl(), result.cause));
+    process.exit(1);
+  }
+  if (result.outcome === "unauthorized") {
+    // Without this the candidate falls through to commander, which answers
+    // "unknown command" — and the command is not unknown, the caller is.
+    const credential = describeRefusedCredential();
+    console.error(
+      `Patcher refused this shell at ${getUrl()} (HTTP 401), so it will not say which commands ${candidate} has.${
+        credential === null ? "" : `\n${credential}`
+      }`,
+    );
     process.exit(1);
   }
   if (result.outcome === "invalid") return;
