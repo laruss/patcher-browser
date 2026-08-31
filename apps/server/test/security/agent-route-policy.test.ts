@@ -116,6 +116,38 @@ describe("agentRoutePolicyDenial", () => {
     ).toBeNull();
   });
 
+  it("refuses the one read whose answer is a credential", () => {
+    // The exception that says what leaving reads open actually rests on. A GET
+    // on `/host-daemon-keys/:hostId` answers with what the app presents to a
+    // machine's own daemon API, whose one executing route runs a command on the
+    // host outside this turn's sandbox — so that credential is minted in memory
+    // rather than read from the app key file, and handing it over on a read
+    // would put it straight back.
+    const denial = agentRoutePolicyDenial({
+      method: "GET",
+      path: "/api/v1/host-daemon-keys/host-1",
+    });
+
+    expect(denial?.route).toBe("/host-daemon-keys/:hostId");
+    expect(denial?.message).toContain("outside this turn's sandbox");
+    // And with every other method too, which is what makes it a different list.
+    for (const method of ["POST", "DELETE"]) {
+      expect(
+        agentRoutePolicyDenial({
+          method,
+          path: "/api/v1/host-daemon-keys/host-1",
+        }),
+      ).not.toBeNull();
+    }
+    // A prefix collision is still not a match.
+    expect(
+      agentRoutePolicyDenial({
+        method: "GET",
+        path: "/api/v1/host-daemon-keyring",
+      }),
+    ).toBeNull();
+  });
+
   it("leaves the work an agent is expected to do alone", () => {
     for (const path of [
       "/api/v1/files/read",

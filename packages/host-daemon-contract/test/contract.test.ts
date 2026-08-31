@@ -1085,8 +1085,14 @@ describe("host-daemon command schemas", () => {
   // inside the boundary its turn runs in. A 110 daemon ignores the field and
   // would open an unconfined shell for a sandboxed turn — silently, which is
   // the one outcome this whole boundary exists to remove.
-  it("uses protocol version 111 after sandboxing an agent's terminal", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(111);
+  //
+  // 112 added `localApiKey` to session open: the daemon's loopback API takes a
+  // credential the daemon mints for itself instead of the app key. A 111 daemon
+  // sends none, so the server would have nothing to give the app and opening a
+  // file in an editor would fail on every machine — the version is what makes
+  // the two halves arrive together.
+  it("uses protocol version 112 after the daemon minted its own local-API key", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(112);
   });
 
   // The subprotocol is agreed between two processes by string, so no build
@@ -2950,6 +2956,35 @@ describe("host-daemon session schemas", () => {
         },
       ],
     });
+
+    // The daemon's own local-API credential rides along, and a daemon that runs
+    // no local API sends none: optional, so a version behind still reaches the
+    // protocol-mismatch answer instead of a validation error.
+    expect(
+      hostDaemonSessionOpenRequestSchema.parse({
+        hostId: "host_123",
+        instanceId: "instance_1",
+        hostName: "Michael's MacBook",
+        hostType: "persistent",
+        platform: "darwin",
+        dataDir: "/tmp/patcher-data",
+        protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
+        localApiKey: "a1b2c3",
+        activeThreads: [],
+      }),
+    ).toMatchObject({ localApiKey: "a1b2c3" });
+    expect(
+      hostDaemonSessionOpenRequestSchema.parse({
+        hostId: "host_123",
+        instanceId: "instance_1",
+        hostName: "Michael's MacBook",
+        hostType: "persistent",
+        platform: "darwin",
+        dataDir: "/tmp/patcher-data",
+        protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
+        activeThreads: [],
+      }).localApiKey,
+    ).toBeUndefined();
 
     expect(() =>
       hostDaemonSessionOpenRequestSchema.parse({

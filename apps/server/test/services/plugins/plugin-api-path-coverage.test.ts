@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { permissionsForApiPath } from "@patcher/domain";
+import {
+  isApiPathClassifiedForPlugins,
+  permissionsForApiPath,
+} from "@patcher/domain";
 import {
   createTestAppHarness,
   type TestAppHarness,
@@ -19,6 +22,10 @@ import {
  *
  * So it reads the router itself. Hono records what was actually mounted, which
  * is the only list that cannot fall behind the server.
+ *
+ * "Classified" includes classified as never a plugin's to call, which is a
+ * decision and not an omission — see the `null` entry in the map. Both refuse
+ * at runtime; only one of them was chosen.
  */
 
 describe("every mounted API path is classified", () => {
@@ -50,10 +57,20 @@ describe("every mounted API path is classified", () => {
 
   it("classifies all of them", () => {
     const unclassified = paths.filter(
-      (path) => permissionsForApiPath(path) === null,
+      (path) => !isApiPathClassifiedForPlugins(path),
     );
 
     expect(unclassified).toEqual([]);
+  });
+
+  it("refuses the one route whose answer is a credential, at any price", () => {
+    // The daemon key for a machine: `/hosts` would have priced it at
+    // `workspace`, so it has its own prefix and costs nothing a plugin can pay.
+    // Classified, so the check above passes; null, so the gate refuses.
+    expect(isApiPathClassifiedForPlugins("/host-daemon-keys/host-1")).toBe(
+      true,
+    );
+    expect(permissionsForApiPath("/host-daemon-keys/host-1")).toBeNull();
   });
 
   // The two that cross areas — a path saying "workspace" while the effect is

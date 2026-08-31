@@ -3,9 +3,10 @@ import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   HOST_DAEMON_PROTOCOL_VERSION,
+  PATCHER_HOST_DAEMON_KEY_HEADER,
   createHostDaemonLocalClient,
   type WorkspaceOpenTarget,
 } from "@patcher/host-daemon-contract";
@@ -31,25 +32,22 @@ describe("local API server", () => {
   }
 
   /**
-   * The daemon's local API takes the app key, so a test client presents it. The
-   * key comes from the environment rather than a data dir here: it is the same
-   * resolution path a daemon on another machine from the server uses.
+   * The credential the daemon minted for itself, which is what its one executing
+   * route takes. A real one comes from `mintHostDaemonLocalApiKey`; the tests
+   * pass their own so they can present it, which is the same thing the server
+   * does with what arrives at session open.
    */
-  const TEST_APP_KEY = "test-daemon-local-api-key";
+  const TEST_DAEMON_KEY = "test-host-daemon-local-api-key";
 
   function signedClient(port: number) {
     return createHostDaemonLocalClient(`http://localhost:${port}`, {
       fetch: (input, init) => {
         const headers = new Headers(init?.headers);
-        headers.set(PATCHER_APP_KEY_HEADER, TEST_APP_KEY);
+        headers.set(PATCHER_HOST_DAEMON_KEY_HEADER, TEST_DAEMON_KEY);
         return fetch(input, { ...init, headers });
       },
     });
   }
-
-  beforeEach(() => {
-    vi.stubEnv("PATCHER_APP_KEY", TEST_APP_KEY);
-  });
 
   afterEach(async () => {
     await server?.close();
@@ -59,6 +57,7 @@ describe("local API server", () => {
   async function startGatedServer() {
     server = await startLocalApiServer({
       hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
       localApiConfig: createLocalApiConfig(),
       serverUrl: "http://server.test",
       serverPort: 3334,
@@ -79,7 +78,7 @@ describe("local API server", () => {
     });
   }
 
-  it("refuses an open request that presents no app key", async () => {
+  it("refuses an open request that presents no key", async () => {
     // The case this gate exists for: an agent mid-turn holds
     // `PATCHER_HOST_DAEMON_PORT` and reaches loopback, and this route ends in an
     // execFile on the host outside its sandbox.
@@ -88,13 +87,53 @@ describe("local API server", () => {
     expect((await openInTarget(port)).status).toBe(401);
   });
 
-  it("refuses an open request whose app key is wrong", async () => {
+  it("refuses the app key, which is what it used to take", async () => {
+    // The whole reason for the daemon's own credential: the app key is a file,
+    // so a turn that builds no sandbox — or one whose provider leaves reads open
+    // — could read it and present it here. A correct app key is now the wrong
+    // credential, and this asserts it with a real one in the environment.
+    vi.stubEnv("PATCHER_APP_KEY", "the-real-app-key");
+    const { port } = await startGatedServer();
+
+    const response = await openInTarget(port, {
+      [PATCHER_APP_KEY_HEADER]: "the-real-app-key",
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("takes the daemon's own key on a machine that has no app key at all", async () => {
+    // The regression this closes. Nothing writes an app key into the data dir of
+    // a machine enrolled from another one, so the app was refused on exactly the
+    // machine it was running on. No `PATCHER_APP_KEY`, no data dir: the open
+    // still happens.
+    vi.stubEnv("PATCHER_APP_KEY", undefined);
+    const openInTargetHandler = vi.fn(async () => undefined);
+    server = await startLocalApiServer({
+      hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
+      localApiConfig: createLocalApiConfig(),
+      serverUrl: "http://server.test",
+      serverPort: 3334,
+      getConnected: () => true,
+      openInTarget: openInTargetHandler,
+    });
+
+    const response = await openInTarget(server.port, {
+      [PATCHER_HOST_DAEMON_KEY_HEADER]: TEST_DAEMON_KEY,
+    });
+
+    expect(response.status).toBe(200);
+    expect(openInTargetHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an open request whose key is wrong", async () => {
     const { port } = await startGatedServer();
 
     const response = await openInTarget(port, {
       // Same length as the real one: the comparison is `timingSafeEqual`, which
       // throws on a mismatch, so equal-but-wrong is the case that reaches it.
-      [PATCHER_APP_KEY_HEADER]: "x".repeat(TEST_APP_KEY.length),
+      [PATCHER_HOST_DAEMON_KEY_HEADER]: "x".repeat(TEST_DAEMON_KEY.length),
     });
 
     expect(response.status).toBe(401);
@@ -106,17 +145,17 @@ describe("local API server", () => {
     // Equal character count, more bytes. Comparing string lengths let this reach
     // `timingSafeEqual`, which threw and answered 500 with a stack trace.
     const response = await openInTarget(port, {
-      [PATCHER_APP_KEY_HEADER]: "é".repeat(TEST_APP_KEY.length),
+      [PATCHER_HOST_DAEMON_KEY_HEADER]: "é".repeat(TEST_DAEMON_KEY.length),
     });
 
     expect(response.status).toBe(401);
   });
 
-  it("allows the app key header on a preflight from an app origin", async () => {
-    // Browser-only failure mode, invisible to every other test here: the app
-    // key is not a safelisted request header, so the app's `/open-in-target`
-    // call is preflighted. A preflight that does not name the header means the
-    // browser blocks the request while a `fetch` from Node sails through.
+  it("allows the daemon key header on a preflight from an app origin", async () => {
+    // Browser-only failure mode, invisible to every other test here: the key is
+    // not a safelisted request header, so the app's `/open-in-target` call is
+    // preflighted. A preflight that does not name the header means the browser
+    // blocks the request while a `fetch` from Node sails through.
     const { port } = await startGatedServer();
 
     const response = await fetch(`http://localhost:${port}/open-in-target`, {
@@ -124,7 +163,7 @@ describe("local API server", () => {
       headers: {
         Origin: "http://localhost:3334",
         "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": `content-type, ${PATCHER_APP_KEY_HEADER}`,
+        "Access-Control-Request-Headers": `content-type, ${PATCHER_HOST_DAEMON_KEY_HEADER}`,
       },
     });
 
@@ -133,7 +172,7 @@ describe("local API server", () => {
       (
         response.headers.get("access-control-allow-headers") ?? ""
       ).toLowerCase(),
-    ).toContain(PATCHER_APP_KEY_HEADER);
+    ).toContain(PATCHER_HOST_DAEMON_KEY_HEADER);
   });
 
   it("leaves the readiness probes open to a caller with no key", async () => {
@@ -157,6 +196,7 @@ describe("local API server", () => {
     // A launcher asks whether the process is alive before anything holds a key.
     server = await startLocalApiServer({
       hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
       localApiConfig: createLocalApiConfig(),
       serverUrl: "http://server.test",
       serverPort: 3334,
@@ -172,6 +212,7 @@ describe("local API server", () => {
   it("serves host identity and status over localhost", async () => {
     server = await startLocalApiServer({
       hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
       localApiConfig: createLocalApiConfig(),
       serverUrl: "http://server.test",
       serverPort: 3334,
@@ -209,6 +250,7 @@ describe("local API server", () => {
       await expect(
         startLocalApiServer({
           hostId: "host-1",
+          localApiKey: TEST_DAEMON_KEY,
           localApiConfig: createLocalApiConfig({
             bindHost: "127.0.0.1",
             port: address.port,
@@ -256,6 +298,7 @@ describe("local API server", () => {
 
     server = await startLocalApiServer({
       hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
       localApiConfig: createLocalApiConfig(),
       serverUrl: "http://server.test",
       serverPort: 3334,
@@ -317,6 +360,7 @@ describe("local API server", () => {
       server = await startLocalApiServer({
         dataDir,
         hostId: "host-1",
+        localApiKey: TEST_DAEMON_KEY,
         localApiConfig: createLocalApiConfig(),
         serverUrl: "http://server.test",
         serverPort: 3334,
@@ -334,7 +378,7 @@ describe("local API server", () => {
         {
           headers: {
             Origin: "https://remote-patcher.example.test",
-            [PATCHER_APP_KEY_HEADER]: TEST_APP_KEY,
+            [PATCHER_HOST_DAEMON_KEY_HEADER]: TEST_DAEMON_KEY,
           },
         },
       );
@@ -395,6 +439,7 @@ describe("local API server", () => {
       server = await startLocalApiServer({
         dataDir,
         hostId: "host-1",
+        localApiKey: TEST_DAEMON_KEY,
         localApiConfig: createLocalApiConfig(),
         serverUrl: "http://server.test",
         serverPort: 3334,
@@ -435,6 +480,7 @@ describe("local API server", () => {
     });
     server = await startLocalApiServer({
       hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
       localApiConfig: createLocalApiConfig(),
       serverUrl: "http://server.test",
       serverPort: 3334,
@@ -467,6 +513,7 @@ describe("local API server", () => {
   it("supports health-only mode", async () => {
     server = await startLocalApiServer({
       hostId: "host-1",
+      localApiKey: TEST_DAEMON_KEY,
       localApiConfig: createLocalApiConfig({
         bindHost: "127.0.0.1",
         healthPath: "/ready",

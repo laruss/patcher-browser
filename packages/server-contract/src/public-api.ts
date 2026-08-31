@@ -100,6 +100,7 @@ import type {
   HostDirectoryQuery,
   HostCloneDefaultPathQuery,
   HostCloneDefaultPathResponse,
+  HostDaemonKeyResponse,
   HostFileListRequest,
   HostFileListResponse,
   HostFileReadRequest,
@@ -699,6 +700,20 @@ export const publicApiRoutes = {
         hostProviderCliInstallRequestSchema,
       ),
       response: textResponse<HostProviderCliInstallEvent>(),
+    }),
+  },
+
+  /**
+   * The credential for a machine's own daemon API — its own path family, not a
+   * sub-route of `/hosts`, so the plugin permission map does not classify it and
+   * the agent policy can name it. See `hostDaemonKeyResponseSchema`.
+   */
+  hostDaemonKeys: {
+    get: defineRoute({
+      path: "/host-daemon-keys/:hostId",
+      method: "get",
+      request: noRequest<{ param: { hostId: string } }>(),
+      response: jsonResponse<HostDaemonKeyResponse>(),
     }),
   },
 

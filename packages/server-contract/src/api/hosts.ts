@@ -42,6 +42,26 @@ export const hostDirectoryListingSchema = z.object({
 });
 export type HostDirectoryListing = z.infer<typeof hostDirectoryListingSchema>;
 
+/**
+ * What the app must present to a machine's own daemon API, for the one route on
+ * it that runs something.
+ *
+ * Not under `/hosts` on purpose. A plugin's reach is decided by a path→
+ * permission map, `/hosts` costs `workspace`, and this answer is a credential —
+ * so it has its own prefix, entered in that map as `null`: never a plugin's to
+ * call, at any price. An agent mid-turn is refused by name, in
+ * `agent-route-policy.ts`: this is the one read on the whole API that a turn may
+ * not make.
+ *
+ * `key` is minted by that daemon per process and kept only in memory, on both
+ * ends. The server has none to give when the machine has no daemon session, and
+ * says so with a 404 rather than an empty string.
+ */
+export const hostDaemonKeyResponseSchema = z
+  .object({ key: z.string().min(1) })
+  .strict();
+export type HostDaemonKeyResponse = z.infer<typeof hostDaemonKeyResponseSchema>;
+
 /** Project name is sent so the daemon can derive its host-local checkout path. */
 export const hostCloneDefaultPathQuerySchema = z.object({
   projectId: z.string().min(1),

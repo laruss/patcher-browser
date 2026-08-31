@@ -228,6 +228,19 @@ export class NotificationHub implements DbNotifier {
     string,
     HostPlatform
   >();
+  /**
+   * What the app must present to a machine's own daemon API.
+   *
+   * Held here and nowhere else: not in the database, not in a file. The daemon
+   * mints it per process and sends it when it opens a session, the app reads it
+   * back through `/host-daemon-keys/:hostId`, and it is forgotten when that
+   * session ends — so the credential that lets something run a command on the
+   * host outside a turn's sandbox has no copy on disk for a turn to read.
+   */
+  private readonly daemonLocalApiKeysByHost = new Map<
+    string,
+    { key: string; sessionId: string }
+  >();
   private readonly daemonRegistrationWaiters = new Map<
     string,
     Set<DaemonRegistrationWaiter>
@@ -558,6 +571,29 @@ export class NotificationHub implements DbNotifier {
     this.daemonSessionPlatformsBySessionId.set(sessionId, platform);
   }
 
+  /**
+   * Remember the daemon's local-API credential for as long as its session runs.
+   *
+   * Recorded at session open rather than at socket registration, which is the
+   * order the daemon does them in: the app can ask the moment the session
+   * exists, and a machine reconnecting replaces the value under the same host.
+   */
+  recordDaemonLocalApiKey(args: {
+    hostId: string;
+    key: string;
+    sessionId: string;
+  }): void {
+    this.daemonLocalApiKeysByHost.set(args.hostId, {
+      key: args.key,
+      sessionId: args.sessionId,
+    });
+  }
+
+  /** The credential for this machine's daemon API, if the server has one. */
+  daemonLocalApiKey(hostId: string): string | undefined {
+    return this.daemonLocalApiKeysByHost.get(hostId)?.key;
+  }
+
   registerDaemon(sessionId: string, hostId: string, socket: HubSocket): void {
     this.cancelPendingDaemonDisconnect(sessionId);
     const existingSessionId = this.daemonSessionIdsByHost.get(hostId);
@@ -587,6 +623,14 @@ export class NotificationHub implements DbNotifier {
     }
     this.daemonSessions.delete(sessionId);
     this.daemonSessionPlatformsBySessionId.delete(sessionId);
+    // Only if it is still this session's: a reconnecting daemon records the new
+    // key at session open and *then* the old socket is unregistered, so
+    // deleting unconditionally would forget the live credential.
+    if (
+      this.daemonLocalApiKeysByHost.get(entry.hostId)?.sessionId === sessionId
+    ) {
+      this.daemonLocalApiKeysByHost.delete(entry.hostId);
+    }
     this.rejectHostOnlineRpcWaitersForSession(sessionId);
     if (this.daemonSessionIdsByHost.get(entry.hostId) === sessionId) {
       this.daemonSessionIdsByHost.delete(entry.hostId);

@@ -259,9 +259,15 @@ export const PLUGIN_SDK_METHOD_EXTRA_PERMISSIONS = {
  * Longest matching prefix wins, and an unmatched path is denied rather than
  * allowed: a route nobody classified is a route nobody thought about, and
  * `apiPathPermissionCoverage` in the server's tests fails on one.
+ *
+ * `null` is the third answer, and it is not the same as an unmatched path even
+ * though both refuse: it says a route was classified as never a plugin's to
+ * call, at any price. Use it for a route whose *answer* is a credential — a
+ * permission would be a price, and there is no price at which handing one over
+ * is right.
  */
 const API_PATH_PERMISSIONS: ReadonlyArray<
-  readonly [prefix: string, permissions: readonly PluginPermission[]]
+  readonly [prefix: string, permissions: readonly PluginPermission[] | null]
 > = [
   ["/browser-history", ["history"]],
   ["/threads", ["threads"]],
@@ -283,6 +289,13 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // Archives the environment's threads, which its path does not say.
   ["/environments/:id/archive-threads", ["workspace", "threads"]],
   ["/hosts", ["workspace"]],
+  // Answers with the credential for a machine's own daemon API, whose one
+  // executing route runs a command on the host outside any sandbox. Its own
+  // prefix rather than a sub-route of `/hosts` precisely so it is not priced at
+  // `workspace`, and `null` rather than absent so the coverage check reads it as
+  // a decision. An agent mid-turn is refused it too, by name, in the server's
+  // `agent-route-policy.ts`.
+  ["/host-daemon-keys", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],
   ["/skills-registry", ["workspace"]],
@@ -292,16 +305,9 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   ["/sidebar-bootstrap", ["workspace", "threads"]],
 ];
 
-/**
- * The permissions a plugin needs for one `/api/v1` path, or `null` when the
- * path is not classified — which callers must treat as a refusal.
- *
- * `path` may carry the `/api/v1` prefix or not; concrete ids in place of
- * parameters match their pattern (`/threads/abc/send` matches `/threads`).
- */
-export function permissionsForApiPath(
+function matchApiPathEntry(
   path: string,
-): readonly PluginPermission[] | null {
+): (typeof API_PATH_PERMISSIONS)[number] | undefined {
   const normalized = (
     path.startsWith("/api/v1") ? path.slice("/api/v1".length) : path
   ).replace(/\/+$/, "");
@@ -317,7 +323,37 @@ export function permissionsForApiPath(
     if (!new RegExp(`^${pattern}(/|$)`).test(normalized)) continue;
     if (best === undefined || entry[0].length > best[0].length) best = entry;
   }
-  return best?.[1] ?? null;
+  return best;
+}
+
+/**
+ * The permissions a plugin needs for one `/api/v1` path, or `null` when the
+ * path is not a plugin's to call — which callers must treat as a refusal.
+ *
+ * `path` may carry the `/api/v1` prefix or not; concrete ids in place of
+ * parameters match their pattern (`/threads/abc/send` matches `/threads`).
+ *
+ * Two different things answer `null`: a path nobody classified, and a path
+ * classified as never a plugin's at any price. Both refuse, which is why one
+ * return value is enough here; {@link isApiPathClassifiedForPlugins} is what
+ * tells them apart, and the coverage check is its only caller.
+ */
+export function permissionsForApiPath(
+  path: string,
+): readonly PluginPermission[] | null {
+  return matchApiPathEntry(path)?.[1] ?? null;
+}
+
+/**
+ * Whether somebody decided what this path costs a plugin — including deciding
+ * that it is never a plugin's to call.
+ *
+ * The distinction the runtime does not need and the tests do: an unclassified
+ * route refuses by accident, and the accident is a 403 nobody predicted for a
+ * route that was meant to be reachable.
+ */
+export function isApiPathClassifiedForPlugins(path: string): boolean {
+  return matchApiPathEntry(path) !== undefined;
 }
 
 function escapeSegment(segment: string): string {

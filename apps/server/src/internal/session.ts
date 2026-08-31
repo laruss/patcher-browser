@@ -96,6 +96,16 @@ export function registerInternalSessionRoutes(app: Hono, deps: AppDeps): void {
         leaseTimeoutMs: LEASE_TIMEOUT_MS,
       });
       deps.hub.recordDaemonSessionPlatform(session.id, payload.platform);
+      if (payload.localApiKey !== undefined) {
+        // The daemon's own credential for its loopback API, kept in memory for
+        // the life of this session and handed to the app on request. A daemon
+        // with no local API sends none.
+        deps.hub.recordDaemonLocalApiKey({
+          hostId: daemon.hostId,
+          key: payload.localApiKey,
+          sessionId: session.id,
+        });
+      }
       await handleHostSessionOpened(deps, {
         activeThreads: payload.activeThreads,
         hostId: daemon.hostId,
