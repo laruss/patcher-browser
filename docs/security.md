@@ -373,10 +373,14 @@ Named here rather than left to be rediscovered:
   is no wider than the turn's own shell under Codex, which also has the network,
   and narrower than what the route gave before — but it is not nothing, and the
   answer is the same one the rest of this section keeps arriving at.
-- **The app does not say which terminals are confined.** The row records it and
-  the API returns it; `patcher terminal list` has a column for it and the app's
-  terminal tabs do not. Somebody typing into an agent's terminal in the app
-  meets "operation not permitted" with nothing on screen explaining why.
+- ~~**The app does not say which terminals are confined.**~~ Closed: a confined
+  terminal's tab says `sandboxed` — the same word as the `Sandbox` column in
+  `patcher terminal list` — and the panel carries a line above the shell naming
+  what is refused and what is not. The refusal itself is `operation not
+permitted` from the shell, which no part of the app can intercept, so the fact
+  has to stand where the person is typing rather than be attached to the error.
+  A status wins the tab label over it: a disconnected terminal is the more
+  urgent thing to say, and the panel still carries the confinement.
 - **Plugin code, by decision rather than by omission.** `plugins/:id/cli` and
   `plugins/:id/rpc/:method` execute plugin code with no consent prompt, and
   that is the model rather than a gap in it: the grant happens at install and

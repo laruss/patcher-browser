@@ -146,9 +146,7 @@ import {
 } from "@/lib/route-paths";
 import { resolveAbsoluteFilePath } from "@/lib/absolute-file-path";
 import { getBrowserUrlHost } from "@/lib/browser-url";
-import {
-  isDesktopBrowserAvailable,
-} from "@/lib/patcher-desktop";
+import { isDesktopBrowserAvailable } from "@/lib/patcher-desktop";
 import {
   useFixedPanelTabsState,
   useFixedPanelTabsStorageMaintenance,
@@ -210,7 +208,7 @@ import { ThreadTerminalPanel } from "@/components/thread/terminal/ThreadTerminal
 import {
   DEFAULT_TERMINAL_COLS,
   DEFAULT_TERMINAL_ROWS,
-  terminalStatusLabel,
+  terminalTabStatusLabel,
 } from "@/components/thread/terminal/useThreadTerminalController";
 import {
   buildTerminalSyncedSecondaryFileTabs,
@@ -243,7 +241,8 @@ import {
 import { useOptionalPaneContext } from "./thread-detail/PaneContext";
 import { RootComposePanelCommandHandlers } from "./RootComposePanelCommandHandlers";
 
-const ROOT_COMPOSE_ZEN_MODE_STORAGE_KEY = "patcher.promptbox.zen-mode.root-compose";
+const ROOT_COMPOSE_ZEN_MODE_STORAGE_KEY =
+  "patcher.promptbox.zen-mode.root-compose";
 const ROOT_COMPOSE_SIDEBAR_ACTION_ALIGNED_TOP_PADDING_CLASS = "pt-14";
 
 function resolveHostOpenContext(args: {
@@ -2529,10 +2528,7 @@ export function RootComposeView() {
                   aria-hidden
                 />
               ),
-              statusLabel:
-                session === undefined || session.status === "running"
-                  ? null
-                  : terminalStatusLabel(session),
+              statusLabel: terminalTabStatusLabel(session),
               onSelect: () => handleActivateTerminalTab(tab.terminalId),
               onClose: () => handleCloseTerminalTab(tab.terminalId),
             };
