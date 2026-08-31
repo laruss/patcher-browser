@@ -259,6 +259,16 @@ export function formatPendingInteractionSubjectDetailLines(
         ? [`Plan file: ${interaction.payload.subject.planFilePath}`]
         : [];
     }
+    case "mcp_tool_call": {
+      // The question itself is the summary; these are what a person needs to
+      // judge it — which server, and what the server says the tool does.
+      return [
+        `MCP server: ${interaction.payload.subject.serverName}`,
+        ...(interaction.payload.subject.toolDescription
+          ? [`Tool: ${interaction.payload.subject.toolDescription}`]
+          : []),
+      ];
+    }
     default:
       return assertNever(interaction.payload.subject);
   }

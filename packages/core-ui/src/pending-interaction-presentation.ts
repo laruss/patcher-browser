@@ -61,6 +61,10 @@ export function formatPendingInteractionSummary(
       return "File changes pending approval";
     case "plan":
       return "Plan ready for review";
+    // Codex composes this line for display and it names the tool, so it is
+    // shown as it arrived rather than rebuilt from parts the wire omits.
+    case "mcp_tool_call":
+      return interaction.payload.subject.message;
     case "permission_grant":
       break;
     default:

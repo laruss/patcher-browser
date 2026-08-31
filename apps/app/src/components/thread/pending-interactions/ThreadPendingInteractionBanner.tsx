@@ -455,6 +455,23 @@ function buildApprovalSubject({
         ),
       };
     }
+    case "mcp_tool_call": {
+      const detailLines =
+        formatPendingInteractionSubjectDetailLines(interaction);
+      return {
+        // Codex writes this question itself and it names the tool, so it is the
+        // title rather than something rebuilt around it.
+        title: payload.subject.message,
+        body:
+          detailLines.length > 0 ? (
+            <ul className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+              {detailLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null,
+      };
+    }
     default:
       return assertNever(payload.subject);
   }

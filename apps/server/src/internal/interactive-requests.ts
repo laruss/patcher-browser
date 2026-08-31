@@ -42,6 +42,8 @@ function pendingInteractionBlockerLabel(
       return "permission grant";
     case "plan":
       return "plan review";
+    case "mcp_tool_call":
+      return "MCP tool approval";
     default: {
       const exhaustiveCheck: never = interaction.payload.subject;
       return exhaustiveCheck;

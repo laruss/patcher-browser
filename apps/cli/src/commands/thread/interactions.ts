@@ -141,6 +141,8 @@ function formatInteractionKind(interaction: PendingInteraction): string {
       return "permission";
     case "plan":
       return "plan";
+    case "mcp_tool_call":
+      return "mcp-tool";
     default:
       return assertNever(interaction.payload.subject);
   }
@@ -265,6 +267,13 @@ function printApprovalInteraction(
       console.log("  Plan:");
       for (const line of interaction.payload.subject.plan.split("\n")) {
         console.log(`    ${line}`);
+      }
+      break;
+    case "mcp_tool_call":
+      console.log(`  MCP server: ${interaction.payload.subject.serverName}`);
+      console.log(`  Question: ${interaction.payload.subject.message}`);
+      if (interaction.payload.subject.toolDescription) {
+        console.log(`  Tool: ${interaction.payload.subject.toolDescription}`);
       }
       break;
     default:

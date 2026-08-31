@@ -18,8 +18,10 @@ import {
   toPendingInteractionGrantablePermissionProfile,
 } from "./permission-mapping.js";
 import {
+  CODEX_MCP_TOOL_CALL_APPROVAL_KIND,
   codexCommandExecutionRequestApprovalParamsSchema,
   codexFileChangeRequestApprovalParamsSchema,
+  codexMcpServerElicitationRequestParamsSchema,
   codexPermissionsRequestApprovalParamsSchema,
 } from "./schemas.js";
 import type {
@@ -31,10 +33,24 @@ import {
   isApprovalPendingInteractionResolution,
 } from "@patcher/domain";
 
+/**
+ * The answer an MCP elicitation takes, which is not shaped like the others.
+ *
+ * `{ action, content }` rather than `{ decision }` — measured: a `{ decision }`
+ * body is refused by Codex with "missing field `action`", and the tool call then
+ * comes back failed with "user rejected MCP tool call". There is no generated
+ * type for it in `generated/`, so it is written here.
+ */
+export type CodexMcpServerElicitationResponse = {
+  action: "accept" | "decline";
+  content: Record<string, never>;
+};
+
 export type CodexInteractiveResponse =
   | CommandExecutionRequestApprovalResponse
   | FileChangeRequestApprovalResponse
-  | PermissionsRequestApprovalResponse;
+  | PermissionsRequestApprovalResponse
+  | CodexMcpServerElicitationResponse;
 
 function assertNever(value: never, message?: string): never {
   throw new ProviderResponseEncodeError(
@@ -205,6 +221,48 @@ export function decodeCodexInteractiveRequest(
         },
       };
     }
+    case "mcpServer/elicitation/request": {
+      const parsed = codexMcpServerElicitationRequestParamsSchema.safeParse(
+        request.params,
+      );
+      if (!parsed.success) {
+        return null;
+      }
+      // Only a tool-call approval. The same method also carries a genuine
+      // elicitation — a server asking the person for input against
+      // `requestedSchema` — and answering one of those with "allowed" would be
+      // returning an empty form as if it were filled in.
+      if (
+        parsed.data._meta?.codex_approval_kind !==
+        CODEX_MCP_TOOL_CALL_APPROVAL_KIND
+      ) {
+        return null;
+      }
+      const toolDescription = parsed.data._meta?.tool_description ?? null;
+      return {
+        requestId: request.id,
+        method: request.method,
+        providerThreadId: parsed.data.threadId,
+        turnId: parsed.data.turnId,
+        payload: {
+          kind: "approval",
+          subject: {
+            kind: "mcp_tool_call",
+            serverName: parsed.data.serverName,
+            message: parsed.data.message,
+            toolDescription:
+              toolDescription !== null && toolDescription.length > 0
+                ? toolDescription
+                : null,
+          },
+          reason: null,
+          // No `allow_for_session`: the wire advertises the scope and the shape
+          // of an answer that persists is unmeasured, so offering it would
+          // record a decision the next call does not honour.
+          availableDecisions: ["allow_once", "deny"],
+        },
+      };
+    }
     default:
       return null;
   }
@@ -252,6 +310,13 @@ export function buildCodexInteractiveResponse(
         ),
         scope:
           args.resolution.decision === "allow_for_session" ? "session" : "turn",
+      };
+      return response;
+    }
+    case "mcp_tool_call": {
+      const response: CodexMcpServerElicitationResponse = {
+        action: args.resolution.decision === "deny" ? "decline" : "accept",
+        content: {},
       };
       return response;
     }

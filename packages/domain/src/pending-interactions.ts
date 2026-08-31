@@ -150,6 +150,34 @@ export type PendingInteractionPermissionGrantApprovalSubject = z.infer<
 >;
 
 /**
+ * An MCP server's tool, waiting to be allowed to run.
+ *
+ * The only subject with no `itemId`, and that is the wire's doing rather than an
+ * omission: Codex raises this as an *elicitation* before the tool call exists as
+ * an item, and the request carries no id to tie it to one. It carries no tool
+ * name either — the tool is named inside `message`, which Codex composes for
+ * display — so that string is shown as it arrived instead of being reassembled
+ * from parts that are not there.
+ *
+ * Only `allow_once` and `deny` are offered. The wire advertises `session` and
+ * `always` persistence, but the shape of an answer that persists is unmeasured,
+ * and a decision that says "for this session" while behaving like "once" would
+ * be a lie in the timeline. Adding it later is additive.
+ */
+export const pendingInteractionMcpToolCallApprovalSubjectSchema = z.object({
+  kind: z.literal("mcp_tool_call"),
+  /** The MCP server as Codex knows it, which is how it is named in config. */
+  serverName: z.string().min(1),
+  /** Codex's own question, naming the tool. Shown as it arrived. */
+  message: z.string().min(1),
+  /** What the server says the tool does, when it says anything. */
+  toolDescription: z.string().min(1).nullable(),
+});
+export type PendingInteractionMcpToolCallApprovalSubject = z.infer<
+  typeof pendingInteractionMcpToolCallApprovalSubjectSchema
+>;
+
+/**
  * A finished plan waiting for the user's verdict before the agent may act on
  * it. Unlike the other subjects this grants no permission: the decision only
  * says whether the agent leaves plan mode and starts the work.
@@ -173,6 +201,7 @@ export const pendingInteractionApprovalSubjectSchema = z.discriminatedUnion(
     pendingInteractionFileChangeApprovalSubjectSchema,
     pendingInteractionPermissionGrantApprovalSubjectSchema,
     pendingInteractionPlanApprovalSubjectSchema,
+    pendingInteractionMcpToolCallApprovalSubjectSchema,
   ],
 );
 export type PendingInteractionApprovalSubject = z.infer<

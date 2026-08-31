@@ -326,6 +326,50 @@ export const codexPermissionsRequestApprovalParamsSchema = z.object({
   permissions: codexRequestPermissionsSchema,
 });
 
+/**
+ * What Codex sends before an MCP server's tool runs.
+ *
+ * Measured against codex-cli 0.150.1 rather than read off a schema — the
+ * generated app-server types in `generated/` carry `McpToolCall*` but nothing
+ * for this request, so the shape here is what the wire actually produced:
+ *
+ * ```json
+ * { "threadId": "…", "turnId": "…", "serverName": "patcher", "mode": "form",
+ *   "message": "Allow the patcher MCP server to run tool \"patcher_probe\"?",
+ *   "requestedSchema": { "type": "object", "properties": {} },
+ *   "_meta": { "codex_approval_kind": "mcp_tool_call",
+ *              "persist": ["session", "always"],
+ *              "tool_description": "…", "tool_params": {},
+ *              "tool_params_display": [] } }
+ * ```
+ *
+ * Three things about it are load-bearing. `_meta.codex_approval_kind` is what
+ * separates a tool-call approval from a genuine elicitation — a server asking
+ * the person for input — and only the former is decoded here. There is **no
+ * item id and no tool name**: the tool is named inside `message`, which Codex
+ * composes for display, so that string is what a person is shown rather than
+ * something reassembled from parts. And the answer is `{ action, content }`,
+ * not the `{ decision }` every other approval takes; a `{ decision }` body
+ * fails to deserialize on Codex's side and the tool call then comes back as
+ * "user rejected MCP tool call", which is what a turn saw before this existed.
+ */
+export const codexMcpServerElicitationRequestParamsSchema = z.object({
+  threadId: z.string(),
+  turnId: z.string(),
+  serverName: z.string().min(1),
+  message: z.string().min(1),
+  mode: z.string().optional(),
+  _meta: z
+    .object({
+      codex_approval_kind: z.string().optional(),
+      tool_description: z.string().nullable().optional(),
+    })
+    .passthrough()
+    .optional(),
+});
+
+export const CODEX_MCP_TOOL_CALL_APPROVAL_KIND = "mcp_tool_call" as const;
+
 const codexThreadItemEnvelopeSchema = z
   .object({
     type: z.string(),

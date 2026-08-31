@@ -91,7 +91,7 @@ type ApprovalTimelineItem = Extract<
  */
 type ApprovalTimelineItemSubject = Exclude<
   PendingInteractionApprovalSubject,
-  { kind: "permission_grant" } | { kind: "plan" }
+  { kind: "permission_grant" } | { kind: "plan" } | { kind: "mcp_tool_call" }
 >;
 type ApprovalTimelineItemStatus = Extract<
   ApprovalTimelineItem["status"],
@@ -507,6 +507,10 @@ export function appendPendingInteractionTimelineEvent(
     // duplicate it.
     case "plan":
       return;
+    // Same: Codex streams the MCP tool call itself as an item, and the request
+    // that asks about it carries no item id to attach an event to anyway.
+    case "mcp_tool_call":
+      return;
     default:
       return assertNever(subject, "Unsupported approval subject for timeline");
   }
@@ -576,6 +580,10 @@ export function appendPendingInteractionTimelineEventInTransaction(
     // See appendPendingInteractionTimelineEvent: the ExitPlanMode tool call is
     // already the timeline record.
     case "plan":
+      return;
+    // Same: Codex streams the MCP tool call itself as an item, and the request
+    // that asks about it carries no item id to attach an event to anyway.
+    case "mcp_tool_call":
       return;
     default:
       return assertNever(subject, "Unsupported approval subject for timeline");
