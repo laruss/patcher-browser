@@ -9,6 +9,7 @@ import {
 } from "@patcher/domain";
 import {
   hostDaemonInteractiveInterruptRequestSchema,
+  PATCHER_HOST_DAEMON_KEY_HEADER,
   type HostDaemonInteractiveRequestResponse,
 } from "@patcher/host-daemon-contract";
 import type { HostWatcher } from "@patcher/host-watcher";
@@ -676,6 +677,71 @@ describe("createHostDaemonApp", () => {
     expect(timer.clear).toHaveBeenCalledTimes(1);
     triggerTick();
     expect(reapIdleProviderSessions).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the server the key its own local API will accept", async () => {
+    // The wiring, end to end in one process: the daemon mints one credential and
+    // both halves have to get *that* one — the local API checks it, and the
+    // session-open payload is the only way it ever reaches the app. Two
+    // variables that happen to typecheck would pass every other test here.
+    const dataDir = await makeTempDir("patcher-host-daemon-app-local-api-");
+    const fetchRecorder = createFetchRecorder();
+    const app = await createHostDaemonApp({
+      dataDir,
+      serverUrl: "http://127.0.0.1:3334",
+      hostKey: "host-key-app-test",
+      hostType: "persistent",
+      hostId: "host-app-test",
+      hostName: "App Test Host",
+      instanceId: "instance-app-test",
+      logger: createLogger(),
+      releaseLock: async () => undefined,
+      localApiConfig: {
+        bindHost: "127.0.0.1",
+        healthPath: "/health",
+        healthValue: "ok",
+        mode: "full",
+        port: 0,
+      },
+      createRuntime: () => createFakeRuntime(),
+      fetchFn: fetchRecorder.fetchFn,
+      createWebSocket: createOpeningWebSocket(),
+    });
+    try {
+      await app.connection.start();
+      const port = app.localApi?.port;
+      expect(port).toBeGreaterThan(0);
+      const sessionOpen = fetchRecorder.requests.find(
+        (request) => request.pathname === "/internal/session/open",
+      );
+      const localApiKey = JSON.parse(sessionOpen?.body ?? "{}").localApiKey;
+      expect(typeof localApiKey).toBe("string");
+
+      const open = (headers: Record<string, string>) =>
+        fetch(`http://127.0.0.1:${String(port)}/open-in-target`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify({
+            context: { kind: "local" },
+            columnNumber: null,
+            lineNumber: null,
+            path: dataDir,
+            targetId: "not-an-open-target",
+          }),
+        });
+
+      // Not 401 is the whole assertion: what happens after the gate is the
+      // opener's business, and an unknown target is a 400 from it.
+      expect(
+        (await open({ [PATCHER_HOST_DAEMON_KEY_HEADER]: localApiKey })).status,
+      ).toBe(400);
+      expect(
+        (await open({ [PATCHER_HOST_DAEMON_KEY_HEADER]: "not-the-minted-key" }))
+          .status,
+      ).toBe(401);
+    } finally {
+      await app.daemon.shutdown("test");
+    }
   });
 
   it("reconnects through the server connection when event posting sees an inactive session", async () => {

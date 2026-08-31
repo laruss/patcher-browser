@@ -75,6 +75,72 @@ describe("createServerClient", () => {
     });
   });
 
+  it("hands the local API key to the server when it opens a session", async () => {
+    // The only way the app ever learns it: the daemon mints it per process and
+    // writes it nowhere, so if it does not ride along here, opening a file in an
+    // editor is refused on every machine.
+    const fetchFn = vi.fn<FetchFn>(async () =>
+      Response.json(
+        { sessionId: "session-1", heartbeatIntervalMs: 1, leaseTimeoutMs: 2 },
+        { status: 201 },
+      ),
+    );
+    const client = createServerClient({
+      fetchFn,
+      getSessionId: () => "session-1",
+      hostKey: "host-key",
+      localApiKey: "minted-in-memory",
+      logger: createLogger(),
+      serverUrl: "https://patcher.example.test",
+    });
+
+    await client.openSession({
+      hostId: "host-1",
+      hostName: "Host",
+      hostType: "persistent",
+      dataDir: "/tmp/patcher",
+      instanceId: "instance-1",
+      activeThreads: [],
+      loadedEnvironments: [],
+    });
+
+    const [, init] = fetchFn.mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      localApiKey: "minted-in-memory",
+    });
+  });
+
+  it("sends no local API key when the daemon runs no local API", async () => {
+    const fetchFn = vi.fn<FetchFn>(async () =>
+      Response.json(
+        { sessionId: "session-1", heartbeatIntervalMs: 1, leaseTimeoutMs: 2 },
+        { status: 201 },
+      ),
+    );
+    const client = createServerClient({
+      fetchFn,
+      getSessionId: () => "session-1",
+      hostKey: "host-key",
+      logger: createLogger(),
+      serverUrl: "https://patcher.example.test",
+    });
+
+    await client.openSession({
+      hostId: "host-1",
+      hostName: "Host",
+      hostType: "persistent",
+      dataDir: "/tmp/patcher",
+      instanceId: "instance-1",
+      activeThreads: [],
+      loadedEnvironments: [],
+    });
+
+    const [, init] = fetchFn.mock.calls[0] ?? [];
+    // Absent, not empty: the server keeps nothing for a machine with no local
+    // API to reach, and the app then says the machine is not connected.
+    expect("localApiKey" in JSON.parse(String(init?.body))).toBe(false);
+  });
+
   it("refuses to fetch project attachments over insecure non-loopback HTTP", async () => {
     const fetchFn = vi.fn<FetchFn>();
     const client = createServerClient({

@@ -11,6 +11,24 @@ export const DEFAULT_HOST_DAEMON_LOCAL_HEALTH_PATH = "/health";
 export const DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST = "127.0.0.1";
 export const DEFAULT_HOST_DAEMON_LOCAL_HEALTH_VALUE = "ok";
 
+/**
+ * Says a request to the daemon's local API came from the app.
+ *
+ * Not the app key, and that is the whole point of it. The one route on this API
+ * that does something — `POST /open-in-target`, an `execFile` on the host
+ * outside any turn's sandbox — used to take the app key, which is a file on
+ * disk: a turn that builds no sandbox, or one whose provider leaves reads open,
+ * could `cat` it and present it. And on a machine enrolled from another one
+ * nothing writes that file at all, so the same gate refused the app itself.
+ *
+ * This credential exists only in the daemon's memory. It is minted per daemon
+ * process, handed to the server when the daemon opens its session, and read
+ * back by the app from the server it is already talking to — so a turn cannot
+ * find it on disk, and a machine with no app key can still open a file in an
+ * editor. See `docs/security.md`.
+ */
+export const PATCHER_HOST_DAEMON_KEY_HEADER = "x-patcher-host-daemon-key";
+
 export const workspaceOpenTargetIdSchema = z.string().trim().min(1).max(200);
 export type WorkspaceOpenTargetId = z.infer<typeof workspaceOpenTargetIdSchema>;
 
@@ -328,10 +346,11 @@ export type HostDaemonLocalRoutes = Hono<{}, HostDaemonLocalSchema, "/">;
 
 export interface CreateHostDaemonLocalClientOptions {
   /**
-   * Signs the request. The daemon's local API takes the app key like every
-   * other local surface, and the app's global key wrapper deliberately covers
-   * only same-origin `/api/v1` — so reaching the daemon means saying so here
-   * rather than widening that rule to another origin.
+   * Signs the request. The app's global key wrapper deliberately covers only
+   * same-origin `/api/v1`, so reaching the daemon means saying so here rather
+   * than widening that rule to another origin — and what is presented for the
+   * one gated route is the daemon's own key, not the app's
+   * (`PATCHER_HOST_DAEMON_KEY_HEADER`).
    */
   fetch?: typeof fetch;
 }

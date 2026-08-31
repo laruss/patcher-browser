@@ -12,7 +12,11 @@ import {
 import { startEventLoopStallMonitor } from "./event-loop-stall-monitor.js";
 import { startHostDaemonHealthMonitor } from "./host-daemon-health-monitor.js";
 import { shutdownDefaultListModelsRuntimes } from "./command-dispatch-support.js";
-import { startLocalApiServer, type LocalApiServer } from "./local-api.js";
+import {
+  mintHostDaemonLocalApiKey,
+  startLocalApiServer,
+  type LocalApiServer,
+} from "./local-api.js";
 import type { HostDaemonLocalApiConfig } from "./local-api-config.js";
 import type { HostDaemonLogger } from "./logger.js";
 import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
@@ -296,9 +300,20 @@ export async function createHostDaemonApp(
     await eventSink.flushRequired();
   }
 
+  /**
+   * The credential the app presents to this daemon's local API.
+   *
+   * Minted here, before either half is wired, because both halves need the same
+   * value: the local API checks it, and the server client carries it to the
+   * server at session open for the app to read back. It never reaches disk —
+   * that is the point of it, and what a protocol bump buys over a middleware.
+   */
+  const localApiKey = mintHostDaemonLocalApiKey();
+
   const serverClient = createServerClient({
     serverUrl: options.serverUrl,
     hostKey: options.hostKey,
+    localApiKey,
     logger: options.logger,
     getSessionId: () => {
       if (!sessionState.value) {
@@ -826,6 +841,7 @@ export async function createHostDaemonApp(
     ? await startLocalApiServer({
         dataDir: options.dataDir,
         hostId: options.hostId,
+        localApiKey,
         localApiConfig: options.localApiConfig,
         serverUrl: options.serverUrl,
         serverPort: Number(new URL(options.serverUrl).port) || 0,

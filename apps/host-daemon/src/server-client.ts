@@ -162,6 +162,13 @@ export type FetchFn = (
 interface CreateServerClientOptions {
   serverUrl: string;
   hostKey: string;
+  /**
+   * What this daemon's local API expects from the app. Handed over at session
+   * open so the server can pass it to the app, which is the only way the app
+   * learns it: it is minted per process and never written to disk. Absent when
+   * this daemon runs no local API.
+   */
+  localApiKey?: string;
   logger: HostDaemonLogger;
   getSessionId: () => string;
   /** Runs before each POST attempt so retryable ordering preconditions can be repaired. */
@@ -367,6 +374,9 @@ export function createServerClient(
         platform: resolveHostPlatform(),
         dataDir: args.dataDir,
         protocolVersion: HOST_DAEMON_PROTOCOL_VERSION,
+        ...(options.localApiKey === undefined
+          ? {}
+          : { localApiKey: options.localApiKey }),
         activeThreads: await args.activeThreads,
         loadedEnvironments: await args.loadedEnvironments,
       };

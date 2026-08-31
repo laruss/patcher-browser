@@ -272,6 +272,50 @@ Per-plugin secrets under the data directory's `plugins` are deliberately not
 denied wholesale: that directory also holds installed plugin code an agent has
 reason to read.
 
+### The daemon's loopback API takes a key of its own
+
+The daemon on your machine serves a small HTTP API on loopback, and one route on
+it runs something: `POST /open-in-target`, an `execFile` that opens a path in
+your editor, on the host, outside the sandbox of whatever turn is running. An
+agent mid-turn is handed that port in its environment and its sandbox permits
+loopback, so the route needs a credential, and CORS is not one — it is a browser
+control and does nothing to a `curl`.
+
+It used to take the app key, and that was the wrong credential in both
+directions at once. A machine enrolled from another one has no `app-api-key`
+file — nothing writes one into its data dir — so the app was refused on exactly
+the machine it was running on, and opening a file in an editor was simply
+broken there. And the key _is_ a file, so the closing paragraphs above only
+reach the turns whose provider can deny a path: a Full Access turn, or one on Pi
+or ACP, could read it and present it.
+
+So the daemon mints its own, 32 random bytes per process, and writes it nowhere.
+It travels to the server when the daemon opens its session
+(`localApiKey` on `POST /internal/session/open`, which is what
+`HOST_DAEMON_PROTOCOL_VERSION` 112 is for), the server keeps it in memory for as
+long as that session lives, and the app reads it back through
+`GET /api/v1/host-daemon-keys/:hostId` — the server it is already talking to
+being the only party that has it. A restarted daemon mints a new one, so a 401
+makes the app refetch once rather than ask you to reload.
+
+Three things follow, and they are the point of the change rather than side
+effects. A machine with no app key works. There is no file for a turn to read,
+whatever its provider allows — the credential exists only in two processes'
+memory. And the read that hands it over is the one read on the whole API an
+agent mid-turn is refused: reads are otherwise left open on purpose, because an
+agent reads through its own tools anyway, but this one answers with a way out of
+the turn rather than with information about it, so `agent-route-policy.ts` names
+it. The path is its own family rather than a sub-route of `/hosts` for the same
+reason from the plugin side: a plugin's reach is a path→permission map, `/hosts`
+costs `workspace`, and this path is entered in that map as `null` — never a
+plugin's to call, at any price, rather than left unclassified and refused by
+accident.
+
+`/status`, `/health` and the editor list stay open to any caller on loopback,
+as before: every readiness probe reads the first two — the launcher,
+`install-machine.sh`, the SDK's local-host lookup, the app's reachability
+check, the dev restart — and none of the three has a side effect.
+
 ### What this does not yet close
 
 Named here rather than left to be rediscovered:
@@ -343,20 +387,17 @@ Named here rather than left to be rediscovered:
   it inherits that trust for the arguments it passes. A prompt per invocation
   would put the question where the answer cannot be informed by anything the
   install prompt did not already say.
-- **The daemon's own loopback API.** Narrowed, not closed. `POST /open-in-target`
-  — the one route that runs something, an `execFile` on the host outside any
-  turn's sandbox — takes the app key, which a turn's environment no longer
-  carries. Three things are left. A Full Access turn, or one on a provider that
-  builds no sandbox, can read the key file off disk and present it — the same
-  edge as the credential deny above, and the same list of who is left outside
-  it. `/status` and the editor list stay open on purpose: every readiness
-  probe reads the first, and a machine enrolled from another one has no app key
-  at all, so gating them refused enrolment and bought nothing. And on such a
-  machine opening a file in an editor is refused, because the credential asked
-  for is the server's and that machine has no server. The wider answer is a
-  credential the daemon can have — its own, minted locally and handed to the app
-  through the server it is already connected to — which is a protocol change
-  rather than a middleware.
+- **The daemon's own loopback API.** Narrowed again, and now narrow enough to
+  say what is left in one sentence: the credential is the daemon's own and lives
+  only in memory (see above), so what remains is that _asking the server for it_
+  needs the app key — and a caller that is not confined can still read that file
+  off disk. A Full Access turn, a turn on Pi or ACP, and any plugin process can
+  therefore reach `/host-daemon-keys/:hostId` as the app and go on to open an
+  editor. For a sandboxed turn both halves are closed: it cannot read the app
+  key, and its thread key is refused on that route by name. Closing the rest is
+  the same shape as everything else here — a boundary Patcher owns for the two
+  providers that have none, and there is no version of it where an unsandboxed
+  process running as you is held to a credential check.
 - **`.git` and the credential files, for a turn that is Pi's or ACP's.**
   Narrowed, not closed. Claude Code and Codex both hold the list now, each
   through its own sandbox; Pi and ACP build no OS sandbox at all, so for them

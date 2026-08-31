@@ -39,6 +39,15 @@
  * every caller, because that read happens outside the sandbox and so the
  * sandbox's `credentials.files` deny could not see it.
  *
+ * **One read is denied, though**, and it is the exception that says what the
+ * judgement above rests on: a read whose *answer* is a credential is not
+ * information about the machine, it is the machine. `/host-daemon-keys/:hostId`
+ * returns what the app presents to a daemon's own loopback API, whose one
+ * executing route runs a command on the host outside this turn's sandbox. The
+ * reason that credential is minted in memory instead of read from the app key
+ * file is precisely that a turn cannot go and find it — answering a GET with it
+ * would put it straight back.
+ *
  * **Which thread, as well as which route.** The resolved thread id is compared
  * with the `:id` a request acts on, one layer out in `agent-thread-scope.ts`:
  * that check needs the database and this one does not, and a turn may act on
@@ -101,6 +110,22 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
   },
 ];
 
+/**
+ * Routes an agent may not reach with any method, reads included.
+ *
+ * Separate from the list above because the reason is different in kind: those
+ * are things a turn must not *do*, and this is a thing a turn must not *learn*.
+ * A GET is normally left open here on purpose — see the docstring — so anything
+ * added to this list has to be a credential, not merely sensitive.
+ */
+const DENIED_AGENT_ROUTES_INCLUDING_READS: readonly DeniedAgentRoute[] = [
+  {
+    path: "/host-daemon-keys/:hostId",
+    reason:
+      "it answers with the credential for that machine's own daemon API, whose one executing route runs a command on the host outside this turn's sandbox",
+  },
+];
+
 /** One `:name` segment, or a literal, matched segment by segment. */
 function pathMatches(requestPath: string, route: DeniedAgentRoute): boolean {
   const routeSegments = route.path.split("/");
@@ -136,10 +161,14 @@ export function agentRoutePolicyDenial(
   request: AgentRoutePolicyRequest,
 ): AgentRoutePolicyDenial | null {
   const method = request.method.toUpperCase();
-  // A GET on any of these paths stays readable; only the mutations are denied.
-  if (!MUTATION_METHODS.some((mutation) => mutation === method)) return null;
   const path = normalizePath(request.path);
-  for (const route of DENIED_AGENT_ROUTES) {
+  const isMutation = MUTATION_METHODS.some((mutation) => mutation === method);
+  const denied = [
+    ...DENIED_AGENT_ROUTES_INCLUDING_READS,
+    // A GET on any of these paths stays readable; only the mutations are denied.
+    ...(isMutation ? DENIED_AGENT_ROUTES : []),
+  ];
+  for (const route of denied) {
     if (!pathMatches(path, route)) continue;
     return {
       route: route.path,

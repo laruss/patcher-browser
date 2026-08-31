@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import {
@@ -13,12 +13,11 @@ import {
   resolveClientSshAuthority,
   type ClientConfig,
 } from "@patcher/config/client-config";
-import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
-import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { assignIfDefined } from "@patcher/config/objects";
 import {
   healthResponseSchema,
   HOST_DAEMON_PROTOCOL_VERSION,
+  PATCHER_HOST_DAEMON_KEY_HEADER,
   openInTargetRequestSchema,
   typedRoutes,
   workspaceOpenTargetsQuerySchema,
@@ -40,6 +39,19 @@ import { isFsErrorWithCode } from "./fs-errors.js";
 import type { HostDaemonLocalApiConfig } from "./local-api-config.js";
 import { resolveHostPlatform } from "./host-platform.js";
 
+/**
+ * A credential for this daemon process, good until it exits.
+ *
+ * 32 bytes of `randomBytes`, hex — the same shape as a plugin's `.http-token`,
+ * and deliberately not persisted anywhere: what makes it worth a protocol
+ * change is that there is no file for a turn to read. A daemon that restarts
+ * mints a new one and hands it to the server with its next session, and the app
+ * refetches it after a 401.
+ */
+export function mintHostDaemonLocalApiKey(): string {
+  return randomBytes(32).toString("hex");
+}
+
 export type WorkspaceOpenTargetListHandler = (
   query: WorkspaceOpenTargetsQuery,
 ) => Promise<WorkspaceOpenTarget[]>;
@@ -59,6 +71,12 @@ export type OpenInTargetHandler = (
 export interface StartLocalApiServerOptions {
   dataDir?: string;
   hostId: string;
+  /**
+   * What the app must present for the one route here that runs something.
+   * Minted by the daemon process — see `mintHostDaemonLocalApiKey` — and handed
+   * to the server at session open, which is where the app reads it from.
+   */
+  localApiKey: string;
   localApiConfig: HostDaemonLocalApiConfig;
   serverUrl: string;
   /** Port the Patcher server binds on (parsed from `serverUrl` upstream so the
@@ -226,10 +244,10 @@ export async function startLocalApiServer(
         }
         return null;
       },
-      // The app key is not a safelisted request header, so every call from the
-      // app is now preflighted — and without this, at a ~5s browser default,
-      // that is two round trips per call rather than one. What the preflight
-      // answers does not change for the life of the process.
+      // The daemon's key is not a safelisted request header, so every call
+      // from the app is preflighted — and without this, at a ~5s browser
+      // default, that is two round trips per call rather than one. What the
+      // preflight answers does not change for the life of the process.
       maxAge: 600,
     }),
   );
@@ -257,44 +275,35 @@ export async function startLocalApiServer(
    * and broke three supported topologies, because it asked for a credential the
    * caller cannot always have. `/status` is what every readiness probe reads —
    * the launcher, `install-machine.sh`, the SDK's local-host lookup, the app's
-   * reachability check, the dev restart — and a machine enrolled from another
-   * one has no app key at all: nothing writes it into that machine's data dir.
-   * Gating a side-effect-free read bought nothing and cost enrolment. Listing
-   * editors is a read too, and the menu it fills is the same shape.
+   * reachability check, the dev restart — and gating a side-effect-free read
+   * bought nothing and cost enrolment. Listing editors is a read too, and the
+   * menu it fills is the same shape.
    *
-   * So this is the narrow answer, and it is honest about being narrow: on a
-   * machine with no key, opening a file in an editor is refused and the rest
-   * works. The wider answer is a credential the daemon can actually have — its
-   * own, minted locally and handed to the app through the server it is already
-   * connected to — and that needs a protocol change rather than a middleware.
-   *
-   * Resolved lazily and cached on first success: the key file appears when the
-   * server first starts, and a daemon on the same machine may start before it.
+   * **And not the app key any more.** It was the wrong credential in both
+   * directions. A machine enrolled from another one has no app key file at all
+   * — nothing writes one into its data dir — so the app was refused on exactly
+   * the machine it was running on; and the key *is* a file, so a turn that
+   * builds no sandbox, or one whose provider leaves reads open, could read it
+   * and present it. What this takes instead exists only in this process's
+   * memory and reaches the app through the server, which is a credential the
+   * daemon can have and a turn cannot go and find.
    */
-  let cachedAppApiKey: Buffer | undefined;
-  const appApiKeyForRequest = (): Buffer | undefined => {
-    if (cachedAppApiKey !== undefined) return cachedAppApiKey;
-    const key = resolveAppApiKey({ dataDir: options.dataDir });
-    cachedAppApiKey = key === undefined ? undefined : Buffer.from(key, "utf8");
-    return cachedAppApiKey;
-  };
+  const expectedLocalApiKey = Buffer.from(options.localApiKey, "utf8");
   /**
    * Takes the presented header rather than a context: a narrower input, and the
    * typed route's context is not hono's own.
    */
-  const requireAppApiKey = (presented: string | undefined): void => {
-    const expected = appApiKeyForRequest();
+  const requireLocalApiKey = (presented: string | undefined): void => {
     const offered =
       presented === undefined ? undefined : Buffer.from(presented, "utf8");
     if (
-      expected === undefined ||
       offered === undefined ||
       // Byte length, not string length: `timingSafeEqual` throws on a mismatch,
       // and a header of the same character count in multi-byte characters is
       // not the same number of bytes — comparing the strings turned a refusal
       // into a 500. Same shape as `createAppApiIdentity` in the server.
-      offered.length !== expected.length ||
-      !timingSafeEqual(offered, expected)
+      offered.length !== expectedLocalApiKey.length ||
+      !timingSafeEqual(offered, expectedLocalApiKey)
     ) {
       throw new HTTPException(401, { message: "Unauthorized" });
     }
@@ -326,7 +335,7 @@ export async function startLocalApiServer(
   );
 
   post("/open-in-target", openInTargetRequestSchema, async (c, payload) => {
-    requireAppApiKey(c.req.header(PATCHER_APP_KEY_HEADER));
+    requireLocalApiKey(c.req.header(PATCHER_HOST_DAEMON_KEY_HEADER));
     try {
       await (options.openInTarget ?? openPathInTarget)(
         await resolveOpenPathInTargetArgs({

@@ -93,6 +93,21 @@ export const hostDaemonSessionOpenRequestSchema = z.object({
   // Accept any version at the schema boundary so the server can return an
   // actionable protocol mismatch instead of an opaque validation failure.
   protocolVersion: z.number().int().positive(),
+  /**
+   * What this daemon's local API expects from the app, for the one route on it
+   * that runs something.
+   *
+   * Minted per daemon process and never written down: the server keeps it in
+   * memory for as long as the session lives and hands it to the app, which is
+   * how the app reaches a daemon whose machine has no app key — and how a turn
+   * that can read every file on the disk still cannot present it. See
+   * `PATCHER_HOST_DAEMON_KEY_HEADER`.
+   *
+   * Optional for the same reason `protocolVersion` is loose above: a daemon one
+   * version behind must reach the mismatch answer, not a validation error. A
+   * daemon with no local API sends nothing.
+   */
+  localApiKey: z.string().min(1).optional(),
   activeThreads: z.array(hostDaemonActiveThreadSchema),
   loadedEnvironments: z.array(hostDaemonLoadedEnvironmentSchema).default([]),
 });
