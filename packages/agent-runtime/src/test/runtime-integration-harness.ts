@@ -436,6 +436,8 @@ export function formatInteractiveRequest(
       return `permission_grant:${subject.toolName ?? "unknown"}`;
     case "plan":
       return `plan:${previewText(subject.plan)}`;
+    case "mcp_tool_call":
+      return `mcp_tool_call:${subject.serverName}`;
   }
 }
 

@@ -418,6 +418,11 @@ declare const providerPendingInteractionSchema: z$1.ZodObject<{
             itemId: z$1.ZodString;
             plan: z$1.ZodString;
             planFilePath: z$1.ZodNullable<z$1.ZodString>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            kind: z$1.ZodLiteral<"mcp_tool_call">;
+            serverName: z$1.ZodString;
+            message: z$1.ZodString;
+            toolDescription: z$1.ZodNullable<z$1.ZodString>;
         }, z$1.core.$strip>], "kind">;
         reason: z$1.ZodNullable<z$1.ZodString>;
         availableDecisions: z$1.ZodArray<z$1.ZodEnum<{
@@ -9846,6 +9851,11 @@ declare const threadPendingInteractionsResponseSchema: z$1.ZodArray<z$1.ZodUnion
             itemId: z$1.ZodString;
             plan: z$1.ZodString;
             planFilePath: z$1.ZodNullable<z$1.ZodString>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            kind: z$1.ZodLiteral<"mcp_tool_call">;
+            serverName: z$1.ZodString;
+            message: z$1.ZodString;
+            toolDescription: z$1.ZodNullable<z$1.ZodString>;
         }, z$1.core.$strip>], "kind">;
         reason: z$1.ZodNullable<z$1.ZodString>;
         availableDecisions: z$1.ZodArray<z$1.ZodEnum<{

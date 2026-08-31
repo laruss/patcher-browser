@@ -5198,6 +5198,118 @@ describe("codex provider adapter", () => {
     ).toBeNull();
   });
 
+  it("decodeInteractiveRequest asks the person before an MCP server's tool runs", () => {
+    // Params measured against codex-cli 0.150.1 — see the schema's docstring.
+    // Before this, nothing answered the request: Codex timed out on it and the
+    // tool call came back "user rejected MCP tool call", so a turn using any MCP
+    // server the person had configured simply could not call its tools.
+    const adapter = createCodexProviderAdapter();
+
+    expect(
+      adapter.decodeInteractiveRequest?.({
+        id: 12,
+        method: "mcpServer/elicitation/request",
+        params: {
+          threadId: "t1",
+          turnId: "turn-1",
+          serverName: "patcher",
+          mode: "form",
+          message: 'Allow the patcher MCP server to run tool "patcher_probe"?',
+          requestedSchema: { type: "object", properties: {} },
+          _meta: {
+            codex_approval_kind: "mcp_tool_call",
+            persist: ["session", "always"],
+            tool_description:
+              "Reports whether this process can reach loopback.",
+            tool_params: {},
+            tool_params_display: [],
+          },
+        },
+      }),
+    ).toEqual({
+      requestId: 12,
+      method: "mcpServer/elicitation/request",
+      providerThreadId: "t1",
+      turnId: "turn-1",
+      payload: {
+        kind: "approval",
+        subject: {
+          kind: "mcp_tool_call",
+          serverName: "patcher",
+          message: 'Allow the patcher MCP server to run tool "patcher_probe"?',
+          toolDescription: "Reports whether this process can reach loopback.",
+        },
+        reason: null,
+        // No `allow_for_session`, though the wire advertises the scope: the
+        // shape of an answer that persists is unmeasured, and a decision that
+        // said "for this session" while behaving like "once" would be a lie.
+        availableDecisions: ["allow_once", "deny"],
+      },
+    });
+  });
+
+  it("decodeInteractiveRequest leaves a real elicitation alone", () => {
+    // The same method carries a server asking the person for input against
+    // `requestedSchema`. Answering one of those with an empty accepted form
+    // would be returning a filled-in form nobody filled in.
+    const adapter = createCodexProviderAdapter();
+
+    expect(
+      adapter.decodeInteractiveRequest?.({
+        id: 13,
+        method: "mcpServer/elicitation/request",
+        params: {
+          threadId: "t1",
+          turnId: "turn-1",
+          serverName: "some-server",
+          mode: "form",
+          message: "Which environment should I deploy to?",
+          requestedSchema: {
+            type: "object",
+            properties: { environment: { type: "string" } },
+          },
+          _meta: { persist: ["session"] },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("buildInteractiveResponse answers an MCP elicitation with an action, not a decision", () => {
+    // Measured: a `{ decision }` body is refused with "missing field `action`"
+    // and Codex then reports the call as rejected by the user.
+    const adapter = createCodexProviderAdapter();
+    const request = {
+      requestId: 14,
+      method: "mcpServer/elicitation/request",
+      providerThreadId: "t1",
+      turnId: "turn-1",
+      payload: {
+        kind: "approval" as const,
+        subject: {
+          kind: "mcp_tool_call" as const,
+          serverName: "patcher",
+          message: 'Allow the patcher MCP server to run tool "x"?',
+          toolDescription: null,
+        },
+        reason: null,
+        availableDecisions: ["allow_once" as const, "deny" as const],
+      },
+    };
+
+    expect(
+      adapter.buildInteractiveResponse?.({
+        request,
+        resolution: { decision: "allow_once", grantedPermissions: null },
+      }),
+    ).toEqual({ action: "accept", content: {} });
+    expect(
+      adapter.buildInteractiveResponse?.({
+        request,
+        resolution: { decision: "deny" },
+      }),
+    ).toEqual({ action: "decline", content: {} });
+  });
+
   it("decodeInteractiveRequest maps command approval requests into pending interaction payloads", () => {
     const adapter = createCodexProviderAdapter();
     expect(

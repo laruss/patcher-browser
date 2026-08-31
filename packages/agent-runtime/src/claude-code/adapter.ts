@@ -543,6 +543,9 @@ function getClaudePermissionUpdateToolName(
     // A plan verdict grants nothing, so it never reaches a session update.
     case "plan":
       return null;
+    // Codex's own, and it grants nothing: the answer allows one tool call.
+    case "mcp_tool_call":
+      return null;
   }
 }
 
