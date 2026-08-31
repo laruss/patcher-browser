@@ -50,14 +50,44 @@ function createFixture(): Fixture {
   };
 }
 
-function runInSandbox(fixture: Fixture, script: string): string {
-  const launch = buildTerminalSandboxLaunch({
+function buildLaunchHere(
+  fixture: Fixture,
+  script: string,
+): ReturnType<typeof buildTerminalSandboxLaunch> {
+  return buildTerminalSandboxLaunch({
     command: { file: "/bin/sh", args: ["-c", script] },
     cwd: fixture.workspacePath,
     env: process.env,
     platform: process.platform,
     policy: fixture.policy,
   });
+}
+
+/**
+ * Whether this machine can build one at all, asked once.
+ *
+ * A machine that cannot is not a machine to skip quietly on: the suite asserts
+ * the refusal instead, so it says something true here either way. Ubuntu 24.04
+ * restricts unprivileged user namespaces through AppArmor, which is exactly
+ * such a machine until the restriction is lifted — CI lifts it.
+ */
+const SANDBOX_AVAILABLE_HERE =
+  process.platform !== "win32" &&
+  buildTerminalSandboxLaunch({
+    command: { file: "/bin/sh", args: ["-c", "true"] },
+    cwd: process.cwd(),
+    env: process.env,
+    platform: process.platform,
+    policy: {
+      workspacePath: process.cwd(),
+      writableRoots: [],
+      readOnlyPaths: [],
+      deniedReadPaths: [],
+    },
+  }).sandboxed;
+
+function runInSandbox(fixture: Fixture, script: string): string {
+  const launch = buildLaunchHere(fixture, script);
   if (!launch.sandboxed) {
     throw new Error(`No sandbox on this machine: ${launch.reason}`);
   }
@@ -80,7 +110,7 @@ afterEach(() => {
   rmSync(OUTSIDE_PROBE_PATH, { force: true });
 });
 
-describe.skipIf(process.platform === "win32")(
+describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
   "a terminal inside the turn's boundary",
   () => {
     it("writes inside the workspace and nowhere else", () => {
@@ -127,6 +157,24 @@ describe.skipIf(process.platform === "win32")(
 
       expect(output).not.toContain("APP-KEY");
       expect(output).toContain("read-refused");
+    });
+  },
+);
+
+describe.skipIf(SANDBOX_AVAILABLE_HERE)(
+  "a machine that cannot build one at all",
+  () => {
+    it("says so rather than starting an unconfined shell", () => {
+      // The other side of the skip above: on a machine with no usable backend
+      // this is what the suite proves, so neither branch is silent.
+      const fixture = createFixture();
+      fixture.cleanup();
+      const launch = buildLaunchHere(fixture, "true");
+
+      expect(launch.sandboxed).toBe(false);
+      if (launch.sandboxed) return;
+      expect(launch.reason.length).toBeGreaterThan(0);
+      expect(launch.remedy).toContain("Full Access");
     });
   },
 );

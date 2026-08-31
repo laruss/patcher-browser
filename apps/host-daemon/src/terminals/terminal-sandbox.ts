@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -73,6 +74,7 @@ export interface BuildTerminalSandboxLaunchArgs {
 
 const MACOS_SANDBOX_EXECUTABLE = "/usr/bin/sandbox-exec";
 const LINUX_SANDBOX_HELPER_EXECUTABLE = "bwrap";
+const LINUX_SANDBOX_PROBE_TIMEOUT_MS = 5_000;
 const WELL_KNOWN_LINUX_SANDBOX_HELPER_PATHS: readonly string[] = [
   "/usr/bin/bwrap",
   "/bin/bwrap",
@@ -92,6 +94,39 @@ function isExecutableFile(candidatePath: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Whether this machine's bubblewrap can actually build a namespace.
+ *
+ * Present is not the same as usable, and the difference is a whole class of
+ * machine rather than a curiosity: Ubuntu 24.04 restricts unprivileged user
+ * namespaces through AppArmor, so `bwrap` installs fine and then answers
+ * "setting up uid map: Permission denied" for every command. Without this
+ * probe Patcher would report a sandbox, open the terminal, and hand back a
+ * shell that dies on its first line with a message about uid maps.
+ *
+ * Run once per daemon and remembered: it costs a process, and the answer
+ * cannot change without a reboot.
+ */
+const linuxSandboxProbeResults = new Map<string, string | null>();
+
+function probeLinuxSandbox(helperPath: string): string | null {
+  const cached = linuxSandboxProbeResults.get(helperPath);
+  if (cached !== undefined) return cached;
+  const result = spawnSync(
+    helperPath,
+    ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "/bin/true"],
+    { encoding: "utf8", timeout: LINUX_SANDBOX_PROBE_TIMEOUT_MS },
+  );
+  const failure =
+    result.status === 0
+      ? null
+      : (result.stderr?.trim().split("\n").at(-1) ??
+        result.error?.message ??
+        `exited with ${String(result.status)}`);
+  linuxSandboxProbeResults.set(helperPath, failure);
+  return failure;
 }
 
 function resolveLinuxSandboxHelper(
@@ -261,6 +296,15 @@ export function buildTerminalSandboxLaunch(
         reason: "this machine has no bubblewrap",
         remedy:
           "install bubblewrap, open the terminal yourself, or run the thread at Full Access",
+      };
+    }
+    const probeFailure = probeLinuxSandbox(helperPath);
+    if (probeFailure !== null) {
+      return {
+        sandboxed: false,
+        reason: `this machine has bubblewrap at ${helperPath} but cannot build a sandbox with it (${probeFailure})`,
+        remedy:
+          "allow unprivileged user namespaces on this machine, open the terminal yourself, or run the thread at Full Access",
       };
     }
     return {
