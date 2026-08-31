@@ -230,7 +230,7 @@ import { ThreadTerminalPanel } from "@/components/thread/terminal/ThreadTerminal
 import {
   DEFAULT_TERMINAL_COLS,
   DEFAULT_TERMINAL_ROWS,
-  terminalStatusLabel,
+  terminalTabStatusLabel,
 } from "@/components/thread/terminal/useThreadTerminalController";
 import {
   getActiveFixedSecondaryTab,
@@ -1530,10 +1530,7 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
                   aria-hidden
                 />
               ),
-              statusLabel:
-                session === undefined || session.status === "running"
-                  ? null
-                  : terminalStatusLabel(session),
+              statusLabel: terminalTabStatusLabel(session),
               onSelect: () => handleActivateTerminalTab(tab.terminalId),
               onClose: () => handleCloseTerminalTab(tab.terminalId),
             };
@@ -2619,9 +2616,7 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
       value={getLocalFileContextMenuItems}
     >
       <UrlOpenRoutingProvider
-        openInAppBrowser={
-          canOpenUrlsInAppBrowser ? openPageInBrowser : null
-        }
+        openInAppBrowser={canOpenUrlsInAppBrowser ? openPageInBrowser : null}
       >
         <ThreadDetailSecondaryContent
           footer={composerFooter}

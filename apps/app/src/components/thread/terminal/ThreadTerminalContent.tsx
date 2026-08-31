@@ -56,6 +56,32 @@ function getInactiveTerminalContent({
   }
 }
 
+/**
+ * Says a terminal is confined, before its shell says "operation not permitted".
+ *
+ * A terminal an agent opened runs inside the boundary its turn runs in, and the
+ * only thing on screen about it used to be the refusal itself — a person typing
+ * `touch ~/notes` in one met an error with nothing explaining where it came
+ * from. So the fact is stated where they are typing, in the same word the
+ * `patcher terminal list` column uses.
+ *
+ * The network sentence is not padding: the confinement is the filesystem's, on
+ * purpose, and leaving it out invites the opposite reading — that `npm install`
+ * inside this terminal is also being stopped.
+ */
+function SandboxedTerminalNotice() {
+  return (
+    <div className="flex items-start gap-1.5 border-b border-border/60 px-3 py-1.5 text-xs text-muted-foreground">
+      <Icon name="Lock" className="mt-px size-3.5 shrink-0" aria-hidden />
+      <p>
+        <span className="font-medium text-foreground">Sandboxed</span> — writes
+        outside the workspace are refused, and so are Patcher&rsquo;s own
+        credential files. The network is not restricted.
+      </p>
+    </div>
+  );
+}
+
 export function ThreadTerminalContent({
   autoFocus = false,
   controller,
@@ -129,16 +155,21 @@ export function ThreadTerminalContent({
   }
 
   return (
-    <ThreadTerminalView
-      autoFocus={autoFocus}
-      isPanelOpen={controller.isPanelOpen}
-      onAutoFocusHandled={onAutoFocusHandled}
-      onOpenLink={onOpenLink}
-      onSelectionAddToChat={onSelectionAddToChat}
-      onSessionChange={controller.handleActiveTerminalSessionChange}
-      onTitleChange={controller.handleActiveTerminalTitleChange}
-      onUserInput={controller.handleActiveTerminalUserInput}
-      session={controller.activeSession}
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      {controller.activeSession.sandboxed ? <SandboxedTerminalNotice /> : null}
+      <div className="min-h-0 flex-1">
+        <ThreadTerminalView
+          autoFocus={autoFocus}
+          isPanelOpen={controller.isPanelOpen}
+          onAutoFocusHandled={onAutoFocusHandled}
+          onOpenLink={onOpenLink}
+          onSelectionAddToChat={onSelectionAddToChat}
+          onSessionChange={controller.handleActiveTerminalSessionChange}
+          onTitleChange={controller.handleActiveTerminalTitleChange}
+          onUserInput={controller.handleActiveTerminalUserInput}
+          session={controller.activeSession}
+        />
+      </div>
+    </div>
   );
 }

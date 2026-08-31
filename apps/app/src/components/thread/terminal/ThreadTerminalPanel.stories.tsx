@@ -34,6 +34,12 @@ const RUNNING_SESSION: TerminalSession = {
   sandboxed: false,
 };
 
+const SANDBOXED_SESSION: TerminalSession = {
+  ...BASE_TERMINAL_SESSION,
+  status: "running",
+  sandboxed: true,
+};
+
 const DISCONNECTED_SESSION: TerminalSession = {
   ...BASE_TERMINAL_SESSION,
   status: "disconnected",
@@ -277,6 +283,16 @@ export function Overview() {
       </StoryRow>
       <StoryRow label="running" hint="Running terminal content.">
         <TerminalContentStage controller={terminalController(RUNNING_SESSION)}>
+          <RunningTerminalPreview />
+        </TerminalContentStage>
+      </StoryRow>
+      <StoryRow
+        label="running, sandboxed"
+        hint="Opened by an agent, so it runs inside its turn's boundary."
+      >
+        <TerminalContentStage
+          controller={terminalController(SANDBOXED_SESSION)}
+        >
           <RunningTerminalPreview />
         </TerminalContentStage>
       </StoryRow>

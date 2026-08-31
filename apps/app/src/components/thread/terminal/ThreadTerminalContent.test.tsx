@@ -32,9 +32,12 @@ const session: TerminalSession = {
   lastUserInputAt: null,
 };
 
-function controller(isPanelOpen: boolean): ThreadTerminalController {
+function controller(
+  isPanelOpen: boolean,
+  activeSession: TerminalSession = session,
+): ThreadTerminalController {
   return {
-    activeSession: session,
+    activeSession,
     activeTerminalId: session.id,
     canCreateTerminal: true,
     closingTerminalId: null,
@@ -53,7 +56,7 @@ function controller(isPanelOpen: boolean): ThreadTerminalController {
     showTerminalPlaceholders: false,
     shouldRetainActiveTerminalView: false,
     terminalBodyMessage: "No terminals",
-    visibleSessions: [session],
+    visibleSessions: [activeSession],
   };
 }
 
@@ -63,6 +66,37 @@ afterEach(() => {
 });
 
 describe("ThreadTerminalContent", () => {
+  it("says a confined terminal is confined, and what that means", () => {
+    // The refusal a person meets is `operation not permitted` from the shell
+    // itself, which the app cannot intercept — so the fact has to stand where
+    // they are typing rather than be attached to the error.
+    const rendered = render(
+      <ThreadTerminalContent
+        autoFocus={false}
+        controller={controller(true, { ...session, sandboxed: true })}
+      />,
+    );
+
+    // The word is its own element, so read the sentence it sits in.
+    const notice = rendered.getByText(/Sandboxed/).closest("p");
+    expect(notice?.textContent).toContain("outside the workspace are refused");
+    expect(notice?.textContent).toContain("credential files");
+    // Named because the confinement is the filesystem's on purpose: without
+    // this sentence the notice invites the opposite reading.
+    expect(notice?.textContent).toContain("network is not restricted");
+    // And the terminal still mounts under it.
+    expect(threadTerminalView).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing about a terminal a person opened themselves", () => {
+    const rendered = render(
+      <ThreadTerminalContent autoFocus={false} controller={controller(true)} />,
+    );
+
+    expect(rendered.queryByText(/Sandboxed/)).toBeNull();
+    expect(threadTerminalView).toHaveBeenCalledTimes(1);
+  });
+
   it("does not mount the terminal view until the panel opens", () => {
     const rendered = render(
       <ThreadTerminalContent

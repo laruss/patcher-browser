@@ -178,8 +178,9 @@ this does not yet close".
 - **A terminal's network is not confined.** The filesystem is; a blocked
   connection inside a terminal has nobody to ask, so `npm install` would fail
   silently.
-- **The app does not say which terminals are confined.** The row records it and
-  `patcher terminal list` has a column; the app's terminal tabs do not.
+- ~~**The app does not say which terminals are confined.**~~ Closed: the tab
+  says `sandboxed` and the panel says what that refuses, so a manual run should
+  see both rather than report the silence.
 - **An agent can choose where the next turn's workspace points.**
   `workspace: { type: "unmanaged", path }` takes any path the collision checks
   allow, so a sandbox whose writable root is `/` bounds nothing. The mode is

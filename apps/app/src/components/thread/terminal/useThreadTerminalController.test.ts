@@ -5,6 +5,7 @@ import {
   shouldAutoCloseCleanTerminalSession,
   shouldAutoCloseCleanTerminalSessionsForPanel,
   shouldCloseDisconnectedTerminalSession,
+  terminalTabStatusLabel,
 } from "./useThreadTerminalController";
 
 function terminalSession(overrides: Partial<TerminalSession>): TerminalSession {
@@ -27,6 +28,36 @@ function terminalSession(overrides: Partial<TerminalSession>): TerminalSession {
     ...overrides,
   };
 }
+
+describe("terminalTabStatusLabel", () => {
+  it("says a running terminal is confined, and nothing when it is not", () => {
+    // The tab is the only place a terminal is named while the panel is closed,
+    // and the word matches the `Sandbox` column in `patcher terminal list`.
+    expect(terminalTabStatusLabel(terminalSession({ sandboxed: true }))).toBe(
+      "sandboxed",
+    );
+    expect(terminalTabStatusLabel(terminalSession({}))).toBeNull();
+  });
+
+  it("lets a status win over the confinement", () => {
+    // A disconnected terminal is the more urgent fact about it; the panel still
+    // carries the confinement while the terminal is up.
+    expect(
+      terminalTabStatusLabel(
+        terminalSession({ sandboxed: true, status: "disconnected" }),
+      ),
+    ).toBe("disconnected");
+    expect(
+      terminalTabStatusLabel(
+        terminalSession({ sandboxed: true, status: "exited" }),
+      ),
+    ).toBe("exited");
+  });
+
+  it("says nothing about a tab whose session has not loaded", () => {
+    expect(terminalTabStatusLabel(undefined)).toBeNull();
+  });
+});
 
 describe("terminal visibility", () => {
   it("shows disconnected sessions only while retaining a mounted terminal view", () => {

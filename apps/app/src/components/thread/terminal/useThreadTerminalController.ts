@@ -161,6 +161,23 @@ export function terminalStatusLabel(session: TerminalSession): string {
   }
 }
 
+/**
+ * What a terminal's tab says beside its name, or nothing.
+ *
+ * Status first: a disconnected terminal is the more urgent fact about it. When
+ * there is no status to report — the terminal is simply running — a confined one
+ * says so, because a shell that refuses writes outside the workspace is
+ * otherwise a surprise with no explanation attached. Same word as the `Sandbox`
+ * column in `patcher terminal list`, so the two surfaces cannot disagree.
+ */
+export function terminalTabStatusLabel(
+  session: TerminalSession | undefined,
+): string | null {
+  if (session === undefined) return null;
+  if (session.status !== "running") return terminalStatusLabel(session);
+  return session.sandboxed ? "sandboxed" : null;
+}
+
 export function useThreadTerminalController({
   canCreateTerminal,
   isPanelOpen,
