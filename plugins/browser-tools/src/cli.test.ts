@@ -80,19 +80,56 @@ describe("patcher browser CLI", () => {
   it("drives the same browser API the agent tools use", async () => {
     const host = createHost();
 
-    await host.harness.runCli(["open", "https://example.com/next"]);
-    await host.harness.runCli(["open", "https://fresh.test/", "--new-tab"]);
+    await host.harness.runCli([
+      "open",
+      "https://example.com/next",
+      "--no-settle",
+    ]);
+    await host.harness.runCli([
+      "open",
+      "https://fresh.test/",
+      "--new-tab",
+      "--no-settle",
+    ]);
     await host.harness.runCli(["activate", "tab-2"]);
-    await host.harness.runCli(["reload", "--tab", "tab-1"]);
+    await host.harness.runCli(["reload", "--tab", "tab-1", "--no-settle"]);
 
+    // --no-settle throughout, so this stays a list of what the commands
+    // themselves reach for. What the settle adds is its own case below.
     expect(
       host.harness.inspection.browserCalls.map((call) => call.type),
     ).toEqual([
       "navigation.open",
       "tabs.open",
       "tabs.activate",
+      // `--tab tab-1` is not a tab id in the shape this browser mints, so it is
+      // matched against the listing — the one round trip a shorthand costs.
+      "tabs.list",
       "navigation.reload",
     ]);
+  });
+
+  it("waits for the page to stop fetching before it answers", async () => {
+    const host = createHost();
+
+    await host.harness.runCli(["reload", "--idle-ms", "1"]);
+
+    // The point of the settle: on a single-page app the document is loaded
+    // before its content is fetched, so a read taken the moment a navigation
+    // finishes returns the frame and reports it as the page.
+    expect(
+      host.harness.inspection.browserCalls.map((call) => call.type),
+    ).toEqual(["navigation.reload", "page.network", "page.network"]);
+  });
+
+  it("does not let a settle turn a finished command into a failure", async () => {
+    const host = createHost();
+    // A cold tab cannot serve a network log at all. The navigation still
+    // happened, so the command still succeeded.
+    const result = await host.harness.runCli(["open", "https://a.test/"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr ?? "").not.toContain("still making requests");
   });
 
   it("reads page text and reports a truncation on stderr", async () => {
@@ -405,7 +442,9 @@ describe("patcher browser CLI interaction", () => {
     const host = interactionHost();
     host.harness.behavior.browser.failNextCall("stale_refs");
 
-    const result = await host.harness.runCli(["click", "e1", "--tab", "tab-1"]);
+    // No --tab: tab-1 is the active tab, and a shorthand tab name would spend
+    // the primed failure on the tab listing it has to resolve through first.
+    const result = await host.harness.runCli(["click", "e1"]);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("fresh snapshot");
@@ -1180,5 +1219,581 @@ describe("patcher browser direct control commands", () => {
     expect(result.stdout).toContain("Recording");
     expect(result.stdout).toContain("tracing-start");
     expect(result.stdout).toContain("video-stop");
+  });
+});
+
+describe("patcher browser CLI help", () => {
+  it("answers --help at the top level, the way the bare command does", async () => {
+    const host = createHost();
+
+    const flag = await host.harness.runCli(["--help"]);
+    const word = await host.harness.runCli(["help"]);
+
+    expect(flag.exitCode).toBe(0);
+    expect(flag.stdout).toContain("Usage: patcher browser");
+    expect(flag.stdout).toBe(word.stdout);
+  });
+
+  it("gives every subcommand its own --help", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["snapshot", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    // The exact argument form, which is the thing a summary line cannot carry.
+    expect(result.stdout).toContain(
+      "patcher browser snapshot [--tab <tab-id>]",
+    );
+    // Only its own options: --selector is snapshot's, --fps is not.
+    expect(result.stdout).toContain("--selector");
+    expect(result.stdout).not.toContain("--fps");
+  });
+
+  it("reads `help <command>` as the same question", async () => {
+    const host = createHost();
+
+    const flag = await host.harness.runCli(["wait", "--help"]);
+    const word = await host.harness.runCli(["help", "wait"]);
+
+    expect(word.exitCode).toBe(0);
+    expect(word.stdout).toBe(flag.stdout);
+  });
+
+  it("has help for every command it advertises", async () => {
+    const host = createHost();
+    const names = (
+      host.harness.inspection.registrations.cli?.commands ?? []
+    ).map((command) => command.name);
+
+    expect(names.length).toBeGreaterThan(40);
+    for (const name of names) {
+      const result = await host.harness.runCli([name, "--help"]);
+      // A command listed in the metadata but missing from the help table would
+      // answer "Unknown command", which is the drift this asserts against.
+      expect(result.exitCode, name).toBe(0);
+      expect(result.stdout, name).toContain(`patcher browser ${name}`);
+      expect(result.stdout, name).toContain(
+        "Every command: patcher browser help",
+      );
+    }
+  });
+
+  it("answers --help without reaching the browser at all", async () => {
+    const host = createHost();
+    // Help has to work when nothing is connected — it is what a caller reads
+    // to find out how to connect.
+    host.harness.behavior.browser.setConnected(false);
+
+    const result = await host.harness.runCli(["click", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(host.harness.inspection.browserCalls).toEqual([]);
+  });
+
+  it("refuses --help for a command it does not have", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["levitate", "--help"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain('Unknown command "levitate"');
+  });
+});
+
+describe("patcher browser CLI option checking", () => {
+  it("refuses a flag the command would ignore, and says where it works", async () => {
+    const host = createHost();
+
+    // The reported bug: --selector was documented, accepted by `text`, and
+    // dropped — so a caller narrowing to one region reasoned about the region
+    // while holding the whole document.
+    const result = await host.harness.runCli(["url", "--selector", "article"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("url does not take --selector");
+    expect(result.stderr).toContain("snapshot");
+  });
+
+  it("still refuses an option nothing has", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["tabs", "--all"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("unknown option --all");
+  });
+
+  it("does not let a settle knob reach a command that never settles", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["text", "--no-settle"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("text does not take --no-settle");
+  });
+});
+
+describe("patcher browser CLI tab names", () => {
+  it("takes an index from the listing", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["url", "--tab", "2"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("https://other.test/\n");
+  });
+
+  it("takes a substring of the URL or title", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["url", "--tab", "other.test"]);
+
+    expect(result.stdout).toBe("https://other.test/\n");
+  });
+
+  it('reads "active" as the default, without listing tabs to find it', async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["url", "--tab", "active"]);
+
+    expect(result.stdout).toBe("https://example.com/\n");
+    expect(
+      host.harness.inspection.browserCalls.map((call) => call.type),
+    ).toEqual(["page.get_url"]);
+  });
+
+  it("refuses a substring that matches two tabs rather than guessing", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      { tabId: "tab-1", url: "https://x.com/home", title: "Home" },
+      { tabId: "tab-2", url: "https://x.com/search", title: "Search" },
+    ]);
+
+    const result = await host.harness.runCli(["url", "--tab", "x.com"]);
+
+    // Acting on the wrong tab is a silent wrong answer; the caller has enough
+    // in this message to name the one it meant.
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("2 tabs match");
+    expect(result.stderr).toContain("tab-1");
+    expect(result.stderr).toContain("tab-2");
+  });
+
+  it("says how many tabs there are when the index is past the end", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["url", "--tab", "9"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("no tab 9");
+    expect(result.stderr).toContain("has 2");
+  });
+
+  it("says plainly when nothing matches", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["url", "--tab", "nowhere.test"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("No open tab matches");
+  });
+});
+
+describe("patcher browser CLI status", () => {
+  it("answers where it is, not only that it is connected", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["status", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout) as {
+      connected: boolean;
+      tabCount: number;
+      activeTab: { tabId: string; url: string } | null;
+    };
+    // The first call an agent makes asks two things at once: may I act, and
+    // where am I. A connected:true with no tab answers only the first.
+    expect(parsed.connected).toBe(true);
+    expect(parsed.tabCount).toBe(2);
+    expect(parsed.activeTab?.tabId).toBe("tab-1");
+    expect(parsed.activeTab?.url).toBe("https://example.com/");
+  });
+
+  it("gives a next step when nothing is connected", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setConnected(false);
+
+    const plain = await host.harness.runCli(["status"]);
+    const json = await host.harness.runCli(["status", "--json"]);
+
+    expect(plain.exitCode).toBe(1);
+    expect(plain.stdout).toContain("Open the Patcher desktop app");
+    // Machine-readable too: a caller parsing this is the one that most needs
+    // to be told what to do rather than left with a false.
+    expect(
+      (JSON.parse(json.stdout) as { nextStep: string }).nextStep,
+    ).toContain("Open the Patcher desktop app");
+  });
+});
+
+describe("patcher browser CLI waiting", () => {
+  function waitingHost() {
+    const host = createHost();
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      text: "Loading…",
+      snapshot: '- article "Post" [ref=e1]',
+    });
+    return host;
+  }
+
+  it("returns at once when the text is already there", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.setPageContent("tab-1", { text: "Posts" });
+
+    const result = await host.harness.runCli(["wait", "--text", "Posts"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--text after");
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.get_text",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("waits for text that arrives after the page has loaded", async () => {
+    const host = waitingHost();
+    // The x.com case from the report: the document is loaded, the posts are
+    // not, and the first read returns the chrome around them.
+    const pending = host.harness.runCli([
+      "wait",
+      "--text",
+      "Posts",
+      "--poll-interval",
+      "5",
+      "--timeout",
+      "2000",
+    ]);
+    setTimeout(() => {
+      host.harness.behavior.browser.setPageContent("tab-1", { text: "Posts" });
+    }, 20);
+
+    const result = await pending;
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.get_text",
+      ).length,
+    ).toBeGreaterThan(1);
+  });
+
+  it("exits 124 when the condition never comes, and says where the tab is", async () => {
+    const host = waitingHost();
+
+    const result = await host.harness.runCli([
+      "wait",
+      "--text",
+      "never",
+      "--timeout",
+      "30",
+      "--poll-interval",
+      "5",
+    ]);
+
+    // timeout(1)'s code: "the condition did not happen" is a different thing to
+    // act on than "the browser refused".
+    expect(result.exitCode).toBe(124);
+    expect(result.stderr).toContain("did not come");
+    expect(result.stderr).toContain("https://example.com/");
+  });
+
+  it("waits for a selector, treating no match as not yet", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.failNextCall("no_match");
+
+    const result = await host.harness.runCli([
+      "wait",
+      "--selector",
+      "article",
+      "--poll-interval",
+      "5",
+      "--timeout",
+      "2000",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    // Through the scoped read, not a scoped snapshot: a snapshot replaces the
+    // tab's ref table, so waiting for an element to appear would invalidate the
+    // refs the caller is holding. Waiting must cost nothing but time.
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.snapshot",
+      ),
+    ).toEqual([]);
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.get_text",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("gives up at once on a selector no page could ever match", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.failNextCall("invalid_selector");
+
+    const result = await host.harness.runCli([
+      "wait",
+      "--selector",
+      "!!",
+      "--timeout",
+      "5000",
+    ]);
+
+    // Not 124: waiting out five seconds would spend the time to report the
+    // wrong problem, when the selector is the caller's to fix now.
+    expect(result.exitCode).toBe(1);
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.get_text",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("matches a URL by substring, and by glob when there is a wildcard", async () => {
+    const host = waitingHost();
+
+    const substring = await host.harness.runCli(["wait", "--url", "example"]);
+    const glob = await host.harness.runCli([
+      "wait",
+      "--url",
+      "https://example.com/**",
+    ]);
+    const missed = await host.harness.runCli([
+      "wait",
+      "--url",
+      "https://other.test/*",
+      "--timeout",
+      "20",
+      "--poll-interval",
+      "5",
+    ]);
+
+    expect(substring.exitCode).toBe(0);
+    expect(glob.exitCode).toBe(0);
+    expect(missed.exitCode).toBe(124);
+  });
+
+  it("waits for the network to go quiet", async () => {
+    const host = waitingHost();
+
+    const result = await host.harness.runCli([
+      "wait",
+      "--network-idle",
+      "--idle-ms",
+      "20",
+      "--poll-interval",
+      "5",
+      "--timeout",
+      "2000",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--network-idle after");
+  });
+
+  it("insists on exactly one condition", async () => {
+    const host = waitingHost();
+
+    const none = await host.harness.runCli(["wait"]);
+    const two = await host.harness.runCli([
+      "wait",
+      "--network-idle",
+      "--text",
+      "x",
+    ]);
+
+    expect(none.exitCode).toBe(2);
+    expect(none.stderr).toContain("needs one condition");
+    expect(two.exitCode).toBe(2);
+    expect(two.stderr).toContain("was given 2");
+  });
+});
+
+describe("patcher browser CLI scrolling", () => {
+  function scrollHost() {
+    const host = createHost();
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      snapshot: '- article "Post" [ref=e1]',
+      evaluated: "[900,4000,1000,0]",
+    });
+    return host;
+  }
+
+  function expressions(host: ReturnType<typeof scrollHost>): string[] {
+    return host.harness.inspection.browserCalls
+      .filter((call) => call.type === "control.evaluate")
+      .map((call) => String(call.args.expression));
+  }
+
+  it("scrolls one viewport down by default, and says where it landed", async () => {
+    const host = scrollHost();
+
+    const result = await host.harness.runCli(["scroll"]);
+
+    expect(result.exitCode).toBe(0);
+    // The answer an infinite feed needs: whether there is more below.
+    expect(result.stdout).toBe("900 of 4000 (viewport 1000)\n");
+    expect(expressions(host)[0]).toContain("window.innerHeight");
+  });
+
+  it("goes to the top and to the bottom", async () => {
+    const host = scrollHost();
+
+    await host.harness.runCli(["scroll", "--bottom"]);
+    await host.harness.runCli(["scroll", "--top"]);
+
+    expect(expressions(host)[0]).toContain("el.scrollTop = el.scrollHeight");
+    expect(expressions(host)[1]).toContain("el.scrollTop = 0");
+  });
+
+  it("takes a pixel delta, and only a whole number of them", async () => {
+    const host = scrollHost();
+
+    await host.harness.runCli(["scroll", "--by", "-400"]);
+    const bad = await host.harness.runCli(["scroll", "--by", "half"]);
+
+    expect(expressions(host)[0]).toContain("el.scrollTop + -400");
+    expect(bad.exitCode).toBe(2);
+  });
+
+  it("brings a ref into the middle of the view", async () => {
+    const host = scrollHost();
+
+    await host.harness.runCli(["scroll", "e1"]);
+
+    const call = host.harness.inspection.browserCalls.find(
+      (each) => each.type === "control.evaluate",
+    );
+    expect(call?.args.ref).toBe("e1");
+    expect(String(call?.args.expression)).toContain("scrollIntoView");
+  });
+
+  it("says when the page did not move, and when it is at the bottom", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      evaluated: "[3000,4000,1000,3000]",
+    });
+
+    const result = await host.harness.runCli(["scroll"]);
+
+    expect(result.stdout).toContain("did not move");
+    expect(result.stdout).toContain("at the bottom");
+  });
+
+  it("refuses two directions, or a direction and a ref", async () => {
+    const host = scrollHost();
+
+    const both = await host.harness.runCli(["scroll", "--top", "--bottom"]);
+    const mixed = await host.harness.runCli(["scroll", "e1", "--bottom"]);
+
+    expect(both.exitCode).toBe(2);
+    expect(both.stderr).toContain("takes one of");
+    expect(mixed.exitCode).toBe(2);
+    expect(mixed.stderr).toContain("scrolls that element into view");
+  });
+
+  it("keeps the answer when a page reports no position", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      evaluated: '"something else"',
+    });
+
+    const result = await host.harness.runCli(["scroll"]);
+
+    // It may well have scrolled; inventing a position would be worse than
+    // saying the page did not report one.
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("did not report its scroll position");
+  });
+});
+
+describe("patcher browser CLI reading a region", () => {
+  it("passes --selector through to the page read", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      text: "Everything on the page.",
+      scopedText: "Just the article.",
+    });
+
+    const result = await host.harness.runCli([
+      "text",
+      "--selector",
+      "article",
+      "--tab",
+      "tab-1",
+    ]);
+
+    expect(result.stdout).toBe("Just the article.\n");
+    expect(
+      host.harness.inspection.browserCalls
+        .filter((call) => call.type === "page.get_text")
+        .map((call) => call.args.selector),
+    ).toEqual(["article"]);
+  });
+});
+
+describe("patcher browser CLI opening in the background", () => {
+  it("opens without taking the window, and the tab still loads", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli([
+      "open",
+      "https://fresh.test/",
+      "--background",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const opened = host.harness.inspection.browserCalls.find(
+      (call) => call.type === "tabs.open",
+    );
+    expect(opened?.args.activate).toBe(false);
+    // Live, not cold: a background open that left nothing readable would make
+    // "do not steal my focus" and "then read the page" mutually exclusive.
+    expect(result.stdout).toContain("live");
+    // And the active tab is untouched.
+    const active = await host.harness.runCli(["url"]);
+    expect(active.stdout).toBe("https://example.com/\n");
+  });
+
+  it("refuses --tab beside a flag that opens a tab of its own", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli([
+      "open",
+      "https://fresh.test/",
+      "--background",
+      "--tab",
+      "tab-1",
+    ]);
+
+    // Ignoring --tab here would be a silent no-op on the argument that says
+    // where: the caller would believe it reused a tab and be looking at a new.
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("--tab names a tab to navigate");
+  });
+
+  it("refuses --new-tab and --background together", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli([
+      "open",
+      "https://fresh.test/",
+      "--new-tab",
+      "--background",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("pass one");
   });
 });

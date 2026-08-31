@@ -212,6 +212,15 @@ export const PATCHER_DESKTOP_BROWSER_CONTROL_CHANNEL =
 // which is advice about the wrong problem.
 export const PATCHER_DESKTOP_BROWSER_SNAPSHOT_IN_CHANNEL =
   "patcher-desktop:browser:snapshot-in";
+// The rendered text of one part of a page. Its own channel for the reason the
+// scoped snapshot has one, and for a second: the unscoped read's request is
+// `tabId` alone *by design*, so that nothing a caller supplies can reach the
+// script it injects into an untrusted page. This channel adds no such value
+// either — the selector goes to `DOM.querySelector` over the debugger — but it
+// is the one read here that attaches one, and a channel is where that
+// difference stays visible.
+export const PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL =
+  "patcher-desktop:browser:read-page-in";
 // A picture of the whole document. Its own channel because the observe request
 // carries a frozen union: a `fullPage` flag added to its screenshot member would
 // be silently dropped by an older shell, which would answer with a viewport

@@ -56,6 +56,9 @@ interface HarnessArgs {
   live?: Record<string, PatcherDesktopBrowserState>;
   readPage?: PatcherDesktopBrowserPageReadResult;
   omitReadPage?: boolean;
+  readPageIn?: PatcherDesktopBrowserPageReadResult;
+  omitReadPageIn?: boolean;
+  omitAttachBackgroundView?: boolean;
   resolvePdfText?: (args: {
     pageUrl: string;
     tabId: string;
@@ -103,6 +106,8 @@ function createHarness(args: HarnessArgs = {}) {
     zoom: [] as unknown[],
     muted: [] as unknown[],
     mutedRecords: [] as unknown[],
+    readPageIn: [] as unknown[],
+    backgroundViews: [] as Array<{ tabId: string; url: string }>,
   };
   let nextTabId = 0;
 
@@ -266,6 +271,27 @@ function createHarness(args: HarnessArgs = {}) {
             );
           },
         }),
+    ...(args.omitReadPageIn === true
+      ? {}
+      : {
+          readPageIn: (request: unknown) => {
+            calls.readPageIn.push(request);
+            return Promise.resolve(
+              args.readPageIn ?? {
+                ok: true as const,
+                tabId: "t",
+                url: "https://example.com/",
+                title: "Example",
+                isLoading: false,
+                contentKind: "html" as const,
+                text: "just the article",
+                textTruncated: false,
+                selection: "",
+                selectionTruncated: false,
+              },
+            );
+          },
+        }),
     ...(args.omitReadPage === true
       ? {}
       : {
@@ -305,6 +331,19 @@ function createHarness(args: HarnessArgs = {}) {
     destroyView: ({ tabId }) => {
       calls.destroyed.push(tabId);
     },
+    ...(args.omitAttachBackgroundView === true
+      ? {}
+      : {
+          attachBackgroundView: ({
+            tabId,
+            url,
+          }: {
+            tabId: string;
+            url: string;
+          }) => {
+            calls.backgroundViews.push({ tabId, url });
+          },
+        }),
     recordMuted: (request) => {
       calls.mutedRecords.push(request);
     },
@@ -585,7 +624,7 @@ describe("executeBrowserCommand — page reads", () => {
 
     await expect(
       executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 1000 },
+        { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
         harness.deps,
       ),
     ).resolves.toEqual({
@@ -610,7 +649,7 @@ describe("executeBrowserCommand — page reads", () => {
 
     await expect(
       executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 4 },
+        { type: "page.get_text", tabId: null, maxLength: 4, selector: null },
         harness.deps,
       ),
     ).resolves.toEqual({
@@ -638,7 +677,12 @@ describe("executeBrowserCommand — page reads", () => {
       });
       expectFailure(
         await executeBrowserCommand(
-          { type: "page.get_text", tabId: null, maxLength: 100 },
+          {
+            type: "page.get_text",
+            tabId: null,
+            maxLength: 100,
+            selector: null,
+          },
           harness.deps,
         ),
         code,
@@ -668,7 +712,7 @@ describe("executeBrowserCommand — page reads", () => {
 
     await expect(
       executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 1000 },
+        { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
         harness.deps,
       ),
     ).resolves.toEqual({
@@ -701,7 +745,7 @@ describe("executeBrowserCommand — page reads", () => {
 
     await expect(
       executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 1000 },
+        { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
         harness.deps,
       ),
     ).resolves.toEqual({
@@ -744,7 +788,7 @@ describe("executeBrowserCommand — page reads", () => {
     });
 
     await executeBrowserCommand(
-      { type: "page.get_text", tabId: null, maxLength: 1000 },
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
       harness.deps,
     );
 
@@ -777,7 +821,7 @@ describe("executeBrowserCommand — page reads", () => {
       });
 
       const outcome = await executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 1000 },
+        { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
         harness.deps,
       );
 
@@ -808,7 +852,7 @@ describe("executeBrowserCommand — page reads", () => {
 
     await expect(
       executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 1000 },
+        { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
         harness.deps,
       ),
     ).resolves.toEqual({
@@ -826,7 +870,7 @@ describe("executeBrowserCommand — page reads", () => {
     // Feature detection is the version negotiation for the whole channel.
     expectFailure(
       await executeBrowserCommand(
-        { type: "page.get_text", tabId: null, maxLength: 100 },
+        { type: "page.get_text", tabId: null, maxLength: 100, selector: null },
         harness.deps,
       ),
       "unsupported_command",
@@ -1034,7 +1078,7 @@ describe("executeBrowserCommand — guards", () => {
 
     for (const command of [
       { type: "tabs.open", url: null, activate: true },
-      { type: "page.get_text", tabId: null, maxLength: 10 },
+      { type: "page.get_text", tabId: null, maxLength: 10, selector: null },
       { type: "navigation.reload", tabId: null },
     ]) {
       expectFailure(
@@ -2461,5 +2505,169 @@ describe("page.zoom", () => {
       ),
       "desktop_unavailable",
     );
+  });
+});
+
+describe("executeBrowserCommand reading part of a page", () => {
+  it("reads the element a selector names, on its own channel", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+      live: { a: liveState("a") },
+    });
+
+    await expect(
+      executeBrowserCommand(
+        {
+          type: "page.get_text",
+          tabId: null,
+          maxLength: 1000,
+          selector: "article",
+        },
+        harness.deps,
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      value: { type: "text", text: "just the article", truncated: false },
+    });
+    expect(harness.calls.readPageIn).toEqual([
+      { tabId: "a", selector: "article" },
+    ]);
+  });
+
+  it("refuses rather than reading the whole page on an older shell", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+      live: { a: liveState("a") },
+      omitReadPageIn: true,
+    });
+
+    const outcome = await executeBrowserCommand(
+      {
+        type: "page.get_text",
+        tabId: null,
+        maxLength: 1000,
+        selector: "article",
+      },
+      harness.deps,
+    );
+
+    // Reading the document instead would hand back what the caller asked to
+    // narrow, and would look like a success.
+    expect(outcome).toMatchObject({ ok: false, code: "unsupported_command" });
+    expect(harness.calls.readPageIn).toEqual([]);
+  });
+
+  it("keeps the three refusals a scoped read adds apart", async () => {
+    for (const [reason, code] of [
+      ["invalid-selector", "invalid_selector"],
+      ["no-match", "no_match"],
+      ["debugger-unavailable", "debugger_unavailable"],
+    ] as const) {
+      const harness = createHarness({
+        state: { activeTabId: "a", tabs: [tab("a")] },
+        live: { a: liveState("a") },
+        readPageIn: { ok: false, reason },
+      });
+
+      const outcome = await executeBrowserCommand(
+        {
+          type: "page.get_text",
+          tabId: null,
+          maxLength: 1000,
+          selector: "!!",
+        },
+        harness.deps,
+      );
+
+      // One is the selector's syntax, one is the page, one is DevTools. Three
+      // different next steps, so three codes.
+      expect(outcome, reason).toMatchObject({ ok: false, code });
+    }
+  });
+
+  it("still reads the whole page through the unscoped channel", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+      live: { a: liveState("a") },
+    });
+
+    await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    // The unscoped read attaches no debugger, and that property is why it must
+    // not quietly start going through the scoped one.
+    expect(harness.calls.readPageIn).toEqual([]);
+  });
+});
+
+describe("executeBrowserCommand opening a background tab", () => {
+  it("gives the tab a page without putting it on screen", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+    });
+
+    await executeBrowserCommand(
+      { type: "tabs.open", url: "https://example.com", activate: false },
+      harness.deps,
+    );
+
+    // The focus stays where the user left it...
+    expect(harness.state.activeTabId).toBe("a");
+    // ...and the tab still loads, which is what makes "do not steal my focus"
+    // and "then read the page" possible at the same time.
+    expect(harness.calls.backgroundViews).toEqual([
+      { tabId: "new-1", url: "https://example.com" },
+    ]);
+    // Waited for, so the next command can read it.
+    expect(harness.calls.settled).toEqual(["new-1"]);
+  });
+
+  it("attaches nothing for a foreground tab, which the deck mounts itself", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+    });
+
+    await executeBrowserCommand(
+      { type: "tabs.open", url: "https://example.com", activate: true },
+      harness.deps,
+    );
+
+    expect(harness.calls.backgroundViews).toEqual([]);
+  });
+
+  it("attaches nothing for an empty new tab", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+    });
+
+    await executeBrowserCommand(
+      { type: "tabs.open", url: null, activate: false },
+      harness.deps,
+    );
+
+    // There is no page to load, so there is nothing to attach a view for.
+    expect(harness.calls.backgroundViews).toEqual([]);
+    expect(harness.calls.settled).toEqual([]);
+  });
+
+  it("falls back to a stored URL where nothing can attach a view", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+      omitAttachBackgroundView: true,
+    });
+
+    await executeBrowserCommand(
+      { type: "tabs.open", url: "https://example.com", activate: false },
+      harness.deps,
+    );
+
+    // The web build has no views at all; the tab keeps the URL and loads it
+    // when it is next shown, which is what this always did.
+    expect(harness.calls.settled).toEqual([]);
+    expect(
+      getBrowserSurfaceWebTabs(harness.state).map((each) => each.url),
+    ).toContain("https://example.com");
   });
 });

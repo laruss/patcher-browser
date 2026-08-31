@@ -173,6 +173,43 @@ describe("browser-tools happy paths", () => {
     expect(textOf(result)).toContain("written by the page");
   });
 
+  it("sends the selector a snapshot was scoped with", async () => {
+    const host = createHost();
+
+    await host.harness.behavior.callAgentTool("browser_snapshot", {
+      tabId: "tab-1",
+      selector: "form.checkout",
+    });
+
+    // The parameter was in the schema and dropped on the way through, so a
+    // model that scoped its snapshot got the whole page and was told nothing.
+    expect(
+      host.harness.inspection.browserCalls
+        .filter((call) => call.type === "page.snapshot")
+        .map((call) => call.args.selector),
+    ).toEqual(["form.checkout"]);
+  });
+
+  it("sends the selector a page read was scoped with", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      text: "The whole page.",
+      scopedText: "Just the article.",
+    });
+
+    const result = await host.harness.behavior.callAgentTool(
+      "browser_page_get_text",
+      { tabId: "tab-1", selector: "article" },
+    );
+
+    expect(textOf(result)).toContain("Just the article.");
+    expect(
+      host.harness.inspection.browserCalls
+        .filter((call) => call.type === "page.get_text")
+        .map((call) => call.args.selector),
+    ).toEqual(["article"]);
+  });
+
   it("tells the agent DevTools is holding a tab it cannot snapshot", async () => {
     const host = createHost();
     host.harness.behavior.browser.failNextCall("debugger_unavailable");

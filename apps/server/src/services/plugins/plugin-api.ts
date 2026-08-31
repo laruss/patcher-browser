@@ -1639,7 +1639,11 @@ export function createPluginApi(options: {
     return maxDepth;
   }
 
-  function normalizeSnapshotSelector(selector: unknown): string | null {
+  /** Shared by the two reads a selector can narrow: `snapshot` and `getText`. */
+  function normalizeBrowserSelector(
+    selector: unknown,
+    method: string,
+  ): string | null {
     if (selector === undefined || selector === null) {
       return null;
     }
@@ -1652,7 +1656,7 @@ export function createPluginApi(options: {
       selector.length > BROWSER_COMMAND_MAX_SELECTOR_LENGTH
     ) {
       throw new Error(
-        `browser.page.snapshot selector must be a CSS selector of up to ${BROWSER_COMMAND_MAX_SELECTOR_LENGTH} characters`,
+        `${method} selector must be a CSS selector of up to ${BROWSER_COMMAND_MAX_SELECTOR_LENGTH} characters`,
       );
     }
     return selector;
@@ -2546,7 +2550,10 @@ export function createPluginApi(options: {
             type: "page.snapshot",
             tabId: optionalTabId(args?.tabId),
             maxDepth: normalizeSnapshotMaxDepth(args?.maxDepth),
-            selector: normalizeSnapshotSelector(args?.selector),
+            selector: normalizeBrowserSelector(
+              args?.selector,
+              "browser.page.snapshot",
+            ),
           },
           options,
           "snapshot",
@@ -2721,6 +2728,10 @@ export function createPluginApi(options: {
             type: "page.get_text",
             tabId: optionalTabId(args?.tabId),
             maxLength: normalizePageTextMaxLength(args?.maxLength),
+            selector: normalizeBrowserSelector(
+              args?.selector,
+              "browser.page.getText",
+            ),
           },
           options,
           "text",

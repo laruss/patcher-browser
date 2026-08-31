@@ -29,6 +29,7 @@ import {
   PATCHER_DESKTOP_BROWSER_NAVIGATE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_OBSERVE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
   PATCHER_DESKTOP_BROWSER_RELOAD_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_BOUNDS_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_DEV_TOOLS_VISIBLE_CHANNEL,
@@ -107,6 +108,7 @@ type SetZoomCall = Parameters<DesktopBrowserViewManager["setZoom"]>[0];
 type SetMutedCall = Parameters<DesktopBrowserViewManager["setMuted"]>[0];
 type TabCommandCall = Parameters<DesktopBrowserViewManager["reload"]>[0];
 type ReadPageCall = Parameters<DesktopBrowserViewManager["readPage"]>[0];
+type ReadPageInCall = Parameters<DesktopBrowserViewManager["readPageIn"]>[0];
 type DownloadActionCall = Parameters<
   DesktopBrowserViewManager["downloadAction"]
 >[0];
@@ -197,6 +199,7 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
   public readonly printCalls: TabCommandCall[] = [];
   public readonly stopCalls: TabCommandCall[] = [];
   public readonly readPageCalls: ReadPageCall[] = [];
+  public readonly readPageInCalls: ReadPageInCall[] = [];
   public readonly downloadActionCalls: DownloadActionCall[] = [];
   public readonly setOverlayCalls: SetOverlayCall[] = [];
   public readonly findCalls: FindCall[] = [];
@@ -217,6 +220,7 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
     ok: true,
   };
   public readPageFailure: Error | null = null;
+  public readPageInFailure: Error | null = null;
   public readPageResult: PatcherDesktopBrowserPageReadResult = {
     ok: false,
     reason: "no-view",
@@ -414,6 +418,16 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
     this.readPageCalls.push(args);
     if (this.readPageFailure !== null) {
       return Promise.reject(this.readPageFailure);
+    }
+    return Promise.resolve(this.readPageResult);
+  }
+
+  readPageIn(
+    args: ReadPageInCall,
+  ): Promise<PatcherDesktopBrowserPageReadResult> {
+    this.readPageInCalls.push(args);
+    if (this.readPageInFailure !== null) {
+      return Promise.reject(this.readPageInFailure);
     }
     return Promise.resolve(this.readPageResult);
   }
@@ -868,6 +882,60 @@ describe("registerDesktopBrowserIpc", () => {
       }),
     ).resolves.toEqual({ ok: false, reason: "no-view" });
     expect(manager.readPageCalls).toHaveLength(1);
+  });
+
+  it("answers a scoped page read on its own channel", async () => {
+    const manager = new RecordingDesktopBrowserViewManager();
+    manager.readPageResult = {
+      ok: true,
+      tabId: "browser:a",
+      url: "https://example.com/",
+      title: "Example",
+      isLoading: false,
+      text: "just the article",
+      textTruncated: false,
+      selection: "",
+      selectionTruncated: false,
+      contentKind: "html",
+    };
+    registerDesktopBrowserIpc(manager);
+    const renderer = createTrustedRenderer("main-window");
+
+    await expect(
+      invokeBrowserIpc({
+        channel: PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
+        payload: { tabId: "browser:a", selector: "article" },
+        sender: renderer.sender,
+      }),
+    ).resolves.toEqual(manager.readPageResult);
+    expect(manager.readPageInCalls).toEqual([
+      {
+        hostWindow: renderer.hostWindow,
+        request: { tabId: "browser:a", selector: "article" },
+      },
+    ]);
+    // The unscoped channel is a different capability with a different cost —
+    // no debugger — so a scoped read must not be arriving through it.
+    expect(manager.readPageCalls).toEqual([]);
+
+    // A malformed payload answers `unreadable` rather than `no-view`: the tab
+    // is not the problem, the request is, and "go activate a tab" would send
+    // the caller after the wrong fix.
+    await expect(
+      invokeBrowserIpc({
+        channel: PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
+        payload: { tabId: "browser:a" },
+        sender: renderer.sender,
+      }),
+    ).resolves.toMatchObject({ ok: false, reason: "unreadable" });
+    await expect(
+      invokeBrowserIpc({
+        channel: PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
+        payload: { tabId: "browser:a", selector: "article" },
+        sender: createUntrustedSender(),
+      }),
+    ).resolves.toEqual({ ok: false, reason: "no-view" });
+    expect(manager.readPageInCalls).toHaveLength(1);
   });
 
   it("routes observations and refuses a payload it cannot understand", async () => {

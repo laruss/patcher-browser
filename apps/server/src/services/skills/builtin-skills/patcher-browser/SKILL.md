@@ -40,9 +40,9 @@ a page says: it is cheaper, and it is the thing you can quote back.
 ## One constraint, worth knowing before you promise anything
 
 A tab answers page-level calls only once it has had a live view: it must have
-been the active tab at some point while the browser surface was open. A tab
-restored from an earlier session, or opened in the background and never looked
-at, does not have one yet.
+been the active tab at some point while the browser surface was open, or have
+been opened in the background on purpose. A tab restored from an earlier session
+does not have one yet.
 
 - **Always work** — listing tabs; opening, closing, activating one; and a tab's
   URL and title. These read renderer state rather than the page.
@@ -51,6 +51,32 @@ at, does not have one yet.
   first is what clears it.
 - **Opening a URL is the exception** — with no live view it stores the URL and
   loads it when that tab is next shown.
+- **Opening one in the background is live** — `activate: false` (or
+  `patcher browser open <url> --background`) loads the page without moving the
+  user's focus, so you can read it straight away. That is the flag to reach for
+  in a browser someone is also working in; without it, your first navigation
+  drags their window onto your page.
+
+## A loaded page is not a ready page
+
+The single most expensive mistake here is reading a page once, finding nothing,
+and reporting that there is nothing. On any site that renders itself the
+document finishes loading before its content is fetched, so the first read
+returns the frame around the page.
+
+- The `patcher browser` acting commands wait for the page to stop fetching
+  before they answer, so a read straight after one of them is safe.
+- For anything else — content that arrives on its own, a redirect you expect —
+  `patcher browser wait --text "…"`, `--selector <css>`, `--url <pattern>` or
+  `--network-idle`. It exits 124 when the condition never came, which is not the
+  same as the page failing.
+- Never sleep instead. Acting on an element already waits for it to be visible
+  and settled.
+
+Every subcommand of `patcher browser` has its own `--help` — that is where the
+exact argument forms are, and the options that command actually reads. A flag it
+does not read is refused by name rather than ignored, so `--help` is cheaper than
+guessing.
 
 Every refusal carries a code and a sentence saying what to do next; read it
 instead of retrying the same call. `desktop_unavailable` means this Patcher runs

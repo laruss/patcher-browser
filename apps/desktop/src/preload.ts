@@ -129,6 +129,7 @@ import {
   PATCHER_DESKTOP_BROWSER_OBSERVE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
   PATCHER_DESKTOP_BROWSER_RELOAD_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
@@ -542,6 +543,22 @@ const patcherBrowserApi: PatcherDesktopBrowserApi = {
       const payload: unknown = await ipcRenderer.invoke(
         PATCHER_DESKTOP_BROWSER_READ_PAGE_CHANNEL,
         { tabId },
+      );
+      const parsed =
+        patcherDesktopBrowserPageReadResultSchema.safeParse(payload);
+      return parsed.success ? parsed.data : { ok: false, reason: "unreadable" };
+    } catch {
+      return { ok: false, reason: "unreadable" };
+    }
+  },
+  async readPageIn(request): Promise<PatcherDesktopBrowserPageReadResult> {
+    // Same discipline as `readPage`, with one difference in the fallback: a
+    // scoped read that could not be delivered must not read as "the element has
+    // no text". `unreadable` is the answer that sends the caller to look.
+    try {
+      const payload: unknown = await ipcRenderer.invoke(
+        PATCHER_DESKTOP_BROWSER_READ_PAGE_IN_CHANNEL,
+        request,
       );
       const parsed =
         patcherDesktopBrowserPageReadResultSchema.safeParse(payload);

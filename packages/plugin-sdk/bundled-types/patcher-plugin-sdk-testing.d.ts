@@ -241,6 +241,8 @@ interface FakeBrowserDrivers {
      */
     setPageContent(tabId: string, content: {
         text?: string;
+        /** What a scoped `page.getText` answers with; see the unscoped `text`. */
+        scopedText?: string;
         selection?: string;
         snapshot?: string;
         console?: readonly PluginBrowserConsoleEntry[];

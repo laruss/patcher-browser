@@ -82,6 +82,7 @@ import {
   type PatcherDesktopBrowserObservation,
   type PatcherDesktopBrowserObserveRequest,
   type PatcherDesktopBrowserObserveResult,
+  type PatcherDesktopBrowserPageReadInRequest,
   type PatcherDesktopBrowserPageReadResult,
   type PatcherDesktopBrowserSnapshot,
   type PatcherDesktopBrowserSnapshotRequest,
@@ -168,9 +169,11 @@ import {
   type BrowserNetworkRequestDetails,
 } from "./desktop-browser-observe.js";
 import {
+  PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
+  parseBrowserElementReadContent,
   parseBrowserPageReadContent,
 } from "./desktop-browser-page-read.js";
 import {
@@ -757,6 +760,13 @@ export interface DesktopBrowserViewManager {
    */
   readPage(
     args: HostScopedTabArgs,
+  ): Promise<PatcherDesktopBrowserPageReadResult>;
+  /**
+   * The same read, of what a CSS selector matches. Attaches the tab's CDP
+   * session, which the unscoped read never does. Never rejects either.
+   */
+  readPageIn(
+    args: HostScopedRequestArgs<PatcherDesktopBrowserPageReadInRequest>,
   ): Promise<PatcherDesktopBrowserPageReadResult>;
   /**
    * Search the tab's page, step through what was found, or stop. The count
@@ -4833,6 +4843,107 @@ export function createDesktopBrowserViewManager(
   }
 
   /**
+   * The text of the element a CSS selector matches — `readPageIn`.
+   *
+   * Deliberately **not** a variant of the unscoped read. That one runs a
+   * constant script in an isolated world and pays no debugger; this one has to
+   * ask the browser which element a selector means, and only the debugger can
+   * answer. So it follows the scoped snapshot's path exactly — same
+   * `resolveSelectorNode`, same `invalid-selector`/`no-match` refusals, same
+   * "any automation on this tab means the shell owns its dialogs" rule — and
+   * then calls a constant function on the node it found.
+   *
+   * The element is resolved into the automation world rather than the page's
+   * own, so `innerText` is ours: a page can no more forge a scoped read than an
+   * unscoped one.
+   */
+  async function readTabElementText(args: {
+    hostWindow: DesktopBrowserHostWindow;
+    request: PatcherDesktopBrowserPageReadInRequest;
+  }): Promise<PatcherDesktopBrowserPageReadResult> {
+    const { hostWindow, request } = args;
+    const entry = entries.get(browserViewKey(hostWindow, request.tabId));
+    if (!entry || entry.view.webContents.isDestroyed()) {
+      return { ok: false, reason: "no-view" };
+    }
+    const webContents = entry.view.webContents;
+    if (webContents.getURL().length === 0) {
+      return { ok: false, reason: "no-page" };
+    }
+
+    let session: CdpSession;
+    try {
+      session = ensureCdpSession(entry);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "debugger-unavailable",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    try {
+      await ensureDialogInterception(hostWindow, request.tabId, entry, session);
+      const backendNodeId = await resolveSelectorNode(
+        session,
+        request.selector,
+      );
+      const worldId = await ensureAutomationWorld(session, entry);
+      const resolved = await session
+        .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
+          backendNodeId,
+          executionContextId: worldId,
+        })
+        .catch(() => null);
+      const objectId = resolved?.object?.objectId;
+      if (typeof objectId !== "string") {
+        // The element was there a moment ago and is not now. "Nothing matches"
+        // is the honest answer, and it is the one a caller retries against.
+        return {
+          ok: false,
+          reason: "no-match",
+          message: `${JSON.stringify(request.selector)} left the page while it was being read.`,
+        };
+      }
+      const content = parseBrowserElementReadContent(
+        await callOnElement(
+          session,
+          objectId,
+          PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION,
+        ),
+      );
+      if (content === null) {
+        return { ok: false, reason: "unreadable" };
+      }
+      if (webContents.isDestroyed()) {
+        return { ok: false, reason: "no-view" };
+      }
+      return {
+        ok: true,
+        tabId: request.tabId,
+        ...entryPageIdentity(entry),
+        isLoading: webContents.isLoadingMainFrame(),
+        contentKind: "html",
+        text: content.text,
+        textTruncated: content.textTruncated,
+        // An element is not a selection. Empty rather than the page's, because
+        // answering with a selection this read never looked at would be worse.
+        selection: "",
+        selectionTruncated: false,
+      };
+    } catch (error) {
+      if (error instanceof SnapshotRefusal) {
+        return { ok: false, reason: error.reason, message: error.message };
+      }
+      return {
+        ok: false,
+        reason: "unreadable",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
    * Read a PDF tab the only way a PDF can be read: fetch the document again
    * and parse it out of process.
    *
@@ -5232,6 +5343,9 @@ export function createDesktopBrowserViewManager(
         contentKind: "html",
         ...page,
       };
+    },
+    readPageIn({ hostWindow, request }) {
+      return readTabElementText({ hostWindow, request });
     },
     snapshot({ hostWindow, request }) {
       return captureTabSnapshot({ hostWindow, request });

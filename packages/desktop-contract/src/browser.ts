@@ -621,10 +621,18 @@ export const patcherDesktopBrowserPageReadResultSchema = z.union([
      * session, or destroyed). `no-page` — attached but nothing loaded yet.
      * `timeout` — the page never answered. `unreadable` — anything else.
      *
-     * The last two are PDF-only and exist because both are worth a different
-     * next step than "could not be read": `too-large` says the document is past
-     * the shell's byte cap and will not become readable by asking again, and
-     * `password-protected` says a human has something the agent does not.
+     * `too-large` and `password-protected` are PDF-only and exist because both
+     * are worth a different next step than "could not be read": one says the
+     * document is past the shell's byte cap and will not become readable by
+     * asking again, the other says a human has something the agent does not.
+     *
+     * The last three can only come from a **scoped** read
+     * ({@link PatcherDesktopBrowserApi.readPageIn}), which resolves a selector
+     * over the debugger rather than running a constant script in an isolated
+     * world. They are separate for the same reason the scoped snapshot's are:
+     * one is the selector's syntax to fix, one is the page, and one is DevTools
+     * holding the tab. `.catch` keeps an older SPA that has never heard of them
+     * reporting "unreadable" instead of failing to parse the answer.
      */
     reason: z
       .enum([
@@ -634,8 +642,17 @@ export const patcherDesktopBrowserPageReadResultSchema = z.union([
         "unreadable",
         "too-large",
         "password-protected",
+        "invalid-selector",
+        "no-match",
+        "debugger-unavailable",
       ])
       .catch("unreadable"),
+    /**
+     * What the browser said, when only the browser can say it: a selector it
+     * would not parse, or the client already holding the tab's debugger.
+     * Optional rather than required so an older shell's answer still validates.
+     */
+    message: z.string().max(1024).optional(),
   }),
 ]);
 export type PatcherDesktopBrowserPageReadResult = z.infer<
@@ -666,6 +683,33 @@ export type PatcherDesktopBrowserSnapshotRequest = z.infer<
 >;
 
 export const PATCHER_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH = 1024;
+
+/**
+ * Read the text of one element instead of the whole body.
+ *
+ * Its own channel for the reason
+ * {@link patcherDesktopBrowserSnapshotInRequestSchema} gives: the unscoped read
+ * takes `tabId` and nothing else *deliberately* — every knob on it would be a
+ * value reaching the script injected into an untrusted page. This request adds
+ * no such knob. The selector never enters a script: it travels as a `DOM.querySelector`
+ * parameter over the debugger, which is also why a scoped read attaches one and
+ * an unscoped read does not.
+ *
+ * Answers with {@link patcherDesktopBrowserPageReadResultSchema} — the same
+ * shape, with `selection` empty because an element is not a selection.
+ */
+export const patcherDesktopBrowserPageReadInRequestSchema = z
+  .object({
+    tabId: z.string().min(1),
+    selector: z
+      .string()
+      .min(1)
+      .max(PATCHER_DESKTOP_BROWSER_MAX_SELECTOR_LENGTH),
+  })
+  .strict();
+export type PatcherDesktopBrowserPageReadInRequest = z.infer<
+  typeof patcherDesktopBrowserPageReadInRequestSchema
+>;
 
 /**
  * The same snapshot, narrowed to what a CSS selector matches.
@@ -2772,6 +2816,23 @@ export interface PatcherDesktopBrowserApi {
    * This is that pattern's first request/response instance.
    */
   readPage?(tabId: string): Promise<PatcherDesktopBrowserPageReadResult>;
+  /**
+   * The same read, of the element a CSS selector matches.
+   *
+   * Its own method rather than an argument on the one above, for the reason that
+   * one's comment gives: its request is frozen at `tabId` precisely so no
+   * caller-supplied value can reach the injected script. This read reaches the
+   * element over the debugger instead, so it costs a CDP attach the unscoped
+   * read never pays — and can answer `debugger-unavailable`,
+   * `invalid-selector` or `no-match`, which that one never does.
+   *
+   * Optional for the same version skew as {@link PatcherDesktopBrowserApi.readPage}:
+   * an older shell has no such channel, and callers feature-detect rather than
+   * silently read the whole page instead of the part that was asked for.
+   */
+  readPageIn?(
+    request: PatcherDesktopBrowserPageReadInRequest,
+  ): Promise<PatcherDesktopBrowserPageReadResult>;
   /**
    * Accessibility snapshot of the tab, with a ref on every interactive element,
    * for agents that need to act on the page rather than only read it.

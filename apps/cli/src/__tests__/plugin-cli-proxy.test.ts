@@ -357,9 +357,61 @@ describe("findPluginCliCommand", () => {
   });
 });
 
+describe("fetchPluginCliContributions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("tells a refusal apart from a malformed answer", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ code: "unauthorized", message: "Unauthorized" }),
+            { status: 401, headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+
+    const result = await fetchPluginCliContributions("http://localhost");
+
+    // "invalid" falls through to commander, which then calls a plugin command
+    // that exists an unknown command — advice about the wrong problem.
+    expect(result.outcome).toBe("unauthorized");
+  });
+});
+
 describe("runPluginCliCommand", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("says what a 401 is about instead of calling it unexpected", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 401 })),
+    );
+    const written: string[] = [];
+    const sink = {
+      write(value: string, callback: (error?: Error | null) => void) {
+        written.push(value);
+        callback();
+        return true;
+      },
+    };
+
+    const exitCode = await runPluginCliCommand(
+      "http://localhost",
+      "browser-tools",
+      ["status"],
+      { stdout: sink, stderr: sink },
+    );
+
+    expect(exitCode).toBe(1);
+    // The credential and where it was looked for, which is what the caller
+    // needs and what "HTTP 401: Unauthorized" never said.
+    expect(written.join("")).toContain("PATCHER_APP_KEY");
   });
 
   it("waits for output larger than 64 KiB to flush before returning", async () => {

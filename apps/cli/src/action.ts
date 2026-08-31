@@ -1,3 +1,5 @@
+import { PatcherHttpError } from "@patcher/sdk";
+import { describeRefusedCredential } from "./app-credential-hint.js";
 import { getErrorMessage } from "./commands/helpers.js";
 
 export class CliExitError extends Error {
@@ -29,7 +31,16 @@ export function action<TArgs extends CommandActionArgs>(
         process.exit(err.exitCode);
         return;
       }
-      console.error(`Error: ${getErrorMessage(err)}`);
+      // A 401 reaches here as "HTTP 401: Unauthorized", which names neither
+      // the credential nor where this process looked for it. Every command goes
+      // through this wrapper, so this is the one place that has to say it.
+      const credential =
+        err instanceof PatcherHttpError && err.status === 401
+          ? describeRefusedCredential()
+          : null;
+      console.error(
+        `Error: ${getErrorMessage(err)}${credential === null ? "" : `\n${credential}`}`,
+      );
       process.exit(1);
     }
   };

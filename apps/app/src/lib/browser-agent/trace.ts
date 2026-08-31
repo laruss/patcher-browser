@@ -86,6 +86,10 @@ export function describeBrowserCommand(command: BrowserCommand): string {
       return command.tabId;
     case "page.handle_dialog":
       return command.accept ? "accept" : "dismiss";
+    // Only when it was scoped. "Read the page" and "read this element" are
+    // different steps, and the second one attached a debugger to do it.
+    case "page.get_text":
+      return command.selector === null ? "" : `in ${command.selector}`;
     case "page.interact":
       return describeInteraction(command.interaction);
     case "page.observe":

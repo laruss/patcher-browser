@@ -132,7 +132,11 @@ export const browserInteractionSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("resize"),
-    width: z.number().int().nonnegative().max(BROWSER_COMMAND_MAX_VIEWPORT_SIZE),
+    width: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(BROWSER_COMMAND_MAX_VIEWPORT_SIZE),
     height: z
       .number()
       .int()
@@ -356,7 +360,10 @@ export const browserControlOperationSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("evaluate"),
-    expression: z.string().min(1).max(BROWSER_COMMAND_MAX_EVAL_EXPRESSION_LENGTH),
+    expression: z
+      .string()
+      .min(1)
+      .max(BROWSER_COMMAND_MAX_EVAL_EXPRESSION_LENGTH),
     ref: browserRefSchema.nullable(),
   }),
   z.object({ kind: z.literal("route-set"), route: browserRouteSchema }),
@@ -532,6 +539,25 @@ export const browserCommandSchema = z.discriminatedUnion("type", [
       .int()
       .positive()
       .max(BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH),
+    /**
+     * Read only what this CSS selector matches, instead of the whole body.
+     *
+     * A field here and its own channel on the shell wire, the same asymmetry
+     * `page.snapshot`'s selector buys: this wire ships with the server that
+     * serves it, so it can grow a field; that one is frozen and strict.
+     *
+     * The two reads are not the same read. An unscoped one runs a constant
+     * script in an isolated world and needs no debugger; a scoped one has to
+     * resolve the selector, which only the browser can do, so it attaches the
+     * tab's debugger exactly as a scoped snapshot does. That is why the answer
+     * can now be `debugger_unavailable`, and why a caller who only wants the
+     * page keeps passing null.
+     */
+    selector: z
+      .string()
+      .min(1)
+      .max(BROWSER_COMMAND_MAX_SELECTOR_LENGTH)
+      .nullable(),
   }),
   z.object({
     type: z.literal("page.get_selection"),

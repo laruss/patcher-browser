@@ -388,6 +388,8 @@ export interface FakeBrowserDrivers {
     tabId: string,
     content: {
       text?: string;
+      /** What a scoped `page.getText` answers with; see the unscoped `text`. */
+      scopedText?: string;
       selection?: string;
       snapshot?: string;
       console?: readonly PluginBrowserConsoleEntry[];
@@ -1916,6 +1918,12 @@ function createFakePluginHostInternal(
   const browserCalls: FakeBrowserCall[] = [];
   interface FakeBrowserPageContent {
     text: string;
+    /**
+     * What a *scoped* `page.getText` answers with. Absent means a scoped read
+     * answers like an unscoped one, so a test that only cares that its selector
+     * travelled does not have to set a second body of text.
+     */
+    scopedText?: string;
     selection: string;
     snapshot: string;
     console: readonly PluginBrowserConsoleEntry[];
@@ -2430,13 +2438,18 @@ function createFakePluginHostInternal(
         beginBrowserCall("tabs.open", "tabs.modify", { ...args });
         const tabId = `fake-tab-${browserTabs.length + 1}`;
         const activate = args?.activate ?? true;
+        const url = args?.url ?? "";
         const tab: PluginBrowserTab = {
           tabId,
-          url: args?.url ?? "",
+          url,
           title: null,
           active: activate,
-          // A freshly opened tab has no page behind it until it is shown.
-          live: false,
+          // A tab opened in the foreground is not live *yet*: the strip has to
+          // mount its view, which has not happened by the time this answers.
+          // A background open is, and that is not a quirk of the fake — the
+          // host attaches a hidden view and waits for it, precisely so that
+          // "open without stealing focus" leaves something readable behind.
+          live: !activate && url.length > 0,
           loading: false,
           canGoBack: false,
           canGoForward: false,
@@ -2646,7 +2659,16 @@ function createFakePluginHostInternal(
       getText(args) {
         beginBrowserCall("page.get_text", "page.read", { ...args });
         const tab = requireLiveBrowserTab(args?.tabId);
-        const text = browserPageContent.get(tab.tabId)?.text ?? "";
+        const content = browserPageContent.get(tab.tabId);
+        // A selector is recorded and not resolved, exactly as `snapshot`'s is:
+        // a fake has no DOM to query. `selectedText` is what a test sets when
+        // it wants the scoped read to answer with something of its own; without
+        // one, a scoped read answers like an unscoped one, so a test that only
+        // cares that the selector was sent does not have to set anything.
+        const text =
+          (args?.selector === undefined
+            ? content?.text
+            : (content?.scopedText ?? content?.text)) ?? "";
         const maxLength = args?.maxLength;
         if (maxLength !== undefined && text.length > maxLength) {
           return Promise.resolve({
@@ -2962,6 +2984,7 @@ function createFakePluginHostInternal(
         browserPageContent.get(tabId) ?? EMPTY_BROWSER_PAGE_CONTENT;
       browserPageContent.set(tabId, {
         text: content.text ?? existing.text,
+        scopedText: content.scopedText ?? existing.scopedText,
         selection: content.selection ?? existing.selection,
         snapshot: content.snapshot ?? existing.snapshot,
         console: content.console ?? existing.console,
