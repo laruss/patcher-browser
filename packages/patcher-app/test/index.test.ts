@@ -370,9 +370,21 @@ async function offlineServerPort(): Promise<number> {
 
 /** `runPatcherApp` with nowhere to reload: the write is the whole subject. */
 async function runPatcherAppOffline(args: readonly string[]): Promise<void> {
+  const port = await offlineServerPort();
   await runPatcherApp([
+    // `--server-url`, not the port alone. A `config` or `env` command resolves
+    // its URL in *managed* mode, where `resolveServerUrl` takes an explicit
+    // `--server-url` first, then the persisted `serverUrl`, then ambient
+    // `PATCHER_SERVER_URL`, and only then the port-derived default. So a port
+    // pins nothing in either case this helper exists for: an agent shell that
+    // exports `PATCHER_SERVER_URL`, and a test whose own earlier `config set`
+    // has already persisted one. Both leave the reload posted at the
+    // developer's live server — and since a refused reload became nonfatal,
+    // that leak passes silently.
+    "--server-url",
+    `http://127.0.0.1:${port}`,
     "--server-port",
-    String(await offlineServerPort()),
+    String(port),
     ...args,
   ]);
 }
@@ -1953,6 +1965,50 @@ describe("patcher-app launcher", () => {
         process.env.PATCHER_SERVER_URL = previousServerUrl;
       }
       await server.close();
+    }
+  });
+
+  it("keeps an offline config write away from the server the shell points at", async () => {
+    const dataDir = mkdtempSync(
+      join(tmpdir(), "patcher-app-config-ambient-url-"),
+    );
+    // Stands in for the developer's own running Patcher, which is what an agent
+    // shell's PATCHER_SERVER_URL actually points at. Nothing in this file may
+    // post at it: a config write is not a reason to touch a live install.
+    const ambientServer = await startConfigReloadTestServer();
+    const previousServerUrl = process.env.PATCHER_SERVER_URL;
+
+    try {
+      process.env.PATCHER_SERVER_URL = ambientServer.url;
+
+      await runPatcherAppOffline([
+        "--data-dir",
+        dataDir,
+        "config",
+        "set",
+        "PATCHER_APP_URL",
+        "https://patcher.example.test",
+      ]);
+
+      // Take `--server-url` out of `runPatcherAppOffline` and this is the only
+      // assertion that notices: a managed command prefers ambient
+      // PATCHER_SERVER_URL over the port, the refused reload is nonfatal, so the
+      // command still succeeds and every other expectation still holds.
+      expect(ambientServer.reloadRequests()).toEqual([]);
+      // The write still landed — the endpoint being pinned is not the same as
+      // the command being skipped.
+      expect(
+        JSON.parse(readFileSync(join(dataDir, "config.json"), "utf8")),
+      ).toEqual({
+        config: { PATCHER_APP_URL: "https://patcher.example.test" },
+      });
+    } finally {
+      if (previousServerUrl === undefined) {
+        delete process.env.PATCHER_SERVER_URL;
+      } else {
+        process.env.PATCHER_SERVER_URL = previousServerUrl;
+      }
+      await ambientServer.close();
     }
   });
 
