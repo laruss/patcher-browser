@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { AgentRuntime } from "@patcher/agent-runtime";
+import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
 import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import type { HostWorkspace } from "@patcher/host-workspace";
 import {
@@ -407,6 +408,10 @@ describe("a terminal an agent asked for", () => {
 
   it("runs inside the boundary the thread's turn runs in", async () => {
     const dataDir = await makeTempDir("patcher-terminal-data-");
+    // The files have to be there, not merely named: the Linux backend masks a
+    // credential file by binding over it, and there is nothing to bind over
+    // when the path does not exist yet.
+    await writeEmptyFile(path.join(dataDir, PATCHER_APP_KEY_FILE_NAME));
     const harness = createHarnessWithOptions({
       dataDir,
       onSendMessage: () => undefined,
@@ -443,7 +448,7 @@ describe("a terminal an agent asked for", () => {
     expect(launchArgs).toContain("terminal-workspace");
     // And the credential files the turn is denied are named in the policy, so
     // the terminal cannot read back what the turn was not given.
-    expect(launchArgs).toContain(dataDir);
+    expect(launchArgs).toContain(PATCHER_APP_KEY_FILE_NAME);
   });
 
   it("is refused rather than opened unconfined when it names a host path", async () => {

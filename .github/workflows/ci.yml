@@ -89,9 +89,21 @@ jobs:
         # drive a sandboxed mode through the real JSON-RPC path fail on the
         # runner's own platform. Installing it also means Linux CI exercises the
         # sandbox rather than the refusal.
+        #
+        # Installed is not the same as usable. Ubuntu 24.04 restricts
+        # unprivileged user namespaces through AppArmor, so `bwrap` answers
+        # "setting up uid map: Permission denied" for every command — measured
+        # on this runner, where the terminal sandbox's own behavioural tests
+        # failed exactly that way. Lifting the restriction is what lets Linux CI
+        # run the sandbox instead of asserting the refusal; the daemon probes
+        # for this and refuses the terminal where it cannot be lifted.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --ro-bind / / --dev-bind /dev /dev /bin/true \
+            && echo "bubblewrap can build a sandbox on this runner" \
+            || echo "bubblewrap cannot build a sandbox here; the suite will assert the refusal"
 
       - name: Test
         # --concurrency matches the root `test` script: the packages shard runs
