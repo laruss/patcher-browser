@@ -347,6 +347,94 @@ async function stopFakeSupervisor(
   return supervision;
 }
 
+/**
+ * A loopback port nothing is listening on, for the runs that are not about a
+ * server at all.
+ *
+ * Without it those tests fall back to the default local port — and on a
+ * developer's machine that is *their* running Patcher, so the suite posted a
+ * config reload at it and then failed on whatever it answered. Bound and closed
+ * once, which is how the tests below already simulate "no server".
+ */
+let offlineServerPortPromise: Promise<number> | null = null;
+
+async function offlineServerPort(): Promise<number> {
+  offlineServerPortPromise ??= (async () => {
+    const server = await startConfigReloadTestServer();
+    const port = server.port;
+    await server.close();
+    return port;
+  })();
+  return offlineServerPortPromise;
+}
+
+/** `runPatcherApp` with nowhere to reload: the write is the whole subject. */
+async function runPatcherAppOffline(args: readonly string[]): Promise<void> {
+  await runPatcherApp([
+    "--server-port",
+    String(await offlineServerPort()),
+    ...args,
+  ]);
+}
+
+/** A server that answers the reload with 401, the way one under another data dir does. */
+async function startRefusingConfigReloadTestServer(): Promise<ConfigReloadTestServer> {
+  const reloadRequests: ConfigReloadRequest[] = [];
+  const server = createServer(
+    (request: IncomingMessage, response: ServerResponse) => {
+      if (
+        request.method === "POST" &&
+        request.url === "/api/v1/system/config/reload"
+      ) {
+        reloadRequests.push({
+          host: request.headers.host,
+          method: request.method,
+          url: request.url,
+        });
+        response.writeHead(401, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({ code: "unauthorized", message: "Unauthorized" }),
+        );
+        return;
+      }
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ code: "not_found", message: "Not found" }));
+    },
+  );
+  await new Promise<void>((resolvePromise, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      resolvePromise();
+    });
+  });
+  const address = server.address();
+  if (typeof address === "string" || address === null) {
+    throw new Error("Expected test server to listen on a TCP port");
+  }
+  const addressInfo: AddressInfo = address;
+  return {
+    async close(): Promise<void> {
+      await new Promise<void>((resolvePromise, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolvePromise();
+        });
+      });
+    },
+    port: addressInfo.port,
+    reloadCount(): number {
+      return reloadRequests.length;
+    },
+    reloadRequests(): ConfigReloadRequest[] {
+      return [...reloadRequests];
+    },
+    url: `http://127.0.0.1:${addressInfo.port}`,
+  };
+}
+
 async function startConfigReloadTestServer(): Promise<ConfigReloadTestServer> {
   const reloadRequests: ConfigReloadRequest[] = [];
   const server = createServer(
@@ -1035,7 +1123,7 @@ describe("patcher-app launcher", () => {
   it("stores managed config values from the config command", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "patcher-app-config-command-"));
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1043,7 +1131,7 @@ describe("patcher-app launcher", () => {
       "PATCHER_APP_URL",
       "https://patcher.example.test",
     ]);
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1051,7 +1139,7 @@ describe("patcher-app launcher", () => {
       "PATCHER_INFERENCE",
       "anthropic/claude-sonnet-4-5",
     ]);
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1059,7 +1147,7 @@ describe("patcher-app launcher", () => {
       "PATCHER_INFERENCE_FALLBACK",
       "codex/gpt-5.4-mini",
     ]);
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "env",
@@ -1159,7 +1247,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1192,7 +1280,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1232,7 +1320,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1268,7 +1356,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1307,7 +1395,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "config",
@@ -1340,7 +1428,7 @@ describe("patcher-app launcher", () => {
   it("stores managed env values from the env command", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "patcher-app-env-command-"));
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "env",
@@ -1396,7 +1484,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "env",
@@ -1484,7 +1572,7 @@ describe("patcher-app launcher", () => {
       "utf8",
     );
 
-    await runPatcherApp([
+    await runPatcherAppOffline([
       "--data-dir",
       dataDir,
       "env",
@@ -1695,6 +1783,66 @@ describe("patcher-app launcher", () => {
     expect(output).not.toContain("is startup-only");
   });
 
+  it("keeps a config write that a running server refuses to reload", async () => {
+    // A server running under another data dir refuses the app key this one
+    // resolves — or there is none here at all, which is the topology a machine
+    // enrolled from another one runs in. The write has already happened by the
+    // time the reload is attempted, so a refusal used to end the command with
+    // `Unauthorized` and exit 1, saying nothing about the value being saved.
+    const dataDir = mkdtempSync(join(tmpdir(), "patcher-app-refused-reload-"));
+    const server = await startRefusingConfigReloadTestServer();
+
+    try {
+      const output = await captureStdout(() =>
+        runPatcherApp([
+          "--data-dir",
+          dataDir,
+          "--server-port",
+          String(server.port),
+          "config",
+          "set",
+          "PATCHER_LOG_LEVEL",
+          "debug",
+        ]),
+      );
+
+      expect(
+        JSON.parse(readFileSync(join(dataDir, "config.json"), "utf8")),
+      ).toEqual({ config: { PATCHER_LOG_LEVEL: "debug" } });
+      expect(server.reloadCount()).toBe(1);
+      // Says which of the two failures it was: "no running server found" would
+      // be false, and the difference is what the person has to fix.
+      expect(output).toContain("refused the config reload");
+      expect(output).toContain("Unauthorized");
+      expect(output).toContain("applies on next start");
+      expect(output).not.toContain("No running Patcher server found");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("still fails an explicit refresh the server refuses", async () => {
+    // The other half of the distinction: `config refresh` *is* the request, so
+    // a refusal is that command failing rather than a fact to report.
+    const dataDir = mkdtempSync(join(tmpdir(), "patcher-app-refused-refresh-"));
+    const server = await startRefusingConfigReloadTestServer();
+
+    try {
+      await expect(
+        runPatcherApp([
+          "--data-dir",
+          dataDir,
+          "--server-port",
+          String(server.port),
+          "config",
+          "refresh",
+        ]),
+      ).rejects.toThrow("Unauthorized");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("notes configured startup-only keys after explicit refresh", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "patcher-app-startup-refresh-"));
     writeFileSync(
@@ -1815,7 +1963,7 @@ describe("patcher-app launcher", () => {
     const server = await startConfigReloadTestServer();
 
     try {
-      await runPatcherApp([
+      await runPatcherAppOffline([
         "--data-dir",
         dataDir,
         "config",
@@ -1849,7 +1997,7 @@ describe("patcher-app launcher", () => {
     const previousServerUrl = process.env.PATCHER_SERVER_URL;
 
     try {
-      await runPatcherApp([
+      await runPatcherAppOffline([
         "--data-dir",
         dataDir,
         "config",
