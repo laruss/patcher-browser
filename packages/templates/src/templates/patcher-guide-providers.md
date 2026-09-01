@@ -120,6 +120,11 @@ accepts an SVG, PNG, or WebP path; relative paths resolve from the Patcher data 
 Use nativeSkillRoots to add native skills to the composer. User roots resolve
 from the target host home directory. Project roots resolve from the selected
 workspace. Each root must use a relative path without dot segments.
+Use stateDirs to list the directories the agent writes its own state into,
+relative to the target host home directory, with the same path rules. A
+sandboxed turn confines the agent to the workspace plus these directories. An
+agent that declares none runs unconfined, and the thread says so at session
+start; an empty list means it needs nothing outside the workspace.
 
 Use top-level sharedSkillRoots for one provider-neutral skill collection. The
 user and project paths use the same relative-path rules. Patcher indexes these roots

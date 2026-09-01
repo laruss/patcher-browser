@@ -132,7 +132,11 @@ environment pull-request show <id>`. Diff commands require an explicit target
   reasoning. Optional
   `nativeSkillRoots.user` paths resolve from the target
   host home directory. Optional `nativeSkillRoots.project` paths resolve from
-  the selected workspace. The composer lists skills from these roots.
+  the selected workspace. The composer lists skills from these roots. Optional
+  `stateDirs` lists the directories the agent writes its own state into,
+  relative to the target host home directory: a sandboxed turn confines the
+  agent to the workspace plus these, and an agent that declares none runs
+  unconfined with the thread saying so at session start.
 - Top-level `customModels` in the same `config.json` registers extra picker
   models. `providerId` accepts a built-in provider id or any `acp-*` provider
   id. The provider must still accept the id: `claude-code` and `codex` accept

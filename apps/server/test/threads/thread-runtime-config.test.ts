@@ -262,6 +262,10 @@ describe("thread runtime config", () => {
     );
   });
 
+  // The `stateDirs` below are the measured ones, and this is where they have to
+  // survive: the daemon confines an ACP turn with what the launch spec carries,
+  // so a declaration that never leaves the server is the same as no declaration
+  // at all — the turn would run unconfined and say so.
   it.each([
     {
       expectedSpec: {
@@ -269,9 +273,27 @@ describe("thread runtime config", () => {
         command: "opencode",
         args: ["acp"],
         env: {},
+        stateDirs: [
+          ".config/opencode",
+          ".local/share/opencode",
+          ".cache/opencode",
+        ],
       },
       providerId: "acp-opencode",
       requestedModel: "opencode/default",
+    },
+    {
+      // The other half of the same contract: nobody has run omp, so the spec
+      // carries no `stateDirs` at all and the bridge leaves its turns
+      // unconfined instead of confining them into failing to start.
+      expectedSpec: {
+        displayName: "omp",
+        command: "omp",
+        args: ["acp"],
+        env: {},
+      },
+      providerId: "acp-omp",
+      requestedModel: "acp-default",
     },
     {
       expectedSpec: {
@@ -299,6 +321,7 @@ describe("thread runtime config", () => {
           },
           defaultLevel: "high",
         },
+        stateDirs: [".grok"],
       },
       providerId: "acp-grok",
       requestedModel: "grok-4.5",
@@ -314,6 +337,7 @@ describe("thread runtime config", () => {
           supportedLevels: ["none", "low", "medium", "high", "xhigh", "max"],
           defaultLevel: "medium",
         },
+        stateDirs: [".hermes"],
       },
       providerId: "acp-hermes-agent",
       requestedModel: "acp-default",

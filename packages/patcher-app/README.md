@@ -160,6 +160,13 @@ Custom ACP agents can be configured through `customAcpAgents` in
 `~/.patcher/config.json`; see the configuration docs for optional `modelCli` and
 `reasoningCli` or `nativeReasoning` reasoning settings. A `logo`
 field accepts an SVG, PNG, or WebP path for the provider picker icon.
+The optional `stateDirs` field lists the directories the agent writes its own
+state into, relative to the home directory on the target host. A sandboxed turn
+runs the agent inside Patcher's own filesystem boundary and adds these to what it
+may write, so without them Patcher cannot confine the agent without stopping it
+from starting — it runs the agent unconfined instead and says so in the thread.
+An empty list is an answer too: it means the agent needs nothing outside the
+workspace.
 The optional `nativeSkillRoots` field adds provider-native skills to the
 composer. Its `user` paths resolve from the target host home directory. Its
 `project` paths resolve from the selected workspace.

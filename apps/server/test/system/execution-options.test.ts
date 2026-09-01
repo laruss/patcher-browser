@@ -286,6 +286,11 @@ describe("resolveSystemExecutionOptions", () => {
           command: "opencode",
           args: ["acp"],
           env: {},
+          stateDirs: [
+            ".config/opencode",
+            ".local/share/opencode",
+            ".cache/opencode",
+          ],
         },
       });
     });
@@ -377,6 +382,7 @@ describe("resolveSystemExecutionOptions", () => {
             },
             defaultLevel: "high",
           },
+          stateDirs: [".grok"],
         },
       });
     });
@@ -453,6 +459,7 @@ describe("resolveSystemExecutionOptions", () => {
             supportedLevels: ["none", "low", "medium", "high", "xhigh", "max"],
             defaultLevel: "medium",
           },
+          stateDirs: [".hermes"],
         },
       });
     });

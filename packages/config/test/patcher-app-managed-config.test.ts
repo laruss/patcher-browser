@@ -299,6 +299,58 @@ describe("patcherAppManagedConfigSchema", () => {
     }
   });
 
+  it("keeps the state directories a custom ACP agent declares", () => {
+    const parsed = patcherAppManagedConfigSchema.parse({
+      customAcpAgents: [
+        {
+          id: "amp",
+          displayName: "Amp",
+          command: "amp-acp",
+          stateDirs: [".config/amp", ".cache/amp"],
+        },
+      ],
+    });
+
+    expect(parsed.customAcpAgents?.[0]?.stateDirs).toEqual([
+      ".config/amp",
+      ".cache/amp",
+    ]);
+  });
+
+  // An empty list is an answer — "needs nothing under $HOME" — and a missing
+  // one is not: the sandbox confines the first and leaves the second alone.
+  it("keeps an empty state-directory list apart from a missing one", () => {
+    const parsed = patcherAppManagedConfigSchema.parse({
+      customAcpAgents: [
+        { id: "amp", displayName: "Amp", command: "amp-acp", stateDirs: [] },
+        { id: "sol", displayName: "Sol", command: "sol-acp" },
+      ],
+    });
+
+    expect(parsed.customAcpAgents?.[0]?.stateDirs).toEqual([]);
+    expect(parsed.customAcpAgents?.[1]).not.toHaveProperty("stateDirs");
+  });
+
+  // These become writable roots in an ACP turn's sandbox, so a path that
+  // climbs out of $HOME would widen the boundary rather than describe an agent.
+  it("rejects state directories that leave $HOME", () => {
+    for (const stateDir of ["/etc", "../.ssh", ".config/../..", "."]) {
+      expect(
+        patcherAppManagedConfigSchema.safeParse({
+          customAcpAgents: [
+            {
+              id: "amp",
+              displayName: "Amp",
+              command: "amp-acp",
+              stateDirs: [stateDir],
+            },
+          ],
+        }).success,
+        stateDir,
+      ).toBe(false);
+    }
+  });
+
   it("rejects custom ACP reasoningCli defaults outside supported levels", () => {
     expect(
       patcherAppManagedConfigSchema.safeParse({

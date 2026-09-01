@@ -3572,6 +3572,7 @@ declare const hostDaemonCommandRegistry: {
                 readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
+            stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         options: z$1.ZodIntersection<z$1.ZodObject<{
             model: z$1.ZodString;
@@ -3774,6 +3775,7 @@ declare const hostDaemonCommandRegistry: {
                 readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
+            stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         options: z$1.ZodIntersection<z$1.ZodObject<{
             model: z$1.ZodString;
@@ -4341,6 +4343,7 @@ declare const hostDaemonCommandRegistry: {
                 readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
+            stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         resumeContext: z$1.ZodObject<{
             workspaceContext: z$1.ZodObject<{
@@ -4452,6 +4455,7 @@ declare const hostDaemonCommandRegistry: {
                     readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                     insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
                 }, z$1.core.$strict>>;
+                stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
             }, z$1.core.$strict>>;
             instructions: z$1.ZodString;
             dynamicTools: z$1.ZodArray<z$1.ZodObject<{
@@ -4656,6 +4660,7 @@ declare const hostDaemonCommandRegistry: {
                 readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
+            stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         resumeContext: z$1.ZodObject<{
             workspaceContext: z$1.ZodObject<{
@@ -4767,6 +4772,7 @@ declare const hostDaemonCommandRegistry: {
                     readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                     insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
                 }, z$1.core.$strict>>;
+                stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
             }, z$1.core.$strict>>;
             instructions: z$1.ZodString;
             dynamicTools: z$1.ZodArray<z$1.ZodObject<{
@@ -5511,6 +5517,7 @@ declare const hostDaemonCommandRegistry: {
                 readonly: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
+            stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         cwd: z$1.ZodOptional<z$1.ZodString>;
     }, z$1.core.$strip>, z$1.ZodObject<{
