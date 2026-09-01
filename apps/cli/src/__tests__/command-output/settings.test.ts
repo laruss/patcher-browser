@@ -34,6 +34,51 @@ describe("patcher settings commands", () => {
     });
   });
 
+  it("sets the egress host list from one comma-separated argument", async () => {
+    const put = vi.fn(async ({ json }) => json);
+    stubServerApi({
+      "v1.system.config.$get": vi.fn(async () => ({
+        generalSettings: defaultAppSettings,
+        experiments: defaultExperiments,
+      })),
+      "v1.settings.general.$put": put,
+    });
+
+    // A list needs its own command: the general one parses a boolean, and a
+    // list handed to it would come back as an unknown key.
+    await runCommand(
+      ["settings", "egress-hosts", "github.com, *.githubusercontent.com"],
+      register,
+    );
+
+    expect(put).toHaveBeenCalledWith({
+      json: {
+        ...defaultAppSettings,
+        providerEgressAllowedHosts: ["github.com", "*.githubusercontent.com"],
+      },
+    });
+  });
+
+  it("clears the egress host list when given an empty argument", async () => {
+    const put = vi.fn(async ({ json }) => json);
+    stubServerApi({
+      "v1.system.config.$get": vi.fn(async () => ({
+        generalSettings: {
+          ...defaultAppSettings,
+          providerEgressAllowedHosts: ["github.com"],
+        },
+        experiments: defaultExperiments,
+      })),
+      "v1.settings.general.$put": put,
+    });
+
+    await runCommand(["settings", "egress-hosts", ""], register);
+
+    expect(put).toHaveBeenCalledWith({
+      json: { ...defaultAppSettings, providerEgressAllowedHosts: [] },
+    });
+  });
+
   it("updates keyboard hint visibility while preserving the full contract", async () => {
     const put = vi.fn(async ({ json }) => json);
     stubServerApi({
