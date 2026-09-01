@@ -6,6 +6,7 @@ import {
 import {
   acpNativeReasoningSchema,
   acpReasoningCliSchema,
+  acpStateDirsSchema,
   providerNativeSkillRootsSchema,
 } from "@patcher/domain";
 import { z } from "zod";
@@ -117,6 +118,11 @@ export const customAcpAgentSchema = z
     reasoningCli: acpReasoningCliSchema.optional(),
     nativeReasoning: acpNativeReasoningSchema.optional(),
     nativeSkillRoots: providerNativeSkillRootsSchema.optional(),
+    // Where this agent writes its own state, so a sandboxed turn can confine
+    // it. Whoever registered the agent is the only one who can answer for it,
+    // and until they do the turn runs unconfined and says so — declaring the
+    // directories is what turns that warning into a boundary.
+    stateDirs: acpStateDirsSchema.optional(),
   })
   .strict()
   .superRefine((agent, context) => {

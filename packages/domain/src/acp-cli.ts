@@ -1,21 +1,55 @@
 import { z } from "zod";
 import { reasoningLevelSchema } from "./shared-types.js";
 
+/**
+ * A path that stays under the directory it is joined onto.
+ *
+ * Both lists below are resolved against a directory the daemon owns — skill
+ * roots against the host or the workspace, state directories against `$HOME` —
+ * and `path.join` follows an absolute path or a `..` without complaint. For
+ * state directories the join decides what an ACP turn's sandbox may write, so
+ * this is the boundary rather than a tidiness rule.
+ */
+function isRelativeSubpath(value: string): boolean {
+  const normalized = value.replaceAll("\\", "/");
+  return (
+    !normalized.startsWith("/") &&
+    !/^[a-zA-Z]:\//u.test(normalized) &&
+    normalized
+      .split("/")
+      .every((segment) => segment !== "" && segment !== "." && segment !== "..")
+  );
+}
+
 const providerSkillRootPathSchema = z
   .string()
   .min(1)
-  .refine((value) => {
-    const normalized = value.replaceAll("\\", "/");
-    return (
-      !normalized.startsWith("/") &&
-      !/^[a-zA-Z]:\//u.test(normalized) &&
-      normalized
-        .split("/")
-        .every(
-          (segment) => segment !== "" && segment !== "." && segment !== "..",
-        )
-    );
-  }, "Skill roots must be relative paths without dot segments");
+  .refine(
+    isRelativeSubpath,
+    "Skill roots must be relative paths without dot segments",
+  );
+
+/**
+ * Directories an ACP agent writes its own state into, relative to `$HOME`.
+ *
+ * What a sandboxed ACP turn grants back to the agent, so that confining it does
+ * not stop it from starting. Measured per agent rather than guessed, and the
+ * measurements are in `known-acp-agents.ts` beside the agents they belong to.
+ *
+ * Optional rather than defaulted, because absent and empty are different
+ * answers: `[]` says this agent needs nothing under `$HOME`, absent says nobody
+ * has looked. `acp/profiles.ts` reads them that way — an undeclared agent runs
+ * unconfined with the turn saying so, instead of being confined into failing.
+ */
+export const acpStateDirsSchema = z.array(
+  z
+    .string()
+    .min(1)
+    .refine(
+      isRelativeSubpath,
+      "State directories must be paths under $HOME, without dot segments",
+    ),
+);
 
 const uniqueProviderSkillRootPathsSchema = z
   .array(providerSkillRootPathSchema)

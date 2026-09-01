@@ -49,11 +49,16 @@ export interface AcpAgentProfile {
    *
    * Absent and empty are different answers, and the sandbox reads them that
    * way. `[]` says this agent needs nothing under `$HOME` and gets nothing.
-   * Absent says nobody has looked — every launch-spec agent (the known ones and
-   * anything a person adds) is in that state — and a sandbox built on a guess
-   * would stop those agents from starting at all. So an undeclared agent runs
-   * unconfined and the turn says so, rather than being confined into failing or
-   * presenting as sandboxed when it is not.
+   * Absent says nobody has looked — and a sandbox built on a guess would stop
+   * such an agent from starting at all, as the measurements show: opencode dies
+   * before `initialize` without its data directory, Grok and Hermes fail
+   * `session/new`, and none of the three needs what another needs. So an
+   * undeclared agent runs unconfined and the turn says so, rather than being
+   * confined into failing or presenting as sandboxed when it is not.
+   *
+   * An agent that arrives over the wire declares these in its launch spec, so
+   * the known agents carry theirs in `known-acp-agents.ts` on the server, and a
+   * person who registers their own agent can answer for it in config.
    */
   stateDirs?: readonly string[];
 }

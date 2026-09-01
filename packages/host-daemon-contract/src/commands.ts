@@ -2,6 +2,7 @@ import {
   acpPermissionCliSchema,
   acpNativeReasoningSchema,
   acpReasoningCliSchema,
+  acpStateDirsSchema,
   availableModelSchema,
   discoveredWorkspacePropertiesSchema,
   dynamicToolSchema,
@@ -36,7 +37,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 113 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 114 as const;
 
 /**
  * The first protocol version whose daemon can install this server's artifact.
@@ -165,6 +166,7 @@ export const hostDaemonAcpLaunchSpecSchema = z
     nativeReasoning: acpNativeReasoningSchema.optional(),
     nativeSkillRoots: providerNativeSkillRootsSchema.optional(),
     permissionCli: acpPermissionCliSchema.optional(),
+    stateDirs: acpStateDirsSchema.optional(),
   })
   .strict();
 export type HostDaemonAcpLaunchSpec = z.infer<
@@ -185,6 +187,7 @@ export function normalizeHostDaemonAcpLaunchSpec(
     nativeReasoning,
     nativeSkillRoots,
     permissionCli,
+    stateDirs,
   } = spec;
   const permissionCliHasMode =
     permissionCli?.full !== undefined ||
@@ -205,6 +208,11 @@ export function normalizeHostDaemonAcpLaunchSpec(
     ...(permissionCli !== undefined && permissionCliHasMode
       ? { permissionCli }
       : {}),
+    // Kept exactly as given, empty list included: an agent that declares it
+    // needs nothing under $HOME is confined with nothing, and dropping `[]`
+    // here would turn that answer into "nobody has looked" and run it
+    // unconfined instead.
+    ...(stateDirs !== undefined ? { stateDirs } : {}),
   };
 }
 

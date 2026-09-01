@@ -28,6 +28,7 @@ import {
   type HostDaemonRpcCommandType,
   hostDaemonOnlineRpcResponseMessageSchema,
   hostDaemonOnlineRpcResultSchemaByType,
+  hostDaemonAcpLaunchSpecSchema,
   hostDaemonServerWsMessageSchema,
   hostDaemonSessionOpenRequestSchema,
   hostDaemonSessionOpenResponseSchema,
@@ -72,6 +73,7 @@ const ACP_LAUNCH_SPEC: HostDaemonAcpLaunchSpec = {
     full: ["--always-approve"],
     insertAfterArgs: 1,
   },
+  stateDirs: [".local-acp"],
 };
 
 type OnlineRpcResponseResultFixtures = Record<
@@ -710,6 +712,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "ACP permission CLI config only needs args for modes that differ from the agent default.",
   "hostDaemonCommandSchema.acpLaunchSpec.permissionCli.insertAfterArgs":
     "ACP permission CLI config omits insertAfterArgs when permission args should be inserted before all configured agent args.",
+  "hostDaemonCommandSchema.acpLaunchSpec.stateDirs":
+    "an ACP agent nobody has measured declares no state directories, and the bridge runs it unconfined with a warning rather than confining it into failing to start.",
   "hostDaemonCommandSchema.checkout":
     "environment.provision only includes checkout instructions for unmanaged workspaces that requested a branch mutation.",
   "hostDaemonCommandSchema.targetPath":
@@ -754,6 +758,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "ACP permission CLI config only needs args for modes that differ from the agent default.",
   "hostDaemonOnlineRpcCommandSchema.acpLaunchSpec.permissionCli.insertAfterArgs":
     "ACP permission CLI config omits insertAfterArgs when permission args should be inserted before all configured agent args.",
+  "hostDaemonOnlineRpcCommandSchema.acpLaunchSpec.stateDirs":
+    "an ACP agent nobody has measured declares no state directories, and the bridge runs it unconfined with a warning rather than confining it into failing to start.",
   "hostDaemonOnlineRpcCommandSchema.query":
     "host.list_files may omit a search string to list files without filtering.",
   "hostDaemonOnlineRpcCommandSchema.path":
@@ -818,6 +824,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "resume-context ACP permission CLI config only needs args for modes that differ from the agent default.",
   "hostDaemonCommandSchema.resumeContext.acpLaunchSpec.permissionCli.insertAfterArgs":
     "resume-context ACP permission CLI config omits insertAfterArgs when permission args should be inserted before all configured agent args.",
+  "hostDaemonCommandSchema.resumeContext.acpLaunchSpec.stateDirs":
+    "resume-context ACP launch specs carry no state directories for an agent nobody has measured, matching the start path.",
 };
 
 describe("host-daemon local schemas", () => {
@@ -1099,8 +1107,15 @@ describe("host-daemon command schemas", () => {
   // field and builds the profile with the network open — so the app would say a
   // turn is confined while it is not, which is the silence the bump exists to
   // prevent.
-  it("uses protocol version 113 after the Codex network became a setting", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(113);
+  //
+  // 114 added `acpLaunchSpec.stateDirs`: where an ACP agent writes its own
+  // state, which is what a sandboxed turn has to grant back so the agent can
+  // start. A 113 daemon drops the field, so every launch-spec agent looks
+  // unmeasured to it and its sandboxed turns run the provider unconfined — the
+  // warning would be accurate about the daemon and wrong about Patcher, which
+  // is exactly the silence the field exists to remove.
+  it("uses protocol version 114 after ACP agents declared their state directories", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(114);
   });
 
   // The subprotocol is agreed between two processes by string, so no build
@@ -1195,6 +1210,53 @@ describe("host-daemon command schemas", () => {
         defaultLevel: "high",
       },
     });
+  });
+
+  // An agent that needs nothing under $HOME is confined with nothing, and an
+  // agent nobody has measured runs unconfined. Normalizing `[]` away would
+  // silently turn the first into the second.
+  it("keeps an empty state-directory declaration apart from a missing one", () => {
+    const spec: HostDaemonAcpLaunchSpec = {
+      displayName: "Spartan ACP",
+      command: "spartan-agent",
+      args: ["acp"],
+      env: {},
+    };
+
+    expect(normalizeHostDaemonAcpLaunchSpec({ ...spec, stateDirs: [] })).toEqual(
+      { ...spec, stateDirs: [] },
+    );
+    expect(normalizeHostDaemonAcpLaunchSpec(spec)).not.toHaveProperty(
+      "stateDirs",
+    );
+    expect(
+      hostDaemonAcpLaunchSpecSchema.parse({ ...spec, stateDirs: [] }),
+    ).toHaveProperty("stateDirs", []);
+  });
+
+  // The list is joined onto $HOME and handed to the sandbox as writable roots,
+  // so a path that climbs out of it would widen the boundary rather than
+  // describe an agent.
+  it("refuses state directories that leave $HOME", () => {
+    const spec = {
+      displayName: "Sneaky ACP",
+      command: "sneaky-agent",
+      args: [],
+      env: {},
+    };
+
+    for (const stateDirs of [["/etc"], ["../.ssh"], [".config/../.."], [""]]) {
+      expect(
+        hostDaemonAcpLaunchSpecSchema.safeParse({ ...spec, stateDirs }).success,
+        stateDirs.join(","),
+      ).toBe(false);
+    }
+    expect(
+      hostDaemonAcpLaunchSpecSchema.safeParse({
+        ...spec,
+        stateDirs: [".config/opencode", ".hermes"],
+      }).success,
+    ).toBe(true);
   });
 
   it("parses valid workspace and provisioning commands", () => {

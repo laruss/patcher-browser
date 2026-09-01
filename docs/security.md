@@ -228,14 +228,40 @@ rather than running it unconfined, naming the missing dependency and Full Access
 as the other way, which is the answer a sandboxed Claude turn and a sandboxed
 terminal already give there.
 
-Declared and undeclared are different states, and only Cursor's are measured.
-Every launch-spec agent — the known ones (opencode, omp, Grok Build, Hermes) and
-anything added by hand — has no declaration, and the four paths Cursor needs do
-not transfer: confined on a guess, those agents would fail to start. So an
-undeclared agent runs unconfined and the thread says so at session start,
-naming which half still holds (the edits it routes through Patcher) and which
-does not (its own shell). An empty declaration is an answer and is confined; a
-missing one is not.
+Declared and undeclared are different states, and the declarations are
+measurements. Four of the five agents Patcher detects by their binary now carry
+theirs, each found the same way — started under the sandbox the daemon builds,
+`initialize` then `session/new`, with nothing granted and then one directory at
+a time. What they need is not the same and does not transfer: opencode needs
+three (`~/.config/opencode`, `~/.local/share/opencode`, `~/.cache/opencode`) and
+without the data directory exits before answering `initialize` at all, because
+its SQLite database lives there; Grok Build needs `~/.grok` and refuses
+`session/new` with `FS_PERMISSION_DENIED` without it; Hermes needs `~/.hermes`
+and says which file it could not open. omp is the one nobody has run, so it
+declares nothing, and so does any agent added by hand until whoever added it
+answers for it (`stateDirs` in the app-managed config). An undeclared agent runs
+unconfined and the thread says so at session start, naming which half still
+holds (the edits it routes through Patcher) and which does not (its own shell).
+An empty declaration is an answer and is confined; a missing one is not.
+
+What a granted state directory _is_, said plainly: the agent's own
+configuration, writable by the agent. Some of what lives there names commands
+that run later — Grok's hooks, the plugins opencode installs into
+`~/.config/opencode` and loads at startup. Inside a Patcher turn those run
+inside this same sandbox, so they buy nothing there; the reach is the person's
+own CLI, which reads the same files outside Patcher and is confined by nothing.
+There is no version of this that both confines the agent and denies it its own
+config — an agent that cannot write it does not start — so it is named here
+rather than closed.
+
+What the confinement does not grant back, deliberately: the caches an agent's
+_own_ globally configured MCP servers write when they install themselves through
+`npx` or `uvx`. Measured on Grok Build and opencode, both create the session and
+both log an `EPERM` from the child that could not write `~/.npm` or
+`~/.cache/uv`. Those servers are the person's own configuration rather than the
+agent's state, and Patcher hands a turn the MCP servers it is meant to have — so
+the fix, when one is wanted, is to declare the server in Patcher rather than to
+widen the sandbox to the package managers' caches.
 
 The network is untouched here for the same reason it is in a terminal: what
 this closes is the filesystem class. And model discovery — the `--list-models`
@@ -524,7 +550,8 @@ permitted` from the shell, which no part of the app can intercept, so the fact
   only in memory (see above), so what remains is that _asking the server for it_
   needs the app key — and a caller that is not confined can still read that file
   off disk. A Full Access turn, a turn on Pi, a turn on an ACP agent nobody has
-  measured, and any plugin process can therefore reach
+  measured (omp, or one added by hand without `stateDirs`), and any plugin
+  process can therefore reach
   `/host-daemon-keys/:hostId` as the app and go on to open an editor. For a
   sandboxed turn both halves are closed: it cannot read the app key, and its
   thread key is refused on that route by name. Closing the rest is the same
@@ -534,8 +561,9 @@ permitted` from the shell, which no part of the app can intercept, so the fact
 - **`.git` and the credential files, for a turn that is Pi's.** Narrowed
   again. Claude Code and Codex hold the list through their own sandboxes, and
   an ACP turn on a declared profile now holds it through the one Patcher builds
-  (above) — which leaves Pi, plus any ACP agent whose state directories nobody
-  has measured. Pi is a different case from the one this bullet started as: it
+  (above) — which now leaves Pi, plus omp and any hand-added ACP agent whose
+  state directories nobody has measured. Pi is a different case from the one
+  this bullet started as: it
   offers no sandboxed mode at all, so a Pi turn is a Full Access turn somebody
   chose, and the machine ceiling refuses it until they do. Giving Pi a
   workspace scope is therefore a feature rather than a fix — its bridge would

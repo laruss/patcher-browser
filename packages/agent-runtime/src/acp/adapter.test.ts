@@ -209,17 +209,18 @@ describe("acp adapter command plans", () => {
   });
 
   it("says so instead of confining an agent nobody has measured", () => {
-    // Every launch-spec agent — the known ones and anything a person adds —
-    // declares no state directories, and the four measured for Cursor are not
-    // transferable: confined on a guess, opencode or Grok would fail to create
-    // a session at all (`cursor-agent` answers EPERM until `.cursor` is
-    // writable). So the turn runs unconfined and says which half still holds.
+    // omp is the known agent nobody has run, and what the measured ones need is
+    // not transferable: opencode dies before `initialize` without its data
+    // directory, Grok and Hermes fail `session/new` without theirs, and Cursor
+    // answers EPERM until `.cursor` is writable. Confined on a guess, omp would
+    // fail the same way — so the turn runs unconfined and says which half still
+    // holds.
     let called = false;
     const adapter = createAcpProviderAdapter({
       profile: {
-        providerId: "acp-opencode",
-        displayName: "opencode",
-        agentCommand: { command: "opencode", args: ["acp"] },
+        providerId: "acp-omp",
+        displayName: "omp",
+        agentCommand: { command: "omp", args: ["acp"] },
       },
       additionalWorkspaceWriteRoots: [],
       wrapAcpAgentLaunch: () => {
@@ -247,9 +248,9 @@ describe("acp adapter command plans", () => {
       agentSandbox?: unknown;
       agentSandboxWarning?: string;
     };
-    expect(params.agent).toEqual({ command: "opencode", args: ["acp"] });
+    expect(params.agent).toEqual({ command: "omp", args: ["acp"] });
     expect(params.agentSandbox).toBeUndefined();
-    expect(params.agentSandboxWarning).toContain("opencode");
+    expect(params.agentSandboxWarning).toContain("omp");
     expect(params.agentSandboxWarning).toContain("runs unconfined");
     expect(called).toBe(false);
   });

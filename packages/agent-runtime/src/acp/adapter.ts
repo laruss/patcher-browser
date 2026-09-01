@@ -1356,9 +1356,10 @@ export function createAcpProviderAdapter(
    *
    * Full Access asks for no sandbox by definition, so it is left alone. And an
    * agent whose profile declares no state directories is left alone too, with
-   * a warning the thread shows: only Cursor's are measured, and confining one
-   * of the others on a guess would stop it from starting at all — see
-   * `stateDirs` in `profiles.ts`.
+   * a warning the thread shows: what an agent needs of `$HOME` is measured per
+   * agent and does not transfer between them, and confining an unmeasured one
+   * on a guess would stop it from starting at all — see `stateDirs` in
+   * `profiles.ts`.
    */
   function resolveAgentLaunch(args: {
     command: Extract<
