@@ -24,6 +24,7 @@ import {
 import type { AppDeps, ServerAppDeps } from "./types.js";
 import { agentRoutePolicyDenial } from "./agent-route-policy.js";
 import { createAppApiIdentity } from "./app-identity.js";
+import { setPluginApiId } from "./plugin-api-identity-context.js";
 import { createThreadApiIdentity } from "./thread-identity.js";
 import { ApiError, errorToResponse } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
@@ -548,6 +549,11 @@ export function createApp(
     if (problem !== null) {
       throw new ApiError(403, "forbidden", problem);
     }
+    // Which plugin, as well as what it may pay for: a consent prompt is
+    // answered by a person, and the gate that keeps a turn from answering its
+    // own is the thread header a plugin never sends. See
+    // `plugin-api-identity-context.ts`.
+    setPluginApiId(context, pluginId);
     return next();
   });
   const publicApi = new Hono();
