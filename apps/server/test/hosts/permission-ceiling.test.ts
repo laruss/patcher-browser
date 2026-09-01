@@ -12,6 +12,7 @@ import {
   clampPermissionModeToHost,
   getHostPermissionCeiling,
   isHostPermissionCeilingConflictError,
+  PERMISSION_CEILING_WITH_NO_MACHINE,
 } from "../../src/services/hosts/permission-ceiling.js";
 
 function setup(): { db: DbConnection; hostId: string } {
@@ -49,10 +50,13 @@ describe("getHostPermissionCeiling", () => {
     );
   });
 
-  it("keeps every mode available before a machine is chosen", () => {
-    const { db } = setup();
-
-    expect(getHostPermissionCeiling({ db }, null)).toBe("full");
+  it("has a named answer for no machine instead of answering for one", () => {
+    // The lookup used to take a null host id and answer "full": the right answer
+    // to a different question, in the wrong shape — a security-relevant lookup
+    // that grants everything when its subject is missing. It now takes a
+    // machine (the type says so), and the answer for "no machine chosen" is a
+    // constant the two callers that mean it name.
+    expect(PERMISSION_CEILING_WITH_NO_MACHINE).toBe("full");
   });
 });
 
@@ -82,6 +86,28 @@ describe("clampPermissionModeToHost", () => {
     }
 
     expect(isHostPermissionCeilingConflictError(error)).toBe(true);
+  });
+
+  it("leaves a mode alone with no machine, which is why work clamps again with one", () => {
+    // A thread whose environment was destroyed has no machine — ordinary, not
+    // exceptional — and is still asked what mode it runs at. No machine means no
+    // machine's limit, so this answer is never the last word: the same machine,
+    // named, lowers it, and every set of options the daemon is handed goes
+    // through that clamp with a host id that is a string.
+    const { db, hostId } = setup();
+
+    expect(
+      clampPermissionModeToHost(
+        { db },
+        { hostId: null, permissionMode: "full", providerId: "codex" },
+      ),
+    ).toBe("full");
+    expect(
+      clampPermissionModeToHost(
+        { db },
+        { hostId, permissionMode: "full", providerId: "codex" },
+      ),
+    ).toBe("auto");
   });
 
   it("runs that provider once the owner raises the ceiling", () => {

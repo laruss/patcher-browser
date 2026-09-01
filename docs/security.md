@@ -484,6 +484,17 @@ Named here rather than left to be rediscovered:
   answer is still about content, so an agent that rewrites the script between
   runs gets a skipped script and a fresh question rather than a standing
   channel.
+- **A thread key outlives its turn.** The key is derived from the app key and
+  the thread id with no deadline in it, so it verifies for as long as the app key
+  does. An agent that saves the one handed to its shell can present it after the
+  turn has ended and go on acting as that thread: reading, opening terminals for
+  it, sending it new work. What it cannot do is become another thread, or the
+  app. Closing it needs a server-side store of live keys or a refresh path,
+  because the processes carrying it outlive a turn on purpose — a terminal a turn
+  opened is still there tomorrow, and a stamped deadline would stop the person
+  using it. Until then the honest part is that nothing claims otherwise: the
+  CLI's 401 hint used to say the key is refused once the turn ends, and now says
+  what the credential actually is.
 - **A terminal's network.** Named above and repeated here because it is the
   shape of what is left: an agent's terminal is confined on the filesystem and
   not on the network, so `curl` inside one reaches whatever the machine can. It

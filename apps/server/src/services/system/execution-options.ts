@@ -25,7 +25,10 @@ import type { LoggedWorkSessionDeps } from "../../types.js";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
 import { callHostRetryableOnlineRpc } from "../hosts/online-rpc.js";
-import { getHostPermissionCeiling } from "../hosts/permission-ceiling.js";
+import {
+  getHostPermissionCeiling,
+  PERMISSION_CEILING_WITH_NO_MACHINE,
+} from "../hosts/permission-ceiling.js";
 import { requireEnvironment } from "../lib/entity-lookup.js";
 import { getSupportedReasoningLevelsForProvider } from "../threads/thread-reasoning-policy.js";
 import { resolveSystemLookupHostId } from "./host-lookup.js";
@@ -431,7 +434,12 @@ export async function resolveSystemExecutionOptions(
       ? configuredRequestedProvider
       : (requestedProvider ?? providers[0]);
 
-  const permissionCeiling = getHostPermissionCeiling(deps, hostId);
+  // The picker's own state: no machine chosen yet means no machine's limit to
+  // report, and every mode stays on the table until one is.
+  const permissionCeiling =
+    hostId === null
+      ? PERMISSION_CEILING_WITH_NO_MACHINE
+      : getHostPermissionCeiling(deps, hostId);
 
   if (!modelsProvider) {
     return {

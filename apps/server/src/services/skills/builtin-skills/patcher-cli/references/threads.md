@@ -95,21 +95,25 @@ isolated|reuse`, or anchor with `--source-seq-end`. Permission mode inherits
 
 ## Long-running commands
 
-- **`patcher terminal` is refused when you call it from inside a turn**, with a
-  403 naming the reason: a terminal is a real persistent PTY on the host,
-  outside the turn's sandbox and running as the user. Everything below describes
-  the surface as the person at the machine uses it — ask them to start a
-  long-running process, or run it in the foreground within your own turn and
-  report what it printed.
+- **`patcher terminal` is yours to use from inside a turn**, for your own thread
+  and for the threads you spawned. It was refused outright once, and the reason
+  was true then: a terminal is a real persistent PTY on the host, running as the
+  user. What changed is the terminal — one you open now runs inside the same
+  boundary your turn runs in — so the scope is the question rather than the
+  route. Two things are still refused, each with a 403 naming the reason: an
+  environment or machine scope (no thread there means no turn whose boundary the
+  terminal could run inside), and a terminal a person opened, which is outside
+  your sandbox because they are not in one.
 - Its purpose is long-running commands the user may need to inspect or stop
   later: dev servers, watch tasks, REPLs, database consoles, and similar
   processes. The terminal is a real persistent PTY shown in the Patcher UI.
-- `list` and `create` require exactly one explicit scope: `--thread <id>`,
-  `--environment <id>`, or `--machine <id-or-name>` (`--host` is an alias).
-  Add `--cwd <path>` only to a machine scope. Machine targets resolve to an
-  explicit host ID; terminal commands never silently fall back to primary.
+- `list` and `create` require exactly one explicit scope: `--self` (your own
+  thread, from `PATCHER_THREAD_ID`), `--thread <id>`, `--environment <id>`, or
+  `--machine <id-or-name>` (`--host` is an alias). Add `--cwd <path>` only to a
+  machine scope. Machine targets resolve to an explicit host ID; terminal
+  commands never silently fall back to primary.
 - Start a server with
-  `patcher terminal create --thread <thread-id> --title "bun run dev" --command "bun run dev"`.
+  `patcher terminal create --self --title "bun run dev" --command "bun run dev"`.
 - All existing-session operations need only the terminal ID. Use
   `patcher terminal wait <terminal-id> --contains "Local:" --timeout 120` to wait
   for readiness from new output. Pass `--from-start` only when matching existing

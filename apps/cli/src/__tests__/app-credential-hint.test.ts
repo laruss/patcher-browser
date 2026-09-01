@@ -58,6 +58,9 @@ describe("describeRefusedCredential", () => {
     // key. Advising it to read the key file would undo that if followed.
     expect(hint).toContain(PATCHER_THREAD_KEY_ENV);
     expect(hint).not.toContain(PATCHER_APP_KEY_FILE_NAME);
+    // And it does not claim a boundary nothing enforces: the key carries no
+    // deadline, so it is not refused when the turn ends.
+    expect(hint).not.toContain("turn that issued it has ended");
   });
 
   it("says the key was presented and refused when one is set", () => {

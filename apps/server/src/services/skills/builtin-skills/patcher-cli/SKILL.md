@@ -52,10 +52,15 @@ all of them.
 - Some of this CLI is refused while you are the one calling it, because it would
   step around the sandbox your turn runs in. Each refusal is a 403 that names
   the reason, so you do not have to guess: `patcher file write|mkdir|move|remove`
-  (use your own file tools inside the workspace), `patcher terminal` (ask the
-  person in the thread to start a long-running process), and the machine
-  routes — permission limit, join codes, provider-CLI installs. Reads are not
-  affected.
+  (use your own file tools inside the workspace), the machine routes —
+  permission limit, join codes, provider-CLI installs — and whether a
+  repository's setup script may run on the machine, which the person answers in
+  the project's settings. Reads are not affected.
+- `patcher terminal` is yours to use, for your own thread and the threads you
+  spawned: `patcher terminal create --self`. A terminal you open runs inside the
+  same boundary your turn runs in. An environment or machine scope is refused
+  there, and so is a terminal a person opened — that one is outside your
+  sandbox.
 
 Give spawned threads clear prompts: objective, constraints, expected deliverable,
 validation to perform, and what to report back. Ask for outcome, changed files
