@@ -201,8 +201,16 @@ function useSettingsStoryState() {
     useState<StoredTargetId>("default-app");
   const [experiments, setExperiments] =
     useState<Experiments>(defaultExperiments);
+  const [providerEgressConfined, setProviderEgressConfined] = useState(false);
+  const [providerEgressAllowedHosts, setProviderEgressAllowedHosts] = useState<
+    string[]
+  >(["github.com"]);
 
   return {
+    providerEgressConfined,
+    setProviderEgressConfined,
+    providerEgressAllowedHosts,
+    setProviderEgressAllowedHosts,
     appearance,
     browserSearchEngineId,
     setBrowserSearchEngineId,
@@ -264,6 +272,10 @@ function GeneralSettingsStory({
       <GeneralSettingsSection
         browserSearchEngineId={state.browserSearchEngineId}
         onBrowserSearchEngineChange={state.setBrowserSearchEngineId}
+        providerEgressConfined={state.providerEgressConfined}
+        providerEgressAllowedHosts={state.providerEgressAllowedHosts}
+        onProviderEgressConfinedChange={state.setProviderEgressConfined}
+        onProviderEgressAllowedHostsChange={state.setProviderEgressAllowedHosts}
         caffeinateAvailable={caffeinateAvailable}
         caffeinateDisabled={false}
         caffeinateEnabled={state.caffeinate}

@@ -90,7 +90,11 @@ interface StartThreadArgs {
   envVars?: Record<string, string>;
   instructions?: string;
   agent?: { command: string; args: string[] };
-  agentSandbox?: { command: string; args: string[] };
+  agentSandbox?: {
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+  };
   agentSandboxWarning?: string;
   dynamicTools?: DynamicTool[];
   modelSelection?:
@@ -798,6 +802,36 @@ describe("acp bridge", () => {
 
     expect(agentMessageTexts()).toContain("argv:--model pinme acp");
     expect(readFileSync(launchLog, "utf8")).toContain("launch ");
+  });
+
+  it("hands the confined agent the environment its boundary depends on", async () => {
+    // The launcher is only half of a network-confined turn: with the OS
+    // refusing everything that leaves the machine, an agent that was never told
+    // where the proxy is reaches nothing at all. So the environment travels
+    // with the launcher, and this asserts it arrives in the agent's own
+    // process rather than stopping at the bridge.
+    chmodSync(FAKE_AGENT_PATH, 0o755);
+
+    const { providerThreadId } = await startThread({
+      agent: { command: FAKE_AGENT_PATH, args: ["acp"] },
+      agentSandbox: {
+        command: "/usr/bin/env",
+        args: [],
+        env: {
+          HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9",
+          NO_PROXY: "localhost,127.0.0.1,::1",
+        },
+      },
+    });
+    sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "echo-proxy-env", mentions: [] }],
+    });
+    await waitForTurnCompleted();
+
+    expect(agentMessageTexts()).toContain(
+      "proxy-env:http://patcher:tok@127.0.0.1:9 no:localhost,127.0.0.1,::1",
+    );
   });
 
   it("raises the unconfined-agent warning at session start", async () => {

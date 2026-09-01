@@ -1,0 +1,2 @@
+ALTER TABLE `app_settings` ADD `provider_egress_confined` integer DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `app_settings` ADD `provider_egress_allowed_hosts` text DEFAULT '[]' NOT NULL;

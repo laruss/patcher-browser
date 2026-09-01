@@ -393,7 +393,15 @@ export class RuntimeProviderProcessManager {
         `Provider "${args.providerId}" runs its own tools inside its bridge process, so a workspace-scoped turn needs that process confined, and this runtime was built without a way to confine it. Run the thread at Full Access to work without a sandbox.`,
       );
     }
-    const wrapped = wrap({ cwd: this.args.workspacePath, stateDirs });
+    // No egress half here yet: Pi has not declared which hosts it needs, and
+    // the rule is the one `stateDirs` already follows — an unmeasured
+    // declaration is not guessed at, because a list short by one host cuts the
+    // provider off from its own model instead of confining it.
+    const wrapped = wrap({
+      cwd: this.args.workspacePath,
+      stateDirs,
+      providerId: args.providerId,
+    });
     if (!wrapped.sandboxed) {
       throw new Error(
         `Provider "${args.providerId}" runs its own tools inside its bridge process, so a workspace-scoped turn needs that process confined, and this machine cannot build a sandbox: ${wrapped.reason}. Either ${wrapped.remedy}, or run the thread at Full Access to work without a sandbox.`,

@@ -1,9 +1,13 @@
 import { spawnSync } from "node:child_process";
+import net from "node:net";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildProviderSandboxLauncher } from "./provider-sandbox.js";
+import {
+  buildProviderSandboxLauncher,
+  egressProxyEnv,
+} from "./provider-sandbox.js";
 
 /**
  * A provider's own process, confined the way the turn is.
@@ -250,6 +254,166 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
       ).toBe(0);
       expect(writeInProcess(OUTSIDE_PROBE_PATH)).not.toBe(0);
       expect(existsSync(OUTSIDE_PROBE_PATH)).toBe(false);
+    });
+  },
+);
+
+describe("a turn that confines egress", () => {
+  it("is refused on Linux, where taking the network takes loopback too", () => {
+    // Measured on bubblewrap 0.9.0: `--unshare-net` is the only unprivileged
+    // way to take the network, and the namespace it makes has its own loopback
+    // — so the proxy, the local server the `patcher` CLI talks to, and the
+    // bridge an agent's plugin tools reach are all gone with it. Refusing beats
+    // confining a turn into uselessness.
+    const built = buildProviderSandboxLauncher({
+      cwd: "/workspace",
+      stateDirs: [],
+      homeDirectory: "/home/somebody",
+      additionalWorkspaceWriteRoots: [],
+      protectedRepositoryPaths: [],
+      protectedCredentialPaths: [],
+      env: {},
+      platform: "linux",
+      egress: { proxyUrl: "http://patcher:tok@127.0.0.1:1" },
+    });
+
+    if (built.sandboxed) throw new Error("Expected a refusal here");
+    expect(built.reason).toContain("network namespace");
+    expect(built.remedy).toContain("Full Access");
+  });
+
+  it("hands the process the proxy, in every spelling a client reads", () => {
+    // Both cases, because clients disagree: curl and git read the uppercase
+    // names, plenty of libraries read the lowercase ones. Asserted on the
+    // environment builder rather than through a launcher, so it holds on the
+    // platform CI runs these on — Linux, where a turn that asks for this is
+    // refused and no launcher exists to carry it.
+    const env = egressProxyEnv("http://patcher:tok@127.0.0.1:9");
+
+    expect(env.HTTPS_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.https_proxy).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.HTTP_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.http_proxy).toBe("http://patcher:tok@127.0.0.1:9");
+    // Without this an agent routes its own internal loopback through Patcher's
+    // proxy: measured on opencode, arriving here as `GET 127.0.0.1:4096`.
+    expect(env.NO_PROXY).toContain("127.0.0.1");
+    expect(env.no_proxy).toContain("localhost");
+    // Node's own clients ignore every variable above — measured, both `fetch`
+    // and `https.get` answer ENOTFOUND with them set. This is what makes a
+    // Node-based agent use the proxy on Node 24 and later; earlier versions
+    // ignore it.
+    expect(env.NODE_USE_ENV_PROXY).toBe("1");
+  });
+});
+
+describe.skipIf(!SANDBOX_AVAILABLE_HERE || process.platform !== "darwin")(
+  "egress, inside the boundary the kernel enforces",
+  () => {
+    /** Connect from inside the sandbox, and report how it failed. */
+    function connectFromInside(args: {
+      workspacePath: string;
+      host: string;
+      port: number;
+      egress: boolean;
+    }): string {
+      const built = buildProviderSandboxLauncher({
+        cwd: args.workspacePath,
+        stateDirs: [],
+        homeDirectory: homedir(),
+        additionalWorkspaceWriteRoots: [],
+        protectedRepositoryPaths: [],
+        protectedCredentialPaths: [],
+        env: process.env,
+        platform: process.platform,
+        ...(args.egress
+          ? { egress: { proxyUrl: "http://patcher:tok@127.0.0.1:9" } }
+          : {}),
+      });
+      if (!built.sandboxed) throw new Error(`No sandbox: ${built.reason}`);
+      const result = spawnSync(
+        built.launcher.command,
+        [
+          ...built.launcher.args,
+          process.execPath,
+          "-e",
+          `const s = require("node:net").connect(${args.port}, ${JSON.stringify(args.host)});
+           s.setTimeout(3000, () => { console.log("TIMEOUT"); process.exit(0); });
+           s.on("connect", () => { console.log("CONNECTED"); process.exit(0); });
+           s.on("error", (e) => { console.log(e.code); process.exit(0); });`,
+        ],
+        { cwd: args.workspacePath, encoding: "utf8", timeout: 20_000 },
+      );
+      return result.stdout.trim();
+    }
+
+    it("carries the proxy on the launch, and nothing when the turn does not ask", () => {
+      const fixture = createFixture();
+      fixtures.push(fixture);
+      const shared = {
+        cwd: fixture.workspacePath,
+        stateDirs: [],
+        homeDirectory: homedir(),
+        additionalWorkspaceWriteRoots: [],
+        protectedRepositoryPaths: [],
+        protectedCredentialPaths: [],
+        env: process.env,
+        platform: process.platform,
+      };
+
+      const confined = buildProviderSandboxLauncher({
+        ...shared,
+        egress: { proxyUrl: "http://patcher:tok@127.0.0.1:9" },
+      });
+      const untouched = buildProviderSandboxLauncher(shared);
+
+      if (!confined.sandboxed || !untouched.sandboxed) {
+        throw new Error("Expected a sandbox here");
+      }
+      expect(confined.env?.HTTPS_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
+      expect(untouched.env).toBeUndefined();
+    });
+
+    it("refuses what leaves the machine and keeps loopback", async () => {
+      const fixture = createFixture();
+      fixtures.push(fixture);
+      const server = net.createServer((socket) => socket.end());
+      await new Promise<void>((resolve) =>
+        server.listen(0, "127.0.0.1", resolve),
+      );
+      const loopbackPort = (server.address() as net.AddressInfo).port;
+
+      try {
+        // 203.0.113.0/24 is TEST-NET-3: reserved and unroutable, so the deny
+        // has to be what answers rather than the internet. Denied it is EPERM
+        // at once; allowed it would sit there until the timeout, which is what
+        // the unconfined run below shows.
+        expect(
+          connectFromInside({
+            workspacePath: fixture.workspacePath,
+            host: "203.0.113.1",
+            port: 443,
+            egress: true,
+          }),
+        ).toBe("EPERM");
+        expect(
+          connectFromInside({
+            workspacePath: fixture.workspacePath,
+            host: "127.0.0.1",
+            port: loopbackPort,
+            egress: true,
+          }),
+        ).toBe("CONNECTED");
+        expect(
+          connectFromInside({
+            workspacePath: fixture.workspacePath,
+            host: "203.0.113.1",
+            port: 443,
+            egress: false,
+          }),
+        ).not.toBe("EPERM");
+      } finally {
+        server.close();
+      }
     });
   },
 );

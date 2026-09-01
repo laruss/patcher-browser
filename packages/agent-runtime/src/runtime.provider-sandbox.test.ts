@@ -146,7 +146,14 @@ describe("a provider whose own bridge is the turn's boundary", () => {
     // The turn ran, so the launcher was really in front of the bridge rather
     // than only recorded: `/usr/bin/env node …` is what started it.
     expect(wrapCalls).toEqual([
-      { cwd: workspacePath, stateDirs: PI_BRIDGE_STATE_DIRS },
+      // No `egress`: Pi has declared no hosts, so its network is left alone
+      // rather than confined to a guess. The provider id travels because a
+      // refused connection has to be recorded against somebody.
+      {
+        cwd: workspacePath,
+        stateDirs: PI_BRIDGE_STATE_DIRS,
+        providerId: "pi",
+      },
     ]);
     await runtime.shutdown();
   });

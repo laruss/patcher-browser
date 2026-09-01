@@ -1369,7 +1369,11 @@ export function createAcpProviderAdapter(
     cwd: string;
   }): {
     agent: { command: string; args: string[] };
-    agentSandbox?: { command: string; args: string[] };
+    agentSandbox?: {
+      command: string;
+      args: string[];
+      env?: Record<string, string>;
+    };
     agentSandboxWarning?: string;
   } {
     const agent = {
@@ -1388,13 +1392,49 @@ export function createAcpProviderAdapter(
           "Run the thread at Full Access if that is what you want.",
       };
     }
-    const wrapped = wrap({ cwd: args.cwd, stateDirs: profile.stateDirs });
+    // The network half is a second declaration, read the same way as the
+    // first: hosts nobody measured cannot be guessed at, because a list short
+    // by one host cuts the agent off from its own model rather than confining
+    // it. So an agent without one keeps its network and the thread says so.
+    const egressRequested =
+      args.command.options.providerEgressConfined === true;
+    const egressHosts = profile.egressHosts;
+    const wrapped = wrap({
+      cwd: args.cwd,
+      stateDirs: profile.stateDirs,
+      providerId: profile.providerId,
+      threadId: args.command.threadId,
+      ...(egressRequested && egressHosts !== undefined
+        ? {
+            egress: {
+              allowedHosts: [
+                ...egressHosts,
+                ...(args.command.options.providerEgressAllowedHosts ?? []),
+              ],
+            },
+          }
+        : {}),
+    });
     if (!wrapped.sandboxed) {
       throw new Error(
         `Permission mode "${args.command.options.permissionMode}" runs the agent inside a workspace sandbox, and this machine cannot build one: ${wrapped.reason}. Either ${wrapped.remedy}, or run the thread at Full Access to work without a sandbox.`,
       );
     }
-    return { agent, agentSandbox: wrapped.launcher };
+    return {
+      agent,
+      agentSandbox: {
+        ...wrapped.launcher,
+        ...(wrapped.env !== undefined ? { env: wrapped.env } : {}),
+      },
+      ...(egressRequested && egressHosts === undefined
+        ? {
+            agentSandboxWarning:
+              `${profile.displayName} has not declared which hosts it needs, so this turn's network is not confined: ` +
+              "everything else about its sandbox still holds, and what it sends off the machine is not checked against a list. " +
+              "Declare the agent's hosts in its configuration to confine it.",
+          }
+        : {}),
+    };
   }
 
   function buildSessionParams(

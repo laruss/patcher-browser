@@ -342,6 +342,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropOnboardingCompletedAtColumn(db);
   dropBrowserSearchEngineIdColumn(db);
   dropCodexNetworkDisabledColumn(db);
+  dropProviderEgressColumns(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -615,6 +616,26 @@ function dropCodexNetworkDisabledColumn(db: DbConnection): void {
     db.$client
       .prepare("ALTER TABLE app_settings DROP COLUMN codex_network_disabled")
       .run();
+  }
+}
+
+/**
+ * Migration 0100 adds the provider egress switch and its host list, after the
+ * same checkpoints as 0098 — so the same rewind has to take both columns.
+ */
+function dropProviderEgressColumns(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
+    .all();
+  for (const column of [
+    "provider_egress_confined",
+    "provider_egress_allowed_hosts",
+  ]) {
+    if (columns.some((existing) => existing.name === column)) {
+      db.$client
+        .prepare(`ALTER TABLE app_settings DROP COLUMN ${column}`)
+        .run();
+    }
   }
 }
 
@@ -1422,6 +1443,7 @@ describe("migrate", () => {
     dropOnboardingCompletedAtColumn(db);
     dropBrowserSearchEngineIdColumn(db);
     dropCodexNetworkDisabledColumn(db);
+    dropProviderEgressColumns(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
     dropTerminalSandboxedColumn(db);
@@ -1522,6 +1544,7 @@ describe("migrate", () => {
     // `ALTER TABLE ... ADD` is not re-appliable.
     dropTerminalSandboxedColumn(db);
     dropCodexNetworkDisabledColumn(db);
+    dropProviderEgressColumns(db);
 
     migrate(db);
 
@@ -1788,6 +1811,7 @@ describe("migrate", () => {
       dropOnboardingCompletedAtColumn(db);
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
+      dropProviderEgressColumns(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2190,6 +2214,7 @@ describe("migrate", () => {
       dropOnboardingCompletedAtColumn(db);
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
+      dropProviderEgressColumns(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2289,6 +2314,7 @@ describe("migrate", () => {
       dropOnboardingCompletedAtColumn(db);
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
+      dropProviderEgressColumns(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);

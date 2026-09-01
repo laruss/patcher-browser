@@ -83,6 +83,15 @@ export function sameExecutionSettings(
     // has to restart one rather than wait for a turn that never re-reads it.
     (args.left.providerNetworkRestricted ?? false) ===
       (args.right.providerNetworkRestricted ?? false) &&
+    // Same reason: the boundary is built when the provider process starts, so
+    // changing either half has to restart the session rather than take effect
+    // on a turn nobody rebuilt the launcher for.
+    (args.left.providerEgressConfined ?? false) ===
+      (args.right.providerEgressConfined ?? false) &&
+    sameHostList(
+      args.left.providerEgressAllowedHosts,
+      args.right.providerEgressAllowedHosts,
+    ) &&
     args.left.claudeCodePermissionMode ===
       args.right.claudeCodePermissionMode &&
     leftMockCliTraffic.enabled === rightMockCliTraffic.enabled &&
@@ -92,6 +101,20 @@ export function sameExecutionSettings(
     args.left.approvalReviewer === args.right.approvalReviewer &&
     args.left.permissionEscalation === args.right.permissionEscalation
   );
+}
+
+/** Order matters as little as duplicates do: this is a set written as a list. */
+function sameHostList(
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): boolean {
+  const leftSet = new Set(left ?? []);
+  const rightSet = new Set(right ?? []);
+  if (leftSet.size !== rightSet.size) return false;
+  for (const host of leftSet) {
+    if (!rightSet.has(host)) return false;
+  }
+  return true;
 }
 
 export function classifySessionExecutionSettingsChange(
@@ -173,6 +196,8 @@ export function toProviderExecutionContext(
     memoryEnabled: args.execOpts.memoryEnabled,
     providerSubagentsEnabled: args.execOpts.providerSubagentsEnabled,
     providerNetworkRestricted: args.execOpts.providerNetworkRestricted,
+    providerEgressConfined: args.execOpts.providerEgressConfined,
+    providerEgressAllowedHosts: args.execOpts.providerEgressAllowedHosts,
     ...permissionPolicy,
     instructions: args.instructions,
     envVars: args.envVars,

@@ -1478,6 +1478,10 @@ async function startAgentSession(
   const childEnv = {
     ...withoutBridgeRuntimeEnv(process.env),
     ...params.envVars,
+    // Last, so the boundary's own variables cannot be overwritten by a turn's:
+    // an agent pointed at a different proxy, or given `NO_PROXY=*`, is confined
+    // to nothing.
+    ...(params.agentSandbox?.env ?? {}),
   };
   // The sandbox launcher goes on last, around the finished argv: the model flag
   // and the permission args above belong to the agent, and a launcher folded

@@ -15,6 +15,7 @@ import type {
 } from "@patcher/host-daemon-contract";
 import { Button } from "@patcher/shared-ui/button";
 import { Icon } from "@patcher/shared-ui/icon";
+import { Input } from "@patcher/shared-ui/input";
 import { Switch } from "@patcher/shared-ui/switch";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@patcher/shared-ui/coarse-pointer-sizing";
 import {
@@ -195,6 +196,10 @@ export interface GeneralSettingsSectionProps {
   replayOnboardingAvailable: boolean;
   steerActiveThreadOnEnter: boolean;
   steerActiveThreadOnEnterDisabled: boolean;
+  providerEgressConfined: boolean;
+  providerEgressAllowedHosts: string[];
+  onProviderEgressConfinedChange: (confined: boolean) => void;
+  onProviderEgressAllowedHostsChange: (hosts: string[]) => void;
 }
 
 export type DebugSettingsSectionProps =
@@ -881,6 +886,66 @@ export function AppearanceSettingsSection({
   );
 }
 
+const PROVIDER_EGRESS_SETTING_LABEL = "Confine the network of sandboxed turns";
+
+export interface ProviderEgressSettingsControlProps {
+  confined: boolean;
+  allowedHosts: string[];
+  onConfinedChange: (confined: boolean) => void;
+  onAllowedHostsChange: (hosts: string[]) => void;
+}
+
+/**
+ * The switch, and the list it is worth nothing without.
+ *
+ * They belong in one control because turning the switch on without a list
+ * leaves a turn that reaches its agent's own hosts and nothing else — no
+ * package registry, no git host. The description says what it does not cover
+ * rather than leaving that to be discovered by a refused connection.
+ */
+export function ProviderEgressSettingsControl({
+  confined,
+  allowedHosts,
+  onConfinedChange,
+  onAllowedHostsChange,
+}: ProviderEgressSettingsControlProps) {
+  return (
+    <div className="space-y-2.5">
+      <SettingsWithControl
+        label={PROVIDER_EGRESS_SETTING_LABEL}
+        description="A sandboxed ACP turn reaches only the hosts its agent declared and the ones listed here. macOS only. SSH git remotes stop working, HTTPS ones keep working. Pi is not covered yet: it has not declared which hosts it needs."
+      >
+        <Switch
+          checked={confined}
+          onCheckedChange={onConfinedChange}
+          aria-label={PROVIDER_EGRESS_SETTING_LABEL}
+        />
+      </SettingsWithControl>
+      {confined ? (
+        <Input
+          // Keyed on the saved value so a change made elsewhere replaces what
+          // is in the field, rather than being hidden by a stale draft.
+          key={allowedHosts.join(",")}
+          defaultValue={allowedHosts.join(", ")}
+          aria-label="Allowed hosts"
+          placeholder="github.com, registry.npmjs.org, *.githubusercontent.com"
+          onBlur={(event) =>
+            onAllowedHostsChange(parseAllowedHosts(event.target.value))
+          }
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** Comma separated, because a host cannot contain a comma. */
+function parseAllowedHosts(value: string): string[] {
+  return value
+    .split(",")
+    .map((host) => host.trim())
+    .filter((host) => host !== "");
+}
+
 export function GeneralSettingsSection({
   browserSearchEngineId,
   onBrowserSearchEngineChange,
@@ -902,6 +967,10 @@ export function GeneralSettingsSection({
   steerActiveThreadOnEnter,
   steerActiveThreadOnEnterDisabled,
   onReplayOnboarding,
+  providerEgressConfined,
+  providerEgressAllowedHosts,
+  onProviderEgressConfinedChange,
+  onProviderEgressAllowedHostsChange,
 }: GeneralSettingsSectionProps) {
   return (
     <SettingsSection title="General">
@@ -951,6 +1020,13 @@ export function GeneralSettingsSection({
         <RewriteLocalhostLinksSettingsControl
           enabled={rewriteLocalhostLinks}
           onEnabledChange={onRewriteLocalhostLinksChange}
+        />
+
+        <ProviderEgressSettingsControl
+          confined={providerEgressConfined}
+          allowedHosts={providerEgressAllowedHosts}
+          onConfinedChange={onProviderEgressConfinedChange}
+          onAllowedHostsChange={onProviderEgressAllowedHostsChange}
         />
 
         {replayOnboardingAvailable ? (
@@ -1371,6 +1447,22 @@ export function SettingsView() {
           }
           caffeinateEnabled={generalSettings.caffeinate}
           browserSearchEngineId={generalSettings.browserSearchEngineId}
+          providerEgressConfined={generalSettings.providerEgressConfined}
+          providerEgressAllowedHosts={
+            generalSettings.providerEgressAllowedHosts
+          }
+          onProviderEgressConfinedChange={(confined) =>
+            updateGeneralSettingsMutation.mutate({
+              ...generalSettings,
+              providerEgressConfined: confined,
+            })
+          }
+          onProviderEgressAllowedHostsChange={(hosts) =>
+            updateGeneralSettingsMutation.mutate({
+              ...generalSettings,
+              providerEgressAllowedHosts: hosts,
+            })
+          }
           desktopBrowserAvailable={desktopBrowserAvailable}
           navigateToThreadAfterCreate={navigateToThreadAfterCreate}
           openLinksInAppBrowser={openLinksInAppBrowser}

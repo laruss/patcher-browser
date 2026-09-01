@@ -122,6 +122,16 @@ export type AcpBridgeModelSelection = z.infer<
 const acpBridgeAgentSandboxSchema = z.object({
   command: z.string().min(1),
   args: z.array(z.string()),
+  /**
+   * Environment the confinement itself needs — the egress proxy's address, with
+   * the per-launch token in it, and the loopback exclusion that keeps the
+   * agent's own internal traffic out of the proxy. Absent when only the
+   * filesystem is confined.
+   *
+   * It travels with the launcher because it is part of the same boundary: a
+   * process confined to a proxy it was never told about reaches nothing.
+   */
+  env: z.record(z.string().min(1), z.string()).optional(),
 });
 
 const acpBridgeSessionParamsSchema = z.object({

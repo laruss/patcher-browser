@@ -25,11 +25,16 @@ import path from "node:path";
  *   under seatbelt, "Permission denied" under the `/dev/null` bind, which is a
  *   character device where a regular file was.
  *
- * The network is not confined, and that is a decision rather than an omission.
- * A blocked connection in a terminal has nowhere to raise a prompt — nobody can
- * grant it back — so confining it would turn `npm install` and `git push` into
- * silent failures. The class this closes is the filesystem one, which is what
- * made the route a hole; `docs/security.md` says so in as many words.
+ * A terminal's network is not confined, and that is a decision rather than an
+ * omission. A blocked connection in a terminal has nowhere to raise a prompt —
+ * nobody can grant it back — so confining it would turn `npm install` and `git
+ * push` into silent failures. The class this closes for a terminal is the
+ * filesystem one, which is what made the route a hole; `docs/security.md` says
+ * so in as many words.
+ *
+ * A *provider process* can ask for more, through `egressConfined` below: there
+ * the way out is a proxy Patcher runs, so a refused host is a list somebody can
+ * change rather than a dead end. Terminals leave it unset.
  *
  * One visible edge on macOS: a login shell cannot write the user's own
  * `~/.zsh_history`, and says so once at startup. Left alone deliberately — the
@@ -47,6 +52,21 @@ export interface TerminalSandboxPolicy {
   readOnlyPaths: readonly string[];
   /** Files that must not be read at all. */
   deniedReadPaths: readonly string[];
+  /**
+   * Refuse every outbound connection that leaves the machine, leaving loopback
+   * alone. Set for a provider process whose turn confines egress, where the
+   * only way out is the proxy Patcher runs (`egress-proxy.ts`); a terminal
+   * leaves it unset, for the reason in this file's header.
+   *
+   * Loopback stays open, and that is the decision rather than an oversight: the
+   * `patcher` CLI reaches the local server over it, so does an ACP agent's
+   * plugin-tool MCP server, and an agent that runs its own local server —
+   * opencode does — cannot start without it. Measured: with loopback denied,
+   * opencode dies on "Failed to start server on port 0". What that leaves is
+   * named in `docs/security.md`: a local service that has the network of its
+   * own is a way around the proxy for whoever goes looking.
+   */
+  egressConfined?: boolean;
 }
 
 export interface TerminalCommand {
@@ -219,6 +239,19 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
     // The shell's own terminal, and the sinks every command writes to.
     '(allow file-write* (regex #"^/dev/ttys[0-9]+$"))',
     '(allow file-write-data (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/stdout") (literal "/dev/stderr"))',
+    // Egress, when the policy asks for it: everything off the machine is
+    // refused, loopback in every direction is not. Measured under this profile —
+    // a direct `https://example.com` cannot even resolve a name, while the same
+    // request through a loopback proxy answers 200, and `CONNECT` carries the
+    // hostname so nothing has to terminate TLS to read it.
+    ...(args.policy.egressConfined === true
+      ? [
+          "(deny network*)",
+          '(allow network-outbound (remote ip "localhost:*"))',
+          '(allow network-bind (local ip "localhost:*"))',
+          '(allow network-inbound (local ip "localhost:*"))',
+        ]
+      : []),
     // After the allows: a rule later in the profile wins, and these sit inside
     // the workspace the line above just made writable.
     ...resolvedPaths(args.policy.readOnlyPaths).map(
@@ -310,6 +343,24 @@ export function buildTerminalSandboxLauncher(
   }
 
   if (args.platform === "linux") {
+    if (args.policy.egressConfined === true) {
+      // Measured in a container on bubblewrap 0.9.0: `--unshare-net` is the
+      // only unprivileged way to take the network, and it takes the host's
+      // loopback with it — a fresh namespace has its own. So the proxy on
+      // 127.0.0.1 is unreachable from inside, and so are the local server the
+      // `patcher` CLI talks to and the bridge an agent's plugin tools reach. A
+      // bind-mounted unix socket *does* cross into the namespace, which is what
+      // the Linux half will be built on; until Patcher's own channels travel
+      // that way, this refuses instead of confining a turn into uselessness.
+      return {
+        sandboxed: false,
+        reason:
+          "bubblewrap can only take the network by taking the whole network namespace, " +
+          "which also takes the loopback the `patcher` CLI and plugin tools reach Patcher through",
+        remedy:
+          'turn off Settings → General → "Confine the network of sandboxed turns", or run the thread at Full Access',
+      };
+    }
     const helperPath = resolveLinuxSandboxHelper(args);
     if (helperPath === null) {
       return {

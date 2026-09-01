@@ -1009,6 +1009,74 @@ describe("thread runtime config", () => {
     });
   });
 
+  it("carries the egress boundary to Pi and ACP, and to nobody else", async () => {
+    // A different switch from the Codex one above and deliberately not the
+    // same: Codex sandboxes its own commands and its model traffic is outside
+    // that, while for Pi and ACP the sandbox is around the provider process
+    // itself. Codex and Claude Code are left out so that toggling this cannot
+    // restart their sessions for a boundary they never build.
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps, {
+        id: "host-provider-egress-setting",
+      });
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+      });
+
+      async function build(providerId: string, model: string) {
+        const thread = seedThread(harness.deps, {
+          projectId: project.id,
+          environmentId: environment.id,
+          providerId,
+        });
+        const execution = await resolveExecutionOptions(harness.deps, {
+          threadId: thread.id,
+          requestedExecution: { model, source: "client/turn/requested" },
+        });
+        return buildThreadStartCommand(harness.deps, {
+          environment,
+          execution,
+          fork: null,
+          permissionEscalation: "ask",
+          input: textInput("hello"),
+          projectId: project.id,
+          providerId,
+          requestId: encodeClientTurnRequestIdNumber({ value: 1 }),
+          syncGeneratedTitle: false,
+          thread,
+        });
+      }
+
+      expect(
+        (await build("acp-cursor", "auto")).options.providerEgressConfined,
+      ).toBe(false);
+
+      setAppSettings(harness.db, {
+        ...defaultAppSettings,
+        providerEgressConfined: true,
+        providerEgressAllowedHosts: ["github.com"],
+      });
+
+      const cursor = await build("acp-cursor", "auto");
+      expect(cursor.options.providerEgressConfined).toBe(true);
+      expect(cursor.options.providerEgressAllowedHosts).toEqual(["github.com"]);
+      expect((await build("pi", "gpt-5")).options.providerEgressConfined).toBe(
+        true,
+      );
+      expect(
+        (await build("codex", "gpt-5")).options.providerEgressConfined,
+      ).toBe(false);
+      expect(
+        (await build("claude-code", "claude-sonnet-4-6")).options
+          .providerEgressConfined,
+      ).toBe(false);
+    });
+  });
+
   it("carries provider-native feature settings independently", async () => {
     await withTestHarness(async (harness) => {
       setAppSettings(harness.db, {

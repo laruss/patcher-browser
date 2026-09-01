@@ -68,6 +68,18 @@ export interface WrapAcpAgentLaunchArgs {
   cwd: string;
   /** `$HOME`-relative directories the agent writes its own state into. */
   stateDirs: readonly string[];
+  /** Whose process this is, which is what a refused connection is recorded as. */
+  providerId: string;
+  /** The thread this launch serves, where the launch is made for one. */
+  threadId?: string;
+  /**
+   * Confine what leaves the machine to these hostnames, routed through the
+   * proxy the daemon runs. Absent means the network is left alone, which is
+   * what every launch did before this existed and what a provider that has not
+   * declared its own hosts still gets — confining an unmeasured provider would
+   * cut it off from its own model.
+   */
+  egress?: { allowedHosts: readonly string[] };
 }
 
 /**
@@ -77,7 +89,17 @@ export interface WrapAcpAgentLaunchArgs {
  * flag that must precede the `acp` subcommand, so it lands first.
  */
 export type WrapAcpAgentLaunchResult =
-  | { sandboxed: true; launcher: { command: string; args: string[] } }
+  | {
+      sandboxed: true;
+      launcher: { command: string; args: string[] };
+      /**
+       * Environment the confined process needs to find its way out — the proxy
+       * URL and the loopback exclusion, when the launch confines egress. Empty
+       * otherwise. It carries a per-launch secret, so it belongs on the child's
+       * environment and nowhere a timeline or a log can reach.
+       */
+      env?: Record<string, string>;
+    }
   | { sandboxed: false; reason: string; remedy: string };
 
 export type WrapAcpAgentLaunch = (
@@ -191,6 +213,17 @@ export type ProviderExecutionContext = {
    * existed and what the app setting behind it defaults to.
    */
   providerNetworkRestricted?: boolean;
+  /**
+   * Route what a sandboxed turn sends off the machine through Patcher's proxy.
+   *
+   * Pi and ACP only — the providers whose own process Patcher confines, where
+   * an absolute deny would cut the agent off from its model. Their adapters
+   * combine this with the hosts the provider itself declared; every other
+   * provider receives it and ignores it.
+   */
+  providerEgressConfined?: boolean;
+  /** Hostnames the person allowed, on top of the provider's own. */
+  providerEgressAllowedHosts?: readonly string[];
   instructions?: string;
   envVars?: Record<string, string>;
   skillRoots?: readonly AgentRuntimeSkillRoot[];

@@ -61,6 +61,26 @@ export interface AcpAgentProfile {
    * person who registers their own agent can answer for it in config.
    */
   stateDirs?: readonly string[];
+  /**
+   * Hostnames the agent needs to reach to do its work, for a turn whose egress
+   * is confined to Patcher's proxy.
+   *
+   * Read exactly like `stateDirs`, and measured the same way — by running the
+   * agent with everything else refused and watching what it asks the proxy for.
+   * Cursor's is one host and comes from a *whole* turn rather than a session
+   * start: a session that begins is not a session that can answer, and a list
+   * short by one host would break the turn at the worst moment.
+   *
+   * Absent says nobody has measured this agent, and then the turn's network is
+   * left alone rather than confined on a guess — the same rule, and for the
+   * same reason: cut off from its own model, the agent is not sandboxed, it is
+   * broken. `[]` would say the agent needs no network at all.
+   *
+   * What is deliberately *not* here is anything the work needs — a package
+   * registry, a git host. Those are the person's to allow, because they belong
+   * to the repository rather than to the agent.
+   */
+  egressHosts?: readonly string[];
 }
 
 interface BuiltInAcpAgentProfile extends AcpAgentProfile {
@@ -79,6 +99,10 @@ export const ACP_AGENT_PROFILES: readonly BuiltInAcpAgentProfile[] = [
     agentCommand: { command: "cursor-agent", args: ["acp"] },
     // Measured: without this the session cannot be created at all.
     stateDirs: [".cursor"],
+    // Measured across a whole turn inside the confined profile — `initialize`,
+    // `session/new`, a prompt answered `end_turn` — with every other host
+    // refused: Cursor asked for this one and nothing else.
+    egressHosts: ["api2.cursor.sh"],
     // Global flags must precede the `acp` subcommand, matching the documented
     // `cursor-agent --api-key ... acp` form.
     modelCli: {

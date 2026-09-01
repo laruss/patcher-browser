@@ -264,6 +264,15 @@ export const appSettings = sqliteTable("app_settings", {
   })
     .notNull()
     .default(false),
+  providerEgressConfined: integer("provider_egress_confined", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
+  /** JSON array of hostnames, like `keybinding_overrides` above. */
+  providerEgressAllowedHosts: text("provider_egress_allowed_hosts")
+    .notNull()
+    .default("[]"),
   keybindingOverrides: text("keybinding_overrides").notNull().default("[]"),
   /** ISO timestamp of the last onboarding completion/dismissal; null = never. */
   onboardingCompletedAt: text("onboarding_completed_at"),
