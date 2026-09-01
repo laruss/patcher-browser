@@ -132,6 +132,12 @@ function toProviderAdapterFactoryOptions(
     ...(options?.turnIdPrefix !== undefined
       ? { turnIdPrefix: options.turnIdPrefix }
       : {}),
+    // Explicit, like every field above: this list is what a dynamic ACP
+    // provider gets, and a sandbox that silently did not reach it would present
+    // as a confined turn and not be one.
+    ...(options?.wrapAcpAgentLaunch !== undefined
+      ? { wrapAcpAgentLaunch: options.wrapAcpAgentLaunch }
+      : {}),
   };
 }
 

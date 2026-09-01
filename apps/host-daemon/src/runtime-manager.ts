@@ -47,6 +47,8 @@ import {
 } from "./injected-skills.js";
 import { reconnectProvisionArgs } from "./workspace-provision-target.js";
 import type { FetchSkillTree } from "./skill-trees.js";
+import { buildAcpAgentSandboxLauncher } from "./acp-agent-sandbox.js";
+import type { WrapAcpAgentLaunchResult } from "@patcher/agent-runtime";
 
 type StopWatching = () => void | Promise<void>;
 
@@ -1256,6 +1258,42 @@ export class RuntimeManager {
     return events;
   }
 
+  /**
+   * The launcher that runs an ACP provider inside this turn's boundary.
+   *
+   * The same sandbox a terminal gets, from the same module and with the same
+   * policy shape: the workspace and the git roots beside it writable, the files
+   * git executes read-only, Patcher's own credential files unreadable. Two
+   * differences, both measured rather than assumed:
+   *
+   * - The provider writes its own state outside the workspace and cannot start
+   *   without it. `cursor-agent acp` answers `session/new` with
+   *   `EPERM … ~/.cursor/cli-config.json.tmp` until that directory is writable.
+   *   Which directories those are is the profile's to declare (`stateDirs`).
+   * - Nothing is denied on the network, deliberately, exactly as for terminals.
+   *   The class this closes is the filesystem one: measured on Cursor, an
+   *   unconfined turn's own shell writes into the home directory, and a confined
+   *   one is refused while its work inside the workspace still succeeds.
+   *
+   * A machine that cannot build a sandbox gets a refusal rather than an
+   * unconfined provider — the adapter turns this into the same message the
+   * Claude Code bridge gives for a sandboxed mode it cannot honour.
+   */
+  private wrapAcpAgentLaunch(args: {
+    cwd: string;
+    stateDirs: readonly string[];
+    additionalWorkspaceWriteRoots: readonly string[];
+    protectedRepositoryPaths: readonly string[];
+  }): WrapAcpAgentLaunchResult {
+    return buildAcpAgentSandboxLauncher({
+      ...args,
+      env: process.env,
+      homeDirectory: process.env.HOME,
+      platform: process.platform,
+      protectedCredentialPaths: this.protectedCredentialPaths(),
+    });
+  }
+
   private async createProviderMaintenanceRuntime(args: {
     dataDir: string;
   }): Promise<AgentRuntime> {
@@ -1350,6 +1388,16 @@ export class RuntimeManager {
       additionalWorkspaceWriteRoots,
       protectedCredentialPaths: this.protectedCredentialPaths(),
       protectedRepositoryPaths,
+      // An ACP provider has no sandbox of its own — its `accept-edits` is a
+      // path check in the bridge, and the agent's own shell is not held to it.
+      // The sandbox Patcher builds for terminals is the same shape (filesystem,
+      // not network), so the provider's process runs inside one too.
+      wrapAcpAgentLaunch: (launch) =>
+        this.wrapAcpAgentLaunch({
+          ...launch,
+          additionalWorkspaceWriteRoots,
+          protectedRepositoryPaths,
+        }),
       ...(args.skillConfig ? { skillRoots: args.skillConfig.skillRoots } : {}),
       ...(providerProcessEnv ? { env: providerProcessEnv } : {}),
       shellEnv,

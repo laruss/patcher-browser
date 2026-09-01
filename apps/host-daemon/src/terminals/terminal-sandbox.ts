@@ -58,8 +58,21 @@ export type TerminalSandboxLaunch =
   | { sandboxed: true; command: TerminalCommand }
   | { sandboxed: false; reason: string; remedy: string };
 
-export interface BuildTerminalSandboxLaunchArgs {
-  command: TerminalCommand;
+/**
+ * The same sandbox as a launcher, for a caller that has no argv to give yet.
+ *
+ * `launcher.file [...launcher.args, file, ...args]` is exactly what
+ * `buildTerminalSandboxLaunch` builds: the policy depends on where a process
+ * runs, never on what it is. The ACP bridge is why this shape exists — it
+ * appends the agent's own model and permission flags after Patcher has decided
+ * whether the turn is confined, and a launcher folded into the command would
+ * have taken those flags for itself.
+ */
+export type TerminalSandboxLauncher =
+  | { sandboxed: true; launcher: TerminalCommand }
+  | { sandboxed: false; reason: string; remedy: string };
+
+export interface BuildTerminalSandboxLauncherArgs {
   cwd: string;
   env: NodeJS.ProcessEnv;
   platform: NodeJS.Platform;
@@ -70,6 +83,10 @@ export interface BuildTerminalSandboxLaunchArgs {
    * machines CI runs on and a positive result there would prove nothing.
    */
   wellKnownHelperPaths?: readonly string[];
+}
+
+export interface BuildTerminalSandboxLaunchArgs extends BuildTerminalSandboxLauncherArgs {
+  command: TerminalCommand;
 }
 
 const MACOS_SANDBOX_EXECUTABLE = "/usr/bin/sandbox-exec";
@@ -130,7 +147,7 @@ function probeLinuxSandbox(helperPath: string): string | null {
 }
 
 function resolveLinuxSandboxHelper(
-  args: BuildTerminalSandboxLaunchArgs,
+  args: BuildTerminalSandboxLauncherArgs,
 ): string | null {
   for (const directory of (args.env.PATH ?? "").split(path.delimiter)) {
     if (directory.length === 0) continue;
@@ -181,7 +198,7 @@ function quoteForSeatbelt(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
-function buildSeatbeltProfile(args: BuildTerminalSandboxLaunchArgs): string {
+function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
   const writable = resolvedPaths([
     args.policy.workspacePath,
     ...args.policy.writableRoots,
@@ -215,7 +232,7 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLaunchArgs): string {
   ].join("\n");
 }
 
-function buildBubblewrapArgs(args: BuildTerminalSandboxLaunchArgs): string[] {
+function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
   const bindArgs: string[] = [
     // Everything readable, nothing writable, and then the exceptions: bwrap
     // applies binds in order, so each one below overrides the root above it.
@@ -247,13 +264,7 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLaunchArgs): string[] {
     if (!pathExists(deniedPath)) continue;
     bindArgs.push("--bind", "/dev/null", deniedPath);
   }
-  return [
-    ...bindArgs,
-    "--chdir",
-    resolvedPath(args.cwd),
-    args.command.file,
-    ...args.command.args,
-  ];
+  return [...bindArgs, "--chdir", resolvedPath(args.cwd)];
 }
 
 /**
@@ -266,6 +277,21 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLaunchArgs): string[] {
 export function buildTerminalSandboxLaunch(
   args: BuildTerminalSandboxLaunchArgs,
 ): TerminalSandboxLaunch {
+  const built = buildTerminalSandboxLauncher(args);
+  if (!built.sandboxed) return built;
+  return {
+    sandboxed: true,
+    command: {
+      file: built.launcher.file,
+      args: [...built.launcher.args, args.command.file, ...args.command.args],
+    },
+  };
+}
+
+/** The launcher half of the above; see `TerminalSandboxLauncher`. */
+export function buildTerminalSandboxLauncher(
+  args: BuildTerminalSandboxLauncherArgs,
+): TerminalSandboxLauncher {
   if (args.platform === "darwin") {
     if (!isExecutableFile(MACOS_SANDBOX_EXECUTABLE)) {
       return {
@@ -276,14 +302,9 @@ export function buildTerminalSandboxLaunch(
     }
     return {
       sandboxed: true,
-      command: {
+      launcher: {
         file: MACOS_SANDBOX_EXECUTABLE,
-        args: [
-          "-p",
-          buildSeatbeltProfile(args),
-          args.command.file,
-          ...args.command.args,
-        ],
+        args: ["-p", buildSeatbeltProfile(args)],
       },
     };
   }
@@ -309,7 +330,7 @@ export function buildTerminalSandboxLaunch(
     }
     return {
       sandboxed: true,
-      command: { file: helperPath, args: buildBubblewrapArgs(args) },
+      launcher: { file: helperPath, args: buildBubblewrapArgs(args) },
     };
   }
 

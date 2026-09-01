@@ -42,7 +42,44 @@ export interface ProviderAdapterFactoryOptions {
   bridgeNodeEnv?: Record<string, string>;
   bridgeNodeExecutablePath?: string;
   turnIdPrefix?: string;
+  /**
+   * Confines an ACP provider's own process, where the host can build a sandbox.
+   *
+   * Supplied by the daemon, because the sandbox is the daemon's: seatbelt and
+   * bubblewrap are platform code and the ACP bridge is a separate process, so
+   * nothing here can be a function the bridge calls. What crosses is the
+   * *result* — a launcher the bridge spawns the agent through — decided in the
+   * daemon and sent with the session it belongs to.
+   *
+   * The class this closes is the one Pi and ACP still have open: the path check
+   * for `fs/write_text_file` lives in the bridge, and the agent's own shell is
+   * not held to it. Measured on Cursor: unconfined, a turn's shell writes into
+   * the home directory; confined, the same command is refused while its work
+   * inside the workspace still succeeds.
+   */
+  wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
 }
+
+export interface WrapAcpAgentLaunchArgs {
+  /** The turn's working directory, which is the writable root. */
+  cwd: string;
+  /** `$HOME`-relative directories the agent writes its own state into. */
+  stateDirs: readonly string[];
+}
+
+/**
+ * A launcher, not a wrapped command: the bridge appends the agent's own model
+ * and permission flags to its argv, and a launcher folded into the command
+ * would have collected them itself — `cursor-agent`'s `--model` is a global
+ * flag that must precede the `acp` subcommand, so it lands first.
+ */
+export type WrapAcpAgentLaunchResult =
+  | { sandboxed: true; launcher: { command: string; args: string[] } }
+  | { sandboxed: false; reason: string; remedy: string };
+
+export type WrapAcpAgentLaunch = (
+  args: WrapAcpAgentLaunchArgs,
+) => WrapAcpAgentLaunchResult;
 
 export type ProviderAdapterFactory = (
   providerId: string,

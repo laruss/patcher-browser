@@ -90,6 +90,8 @@ interface StartThreadArgs {
   envVars?: Record<string, string>;
   instructions?: string;
   agent?: { command: string; args: string[] };
+  agentSandbox?: { command: string; args: string[] };
+  agentSandboxWarning?: string;
   dynamicTools?: DynamicTool[];
   modelSelection?:
     | {
@@ -133,6 +135,10 @@ async function startThread(args?: StartThreadArgs): Promise<{
       command: process.execPath,
       args: [FAKE_AGENT_PATH],
     },
+    ...(args?.agentSandbox ? { agentSandbox: args.agentSandbox } : {}),
+    ...(args?.agentSandboxWarning
+      ? { agentSandboxWarning: args.agentSandboxWarning }
+      : {}),
     ...(args?.modelSelection ? { modelSelection: args.modelSelection } : {}),
     ...(args?.launchReasoningLevel !== undefined
       ? { launchReasoningLevel: args.launchReasoningLevel }
@@ -759,6 +765,55 @@ describe("acp bridge", () => {
     expect(
       agentMessageTexts().some(
         (text) => text === "argv:--model pinme-extra-high",
+      ),
+    ).toBe(true);
+  });
+
+  it("spawns the agent through the sandbox launcher, its own flags intact", async () => {
+    // The launcher confines a sandboxed ACP turn, and it goes on last: the
+    // model flag belongs to the agent (`cursor-agent --model x acp`), so a
+    // launcher folded into `agent.command` would have taken it for itself.
+    chmodSync(FAKE_AGENT_PATH, 0o755);
+    const launchLog = join(workspaceDir, "launched-through-sandbox.log");
+
+    const { providerThreadId } = await startThread({
+      agent: { command: FAKE_AGENT_PATH, args: ["acp"] },
+      // Stands in for seatbelt or bwrap: a launcher that runs what follows it.
+      // Set only here, so the file exists only if the launcher really ran.
+      agentSandbox: {
+        command: "/usr/bin/env",
+        args: [`FAKE_ACP_LAUNCH_LOG=${launchLog}`],
+      },
+      modelSelection: {
+        listCommand: { command: "/nonexistent/acp-model-lister", args: [] },
+        selectFlag: "--model",
+        model: "pinme",
+      },
+    });
+    sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "echo-argv", mentions: [] }],
+    });
+    await waitForTurnCompleted();
+
+    expect(agentMessageTexts()).toContain("argv:--model pinme acp");
+    expect(readFileSync(launchLog, "utf8")).toContain("launch ");
+  });
+
+  it("raises the unconfined-agent warning at session start", async () => {
+    // The runtime sends this when a sandboxed turn's provider has declared no
+    // state directories: confining it on a guess would stop it from starting,
+    // and starting it quietly would present as a sandboxed turn and not be one.
+    const { providerThreadId } = await startThread({
+      agentSandboxWarning: "opencode runs unconfined for this turn.",
+    });
+    await stopThread(providerThreadId);
+
+    expect(
+      notifications("acp/warning").some(
+        (message) =>
+          (message.params as { summary?: string } | undefined)?.summary ===
+          "opencode runs unconfined for this turn.",
       ),
     ).toBe(true);
   });

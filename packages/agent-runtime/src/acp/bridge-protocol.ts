@@ -109,10 +109,33 @@ export type AcpBridgeModelSelection = z.infer<
   typeof acpBridgeModelSelectionSchema
 >;
 
+/**
+ * Launcher the agent is spawned through, when the turn is confined.
+ *
+ * Absent means unconfined — a Full Access turn, or a host with no sandbox to
+ * build, which the runtime refuses before it gets here. It arrives separately
+ * from `agent` rather than folded into it because the bridge builds the final
+ * argv itself: `applyPermissionCliArgs` inserts into the agent's own args and
+ * the model flag goes in front of them, and a launcher sitting in `command`
+ * would have taken that flag for itself.
+ */
+const acpBridgeAgentSandboxSchema = z.object({
+  command: z.string().min(1),
+  args: z.array(z.string()),
+});
+
 const acpBridgeSessionParamsSchema = z.object({
   threadId: z.string().min(1),
   cwd: z.string().min(1),
   agent: acpBridgeAgentCommandSchema,
+  agentSandbox: acpBridgeAgentSandboxSchema.optional(),
+  /**
+   * Why this turn's agent is not confined, when it should have been. Raised as
+   * a thread warning at session start: an agent nobody has measured cannot be
+   * confined without stopping it from starting, and running it quietly would
+   * present as a sandboxed turn and not be one.
+   */
+  agentSandboxWarning: z.string().min(1).optional(),
   modelSelection: acpBridgeModelSelectionSchema.optional(),
   /**
    * Launch-time reasoning level for agents that take reasoning as a global CLI

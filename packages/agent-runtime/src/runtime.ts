@@ -292,6 +292,9 @@ function createAgentRuntimeInternal(
     additionalWorkspaceWriteRoots,
     protectedCredentialPaths,
     protectedRepositoryPaths,
+    ...(options.wrapAcpAgentLaunch !== undefined
+      ? { wrapAcpAgentLaunch: options.wrapAcpAgentLaunch }
+      : {}),
     adapterFactory: options.adapterFactory,
     bridgeBundleDir: options.bridgeBundleDir,
     ...(bridgeNodeEnv !== undefined ? { bridgeNodeEnv } : {}),

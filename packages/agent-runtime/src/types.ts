@@ -1,3 +1,4 @@
+import type { WrapAcpAgentLaunch } from "./provider-adapter.js";
 import type {
   AvailableModel,
   ClientTurnRequestId,
@@ -107,6 +108,17 @@ export interface AgentRuntimeOptions {
    * this; for the others the exposure stands, and `docs/security.md` says so.
    */
   protectedRepositoryPaths?: readonly string[];
+
+  /**
+   * Confines an ACP provider's own process for a sandboxed turn.
+   *
+   * The daemon supplies it because the sandbox is platform code the daemon
+   * owns; the adapter sends the launcher it returns beside the agent command,
+   * for the bridge to spawn the agent through. Absent means
+   * what it meant before this existed: the provider runs unconfined, which for
+   * ACP is the gap `docs/security.md` describes rather than a choice.
+   */
+  wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
 
   /** Environment variables passed to ALL provider processes. */
   env?: Record<string, string>;
