@@ -187,10 +187,13 @@ this does not yet close".
 - ~~**The app does not say which terminals are confined.**~~ Closed: the tab
   says `sandboxed` and the panel says what that refuses, so a manual run should
   see both rather than report the silence.
-- **An agent can choose where the next turn's workspace points.**
-  `workspace: { type: "unmanaged", path }` takes any path the collision checks
-  allow, so a sandbox whose writable root is `/` bounds nothing. The mode is
-  bounded now; the path is not.
+- ~~**An agent can choose where the next turn's workspace points.**~~ Closed at
+  both doors, differently: thread creation with an unmanaged path outside the
+  project's sources is **refused** for a turn, and the
+  `update_environment_directory` tool **asks the person** — that tool exists to
+  move a thread to another checkout, so refusing it would take the feature. A
+  person is not held to either. A manual pass should see the refusal name the
+  source paths, and see the prompt name the path.
 - **`plugins/:id/cli` and `plugins/:id/rpc/:method` run plugin code with no
   consent prompt** — by decision: the grant happens at install and enable, which
   are gated for an agent, and invoking a plugin command is using what was

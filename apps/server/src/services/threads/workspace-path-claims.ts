@@ -4,6 +4,7 @@ import {
   hasLiveThreadAtHostPath,
   type DbConnection,
 } from "@patcher/db";
+import path from "node:path";
 import { isPatcherManagedWorkspacePath } from "./worktree-paths.js";
 
 /**
@@ -14,8 +15,18 @@ import { isPatcherManagedWorkspacePath } from "./worktree-paths.js";
  */
 
 export interface UnmanagedAttachRefusal {
-  reason: "foreign-managed" | "live-thread";
+  reason: "foreign-managed" | "live-thread" | "outside-project";
   message: string;
+}
+
+export interface TurnUnmanagedPathCheckArgs {
+  hostId: string;
+  path: string;
+  projectId: string;
+  /** Every registered source path for this project on this machine. */
+  projectSourcePaths: readonly string[];
+  /** The turn that asked, or null when a person did. */
+  requestedByThreadId: string | null;
 }
 
 export interface UnmanagedAttachCheckArgs {
@@ -79,6 +90,56 @@ export function unmanagedAttachRefusal(
   }
 
   return null;
+}
+
+/**
+ * Whether a turn may point the next thread's workspace at this directory.
+ *
+ * A person choosing a folder on their own machine is choosing where to work.
+ * A turn choosing one is choosing its own next sandbox: `workspace: { type:
+ * "unmanaged", path }` becomes the writable root of the thread it spawns, and a
+ * writable root of `/` bounds nothing — at any permission mode, because the mode
+ * only says how the sandbox is built, not how wide it is. The checks beside this
+ * one cannot see that: they ask whether the directory is safe to share, not
+ * whether the caller had any business naming it.
+ *
+ * So a turn is held to the project it is working in: the path has to be inside
+ * one of the project's registered sources on that machine, or inside a
+ * Patcher-managed workspace the project already owns. Both are places the person
+ * put the project; neither is a place a turn can invent.
+ *
+ * A person is not held to it. This is the same split as `agent-thread-scope.ts`
+ * and `agent-terminal-scope.ts`: the route stays as wide as it was for whoever
+ * is at the machine, and narrows for the caller that is a turn.
+ */
+export function turnUnmanagedPathRefusal(
+  db: DbConnection,
+  args: TurnUnmanagedPathCheckArgs,
+): UnmanagedAttachRefusal | null {
+  if (args.requestedByThreadId === null) return null;
+  if (findProjectOwnsPath(db, args)) return null;
+  const sourcePaths = args.projectSourcePaths.filter(
+    (sourcePath) => sourcePath.length > 0,
+  );
+  if (sourcePaths.some((sourcePath) => isPathInside(args.path, sourcePath))) {
+    return null;
+  }
+  return {
+    reason: "outside-project",
+    message:
+      sourcePaths.length > 0
+        ? `A turn can only start a thread inside this project's own sources on this machine (${sourcePaths.join(", ")}), not at ${args.path}. Ask the person in the thread to add that folder as a project source first.`
+        : `A turn can only start a thread inside this project's own sources on this machine, and this project has none registered here — so ${args.path} is not one. Ask the person in the thread to add it as a project source first.`,
+  };
+}
+
+/** Whether `candidatePath` is `rootPath` or sits under it. */
+function isPathInside(candidatePath: string, rootPath: string): boolean {
+  const relativePath = path.relative(rootPath, candidatePath);
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
 }
 
 /**
