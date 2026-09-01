@@ -8,6 +8,7 @@ import type {
   DynamicTool,
   InstructionMode,
   ProviderErrorCategory,
+  RuntimePermissionScope,
   ThreadEvent,
 } from "@patcher/domain";
 import type { HostDaemonAcpLaunchSpec } from "@patcher/host-daemon-contract";
@@ -41,6 +42,7 @@ import {
   RuntimeProviderProcessManager,
   type RuntimeProviderProcess,
 } from "./runtime-provider-process.js";
+import { providerBridgeSandboxStateDirs } from "./provider-registry.js";
 import {
   filterSkillRootsForProvider,
   normalizeSkillRoots,
@@ -129,6 +131,7 @@ interface FindReapableIdleProviderSessionArgs {
 
 interface ResolveProviderProcessKeyArgs {
   acpLaunchSpec?: HostDaemonAcpLaunchSpec;
+  permissionScope?: RuntimePermissionScope;
   providerId: string;
   threadId?: string;
 }
@@ -230,6 +233,17 @@ interface RequireProviderRequestPlanArgs {
 
 const CODEX_PROVIDER_ID = "codex";
 const CODEX_THREAD_PROCESS_KEY_PREFIX = `${CODEX_PROVIDER_ID}\0thread:`;
+/**
+ * The key of a bridge process that was spawned inside a sandbox.
+ *
+ * Environment-scoped rather than thread-scoped, because the policy is: the
+ * workspace, the git roots beside it, the read-only repository files and the
+ * denied credential files all belong to the environment, and nothing in the
+ * sandbox a bridge gets depends on which thread asked for it. So an environment
+ * has at most two processes for such a provider — one confined, one not — and a
+ * thread that changes its permission mode moves between them.
+ */
+const CONFINED_PROCESS_KEY_SUFFIX = "\0confined";
 const THREAD_CREATION_REQUEST_TIMEOUT_MS = 2 * 60_000;
 const CODEX_ACCOUNT_RESTART_PROVIDER_ERROR_CATEGORIES =
   new Set<ProviderErrorCategory>(["rate-limit", "unauthorized"]);
@@ -295,6 +309,9 @@ function createAgentRuntimeInternal(
     ...(options.wrapAcpAgentLaunch !== undefined
       ? { wrapAcpAgentLaunch: options.wrapAcpAgentLaunch }
       : {}),
+    ...(options.wrapProviderProcessLaunch !== undefined
+      ? { wrapProviderProcessLaunch: options.wrapProviderProcessLaunch }
+      : {}),
     adapterFactory: options.adapterFactory,
     bridgeBundleDir: options.bridgeBundleDir,
     ...(bridgeNodeEnv !== undefined ? { bridgeNodeEnv } : {}),
@@ -348,10 +365,62 @@ function createAgentRuntimeInternal(
       args.providerId !== CODEX_PROVIDER_ID || args.threadId === undefined
         ? args.providerId
         : `${CODEX_THREAD_PROCESS_KEY_PREFIX}${args.threadId}`;
+    const scopedKey = bridgeSandboxStateDirsForTurn(args)
+      ? `${baseKey}${CONFINED_PROCESS_KEY_SUFFIX}`
+      : baseKey;
     if (args.acpLaunchSpec === undefined) {
-      return baseKey;
+      return scopedKey;
     }
-    return `${baseKey}#acp:${fingerprintAcpLaunchSpec(args.acpLaunchSpec)}`;
+    return `${scopedKey}#acp:${fingerprintAcpLaunchSpec(args.acpLaunchSpec)}`;
+  }
+
+  /**
+   * The directories a confined bridge gets granted back for this turn, or
+   * undefined when this process is not one that gets confined.
+   *
+   * Two conditions, and both have to hold: the provider's own bridge has to be
+   * the boundary (Pi's tools run inside it; every other provider's boundary is
+   * elsewhere), and the turn has to have asked for a workspace scope. Full
+   * Access asks for no sandbox and gets none, which is what the mode means.
+   */
+  function bridgeSandboxStateDirsForTurn(
+    args: Pick<ResolveProviderProcessKeyArgs, "permissionScope" | "providerId">,
+  ): readonly string[] | undefined {
+    if (args.permissionScope !== "workspace") {
+      return undefined;
+    }
+    return providerBridgeSandboxStateDirs(args.providerId);
+  }
+
+  /**
+   * Refuse a turn whose process does not match the boundary it promises.
+   *
+   * The process key is what routes a turn to a confined bridge or an unconfined
+   * one, and a key is a string: a call site that forgot to pass the turn's scope
+   * would route a workspace-scoped turn to the process that was never confined,
+   * and nothing downstream would notice. So the fact is read back off the
+   * process that was actually resolved — recorded there at spawn, from whether a
+   * launcher was used — and a mismatch stops the turn instead of running it as
+   * something it is not.
+   */
+  function assertProcessMatchesTurnBoundary(args: {
+    options: AgentRuntimeExecutionOptions;
+    proc: ProviderProcess;
+    providerId: string;
+  }): void {
+    const shouldBeConfined =
+      bridgeSandboxStateDirsForTurn({
+        permissionScope: args.options.permissionScope,
+        providerId: args.providerId,
+      }) !== undefined;
+    if (shouldBeConfined === args.proc.confined) {
+      return;
+    }
+    throw new Error(
+      shouldBeConfined
+        ? `Provider "${args.providerId}" landed a workspace-scoped turn on a bridge process that is not confined (${args.proc.processKey}). Refusing the turn rather than running it outside the boundary its permission mode promises.`
+        : `Provider "${args.providerId}" landed a Full Access turn on a confined bridge process (${args.proc.processKey}). Refusing the turn rather than running it inside a boundary its permission mode does not describe.`,
+    );
   }
 
   function requireProviderProcess(
@@ -375,10 +444,23 @@ function createAgentRuntimeInternal(
     );
   }
 
-  async function shutdownThreadScopedCodexProcessIfIdle(
+  /**
+   * Stop a provider process that exists for a thread's sake once no thread is
+   * left on it.
+   *
+   * Two kinds qualify, for the same reason: a thread-scoped Codex process, and
+   * a bridge spawned inside a sandbox. Neither is the environment's default
+   * process — the confined one is there because some turn asked for a
+   * workspace scope, so a thread that moves to Full Access or ends leaves
+   * nothing behind that should keep running.
+   */
+  async function shutdownDisposableProviderProcessIfIdle(
     proc: ProviderProcess,
   ): Promise<void> {
-    if (!isThreadScopedCodexProcess(proc) || proc.identity.threadIds.size > 0) {
+    if (!isThreadScopedCodexProcess(proc) && !proc.confined) {
+      return;
+    }
+    if (proc.identity.threadIds.size > 0) {
       return;
     }
     await providerProcesses.shutdownProvider({
@@ -839,7 +921,7 @@ function createAgentRuntimeInternal(
       // must resume it (after unarchive) instead of reusing stale state.
       forgetThreadRuntimeState(proc, threadId);
     }
-    await shutdownThreadScopedCodexProcessIfIdle(proc);
+    await shutdownDisposableProviderProcessIfIdle(proc);
   }
 
   function isCodexArchivedSessionError(
@@ -851,6 +933,99 @@ function createAgentRuntimeInternal(
       error instanceof Error &&
       CODEX_ARCHIVED_SESSION_ERROR_PATTERN.test(error.message)
     );
+  }
+
+  /**
+   * Move a thread to the process whose boundary its next turn asked for.
+   *
+   * Only a provider whose own bridge is the sandbox has anything to move: for
+   * everyone else the boundary travels with the session, so a mode change is a
+   * `thread/resume` on the same process and this returns false. For Pi it
+   * cannot be, because the confinement was decided when the process was
+   * spawned — so the thread leaves the process it is on and resumes on the
+   * other one, and the session file on disk is what carries its history across.
+   *
+   * The old session is stopped rather than discarded: `thread/discard` deletes
+   * the session file, which is the one thing the move depends on. And a thread
+   * that leaves a confined bridge with nothing else on it takes the bridge with
+   * it.
+   */
+  async function relaunchThreadOnConfinementChange(args: {
+    currentConfig: ThreadRuntimeConfig;
+    options: AgentRuntimeExecutionOptions;
+    proc: ProviderProcess;
+    threadId: string;
+  }): Promise<boolean> {
+    const { currentConfig, proc, threadId } = args;
+    if (providerBridgeSandboxStateDirs(currentConfig.providerId) === undefined) {
+      return false;
+    }
+    const nextProcessKey = resolveProviderProcessKey({
+      permissionScope: args.options.permissionScope,
+      providerId: currentConfig.providerId,
+      threadId,
+    });
+    if (nextProcessKey === currentConfig.processKey) {
+      return false;
+    }
+    if (turnState.getActiveTurnId(threadId) !== null) {
+      // Steering carries the turn's execution options, so a mode changed in the
+      // composer mid-turn arrives here. The boundary a running turn is inside
+      // cannot be changed under it, and pretending otherwise would either run
+      // the rest of the turn in the old one or kill it silently.
+      throw new Error(
+        `Provider "${currentConfig.providerId}" runs its own tools inside its bridge process, so changing the permission mode replaces that process. Stop the running turn first, then change the mode.`,
+      );
+    }
+
+    const providerThreadId = requireProviderThreadId(threadId);
+    const stopPlan = proc.adapter.buildCommandPlan({
+      type: "thread/stop",
+      threadId,
+      providerThreadId,
+      activeTurnId: null,
+    });
+    if (stopPlan.kind === "request") {
+      try {
+        await sendCommand({
+          proc,
+          message: stopPlan,
+          resultSchema: ignoredJsonRpcResultSchema,
+        });
+      } catch (error) {
+        // Best effort: the thread is leaving this process either way, and a
+        // session left open on it costs memory rather than correctness.
+        options.onStderr?.(
+          `Failed to close the ${currentConfig.providerId} session on ${proc.processKey} while moving thread ${threadId}: ${error instanceof Error ? error.message : String(error)}`,
+          threadId,
+        );
+      }
+    }
+
+    const resumeInstructions = currentConfig.instructions;
+    forgetThreadRuntimeState(proc, threadId);
+    await shutdownDisposableProviderProcessIfIdle(proc);
+    await runtime.resumeThread({
+      environmentId: currentConfig.environmentId,
+      threadId,
+      ...(currentConfig.projectId !== undefined
+        ? { projectId: currentConfig.projectId }
+        : {}),
+      providerThreadId,
+      providerId: currentConfig.providerId,
+      options: args.options,
+      ...(resumeInstructions !== undefined
+        ? { instructions: resumeInstructions }
+        : {}),
+      ...(currentConfig.dynamicTools !== undefined
+        ? { dynamicTools: currentConfig.dynamicTools }
+        : {}),
+      ...(currentConfig.disallowedTools !== undefined
+        ? { disallowedTools: currentConfig.disallowedTools }
+        : {}),
+      instructionMode: currentConfig.instructionMode,
+    });
+    return true;
   }
 
   async function reconfigureThreadIfNeeded(
@@ -872,6 +1047,17 @@ function createAgentRuntimeInternal(
       processKey: currentConfig.processKey,
       providerId: currentConfig.providerId,
     });
+    if (
+      await relaunchThreadOnConfinementChange({
+        currentConfig,
+        options: nextOptions,
+        proc,
+        threadId: args.threadId,
+      })
+    ) {
+      return;
+    }
+
     const settingsChange = proc.adapter.classifyExecutionSettingsChange({
       current: currentConfig.options,
       next: nextOptions,
@@ -1226,7 +1412,7 @@ function createAgentRuntimeInternal(
       forgetThreadRuntimeState(proc, prepared.stagingThreadId);
       finishPreparedThreadRewindCleanup(leaseId, prepared);
       try {
-        await shutdownThreadScopedCodexProcessIfIdle(proc);
+        await shutdownDisposableProviderProcessIfIdle(proc);
       } catch (error) {
         options.onStderr?.(
           `Failed to stop the idle provider after discarding staged rewind ${leaseId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -1247,15 +1433,28 @@ function createAgentRuntimeInternal(
   }
 
   const runtime: AgentRuntime = {
-    async ensureProvider({ providerId, forThreadId, acpLaunchSpec }) {
+    async ensureProvider({
+      providerId,
+      forThreadId,
+      acpLaunchSpec,
+      permissionScope,
+    }) {
+      const bridgeSandboxStateDirs = bridgeSandboxStateDirsForTurn({
+        ...(permissionScope !== undefined ? { permissionScope } : {}),
+        providerId,
+      });
       await providerProcesses.ensureProvider({
         processKey: resolveProviderProcessKey({
           ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+          ...(permissionScope !== undefined ? { permissionScope } : {}),
           providerId,
           ...(forThreadId !== undefined ? { threadId: forThreadId } : {}),
         }),
         providerId,
         ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+        ...(bridgeSandboxStateDirs !== undefined
+          ? { bridgeSandboxStateDirs }
+          : {}),
       });
     },
 
@@ -1281,6 +1480,7 @@ function createAgentRuntimeInternal(
         work: async () => {
           const processKey = resolveProviderProcessKey({
             ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+            permissionScope: execOpts.permissionScope,
             providerId,
             threadId,
           });
@@ -1288,6 +1488,7 @@ function createAgentRuntimeInternal(
             providerId,
             forThreadId: threadId,
             ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+            permissionScope: execOpts.permissionScope,
           });
 
           const proc = requireProviderProcess({ processKey, providerId });
@@ -1299,6 +1500,11 @@ function createAgentRuntimeInternal(
           assertProviderSupportsExecutionOptions({
             adapter: proc.adapter,
             options: effectiveExecOpts,
+            providerId,
+          });
+          assertProcessMatchesTurnBoundary({
+            options: effectiveExecOpts,
+            proc,
             providerId,
           });
           threadIdentityRegistry.registerThreadProvider({
@@ -1458,6 +1664,7 @@ function createAgentRuntimeInternal(
         work: async () => {
           const processKey = resolveProviderProcessKey({
             ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+            permissionScope: execOpts.permissionScope,
             providerId,
             threadId,
           });
@@ -1465,6 +1672,7 @@ function createAgentRuntimeInternal(
             providerId,
             forThreadId: threadId,
             ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+            permissionScope: execOpts.permissionScope,
           });
           const proc = requireProviderProcess({ processKey, providerId });
           if (!proc.adapter.capabilities.supportsFork) {
@@ -1476,6 +1684,11 @@ function createAgentRuntimeInternal(
           assertProviderSupportsExecutionOptions({
             adapter: proc.adapter,
             options: execOpts,
+            providerId,
+          });
+          assertProcessMatchesTurnBoundary({
+            options: execOpts,
+            proc,
             providerId,
           });
 
@@ -1631,6 +1844,7 @@ function createAgentRuntimeInternal(
         work: async () => {
           const processKey = resolveProviderProcessKey({
             ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+            permissionScope: execOpts.permissionScope,
             providerId,
             threadId,
           });
@@ -1638,6 +1852,7 @@ function createAgentRuntimeInternal(
             providerId,
             forThreadId: threadId,
             ...(acpLaunchSpec !== undefined ? { acpLaunchSpec } : {}),
+            permissionScope: execOpts.permissionScope,
           });
 
           const proc = requireProviderProcess({ processKey, providerId });
@@ -1649,6 +1864,11 @@ function createAgentRuntimeInternal(
           assertProviderSupportsExecutionOptions({
             adapter: proc.adapter,
             options: effectiveExecOpts,
+            providerId,
+          });
+          assertProcessMatchesTurnBoundary({
+            options: effectiveExecOpts,
+            proc,
             providerId,
           });
           threadIdentityRegistry.registerThreadProvider({
@@ -1773,7 +1993,7 @@ function createAgentRuntimeInternal(
           });
           // An account restart replaces a thread-scoped Codex process, so
           // resolve the process again before constructing the turn command.
-          const proc = requireProviderProcessForThread(threadId);
+          let proc = requireProviderProcessForThread(threadId);
           assertProviderSupportsExecutionOptions({
             adapter: proc.adapter,
             options: effectiveExecOpts,
@@ -1782,6 +2002,16 @@ function createAgentRuntimeInternal(
           await reconfigureThreadIfNeeded({
             threadId,
             options: effectiveExecOpts,
+          });
+          // And a permission mode changed since the last turn replaces the
+          // process outright where the boundary is the process — resolve it
+          // once more, so the turn is sent to the bridge that was confined for
+          // it rather than to the one it just left.
+          proc = requireProviderProcessForThread(threadId);
+          assertProcessMatchesTurnBoundary({
+            options: effectiveExecOpts,
+            proc,
+            providerId: pid,
           });
 
           const adapterCommand: AdapterCommand = {
@@ -1875,9 +2105,19 @@ function createAgentRuntimeInternal(
           // An account restart replaces a thread-scoped Codex process, so
           // resolve the process again before constructing the steer command.
           const proc = requireProviderProcessForThread(threadId);
+          // After the reconfigure, not before it: a mode changed in the
+          // composer mid-turn arrives with the steer, and the answer a person
+          // needs there is "stop the turn first" — which the reconfigure gives.
+          // This one is for a routing mistake, and would otherwise get in
+          // front of it with a sentence about process keys.
           await reconfigureThreadIfNeeded({
             threadId,
             options: effectiveExecOpts,
+          });
+          assertProcessMatchesTurnBoundary({
+            options: effectiveExecOpts,
+            proc,
+            providerId: pid,
           });
 
           const adapterCommand: AdapterCommand = {
@@ -1942,7 +2182,7 @@ function createAgentRuntimeInternal(
               );
             }
             forgetThreadRuntimeState(proc, threadId);
-            await shutdownThreadScopedCodexProcessIfIdle(proc);
+            await shutdownDisposableProviderProcessIfIdle(proc);
             return;
           }
 
@@ -1957,7 +2197,7 @@ function createAgentRuntimeInternal(
             sourceThreadId: threadId,
           });
           forgetThreadRuntimeState(proc, threadId);
-          await shutdownThreadScopedCodexProcessIfIdle(proc);
+          await shutdownDisposableProviderProcessIfIdle(proc);
         },
       });
     },
@@ -2138,7 +2378,7 @@ function createAgentRuntimeInternal(
         }
 
         forgetThreadRuntimeState(proc, candidate.threadId);
-        await shutdownThreadScopedCodexProcessIfIdle(proc);
+        await shutdownDisposableProviderProcessIfIdle(proc);
         reapedSessions.push({
           idleForMs: Math.max(0, nowMs - candidate.idleSinceMs),
           providerId: candidate.runtimeConfig.providerId,

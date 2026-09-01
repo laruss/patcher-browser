@@ -249,7 +249,10 @@ describe("resolveThreadDefaultPermissionMode", () => {
     ).toBe("auto");
   });
 
-  it("uses full for Pi threads", () => {
+  it("uses the sandbox for Pi threads, which it could not before", () => {
+    // Pi supported only Full Access, so its default was Full Access and the
+    // product default could not reach it. It now runs with its bridge inside
+    // the sandbox Patcher builds, so a Pi thread defaults like every other.
     expect(
       resolveThreadDefaultPermissionMode({
         thread: makeThread({
@@ -257,7 +260,7 @@ describe("resolveThreadDefaultPermissionMode", () => {
           providerId: "pi",
         }),
       }),
-    ).toBe("full");
+    ).toBe("auto");
   });
 
   it("keeps ACP threads sandboxed when the Auto default is unsupported", () => {
@@ -344,6 +347,10 @@ describe("resolveThreadExecutionPermissionMode", () => {
   });
 
   it("reconciles inherited parent permission to the child provider's supported modes", () => {
+    // The parent ran sandboxed and Pi does not support the mode it inherited,
+    // so the child takes the most capable sandboxed mode Pi does support. It
+    // used to take Full Access, because that was all Pi had — a sandboxed
+    // parent's child leaving the sandbox by inheritance.
     expect(
       resolveThreadExecutionPermissionMode({
         parentThread: makeParentThread(),
@@ -354,7 +361,7 @@ describe("resolveThreadExecutionPermissionMode", () => {
           providerId: "pi",
         }),
       }),
-    ).toBe("full");
+    ).toBe("auto");
   });
 
   it("uses root-thread defaults when the parent reference is not live", () => {

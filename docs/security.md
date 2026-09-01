@@ -170,9 +170,10 @@ escalation is denied is refused outright.
 
 **A terminal an agent opens runs inside its turn's boundary.** This one is a
 sandbox Patcher builds rather than one a provider offers, which is what makes it
-the same for every provider — a Pi turn, whose own tools are confined by
-nothing, still gets a confined terminal, and it is the boundary an ACP turn's
-own agent now runs inside as well (below). The policy is the turn's own, path for
+the same for every provider — a Full Access turn, whose own tools are confined
+by nothing, still gets a confined terminal, and it is the boundary an ACP turn's
+own agent and a sandboxed Pi turn's own bridge now run inside as well (below).
+The policy is the turn's own, path for
 path: the workspace and the git roots beside it are writable, the four
 git-execution files are read-only, and Patcher's credential files cannot be
 read. macOS composes it from Seatbelt, Linux from bubblewrap, and a machine that
@@ -268,6 +269,48 @@ this closes is the filesystem class. And model discovery — the `--list-models`
 call, and the throwaway session some agents need for the same answer — runs the
 provider binary unconfined, because that is Patcher asking a question before any
 turn exists, not an agent doing work.
+
+**A Pi turn's own bridge runs inside it too, and Pi can now be run
+sandboxed at all.** Pi has no permission system — its own documentation says so
+and points at a sandbox as the only boundary — so until now every Pi turn was a
+Full Access turn somebody chose, and a machine at the default ceiling could not
+run Pi at all. What made this harder than ACP is where Pi's tools live: an ACP
+agent is a child of its bridge, so the launcher goes in front of the child,
+while Pi's edit tools are `fs` calls inside Patcher's own bridge process. So for
+Pi the launcher goes in front of the bridge. Measured under the same profile: an
+in-process write inside the workspace succeeds, the same write to `$HOME` is
+`EPERM`, and a child of that process is refused it as well — one launcher holds
+Pi's own tools and its bash tool alike.
+
+Confining a process rather than a session has a consequence worth stating: a
+confined bridge and an unconfined one cannot be the same process. An environment
+runs at most two, and a thread that changes its permission mode moves between
+them — stopped on the one it leaves, resumed on the other, with the session file
+on disk carrying its history across. A turn already running cannot be moved, so
+changing the mode under one is refused rather than done quietly. And a turn that
+lands on the wrong one is refused by the process it actually got, which is a
+check on the routing rather than a restatement of it.
+
+What the confinement grants back is measured the same way as an agent's, by
+starting the bridge under the sandbox one directory at a time. Two: `~/.pi`,
+because Pi takes a lock beside each file it reads there — `auth.json.lock` and
+`models-store.json.lock`, seen appearing in an unconfined start and never
+created in a confined one — and the file under that lock is the one an OAuth
+login refreshes, so a turn denied it would fail when a token expires rather than
+at a point anyone would connect to the sandbox. That silence is the reason to
+grant it: a session starts fine without it. And `~/.patcher/pi-bridge-sessions`,
+the thread history the bridge appends, which is Patcher's own state and `EPERM`
+without the grant. It holds every Pi thread on the machine, so a confined turn
+can write over another Pi thread's stored history — reads were never restricted,
+and a per-thread directory would move where an existing thread's history lives.
+
+The mode Pi offers is "Approve for me" and not "Accept Edits", and the
+difference is not cosmetic: Accept Edits promises that anything beyond the
+workspace asks first, and Pi has nothing to ask with. A write outside is
+refused, full stop — the agent sees an error, nobody sees a prompt. What is
+unmeasured, said plainly: the bridge was driven directly (`initialize`, then
+`thread/start`) because the machine this was built on has no Pi credential, so a
+full turn against a live model has not been run inside the sandbox.
 
 **And the repository's own setup script asks before it runs.** A managed
 worktree runs `.patcher-env-setup.sh` from the repository it was created from —
@@ -368,8 +411,8 @@ directions at once. A machine enrolled from another one has no `app-api-key`
 file — nothing writes one into its data dir — so the app was refused on exactly
 the machine it was running on, and opening a file in an editor was simply
 broken there. And the key _is_ a file, so the closing paragraphs above only
-reach the turns whose provider can deny a path: a Full Access turn, or one on Pi
-or ACP, could read it and present it.
+reach a turn that runs inside a sandbox: a Full Access turn — and, when this was
+written, every turn on Pi or ACP — could read it and present it.
 
 So the daemon mints its own, 32 random bytes per process, and writes it nowhere.
 It travels to the server when the daemon opens its session
@@ -549,25 +592,23 @@ permitted` from the shell, which no part of the app can intercept, so the fact
   say what is left in one sentence: the credential is the daemon's own and lives
   only in memory (see above), so what remains is that _asking the server for it_
   needs the app key — and a caller that is not confined can still read that file
-  off disk. A Full Access turn, a turn on Pi, a turn on an ACP agent nobody has
-  measured (omp, or one added by hand without `stateDirs`), and any plugin
-  process can therefore reach
+  off disk. A Full Access turn — on any provider, Pi included — a turn on an ACP
+  agent nobody has measured (omp, or one added by hand without `stateDirs`), and
+  any plugin process can therefore reach
   `/host-daemon-keys/:hostId` as the app and go on to open an editor. For a
   sandboxed turn both halves are closed: it cannot read the app key, and its
   thread key is refused on that route by name. Closing the rest is the same
   shape as everything else here — a boundary Patcher owns for the providers
   that have none — and there is no version of it where an unsandboxed process
   running as you is held to a credential check.
-- **`.git` and the credential files, for a turn that is Pi's.** Narrowed
-  again. Claude Code and Codex hold the list through their own sandboxes, and
-  an ACP turn on a declared profile now holds it through the one Patcher builds
-  (above) — which now leaves Pi, plus omp and any hand-added ACP agent whose
-  state directories nobody has measured. Pi is a different case from the one
-  this bullet started as: it
-  offers no sandboxed mode at all, so a Pi turn is a Full Access turn somebody
-  chose, and the machine ceiling refuses it until they do. Giving Pi a
-  workspace scope is therefore a feature rather than a fix — its bridge would
-  need the same launcher, and its tools an approval policy to match.
+- ~~**`.git` and the credential files, for a turn that is Pi's.**~~ Closed for
+  a Pi turn that asked for a workspace scope, which Pi can now be run with at
+  all: its bridge is launched through the same sandbox, so the four
+  git-execution files are read-only to it and Patcher's credential files cannot
+  be read (above). What is left of this bullet is the agents nobody has
+  measured — omp, or one added by hand without `stateDirs` — which run
+  unconfined and say so, and Full Access on any provider, which is the mode
+  rather than a gap in it.
 - ~~**Codex's network is open.**~~ Now a switch, off by default: **Settings →
   Codex → "Take the network from sandboxed turns"** (`codexNetworkDisabled`,
   which lands as `network.enabled: false` on the turn's permission profile). Off

@@ -37,6 +37,7 @@ export type {
   WrapAcpAgentLaunch,
   WrapAcpAgentLaunchArgs,
   WrapAcpAgentLaunchResult,
+  WrapProviderProcessLaunch,
 } from "./provider-adapter.js";
 export type {
   ProviderRawEventCoverage,

@@ -20,6 +20,7 @@ import {
 import { createClaudeCodeProviderAdapter } from "./claude-code/adapter.js";
 import { createCodexProviderAdapter } from "./codex/adapter.js";
 import { createPiProviderAdapter } from "./pi/adapter.js";
+import { PI_BRIDGE_STATE_DIRS, PI_PROVIDER_ID } from "./pi/bridge-sandbox.js";
 import type {
   ProviderAdapter,
   ProviderAdapterFactoryOptions,
@@ -139,6 +140,28 @@ function toProviderAdapterFactoryOptions(
       ? { wrapAcpAgentLaunch: options.wrapAcpAgentLaunch }
       : {}),
   };
+}
+
+/**
+ * The `$HOME`-relative directories this provider's own bridge process writes,
+ * for a provider whose bridge is what a sandboxed turn confines — or undefined
+ * for one where it is not.
+ *
+ * Pi is the only such provider. Every other bridge either confines something
+ * else (Codex and Claude Code carry their own sandboxes; an ACP bridge launches
+ * its agent through one) or has nothing to confine, and a bridge Patcher spawns
+ * for one of those must keep running unconfined, because the boundary a turn
+ * promises is already somewhere else.
+ *
+ * A function rather than a field on the adapter: the process key is resolved
+ * before any adapter exists, and the key is where the decision has to be
+ * visible — a confined process and an unconfined one cannot be the same
+ * process.
+ */
+export function providerBridgeSandboxStateDirs(
+  providerId: string,
+): readonly string[] | undefined {
+  return providerId === PI_PROVIDER_ID ? PI_BRIDGE_STATE_DIRS : undefined;
 }
 
 /**

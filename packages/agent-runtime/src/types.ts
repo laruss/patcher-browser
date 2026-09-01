@@ -1,4 +1,7 @@
-import type { WrapAcpAgentLaunch } from "./provider-adapter.js";
+import type {
+  WrapAcpAgentLaunch,
+  WrapProviderProcessLaunch,
+} from "./provider-adapter.js";
 import type {
   AvailableModel,
   ClientTurnRequestId,
@@ -8,6 +11,7 @@ import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
   PromptInput,
+  RuntimePermissionScope,
   RuntimeThreadExecutionOptions,
   ThreadEvent,
   ToolCallRequest,
@@ -120,6 +124,19 @@ export interface AgentRuntimeOptions {
    */
   wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
 
+  /**
+   * Confines a provider's own bridge process, where that process is the
+   * boundary — Pi, whose tools run inside it.
+   *
+   * Supplied by the daemon for the same reason as the launcher above, and
+   * consulted at spawn rather than at session build: a confined bridge and an
+   * unconfined one are different processes, so the decision is already made by
+   * the time a session exists. Absent means no bridge is confined, and a turn
+   * that asked for a workspace scope on such a provider is refused rather than
+   * run as if it had one.
+   */
+  wrapProviderProcessLaunch?: WrapProviderProcessLaunch;
+
   /** Environment variables passed to ALL provider processes. */
   env?: Record<string, string>;
 
@@ -174,6 +191,14 @@ export interface EnsureProviderArgs {
    * model listing.
    */
   forThreadId?: string;
+  /**
+   * The scope the turn this process is for runs with. A provider whose own
+   * bridge is the boundary gets a confined process for "workspace" and an
+   * unconfined one otherwise — two different processes, never the same one
+   * reused. Omit it for maintenance work that belongs to no turn, which is
+   * unconfined by the same rule.
+   */
+  permissionScope?: RuntimePermissionScope;
   providerId: string;
 }
 
