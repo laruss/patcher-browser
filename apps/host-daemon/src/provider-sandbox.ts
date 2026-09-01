@@ -85,7 +85,7 @@ export interface ProviderSandboxArgs {
  *   never enough to rely on — a library that implements proxying itself (npm
  *   does) works either way, and one that does not needs a new enough Node.
  */
-function egressProxyEnv(proxyUrl: string): Record<string, string> {
+export function egressProxyEnv(proxyUrl: string): Record<string, string> {
   return {
     HTTP_PROXY: proxyUrl,
     HTTPS_PROXY: proxyUrl,

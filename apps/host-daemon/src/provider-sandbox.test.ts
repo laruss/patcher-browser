@@ -4,7 +4,10 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildProviderSandboxLauncher } from "./provider-sandbox.js";
+import {
+  buildProviderSandboxLauncher,
+  egressProxyEnv,
+} from "./provider-sandbox.js";
 
 /**
  * A provider's own process, confined the way the turn is.
@@ -279,43 +282,27 @@ describe("a turn that confines egress", () => {
     expect(built.remedy).toContain("Full Access");
   });
 
-  it("hands the process the proxy, and keeps its own loopback off it", () => {
-    const built = buildProviderSandboxLauncher({
-      cwd: "/workspace",
-      stateDirs: [],
-      homeDirectory: "/home/somebody",
-      additionalWorkspaceWriteRoots: [],
-      protectedRepositoryPaths: [],
-      protectedCredentialPaths: [],
-      env: {},
-      platform: "darwin",
-      egress: { proxyUrl: "http://patcher:tok@127.0.0.1:9" },
-    });
+  it("hands the process the proxy, in every spelling a client reads", () => {
+    // Both cases, because clients disagree: curl and git read the uppercase
+    // names, plenty of libraries read the lowercase ones. Asserted on the
+    // environment builder rather than through a launcher, so it holds on the
+    // platform CI runs these on — Linux, where a turn that asks for this is
+    // refused and no launcher exists to carry it.
+    const env = egressProxyEnv("http://patcher:tok@127.0.0.1:9");
 
-    if (!built.sandboxed)
-      throw new Error(`Expected a sandbox: ${built.reason}`);
-    expect(built.env?.HTTPS_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
-    expect(built.env?.https_proxy).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.HTTPS_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.https_proxy).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.HTTP_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
+    expect(env.http_proxy).toBe("http://patcher:tok@127.0.0.1:9");
     // Without this an agent routes its own internal loopback through Patcher's
     // proxy: measured on opencode, arriving here as `GET 127.0.0.1:4096`.
-    expect(built.env?.NO_PROXY).toContain("127.0.0.1");
-  });
-
-  it("leaves the network alone when the turn does not ask", () => {
-    const built = buildProviderSandboxLauncher({
-      cwd: "/workspace",
-      stateDirs: [],
-      homeDirectory: "/home/somebody",
-      additionalWorkspaceWriteRoots: [],
-      protectedRepositoryPaths: [],
-      protectedCredentialPaths: [],
-      env: {},
-      platform: "darwin",
-    });
-
-    if (!built.sandboxed)
-      throw new Error(`Expected a sandbox: ${built.reason}`);
-    expect(built.env).toBeUndefined();
+    expect(env.NO_PROXY).toContain("127.0.0.1");
+    expect(env.no_proxy).toContain("localhost");
+    // Node's own clients ignore every variable above — measured, both `fetch`
+    // and `https.get` answer ENOTFOUND with them set. This is what makes a
+    // Node-based agent use the proxy on Node 24 and later; earlier versions
+    // ignore it.
+    expect(env.NODE_USE_ENV_PROXY).toBe("1");
   });
 });
 
@@ -358,6 +345,33 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE || process.platform !== "darwin")(
       );
       return result.stdout.trim();
     }
+
+    it("carries the proxy on the launch, and nothing when the turn does not ask", () => {
+      const fixture = createFixture();
+      fixtures.push(fixture);
+      const shared = {
+        cwd: fixture.workspacePath,
+        stateDirs: [],
+        homeDirectory: homedir(),
+        additionalWorkspaceWriteRoots: [],
+        protectedRepositoryPaths: [],
+        protectedCredentialPaths: [],
+        env: process.env,
+        platform: process.platform,
+      };
+
+      const confined = buildProviderSandboxLauncher({
+        ...shared,
+        egress: { proxyUrl: "http://patcher:tok@127.0.0.1:9" },
+      });
+      const untouched = buildProviderSandboxLauncher(shared);
+
+      if (!confined.sandboxed || !untouched.sandboxed) {
+        throw new Error("Expected a sandbox here");
+      }
+      expect(confined.env?.HTTPS_PROXY).toBe("http://patcher:tok@127.0.0.1:9");
+      expect(untouched.env).toBeUndefined();
+    });
 
     it("refuses what leaves the machine and keeps loopback", async () => {
       const fixture = createFixture();
