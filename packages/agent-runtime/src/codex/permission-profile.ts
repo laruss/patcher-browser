@@ -57,6 +57,17 @@ export interface BuildCodexWorkspacePermissionProfileArgs {
   protectedRepositoryPaths: readonly string[];
   /** Files a sandboxed turn must not read at all. */
   protectedCredentialPaths: readonly string[];
+  /**
+   * Take the network away from the turn's own commands.
+   *
+   * Off unless the install asked for it. Codex turns a blocked connection into
+   * an approval request rather than a silent failure, so what this costs is a
+   * prompt per outbound connection — and where nobody is watching, a prompt
+   * that times out. What it no longer costs is the `patcher` CLI: a turn reaches
+   * Patcher through an MCP tool that Codex spawns outside the command sandbox
+   * (`mcp-server.ts`).
+   */
+  networkRestricted: boolean;
 }
 
 type CodexFilesystemAccess = "read" | "write" | "deny";
@@ -103,9 +114,9 @@ export function buildCodexWorkspacePermissionProfileConfig(
     default_permissions: CODEX_WORKSPACE_PERMISSION_PROFILE_ID,
     permissions: {
       [CODEX_WORKSPACE_PERMISSION_PROFILE_ID]: {
-        // Open, as it is today. Closing it takes the local API off a TCP port
-        // first — see docs/security.md.
-        network: { enabled: true },
+        // Said out loud either way: a profile that omits `network` inherits the
+        // restricted default, so "open" has to be written down to be true.
+        network: { enabled: !args.networkRestricted },
         filesystem: entries,
       },
     },

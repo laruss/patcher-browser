@@ -340,6 +340,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropSteerActiveThreadOnEnterColumn(db);
   dropOnboardingCompletedAtColumn(db);
   dropBrowserSearchEngineIdColumn(db);
+  dropCodexNetworkDisabledColumn(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -595,6 +596,23 @@ function dropBrowserSearchEngineIdColumn(db: DbConnection): void {
   if (columns.some((column) => column.name === "browser_search_engine_id")) {
     db.$client
       .prepare("ALTER TABLE app_settings DROP COLUMN browser_search_engine_id")
+      .run();
+  }
+}
+
+/**
+ * Migration 0098 adds the Codex network preference, and it lands after every
+ * checkpoint these tests replay — so a rewind has to take its column with it.
+ * SQLite has no `ADD COLUMN IF NOT EXISTS`: replaying onto a table that still
+ * has it fails with "duplicate column name".
+ */
+function dropCodexNetworkDisabledColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
+    .all();
+  if (columns.some((column) => column.name === "codex_network_disabled")) {
+    db.$client
+      .prepare("ALTER TABLE app_settings DROP COLUMN codex_network_disabled")
       .run();
   }
 }
@@ -1402,6 +1420,7 @@ describe("migrate", () => {
     restoreWideExperimentsTable(db);
     dropOnboardingCompletedAtColumn(db);
     dropBrowserSearchEngineIdColumn(db);
+    dropCodexNetworkDisabledColumn(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
     dropTerminalSandboxedColumn(db);
@@ -1498,9 +1517,10 @@ describe("migrate", () => {
         [number]
       >("DELETE FROM __drizzle_migrations WHERE created_at >= ?")
       .run(sandboxCeilingMigrationWhen);
-    // 0097 is one of the rows just cleared, and its `ALTER TABLE ... ADD` is
-    // not re-appliable.
+    // 0097 and 0098 are among the rows just cleared, and an
+    // `ALTER TABLE ... ADD` is not re-appliable.
     dropTerminalSandboxedColumn(db);
+    dropCodexNetworkDisabledColumn(db);
 
     migrate(db);
 
@@ -1766,6 +1786,7 @@ describe("migrate", () => {
       dropSteerActiveThreadOnEnterColumn(db);
       dropOnboardingCompletedAtColumn(db);
       dropBrowserSearchEngineIdColumn(db);
+      dropCodexNetworkDisabledColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2167,6 +2188,7 @@ describe("migrate", () => {
       dropSteerActiveThreadOnEnterColumn(db);
       dropOnboardingCompletedAtColumn(db);
       dropBrowserSearchEngineIdColumn(db);
+      dropCodexNetworkDisabledColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2265,6 +2287,7 @@ describe("migrate", () => {
       dropSteerActiveThreadOnEnterColumn(db);
       dropOnboardingCompletedAtColumn(db);
       dropBrowserSearchEngineIdColumn(db);
+      dropCodexNetworkDisabledColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);

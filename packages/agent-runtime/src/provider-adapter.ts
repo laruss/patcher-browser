@@ -127,6 +127,14 @@ export type ProviderExecutionContext = {
   workflowsEnabled: boolean;
   memoryEnabled?: boolean;
   providerSubagentsEnabled?: boolean;
+  /**
+   * Take the network away from this turn's own commands, where the provider's
+   * sandbox has such a field. Codex's does; the others ignore it.
+   *
+   * Absent means "leave it alone", which is what every provider did before this
+   * existed and what the app setting behind it defaults to.
+   */
+  providerNetworkRestricted?: boolean;
   instructions?: string;
   envVars?: Record<string, string>;
   skillRoots?: readonly AgentRuntimeSkillRoot[];

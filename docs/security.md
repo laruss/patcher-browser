@@ -443,19 +443,18 @@ permitted` from the shell, which no part of the app can intercept, so the fact
   through its own sandbox; Pi and ACP build no OS sandbox at all, so for them
   the class stands as it did. The answer for those two is the one this section
   keeps arriving at — a boundary Patcher owns rather than one a provider offers.
-- **Codex's network is open, and turning it off is now a decision rather than a
-  blocker.** Restricting it is one field in the profile, and Codex 0.150.1 turns
-  a blocked connection into an approval request rather than a silent failure. The
-  thing that used to make it impossible was the `patcher` CLI — it reached the
-  local server over loopback, which restricted mode takes with it, so every CLI
-  call inside a turn would have become a prompt. That is gone: the CLI is offered
-  to a Codex turn as an MCP tool, which Codex spawns outside the command sandbox
-  (see above). What remains is the cost to everything _else_ a turn connects to:
-  `npm install`, `git fetch`, a package registry, an API the work is about. Each
-  becomes an approval, and where nobody is watching — a schedule, a delegated
-  child thread — an approval times out. So the field stays where it is until that
-  trade is made deliberately, per machine or per thread rather than for
-  everybody.
+- ~~**Codex's network is open.**~~ Now a switch, off by default: **Settings →
+  Codex → "Take the network from sandboxed turns"** (`codexNetworkDisabled`,
+  which lands as `network.enabled: false` on the turn's permission profile). Off
+  is the decision, not an oversight. Codex turns a blocked connection into an
+  approval request rather than a silent failure, so what the switch costs is a
+  prompt for every outbound connection a turn makes — `npm install`, `git fetch`,
+  whatever API the work is about — and where nobody is watching, a schedule or a
+  delegated child thread, an approval times out and the command fails. What it no
+  longer costs is the `patcher` CLI, which reaches Patcher through a tool rather
+  than the network (see above). Full Access builds no profile, so the switch does
+  not reach it; a change restarts the provider session, because the profile
+  travels with one.
 - **The unix-socket route is closed, for the record.** Measured, so nobody spends
   a day on it again: Codex's sandbox refuses `AF_UNIX` outright — with the
   network otherwise open, a connect to a socket answered `EPERM` — and the

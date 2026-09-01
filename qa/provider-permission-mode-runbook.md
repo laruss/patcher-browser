@@ -170,12 +170,12 @@ this does not yet close".
   `accept-edits` is a path check in the bridge, which the agent's own shell is
   not held to. Everything the two sections above close for Claude Code and Codex
   stands open for these two, and the answer is a boundary Patcher owns.
-- **Codex leaves the network open**, and it is now a decision rather than a
-  blocker: the `patcher` CLI no longer needs loopback inside a turn — it is
-  offered as an MCP tool, which Codex spawns outside the command sandbox. What
-  restricting the network still costs is every _other_ connection a turn makes
-  (`npm install`, `git fetch`), each becoming an approval that times out where
-  nobody is watching.
+- **Codex's network is a switch now, off by default** — Settings → Codex → "Take
+  the network from sandboxed turns". A manual pass should know both positions:
+  with it off nothing changes, and with it on a turn asks before every outbound
+  connection while `patcher` keeps working through its tool. Where nobody
+  answers, the approval times out and the command fails, which is the cost the
+  switch exists to make explicit.
 - **A turn's `patcher` calls go through a process that is not sandboxed.** By
   design, and bounded: the tool runs the CLI through `execFile` with the turn's
   own thread key and no app key. Worth knowing on a manual pass, because a

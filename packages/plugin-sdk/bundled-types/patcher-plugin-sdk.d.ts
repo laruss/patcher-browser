@@ -26,6 +26,7 @@ declare const appSettingsSchema: z$1.ZodObject<{
     codexSubagentsDisabled: z$1.ZodBoolean;
     claudeCodeSubagentsDisabled: z$1.ZodBoolean;
     claudeCodeWorkflowsDisabled: z$1.ZodBoolean;
+    codexNetworkDisabled: z$1.ZodBoolean;
     onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
     browserSearchEngineId: z$1.ZodString;
 }, z$1.core.$strict>;
@@ -3594,6 +3595,7 @@ declare const hostDaemonCommandRegistry: {
             workflowsEnabled: z$1.ZodBoolean;
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -3795,6 +3797,7 @@ declare const hostDaemonCommandRegistry: {
             workflowsEnabled: z$1.ZodBoolean;
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -4218,6 +4221,7 @@ declare const hostDaemonCommandRegistry: {
             workflowsEnabled: z$1.ZodBoolean;
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -4532,6 +4536,7 @@ declare const hostDaemonCommandRegistry: {
             workflowsEnabled: z$1.ZodBoolean;
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -7059,6 +7064,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         codexSubagentsDisabled: z$1.ZodBoolean;
         claudeCodeSubagentsDisabled: z$1.ZodBoolean;
         claudeCodeWorkflowsDisabled: z$1.ZodBoolean;
+        codexNetworkDisabled: z$1.ZodBoolean;
         onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
         browserSearchEngineId: z$1.ZodString;
     }, z$1.core.$strict>;

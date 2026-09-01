@@ -22,6 +22,7 @@ export function getAppSettings(db: DbConnection): AppSettings {
       codexSubagentsDisabled: appSettings.codexSubagentsDisabled,
       claudeCodeSubagentsDisabled: appSettings.claudeCodeSubagentsDisabled,
       claudeCodeWorkflowsDisabled: appSettings.claudeCodeWorkflowsDisabled,
+      codexNetworkDisabled: appSettings.codexNetworkDisabled,
       onboardingCompletedAt: appSettings.onboardingCompletedAt,
       browserSearchEngineId: appSettings.browserSearchEngineId,
     })
@@ -49,6 +50,7 @@ export function setAppSettings(
       codexSubagentsDisabled: settings.codexSubagentsDisabled,
       claudeCodeSubagentsDisabled: settings.claudeCodeSubagentsDisabled,
       claudeCodeWorkflowsDisabled: settings.claudeCodeWorkflowsDisabled,
+      codexNetworkDisabled: settings.codexNetworkDisabled,
       onboardingCompletedAt: settings.onboardingCompletedAt,
       browserSearchEngineId: settings.browserSearchEngineId,
       updatedAt,
@@ -65,6 +67,7 @@ export function setAppSettings(
         codexSubagentsDisabled: settings.codexSubagentsDisabled,
         claudeCodeSubagentsDisabled: settings.claudeCodeSubagentsDisabled,
         claudeCodeWorkflowsDisabled: settings.claudeCodeWorkflowsDisabled,
+        codexNetworkDisabled: settings.codexNetworkDisabled,
         onboardingCompletedAt: settings.onboardingCompletedAt,
         browserSearchEngineId: settings.browserSearchEngineId,
         updatedAt,

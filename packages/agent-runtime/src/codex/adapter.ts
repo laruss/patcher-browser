@@ -707,6 +707,7 @@ function buildCodexConfig(
     Object.assign(
       config,
       buildCodexWorkspacePermissionProfileConfig({
+        networkRestricted: args.options?.providerNetworkRestricted === true,
         protectedCredentialPaths: args.protectedCredentialPaths,
         protectedRepositoryPaths: args.protectedRepositoryPaths,
         workspacePath: args.workspacePath,
