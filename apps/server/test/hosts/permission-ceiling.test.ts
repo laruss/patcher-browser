@@ -72,8 +72,30 @@ describe("clampPermissionModeToHost", () => {
     ).toBe("auto");
   });
 
-  it("refuses a provider that cannot run sandboxed at all", () => {
+  it("lowers Pi to the sandbox it can now run in", () => {
+    // Pi used to be the provider this file reached for whenever it needed one
+    // that could not run sandboxed. It can: a workspace-scoped Pi turn runs
+    // with its bridge inside the sandbox Patcher builds, so a machine at the
+    // default ceiling runs Pi rather than refusing it.
     const { db, hostId } = setup();
+
+    expect(
+      clampPermissionModeToHost(
+        { db },
+        { hostId, permissionMode: "full", providerId: "pi" },
+      ),
+    ).toBe("auto");
+  });
+
+  it("refuses a provider that supports nothing under the machine's limit", () => {
+    // Pi supports "auto" and "full" and not "accept-edits", because it has no
+    // way to ask before writing outside the workspace. A machine capped there
+    // therefore has nothing Pi can run as — the case this refusal exists for,
+    // now that no provider is Full-Access-only.
+    const { db, hostId } = setup();
+    updateHost(db, noopNotifier, hostId, {
+      maxPermissionMode: "accept-edits",
+    });
 
     let error: unknown;
     try {

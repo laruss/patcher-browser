@@ -1105,7 +1105,8 @@ describe("public thread interaction routes", () => {
       expect(response.status).toBe(400);
       await expect(readJson(response)).resolves.toEqual({
         code: "invalid_request",
-        message: "Provider pi only supports full permission mode.",
+        message:
+          'Provider pi does not support the "accept-edits" permission mode. It supports auto, full.',
       });
     });
   });

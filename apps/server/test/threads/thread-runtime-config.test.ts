@@ -439,9 +439,11 @@ describe("thread runtime config", () => {
     },
     {
       childProviderId: "pi",
-      expectedPermissionMode: "full",
+      // Was "full", because that was the only mode Pi had. A Pi child now
+      // defaults into the sandbox its parent runs in.
+      expectedPermissionMode: "auto",
       parentProviderId: "pi",
-      name: "defaults Pi child execution permission mode to full",
+      name: "defaults Pi child execution permission mode to the sandbox",
       requestedModel: "openai-codex/gpt-5.4",
     },
   ])(
@@ -683,7 +685,9 @@ describe("thread runtime config", () => {
             source: "client/turn/requested",
           },
         }),
-      ).rejects.toThrow("Provider pi only supports full permission mode.");
+      ).rejects.toThrow(
+        'Provider pi does not support the "accept-edits" permission mode. It supports auto, full.',
+      );
     });
   });
 

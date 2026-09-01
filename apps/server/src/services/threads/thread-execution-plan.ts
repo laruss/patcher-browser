@@ -251,10 +251,15 @@ function validateProviderPermissionMode(
     return;
   }
 
+  // Named rather than listed away: a provider can support two of the three
+  // modes and not the one that was asked for — Pi supports the sandbox and Full
+  // Access but has no way to ask a question, so "accept-edits" is the one it
+  // cannot honour, and "only supports auto, full permission mode" read as a
+  // sentence with a word missing.
   throw new ProviderCapabilityValidationError(
     400,
     "invalid_request",
-    `Provider ${providerId} only supports ${supported.join(", ")} permission mode.`,
+    `Provider ${providerId} does not support the "${permissionMode}" permission mode. It supports ${supported.join(", ")}.`,
   );
 }
 

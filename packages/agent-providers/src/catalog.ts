@@ -111,7 +111,15 @@ const PI_CAPABILITIES: ProviderCapabilities = {
   supportsServiceTier: false,
   supportsUserQuestion: false,
   supportsFork: true,
-  supportedPermissionModes: ["full"],
+  // "auto" rather than both sandboxed modes, and that is the honest half. Pi has
+  // no permission system of its own — its documentation says so and points at a
+  // sandbox as the only boundary — so a workspace-scoped Pi turn is the sandbox
+  // Patcher builds around the bridge its tools run inside, with no channel for
+  // an approval. "Accept Edits" promises that anything beyond the workspace
+  // asks first, and Pi has nothing to ask with: a write outside is refused,
+  // full stop. "Approve for me" promises the same sandbox with requests
+  // reviewed automatically, which is what a turn with no requests amounts to.
+  supportedPermissionModes: ["auto", "full"],
 };
 
 const CODEX_COMPOSER_ACTIONS: ProviderComposerAction[] = [

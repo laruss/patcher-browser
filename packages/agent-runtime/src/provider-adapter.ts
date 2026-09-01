@@ -51,11 +51,14 @@ export interface ProviderAdapterFactoryOptions {
    * *result* — a launcher the bridge spawns the agent through — decided in the
    * daemon and sent with the session it belongs to.
    *
-   * The class this closes is the one Pi and ACP still have open: the path check
-   * for `fs/write_text_file` lives in the bridge, and the agent's own shell is
-   * not held to it. Measured on Cursor: unconfined, a turn's shell writes into
-   * the home directory; confined, the same command is refused while its work
-   * inside the workspace still succeeds.
+   * The class this closes is the one an ACP turn had open: the path check for
+   * `fs/write_text_file` lives in the bridge, and the agent's own shell is not
+   * held to it. Measured on Cursor: unconfined, a turn's shell writes into the
+   * home directory; confined, the same command is refused while its work inside
+   * the workspace still succeeds. Pi has the same class open and cannot use this
+   * callback for it — its tools run inside the bridge rather than in a child of
+   * it, so the launcher has to reach the bridge's own spawn
+   * ({@link WrapProviderProcessLaunch}).
    */
   wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
 }
@@ -78,6 +81,22 @@ export type WrapAcpAgentLaunchResult =
   | { sandboxed: false; reason: string; remedy: string };
 
 export type WrapAcpAgentLaunch = (
+  args: WrapAcpAgentLaunchArgs,
+) => WrapAcpAgentLaunchResult;
+
+/**
+ * Confines a provider's *own bridge process*, for the one provider where that
+ * is the boundary.
+ *
+ * The same shape as {@link WrapAcpAgentLaunch} and deliberately not the same
+ * function, because what it wraps and when it is called are both different: an
+ * ACP agent is a child of its bridge, so the ACP launcher is decided when a
+ * session is built and travels to the bridge; Pi's tools run inside the bridge,
+ * so the launcher has to exist before the bridge is spawned and there is no
+ * session yet to carry it. A single callback named for one of the two would
+ * have read as the wrong thing at the other call site.
+ */
+export type WrapProviderProcessLaunch = (
   args: WrapAcpAgentLaunchArgs,
 ) => WrapAcpAgentLaunchResult;
 

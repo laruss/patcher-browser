@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildAcpAgentSandboxLauncher } from "./acp-agent-sandbox.js";
+import { buildProviderSandboxLauncher } from "./provider-sandbox.js";
 
 /**
- * An ACP provider's own process, confined the way the turn is.
+ * A provider's own process, confined the way the turn is.
  *
  * These run the sandbox rather than asserting the arguments it would pass: an
  * argv assertion proves the code built what it meant to and nothing about
@@ -14,6 +14,11 @@ import { buildAcpAgentSandboxLauncher } from "./acp-agent-sandbox.js";
  * ACP's `accept-edits` is a path check in the bridge, and the agent's own shell
  * is not held to it, which is measurable: unconfined, a real Cursor turn's shell
  * wrote into the home directory.
+ *
+ * The same launcher goes in front of Pi's bridge, and there it has to hold one
+ * more thing: Pi's tools are `fs` calls in that process rather than commands in
+ * a child of it, so a boundary that only reached children would confine nothing
+ * Pi does. The last test here is that claim.
  */
 
 const OUTSIDE_PROBE_PATH = path.join(
@@ -54,7 +59,7 @@ function launch(args: {
 }):
   | { sandboxed: true; command: string; args: string[] }
   | { sandboxed: false; reason: string; remedy: string } {
-  const built = buildAcpAgentSandboxLauncher({
+  const built = buildProviderSandboxLauncher({
     cwd: args.workspacePath,
     stateDirs: args.stateDirs ?? [STATE_DIR_NAME],
     homeDirectory: homedir(),
@@ -100,7 +105,7 @@ describe("a daemon with no HOME", () => {
     // Granting nothing would build a sandbox the provider cannot start in, and
     // the failure would arrive as the agent's own EPERM instead of an answer
     // from Patcher. Platform-independent: it refuses before building anything.
-    const built = buildAcpAgentSandboxLauncher({
+    const built = buildProviderSandboxLauncher({
       cwd: "/workspace",
       stateDirs: [".cursor"],
       homeDirectory: undefined,
@@ -201,6 +206,50 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
         }).status,
       ).not.toBe(0);
       expect(existsSync(statePath)).toBe(false);
+    });
+  },
+);
+
+describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
+  "a bridge whose own process is the boundary",
+  () => {
+    it("refuses the process its own write, not only its children's", () => {
+      // Pi's edit tools run inside Patcher's bridge: no shell, no child, just
+      // `fs.writeFileSync` on the process the launcher wraps. If the profile
+      // held only what a process spawns, confining that bridge would buy
+      // nothing at all.
+      const fixture = createFixture();
+      fixtures.push(fixture);
+
+      const built = buildProviderSandboxLauncher({
+        cwd: fixture.workspacePath,
+        stateDirs: [STATE_DIR_NAME],
+        homeDirectory: homedir(),
+        additionalWorkspaceWriteRoots: [],
+        protectedRepositoryPaths: [],
+        protectedCredentialPaths: [],
+        env: process.env,
+        platform: process.platform,
+      });
+      if (!built.sandboxed) throw new Error("Expected a sandboxed launch");
+
+      const writeInProcess = (targetPath: string): number | null =>
+        spawnSync(
+          built.launcher.command,
+          [
+            ...built.launcher.args,
+            process.execPath,
+            "-e",
+            `require("node:fs").writeFileSync(${JSON.stringify(targetPath)}, "hi")`,
+          ],
+          { cwd: fixture.workspacePath, timeout: 20_000 },
+        ).status;
+
+      expect(
+        writeInProcess(path.join(fixture.workspacePath, "in-process.txt")),
+      ).toBe(0);
+      expect(writeInProcess(OUTSIDE_PROBE_PATH)).not.toBe(0);
+      expect(existsSync(OUTSIDE_PROBE_PATH)).toBe(false);
     });
   },
 );

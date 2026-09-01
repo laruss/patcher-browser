@@ -10,6 +10,7 @@ import type {
   ProviderAdapter,
   ProviderAdapterFactory,
   WrapAcpAgentLaunch,
+  WrapProviderProcessLaunch,
 } from "./provider-adapter.js";
 import { createProviderForId } from "./provider-registry.js";
 import { filterSkillRootsForProvider } from "./runtime-skill-roots.js";
@@ -28,6 +29,13 @@ import type {
 export interface RuntimeProviderProcess {
   adapter: ProviderAdapter;
   child: ChildProcess;
+  /**
+   * Whether this bridge process was spawned inside a sandbox. Recorded rather
+   * than recomputed, so a turn that promised a workspace scope can be refused
+   * by the process it actually landed on instead of by the key that was meant
+   * to route it there.
+   */
+  confined: boolean;
   expectedShutdownExpectations: number;
   identity: RuntimeProviderIdentityState;
   interactiveRequestScope: string;
@@ -49,6 +57,8 @@ export interface RuntimeProviderProcessManagerArgs {
   protectedRepositoryPaths?: readonly string[];
   /** Confines an ACP provider's own process; see `provider-adapter.ts`. */
   wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
+  /** Confines a provider's own bridge process; see `provider-adapter.ts`. */
+  wrapProviderProcessLaunch?: WrapProviderProcessLaunch;
   adapterFactory?: ProviderAdapterFactory;
   bridgeBundleDir: string | undefined;
   bridgeNodeEnv?: Record<string, string>;
@@ -82,6 +92,13 @@ export interface RuntimeProviderProcessManagerArgs {
 
 export interface EnsureRuntimeProviderArgs {
   acpLaunchSpec?: HostDaemonAcpLaunchSpec;
+  /**
+   * Spawn this bridge inside a sandbox, granting these `$HOME`-relative
+   * directories back. Present only for a confined process, and the process key
+   * has to distinguish one from an unconfined one — otherwise a turn would
+   * reuse a process built for the other answer.
+   */
+  bridgeSandboxStateDirs?: readonly string[];
   processKey: string;
   providerId: string;
 }
@@ -111,6 +128,7 @@ interface TerminateProviderProcessArgs {
 
 interface SpawnProviderArgs {
   adapter: ProviderAdapter;
+  bridgeSandboxStateDirs?: readonly string[];
   processKey: string;
   providerId: string;
 }
@@ -167,6 +185,9 @@ export class RuntimeProviderProcessManager {
       const adapter = this.getAdapter(args.providerId, args.acpLaunchSpec);
       const providerProcess = this.spawnProvider({
         adapter,
+        ...(args.bridgeSandboxStateDirs !== undefined
+          ? { bridgeSandboxStateDirs: args.bridgeSandboxStateDirs }
+          : {}),
         processKey: args.processKey,
         providerId: args.providerId,
       });
@@ -349,6 +370,38 @@ export class RuntimeProviderProcessManager {
     return createProviderForId(providerId, adapterOptions);
   }
 
+  /**
+   * The launcher a confined bridge is spawned through, or nothing for a bridge
+   * that runs as itself.
+   *
+   * A machine that cannot build a sandbox gets a refusal rather than an
+   * unconfined bridge, and the message names both ways out — the same answer a
+   * sandboxed ACP turn and a sandboxed terminal already give there. Failing at
+   * spawn is the point: this is the only moment where the boundary can still be
+   * put around the process that runs Pi's tools.
+   */
+  private resolveBridgeSandboxLauncher(
+    args: SpawnProviderArgs,
+  ): { command: string; args: readonly string[] } | undefined {
+    const stateDirs = args.bridgeSandboxStateDirs;
+    if (stateDirs === undefined) {
+      return undefined;
+    }
+    const wrap = this.args.wrapProviderProcessLaunch;
+    if (wrap === undefined) {
+      throw new Error(
+        `Provider "${args.providerId}" runs its own tools inside its bridge process, so a workspace-scoped turn needs that process confined, and this runtime was built without a way to confine it. Run the thread at Full Access to work without a sandbox.`,
+      );
+    }
+    const wrapped = wrap({ cwd: this.args.workspacePath, stateDirs });
+    if (!wrapped.sandboxed) {
+      throw new Error(
+        `Provider "${args.providerId}" runs its own tools inside its bridge process, so a workspace-scoped turn needs that process confined, and this machine cannot build a sandbox: ${wrapped.reason}. Either ${wrapped.remedy}, or run the thread at Full Access to work without a sandbox.`,
+      );
+    }
+    return wrapped.launcher;
+  }
+
   private spawnProvider(args: SpawnProviderArgs): RuntimeProviderProcess {
     const processConfig = args.adapter.process;
     const env: NodeJS.ProcessEnv = {
@@ -357,9 +410,12 @@ export class RuntimeProviderProcessManager {
       ...processConfig.env,
     };
 
+    const launcher = this.resolveBridgeSandboxLauncher(args);
     const child = spawnPortablePipedProcess({
-      command: processConfig.command,
-      args: processConfig.args,
+      command: launcher ? launcher.command : processConfig.command,
+      args: launcher
+        ? [...launcher.args, processConfig.command, ...processConfig.args]
+        : processConfig.args,
       cwd: this.args.workspacePath,
       env,
     });
@@ -367,6 +423,7 @@ export class RuntimeProviderProcessManager {
     const providerProcess: RuntimeProviderProcess = {
       child,
       adapter: args.adapter,
+      confined: launcher !== undefined,
       expectedShutdownExpectations: 0,
       interactiveRequestScope: randomUUID(),
       identity: this.args.createProviderIdentityState(args.providerId),

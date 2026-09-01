@@ -191,7 +191,10 @@ describe("pi provider adapter", () => {
       supportsServiceTier: false,
       supportsUserQuestion: false,
       supportsFork: true,
-      supportedPermissionModes: ["full"],
+      // Pi has no approval channel, so "accept-edits" — whose promise is that
+      // anything beyond the workspace asks first — is not among them. What it
+      // does have is the sandbox Patcher puts around its bridge.
+      supportedPermissionModes: ["auto", "full"],
     });
   });
 

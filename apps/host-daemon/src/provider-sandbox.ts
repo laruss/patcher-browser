@@ -3,13 +3,23 @@ import type { WrapAcpAgentLaunchResult } from "@patcher/agent-runtime";
 import { buildTerminalSandboxLauncher } from "./terminals/terminal-sandbox.js";
 
 /**
- * Running an ACP provider's own process inside the turn's boundary.
+ * Running a provider's own process inside the turn's boundary.
+ *
+ * Two providers arrive here, for the same reason and at different processes.
  *
  * ACP has no sandbox of its own. Its `accept-edits` is a path check on
  * `fs/write_text_file` in the bridge, and the agent's *own shell* is not held to
  * it — measured on Cursor with a real turn: unconfined, `printf hi > ~/probe`
  * from the agent's shell wrote the file; confined by this, the same command was
- * refused while `printf hi > <workspace>/hello.txt` still worked.
+ * refused while `printf hi > <workspace>/hello.txt` still worked. There the
+ * launcher goes in front of the agent, which is a child of its bridge.
+ *
+ * Pi has no sandbox and no permission system at all — its own documentation
+ * says so — and its tools run *inside* Patcher's bridge rather than in a child
+ * of it, so there the launcher goes in front of the bridge itself. Measured
+ * under this profile: an in-process `fs` write inside the workspace succeeds,
+ * the same write to `$HOME` is `EPERM`, and a child of that process is refused
+ * it too, so one launcher holds Pi's edit tools and its bash tool alike.
  *
  * The sandbox is the one Patcher already builds for terminals, and that is the
  * point rather than a shortcut: it confines the filesystem and leaves the
@@ -23,18 +33,21 @@ import { buildTerminalSandboxLauncher } from "./terminals/terminal-sandbox.js";
  *   `EPERM … ~/.cursor/cli-config.json.tmp` until `.cursor` is writable, and
  *   creates the session once it is. Which directories those are is each
  *   profile's to declare, so a new provider says so rather than being
- *   discovered by a failure in production.
+ *   discovered by a failure in production. Pi's bridge declares its own in
+ *   `pi/bridge-sandbox.ts`, where the same measurement is recorded.
  * - **Nothing else.** The workspace, the git roots beside it, the read-only
  *   repository files and the denied credential files are the same list the
  *   turn's own sandbox is built from, because a provider that could reach past
  *   them would be a second boundary disagreeing with the first.
  *
  * What crosses back to the runtime is a launcher, not a finished command: the
- * bridge appends the agent's own model and permission flags, and a launcher
- * folded into the command would have collected them itself.
+ * ACP bridge appends the agent's own model and permission flags, and a launcher
+ * folded into the command would have collected them itself. The Pi path needs
+ * the same shape for a different reason — the command it goes in front of is
+ * the bridge the runtime is about to spawn, which this module never sees.
  */
 
-export interface AcpAgentSandboxArgs {
+export interface ProviderSandboxArgs {
   /** The turn's working directory, and the writable root. */
   cwd: string;
   /** `$HOME`-relative directories from the provider's profile. */
@@ -48,8 +61,8 @@ export interface AcpAgentSandboxArgs {
   platform: NodeJS.Platform;
 }
 
-export function buildAcpAgentSandboxLauncher(
-  args: AcpAgentSandboxArgs,
+export function buildProviderSandboxLauncher(
+  args: ProviderSandboxArgs,
 ): WrapAcpAgentLaunchResult {
   const homeDirectory = args.homeDirectory;
   if (homeDirectory === undefined && args.stateDirs.length > 0) {

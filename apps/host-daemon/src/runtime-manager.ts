@@ -47,7 +47,7 @@ import {
 } from "./injected-skills.js";
 import { reconnectProvisionArgs } from "./workspace-provision-target.js";
 import type { FetchSkillTree } from "./skill-trees.js";
-import { buildAcpAgentSandboxLauncher } from "./acp-agent-sandbox.js";
+import { buildProviderSandboxLauncher } from "./provider-sandbox.js";
 import type { WrapAcpAgentLaunchResult } from "@patcher/agent-runtime";
 
 type StopWatching = () => void | Promise<void>;
@@ -346,9 +346,11 @@ export class RuntimeManager {
    * `<dataDir>/plugins` are deliberately not denied wholesale — that directory
    * also holds installed plugin code an agent has reason to read.
    *
-   * Only a provider whose sandbox can protect a path honours this: Claude Code
-   * through `credentials.files`, Codex through its permission profile. Pi and
-   * ACP build no OS sandbox at all, so for them the list is inert.
+   * Only a turn that runs inside a sandbox honours this: Claude Code through
+   * `credentials.files`, Codex through its permission profile, and — since the
+   * sandbox Patcher builds reached them — an ACP agent and the Pi bridge, both
+   * of which get this list as denied reads in their own profile. A Full Access
+   * turn has no sandbox for it to live in, which is what the mode means.
    */
   protectedCredentialPaths(): string[] {
     const dataDir = this.options.dataDir;
@@ -1259,7 +1261,8 @@ export class RuntimeManager {
   }
 
   /**
-   * The launcher that runs an ACP provider inside this turn's boundary.
+   * The launcher that runs a provider's own process inside this turn's
+   * boundary — the ACP agent, or the Pi bridge whose tools run inside it.
    *
    * The same sandbox a terminal gets, from the same module and with the same
    * policy shape: the workspace and the git roots beside it writable, the files
@@ -1279,13 +1282,13 @@ export class RuntimeManager {
    * unconfined provider — the adapter turns this into the same message the
    * Claude Code bridge gives for a sandboxed mode it cannot honour.
    */
-  private wrapAcpAgentLaunch(args: {
+  private buildProviderSandboxLauncher(args: {
     cwd: string;
     stateDirs: readonly string[];
     additionalWorkspaceWriteRoots: readonly string[];
     protectedRepositoryPaths: readonly string[];
   }): WrapAcpAgentLaunchResult {
-    return buildAcpAgentSandboxLauncher({
+    return buildProviderSandboxLauncher({
       ...args,
       env: process.env,
       homeDirectory: process.env.HOME,
@@ -1393,7 +1396,18 @@ export class RuntimeManager {
       // The sandbox Patcher builds for terminals is the same shape (filesystem,
       // not network), so the provider's process runs inside one too.
       wrapAcpAgentLaunch: (launch) =>
-        this.wrapAcpAgentLaunch({
+        this.buildProviderSandboxLauncher({
+          ...launch,
+          additionalWorkspaceWriteRoots,
+          protectedRepositoryPaths,
+        }),
+      // And Pi has no sandbox and no permission system at all, with its tools
+      // running inside the bridge rather than in a child of it — so for Pi the
+      // process Patcher spawns *is* what a workspace-scoped turn confines. Same
+      // builder, same policy: what differs is only which process the launcher
+      // ends up in front of.
+      wrapProviderProcessLaunch: (launch) =>
+        this.buildProviderSandboxLauncher({
           ...launch,
           additionalWorkspaceWriteRoots,
           protectedRepositoryPaths,
