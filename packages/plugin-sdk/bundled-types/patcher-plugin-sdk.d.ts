@@ -196,6 +196,7 @@ declare const changedMessageSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
         "project-updated": "project-updated";
         "project-deleted": "project-deleted";
         "project-sources-changed": "project-sources-changed";
+        "setup-script-consents-changed": "setup-script-consents-changed";
         "threads-changed": "threads-changed";
         "project-order-changed": "project-order-changed";
     }>>>;

@@ -75,3 +75,7 @@ export function createHostDaemonSessionId(): string {
 export function createTerminalSessionId(): string {
   return createId("term");
 }
+
+export function createEnvSetupScriptConsentId(): string {
+  return createId("escon");
+}

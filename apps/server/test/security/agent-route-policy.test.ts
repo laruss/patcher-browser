@@ -92,6 +92,40 @@ describe("agentRoutePolicyDenial", () => {
     ).not.toBeNull();
   });
 
+  it("refuses answering a setup-script question, and leaves reading one open", () => {
+    // The consent prompt is refused inside a turn where it is raised; this route
+    // is the same answer given later, from the project's settings. A turn that
+    // could give it would be allowing its own committed script to run on the
+    // host, outside the sandbox, as the user.
+    const denial = agentRoutePolicyDenial({
+      method: "POST",
+      path: "/api/v1/projects/proj-1/setup-script-consents/escon-1/allow",
+    });
+
+    expect(denial?.route).toBe("/projects/:id/setup-script-consents");
+    expect(denial?.message).toContain("outside this turn's sandbox");
+    expect(
+      agentRoutePolicyDenial({
+        method: "DELETE",
+        path: "/api/v1/projects/proj-1/setup-script-consents/escon-1",
+      }),
+    ).not.toBeNull();
+    // Reading what is allowed is not answering anything.
+    expect(
+      agentRoutePolicyDenial({
+        method: "GET",
+        path: "/api/v1/projects/proj-1/setup-script-consents",
+      }),
+    ).toBeNull();
+    // And the project routes beside it stay open.
+    expect(
+      agentRoutePolicyDenial({
+        method: "PATCH",
+        path: "/api/v1/projects/proj-1",
+      }),
+    ).toBeNull();
+  });
+
   it("leaves the rest of the hosts and threads routes alone", () => {
     expect(
       agentRoutePolicyDenial({ method: "PATCH", path: "/api/v1/hosts/host-1" }),

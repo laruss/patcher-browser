@@ -29,6 +29,7 @@ import {
   SettingsSection,
 } from "@/components/ui/settings-section.js";
 import { ProjectSourceRow } from "@/views/project-settings/ProjectSourceRow";
+import { ProjectSetupScriptRow } from "@/views/project-settings/ProjectSetupScriptRow";
 import {
   useAddLocalProjectSource,
   useDeleteLocalProjectSource,
@@ -38,6 +39,11 @@ import {
   isHostPathMissing,
   useHostPathExistence,
 } from "@/hooks/queries/host-path-queries";
+import {
+  useAllowProjectSetupScript,
+  useForgetProjectSetupScript,
+  useProjectSetupScriptConsents,
+} from "@/hooks/queries/project-setup-script-consent-queries";
 import { useHosts } from "@/hooks/queries/host-queries";
 import {
   useLocalPathPicker,
@@ -155,6 +161,13 @@ export function ProjectSettingsView() {
     () => new Map(hosts.map((host) => [host.id, host])),
     [hosts],
   );
+
+  const setupScriptConsentsQuery = useProjectSetupScriptConsents(projectId);
+  const allowSetupScript = useAllowProjectSetupScript();
+  const forgetSetupScript = useForgetProjectSetupScript();
+  const setupScriptConsents = setupScriptConsentsQuery.data?.consents ?? [];
+  const setupScriptPending =
+    allowSetupScript.isPending || forgetSetupScript.isPending;
   // Machine surfaces (source-row chrome, the machine-aware add menu from
   // Mockup E) only appear once there's more than one machine to tell apart —
   // a single-host setup keeps the pre-experiment UI unchanged.
@@ -280,6 +293,38 @@ export function ProjectSettingsView() {
               </SettingsRowList>
               {addSourceButtons}
             </div>
+          )}
+        </SettingsSection>
+        <SettingsSection
+          title="Setup script"
+          description="A repository's .patcher-env-setup.sh runs on the machine, outside any agent sandbox, as you. An answer covers that machine, that checkout and that exact script — and a script that changed is asked about again."
+        >
+          {setupScriptConsentsQuery.isPending ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : setupScriptConsents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing has been asked yet. The question comes up the first time a
+              worktree of this project is provisioned with that file in it.
+            </p>
+          ) : (
+            <SettingsRowList>
+              {setupScriptConsents.map((consent) => (
+                <ProjectSetupScriptRow
+                  key={consent.id}
+                  consent={consent}
+                  machineName={hostById.get(consent.hostId)?.name ?? null}
+                  isPending={setupScriptPending}
+                  onAllow={(consentId) => {
+                    if (!projectId) return;
+                    allowSetupScript.mutate({ projectId, consentId });
+                  }}
+                  onForget={(consentId) => {
+                    if (!projectId) return;
+                    forgetSetupScript.mutate({ projectId, consentId });
+                  }}
+                />
+              ))}
+            </SettingsRowList>
           )}
         </SettingsSection>
       </div>

@@ -23,6 +23,11 @@
  * and `agent-terminal-scope.ts` keeps a turn to the terminals of its own thread
  * and of the ones it spawned.
  *
+ * Answering a setup-script question is on the list as well, and it is the same
+ * judgement seen from the other side: the prompt itself is refused inside a turn
+ * in `routes/threads/interactions.ts`, and the settings route that answers one
+ * later would have been the way around that.
+ *
  * Approving a thread's prompts from inside the turn that raised them is refused
  * too — a turn that can resolve its own approval interaction can approve its own
  * unsandboxed retry, and the timeline then records the user as having allowed it.
@@ -107,6 +112,15 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
   {
     path: "/hosts/join-codes",
     reason: "enrolling a machine into this install is the owner's to do",
+  },
+  {
+    // The prompt is refused from inside a turn in `routes/threads/interactions.ts`;
+    // these are the same answer given out of band, and a turn that could give it
+    // would be allowing its own committed script to run on the host, outside the
+    // sandbox, as the user. A GET stays open: a turn may read what is allowed.
+    path: "/projects/:id/setup-script-consents",
+    reason:
+      "whether a repository's setup script may run on the machine, outside this turn's sandbox, is the owner's to answer",
   },
 ];
 

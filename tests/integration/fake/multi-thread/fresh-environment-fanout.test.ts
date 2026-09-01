@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createFakeAdapter } from "@patcher/agent-runtime/test";
-import { recordEnvSetupScriptApproval } from "@patcher/db";
+import { recordEnvSetupScriptAllowance } from "@patcher/db";
 import {
   shellSingleQuote,
   waitForSetupMarkerCount,
@@ -68,11 +68,15 @@ describe.sequential(
         // Provisioning asks before it runs a repository's setup script, and
         // nothing here is watching a thread to answer. This test is about two
         // setup scripts running at once, so it takes the path a repository
-        // whose script was already allowed takes: the remembered allow, keyed
-        // on this content.
-        recordEnvSetupScriptApproval(harness.db, {
+        // whose script was already allowed takes: the remembered allow, keyed on
+        // this machine, this checkout and this content.
+        recordEnvSetupScriptAllowance(harness.db, harness.hub, {
           projectId: project.id,
+          hostId: harness.hostId,
+          sourcePath: sourceRepo,
           scriptSha256: createHash("sha256").update(setupScript).digest("hex"),
+          scriptPath: path.join(sourceRepo, ".patcher-env-setup.sh"),
+          scriptByteLength: Buffer.byteLength(setupScript, "utf8"),
         });
 
         const [firstThread, secondThread] = await Promise.all([

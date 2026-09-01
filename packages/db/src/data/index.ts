@@ -1,7 +1,17 @@
 export {
-  hasEnvSetupScriptApproval,
-  recordEnvSetupScriptApproval,
-} from "./env-setup-script-approvals.js";
+  allowEnvSetupScriptConsent,
+  deleteEnvSetupScriptConsent,
+  forgetEnvSetupScriptQuestion,
+  hasEnvSetupScriptAllowance,
+  listEnvSetupScriptConsents,
+  recordEnvSetupScriptAllowance,
+  recordEnvSetupScriptQuestion,
+} from "./env-setup-script-consents.js";
+export type {
+  EnvSetupScriptConsentRow,
+  EnvSetupScriptConsentScope,
+  EnvSetupScriptSighting,
+} from "./env-setup-script-consents.js";
 export {
   createProject,
   ensurePersonalProject,

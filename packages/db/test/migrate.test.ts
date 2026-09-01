@@ -280,8 +280,9 @@ function dropRewindAddedTables(db: DbConnection): void {
   // of that rewind so the forward re-migrate can re-create them: the automations
   // tables (added by 0039/0041), app_theme (added by 0042), the thread section
   // schema (thread section columns + thread_sections table), thread tabs, and
-  // normalized plugin persistence tables, and the setup-script approvals
-  // (added by 0096).
+  // normalized plugin persistence tables, and the setup-script consents (added
+  // by 0096 and re-keyed by 0099).
+  db.$client.prepare("DROP TABLE IF EXISTS env_setup_script_consents").run();
   db.$client.prepare("DROP TABLE IF EXISTS env_setup_script_approvals").run();
   db.$client.prepare("DROP TABLE IF EXISTS thread_tabs").run();
   db.$client.prepare("DROP TABLE IF EXISTS automation_runs").run();

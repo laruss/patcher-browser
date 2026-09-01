@@ -373,8 +373,9 @@ export const pendingInteractionConsentActionValues = [
   "configure",
   // Not a plugin action, and not necessarily one an agent asked for: the
   // repository's own `.patcher-env-setup.sh`, which the daemon runs on the host
-  // outside any sandbox. Asked once per repository per script content, so a
-  // script an agent committed cannot run on the strength of an older approval.
+  // outside any sandbox. Asked once per repository per machine per script
+  // content, so a script an agent committed cannot run on the strength of an
+  // older approval — nor of one given for another checkout or another machine.
   "run-setup-script",
   // Also not a plugin action: a turn moving its own thread to a directory
   // outside the project's registered sources. That directory becomes the

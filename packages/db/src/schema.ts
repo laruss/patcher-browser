@@ -18,6 +18,7 @@ import { threadVisibilityValues } from "@patcher/domain/thread-visibility";
 import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "@patcher/domain/browser-search-engine";
 import type {
   EnvironmentStatus,
+  EnvSetupScriptConsentStatus,
   FaviconColorPreference,
   HostType,
   PendingInteractionStatus,
@@ -162,20 +163,49 @@ export const projectExecutionDefaults = sqliteTable(
  * it included — asks again. Cascades with the project, so forgetting a project
  * forgets what was allowed for it.
  */
-export const envSetupScriptApprovals = sqliteTable(
-  "env_setup_script_approvals",
+/**
+ * What this install remembers about repositories' own `.patcher-env-setup.sh`.
+ *
+ * The daemon runs that script on the host, outside every sandbox, as the user,
+ * so the four columns of the key are the four things a yes is about: this
+ * project, this machine, the repository at that path on it, and the exact bytes.
+ * The machine and the path are in the key because the script's *effect* is not
+ * in its bytes — `npm ci` is the same three characters wherever it runs — so a
+ * yes given for one checkout on one machine must not travel to another.
+ */
+export const envSetupScriptConsents = sqliteTable(
+  "env_setup_script_consents",
   {
+    id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    hostId: text("host_id")
+      .notNull()
+      .references(() => hosts.id, { onDelete: "cascade" }),
+    /**
+     * The repository the worktree came from: the project's source path on that
+     * host, or the environment's own path where the project has no source
+     * there. Not the worktree — every worktree is a new path, and asking once
+     * per worktree is what the remembered answer exists to avoid.
+     */
+    sourcePath: text("source_path").notNull(),
     scriptSha256: text("script_sha256").notNull(),
-    approvedAt: integer("approved_at").notNull(),
+    /** Where the script was seen, for the row to be legible to a person. */
+    scriptPath: text("script_path").notNull(),
+    scriptByteLength: integer("script_byte_length").notNull(),
+    status: text("status").$type<EnvSetupScriptConsentStatus>().notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
-    uniqueIndex("env_setup_script_approvals_project_sha_idx").on(
+    uniqueIndex("env_setup_script_consents_scope_idx").on(
       table.projectId,
+      table.hostId,
+      table.sourcePath,
       table.scriptSha256,
     ),
+    index("env_setup_script_consents_project_idx").on(table.projectId),
   ],
 );
 

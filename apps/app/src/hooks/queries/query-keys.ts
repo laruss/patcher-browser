@@ -67,6 +67,8 @@ export const ONBOARDING_AGENTS_QUERY_KEY = "onboardingAgents";
 export const ONBOARDING_REPOS_QUERY_KEY = "onboardingRepos";
 export const HOST_PATH_EXISTENCE_QUERY_KEY = "hostPathExistence";
 export const PROJECT_SKILLS_QUERY_KEY = "projectSkills";
+export const PROJECT_SETUP_SCRIPT_CONSENTS_QUERY_KEY =
+  "projectSetupScriptConsents";
 export const SKILL_CONTENT_QUERY_KEY = "skillContent";
 export const SKILL_FILES_QUERY_KEY = "skillFiles";
 export interface ThreadListQueryFilters {
@@ -1158,6 +1160,14 @@ export function hostPathExistenceQueryKeyPrefix(): HostPathExistenceQueryKeyPref
 
 export function projectSkillsQueryKey(projectId: string) {
   return [PROJECT_SKILLS_QUERY_KEY, projectId] as const;
+}
+
+export function projectSetupScriptConsentsQueryKey(projectId: string) {
+  return [PROJECT_SETUP_SCRIPT_CONSENTS_QUERY_KEY, projectId] as const;
+}
+
+export function allProjectSetupScriptConsentsQueryKeyPrefix() {
+  return [PROJECT_SETUP_SCRIPT_CONSENTS_QUERY_KEY] as const;
 }
 
 export function skillContentQueryKey(

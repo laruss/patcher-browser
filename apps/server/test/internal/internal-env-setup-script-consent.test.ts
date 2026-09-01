@@ -4,7 +4,12 @@ import {
   isConsentPendingInteraction,
   type ConsentPendingInteraction,
 } from "@patcher/domain";
-import { recordEnvSetupScriptApproval } from "@patcher/db";
+import {
+  createProjectSource,
+  listEnvSetupScriptConsents,
+  recordEnvSetupScriptAllowance,
+  updateProjectSource,
+} from "@patcher/db";
 import { internalAuthHeaders } from "../helpers/commands.js";
 import { readJson } from "../helpers/json.js";
 import {
@@ -19,17 +24,23 @@ import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
  * The daemon runs a repository's `.patcher-env-setup.sh` on the host, outside
  * every sandbox, as the user — and the script is a tracked file an agent can
  * commit to. So it asks first, about the script's content, and remembers the
- * answer for that content alone.
+ * answer for all four things it was an answer about: this project, this machine,
+ * the checkout at that path on it, and those bytes.
  */
 
 const SHA_A = "a".repeat(64);
 const SHA_B = "b".repeat(64);
+const SOURCE_PATH = "/tmp/test-project";
+const SCRIPT_PATH = "/tmp/worktree/.patcher-env-setup.sh";
 
 function seedSetupScriptThread(harness: TestAppHarness, suffix: string) {
   const { host, session } = seedHostSession(harness.deps, {
     id: `host-setup-consent-${suffix}`,
   });
-  const { project } = seedProjectWithSource(harness.deps, { hostId: host.id });
+  const { project, source } = seedProjectWithSource(harness.deps, {
+    hostId: host.id,
+    path: SOURCE_PATH,
+  });
   const environment = seedEnvironment(harness.deps, {
     hostId: host.id,
     projectId: project.id,
@@ -38,7 +49,24 @@ function seedSetupScriptThread(harness: TestAppHarness, suffix: string) {
     projectId: project.id,
     environmentId: environment.id,
   });
-  return { environment, project, session, thread };
+  return { environment, host, project, session, source, thread };
+}
+
+/** The scope every allow in this file is about, unless a test moves one part. */
+function scopeOf(args: {
+  projectId: string;
+  hostId: string;
+  scriptSha256: string;
+  sourcePath?: string;
+}) {
+  return {
+    projectId: args.projectId,
+    hostId: args.hostId,
+    sourcePath: args.sourcePath ?? SOURCE_PATH,
+    scriptSha256: args.scriptSha256,
+    scriptPath: SCRIPT_PATH,
+    scriptByteLength: 42,
+  };
 }
 
 async function askToRun(args: {
@@ -47,17 +75,22 @@ async function askToRun(args: {
   sessionId: string;
   threadId: string;
   scriptSha256: string;
+  /** Needed once a second machine has a session: the header cannot infer it. */
+  hostId?: string;
 }): Promise<Response> {
   return args.harness.app.request(
     "/internal/session/env-setup-script-consent",
     {
       method: "POST",
-      headers: internalAuthHeaders(args.harness),
+      headers: internalAuthHeaders(
+        args.harness,
+        args.hostId === undefined ? {} : { hostId: args.hostId },
+      ),
       body: JSON.stringify({
         sessionId: args.sessionId,
         environmentId: args.environmentId,
         threadId: args.threadId,
-        scriptPath: "/tmp/worktree/.patcher-env-setup.sh",
+        scriptPath: SCRIPT_PATH,
         scriptSha256: args.scriptSha256,
         scriptByteLength: 42,
       }),
@@ -279,10 +312,15 @@ describe("setup script consent", () => {
       // repository ask at once, all of them past the remembered-answer check
       // before any of them is answered. Somebody allows the one they are
       // looking at; this one ends without a decision of its own.
-      recordEnvSetupScriptApproval(harness.deps.db, {
-        projectId: project.id,
-        scriptSha256: SHA_A,
-      });
+      recordEnvSetupScriptAllowance(
+        harness.deps.db,
+        harness.deps.hub,
+        scopeOf({
+          projectId: project.id,
+          hostId: environment.hostId,
+          scriptSha256: SHA_A,
+        }),
+      );
       harness.deps.pendingInteractions.cancelConsentInteraction({
         threadId: thread.id,
         interactionId: interaction.id,
@@ -313,10 +351,15 @@ describe("setup script consent", () => {
         scriptSha256: SHA_A,
       });
       const interaction = await waitForConsentInteraction(harness, thread.id);
-      recordEnvSetupScriptApproval(harness.deps.db, {
-        projectId: project.id,
-        scriptSha256: SHA_A,
-      });
+      recordEnvSetupScriptAllowance(
+        harness.deps.db,
+        harness.deps.hub,
+        scopeOf({
+          projectId: project.id,
+          hostId: environment.hostId,
+          scriptSha256: SHA_A,
+        }),
+      );
       // A decline is a decision, not an absence of one, so it is not something
       // a remembered answer speaks for.
       harness.deps.pendingInteractions.decideConsentInteraction({
@@ -329,6 +372,244 @@ describe("setup script consent", () => {
         outcome: "refused",
         reason: "you did not allow it",
       });
+    });
+  });
+
+  it("keeps the question a thread nobody was watching could not answer", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, host, project, session, thread } =
+        seedSetupScriptThread(harness, "unwatched");
+
+      const pending = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+      // What a schedule or a delegated thread gets, every time: the prompt
+      // stands its four minutes in a thread nobody opens, and the timer that
+      // fires then is this.
+      harness.deps.pendingInteractions.cancelConsentInteraction({
+        threadId: thread.id,
+        interactionId: interaction.id,
+        reason: "timeout",
+      });
+
+      const body = (await readJson(await pending)) as {
+        outcome: string;
+        reason: string;
+      };
+      expect(body.outcome).toBe("refused");
+      expect(body.reason).toContain("went unanswered for four minutes");
+      // The transcript is where whoever finds the script did not run is looking,
+      // so it is where the way to answer it has to be said.
+      expect(body.reason).toContain("project's settings");
+
+      // And the question is still a question, with what it was about.
+      expect(listEnvSetupScriptConsents(harness.deps.db, project.id)).toEqual([
+        expect.objectContaining({
+          status: "asked",
+          hostId: host.id,
+          sourcePath: SOURCE_PATH,
+          scriptSha256: SHA_A,
+          scriptPath: SCRIPT_PATH,
+          scriptByteLength: 42,
+        }),
+      ]);
+    });
+  });
+
+  it("runs the script once that kept question is answered", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project, session, thread } = seedSetupScriptThread(
+        harness,
+        "answered-later",
+      );
+
+      const pending = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+      harness.deps.pendingInteractions.cancelConsentInteraction({
+        threadId: thread.id,
+        interactionId: interaction.id,
+        reason: "timeout",
+      });
+      await pending;
+      const [kept] = listEnvSetupScriptConsents(harness.deps.db, project.id);
+
+      // Answered from the project's settings rather than in the four minutes
+      // the prompt stood: the whole point of keeping it.
+      const allowed = await harness.app.request(
+        `/api/v1/projects/${project.id}/setup-script-consents/${kept?.id}/allow`,
+        { method: "POST" },
+      );
+      expect(allowed.status).toBe(200);
+
+      // The next run of that schedule asks nobody at all.
+      const again = await askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      await expect(readJson(again)).resolves.toEqual({ outcome: "approved" });
+      expect(
+        harness.deps.pendingInteractions.listPendingThreadInteractions(
+          thread.id,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  it("does not carry an allow to the same project on another machine", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project } = seedSetupScriptThread(harness, "host-a");
+      recordEnvSetupScriptAllowance(
+        harness.deps.db,
+        harness.deps.hub,
+        scopeOf({
+          projectId: project.id,
+          hostId: environment.hostId,
+          scriptSha256: SHA_A,
+        }),
+      );
+
+      // The same project, the same script, a second machine — and a checkout
+      // nobody has looked at. `npm ci` is the same three characters wherever it
+      // runs; what it does is whatever the repository around it says.
+      const { host: otherHost, session: otherSession } = seedHostSession(
+        harness.deps,
+        { id: "host-setup-consent-host-b" },
+      );
+      createProjectSource(harness.deps.db, harness.deps.hub, {
+        projectId: project.id,
+        type: "local_path",
+        hostId: otherHost.id,
+        path: "/tmp/other-machine-project",
+      });
+      const otherEnvironment = seedEnvironment(harness.deps, {
+        hostId: otherHost.id,
+        projectId: project.id,
+        path: "/tmp/other-machine-worktree",
+      });
+      const otherThread = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: otherEnvironment.id,
+      });
+
+      const pending = askToRun({
+        harness,
+        environmentId: otherEnvironment.id,
+        sessionId: otherSession.id,
+        threadId: otherThread.id,
+        scriptSha256: SHA_A,
+        hostId: otherHost.id,
+      });
+      const asked = await waitForConsentInteraction(harness, otherThread.id);
+      expect(asked.payload.subjectId).toBe(SHA_A);
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId: otherThread.id,
+        interactionId: asked.id,
+        approved: false,
+      });
+      await pending;
+    });
+  });
+
+  it("does not carry an allow to a source pointed somewhere else", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project, session, source, thread } =
+        seedSetupScriptThread(harness, "repointed");
+      recordEnvSetupScriptAllowance(
+        harness.deps.db,
+        harness.deps.hub,
+        scopeOf({
+          projectId: project.id,
+          hostId: environment.hostId,
+          scriptSha256: SHA_A,
+        }),
+      );
+
+      // Re-pointing a source is a route an agent is not forbidden, and the
+      // repository it now names is one nobody has answered about.
+      updateProjectSource(harness.deps.db, harness.deps.hub, source.id, {
+        path: "/tmp/some-other-checkout",
+      });
+
+      const pending = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const asked = await waitForConsentInteraction(harness, thread.id);
+      expect(asked.payload.subjectId).toBe(SHA_A);
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId: thread.id,
+        interactionId: asked.id,
+        approved: false,
+      });
+      await pending;
+    });
+  });
+
+  it("drops a kept question when somebody declines the script to its face", async () => {
+    await withTestHarness(async (harness) => {
+      const { environment, project, session, thread } = seedSetupScriptThread(
+        harness,
+        "declined-after-timeout",
+      );
+
+      const timedOut = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const unanswered = await waitForConsentInteraction(harness, thread.id);
+      harness.deps.pendingInteractions.cancelConsentInteraction({
+        threadId: thread.id,
+        interactionId: unanswered.id,
+        reason: "timeout",
+      });
+      await timedOut;
+      expect(
+        listEnvSetupScriptConsents(harness.deps.db, project.id),
+      ).toHaveLength(1);
+
+      const declined = askToRun({
+        harness,
+        environmentId: environment.id,
+        sessionId: session.id,
+        threadId: thread.id,
+        scriptSha256: SHA_A,
+      });
+      const asked = await waitForConsentInteraction(harness, thread.id);
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId: thread.id,
+        interactionId: asked.id,
+        approved: false,
+      });
+      await expect(readJson(await declined)).resolves.toEqual({
+        outcome: "refused",
+        reason: "you did not allow it",
+      });
+
+      // A decision was made, so the settings page stops presenting this script
+      // as waiting for one.
+      expect(listEnvSetupScriptConsents(harness.deps.db, project.id)).toEqual(
+        [],
+      );
     });
   });
 

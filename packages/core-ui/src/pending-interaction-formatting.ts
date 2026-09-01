@@ -51,10 +51,10 @@ export function formatPendingInteractionConsentDetailLines(
   // The setup script is the one consent here that is not about a plugin and not
   // necessarily about an agent's request, so it says what running it means and
   // does not claim anybody asked. It also says that the answer is kept: an
-  // allow is remembered against this project and this script's content, so
-  // "Allow" is not a one-off and the prompt has to admit it. Project, not
-  // repository: the row is keyed on the project id, so it covers every source
-  // that project has, on every machine.
+  // allow is remembered against this machine, this checkout and this script's
+  // content, so "Allow" is not a one-off and the prompt has to admit it — and it
+  // is those three together, because the same bytes in another repository are
+  // another script's worth of trust.
   // A folder outside the project is a folder outside every sandbox this project
   // builds, so the prompt says what the answer widens rather than only where.
   if (payload.action === "move-workspace") {
@@ -68,7 +68,7 @@ export function formatPendingInteractionConsentDetailLines(
     return [
       ...(payload.detail === null ? [] : [payload.detail]),
       "Runs on the machine, outside any agent sandbox, as you.",
-      "Allowing is remembered for this project until the script changes.",
+      "Allowing is remembered for this repository on this machine, until the script changes.",
     ];
   }
   // On enable, install, update and configure the list is what saying yes hands

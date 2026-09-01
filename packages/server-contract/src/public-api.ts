@@ -136,6 +136,8 @@ import type {
   ProjectListQuery,
   ProjectPathsQuery,
   ProjectResponse,
+  ProjectSetupScriptConsentResponse,
+  ProjectSetupScriptConsentsResponse,
   ProjectSkillsQuery,
   DeleteSkillRequest,
   SkillListResponse,
@@ -332,6 +334,9 @@ import {
 import type { ApiError } from "./errors.js";
 
 type PathProjectSourceId = { param: { id: string; sourceId: string } };
+type PathProjectSetupScriptConsentId = {
+  param: { id: string; consentId: string };
+};
 type PathThreadInteractionId = {
   param: { id: string; interactionId: string };
 };
@@ -426,6 +431,32 @@ export const publicApiRoutes = {
       path: "/projects/:id/sources/:sourceId",
       method: "delete",
       request: noRequest<PathProjectSourceId>(),
+      response: jsonResponse<{ ok: true }>(),
+    }),
+    /**
+     * What this install remembers about the project's setup scripts, and the
+     * two ways to change it. Answering here is answering the consent prompt out
+     * of band — the only way a schedule or a delegated thread ever gets an
+     * answer, since the prompt they raise stands in a thread nobody is watching.
+     * So the mutations are the prompt's own callers: not an agent mid-turn
+     * (`agent-route-policy.ts`) and not a plugin (checked in the handler).
+     */
+    setupScriptConsents: defineRoute({
+      path: "/projects/:id/setup-script-consents",
+      method: "get",
+      request: noRequest<PathProjectId>(),
+      response: jsonResponse<ProjectSetupScriptConsentsResponse>(),
+    }),
+    allowSetupScriptConsent: defineRoute({
+      path: "/projects/:id/setup-script-consents/:consentId/allow",
+      method: "post",
+      request: noRequest<PathProjectSetupScriptConsentId>(),
+      response: jsonResponse<ProjectSetupScriptConsentResponse>(),
+    }),
+    forgetSetupScriptConsent: defineRoute({
+      path: "/projects/:id/setup-script-consents/:consentId",
+      method: "delete",
+      request: noRequest<PathProjectSetupScriptConsentId>(),
       response: jsonResponse<{ ok: true }>(),
     }),
     files: defineRoute({
