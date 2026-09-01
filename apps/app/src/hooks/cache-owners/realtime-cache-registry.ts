@@ -102,6 +102,7 @@ import { schedulePluginFrontendReconcile } from "../../lib/plugin-frontend-lazy"
 import {
   getProjectListInvalidationQueryKeys,
   getProjectPromptHistoryInvalidationQueryKeys,
+  getProjectSetupScriptConsentInvalidationQueryKeys,
   getProjectSourceDependentInvalidationQueryKeys,
   getThreadDetailInvalidationQueryKeys,
   getThreadListInvalidationQueryKeys,
@@ -434,6 +435,11 @@ export const REALTIME_PROJECT_CHANGE_REGISTRY = {
   "project-sources-changed": {
     dirty: [
       dirtyProjectSourceDependentQueries, // Project sources back settings, file mentions, and branch pickers.
+    ],
+  },
+  "setup-script-consents-changed": {
+    dirty: [
+      dirtyProjectSetupScriptConsentQueries, // A provision on any machine can leave a question the settings page shows.
     ],
   },
   "threads-changed": {
@@ -941,6 +947,12 @@ function dirtyProjectSourceDependentQueries({
   projectId,
 }: ProjectRealtimeDirtyContext): QueryKey[] {
   return getProjectSourceDependentInvalidationQueryKeys({ projectId });
+}
+
+function dirtyProjectSetupScriptConsentQueries({
+  projectId,
+}: ProjectRealtimeDirtyContext): QueryKey[] {
+  return getProjectSetupScriptConsentInvalidationQueryKeys({ projectId });
 }
 
 function dirtyHostAvailabilityQueries(): QueryKey[] {

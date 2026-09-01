@@ -253,13 +253,32 @@ agent's commit runs the same script.
 
 So the question is asked about the script's content. The daemon hashes the
 script it has actually checked out and holds its request open while the person
-in the thread answers; an allow is remembered against the project and that
-hash, so later worktrees from the same repository ask nothing until the script
-changes. Every outcome that is not an allow — a decline, four minutes of
-silence, a thread that cannot show a prompt, a machine with no server to ask
-through — leaves the script unrun and says which it was in the provisioning
-transcript. Provisioning itself still succeeds: the worktree is what was asked
-for, and only the script was in question.
+in the thread answers; an allow is remembered against four things together —
+this project, this machine, the checkout on it the worktree came from, and that
+hash — so later worktrees from the same repository ask nothing until the script
+changes, and nothing else inherits the answer. All four, because a script's
+effect is not in its bytes: `npm ci` is the same three characters wherever it
+runs, and what it does is whatever the repository around it says. Every outcome
+that is not an allow — a decline, four minutes of silence, a thread that cannot
+show a prompt, a machine with no server to ask through — leaves the script unrun
+and says which it was in the provisioning transcript. Provisioning itself still
+succeeds: the worktree is what was asked for, and only the script was in
+question.
+
+**And the outcomes where nobody could have answered are kept as questions.** A
+schedule or a delegated thread provisions in a thread no one is watching, so the
+prompt stands its four minutes and times out — every run, if that is all that
+happens. The unanswered question is therefore recorded against the same four
+things the answer would be, one per checkout per machine (the newest, since the
+question is "this repository's script wants to run" and the bytes are whatever it
+holds now), and the project's settings are where it can be answered afterwards.
+The refusal says so, in the transcript line whoever finds the script did not run
+is already reading. Answering there is answering the prompt, so it is guarded
+like one: not from inside a turn (`agent-route-policy.ts` — a turn that could
+allow its own committed script would be arranging to run unsandboxed code as
+you) and not by a plugin, which the route policy cannot see. A decline given to
+the prompt's face drops the standing question, because a decision was made; the
+decline itself is still not remembered, and the same script asks again.
 
 **What the hash does not cover.** It is the hash of that one file. A setup
 script whose body is `make setup` or `bash scripts/bootstrap.sh` never changes,
@@ -447,17 +466,24 @@ Named here rather than left to be rediscovered:
   allow a prompt raised for somebody else — and have the timeline record the
   _user_ as having allowed it, which is the record the prompt exists to leave. A
   plugin's own wants are still asked about, at install and enable.
-- **A remembered setup-script allow is keyed to a project, not a repository.**
-  `project_sources.path` is mutable through a route no policy denies an agent,
-  and nothing invalidates an approval when a source is repointed: a repository
-  with a byte-identical script inherits the allow. The key carries no host
-  either, so a project spanning two machines is allowed on both by one answer,
-  and there is no list, revoke or expiry — only deleting the project forgets it.
-- **Nobody to ask.** A scheduled automation or a delegated child thread
-  provisions a worktree on a thread no one is watching, so the prompt times out
-  and the script is skipped — every run, because a timeout is deliberately not
-  remembered. The answer is allowing ahead of time rather than in the four
-  minutes the prompt stands, which is a surface that does not exist yet.
+- ~~**A remembered setup-script allow is keyed to a project, not a
+  repository.**~~ Closed: migration `0099` re-keys the row on the project, the
+  **machine**, the **checkout** the worktree came from, and the hash. So
+  re-pointing `project_sources.path` — a route no policy denies an agent — leaves
+  the old answer matching nothing rather than handing the new repository a
+  byte-identical script's allow, and a project on two machines is answered for
+  once per machine. The old rows are dropped rather than migrated: they cannot
+  say which machine or checkout they were an answer about, which is the
+  ambiguity being removed. The project's settings now list what is remembered,
+  with a revoke on every row, so an allow that has outlived its reason is
+  visible and removable — which is what the missing expiry was for.
+- ~~**Nobody to ask.**~~ Closed: the outcomes where nobody could have answered
+  now keep the question instead of dropping it, and the project's settings are
+  where it is answered — see above. A schedule's first run still skips the
+  script and says so in its transcript; every run after the answer runs it. The
+  answer is still about content, so an agent that rewrites the script between
+  runs gets a skipped script and a fresh question rather than a standing
+  channel.
 - **A terminal's network.** Named above and repeated here because it is the
   shape of what is left: an agent's terminal is confined on the filesystem and
   not on the network, so `curl` inside one reaches whatever the machine can. It

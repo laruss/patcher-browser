@@ -31,6 +31,9 @@ export const PROJECT_CHANGE_KINDS = [
   "project-updated",
   "project-deleted",
   "project-sources-changed",
+  // A setup-script answer, or a question nobody answered: a provision on any
+  // machine can add one while the project's settings are open.
+  "setup-script-consents-changed",
   "threads-changed",
   "project-order-changed",
 ] as const;

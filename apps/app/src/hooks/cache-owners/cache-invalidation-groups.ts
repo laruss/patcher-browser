@@ -10,7 +10,9 @@ import {
   allThreadTimelineQueryKeyPrefix,
   allThreadTimelineTurnSummaryDetailsQueryKeyPrefix,
   hostPathExistenceQueryKeyPrefix,
+  allProjectSetupScriptConsentsQueryKeyPrefix,
   projectPathsQueryKeyPrefix,
+  projectSetupScriptConsentsQueryKey,
   projectPromptHistoryQueryKey,
   projectPromptHistoryQueryKeyPrefix,
   projectSourceBranchesQueryKeyPrefix,
@@ -54,6 +56,14 @@ export function getProjectPromptHistoryInvalidationQueryKeys({
   return projectId
     ? [projectPromptHistoryQueryKey(projectId)]
     : [projectPromptHistoryQueryKeyPrefix()];
+}
+
+export function getProjectSetupScriptConsentInvalidationQueryKeys({
+  projectId,
+}: ProjectScopedInvalidationArgs): QueryKey[] {
+  return projectId
+    ? [projectSetupScriptConsentsQueryKey(projectId)]
+    : [allProjectSetupScriptConsentsQueryKeyPrefix()];
 }
 
 export function getProjectSourceDependentInvalidationQueryKeys({

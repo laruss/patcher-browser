@@ -694,6 +694,13 @@
       "when": 1788259511924,
       "tag": "0098_codex_network_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "6",
+      "when": 1788275736927,
+      "tag": "0099_setup_script_consent_scope",
+      "breakpoints": true
     }
   ]
 }

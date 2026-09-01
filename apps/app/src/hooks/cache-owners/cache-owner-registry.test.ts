@@ -69,6 +69,7 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
   ],
   "hooks/cache-owners/cache-invalidation-groups.ts": [
     "allProjectPathsQueryKeyPrefix",
+    "allProjectSetupScriptConsentsQueryKeyPrefix",
     "allProjectSourceBranchesQueryKeyPrefix",
     "allThreadConversationOutlineQueryKeyPrefix",
     "allThreadPendingInteractionsQueryKeyPrefix",
@@ -80,6 +81,7 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
     "projectPathsQueryKeyPrefix",
     "projectPromptHistoryQueryKey",
     "projectPromptHistoryQueryKeyPrefix",
+    "projectSetupScriptConsentsQueryKey",
     "projectSourceBranchesQueryKeyPrefix",
     "projectsQueryKey",
     "sidebarNavigationQueryKey",
@@ -109,9 +111,7 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
     "environmentQueryKey",
     "threadSearchQueryKeyPrefix",
   ],
-  "hooks/cache-owners/host-directory-cache-owner.ts": [
-    "hostDirectoryQueryKey",
-  ],
+  "hooks/cache-owners/host-directory-cache-owner.ts": ["hostDirectoryQueryKey"],
   "hooks/cache-owners/mutation-cache-effects.ts": [
     "hostsQueryKey",
     "projectPathsQueryKeyPrefix",

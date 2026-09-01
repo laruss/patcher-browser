@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  envSetupScriptConsentStatusSchema,
   FILE_LIST_QUERY_MAX_LENGTH,
   getProjectPathValidationMessage,
   gitBranchNameSchema,
@@ -546,6 +547,40 @@ export const sidebarBootstrapResponseSchema = z.object({
 });
 export type SidebarBootstrapResponse = z.infer<
   typeof sidebarBootstrapResponseSchema
+>;
+
+/**
+ * One thing this install remembers about a repository's own setup script.
+ *
+ * The daemon runs that script on the host outside every sandbox, so this is
+ * where a person can see what has been allowed and take it back — and where a
+ * question raised in a thread nobody was watching waits to be answered, instead
+ * of the same four minutes being lost on every scheduled run.
+ */
+export const projectSetupScriptConsentSchema = z
+  .object({
+    id: z.string().min(1),
+    /** The machine the answer is about; a project may live on several. */
+    hostId: z.string().min(1),
+    /** The checkout on that machine the worktrees come from. */
+    sourcePath: z.string().min(1),
+    scriptPath: z.string().min(1),
+    scriptSha256: z.string().min(1),
+    scriptByteLength: z.number().int().nonnegative(),
+    status: envSetupScriptConsentStatusSchema,
+    createdAt: z.number(),
+    updatedAt: z.number(),
+  })
+  .strict();
+export type ProjectSetupScriptConsentResponse = z.infer<
+  typeof projectSetupScriptConsentSchema
+>;
+
+export const projectSetupScriptConsentsResponseSchema = z
+  .object({ consents: z.array(projectSetupScriptConsentSchema) })
+  .strict();
+export type ProjectSetupScriptConsentsResponse = z.infer<
+  typeof projectSetupScriptConsentsResponseSchema
 >;
 
 export const uploadedPromptAttachmentSchema = z.object({

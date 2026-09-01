@@ -6,6 +6,10 @@ import {
   permissionsForApiPath,
 } from "@patcher/domain";
 import {
+  listEnvSetupScriptConsents,
+  recordEnvSetupScriptQuestion,
+} from "@patcher/db";
+import {
   createPluginApiFetch,
   createPluginApiIdentities,
   PLUGIN_API_ID_HEADER,
@@ -231,6 +235,44 @@ describe("plugin identity on the loopback API", () => {
     expect(
       harness.deps.pendingInteractions.listPendingThreadInteractions(thread.id),
     ).toHaveLength(1);
+  });
+
+  it("refuses a plugin the answer to a setup-script question", async () => {
+    // The same question, asked out of band. A plugin holding `workspace` reaches
+    // every other `/projects` route, and this one decides whether a script runs
+    // on the machine outside every sandbox, as the user — so it is refused here
+    // as well, since the route policy that refuses a turn cannot see a plugin.
+    const { headers, id } = await install("patcher-plugin-allower", [
+      "workspace",
+    ]);
+    const { host } = seedHostSession(harness.deps, { id: "host-setup-script" });
+    const { project } = seedProjectWithSource(harness.deps, {
+      hostId: host.id,
+      path: "/repos/thing",
+    });
+    recordEnvSetupScriptQuestion(harness.deps.db, harness.deps.hub, {
+      projectId: project.id,
+      hostId: host.id,
+      sourcePath: "/repos/thing",
+      scriptSha256: "c".repeat(64),
+      scriptPath: "/repos/thing-wt/.patcher-env-setup.sh",
+      scriptByteLength: 64,
+    });
+    const [question] = listEnvSetupScriptConsents(harness.deps.db, project.id);
+
+    const response = await harness.app.request(
+      `${BASE}/api/v1/projects/${project.id}/setup-script-consents/${question?.id}/allow`,
+      { method: "POST", headers },
+    );
+
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { message: string };
+    expect(body.message).toContain(id);
+    expect(body.message).toContain("answered by the user");
+    // And the question is still a question.
+    expect(listEnvSetupScriptConsents(harness.deps.db, project.id)).toEqual([
+      expect.objectContaining({ id: question?.id, status: "asked" }),
+    ]);
   });
 
   it("refuses a path the plugin did not declare", async () => {

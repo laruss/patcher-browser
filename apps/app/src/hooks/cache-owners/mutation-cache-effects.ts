@@ -24,6 +24,7 @@ import { invalidateQueryKeys } from "./cache-effect-utils";
 import {
   getProjectListInvalidationQueryKeys,
   getProjectPromptHistoryInvalidationQueryKeys,
+  getProjectSetupScriptConsentInvalidationQueryKeys,
   getProjectSourceDependentInvalidationQueryKeys,
   getThreadDetailInvalidationQueryKeys,
   getThreadListInvalidationQueryKeys,
@@ -50,6 +51,23 @@ export function invalidateProjectListQueries({
   invalidateQueryKeys({
     queryClient,
     queryKeys: getProjectListInvalidationQueryKeys(),
+  });
+}
+
+/**
+ * Answering or revoking a setup-script consent, ahead of the realtime echo.
+ *
+ * The row the settings page shows is the same row the daemon reads on the next
+ * provision, so the list has to reflect the answer immediately rather than when
+ * the project's broadcast arrives.
+ */
+export function invalidateProjectSetupScriptConsentQueries({
+  projectId,
+  queryClient,
+}: ProjectArg): void {
+  invalidateQueryKeys({
+    queryClient,
+    queryKeys: getProjectSetupScriptConsentInvalidationQueryKeys({ projectId }),
   });
 }
 

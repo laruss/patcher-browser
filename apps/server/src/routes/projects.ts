@@ -1,6 +1,9 @@
 import path from "node:path";
 import {
+  allowEnvSetupScriptConsent,
   countProjectSources,
+  deleteEnvSetupScriptConsent,
+  listEnvSetupScriptConsents,
   findOrCreateProjectByLocalPathSource,
   getPersonalProject,
   getPublicProjectByLocalPathSource,
@@ -18,6 +21,7 @@ import {
   updateProjectSource,
   setProjectGitRemoteUrlIfMissing,
   isSqliteUniqueConstraintOnColumns,
+  type EnvSetupScriptConsentRow,
   type ReorderProjectResult,
 } from "@patcher/db";
 import {
@@ -27,12 +31,17 @@ import {
   type ProjectListIncludeOption,
   type ProjectListQuery,
   type ProjectResponse,
+  type ProjectSetupScriptConsentResponse,
   type ProjectWithThreadsResponse,
   type PublicApiSchema,
 } from "@patcher/server-contract";
 import type { Hono } from "hono";
 import { supportsManualCompaction } from "@patcher/agent-providers";
 import type { AppDeps } from "../types.js";
+import {
+  getPluginApiId,
+  type PluginApiIdReader,
+} from "../plugin-api-identity-context.js";
 import { COMMAND_TIMEOUT_MS } from "../constants.js";
 import { ApiError } from "../errors.js";
 import {
@@ -325,6 +334,52 @@ async function inspectProjectGitRemoteBestEffort(
   }
 }
 
+/**
+ * A setup script is allowed by a person, not by a plugin.
+ *
+ * These two routes are the consent prompt answered out of band, so they need the
+ * prompt's own guards. A turn is refused a layer out, by path, in
+ * `agent-route-policy.ts` — an agent that could allow its own committed script
+ * would be allowing itself unsandboxed code on the host. A plugin is refused
+ * here, because the route policy cannot see one: a plugin authenticates with its
+ * own id and key, sends no thread header, and `workspace` is enough to reach
+ * every other `/projects` route. Same shape as the check on
+ * `interactions/:id/respond`, for the same reason.
+ */
+function refuseSetupScriptAnswerFromAPlugin(context: PluginApiIdReader): void {
+  const callerPluginId = getPluginApiId(context);
+  if (callerPluginId !== undefined) {
+    throw new ApiError(
+      403,
+      "invalid_request",
+      `Whether a setup script may run on the machine is answered by the user, not by the "${callerPluginId}" plugin. Nothing changed.`,
+    );
+  }
+}
+
+/**
+ * The daemon's own row, as the settings page reads it.
+ *
+ * The project id is not repeated: it is the `:id` of the request. The hash is,
+ * in full — it is the identity of what was allowed, and a person comparing it
+ * with what the repository holds needs all of it.
+ */
+function toSetupScriptConsentResponse(
+  row: EnvSetupScriptConsentRow,
+): ProjectSetupScriptConsentResponse {
+  return {
+    id: row.id,
+    hostId: row.hostId,
+    sourcePath: row.sourcePath,
+    scriptPath: row.scriptPath,
+    scriptSha256: row.scriptSha256,
+    scriptByteLength: row.scriptByteLength,
+    status: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
 export function registerProjectRoutes(app: Hono, deps: AppDeps): void {
   const { get, post, patch, del } = typedRoutes<PublicApiSchema>(app, {
     onValidationError: (msg) => new ApiError(400, "invalid_request", msg),
@@ -586,6 +641,52 @@ export function registerProjectRoutes(app: Hono, deps: AppDeps): void {
     );
     if (!deleted) {
       throw new ApiError(404, "invalid_request", "Project source not found");
+    }
+    return context.json({ ok: true });
+  });
+
+  get(routes.setupScriptConsents, (context) => {
+    const projectId = context.req.param("id");
+    requirePublicProject(deps.db, projectId);
+    return context.json({
+      consents: listEnvSetupScriptConsents(deps.db, projectId).map(
+        toSetupScriptConsentResponse,
+      ),
+    });
+  });
+
+  post(routes.allowSetupScriptConsent, (context) => {
+    const projectId = context.req.param("id");
+    requirePublicProject(deps.db, projectId);
+    refuseSetupScriptAnswerFromAPlugin(context);
+    const consent = allowEnvSetupScriptConsent(deps.db, deps.hub, {
+      projectId,
+      consentId: context.req.param("consentId"),
+    });
+    if (!consent) {
+      throw new ApiError(
+        404,
+        "invalid_request",
+        "Setup script record not found",
+      );
+    }
+    return context.json(toSetupScriptConsentResponse(consent));
+  });
+
+  del(routes.forgetSetupScriptConsent, (context) => {
+    const projectId = context.req.param("id");
+    requirePublicProject(deps.db, projectId);
+    refuseSetupScriptAnswerFromAPlugin(context);
+    const forgotten = deleteEnvSetupScriptConsent(deps.db, deps.hub, {
+      projectId,
+      consentId: context.req.param("consentId"),
+    });
+    if (!forgotten) {
+      throw new ApiError(
+        404,
+        "invalid_request",
+        "Setup script record not found",
+      );
     }
     return context.json({ ok: true });
   });
