@@ -303,6 +303,14 @@ async function handlePrompt(message) {
   } else if (text.includes("echo-argv")) {
     // Lets bridge tests assert the launch args (e.g. the --model pin).
     notifyUpdate(messageChunk(`argv:${process.argv.slice(2).join(" ")}`));
+  } else if (text.includes("echo-proxy-env")) {
+    // Lets a bridge test assert that the confinement's own environment really
+    // reaches the agent process, rather than only the launcher's argv.
+    notifyUpdate(
+      messageChunk(
+        `proxy-env:${process.env.HTTPS_PROXY ?? "none"} no:${process.env.NO_PROXY ?? "none"}`,
+      ),
+    );
   } else if (text.includes("echo-selected-model")) {
     notifyUpdate(messageChunk(`selected-model:${selectedModel}`));
   } else if (text.includes("echo-selected-effort")) {
