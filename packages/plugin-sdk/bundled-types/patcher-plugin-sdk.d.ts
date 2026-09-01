@@ -28,7 +28,7 @@ declare const appSettingsSchema: z$1.ZodObject<{
     claudeCodeWorkflowsDisabled: z$1.ZodBoolean;
     codexNetworkDisabled: z$1.ZodBoolean;
     providerEgressConfined: z$1.ZodBoolean;
-    providerEgressAllowedHosts: z$1.ZodArray<z$1.ZodString>;
+    providerEgressAllowedHosts: z$1.ZodPipe<z$1.ZodArray<z$1.ZodString>, z$1.ZodTransform<string[], string[]>>;
     onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
     browserSearchEngineId: z$1.ZodString;
 }, z$1.core.$strict>;
@@ -7092,7 +7092,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         claudeCodeWorkflowsDisabled: z$1.ZodBoolean;
         codexNetworkDisabled: z$1.ZodBoolean;
         providerEgressConfined: z$1.ZodBoolean;
-        providerEgressAllowedHosts: z$1.ZodArray<z$1.ZodString>;
+        providerEgressAllowedHosts: z$1.ZodPipe<z$1.ZodArray<z$1.ZodString>, z$1.ZodTransform<string[], string[]>>;
         onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
         browserSearchEngineId: z$1.ZodString;
     }, z$1.core.$strict>;

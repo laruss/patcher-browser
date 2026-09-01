@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { defaultAppSettings } from "@patcher/domain";
+import { appSettingsSchema, defaultAppSettings } from "@patcher/domain";
 import {
   createConnection,
   getAppKeybindingOverrides,
@@ -34,6 +34,30 @@ describe("app settings data", () => {
       providerEgressConfined: true,
       providerEgressAllowedHosts: ["github.com", "*.githubusercontent.com"],
     });
+  });
+
+  it("stores a host as the proxy can use it, whatever was typed", () => {
+    // `CONNECT` names a host, so a URL in this field would look right in the
+    // settings and match nothing at all. The wildcard survives, being the
+    // pattern rather than part of a name.
+    setAppSettings(db, {
+      ...defaultAppSettings,
+      providerEgressAllowedHosts: appSettingsSchema.parse({
+        ...defaultAppSettings,
+        providerEgressAllowedHosts: [
+          "https://GitHub.com/org/repo",
+          " registry.npmjs.org:443 ",
+          "*.githubusercontent.com",
+          "   ",
+        ],
+      }).providerEgressAllowedHosts,
+    });
+
+    expect(getAppSettings(db).providerEgressAllowedHosts).toEqual([
+      "github.com",
+      "registry.npmjs.org",
+      "*.githubusercontent.com",
+    ]);
   });
 
   it("reads an unparseable host list as an empty one", () => {

@@ -1,8 +1,32 @@
 import { z } from "zod";
 import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "./browser-search-engine.js";
 
+/**
+ * A hostname as the egress boundary can actually use it.
+ *
+ * `CONNECT` names a host, so a host is the only unit the proxy can decide on —
+ * and somebody adding `https://github.com/org` to a list means `github.com` by
+ * it. Stored normalized rather than rejected, because the alternative is an
+ * entry that looks right in the settings field and matches nothing at all,
+ * which is the silent failure this whole boundary exists to remove. A leading
+ * `*.` survives: it is the wildcard, not part of the name.
+ */
+function normalizeEgressHost(value: string): string {
+  const withoutScheme = value
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//u, "");
+  const withoutPath = withoutScheme.split("/")[0] ?? "";
+  // A port, but not the colons of an IPv6 literal, which nobody lists by hand.
+  return withoutPath.replace(/:\d+$/u, "");
+}
+
 /** Hostnames a confined turn may reach, as stored and as sent over the API. */
-export const providerEgressAllowedHostsSchema = z.array(z.string());
+export const providerEgressAllowedHostsSchema = z
+  .array(z.string())
+  .transform((hosts) =>
+    hosts.map(normalizeEgressHost).filter((host) => host !== ""),
+  );
 export type ProviderEgressAllowedHosts = z.infer<
   typeof providerEgressAllowedHostsSchema
 >;
