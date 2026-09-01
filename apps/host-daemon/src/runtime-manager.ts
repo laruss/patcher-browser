@@ -1272,15 +1272,18 @@ export class RuntimeManager {
    * - The provider writes its own state outside the workspace and cannot start
    *   without it. `cursor-agent acp` answers `session/new` with
    *   `EPERM … ~/.cursor/cli-config.json.tmp` until that directory is writable.
-   *   Which directories those are is the profile's to declare (`stateDirs`).
+   *   Which directories those are is the profile's to declare (`stateDirs`);
+   *   Pi's bridge declares its own in `pi/bridge-sandbox.ts`.
    * - Nothing is denied on the network, deliberately, exactly as for terminals.
    *   The class this closes is the filesystem one: measured on Cursor, an
    *   unconfined turn's own shell writes into the home directory, and a confined
    *   one is refused while its work inside the workspace still succeeds.
    *
    * A machine that cannot build a sandbox gets a refusal rather than an
-   * unconfined provider — the adapter turns this into the same message the
-   * Claude Code bridge gives for a sandboxed mode it cannot honour.
+   * unconfined provider, in the same words a sandboxed Claude turn already
+   * gets: for an ACP agent the adapter says it when the session is built, and
+   * for Pi the runtime says it when the bridge would have been spawned, which
+   * is the last moment the boundary could still go around it.
    */
   private buildProviderSandboxLauncher(args: {
     cwd: string;
