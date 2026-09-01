@@ -201,6 +201,7 @@ export class EgressProxy {
   private port: number | undefined;
   private readonly grants = new Map<string, Grant>();
   private readonly tokensByKey = new Map<string, string>();
+  private starting: Promise<void> | undefined;
   private readonly sockets = new Set<net.Socket>();
 
   constructor(private readonly options: EgressProxyOptions = {}) {}
@@ -212,6 +213,17 @@ export class EgressProxy {
    */
   async start(): Promise<void> {
     if (this.server !== undefined) return;
+    // Memoized rather than guarded on `this.server`: environments are created
+    // concurrently, and two callers past a plain guard would each open a
+    // listener, with the loser left running for the daemon's life. Cleared on
+    // failure so a later environment can try again.
+    this.starting ??= this.listen().finally(() => {
+      this.starting = undefined;
+    });
+    await this.starting;
+  }
+
+  private async listen(): Promise<void> {
     const server = net.createServer((socket) => this.handle(socket));
     server.on("error", () => {});
     await new Promise<void>((resolve, reject) => {
@@ -255,6 +267,7 @@ export class EgressProxy {
   async close(): Promise<void> {
     this.grants.clear();
     this.tokensByKey.clear();
+    this.starting = undefined;
     for (const socket of this.sockets) socket.destroy();
     this.sockets.clear();
     const server = this.server;
