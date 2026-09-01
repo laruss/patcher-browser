@@ -170,8 +170,9 @@ escalation is denied is refused outright.
 
 **A terminal an agent opens runs inside its turn's boundary.** This one is a
 sandbox Patcher builds rather than one a provider offers, which is what makes it
-the same for every provider — a Pi or ACP turn, whose own tools are confined by
-nothing, still gets a confined terminal. The policy is the turn's own, path for
+the same for every provider — a Pi turn, whose own tools are confined by
+nothing, still gets a confined terminal, and it is the boundary an ACP turn's
+own agent now runs inside as well (below). The policy is the turn's own, path for
 path: the workspace and the git roots beside it are writable, the four
 git-execution files are read-only, and Patcher's credential files cannot be
 read. macOS composes it from Seatbelt, Linux from bubblewrap, and a machine that
@@ -205,6 +206,42 @@ a terminal has nowhere to raise a prompt — there is no permission request for 
 shell somebody is typing into — so confining it would turn `npm install` and
 `git push` into silent failures. What the boundary closes is the filesystem
 class, which is what made the route a hole.
+
+**An ACP turn's agent runs inside that same boundary.** ACP has a sandboxed
+mode on paper — Cursor's `accept-edits` — and it is a path check on
+`fs/write_text_file` in Patcher's bridge, so it holds for the edits the agent
+asks Patcher to make and for nothing the agent does itself. Measured against a
+live Cursor session: `printf hi > $HOME/probe` from the agent's own shell wrote
+the file, while `hello.txt` inside the workspace worked too — only one of those
+two is what the mode promises. So a turn whose scope is the workspace gets the
+provider process launched through the terminal sandbox above: same backends,
+same policy path for path, and confined the probe is refused while the workspace
+write still succeeds.
+
+One thing the policy has to add beyond a terminal's is the provider's own state
+directory. `cursor-agent acp` does not run at all until `~/.cursor` is writable:
+measured twice, it exits before answering `initialize`, and in an earlier probe
+it reached `session/new` and failed there with `EPERM … cli-config.json.tmp`.
+So each profile declares the `$HOME`-relative directories it needs and gets
+those and nothing else. A machine that can build neither backend refuses the turn
+rather than running it unconfined, naming the missing dependency and Full Access
+as the other way, which is the answer a sandboxed Claude turn and a sandboxed
+terminal already give there.
+
+Declared and undeclared are different states, and only Cursor's are measured.
+Every launch-spec agent — the known ones (opencode, omp, Grok Build, Hermes) and
+anything added by hand — has no declaration, and the four paths Cursor needs do
+not transfer: confined on a guess, those agents would fail to start. So an
+undeclared agent runs unconfined and the thread says so at session start,
+naming which half still holds (the edits it routes through Patcher) and which
+does not (its own shell). An empty declaration is an answer and is confined; a
+missing one is not.
+
+The network is untouched here for the same reason it is in a terminal: what
+this closes is the filesystem class. And model discovery — the `--list-models`
+call, and the throwaway session some agents need for the same answer — runs the
+provider binary unconfined, because that is Patcher asking a question before any
+turn exists, not an agent doing work.
 
 **And the repository's own setup script asks before it runs.** A managed
 worktree runs `.patcher-env-setup.sh` from the repository it was created from —
@@ -449,18 +486,23 @@ permitted` from the shell, which no part of the app can intercept, so the fact
   say what is left in one sentence: the credential is the daemon's own and lives
   only in memory (see above), so what remains is that _asking the server for it_
   needs the app key — and a caller that is not confined can still read that file
-  off disk. A Full Access turn, a turn on Pi or ACP, and any plugin process can
-  therefore reach `/host-daemon-keys/:hostId` as the app and go on to open an
-  editor. For a sandboxed turn both halves are closed: it cannot read the app
-  key, and its thread key is refused on that route by name. Closing the rest is
-  the same shape as everything else here — a boundary Patcher owns for the two
-  providers that have none, and there is no version of it where an unsandboxed
-  process running as you is held to a credential check.
-- **`.git` and the credential files, for a turn that is Pi's or ACP's.**
-  Narrowed, not closed. Claude Code and Codex both hold the list now, each
-  through its own sandbox; Pi and ACP build no OS sandbox at all, so for them
-  the class stands as it did. The answer for those two is the one this section
-  keeps arriving at — a boundary Patcher owns rather than one a provider offers.
+  off disk. A Full Access turn, a turn on Pi, a turn on an ACP agent nobody has
+  measured, and any plugin process can therefore reach
+  `/host-daemon-keys/:hostId` as the app and go on to open an editor. For a
+  sandboxed turn both halves are closed: it cannot read the app key, and its
+  thread key is refused on that route by name. Closing the rest is the same
+  shape as everything else here — a boundary Patcher owns for the providers
+  that have none — and there is no version of it where an unsandboxed process
+  running as you is held to a credential check.
+- **`.git` and the credential files, for a turn that is Pi's.** Narrowed
+  again. Claude Code and Codex hold the list through their own sandboxes, and
+  an ACP turn on a declared profile now holds it through the one Patcher builds
+  (above) — which leaves Pi, plus any ACP agent whose state directories nobody
+  has measured. Pi is a different case from the one this bullet started as: it
+  offers no sandboxed mode at all, so a Pi turn is a Full Access turn somebody
+  chose, and the machine ceiling refuses it until they do. Giving Pi a
+  workspace scope is therefore a feature rather than a fix — its bridge would
+  need the same launcher, and its tools an approval policy to match.
 - ~~**Codex's network is open.**~~ Now a switch, off by default: **Settings →
   Codex → "Take the network from sandboxed turns"** (`codexNetworkDisabled`,
   which lands as `network.enabled: false` on the turn's permission profile). Off

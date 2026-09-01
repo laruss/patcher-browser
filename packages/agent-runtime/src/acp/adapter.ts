@@ -31,6 +31,7 @@ import {
 import { z } from "zod";
 import type {
   AdapterCommand,
+  WrapAcpAgentLaunch,
   DecodedInteractiveRequest,
   DecodedToolCallRequest,
   ProviderAdapter,
@@ -134,6 +135,11 @@ export interface CreateAcpProviderAdapterOptions {
   bridgeNodeExecutablePath?: string;
   /** Prefix for Patcher-owned turn ids emitted by this adapter instance. */
   turnIdPrefix?: string;
+  /**
+   * Confines the agent's own process for a sandboxed turn. Supplied by the
+   * daemon, which owns the platform sandbox — see `provider-adapter.ts`.
+   */
+  wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
 }
 
 interface AcpTurnState extends AcceptedUserMessageState {
@@ -1336,6 +1342,60 @@ export function createAcpProviderAdapter(
     }
   }
 
+  /**
+   * What the bridge spawns for this turn: the profile's command, plus the
+   * launcher that confines it when the turn is sandboxed and the host can
+   * build one.
+   *
+   * Refusing beats starting, and the wording is the one the Claude Code bridge
+   * already uses for the same situation — a sandboxed mode on a machine that
+   * cannot sandbox. Running the provider unconfined would present as a
+   * sandboxed turn and not be one, which for these providers is the whole gap:
+   * their `accept-edits` is a path check in the bridge, and the agent's own
+   * shell is not held to it.
+   *
+   * Full Access asks for no sandbox by definition, so it is left alone. And an
+   * agent whose profile declares no state directories is left alone too, with
+   * a warning the thread shows: only Cursor's are measured, and confining one
+   * of the others on a guess would stop it from starting at all — see
+   * `stateDirs` in `profiles.ts`.
+   */
+  function resolveAgentLaunch(args: {
+    command: Extract<
+      AdapterCommand,
+      { type: "thread/start" | "thread/resume" }
+    >;
+    cwd: string;
+  }): {
+    agent: { command: string; args: string[] };
+    agentSandbox?: { command: string; args: string[] };
+    agentSandboxWarning?: string;
+  } {
+    const agent = {
+      command: profile.agentCommand.command,
+      args: [...profile.agentCommand.args],
+    };
+    const wrap = opts.wrapAcpAgentLaunch;
+    if (wrap === undefined) return { agent };
+    if (args.command.options.permissionScope !== "workspace") return { agent };
+    if (profile.stateDirs === undefined) {
+      return {
+        agent,
+        agentSandboxWarning:
+          `${profile.displayName} has not declared where it writes its own state, so this turn's agent runs unconfined: ` +
+          "its own shell can write outside the workspace, while the edits it asks Patcher to make are still checked against it. " +
+          "Run the thread at Full Access if that is what you want.",
+      };
+    }
+    const wrapped = wrap({ cwd: args.cwd, stateDirs: profile.stateDirs });
+    if (!wrapped.sandboxed) {
+      throw new Error(
+        `Permission mode "${args.command.options.permissionMode}" runs the agent inside a workspace sandbox, and this machine cannot build one: ${wrapped.reason}. Either ${wrapped.remedy}, or run the thread at Full Access to work without a sandbox.`,
+      );
+    }
+    return { agent, agentSandbox: wrapped.launcher };
+  }
+
   function buildSessionParams(
     command: Extract<
       AdapterCommand,
@@ -1356,10 +1416,7 @@ export function createAcpProviderAdapter(
     return {
       threadId: command.threadId,
       cwd,
-      agent: {
-        command: profile.agentCommand.command,
-        args: [...profile.agentCommand.args],
-      },
+      ...resolveAgentLaunch({ command, cwd }),
       ...buildModelSelectionParam(command.options),
       ...buildReasoningCliParam(),
       ...buildNativeReasoningParam(),

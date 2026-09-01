@@ -159,6 +159,203 @@ describe("acp adapter command plans", () => {
     });
   });
 
+  it("runs the agent inside the boundary the daemon builds, for a sandboxed turn", () => {
+    // ACP has no sandbox of its own: `accept-edits` is a path check in the
+    // bridge, and the agent's own shell is not held to it — measured on Cursor,
+    // where an unconfined turn's shell wrote into the home directory. The
+    // daemon owns the sandbox (platform code, and the bridge is a separate
+    // process), so what crosses is the command it decided on.
+    const calls: unknown[] = [];
+    const adapter = createAcpProviderAdapter({
+      profile: getAcpAgentProfile("acp-cursor"),
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: (launch) => {
+        calls.push(launch);
+        return {
+          sandboxed: true,
+          launcher: { command: "/usr/bin/sandbox-exec", args: ["-p", "(p)"] },
+        };
+      },
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation: "ask",
+      },
+      instructionMode: "append",
+    });
+
+    // The agent stays itself and the sandbox travels beside it: the bridge
+    // appends the model and permission flags to the agent's own argv, and
+    // `cursor-agent --model x acp` puts that flag first — folded into
+    // `command`, the launcher would have collected it.
+    expect(plan.params).toMatchObject({
+      agent: { command: "cursor-agent", args: ["acp"] },
+      agentSandbox: {
+        command: "/usr/bin/sandbox-exec",
+        args: ["-p", "(p)"],
+      },
+    });
+    // The profile's own state directories travel with it: the provider cannot
+    // start without writing them, which is measured rather than assumed.
+    expect(calls).toEqual([{ cwd: "/workspace", stateDirs: [".cursor"] }]);
+  });
+
+  it("says so instead of confining an agent nobody has measured", () => {
+    // Every launch-spec agent — the known ones and anything a person adds —
+    // declares no state directories, and the four measured for Cursor are not
+    // transferable: confined on a guess, opencode or Grok would fail to create
+    // a session at all (`cursor-agent` answers EPERM until `.cursor` is
+    // writable). So the turn runs unconfined and says which half still holds.
+    let called = false;
+    const adapter = createAcpProviderAdapter({
+      profile: {
+        providerId: "acp-opencode",
+        displayName: "opencode",
+        agentCommand: { command: "opencode", args: ["acp"] },
+      },
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: () => {
+        called = true;
+        return { sandboxed: false, reason: "should not be asked", remedy: "-" };
+      },
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation: "ask",
+      },
+      instructionMode: "append",
+    });
+
+    const params = plan.params as {
+      agent: unknown;
+      agentSandbox?: unknown;
+      agentSandboxWarning?: string;
+    };
+    expect(params.agent).toEqual({ command: "opencode", args: ["acp"] });
+    expect(params.agentSandbox).toBeUndefined();
+    expect(params.agentSandboxWarning).toContain("opencode");
+    expect(params.agentSandboxWarning).toContain("runs unconfined");
+    expect(called).toBe(false);
+  });
+
+  it("confines a profile that declares it needs nothing under $HOME", () => {
+    // The distinction the field carries: `[]` is an answer, absent is not.
+    const adapter = createAcpProviderAdapter({
+      profile: {
+        providerId: "acp-spartan",
+        displayName: "Spartan",
+        agentCommand: { command: "spartan", args: ["acp"] },
+        stateDirs: [],
+      },
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: () => ({
+        sandboxed: true,
+        launcher: { command: "/usr/bin/sandbox-exec", args: ["-p", "(p)"] },
+      }),
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation: "ask",
+      },
+      instructionMode: "append",
+    });
+
+    expect(plan.params).toMatchObject({
+      agentSandbox: { command: "/usr/bin/sandbox-exec" },
+    });
+    expect(plan.params).not.toHaveProperty("agentSandboxWarning");
+  });
+
+  it("leaves Full Access alone, because it asks for no sandbox", () => {
+    let called = false;
+    const adapter = createAcpProviderAdapter({
+      profile: getAcpAgentProfile("acp-cursor"),
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: () => {
+        called = true;
+        return { sandboxed: false, reason: "should not be asked", remedy: "-" };
+      },
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "full",
+        permissionScope: "full",
+        approvalReviewer: null,
+        permissionEscalation: null,
+      },
+      instructionMode: "append",
+    });
+
+    expect((plan.params as { agent: unknown }).agent).toEqual({
+      command: "cursor-agent",
+      args: ["acp"],
+    });
+    expect(plan.params).not.toHaveProperty("agentSandbox");
+    expect(called).toBe(false);
+  });
+
+  it("refuses a sandboxed turn on a machine that cannot build one", () => {
+    // Same shape as the Claude Code bridge's refusal for the same situation:
+    // running unconfined would present as a sandboxed turn and not be one, and
+    // for this provider that is the entire gap.
+    const adapter = createAcpProviderAdapter({
+      profile: getAcpAgentProfile("acp-cursor"),
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: () => ({
+        sandboxed: false,
+        reason: "this machine has no bubblewrap",
+        remedy: "install bubblewrap on this machine",
+      }),
+    });
+
+    expect(() =>
+      adapter.buildCommandPlan({
+        type: "thread/start",
+        threadId: "thread-1",
+        cwd: "/workspace",
+        options: {
+          ...fullProviderExecutionContext,
+          permissionMode: "accept-edits",
+          permissionScope: "workspace",
+          approvalReviewer: "user",
+          permissionEscalation: "ask",
+        },
+        instructionMode: "append",
+      }),
+    ).toThrow(
+      /cannot build one: this machine has no bubblewrap\. Either install bubblewrap on this machine, or run the thread at Full Access/,
+    );
+  });
+
   it("adds ACP skill instructions to thread/start", () => {
     const adapter = createAdapter();
     const plan = adapter.buildCommandPlan({
@@ -1226,9 +1423,7 @@ describe("acp adapter event translation", () => {
     const firstId =
       firstEvents[0]?.type === "item/completed" ? firstEvents[0].item.id : "";
     const secondId =
-      secondEvents[0]?.type === "item/completed"
-        ? secondEvents[0].item.id
-        : "";
+      secondEvents[0]?.type === "item/completed" ? secondEvents[0].item.id : "";
     expect(firstId).toBe("acp-fs-write-turn_first_1-1");
     expect(secondId).toBe("acp-fs-write-turn_second_1-1");
     expect(firstId).not.toBe(secondId);

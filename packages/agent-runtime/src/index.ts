@@ -34,6 +34,11 @@ export type {
   WaitForActiveTurnArgs,
 } from "./types.js";
 export type {
+  WrapAcpAgentLaunch,
+  WrapAcpAgentLaunchArgs,
+  WrapAcpAgentLaunchResult,
+} from "./provider-adapter.js";
+export type {
   ProviderRawEventCoverage,
   ProviderRawEventDescription,
   ProviderVisibilityMetadata,

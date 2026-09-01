@@ -35,6 +35,27 @@ export interface AcpAgentProfile {
   reasoningCli?: AcpAgentReasoningCli;
   nativeReasoning?: AcpAgentNativeReasoning;
   permissionCli?: AcpAgentPermissionCli;
+  /**
+   * Directories the agent binary writes its own state into, relative to `$HOME`.
+   *
+   * An ACP provider has no OS sandbox of its own: the path check for
+   * `fs/write_text_file` lives in the bridge, and the agent's own shell is not
+   * held to it. Confining the process is what closes that, and this is what the
+   * confinement has to grant back — measured rather than guessed, because a
+   * provider that cannot write its own config does not start:
+   * `cursor-agent acp` answers `session/new` with
+   * `EPERM … ~/.cursor/cli-config.json.tmp` until `.cursor` is writable, and
+   * creates the session once it is.
+   *
+   * Absent and empty are different answers, and the sandbox reads them that
+   * way. `[]` says this agent needs nothing under `$HOME` and gets nothing.
+   * Absent says nobody has looked — every launch-spec agent (the known ones and
+   * anything a person adds) is in that state — and a sandbox built on a guess
+   * would stop those agents from starting at all. So an undeclared agent runs
+   * unconfined and the turn says so, rather than being confined into failing or
+   * presenting as sandboxed when it is not.
+   */
+  stateDirs?: readonly string[];
 }
 
 interface BuiltInAcpAgentProfile extends AcpAgentProfile {
@@ -51,6 +72,8 @@ export const ACP_AGENT_PROFILES: readonly BuiltInAcpAgentProfile[] = [
     // on PATH cannot silently replace Cursor and collapse model discovery to
     // the synthetic fallback.
     agentCommand: { command: "cursor-agent", args: ["acp"] },
+    // Measured: without this the session cannot be created at all.
+    stateDirs: [".cursor"],
     // Global flags must precede the `acp` subcommand, matching the documented
     // `cursor-agent --api-key ... acp` form.
     modelCli: {

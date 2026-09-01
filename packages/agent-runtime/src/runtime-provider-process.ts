@@ -9,6 +9,7 @@ import {
 import type {
   ProviderAdapter,
   ProviderAdapterFactory,
+  WrapAcpAgentLaunch,
 } from "./provider-adapter.js";
 import { createProviderForId } from "./provider-registry.js";
 import { filterSkillRootsForProvider } from "./runtime-skill-roots.js";
@@ -46,6 +47,8 @@ export interface RuntimeProviderProcessManagerArgs {
   additionalWorkspaceWriteRoots: readonly string[];
   protectedCredentialPaths?: readonly string[];
   protectedRepositoryPaths?: readonly string[];
+  /** Confines an ACP provider's own process; see `provider-adapter.ts`. */
+  wrapAcpAgentLaunch?: WrapAcpAgentLaunch;
   adapterFactory?: ProviderAdapterFactory;
   bridgeBundleDir: string | undefined;
   bridgeNodeEnv?: Record<string, string>;
@@ -333,6 +336,9 @@ export class RuntimeProviderProcessManager {
         : {}),
       ...(this.args.bridgeNodeExecutablePath !== undefined
         ? { bridgeNodeExecutablePath: this.args.bridgeNodeExecutablePath }
+        : {}),
+      ...(this.args.wrapAcpAgentLaunch !== undefined
+        ? { wrapAcpAgentLaunch: this.args.wrapAcpAgentLaunch }
         : {}),
       turnIdPrefix: createAdapterTurnIdPrefix(),
     };

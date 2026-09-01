@@ -1465,6 +1465,12 @@ async function startAgentSession(
       summary: launch.warning,
     });
   }
+  if (params.agentSandboxWarning) {
+    sendNotification(ACP_WARNING_METHOD, {
+      threadId: patcherThreadId,
+      summary: params.agentSandboxWarning,
+    });
+  }
   const agentLabel = [params.agent.command, ...params.agent.args].join(" ");
   // The connection handlers close over `session`; they only fire after the
   // child process emits events, by which point the session is constructed.
@@ -1473,9 +1479,15 @@ async function startAgentSession(
     ...withoutBridgeRuntimeEnv(process.env),
     ...params.envVars,
   };
+  // The sandbox launcher goes on last, around the finished argv: the model flag
+  // and the permission args above belong to the agent, and a launcher folded
+  // into `agent.command` would have collected them itself.
+  const sandbox = params.agentSandbox;
   const connection = createAcpAgentConnection({
-    command: params.agent.command,
-    args: launch.args,
+    command: sandbox ? sandbox.command : params.agent.command,
+    args: sandbox
+      ? [...sandbox.args, params.agent.command, ...launch.args]
+      : launch.args,
     cwd: params.cwd,
     env: childEnv,
     onNotification: (method, notificationParams) =>
