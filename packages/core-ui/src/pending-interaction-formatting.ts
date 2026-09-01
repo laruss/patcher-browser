@@ -38,6 +38,8 @@ export function formatPendingInteractionConsentSummary(
       return `Change the ${payload.subjectName} plugin's settings`;
     case "run-setup-script":
       return `Run ${payload.subjectName} from this repository`;
+    case "move-workspace":
+      return `Move this thread to ${payload.subjectName}`;
     default:
       return assertNever(payload.action);
   }
@@ -53,6 +55,15 @@ export function formatPendingInteractionConsentDetailLines(
   // "Allow" is not a one-off and the prompt has to admit it. Project, not
   // repository: the row is keyed on the project id, so it covers every source
   // that project has, on every machine.
+  // A folder outside the project is a folder outside every sandbox this project
+  // builds, so the prompt says what the answer widens rather than only where.
+  if (payload.action === "move-workspace") {
+    return [
+      ...(payload.detail === null ? [] : [payload.detail]),
+      "Every turn after this one may write anywhere inside that folder.",
+      "Asked for by an agent in this thread.",
+    ];
+  }
   if (payload.action === "run-setup-script") {
     return [
       ...(payload.detail === null ? [] : [payload.detail]),

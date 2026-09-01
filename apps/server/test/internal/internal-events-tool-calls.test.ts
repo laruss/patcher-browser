@@ -10,7 +10,12 @@ import {
   listQueuedThreadMessages,
   threads,
 } from "@patcher/db";
-import { threadScope, turnScope, type ToolCallResponse } from "@patcher/domain";
+import {
+  isConsentPendingInteraction,
+  threadScope,
+  turnScope,
+  type ToolCallResponse,
+} from "@patcher/domain";
 import {
   groupHostDaemonEvents,
   type HostDaemonEventEnvelope,
@@ -80,6 +85,32 @@ async function postToolCall(args: {
 async function flushDeferredChildThreadNotifications(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
   await sleep(2_100);
+}
+
+/**
+ * The `update_environment_directory` cases below move a thread to a folder
+ * outside the project's sources, which now asks the person first — that is the
+ * whole point of the prompt, and it is what these cases have always described a
+ * turn doing. So they answer it, the way a person in the thread would.
+ */
+async function allowMoveWorkspacePrompt(
+  harness: TestAppHarness,
+  threadId: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const [interaction] =
+      harness.deps.pendingInteractions.listPendingThreadInteractions(threadId);
+    if (interaction && isConsentPendingInteraction(interaction)) {
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId,
+        interactionId: interaction.id,
+        approved: true,
+      });
+      return;
+    }
+    await sleep(10);
+  }
+  throw new Error("No move-workspace consent interaction was raised");
 }
 
 describe("internal event and tool-call routes", () => {
@@ -1201,6 +1232,7 @@ describe("internal event and tool-call routes", () => {
         tool: "update_environment_directory",
         arguments: { path: "/tmp/new-unmanaged-worktree" },
       });
+      await allowMoveWorkspacePrompt(harness, thread.id);
       const provisionCommand = await waitForQueuedCommand(
         harness,
         ({ command }) =>
@@ -1261,11 +1293,15 @@ describe("internal event and tool-call routes", () => {
         .from(events)
         .where(eq(events.threadId, thread.id))
         .all();
+      // Two operations now: the folder is outside this project's sources, so the
+      // person was asked before the move, and their answer is a record in the
+      // thread rather than something that happened quietly.
       expect(storedEvents.map((event) => event.type)).toEqual([
         "turn/started",
         "system/operation",
+        "system/operation",
       ]);
-      expect(storedEvents[1]).toMatchObject({
+      expect(storedEvents[2]).toMatchObject({
         scopeKind: "turn",
         turnId: "turn-new-environment",
       });
@@ -1321,6 +1357,7 @@ describe("internal event and tool-call routes", () => {
         tool: "update_environment_directory",
         arguments: { path: sharedPath },
       });
+      await allowMoveWorkspacePrompt(harness, thread.id);
       const provisionCommand = await waitForQueuedCommand(
         harness,
         ({ command }) =>

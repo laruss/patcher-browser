@@ -5,6 +5,7 @@ import {
   findProjectEnvironmentByHostPath,
   getEnvironment,
   getThread,
+  listProjectSources,
   updateThread,
 } from "@patcher/db";
 import { turnScope } from "@patcher/domain";
@@ -15,11 +16,15 @@ import type {
   ToolCallResponse,
 } from "@patcher/domain";
 import type { AppDeps } from "../../types.js";
+import { CONSENT_INTERACTION_TIMEOUT_MS } from "../interactions/consent-text.js";
 import { runLiveHostCommand } from "../hosts/live-command.js";
 import { appendThreadEventInTransaction } from "./thread-events.js";
 import { buildEnvironmentProvisionCommand } from "./thread-create-helpers.js";
 import { findHostDataDir } from "../lib/entity-lookup.js";
-import { unmanagedAttachRefusal } from "./workspace-path-claims.js";
+import {
+  turnUnmanagedPathRefusal,
+  unmanagedAttachRefusal,
+} from "./workspace-path-claims.js";
 
 export const UPDATE_ENVIRONMENT_DIRECTORY_TOOL_NAME =
   "update_environment_directory";
@@ -260,6 +265,54 @@ async function provisionUnmanagedEnvironmentForPath(
   return ready;
 }
 
+/**
+ * Ask the person before a turn moves its thread outside the project.
+ *
+ * Returns the tool failure to send back, or null when the move may proceed. The
+ * timeout, the refusal wording and the "nobody could have seen it" cases are the
+ * consent service's, not this file's — the same path the plugin prompts and the
+ * setup script take.
+ */
+async function requestMoveWorkspaceConsent(
+  deps: AppDeps,
+  args: { path: string; threadId: string },
+): Promise<ToolCallResponse | null> {
+  if (!deps.pendingInteractions) {
+    return toolCallFailure(
+      `Cannot ask the user to allow ${args.path}: no interaction service is running. Nothing changed.`,
+    );
+  }
+  let result;
+  try {
+    result = await deps.pendingInteractions.requestConsentInteraction({
+      threadId: args.threadId,
+      timeoutMs: CONSENT_INTERACTION_TIMEOUT_MS,
+      payload: {
+        kind: "consent",
+        action: "move-workspace",
+        subjectId: args.path,
+        subjectName: args.path,
+        permissions: [],
+        sites: [],
+        detail: `${args.path} is outside this project's registered sources on this machine.`,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return toolCallFailure(
+      `Could not ask the user about ${args.path}: ${message}. Nothing changed.`,
+    );
+  }
+  if (result.outcome === "decided" && result.approved) {
+    return null;
+  }
+  return toolCallFailure(
+    result.outcome === "decided"
+      ? `The user did not allow moving this thread to ${args.path}. Nothing changed — work in the project's own directories, or ask them to add that folder as a project source.`
+      : `Nobody answered the request to move this thread to ${args.path} (${result.reason}). Nothing changed.`,
+  );
+}
+
 export async function handleUpdateEnvironmentDirectoryToolCall(
   deps: AppDeps,
   args: HandleUpdateEnvironmentDirectoryToolCallArgs,
@@ -299,6 +352,42 @@ export async function handleUpdateEnvironmentDirectoryToolCall(
   });
   if (refusal) {
     return toolCallFailure(`${refusal.message}. Use a different directory.`);
+  }
+
+  // This tool is the wider of the two ways a turn can choose where it runs: the
+  // other one asks for a *child* thread at a path, and this one moves the thread
+  // it is already in. Either way that directory becomes the writable root of
+  // every turn after it.
+  //
+  // Refusing it outright was the first attempt and it was wrong: moving a thread
+  // to a checkout that is *not* a project source is what this tool is for — "the
+  // user asks you to move this thread to another directory" is its own
+  // instruction — and two existing tests describe exactly that. So the widening
+  // is a question rather than an error, asked of the person in the thread, the
+  // way the repository's own setup script is. Inside the project's sources
+  // nothing is asked.
+  const outsideProject =
+    turnUnmanagedPathRefusal(deps.db, {
+      hostId: args.currentEnvironment.hostId,
+      path: normalizedPath,
+      projectId: args.thread.projectId,
+      projectSourcePaths: listProjectSources(deps.db, args.thread.projectId)
+        .filter(
+          (source) =>
+            source.hostId === args.currentEnvironment.hostId &&
+            source.type === "local_path",
+        )
+        .map((source) => source.path),
+      requestedByThreadId: args.thread.id,
+    }) !== null;
+  if (outsideProject) {
+    const consent = await requestMoveWorkspaceConsent(deps, {
+      path: normalizedPath,
+      threadId: args.thread.id,
+    });
+    if (consent !== null) {
+      return consent;
+    }
   }
 
   const existingEnvironment = findProjectEnvironmentByHostPath(

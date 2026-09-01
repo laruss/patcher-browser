@@ -369,14 +369,31 @@ Named here rather than left to be rediscovered:
   for a thread it spawns or for its own next turn. The bound is applied in
   `clampPermissionModeToHost`, and every path that resolves a turn's options
   has to name who asked, so a new one cannot inherit "nobody" by leaving it out.
-- **Choosing where the next turn's workspace points.** Still open, and a
-  decision rather than an oversight: `workspace: { type: "unmanaged", path }`
-  takes any path the collision checks allow, so a turn can ask for the next
-  one's workspace to be `/` — and a sandbox whose writable root is `/` bounds
-  nothing, even at the mode it was clamped to. Binding the path to the
-  project's own sources is the shape that would close it. A managed worktree
-  also runs the repository's own `.patcher-env-setup.sh` outside any sandbox,
-  though that now asks first — see above.
+- ~~**Choosing where the next turn's workspace points.**~~ Closed, and there
+  were **two** doors rather than the one this entry named. A workspace path
+  becomes the writable root of the next turn, at any permission mode — the mode
+  says how the sandbox is built, not how wide it is — so a turn is now held to
+  the project's own registered sources on that machine, or to a Patcher-managed
+  workspace the project already owns. A person is not: the same split as the
+  thread and terminal scopes, because someone choosing a folder on their own
+  machine is choosing where to work.
+  - `workspace: { type: "unmanaged", path }` on thread creation, which is the
+    door this entry knew about.
+  - **`update_environment_directory`**, which nothing named until now and which
+    is the wider one: a tool the model calls itself, moving the thread it is
+    already in. It refused the filesystem root by name — the case that looks
+    alarming — and let through every other folder outside the project, which is
+    the same outcome by a less obvious route. No app or CLI path does this, so
+    the tool was the only way in and the only way out. It therefore **asks**
+    rather than refuses: moving a thread to a checkout that is not a project
+    source is what the tool is for, so a folder outside the sources raises the
+    same kind of consent prompt the repository's setup script does, naming the
+    path and saying that every later turn may write inside it. Inside the
+    sources nothing is asked, and the answer is a record in the thread.
+
+  A managed worktree also runs the repository's own `.patcher-env-setup.sh`
+  outside any sandbox, though that asks first — see above.
+
 - ~~**A machine enrolled before this release.**~~ Closed: migration `0095`
   lowers every machine still at `full` to the sandbox ceiling, so the default
   reaches installs that already exist. A machine whose owner wanted Full Access

@@ -3,6 +3,7 @@ import {
   findProjectEnvironmentByHostPath,
   getEnvironment,
   getThread,
+  listProjectSources,
 } from "@patcher/db";
 import type {
   ProjectExecutionDefaults,
@@ -19,7 +20,10 @@ import type {
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
-import { unmanagedAttachRefusal } from "./workspace-path-claims.js";
+import {
+  turnUnmanagedPathRefusal,
+  unmanagedAttachRefusal,
+} from "./workspace-path-claims.js";
 import { ensureHostSessionReadyForWork } from "../hosts/host-lifecycle.js";
 import { callHostRetryableOnlineRpc } from "../hosts/online-rpc.js";
 import { requireNonDestroyedHostWithStatus } from "../lib/entity-lookup.js";
@@ -415,6 +419,8 @@ interface AssertUnmanagedHostPathIsAttachableArgs {
   hostId: string;
   path: string;
   projectId: string;
+  /** The turn that asked, or null when a person did. */
+  requestedByThreadId: string | null;
 }
 
 /**
@@ -436,6 +442,24 @@ function assertUnmanagedHostPathIsAttachable(
   });
   if (refusal) {
     throw new ApiError(409, "invalid_request", refusal.message);
+  }
+  // And whether the caller had any business naming this path at all, which the
+  // checks above do not ask: they are about sharing a directory safely, not
+  // about a turn choosing the sandbox its own child will run in.
+  const turnRefusal = turnUnmanagedPathRefusal(deps.db, {
+    hostId: args.hostId,
+    path: args.path,
+    projectId: args.projectId,
+    projectSourcePaths: listProjectSources(deps.db, args.projectId)
+      .filter(
+        (source) =>
+          source.hostId === args.hostId && source.type === "local_path",
+      )
+      .map((source) => source.path),
+    requestedByThreadId: args.requestedByThreadId,
+  });
+  if (turnRefusal) {
+    throw new ApiError(403, "forbidden", turnRefusal.message);
   }
 }
 
@@ -854,6 +878,7 @@ export async function createThreadFromRequest(
           hostId,
           path: resolvedEnvironment.unmanagedPath,
           projectId: request.projectId,
+          requestedByThreadId: options.requestedByThreadId,
         });
         const existingIntent = existingUnmanagedEnvironmentIntentByHostPath(
           deps,

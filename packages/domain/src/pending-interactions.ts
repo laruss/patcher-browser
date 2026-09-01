@@ -376,6 +376,11 @@ export const pendingInteractionConsentActionValues = [
   // outside any sandbox. Asked once per repository per script content, so a
   // script an agent committed cannot run on the strength of an older approval.
   "run-setup-script",
+  // Also not a plugin action: a turn moving its own thread to a directory
+  // outside the project's registered sources. That directory becomes the
+  // writable root of every turn after it, so the widening is the question —
+  // `subjectId` and `subjectName` are the path.
+  "move-workspace",
 ] as const;
 export const pendingInteractionConsentActionSchema = z.enum(
   pendingInteractionConsentActionValues,
