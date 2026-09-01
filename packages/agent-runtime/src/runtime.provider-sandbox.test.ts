@@ -16,6 +16,7 @@ import {
   findLastRecordedCommand,
   fullRuntimeOptions,
   waitForThreadAgentMessageText,
+  waitForThreadTurnStarted,
 } from "./test/runtime-test-harness.js";
 import type { AgentRuntimeExecutionOptions } from "./types.js";
 
@@ -321,6 +322,55 @@ describe("a provider whose own bridge is the turn's boundary", () => {
       findLastRecordedCommand(recordedCommands, "thread/resume"),
     ).toMatchObject({ threadId: "t1" });
     expect(spawnedAdapters).toEqual(["pi", "pi"]);
+    expect(wrapCalls).toHaveLength(1);
+    await runtime.shutdown();
+  });
+
+  it("refuses to change the boundary under a running turn", async () => {
+    const runtime = createSandboxTestRuntime({
+      events,
+      recordedCommands,
+      spawnedAdapters,
+      workspacePath,
+      wrapCalls,
+      wrap: fakeSandboxLauncher,
+    });
+
+    await runtime.startThread({
+      environmentId: "env-1",
+      projectId: "p1",
+      threadId: "t1",
+      providerId: "pi",
+      options: workspaceScopedOptions,
+    });
+    await runtime.runTurn({
+      clientRequestId: "creq_111111111e",
+      threadId: "t1",
+      input: [promptTextInput({ text: "delay:5000 slow" })],
+      options: workspaceScopedOptions,
+    });
+    await waitForThreadTurnStarted({
+      events,
+      providerId: "pi",
+      runtime,
+      threadId: "t1",
+    });
+    const turnId = runtime.getActiveTurnId("t1");
+    expect(turnId).not.toBeNull();
+
+    // A mode changed in the composer travels with the steer. Moving the thread
+    // now would mean either finishing the turn in the boundary it was told to
+    // leave, or killing it without saying so.
+    await expect(
+      runtime.steerTurn({
+        clientRequestId: "creq_111111111f",
+        expectedTurnId: turnId ?? "",
+        threadId: "t1",
+        input: [promptTextInput({ text: "and now unconfined" })],
+        options: fullRuntimeOptions,
+      }),
+    ).rejects.toThrow(/Stop the running turn first/);
+
     expect(wrapCalls).toHaveLength(1);
     await runtime.shutdown();
   });

@@ -2085,11 +2085,6 @@ function createAgentRuntimeInternal(
             options: effectiveExecOpts,
             providerId: pid,
           });
-          assertProcessMatchesTurnBoundary({
-            options: effectiveExecOpts,
-            proc: currentProc,
-            providerId: pid,
-          });
 
           const activeTurnId = turnState.getActiveTurnId(threadId);
           if (activeTurnId !== expectedTurnId) {
@@ -2110,9 +2105,19 @@ function createAgentRuntimeInternal(
           // An account restart replaces a thread-scoped Codex process, so
           // resolve the process again before constructing the steer command.
           const proc = requireProviderProcessForThread(threadId);
+          // After the reconfigure, not before it: a mode changed in the
+          // composer mid-turn arrives with the steer, and the answer a person
+          // needs there is "stop the turn first" — which the reconfigure gives.
+          // This one is for a routing mistake, and would otherwise get in
+          // front of it with a sentence about process keys.
           await reconfigureThreadIfNeeded({
             threadId,
             options: effectiveExecOpts,
+          });
+          assertProcessMatchesTurnBoundary({
+            options: effectiveExecOpts,
+            proc,
+            providerId: pid,
           });
 
           const adapterCommand: AdapterCommand = {
