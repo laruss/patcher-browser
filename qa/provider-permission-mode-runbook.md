@@ -170,11 +170,17 @@ this does not yet close".
   `accept-edits` is a path check in the bridge, which the agent's own shell is
   not held to. Everything the two sections above close for Claude Code and Codex
   stands open for these two, and the answer is a boundary Patcher owns.
-- **Codex leaves the network open.** Measured, and the cost has changed rather
-  than gone: Codex 0.150.1 now raises an approval request instead of failing
-  silently, so what remains is the `patcher` CLI, which reaches the server over a
-  loopback TCP port that restricted mode takes with it. Taking the local API off
-  a TCP port comes first.
+- **Codex leaves the network open**, and it is now a decision rather than a
+  blocker: the `patcher` CLI no longer needs loopback inside a turn — it is
+  offered as an MCP tool, which Codex spawns outside the command sandbox. What
+  restricting the network still costs is every _other_ connection a turn makes
+  (`npm install`, `git fetch`), each becoming an approval that times out where
+  nobody is watching.
+- **A turn's `patcher` calls go through a process that is not sandboxed.** By
+  design, and bounded: the tool runs the CLI through `execFile` with the turn's
+  own thread key and no app key. Worth knowing on a manual pass, because a
+  `patcher` call succeeding while the shell has no network is the intended
+  result, not a hole.
 - **A terminal's network is not confined.** The filesystem is; a blocked
   connection inside a terminal has nobody to ask, so `npm install` would fail
   silently.

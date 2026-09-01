@@ -340,6 +340,23 @@ export interface ProviderAdapter {
   decodeToolCallRequest(
     request: ProviderInboundRequest,
   ): DecodedToolCallRequest | null;
+  /**
+   * The answer to a request Patcher makes on its own behalf, or null to carry
+   * on to the paths that involve the person.
+   *
+   * Tried before `decodeInteractiveRequest`, which is what makes it an answer
+   * rather than a prompt. There is one today: a provider asking whether the MCP
+   * server *Patcher itself* configured may run its tool. Asking a person to
+   * allow Patcher's own plumbing, on every call, would be a prompt about
+   * nothing they chose.
+   *
+   * Only for requests whose subject Patcher put there. Anything a person
+   * configured — their own MCP server, their own tool — belongs on the prompt
+   * path, and an adapter that answered those would be deciding for them.
+   */
+  autoAnswerInboundRequest?(
+    request: ProviderInboundRequest,
+  ): ProviderInteractiveResponse | null;
   decodeInteractiveRequest?(
     request: ProviderInboundRequest,
   ): DecodedInteractiveRequest | null;

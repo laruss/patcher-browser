@@ -50,6 +50,7 @@ import { buildAcceptedUserMessageEvent } from "../shared/accepted-user-messages.
 import { decodeNativeProviderToolCallRequest } from "../shared/provider-tool-call-contract.js";
 import { resolveAdapterPermissionPolicy } from "../shared/permission-policy.js";
 import { buildCodexWorkspacePermissionProfileConfig } from "./permission-profile.js";
+import { buildCodexPatcherMcpServerConfig } from "./mcp-server.js";
 import type {
   AdapterCommand,
   DecodedToolCallRequest,
@@ -74,6 +75,7 @@ import {
 } from "./event-translation.js";
 import {
   buildCodexInteractiveResponse,
+  codexAutoAnsweredInteractiveResponse,
   decodeCodexInteractiveRequest,
 } from "./interactive-requests.js";
 import {
@@ -678,6 +680,16 @@ function buildCodexConfig(
   );
   if (shellEnvironmentConfig) {
     Object.assign(config, shellEnvironmentConfig);
+  }
+  // The CLI as a tool, spawned by Codex outside the command sandbox. Its own
+  // environment is separate from the shell policy above: Codex hands an MCP
+  // server a curated set, so what the CLI needs is named there rather than
+  // inherited. See `mcp-server.ts`.
+  const patcherMcpServerConfig = buildCodexPatcherMcpServerConfig(
+    args.options?.envVars,
+  );
+  if (patcherMcpServerConfig) {
+    Object.assign(config, patcherMcpServerConfig);
   }
   if (args.options?.reasoningLevel) {
     config["model_reasoning_effort"] = toCodexReasoningEffort(
@@ -2007,6 +2019,10 @@ export function createCodexProviderAdapter(
         request.method,
         request.params,
       );
+    },
+
+    autoAnswerInboundRequest(request: ProviderInboundRequest) {
+      return codexAutoAnsweredInteractiveResponse(request);
     },
 
     decodeInteractiveRequest(request: ProviderInboundRequest) {

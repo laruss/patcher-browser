@@ -316,6 +316,42 @@ as before: every readiness probe reads the first two — the launcher,
 `install-machine.sh`, the SDK's local-host lookup, the app's reachability
 check, the dev restart — and none of the three has a side effect.
 
+### The CLI reaches a Codex turn as a tool, not through the network
+
+A turn talks to Patcher by running `patcher`, and that call goes over loopback to
+the local server. It is why Codex's network could not simply be switched off: the
+switch takes loopback with it, and the CLI is how an agent spawns a thread, reads
+a timeline, answers its own prompts.
+
+So the CLI is also offered as an MCP server — `patcher mcp-serve`, one tool that
+takes the same arguments the binary takes. Codex spawns MCP servers itself rather
+than through a sandboxed shell, so that process is **outside** the command
+sandbox. Measured with `network.enabled: false` on the turn's profile: the tool
+reached the local server while the model's own `curl` in the same turn could not
+resolve a host.
+
+Outside the sandbox is exactly the part worth being careful about, so three
+things bound it:
+
+- **It runs the CLI and nothing else.** The arguments go to the CLI entry point
+  through `execFile` — never a shell — so no argument can become another command.
+  What the tool can do is what the CLI can do, which is talk to `/api/v1`.
+- **With the turn's own credential.** The environment carries the derived thread
+  key, the same one the turn's shell has: same identity, same route policy, same
+  scope. The app key is not passed, is dropped from the child's environment, and
+  `client.ts` ignores it anyway while a thread key is present — three locks
+  because this is the one process where a credential could widen rather than
+  narrow.
+- **Codex hands an MCP server a curated environment.** Measured: ten variables,
+  none of them `PATCHER_*`. Nothing leaks in by inheritance; what the CLI needs
+  is named explicitly.
+
+Codex asks before an MCP server's tool runs, and for this one Patcher answers
+itself — asking a person to allow the CLI that Patcher put there, on every call,
+would be a prompt about plumbing nobody chose. That answer is keyed to the server
+name Patcher writes, so a server _the person_ configured still raises the prompt
+described above.
+
 ### What this does not yet close
 
 Named here rather than left to be rediscovered:
@@ -407,16 +443,25 @@ permitted` from the shell, which no part of the app can intercept, so the fact
   through its own sandbox; Pi and ACP build no OS sandbox at all, so for them
   the class stands as it did. The answer for those two is the one this section
   keeps arriving at — a boundary Patcher owns rather than one a provider offers.
-- **Codex's network is open, and it is the local API that keeps it open.**
-  Restricting it is one field in the profile, and Codex 0.150.1 now turns a
-  blocked connection into an approval request rather than a silent failure — so
-  the cost is no longer "the command dies with nothing to grant it back". The
-  cost that remains is the `patcher` CLI: it reaches the local server over a
-  loopback TCP port, and Codex's restricted mode takes loopback with it, so
-  every CLI call inside a turn would become a prompt. Taking the local API off
-  a TCP port comes first — a unix socket, which Codex can be told to allow, or
-  the tool surface as an MCP server, which the app-server runs outside the
-  command sandbox the way Claude Code's bridge already is.
+- **Codex's network is open, and turning it off is now a decision rather than a
+  blocker.** Restricting it is one field in the profile, and Codex 0.150.1 turns
+  a blocked connection into an approval request rather than a silent failure. The
+  thing that used to make it impossible was the `patcher` CLI — it reached the
+  local server over loopback, which restricted mode takes with it, so every CLI
+  call inside a turn would have become a prompt. That is gone: the CLI is offered
+  to a Codex turn as an MCP tool, which Codex spawns outside the command sandbox
+  (see above). What remains is the cost to everything _else_ a turn connects to:
+  `npm install`, `git fetch`, a package registry, an API the work is about. Each
+  becomes an approval, and where nobody is watching — a schedule, a delegated
+  child thread — an approval times out. So the field stays where it is until that
+  trade is made deliberately, per machine or per thread rather than for
+  everybody.
+- **The unix-socket route is closed, for the record.** Measured, so nobody spends
+  a day on it again: Codex's sandbox refuses `AF_UNIX` outright — with the
+  network otherwise open, a connect to a socket answered `EPERM` — and the
+  allowance that lifts it (`--allow-unix-socket`) exists only on the manual
+  `codex sandbox` runner, not for the commands a turn runs. A socket path on
+  macOS is also capped near 104 bytes, which a data-dir path exceeds easily.
 
 Every outcome where nobody could have seen the prompt refuses, because a prompt
 nobody saw is not consent: an archived or destroying thread is refused before a

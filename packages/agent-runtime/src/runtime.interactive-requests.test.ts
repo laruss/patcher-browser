@@ -241,6 +241,99 @@ rl.on("line", (line) => {
     await runtime.shutdown();
   });
 
+  it("lets an adapter answer its own plumbing before anyone is asked", async () => {
+    // Order is the mechanism: `autoAnswerInboundRequest` runs before the
+    // interactive path, which is what keeps Patcher's own MCP server — the CLI
+    // it puts in a Codex turn's config — from raising a prompt on every call.
+    const child = spawn(process.execPath, [
+      "-e",
+      "process.stdin.pipe(process.stdout)",
+    ]);
+    const baseAdapter = createInteractiveRequestAdapter(
+      join(tmpDir, "unused-auto-answer-provider.cjs"),
+    );
+    // Both hooks claim the same request — which is the real case: Codex raises
+    // one method for every MCP tool approval, and only the server name says
+    // whether the question is Patcher's or the person's. A test where only one
+    // hook matched would pass in either order.
+    const adapter = {
+      ...baseAdapter,
+      autoAnswerInboundRequest(request: ProviderInboundRequest) {
+        return request.method === "mine/request"
+          ? { action: "accept", content: {} }
+          : null;
+      },
+      decodeInteractiveRequest(
+        request: ProviderInboundRequest,
+      ): DecodedInteractiveRequest | null {
+        return request.method === "mine/request"
+          ? {
+              requestId: request.id as number,
+              method: request.method,
+              providerThreadId: "prov-1",
+              turnId: "turn-auto",
+              payload: {
+                kind: "approval",
+                subject: {
+                  kind: "mcp_tool_call",
+                  serverName: "mine",
+                  message: "Allow it?",
+                  toolDescription: null,
+                },
+                reason: null,
+                availableDecisions: ["allow_once", "deny"],
+              },
+            }
+          : (baseAdapter.decodeInteractiveRequest?.(request) ?? null);
+      },
+    };
+    const onInteractiveRequest = vi.fn(async () => ({
+      decision: "deny" as const,
+    }));
+    const rawRequest = {
+      jsonrpc: "2.0",
+      id: 91,
+      method: "mine/request",
+      params: { threadId: "prov-1" },
+    } satisfies JsonRpcMessage;
+
+    try {
+      handleRuntimeProviderRequest({
+        getActiveTurnId: () => null,
+        getThreadExecutionOptions: () => undefined,
+        onInteractiveRequest,
+        onToolCall: async () => ({
+          contentItems: [{ type: "inputText", text: "unused" }],
+          success: true,
+        }),
+        parsedId: rawRequest.id,
+        parsedMethod: rawRequest.method,
+        providerProcess: {
+          adapter,
+          child,
+          interactiveRequestScope: "scope-auto",
+        },
+        rawRequest,
+        resolveThreadId: () => "t1",
+      });
+
+      const parsed = parseJsonRpcLine(
+        (await readChildStdoutLine(child)).trim(),
+      );
+      if (parsed.kind !== "response") {
+        throw new Error(`Expected JSON-RPC response, got ${parsed.kind}`);
+      }
+      expect(parsed.parsed).toMatchObject({
+        id: 91,
+        result: { action: "accept", content: {} },
+      });
+      // Nobody was asked, and no turn id was needed to answer.
+      expect(onInteractiveRequest).not.toHaveBeenCalled();
+    } finally {
+      child.kill();
+    }
+  });
+
   it("drops unresolved interactive requests when no active turn is known", async () => {
     const child = spawn(process.execPath, [
       "-e",

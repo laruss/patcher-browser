@@ -223,6 +223,34 @@ function handleToolCallProviderRequest(
   return true;
 }
 
+/**
+ * Requests Patcher answers itself, before anything reaches a person.
+ *
+ * Order is the mechanism: this runs before the interactive path, so an adapter
+ * that recognises its own plumbing answers it, and everything else falls
+ * through to the prompt. Removing this degrades to asking the person rather than
+ * to leaving the provider unanswered — which is the direction that keeps a turn
+ * working.
+ */
+function handleAdapterAnsweredProviderRequest(
+  args: HandleRuntimeProviderRequestArgs,
+): boolean {
+  const autoAnswer = args.providerProcess.adapter.autoAnswerInboundRequest;
+  if (!autoAnswer) {
+    return false;
+  }
+  const result = autoAnswer(args.rawRequest);
+  if (result === null) {
+    return false;
+  }
+  sendJsonRpcResult({
+    child: args.providerProcess.child,
+    id: args.parsedId,
+    result,
+  });
+  return true;
+}
+
 function handleInteractiveProviderRequest(
   args: HandleRuntimeProviderRequestArgs,
 ): boolean {
@@ -390,6 +418,9 @@ export function handleRuntimeProviderRequest(
   args: HandleRuntimeProviderRequestArgs,
 ): void {
   if (handleToolCallProviderRequest(args)) {
+    return;
+  }
+  if (handleAdapterAnsweredProviderRequest(args)) {
     return;
   }
   if (handleInteractiveProviderRequest(args)) {

@@ -17,6 +17,7 @@ import {
   toCodexGrantedPermissionProfile,
   toPendingInteractionGrantablePermissionProfile,
 } from "./permission-mapping.js";
+import { PATCHER_CODEX_MCP_SERVER_NAME } from "./mcp-server.js";
 import {
   CODEX_MCP_TOOL_CALL_APPROVAL_KIND,
   codexCommandExecutionRequestApprovalParamsSchema,
@@ -100,6 +101,38 @@ function filterSessionDecisionWithoutGrant(
     );
   }
   return filtered;
+}
+
+/**
+ * The answer to a request about Patcher's own MCP server, or null.
+ *
+ * Codex asks before an MCP server's tool runs, and for a server a person
+ * configured that question is theirs — `decodeCodexInteractiveRequest` turns it
+ * into a prompt. This one is Patcher's: the CLI, put in the turn's config by
+ * `mcp-server.ts` so a turn can reach the API without the network. Asking about
+ * it on every call would be a prompt about plumbing nobody chose, and the answer
+ * would always be the same.
+ *
+ * Deliberately keyed on the server name and nothing else. It is the name Patcher
+ * writes into the config, so a person's server cannot land here by accident
+ * unless they named theirs `patcher` — in which case the tool they get is the one
+ * Patcher configured under that name anyway.
+ */
+export function codexAutoAnsweredInteractiveResponse(
+  request: ProviderInboundRequest,
+): CodexMcpServerElicitationResponse | null {
+  if (request.method !== "mcpServer/elicitation/request") return null;
+  const parsed = codexMcpServerElicitationRequestParamsSchema.safeParse(
+    request.params,
+  );
+  if (!parsed.success) return null;
+  if (
+    parsed.data._meta?.codex_approval_kind !== CODEX_MCP_TOOL_CALL_APPROVAL_KIND
+  ) {
+    return null;
+  }
+  if (parsed.data.serverName !== PATCHER_CODEX_MCP_SERVER_NAME) return null;
+  return { action: "accept", content: {} };
 }
 
 export function decodeCodexInteractiveRequest(
