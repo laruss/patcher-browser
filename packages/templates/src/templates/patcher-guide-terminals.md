@@ -13,13 +13,16 @@ real persistent PTY and appears in the Patcher UI.
 
 List and create require exactly one explicit scope:
 
+  patcher terminal list --self
   patcher terminal list --thread <thread-id>
   patcher terminal list --environment <environment-id>
   patcher terminal list --machine <id-or-name> [--cwd <path>]
 
+  patcher terminal create --self --command "bun run dev"
   patcher terminal create --thread <thread-id> --command "bun run dev"
   patcher terminal create --environment <environment-id>
   patcher terminal create --machine <id-or-name> [--cwd <path>]
+    --self                                Your own thread, from PATCHER_THREAD_ID
     --host <id-or-name>                   Alias for --machine
     --title <title>                       Display title
     --cols <n>                            Initial terminal columns
@@ -28,7 +31,11 @@ List and create require exactly one explicit scope:
     --json                                Print machine-readable output
 
 Machine names are resolved to an explicit machine ID. No scope defaults to the
-primary machine, and --cwd is valid only with --machine or --host.
+primary machine, and --cwd is valid only with --machine or --host. --self is
+--thread for the thread you are running in, and is the scope to use from inside
+a turn: a turn opens terminals for its own thread and for the threads it
+spawned, and an environment or machine scope is refused there because no thread
+names a turn whose boundary the terminal could run inside.
 
 All other operations need only the terminal ID:
 
@@ -57,7 +64,7 @@ All other operations need only the terminal ID:
 
 For a dev server, prefer:
 
-  patcher terminal create --thread <thread-id> --title "bun run dev" --command "bun run dev"
+  patcher terminal create --self --title "bun run dev" --command "bun run dev"
   patcher terminal wait <terminal-id> --contains "Local:" --timeout 120
 
 Do not run long-lived servers as one-off foreground commands when the user will

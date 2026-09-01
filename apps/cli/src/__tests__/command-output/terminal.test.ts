@@ -65,6 +65,7 @@ describe("patcher terminal command output", () => {
     expect(help).toContain("create|start [options] [command...]");
     expect(help).toContain("send [options] <terminalId>");
     expect(createHelp).toContain("--thread <id>");
+    expect(createHelp).toContain("--self");
     expect(createHelp).toContain("--environment <id>");
     expect(createHelp).toContain("--machine <id-or-name>");
     expect(sendHelp).not.toContain("--thread");
@@ -153,6 +154,62 @@ describe("patcher terminal command output", () => {
       });
     },
   );
+
+  it("creates a terminal for the thread it is running in with --self", async () => {
+    // The scope an agent means most of the time. Every thread command takes
+    // `--self`; without it here a turn had to go find its own id in the
+    // environment before it could open a terminal at all.
+    vi.stubEnv("PATCHER_THREAD_ID", "thr-self");
+    const create = vi.fn(async () => makeTerminalSession());
+    stubServerApi({ "v1.terminals.$post": create });
+
+    await runCommand(["terminal", "create", "--self"], register);
+
+    expect(create).toHaveBeenCalledWith({
+      json: {
+        cols: 80,
+        rows: 24,
+        title: undefined,
+        start: { mode: "shell" },
+        target: { kind: "thread", threadId: "thr-self" },
+      },
+    });
+  });
+
+  it("lists the terminals of the thread it is running in with --self", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "thr-self");
+    const list = vi.fn(async () => ({ sessions: [] }));
+    stubServerApi({ "v1.terminals.$get": list });
+
+    await runCommand(["terminal", "list", "--self"], register);
+
+    expect(list).toHaveBeenCalledWith({ query: { threadId: "thr-self" } });
+  });
+
+  it("refuses --self together with --thread, and --self with no thread", async () => {
+    const create = vi.fn(async () => makeTerminalSession());
+    stubServerApi({ "v1.terminals.$post": create });
+
+    vi.stubEnv("PATCHER_THREAD_ID", "thr-self");
+    await expect(
+      runCommand(
+        ["terminal", "create", "--self", "--thread", "thr-other"],
+        register,
+      ),
+    ).rejects.toThrow("process.exit:1");
+    expect(collectLogLines(vi.mocked(console.error))).toContain(
+      "Error: Cannot combine --thread with --self.",
+    );
+
+    vi.stubEnv("PATCHER_THREAD_ID", "");
+    await expect(
+      runCommand(["terminal", "create", "--self"], register),
+    ).rejects.toThrow("process.exit:1");
+    expect(collectLogLines(vi.mocked(console.error))).toContain(
+      "Error: --self requires PATCHER_THREAD_ID to be set.",
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
 
   it("creates a machine terminal at host home with an explicit host ID", async () => {
     const hosts = vi.fn(async () => [makeHost()]);

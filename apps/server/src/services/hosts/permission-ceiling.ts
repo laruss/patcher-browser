@@ -45,22 +45,42 @@ export function isHostPermissionCeilingConflictError(
 }
 
 /**
+ * The bound when no machine has been named.
+ *
+ * Not a machine's ceiling — that is `getHostPermissionCeiling`. Nothing has been
+ * chosen yet, so there is no limit of a machine's that could apply, and the
+ * two callers that reach this both need every mode to stay on the table: the
+ * composer, which has to offer them before a machine exists, and a thread whose
+ * `environmentId` is null, which is ordinary rather than exceptional
+ * (destroying an environment sets its threads' to null, and those threads are
+ * still asked what mode they run at).
+ *
+ * So a mode is not lowered here, and this is never the last word about a turn:
+ * the machine's limit is applied again with the machine in hand —
+ * `toRuntimeExecutionOptions` clamps every set of execution options the daemon
+ * is handed, and its `hostId` is a `string` — while what the provider can run
+ * at all is checked separately, by `validateProviderPermissionMode` on the same
+ * plan paths. What changes by naming it is that the fail-open is stated where a
+ * reader meets it, instead of living inside a lookup whose name promises a
+ * machine's answer.
+ */
+export const PERMISSION_CEILING_WITH_NO_MACHINE: PermissionMode = "full";
+
+/**
  * The machine's permission ceiling.
  *
  * A missing row is a bug, not a machine that allows everything, so it reports
  * the sandbox default: the caller still fails on the real "host not found"
  * path, and until it does the fallback grants less rather than more.
  *
- * No host id at all is a different question — nothing has been chosen yet, so
- * there is no machine whose limit could apply, and the compose flow still has
- * to be able to offer every mode before a machine exists. That answer stays
- * "full"; what gates a mode there is the provider's own capability list.
+ * A machine is required. "No machine" is a different question with a different
+ * answer, and a function that took `null` here answered it silently — the one
+ * shape a security-relevant lookup should not have.
  */
 export function getHostPermissionCeiling(
   deps: PermissionCeilingDeps,
-  hostId: string | null,
+  hostId: string,
 ): PermissionMode {
-  if (hostId === null) return "full";
   return (
     getHost(deps.db, hostId)?.maxPermissionMode ??
     DEFAULT_HOST_MAX_PERMISSION_MODE
@@ -88,7 +108,10 @@ export function clampPermissionModeToHost(
   deps: PermissionCeilingDeps,
   args: ClampPermissionModeToHostArgs,
 ): PermissionMode {
-  const hostCeiling = getHostPermissionCeiling(deps, args.hostId);
+  const hostCeiling =
+    args.hostId === null
+      ? PERMISSION_CEILING_WITH_NO_MACHINE
+      : getHostPermissionCeiling(deps, args.hostId);
   const requesterCeiling = args.requesterCeiling ?? null;
   // The lower of the two bounds, so neither can be talked around by the other.
   const ceiling =

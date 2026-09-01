@@ -69,7 +69,14 @@ export function describeRefusedCredential(
     // An agent's shell. It is handed a credential scoped to its thread and
     // deliberately not the app key, so "go read the key file" is advice that
     // would undo the narrower credential if followed — see thread-api-key.ts.
-    return `This shell carries a thread credential (${PATCHER_THREAD_KEY_ENV}), not the app key. It is refused once the turn that issued it has ended, and it does not open routes that are the app's alone. Nothing to fix here from inside the turn.`;
+    //
+    // What it says is what that credential actually is. It used to add "it is
+    // refused once the turn that issued it has ended", which nothing does: the
+    // key is derived from the app key and the thread id with no deadline in it,
+    // so it verifies for as long as the app key does. A 401 is a bad place to
+    // learn a boundary that is not there — the gap itself is recorded in
+    // thread-api-key.ts and docs/security.md.
+    return `This shell carries a thread credential (${PATCHER_THREAD_KEY_ENV}), not the app key. It proves this thread and is charged this thread's limits, and it does not open routes that are the app's alone. Nothing to fix here from inside the turn.`;
   }
   const fromEnv = toOptionalString(env.PATCHER_APP_KEY);
   if (fromEnv !== undefined) {

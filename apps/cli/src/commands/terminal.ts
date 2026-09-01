@@ -13,6 +13,7 @@ import {
   type TerminalSession,
 } from "@patcher/server-contract";
 import { action, CliExitError } from "../action.js";
+import { requireThreadIdOrSelf } from "../context-env.js";
 import { cliAppKeyHeaders, createCliPatcherSdk } from "../client.js";
 import { renderBorderlessTable } from "../table.js";
 import { outputJson } from "./helpers.js";
@@ -31,6 +32,7 @@ interface TerminalScopeOptions {
   environment?: string;
   host?: string;
   machine?: string;
+  self?: boolean;
   thread?: string;
 }
 
@@ -331,12 +333,22 @@ export function registerTerminalCommands(
 }
 
 function addTerminalScopeOptions(command: Command): Command {
-  return command
-    .option("--thread <id>", "Thread-scoped terminal")
-    .option("--environment <id>", "Environment-scoped terminal")
-    .option("--machine <id-or-name>", "Machine-scoped terminal")
-    .option("--host <id-or-name>", "Alias for --machine")
-    .option("--cwd <path>", "Working directory for --machine or --host");
+  return (
+    command
+      .option("--thread <id>", "Thread-scoped terminal")
+      // The scope an agent means most of the time, and the one it could not
+      // name: every thread command takes `--self`, so a turn that reached the
+      // terminals had to go find its own id in the environment first — right at
+      // the point where it meets the capability for the first time.
+      .option(
+        "--self",
+        "Thread-scoped terminal for the current thread (from PATCHER_THREAD_ID)",
+      )
+      .option("--environment <id>", "Environment-scoped terminal")
+      .option("--machine <id-or-name>", "Machine-scoped terminal")
+      .option("--host <id-or-name>", "Alias for --machine")
+      .option("--cwd <path>", "Working directory for --machine or --host")
+  );
 }
 
 async function resolveTerminalListScope(
@@ -344,16 +356,26 @@ async function resolveTerminalListScope(
   serverUrl: string,
 ): Promise<TerminalListScope> {
   const machine = resolveTerminalMachineSelector(opts);
+  // `--self` is `--thread <this thread>`, resolved before the scope count so
+  // there is one thread scope to count rather than two spellings of it. The
+  // combination is refused here rather than by the shared helper, whose message
+  // is about a positional argument no terminal command has.
+  if (opts.self && opts.thread !== undefined) {
+    throw new Error("Cannot combine --thread with --self.");
+  }
+  const thread = opts.self
+    ? requireThreadIdOrSelf(undefined, { self: true })
+    : opts.thread;
   assertExactlyOneTerminalScope({
     environment: opts.environment,
     machine,
-    thread: opts.thread,
+    thread,
   });
   if (opts.cwd !== undefined && machine === undefined) {
     throw new Error("--cwd can only be used with --machine or --host.");
   }
-  if (opts.thread !== undefined) {
-    return { kind: "thread", threadId: opts.thread };
+  if (thread !== undefined) {
+    return { kind: "thread", threadId: thread };
   }
   if (opts.environment !== undefined) {
     return { kind: "environment", environmentId: opts.environment };
@@ -396,7 +418,7 @@ function assertExactlyOneTerminalScope(args: {
   ).length;
   if (count !== 1) {
     throw new Error(
-      "Provide exactly one terminal scope: --thread, --environment, or --machine/--host.",
+      "Provide exactly one terminal scope: --thread/--self, --environment, or --machine/--host.",
     );
   }
 }

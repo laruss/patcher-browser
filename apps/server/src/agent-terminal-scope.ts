@@ -73,6 +73,6 @@ export function agentTerminalScopeDenial(
       : "a turn drives the terminals of its own thread and of the threads it spawned";
   return {
     terminalId,
-    message: `Terminal ${terminalId} is not this turn's to drive: ${reason}. Nothing changed. Open one of your own with \`patcher terminal create --thread <your thread>\`.`,
+    message: `Terminal ${terminalId} is not this turn's to drive: ${reason}. Nothing changed. Open one of your own with \`patcher terminal create --self\`.`,
   };
 }
