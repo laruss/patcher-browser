@@ -782,6 +782,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "legacy runtime commands may omit provider memory policy; current servers always send the persisted provider preference.",
   "hostDaemonCommandSchema.options.providerSubagentsEnabled":
     "legacy runtime commands may omit provider subagent policy; current servers always send the persisted provider preference.",
+  "hostDaemonCommandSchema.options.providerNetworkRestricted":
+    "legacy runtime commands may omit the Codex network preference; absent means the network is left alone, which is also the app default.",
   "hostDaemonCommandSchema.resumeContext.disallowedTools":
     "turn.submit resume context may omit provider-specific built-in tool removals for providers that do not need them.",
   "hostDaemonCommandSchema.resumeContext.acpLaunchSpec":
@@ -1091,8 +1093,14 @@ describe("host-daemon command schemas", () => {
   // sends none, so the server would have nothing to give the app and opening a
   // file in an editor would fail on every machine — the version is what makes
   // the two halves arrive together.
-  it("uses protocol version 112 after the daemon minted its own local-API key", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(112);
+  //
+  // 113 added `options.providerNetworkRestricted`: an install can take the
+  // network from a sandboxed Codex turn's own commands. A 112 daemon ignores the
+  // field and builds the profile with the network open — so the app would say a
+  // turn is confined while it is not, which is the silence the bump exists to
+  // prevent.
+  it("uses protocol version 113 after the Codex network became a setting", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(113);
   });
 
   // The subprotocol is agreed between two processes by string, so no build

@@ -69,6 +69,7 @@ function updateGeneralSetting(
     case "codexSubagentsDisabled":
     case "claudeCodeSubagentsDisabled":
     case "claudeCodeWorkflowsDisabled":
+    case "codexNetworkDisabled":
       return appSettingsSchema.parse({ ...settings, [key]: value });
     default:
       throw new Error(`Unknown general setting '${key}'.`);

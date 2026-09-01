@@ -1005,10 +1005,12 @@ interface ProviderSettingsSectionProps {
   memoryEnabled: boolean;
   subagentsDisabled: boolean;
   workflowsDisabled: boolean;
+  networkDisabled: boolean;
   disabled: boolean;
   onMemoryEnabledChange: (enabled: boolean) => void;
   onSubagentsDisabledChange: (disabled: boolean) => void;
   onWorkflowsDisabledChange: (disabled: boolean) => void;
+  onNetworkDisabledChange: (disabled: boolean) => void;
   providerId: "codex" | "claude-code";
 }
 
@@ -1016,10 +1018,12 @@ export function ProviderSettingsSection({
   memoryEnabled,
   subagentsDisabled,
   workflowsDisabled,
+  networkDisabled,
   disabled,
   onMemoryEnabledChange,
   onSubagentsDisabledChange,
   onWorkflowsDisabledChange,
+  onNetworkDisabledChange,
   providerId,
 }: ProviderSettingsSectionProps) {
   const isCodex = providerId === "codex";
@@ -1067,6 +1071,23 @@ export function ProviderSettingsSection({
               checked={workflowsDisabled}
               disabled={disabled}
               onCheckedChange={onWorkflowsDisabledChange}
+            />
+          </SettingsWithControl>
+        ) : null}
+        {isCodex ? (
+          <SettingsWithControl
+            label="Take the network from sandboxed turns"
+            // Says the cost, because the cost is the whole decision: every
+            // outbound connection becomes a prompt. The `patcher` CLI is the
+            // exception worth naming — a turn reaches it through a tool rather
+            // than the network, so it keeps working.
+            description="A sandboxed Codex turn asks before every outbound connection — npm, git, any API. The patcher CLI keeps working. Full Access builds no sandbox, so this does not apply there."
+          >
+            <Switch
+              aria-label="Take the network from sandboxed turns"
+              checked={networkDisabled}
+              disabled={disabled}
+              onCheckedChange={onNetworkDisabledChange}
             />
           </SettingsWithControl>
         ) : null}
@@ -1202,6 +1223,7 @@ export function SettingsView() {
             : generalSettings.claudeCodeSubagentsDisabled
         }
         workflowsDisabled={generalSettings.claudeCodeWorkflowsDisabled}
+        networkDisabled={generalSettings.codexNetworkDisabled}
         disabled={
           systemConfigQuery.data === undefined ||
           updateGeneralSettingsMutation.isPending
@@ -1226,6 +1248,12 @@ export function SettingsView() {
           updateGeneralSettingsMutation.mutate({
             ...generalSettings,
             claudeCodeWorkflowsDisabled: disabled,
+          })
+        }
+        onNetworkDisabledChange={(disabled) =>
+          updateGeneralSettingsMutation.mutate({
+            ...generalSettings,
+            codexNetworkDisabled: disabled,
           })
         }
       />

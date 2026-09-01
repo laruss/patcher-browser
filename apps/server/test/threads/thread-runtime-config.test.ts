@@ -919,6 +919,68 @@ describe("thread runtime config", () => {
     });
   });
 
+  it("carries the Codex network setting, and only for Codex", async () => {
+    // Off by default because the cost is a prompt per outbound connection; when
+    // an install turns it on, the turn's profile is where it lands.
+    await withTestHarness(async (harness) => {
+      const { host } = seedHostSession(harness.deps, {
+        id: "host-codex-network-setting",
+      });
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+      });
+
+      async function build(providerId: "codex" | "claude-code") {
+        const thread = seedThread(harness.deps, {
+          projectId: project.id,
+          environmentId: environment.id,
+          providerId,
+        });
+        const execution = await resolveExecutionOptions(harness.deps, {
+          threadId: thread.id,
+          requestedExecution: {
+            model: providerId === "codex" ? "gpt-5" : "claude-sonnet-4-6",
+            source: "client/turn/requested",
+          },
+        });
+        return buildThreadStartCommand(harness.deps, {
+          environment,
+          execution,
+          fork: null,
+          permissionEscalation: "ask",
+          input: textInput("hello"),
+          projectId: project.id,
+          providerId,
+          requestId: encodeClientTurnRequestIdNumber({ value: 1 }),
+          syncGeneratedTitle: false,
+          thread,
+        });
+      }
+
+      expect((await build("codex")).options.providerNetworkRestricted).toBe(
+        false,
+      );
+
+      setAppSettings(harness.db, {
+        ...defaultAppSettings,
+        codexNetworkDisabled: true,
+      });
+
+      expect((await build("codex")).options.providerNetworkRestricted).toBe(
+        true,
+      );
+      // Claude Code's sandbox gates the network with its own prompts, so the
+      // setting is Codex's alone rather than a global one.
+      expect(
+        (await build("claude-code")).options.providerNetworkRestricted,
+      ).toBe(false);
+    });
+  });
+
   it("carries provider-native feature settings independently", async () => {
     await withTestHarness(async (harness) => {
       setAppSettings(harness.db, {

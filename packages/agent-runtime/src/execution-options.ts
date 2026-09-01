@@ -79,6 +79,10 @@ export function sameExecutionSettings(
     args.left.memoryEnabled === args.right.memoryEnabled &&
     args.left.providerSubagentsEnabled ===
       args.right.providerSubagentsEnabled &&
+    // The profile carrying it is sent when a session starts, so a change here
+    // has to restart one rather than wait for a turn that never re-reads it.
+    (args.left.providerNetworkRestricted ?? false) ===
+      (args.right.providerNetworkRestricted ?? false) &&
     args.left.claudeCodePermissionMode ===
       args.right.claudeCodePermissionMode &&
     leftMockCliTraffic.enabled === rightMockCliTraffic.enabled &&
@@ -168,6 +172,7 @@ export function toProviderExecutionContext(
     workflowsEnabled: args.execOpts.workflowsEnabled,
     memoryEnabled: args.execOpts.memoryEnabled,
     providerSubagentsEnabled: args.execOpts.providerSubagentsEnabled,
+    providerNetworkRestricted: args.execOpts.providerNetworkRestricted,
     ...permissionPolicy,
     instructions: args.instructions,
     envVars: args.envVars,

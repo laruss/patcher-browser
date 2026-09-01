@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `codex_network_disabled` integer DEFAULT false NOT NULL;

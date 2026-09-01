@@ -672,6 +672,13 @@ const runtimeThreadExecutionBaseOptionsSchema = z.object({
   // Optional for legacy command compatibility; the server fills the current
   // provider preference before dispatching new runtime work.
   providerSubagentsEnabled: z.boolean().optional(),
+  /**
+   * Whether this turn's own commands run without the network, where the
+   * provider's sandbox has such a field. Optional for the same reason as the
+   * two above — a command dispatched before this existed carries nothing — and
+   * absent means the network is left alone, which is also the app default.
+   */
+  providerNetworkRestricted: z.boolean().optional(),
 });
 
 export const runtimeThreadExecutionOptionsSchema =

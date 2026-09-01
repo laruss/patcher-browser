@@ -142,6 +142,7 @@ interface RuntimeExecutionOptionsArgs {
   providerId: string;
   memoryEnabled: boolean;
   providerSubagentsEnabled: boolean;
+  providerNetworkRestricted: boolean;
   workflowsEnabled: boolean;
 }
 
@@ -226,6 +227,23 @@ function resolveProviderSubagentsEnabled(
   return true;
 }
 
+/**
+ * Whether this turn's own commands get the network taken away.
+ *
+ * Codex only: it is the provider whose sandbox has a network field Patcher can
+ * set, and the setting says so in its name. Off by default — the cost is a
+ * prompt for every outbound connection a turn makes, and a prompt nobody is
+ * there to answer times out. What it no longer costs is the `patcher` CLI, which
+ * reaches Patcher through an MCP tool outside the command sandbox.
+ */
+function resolveProviderNetworkRestricted(
+  deps: Pick<AppDeps, "db">,
+  providerId: string,
+): boolean {
+  if (providerId !== "codex") return false;
+  return getAppSettings(deps.db).codexNetworkDisabled;
+}
+
 function resolveProviderWorkflowsEnabled(
   deps: Pick<AppDeps, "db">,
   providerId: string,
@@ -263,6 +281,7 @@ function toRuntimeExecutionOptions(
     workflowsEnabled: args.workflowsEnabled,
     memoryEnabled: args.memoryEnabled,
     providerSubagentsEnabled: args.providerSubagentsEnabled,
+    providerNetworkRestricted: args.providerNetworkRestricted,
   };
   if (permissionMode === "full") {
     return {
@@ -358,6 +377,10 @@ export async function buildThreadStartCommand(
         deps,
         args.providerId,
       ),
+      providerNetworkRestricted: resolveProviderNetworkRestricted(
+        deps,
+        args.providerId,
+      ),
       workflowsEnabled: resolveProviderWorkflowsEnabled(deps, args.providerId),
       input: args.input,
     }),
@@ -396,6 +419,10 @@ function buildPreparedTurnSubmitCommandPayload(
         args.runtimeContext.providerId,
       ),
       providerSubagentsEnabled: resolveProviderSubagentsEnabled(
+        args.deps,
+        args.runtimeContext.providerId,
+      ),
+      providerNetworkRestricted: resolveProviderNetworkRestricted(
         args.deps,
         args.runtimeContext.providerId,
       ),

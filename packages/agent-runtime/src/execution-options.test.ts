@@ -96,4 +96,24 @@ describe("execution setting classification", () => {
       }),
     ).toBe("session");
   });
+
+  it("restarts the session when the network setting changes", () => {
+    // The permission profile carrying it is sent when a session starts, so a
+    // change that did not restart one would sit there doing nothing until the
+    // next session — the toggle would look broken rather than pending.
+    expect(
+      classifySessionExecutionSettingsChange({
+        current: baseOptions,
+        next: { ...baseOptions, providerNetworkRestricted: true },
+      }),
+    ).toBe("session");
+    // Absent and false are the same answer: a command dispatched before the
+    // field existed must not look like a change.
+    expect(
+      classifySessionExecutionSettingsChange({
+        current: baseOptions,
+        next: { ...baseOptions, providerNetworkRestricted: false },
+      }),
+    ).toBe("unchanged");
+  });
 });

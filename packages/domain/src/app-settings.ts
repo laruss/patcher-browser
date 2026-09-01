@@ -32,6 +32,25 @@ export const appSettingsSchema = z
     /** Prevent Claude Code from exposing its native Workflow tool. */
     claudeCodeWorkflowsDisabled: z.boolean(),
     /**
+     * Take the network away from a sandboxed Codex turn's own commands.
+     *
+     * Off by default, and the default is the decision rather than an oversight.
+     * Codex turns a blocked connection into an approval request, so the cost is
+     * not a silent failure — it is a prompt for every outbound connection a turn
+     * makes: `npm install`, `git fetch`, whatever API the work is about. Where
+     * nobody is watching, a schedule or a delegated child thread, that prompt
+     * times out and the command fails.
+     *
+     * What it no longer costs is the `patcher` CLI: a turn reaches Patcher
+     * through an MCP tool that runs outside the command sandbox, so this setting
+     * does not take the agent's own tooling with it. See
+     * `codex/mcp-server.ts`.
+     *
+     * Full Access builds no sandbox, so there is nothing for this to restrict
+     * there — it applies to the modes that have a permission profile.
+     */
+    codexNetworkDisabled: z.boolean(),
+    /**
      * ISO timestamp of when first-run onboarding last finished or was
      * dismissed; null means it has never run. A timestamp rather than a boolean
      * so we also know *when*, and so "never ran" has an honest value.
@@ -64,6 +83,8 @@ export const defaultAppSettings: AppSettings = {
   codexSubagentsDisabled: false,
   claudeCodeSubagentsDisabled: false,
   claudeCodeWorkflowsDisabled: false,
+  // The network stays on unless somebody turns it off: see the schema for why.
+  codexNetworkDisabled: false,
   onboardingCompletedAt: null,
   browserSearchEngineId: DEFAULT_BROWSER_SEARCH_ENGINE_ID,
 };

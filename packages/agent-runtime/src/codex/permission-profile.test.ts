@@ -30,6 +30,7 @@ function buildProfile(
   > = {},
 ) {
   return buildCodexWorkspacePermissionProfileConfig({
+    networkRestricted: false,
     protectedCredentialPaths: [],
     protectedRepositoryPaths: [],
     workspacePath: WORKSPACE,
@@ -59,7 +60,8 @@ describe("the Codex workspace permission profile", () => {
 
   it("says the full-disk read and the network out loud", () => {
     // Neither is the default under a profile: one would leave a turn unable to
-    // exec `/bin/sh`, the other would take the loopback the `patcher` CLI needs.
+    // exec `/bin/sh`, and an omitted `network` inherits the restricted default,
+    // so "open" has to be written down to be true.
     const config = buildProfile();
 
     expect(filesystemEntries(config)[":root"]).toBe("read");
@@ -68,6 +70,23 @@ describe("the Codex workspace permission profile", () => {
         network: { enabled: true },
       },
     });
+  });
+
+  it("closes the network when the install asked for that", () => {
+    // The `patcher` CLI does not go with it: a turn reaches Patcher through an
+    // MCP tool Codex spawns outside the command sandbox. What it costs is a
+    // prompt per outbound connection, which is why it is off by default.
+    expect(
+      buildProfile({ networkRestricted: true })["permissions"],
+    ).toMatchObject({
+      [CODEX_WORKSPACE_PERMISSION_PROFILE_ID]: {
+        network: { enabled: false },
+      },
+    });
+    // And the filesystem side is untouched by it.
+    expect(
+      filesystemEntries(buildProfile({ networkRestricted: true }))[":root"],
+    ).toBe("read");
   });
 
   it("keeps the repository's execution files readable, not denied", () => {
