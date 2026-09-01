@@ -701,6 +701,13 @@
       "when": 1788275736927,
       "tag": "0099_setup_script_consent_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "6",
+      "when": 1788294042593,
+      "tag": "0100_provider_egress_switch",
+      "breakpoints": true
     }
   ]
 }

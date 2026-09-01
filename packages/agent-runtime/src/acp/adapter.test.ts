@@ -205,7 +205,121 @@ describe("acp adapter command plans", () => {
     });
     // The profile's own state directories travel with it: the provider cannot
     // start without writing them, which is measured rather than assumed.
-    expect(calls).toEqual([{ cwd: "/workspace", stateDirs: [".cursor"] }]);
+    expect(calls).toEqual([
+      {
+        cwd: "/workspace",
+        stateDirs: [".cursor"],
+        providerId: "acp-cursor",
+        threadId: "thread-1",
+      },
+    ]);
+  });
+
+  it("confines what leaves the machine to the agent's hosts plus the person's", () => {
+    // The agent's own host comes from the profile because only the profile can
+    // know it — measured across a whole Cursor turn, `api2.cursor.sh` and
+    // nothing else. Everything the *work* needs is the person's to allow, so
+    // the two lists arrive from different places and are used as one.
+    const calls: unknown[] = [];
+    const adapter = createAcpProviderAdapter({
+      profile: getAcpAgentProfile("acp-cursor"),
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: (launch) => {
+        calls.push(launch);
+        return {
+          sandboxed: true,
+          launcher: { command: "/usr/bin/sandbox-exec", args: ["-p", "(p)"] },
+          env: { HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9" },
+        };
+      },
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation: "ask",
+        providerEgressConfined: true,
+        providerEgressAllowedHosts: ["github.com"],
+      },
+      instructionMode: "append",
+    });
+
+    expect(calls).toEqual([
+      {
+        cwd: "/workspace",
+        stateDirs: [".cursor"],
+        providerId: "acp-cursor",
+        threadId: "thread-1",
+        egress: { allowedHosts: ["api2.cursor.sh", "github.com"] },
+      },
+    ]);
+    // The proxy's address travels with the launcher because it is part of the
+    // same boundary: a process confined to a proxy it was never told about
+    // reaches nothing at all.
+    expect(plan.params).toMatchObject({
+      agentSandbox: { env: { HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9" } },
+    });
+    expect(plan.params).not.toHaveProperty("agentSandboxWarning");
+  });
+
+  it("leaves the network alone for an agent whose hosts nobody has measured", () => {
+    // The same rule the state directories follow. A list short by one host does
+    // not confine the agent, it cuts it off from its own model — so an
+    // undeclared agent keeps its network and the thread is told which half of
+    // the boundary is missing.
+    const calls: unknown[] = [];
+    const adapter = createAcpProviderAdapter({
+      profile: {
+        providerId: "acp-omp",
+        displayName: "omp",
+        agentCommand: { command: "omp", args: ["acp"] },
+        stateDirs: [".omp"],
+      },
+      additionalWorkspaceWriteRoots: [],
+      wrapAcpAgentLaunch: (launch) => {
+        calls.push(launch);
+        return {
+          sandboxed: true,
+          launcher: { command: "/usr/bin/sandbox-exec", args: ["-p", "(p)"] },
+        };
+      },
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation: "ask",
+        providerEgressConfined: true,
+        providerEgressAllowedHosts: ["github.com"],
+      },
+      instructionMode: "append",
+    });
+
+    expect(calls).toEqual([
+      {
+        cwd: "/workspace",
+        stateDirs: [".omp"],
+        providerId: "acp-omp",
+        threadId: "thread-1",
+      },
+    ]);
+    expect(plan.params).toMatchObject({
+      agentSandboxWarning: expect.stringContaining(
+        "has not declared which hosts",
+      ),
+    });
   });
 
   it("says so instead of confining an agent nobody has measured", () => {

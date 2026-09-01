@@ -116,4 +116,45 @@ describe("execution setting classification", () => {
       }),
     ).toBe("unchanged");
   });
+
+  it("restarts the session when the egress boundary or its list changes", () => {
+    // Same reason again: the launcher that names the proxy is built when the
+    // provider process starts, so a list changed mid-session would apply to
+    // nothing until something else happened to restart it.
+    expect(
+      classifySessionExecutionSettingsChange({
+        current: baseOptions,
+        next: { ...baseOptions, providerEgressConfined: true },
+      }),
+    ).toBe("session");
+    expect(
+      classifySessionExecutionSettingsChange({
+        current: { ...baseOptions, providerEgressAllowedHosts: ["github.com"] },
+        next: {
+          ...baseOptions,
+          providerEgressAllowedHosts: ["github.com", "pypi.org"],
+        },
+      }),
+    ).toBe("session");
+    // A list is a set written down: reordering it is not a change, and neither
+    // is absent against empty.
+    expect(
+      classifySessionExecutionSettingsChange({
+        current: {
+          ...baseOptions,
+          providerEgressAllowedHosts: ["github.com", "pypi.org"],
+        },
+        next: {
+          ...baseOptions,
+          providerEgressAllowedHosts: ["pypi.org", "github.com"],
+        },
+      }),
+    ).toBe("unchanged");
+    expect(
+      classifySessionExecutionSettingsChange({
+        current: baseOptions,
+        next: { ...baseOptions, providerEgressAllowedHosts: [] },
+      }),
+    ).toBe("unchanged");
+  });
 });

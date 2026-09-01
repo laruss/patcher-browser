@@ -264,11 +264,12 @@ agent's state, and Patcher hands a turn the MCP servers it is meant to have — 
 the fix, when one is wanted, is to declare the server in Patcher rather than to
 widen the sandbox to the package managers' caches.
 
-The network is untouched here for the same reason it is in a terminal: what
-this closes is the filesystem class. And model discovery — the `--list-models`
-call, and the throwaway session some agents need for the same answer — runs the
-provider binary unconfined, because that is Patcher asking a question before any
-turn exists, not an agent doing work.
+The network is left open here unless the egress switch below is on, in which
+case what leaves the machine is confined to a list the agent's profile and the
+person supply between them. And model discovery — the `--list-models` call, and
+the throwaway session some agents need for the same answer — runs the provider
+binary unconfined, because that is Patcher asking a question before any turn
+exists, not an agent doing work.
 
 **A Pi turn's own bridge runs inside it too, and Pi can now be run
 sandboxed at all.** Pi has no permission system — its own documentation says so
@@ -311,6 +312,61 @@ refused, full stop — the agent sees an error, nobody sees a prompt. What is
 unmeasured, said plainly: the bridge was driven directly (`initialize`, then
 `thread/start`) because the machine this was built on has no Pi credential, so a
 full turn against a live model has not been run inside the sandbox.
+
+**What a sandboxed turn sends off the machine can be confined to a list.**
+Off by default — **Settings → General → "Confine the network of sandboxed
+turns"** — and a different thing from the Codex switch below, for a reason worth
+stating: Codex's sandbox wraps the commands a turn runs, and Codex's own traffic
+to its model sits outside it, so there the network is a switch. For Pi and ACP
+the sandbox wraps the _provider's own process_ — the one that has to reach its
+model — so an absolute deny would end the turn rather than confine it. The
+boundary is therefore selective: the profile refuses every outbound connection
+that leaves the machine, and the one way out is a proxy Patcher runs.
+
+Measured under that profile before it was written down: a direct connection off
+the machine is `EPERM` at once, a name cannot be resolved at all, and the same
+work goes through the proxy unchanged — `git clone` over HTTPS, `npm`, `pip`,
+`curl`. `CONNECT` carries the hostname in the clear, so nothing here terminates
+TLS, installs a certificate, or sees a byte of the model traffic; a tunnel is
+opened or it is not. A refused host gets a 403 naming it, and the daemon logs
+which provider asked for what.
+
+Four things about it are decisions rather than defaults:
+
+- **Loopback stays open.** The `patcher` CLI reaches the local server over it,
+  so does an ACP agent's plugin-tool MCP server, and an agent that runs its own
+  local server cannot start without it — measured: with loopback denied,
+  opencode dies on "Failed to start server on port 0". So a local service that
+  has the network of its own is a way around the proxy for whoever goes looking,
+  and Patcher's own browser is one of those. What the boundary closes is the
+  direct, unattended path off the machine.
+- **An allowed host is still a way out.** `github.com` takes a push and a model
+  API takes a prompt. Confining egress to a list removes egress to _anywhere_;
+  it does not make a turn unable to leak through what it was allowed.
+- **The list is two lists.** The agent's own hosts come from its profile,
+  because only the profile can know them, and they are measured the same way
+  `stateDirs` are: Cursor's is `api2.cursor.sh` and nothing else, taken from a
+  whole turn rather than a session start — `initialize`, `session/new`, a prompt
+  answered — with every other host refused. What the _work_ needs is the
+  person's to allow. An agent nobody has measured keeps its network and the
+  thread says so, for the same reason an undeclared `stateDirs` runs unconfined:
+  a list short by one host does not confine an agent, it cuts it off from its
+  own model.
+- **Pi is not covered yet, and macOS only.** Pi has declared no hosts, because
+  this machine has no Pi credential to measure a real turn with — the same gap
+  that leaves its sandboxed turn unmeasured above. And bubblewrap can only take
+  the network by taking the whole network namespace, which takes the host
+  loopback the CLI and plugin tools need with it; a bind-mounted unix socket
+  does cross into such a namespace, which is what a Linux half would be built
+  on. Until then Linux refuses a turn that asks for this rather than running it
+  unconfined, naming what is missing.
+
+What the switch costs, so nobody discovers it in a turn: `git push` over an SSH
+remote stops working, because SSH has no proxy to use and the connection is
+refused — HTTPS remotes keep working. Anything else that is not proxy-aware
+stops too. And a host nobody listed is refused rather than asked about; the
+prompt that would make this self-service is the next piece of work, not this
+one.
 
 **And the repository's own setup script asks before it runs.** A managed
 worktree runs `.patcher-env-setup.sh` from the repository it was created from —
@@ -569,7 +625,17 @@ Named here rather than left to be rediscovered:
   not on the network, so `curl` inside one reaches whatever the machine can. It
   is no wider than the turn's own shell under Codex, which also has the network,
   and narrower than what the route gave before — but it is not nothing, and the
-  answer is the same one the rest of this section keeps arriving at.
+  answer is the same one the rest of this section keeps arriving at. What
+  changed around it is that a _provider process_ can now be confined to a list
+  (above), which makes the old reason for leaving a terminal alone — a blocked
+  connection has nowhere to raise a prompt — the thing to revisit rather than
+  the end of it.
+- **What the egress boundary leaves open, when it is on.** Three things, each
+  named where the feature is described: loopback stays reachable, so a local
+  service with a network of its own is a way around the proxy; an allowed host
+  that accepts arbitrary bytes is still a way out; and Pi declares no hosts yet,
+  so its turns keep their network while ACP's are confined. Linux refuses the
+  mode outright rather than half-building it.
 - ~~**The app does not say which terminals are confined.**~~ Closed: a confined
   terminal's tab says `sandboxed` — the same word as the `Sandbox` column in
   `patcher terminal list` — and the panel carries a line above the shell naming

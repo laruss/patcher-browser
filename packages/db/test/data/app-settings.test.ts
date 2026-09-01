@@ -22,6 +22,34 @@ describe("app settings data", () => {
     db.$client.close();
   });
 
+  it("round-trips the egress host list, which is text holding JSON", () => {
+    setAppSettings(db, {
+      ...defaultAppSettings,
+      providerEgressConfined: true,
+      providerEgressAllowedHosts: ["github.com", "*.githubusercontent.com"],
+    });
+
+    expect(getAppSettings(db)).toEqual({
+      ...defaultAppSettings,
+      providerEgressConfined: true,
+      providerEgressAllowedHosts: ["github.com", "*.githubusercontent.com"],
+    });
+  });
+
+  it("reads an unparseable host list as an empty one", () => {
+    // Every other setting is typed at the column and cannot arrive malformed.
+    // This one is text, so a row written by a future version — or by hand —
+    // must not take the whole settings endpoint down with it.
+    setAppSettings(db, defaultAppSettings);
+    db.$client
+      .prepare(
+        "UPDATE app_settings SET provider_egress_allowed_hosts = 'not json'",
+      )
+      .run();
+
+    expect(getAppSettings(db).providerEgressAllowedHosts).toEqual([]);
+  });
+
   it("persists keyboard overrides without clobbering general settings", () => {
     const overrides = [
       { command: "thread.new" as const, shortcut: null },

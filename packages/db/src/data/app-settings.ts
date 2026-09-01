@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import {
   appKeybindingOverridesSchema,
   defaultAppSettings,
+  providerEgressAllowedHostsSchema,
   type AppKeybindingOverrides,
   type AppSettings,
 } from "@patcher/domain";
@@ -23,6 +24,8 @@ export function getAppSettings(db: DbConnection): AppSettings {
       claudeCodeSubagentsDisabled: appSettings.claudeCodeSubagentsDisabled,
       claudeCodeWorkflowsDisabled: appSettings.claudeCodeWorkflowsDisabled,
       codexNetworkDisabled: appSettings.codexNetworkDisabled,
+      providerEgressConfined: appSettings.providerEgressConfined,
+      providerEgressAllowedHosts: appSettings.providerEgressAllowedHosts,
       onboardingCompletedAt: appSettings.onboardingCompletedAt,
       browserSearchEngineId: appSettings.browserSearchEngineId,
     })
@@ -30,7 +33,30 @@ export function getAppSettings(db: DbConnection): AppSettings {
     .where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
     .get();
 
-  return row ?? defaultAppSettings;
+  if (row === undefined) {
+    return defaultAppSettings;
+  }
+  return {
+    ...row,
+    providerEgressAllowedHosts: parseEgressAllowedHosts(
+      row.providerEgressAllowedHosts,
+    ),
+  };
+}
+
+/**
+ * The stored host list, or an empty one.
+ *
+ * A row written by a future version, or by hand, must not take the settings
+ * endpoint down with it — every other field here survives a bad value by being
+ * typed at the column, and this one is text holding JSON.
+ */
+function parseEgressAllowedHosts(stored: string): string[] {
+  try {
+    return providerEgressAllowedHostsSchema.parse(JSON.parse(stored));
+  } catch {
+    return [];
+  }
 }
 
 export function setAppSettings(
@@ -51,6 +77,10 @@ export function setAppSettings(
       claudeCodeSubagentsDisabled: settings.claudeCodeSubagentsDisabled,
       claudeCodeWorkflowsDisabled: settings.claudeCodeWorkflowsDisabled,
       codexNetworkDisabled: settings.codexNetworkDisabled,
+      providerEgressConfined: settings.providerEgressConfined,
+      providerEgressAllowedHosts: JSON.stringify(
+        settings.providerEgressAllowedHosts,
+      ),
       onboardingCompletedAt: settings.onboardingCompletedAt,
       browserSearchEngineId: settings.browserSearchEngineId,
       updatedAt,
@@ -68,6 +98,10 @@ export function setAppSettings(
         claudeCodeSubagentsDisabled: settings.claudeCodeSubagentsDisabled,
         claudeCodeWorkflowsDisabled: settings.claudeCodeWorkflowsDisabled,
         codexNetworkDisabled: settings.codexNetworkDisabled,
+        providerEgressConfined: settings.providerEgressConfined,
+        providerEgressAllowedHosts: JSON.stringify(
+          settings.providerEgressAllowedHosts,
+        ),
         onboardingCompletedAt: settings.onboardingCompletedAt,
         browserSearchEngineId: settings.browserSearchEngineId,
         updatedAt,

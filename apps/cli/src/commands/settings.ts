@@ -70,6 +70,7 @@ function updateGeneralSetting(
     case "claudeCodeSubagentsDisabled":
     case "claudeCodeWorkflowsDisabled":
     case "codexNetworkDisabled":
+    case "providerEgressConfined":
       return appSettingsSchema.parse({ ...settings, [key]: value });
     default:
       throw new Error(`Unknown general setting '${key}'.`);
@@ -90,6 +91,19 @@ function updateExperiment(
     ...experiments,
     [experimentKey.data]: enabled,
   });
+}
+
+/**
+ * A comma-separated host list, with the empty string meaning "none".
+ *
+ * A list setting rather than a boolean, so it gets its own command: the general
+ * one parses a boolean and refusing a list there would read as an unknown key.
+ */
+function parseEgressHosts(value: string): string[] {
+  return value
+    .split(",")
+    .map((host) => host.trim())
+    .filter((host) => host !== "");
 }
 
 export function registerSettingsCommands(
@@ -129,6 +143,27 @@ export function registerSettingsCommands(
         );
         if (outputJson(opts, result)) return;
         console.log(`${key} updated`);
+      }),
+    );
+
+  settings
+    .command("egress-hosts <hosts>")
+    .description(
+      "Set the hosts a network-confined turn may reach, comma separated (empty string clears)",
+    )
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (hosts: string, opts: JsonOptions) => {
+        const sdk = createCliPatcherSdk(getUrl());
+        const config = await sdk.system.config();
+        const result = await sdk.system.updateGeneralSettings(
+          appSettingsSchema.parse({
+            ...config.generalSettings,
+            providerEgressAllowedHosts: parseEgressHosts(hosts),
+          }),
+        );
+        if (outputJson(opts, result)) return;
+        console.log("providerEgressAllowedHosts updated");
       }),
     );
 

@@ -8,6 +8,7 @@ import {
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   getBuiltInAgentProviderInfo,
+  isAcpProviderId,
   isAgentProviderId,
 } from "@patcher/agent-providers";
 import {
@@ -143,6 +144,7 @@ interface RuntimeExecutionOptionsArgs {
   memoryEnabled: boolean;
   providerSubagentsEnabled: boolean;
   providerNetworkRestricted: boolean;
+  providerEgress: { confined: boolean; allowedHosts: string[] };
   workflowsEnabled: boolean;
 }
 
@@ -244,6 +246,33 @@ function resolveProviderNetworkRestricted(
   return getAppSettings(deps.db).codexNetworkDisabled;
 }
 
+/**
+ * Whether this turn's provider process has its egress confined, and to what.
+ *
+ * Pi and ACP only, and for the reason the setting's own docstring gives: they
+ * are the providers whose *own process* Patcher sandboxes, so their network is
+ * a proxy with a list rather than a switch. Codex and Claude Code sandbox
+ * themselves and are left out, which also keeps a toggle here from restarting
+ * their sessions — the execution options a session carries are compared field
+ * by field.
+ *
+ * The list is the person's; the provider's own hosts are added where the launch
+ * is built, because only the provider knows them.
+ */
+function resolveProviderEgress(
+  deps: Pick<AppDeps, "db">,
+  providerId: string,
+): { confined: boolean; allowedHosts: string[] } {
+  if (providerId !== "pi" && !isAcpProviderId(providerId)) {
+    return { confined: false, allowedHosts: [] };
+  }
+  const settings = getAppSettings(deps.db);
+  return {
+    confined: settings.providerEgressConfined,
+    allowedHosts: settings.providerEgressAllowedHosts,
+  };
+}
+
 function resolveProviderWorkflowsEnabled(
   deps: Pick<AppDeps, "db">,
   providerId: string,
@@ -282,6 +311,8 @@ function toRuntimeExecutionOptions(
     memoryEnabled: args.memoryEnabled,
     providerSubagentsEnabled: args.providerSubagentsEnabled,
     providerNetworkRestricted: args.providerNetworkRestricted,
+    providerEgressConfined: args.providerEgress.confined,
+    providerEgressAllowedHosts: args.providerEgress.allowedHosts,
   };
   if (permissionMode === "full") {
     return {
@@ -377,6 +408,7 @@ export async function buildThreadStartCommand(
         deps,
         args.providerId,
       ),
+      providerEgress: resolveProviderEgress(deps, args.providerId),
       providerNetworkRestricted: resolveProviderNetworkRestricted(
         deps,
         args.providerId,
@@ -419,6 +451,10 @@ function buildPreparedTurnSubmitCommandPayload(
         args.runtimeContext.providerId,
       ),
       providerSubagentsEnabled: resolveProviderSubagentsEnabled(
+        args.deps,
+        args.runtimeContext.providerId,
+      ),
+      providerEgress: resolveProviderEgress(
         args.deps,
         args.runtimeContext.providerId,
       ),

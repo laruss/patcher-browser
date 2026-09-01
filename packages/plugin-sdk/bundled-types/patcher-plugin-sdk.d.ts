@@ -27,6 +27,8 @@ declare const appSettingsSchema: z$1.ZodObject<{
     claudeCodeSubagentsDisabled: z$1.ZodBoolean;
     claudeCodeWorkflowsDisabled: z$1.ZodBoolean;
     codexNetworkDisabled: z$1.ZodBoolean;
+    providerEgressConfined: z$1.ZodBoolean;
+    providerEgressAllowedHosts: z$1.ZodArray<z$1.ZodString>;
     onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
     browserSearchEngineId: z$1.ZodString;
 }, z$1.core.$strict>;
@@ -3573,6 +3575,7 @@ declare const hostDaemonCommandRegistry: {
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
             stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+            egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         options: z$1.ZodIntersection<z$1.ZodObject<{
             model: z$1.ZodString;
@@ -3599,6 +3602,8 @@ declare const hostDaemonCommandRegistry: {
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressConfined: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressAllowedHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -3776,6 +3781,7 @@ declare const hostDaemonCommandRegistry: {
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
             stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+            egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         options: z$1.ZodIntersection<z$1.ZodObject<{
             model: z$1.ZodString;
@@ -3802,6 +3808,8 @@ declare const hostDaemonCommandRegistry: {
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressConfined: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressAllowedHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -4226,6 +4234,8 @@ declare const hostDaemonCommandRegistry: {
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressConfined: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressAllowedHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -4344,6 +4354,7 @@ declare const hostDaemonCommandRegistry: {
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
             stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+            egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         resumeContext: z$1.ZodObject<{
             workspaceContext: z$1.ZodObject<{
@@ -4456,6 +4467,7 @@ declare const hostDaemonCommandRegistry: {
                     insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
                 }, z$1.core.$strict>>;
                 stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+                egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
             }, z$1.core.$strict>>;
             instructions: z$1.ZodString;
             dynamicTools: z$1.ZodArray<z$1.ZodObject<{
@@ -4543,6 +4555,8 @@ declare const hostDaemonCommandRegistry: {
             memoryEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerSubagentsEnabled: z$1.ZodOptional<z$1.ZodBoolean>;
             providerNetworkRestricted: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressConfined: z$1.ZodOptional<z$1.ZodBoolean>;
+            providerEgressAllowedHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strip>, z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"accept-edits">;
             permissionScope: z$1.ZodLiteral<"workspace">;
@@ -4661,6 +4675,7 @@ declare const hostDaemonCommandRegistry: {
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
             stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+            egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         resumeContext: z$1.ZodObject<{
             workspaceContext: z$1.ZodObject<{
@@ -4773,6 +4788,7 @@ declare const hostDaemonCommandRegistry: {
                     insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
                 }, z$1.core.$strict>>;
                 stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+                egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
             }, z$1.core.$strict>>;
             instructions: z$1.ZodString;
             dynamicTools: z$1.ZodArray<z$1.ZodObject<{
@@ -5518,6 +5534,7 @@ declare const hostDaemonCommandRegistry: {
                 insertAfterArgs: z$1.ZodOptional<z$1.ZodNumber>;
             }, z$1.core.$strict>>;
             stateDirs: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+            egressHosts: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         }, z$1.core.$strict>>;
         cwd: z$1.ZodOptional<z$1.ZodString>;
     }, z$1.core.$strip>, z$1.ZodObject<{
@@ -7074,6 +7091,8 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         claudeCodeSubagentsDisabled: z$1.ZodBoolean;
         claudeCodeWorkflowsDisabled: z$1.ZodBoolean;
         codexNetworkDisabled: z$1.ZodBoolean;
+        providerEgressConfined: z$1.ZodBoolean;
+        providerEgressAllowedHosts: z$1.ZodArray<z$1.ZodString>;
         onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
         browserSearchEngineId: z$1.ZodString;
     }, z$1.core.$strict>;

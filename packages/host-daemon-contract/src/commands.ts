@@ -2,6 +2,7 @@ import {
   acpPermissionCliSchema,
   acpNativeReasoningSchema,
   acpReasoningCliSchema,
+  acpEgressHostsSchema,
   acpStateDirsSchema,
   availableModelSchema,
   discoveredWorkspacePropertiesSchema,
@@ -37,7 +38,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 114 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 115 as const;
 
 /**
  * The first protocol version whose daemon can install this server's artifact.
@@ -167,6 +168,7 @@ export const hostDaemonAcpLaunchSpecSchema = z
     nativeSkillRoots: providerNativeSkillRootsSchema.optional(),
     permissionCli: acpPermissionCliSchema.optional(),
     stateDirs: acpStateDirsSchema.optional(),
+    egressHosts: acpEgressHostsSchema.optional(),
   })
   .strict();
 export type HostDaemonAcpLaunchSpec = z.infer<
@@ -188,6 +190,7 @@ export function normalizeHostDaemonAcpLaunchSpec(
     nativeSkillRoots,
     permissionCli,
     stateDirs,
+    egressHosts,
   } = spec;
   const permissionCliHasMode =
     permissionCli?.full !== undefined ||
@@ -213,6 +216,8 @@ export function normalizeHostDaemonAcpLaunchSpec(
     // here would turn that answer into "nobody has looked" and run it
     // unconfined instead.
     ...(stateDirs !== undefined ? { stateDirs } : {}),
+    // Same reading as `stateDirs`: `[]` is an answer, absent is not one.
+    ...(egressHosts !== undefined ? { egressHosts } : {}),
   };
 }
 

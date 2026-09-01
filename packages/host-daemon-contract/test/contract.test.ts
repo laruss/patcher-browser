@@ -714,6 +714,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "ACP permission CLI config omits insertAfterArgs when permission args should be inserted before all configured agent args.",
   "hostDaemonCommandSchema.acpLaunchSpec.stateDirs":
     "an ACP agent nobody has measured declares no state directories, and the bridge runs it unconfined with a warning rather than confining it into failing to start.",
+  "hostDaemonCommandSchema.acpLaunchSpec.egressHosts":
+    "an ACP agent nobody has measured declares no egress hosts, and its turn keeps the network rather than being confined to a list that would cut it off from its own model.",
   "hostDaemonCommandSchema.checkout":
     "environment.provision only includes checkout instructions for unmanaged workspaces that requested a branch mutation.",
   "hostDaemonCommandSchema.targetPath":
@@ -760,6 +762,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "ACP permission CLI config omits insertAfterArgs when permission args should be inserted before all configured agent args.",
   "hostDaemonOnlineRpcCommandSchema.acpLaunchSpec.stateDirs":
     "an ACP agent nobody has measured declares no state directories, and the bridge runs it unconfined with a warning rather than confining it into failing to start.",
+  "hostDaemonOnlineRpcCommandSchema.acpLaunchSpec.egressHosts":
+    "an ACP agent nobody has measured declares no egress hosts, and its turn keeps the network rather than being confined to a list that would cut it off from its own model.",
   "hostDaemonOnlineRpcCommandSchema.query":
     "host.list_files may omit a search string to list files without filtering.",
   "hostDaemonOnlineRpcCommandSchema.path":
@@ -790,6 +794,10 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "legacy runtime commands may omit provider subagent policy; current servers always send the persisted provider preference.",
   "hostDaemonCommandSchema.options.providerNetworkRestricted":
     "legacy runtime commands may omit the Codex network preference; absent means the network is left alone, which is also the app default.",
+  "hostDaemonCommandSchema.options.providerEgressConfined":
+    "a command dispatched before the egress switch existed carries neither field, and absent means the provider process keeps its network.",
+  "hostDaemonCommandSchema.options.providerEgressAllowedHosts":
+    "a command dispatched before the egress switch existed carries neither field, and absent means the provider process keeps its network.",
   "hostDaemonCommandSchema.resumeContext.disallowedTools":
     "turn.submit resume context may omit provider-specific built-in tool removals for providers that do not need them.",
   "hostDaemonCommandSchema.resumeContext.acpLaunchSpec":
@@ -826,6 +834,8 @@ const INTENTIONAL_OPTIONAL_HOST_DAEMON_FIELDS: Record<string, string> = {
     "resume-context ACP permission CLI config omits insertAfterArgs when permission args should be inserted before all configured agent args.",
   "hostDaemonCommandSchema.resumeContext.acpLaunchSpec.stateDirs":
     "resume-context ACP launch specs carry no state directories for an agent nobody has measured, matching the start path.",
+  "hostDaemonCommandSchema.resumeContext.acpLaunchSpec.egressHosts":
+    "resume-context ACP launch specs carry no egress hosts for an agent nobody has measured, matching the start path.",
 };
 
 describe("host-daemon local schemas", () => {
@@ -1114,8 +1124,14 @@ describe("host-daemon command schemas", () => {
   // unmeasured to it and its sandboxed turns run the provider unconfined — the
   // warning would be accurate about the daemon and wrong about Patcher, which
   // is exactly the silence the field exists to remove.
-  it("uses protocol version 114 after ACP agents declared their state directories", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(114);
+  //
+  // 115 added `acpLaunchSpec.egressHosts` and the two `options.providerEgress*`
+  // fields: which hosts an agent needs, and whether this turn is confined to
+  // them. A 114 daemon drops all three and leaves the network open, so the app
+  // would say a turn's egress is confined while nothing confines it — the same
+  // silence as 113, one boundary along.
+  it("uses protocol version 115 after ACP agents declared their egress hosts", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(115);
   });
 
   // The subprotocol is agreed between two processes by string, so no build

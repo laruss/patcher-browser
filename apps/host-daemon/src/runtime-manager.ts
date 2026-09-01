@@ -47,6 +47,7 @@ import {
 } from "./injected-skills.js";
 import { reconnectProvisionArgs } from "./workspace-provision-target.js";
 import type { FetchSkillTree } from "./skill-trees.js";
+import { EgressProxy } from "./egress-proxy.js";
 import { buildProviderSandboxLauncher } from "./provider-sandbox.js";
 import type { WrapAcpAgentLaunchResult } from "@patcher/agent-runtime";
 
@@ -321,6 +322,31 @@ export class RuntimeManager {
     Map<string, Set<Promise<void>>>
   >();
   private readonly threadControlTails = new Map<string, Promise<void>>();
+  /**
+   * The one way out of a network-confined provider process.
+   *
+   * One listener for the daemon, started with the first environment's runtime
+   * rather than on demand: the launcher that has to name its address is built
+   * inside a synchronous callback, and a listener cannot be opened from one. It
+   * refuses everything that does not present a grant, so a daemon whose
+   * machine never turns the setting on has a loopback port that answers 407 and
+   * nothing else.
+   */
+  private readonly egressProxy = new EgressProxy({
+    onRefused: (refusal) => {
+      // Without prompts this is the record. The agent sees its own connection
+      // fail, and this is where a person looks to find out which host to allow.
+      this.options.logger?.warn(
+        {
+          providerId: refusal.providerId,
+          threadId: refusal.threadId,
+          host: refusal.host,
+          port: refusal.port,
+        },
+        "Refused an outbound connection from a network-confined turn",
+      );
+    },
+  });
   private providerMaintenanceRuntime: AgentRuntime | null = null;
   private pendingProviderMaintenanceRuntime: PendingProviderMaintenanceRuntime | null =
     null;
@@ -1218,6 +1244,7 @@ export class RuntimeManager {
     await this.stopWatchingDataDirSkillsRoot();
     this.stopWatchingDataDirSkillsRoot = STOP_WATCHING;
     await this.cleanupUnusedInjectedSkillStagingDirs([]);
+    await this.egressProxy.close();
   }
 
   /**
@@ -1288,15 +1315,32 @@ export class RuntimeManager {
   private buildProviderSandboxLauncher(args: {
     cwd: string;
     stateDirs: readonly string[];
+    providerId: string;
+    threadId?: string;
+    egress?: { allowedHosts: readonly string[] };
+    environmentId: string;
     additionalWorkspaceWriteRoots: readonly string[];
     protectedRepositoryPaths: readonly string[];
   }): WrapAcpAgentLaunchResult {
+    const { egress, environmentId, providerId, threadId, ...rest } = args;
     return buildProviderSandboxLauncher({
-      ...args,
+      ...rest,
       env: process.env,
       homeDirectory: process.env.HOME,
       platform: process.platform,
       protectedCredentialPaths: this.protectedCredentialPaths(),
+      ...(egress !== undefined
+        ? {
+            egress: {
+              proxyUrl: this.egressProxy.grant({
+                key: `${environmentId}\u0000${providerId}`,
+                providerId,
+                ...(threadId !== undefined ? { threadId } : {}),
+                allowedHosts: egress.allowedHosts,
+              }).proxyUrl,
+            },
+          }
+        : {}),
     });
   }
 
@@ -1389,6 +1433,7 @@ export class RuntimeManager {
     let runtime: AgentRuntime | null = null;
     const shellEnv = this.getShellEnv();
     const providerProcessEnv = providerProcessEnvFromShellEnv(shellEnv);
+    await this.egressProxy.start();
     runtime = this.createRuntime({
       workspacePath: workspace.path,
       additionalWorkspaceWriteRoots,
@@ -1401,6 +1446,7 @@ export class RuntimeManager {
       wrapAcpAgentLaunch: (launch) =>
         this.buildProviderSandboxLauncher({
           ...launch,
+          environmentId: args.environmentId,
           additionalWorkspaceWriteRoots,
           protectedRepositoryPaths,
         }),
@@ -1412,6 +1458,7 @@ export class RuntimeManager {
       wrapProviderProcessLaunch: (launch) =>
         this.buildProviderSandboxLauncher({
           ...launch,
+          environmentId: args.environmentId,
           additionalWorkspaceWriteRoots,
           protectedRepositoryPaths,
         }),

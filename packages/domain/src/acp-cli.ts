@@ -51,6 +51,25 @@ export const acpStateDirsSchema = z.array(
     ),
 );
 
+/**
+ * Hostnames an ACP agent needs when its turn's egress is confined.
+ *
+ * The other half of the same rule as `acpStateDirsSchema`, and read the same
+ * way: absent means nobody measured this agent, so its network is left alone
+ * rather than confined on a guess; `[]` would mean it needs none. A hostname,
+ * never a URL and never a port — `CONNECT` names a host, and that is the unit
+ * the boundary can actually decide on. `*.example.com` matches subdomains.
+ */
+export const acpEgressHostsSchema = z.array(
+  z
+    .string()
+    .min(1)
+    .refine(
+      (host) => !host.includes("/") && !host.includes(":"),
+      "Egress hosts must be hostnames, without a scheme, path, or port",
+    ),
+);
+
 const uniqueProviderSkillRootPathsSchema = z
   .array(providerSkillRootPathSchema)
   .superRefine((paths, context) => {

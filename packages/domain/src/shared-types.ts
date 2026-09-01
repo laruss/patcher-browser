@@ -679,6 +679,19 @@ const runtimeThreadExecutionBaseOptionsSchema = z.object({
    * absent means the network is left alone, which is also the app default.
    */
   providerNetworkRestricted: z.boolean().optional(),
+  /**
+   * Whether this turn's provider *process* may only leave the machine through
+   * Patcher's egress proxy, and which hosts the person allowed on top of the
+   * provider's own.
+   *
+   * A different field from the one above and not a duplicate of it: that one
+   * takes the network from the commands a Codex turn runs, this one confines
+   * the process Patcher itself sandboxes — Pi's bridge, an ACP agent — where an
+   * absolute deny would take the model with it. Optional for the same
+   * compatibility reason, and absent means the network is left alone.
+   */
+  providerEgressConfined: z.boolean().optional(),
+  providerEgressAllowedHosts: z.array(z.string()).optional(),
 });
 
 export const runtimeThreadExecutionOptionsSchema =

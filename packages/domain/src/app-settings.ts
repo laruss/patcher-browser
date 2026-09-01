@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "./browser-search-engine.js";
 
+/** Hostnames a confined turn may reach, as stored and as sent over the API. */
+export const providerEgressAllowedHostsSchema = z.array(z.string());
+export type ProviderEgressAllowedHosts = z.infer<
+  typeof providerEgressAllowedHostsSchema
+>;
+
 /**
  * App-wide server-backed preferences.
  * Client-local settings stay in the frontend localStorage helpers instead.
@@ -51,6 +57,35 @@ export const appSettingsSchema = z
      */
     codexNetworkDisabled: z.boolean(),
     /**
+     * Route everything a sandboxed Pi or ACP turn sends off the machine through
+     * Patcher's own proxy, and refuse what is not on a list.
+     *
+     * A different thing from `codexNetworkDisabled`, for a different reason.
+     * Codex's sandbox wraps the commands a turn runs, and Codex's own traffic to
+     * its model is outside it — so there the network is a switch. For Pi and ACP
+     * the sandbox wraps the *provider's own process*, the one that has to reach
+     * its model, so an absolute deny would end the turn. What this does instead
+     * is make the way out selective: the OS refuses every outbound connection
+     * except to the proxy, and the proxy answers by hostname.
+     *
+     * Off by default, and the cost is why. A host nobody listed is refused
+     * rather than asked about, `git push` over an SSH remote stops working
+     * (HTTPS remotes keep working), and a provider that has not declared its own
+     * hosts is left unconfined rather than cut off from its model. macOS only so
+     * far: bubblewrap can only take the network by taking the whole namespace,
+     * which takes the loopback the `patcher` CLI needs with it.
+     */
+    providerEgressConfined: z.boolean(),
+    /**
+     * Hostnames a confined turn may reach on top of what its provider declared.
+     *
+     * The provider's declaration covers its own model API and nothing else, so
+     * this is where the work's own hosts go: `github.com`, a package registry,
+     * whatever the repository actually talks to. `*.example.com` matches
+     * subdomains, not the bare name.
+     */
+    providerEgressAllowedHosts: providerEgressAllowedHostsSchema,
+    /**
      * ISO timestamp of when first-run onboarding last finished or was
      * dismissed; null means it has never run. A timestamp rather than a boolean
      * so we also know *when*, and so "never ran" has an honest value.
@@ -85,6 +120,8 @@ export const defaultAppSettings: AppSettings = {
   claudeCodeWorkflowsDisabled: false,
   // The network stays on unless somebody turns it off: see the schema for why.
   codexNetworkDisabled: false,
+  providerEgressConfined: false,
+  providerEgressAllowedHosts: [],
   onboardingCompletedAt: null,
   browserSearchEngineId: DEFAULT_BROWSER_SEARCH_ENGINE_ID,
 };
