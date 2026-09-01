@@ -5248,6 +5248,89 @@ describe("codex provider adapter", () => {
     });
   });
 
+  it("answers an approval for Patcher's own MCP server without asking anyone", () => {
+    // The CLI that Patcher put in this turn's config. Asking a person to allow
+    // it, on every call, would be a prompt about plumbing nobody chose.
+    const adapter = createCodexProviderAdapter();
+    const params = (serverName: string) => ({
+      threadId: "t1",
+      turnId: "turn-1",
+      serverName,
+      mode: "form",
+      message: `Allow the ${serverName} MCP server to run tool "patcher"?`,
+      requestedSchema: { type: "object", properties: {} },
+      _meta: { codex_approval_kind: "mcp_tool_call" },
+    });
+
+    expect(
+      adapter.autoAnswerInboundRequest?.({
+        id: 20,
+        method: "mcpServer/elicitation/request",
+        params: params("patcher"),
+      }),
+    ).toEqual({ action: "accept", content: {} });
+
+    // Somebody else's server is theirs to allow: it falls through to the prompt.
+    expect(
+      adapter.autoAnswerInboundRequest?.({
+        id: 21,
+        method: "mcpServer/elicitation/request",
+        params: params("their-server"),
+      }),
+    ).toBeNull();
+    expect(
+      adapter.decodeInteractiveRequest?.({
+        id: 21,
+        method: "mcpServer/elicitation/request",
+        params: params("their-server"),
+      }),
+    ).not.toBeNull();
+  });
+
+  it("does not answer a real elicitation from its own server either", () => {
+    // Without the tool-call marker this is a server asking the person for input.
+    // Same name, different question — and the answer is not Patcher's.
+    const adapter = createCodexProviderAdapter();
+
+    expect(
+      adapter.autoAnswerInboundRequest?.({
+        id: 22,
+        method: "mcpServer/elicitation/request",
+        params: {
+          threadId: "t1",
+          turnId: "turn-1",
+          serverName: "patcher",
+          mode: "form",
+          message: "Which project should I use?",
+          requestedSchema: {
+            type: "object",
+            properties: { project: { type: "string" } },
+          },
+          _meta: { persist: ["session"] },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("answers nothing else at all", () => {
+    const adapter = createCodexProviderAdapter();
+
+    expect(
+      adapter.autoAnswerInboundRequest?.({
+        id: 23,
+        method: "item/commandExecution/requestApproval",
+        params: {
+          threadId: "t1",
+          turnId: "turn-1",
+          itemId: "item-1",
+          reason: null,
+          command: "git push",
+          availableDecisions: ["accept", "decline"],
+        },
+      }),
+    ).toBeNull();
+  });
+
   it("decodeInteractiveRequest leaves a real elicitation alone", () => {
     // The same method carries a server asking the person for input against
     // `requestedSchema`. Answering one of those with an empty accepted form

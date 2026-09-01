@@ -5,6 +5,7 @@ import { registerEnvironmentCommands } from "./commands/environment.js";
 import { registerFileCommands } from "./commands/file.js";
 import { registerGuideCommand } from "./commands/guide.js";
 import { registerManagerCommands } from "./commands/manager.js";
+import { registerMcpServeCommand } from "./commands/mcp-serve.js";
 import { registerMachineCommands } from "./commands/machine.js";
 import { registerProjectCommands } from "./commands/project.js";
 import { registerPluginCommands } from "./commands/plugin.js";
@@ -99,6 +100,8 @@ registerThemeCommands(program, getUrl);
 registerPluginCommands(program, getUrl);
 registerSkillCommands(program, getUrl, getContext);
 registerGuideCommand(program);
+// Not for people: a turn's provider spawns this to offer the CLI as a tool.
+registerMcpServeCommand(program);
 registerVoiceCommands(program, getUrl);
 
 /**
