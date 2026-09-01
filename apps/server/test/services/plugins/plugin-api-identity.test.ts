@@ -1,13 +1,22 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { permissionsForApiPath } from "@patcher/domain";
+import {
+  isConsentPendingInteraction,
+  permissionsForApiPath,
+} from "@patcher/domain";
 import {
   createPluginApiFetch,
   createPluginApiIdentities,
   PLUGIN_API_ID_HEADER,
   PLUGIN_API_KEY_HEADER,
 } from "../../../src/services/plugins/plugin-api-identity.js";
+import {
+  seedEnvironment,
+  seedHostSession,
+  seedProjectWithSource,
+  seedThread,
+} from "../../helpers/seed.js";
 import {
   createTestAppHarness,
   type TestAppHarness,
@@ -120,6 +129,21 @@ describe("the plugin's own SDK client signs its requests", () => {
   });
 });
 
+async function waitForConsentInteraction(
+  harness: TestAppHarness,
+  threadId: string,
+) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const [interaction] =
+      harness.deps.pendingInteractions.listPendingThreadInteractions(threadId);
+    if (interaction && isConsentPendingInteraction(interaction)) {
+      return interaction;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("No consent interaction was raised");
+}
+
 describe("plugin identity on the loopback API", () => {
   let harness: TestAppHarness;
 
@@ -152,6 +176,62 @@ describe("plugin identity on the loopback API", () => {
       },
     };
   }
+
+  it("refuses a plugin the answer to a consent prompt", async () => {
+    // The gate that keeps a turn from answering its own prompt is the declared
+    // thread header, which a plugin never sends — so `threads` was enough to
+    // answer a prompt raised for somebody else, and the timeline would record
+    // the *user* as having allowed it. That record is what the prompt is for.
+    const { headers, id } = await install("patcher-plugin-answerer", [
+      "threads",
+    ]);
+    const { host } = seedHostSession(harness.deps, { id: "host-consent" });
+    const { project } = seedProjectWithSource(harness.deps, {
+      hostId: host.id,
+    });
+    const environment = seedEnvironment(harness.deps, {
+      hostId: host.id,
+      projectId: project.id,
+    });
+    const thread = seedThread(harness.deps, {
+      environmentId: environment.id,
+      projectId: project.id,
+    });
+    void harness.deps.pendingInteractions.requestConsentInteraction({
+      threadId: thread.id,
+      timeoutMs: 60_000,
+      payload: {
+        kind: "consent",
+        action: "enable",
+        subjectId: "some-plugin",
+        subjectName: "Some plugin",
+        permissions: [],
+        sites: [],
+        detail: null,
+      },
+    });
+    const interaction = await waitForConsentInteraction(harness, thread.id);
+
+    const response = await harness.app.request(
+      `${BASE}/api/v1/threads/${thread.id}/interactions/${interaction.id}/respond`,
+      {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ value: { kind: "consent", approved: true } }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { message: string };
+    // Names the plugin: whoever reads the log should not have to work out which
+    // caller was refused.
+    expect(body.message).toContain(id);
+    expect(body.message).toContain("answered by the user");
+    // And nothing was decided.
+    expect(
+      harness.deps.pendingInteractions.listPendingThreadInteractions(thread.id),
+    ).toHaveLength(1);
+  });
 
   it("refuses a path the plugin did not declare", async () => {
     const { headers } = await install("patcher-plugin-quiet");

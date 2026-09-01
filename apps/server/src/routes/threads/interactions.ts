@@ -13,6 +13,7 @@ import type { AppDeps } from "../../types.js";
 import { ApiError } from "../../errors.js";
 import { requirePublicThread } from "../../services/lib/entity-lookup.js";
 import { declaresThread } from "../plugin-consent.js";
+import { getPluginApiId } from "../../plugin-api-identity-context.js";
 
 const pendingInteractionIdSchema = z
   .string()
@@ -136,6 +137,21 @@ export function registerThreadInteractionRoutes(
           403,
           "invalid_request",
           "A consent prompt is answered by the user, not from inside a turn. Nothing changed. Ask in your reply instead.",
+        );
+      }
+      // And not by a plugin. The check above is a declaration, which is the
+      // right shape for a turn and blind to a plugin: a plugin authenticates
+      // with its own id and key and sends no thread header, so `threads` was
+      // enough to answer a prompt raised for somebody else — and the timeline
+      // would record the *user* as having allowed it, which is the record the
+      // prompt exists to leave. A plugin that wants something asks for it
+      // through its own install and enable prompts, which are gated too.
+      const callerPluginId = getPluginApiId(context);
+      if (callerPluginId !== undefined) {
+        throw new ApiError(
+          403,
+          "invalid_request",
+          `A consent prompt is answered by the user, not by the "${callerPluginId}" plugin. Nothing changed.`,
         );
       }
       const answer = consentInteractionAnswerSchema.safeParse(payload.value);

@@ -400,15 +400,16 @@ Named here rather than left to be rediscovered:
   says so on its next turn, with a message naming the limit and whose it is to
   change — the reversible direction, since the other one leaves the sandbox off
   in silence.
-- **A plugin can answer a consent prompt.** The self-approval gate on
-  `interactions/:id/respond` is the declared-thread header, which an agent's
-  `patcher` sends and a plugin does not: a plugin authenticates with its own
-  id and key, and `/threads/*` maps to the `threads` permission. So a plugin
-  holding it can allow a prompt raised for somebody else, and the timeline
-  records the user as having allowed it. That was true before the setup-script
-  consent existed — a plugin could allow another plugin's install, which also
-  runs unsandboxed code — but this widens what one click of it buys. Closing it
-  needs the caller's identity at that route rather than the absence of a header.
+- ~~**A plugin can answer a consent prompt.**~~ Closed: the `/api/v1` gate
+  already verifies which plugin a request is from, to charge it the permissions
+  it declared, and now records that identity for the routes where the _identity_
+  matters rather than the price (`plugin-api-identity-context.ts`). The
+  self-approval check on `interactions/:id/respond` refuses a plugin as well as a
+  turn, and names it in the refusal. The declaration it used before was exactly
+  right about turns and blind to plugins, which is why `threads` was enough to
+  allow a prompt raised for somebody else — and have the timeline record the
+  _user_ as having allowed it, which is the record the prompt exists to leave. A
+  plugin's own wants are still asked about, at install and enable.
 - **A remembered setup-script allow is keyed to a project, not a repository.**
   `project_sources.path` is mutable through a route no policy denies an agent,
   and nothing invalidates an approval when a source is repointed: a repository
