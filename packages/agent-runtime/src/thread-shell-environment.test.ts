@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  deriveThreadApiKey,
+  deriveThreadTurnApiKey,
   PATCHER_THREAD_KEY_ENV,
 } from "@patcher/config/thread-api-key";
 import { buildThreadShellEnvironment } from "./thread-shell-environment.js";
@@ -47,7 +47,7 @@ describe("buildThreadShellEnvironment", () => {
     });
 
     expect(env[PATCHER_THREAD_KEY_ENV]).toBe(
-      deriveThreadApiKey({ appApiKey: APP_KEY, threadId: "thr-1" }),
+      deriveThreadTurnApiKey({ appApiKey: APP_KEY, threadId: "thr-1" }),
     );
   });
 

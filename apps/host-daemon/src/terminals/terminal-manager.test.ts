@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AgentRuntime } from "@patcher/agent-runtime";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
-import { deriveThreadApiKey } from "@patcher/config/thread-api-key";
+import { deriveTerminalApiKey } from "@patcher/config/thread-api-key";
 import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import type { HostWorkspace } from "@patcher/host-workspace";
 import {
@@ -514,10 +514,14 @@ describe("TerminalManager", () => {
     expect(JSON.stringify(env)).not.toContain("app-key-probe-secret");
     // What it carries instead: this thread's key, which is the credential the
     // turn's own shell was given, and the thread id the CLI's `--self` needs.
+    // The terminal's own credential rather than the turn's: this shell is the
+    // thing that outlives a turn on purpose, so it is accepted while the
+    // terminal is open instead of while a turn runs.
     expect(env.PATCHER_THREAD_KEY).toBe(
-      deriveThreadApiKey({
+      deriveTerminalApiKey({
         appApiKey: "app-key-probe-secret",
         threadId: "thr-1",
+        terminalId: "term-1",
       }),
     );
     expect(env.PATCHER_THREAD_ID).toBe("thr-1");

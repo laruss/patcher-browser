@@ -1,23 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { agentRoutePolicyDenial } from "../../src/agent-route-policy.js";
-import { createThreadApiIdentity } from "../../src/thread-identity.js";
-import { deriveThreadApiKey } from "@patcher/config/thread-api-key";
+import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
 import {
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
 } from "@patcher/server-contract";
+import type { AppDeps } from "../../src/types.js";
+import {
+  seedHost,
+  seedProjectWithSource,
+  seedThread,
+} from "../helpers/seed.js";
 import {
   startTestServer,
   TEST_APP_API_KEY,
   type RunningTestServer,
 } from "../helpers/test-app.js";
-
-const APP_KEY = "app-key-for-agent-route-policy";
-
-function carrier(headers: Record<string, string>) {
-  return { header: (name: string) => headers[name] };
-}
 
 let server: RunningTestServer | null = null;
 
@@ -28,11 +27,25 @@ afterEach(async () => {
   }
 });
 
+/**
+ * A thread with a turn running, which is what these callers claim to be.
+ *
+ * A turn credential is accepted only while its thread has a live turn, so a
+ * made-up thread id no longer stands in for one: the identity now reads the
+ * thread's own status. Seeding it is the fixture catching up with what the
+ * describe block below has always said it was testing.
+ */
+function seedThreadMidTurn(deps: Pick<AppDeps, "db" | "hub">): string {
+  const host = seedHost(deps, { id: "host-agent-policy" });
+  const { project } = seedProjectWithSource(deps, { hostId: host.id });
+  return seedThread(deps, { projectId: project.id, status: "active" }).id;
+}
+
 /** The headers a turn's `patcher` CLI sends: its thread, and no app key. */
 function agentHeaders(threadId = "thr-agent-1"): Record<string, string> {
   return {
     [PATCHER_THREAD_ID_HEADER]: threadId,
-    [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
+    [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
       appApiKey: TEST_APP_API_KEY,
       threadId,
     }),
@@ -217,59 +230,6 @@ describe("agentRoutePolicyDenial", () => {
   });
 });
 
-describe("createThreadApiIdentity", () => {
-  const identity = createThreadApiIdentity(APP_KEY);
-
-  it("resolves the thread whose key verifies", () => {
-    expect(
-      identity.resolve(
-        carrier({
-          [PATCHER_THREAD_ID_HEADER]: "thr-1",
-          [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
-            appApiKey: APP_KEY,
-            threadId: "thr-1",
-          }),
-        }),
-      ),
-    ).toBe("thr-1");
-  });
-
-  it("is nobody without the key, so an agent cannot drop the declaration", () => {
-    expect(
-      identity.resolve(carrier({ [PATCHER_THREAD_ID_HEADER]: "thr-1" })),
-    ).toBeNull();
-  });
-
-  it("is nobody when the key does not match the declared thread", () => {
-    expect(
-      identity.resolve(
-        carrier({
-          [PATCHER_THREAD_ID_HEADER]: "thr-2",
-          [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
-            appApiKey: APP_KEY,
-            threadId: "thr-1",
-          }),
-        }),
-      ),
-    ).toBeNull();
-  });
-
-  it("is nobody for a caller presenting the app key as a thread key", () => {
-    expect(
-      identity.resolve(
-        carrier({
-          [PATCHER_THREAD_ID_HEADER]: "thr-1",
-          [PATCHER_THREAD_KEY_HEADER]: APP_KEY,
-        }),
-      ),
-    ).toBeNull();
-  });
-
-  it("is nobody for a request carrying neither header", () => {
-    expect(identity.resolve(carrier({}))).toBeNull();
-  });
-});
-
 /**
  * Over a real socket with a plain `fetch`, deliberately: `harness.app` adds the
  * app key, and the whole point of these is a caller that has none.
@@ -279,7 +239,7 @@ describe("an agent mid-turn", () => {
     server = await startTestServer();
 
     const response = await fetch(`${server.baseUrl}/api/v1/projects`, {
-      headers: agentHeaders(),
+      headers: agentHeaders(seedThreadMidTurn(server.deps)),
     });
 
     expect(response.status).toBe(200);
@@ -290,7 +250,7 @@ describe("an agent mid-turn", () => {
 
     const response = await fetch(`${server.baseUrl}/api/v1/files/write`, {
       method: "POST",
-      headers: agentHeaders(),
+      headers: agentHeaders(seedThreadMidTurn(server.deps)),
       body: JSON.stringify({ path: "/etc/patcher-escape", content: "x" }),
     });
 
@@ -310,7 +270,7 @@ describe("an agent mid-turn", () => {
     ]) {
       const response = await fetch(`${server.baseUrl}/api/v1/terminals`, {
         method: "POST",
-        headers: agentHeaders(),
+        headers: agentHeaders(seedThreadMidTurn(server.deps)),
         body: JSON.stringify({ cols: 100, rows: 30, target }),
       });
 
@@ -326,7 +286,7 @@ describe("an agent mid-turn", () => {
       `${server.baseUrl}/api/v1/hosts/host-1/permission-ceiling`,
       {
         method: "PATCH",
-        headers: agentHeaders(),
+        headers: agentHeaders(seedThreadMidTurn(server.deps)),
         body: JSON.stringify({ maxPermissionMode: "full" }),
       },
     );
@@ -340,7 +300,7 @@ describe("an agent mid-turn", () => {
     const response = await fetch(`${server.baseUrl}/api/v1/files/write`, {
       method: "POST",
       headers: {
-        [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
+        [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
           appApiKey: TEST_APP_API_KEY,
           threadId: "thr-agent-1",
         }),
@@ -360,7 +320,7 @@ describe("an agent mid-turn", () => {
     const response = await fetch(`${server.baseUrl}/api/v1/files/write`, {
       method: "POST",
       headers: {
-        ...agentHeaders(),
+        ...agentHeaders(seedThreadMidTurn(server.deps)),
         [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY,
       },
       body: JSON.stringify({ path: "/etc/patcher-escape", content: "x" }),
@@ -400,11 +360,14 @@ describe("an agent mid-turn", () => {
 describe("a turn allowing its own permission prompt", () => {
   async function resolveAsAgent(decision: string): Promise<Response> {
     server = await startTestServer();
+    // The turn's own thread, in the path and in the headers: a credential is
+    // now held to a live turn, so the caller has to be a thread that exists.
+    const threadId = seedThreadMidTurn(server.deps);
     return fetch(
-      `${server.baseUrl}/api/v1/threads/thr-agent-1/interactions/pint_abc234567z/resolve`,
+      `${server.baseUrl}/api/v1/threads/${threadId}/interactions/pint_abc234567z/resolve`,
       {
         method: "POST",
-        headers: agentHeaders(),
+        headers: agentHeaders(threadId),
         body: JSON.stringify(
           decision === "deny"
             ? { decision: "deny" }

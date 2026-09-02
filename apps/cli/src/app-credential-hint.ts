@@ -6,7 +6,10 @@ import {
   resolveRuntimeMode,
 } from "@patcher/config/runtime";
 import { toOptionalString } from "@patcher/config/strings";
-import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
+import {
+  parseThreadCredential,
+  PATCHER_THREAD_KEY_ENV,
+} from "@patcher/config/thread-api-key";
 
 /**
  * What to say when the server refuses this CLI with a 401.
@@ -70,13 +73,20 @@ export function describeRefusedCredential(
     // deliberately not the app key, so "go read the key file" is advice that
     // would undo the narrower credential if followed — see thread-api-key.ts.
     //
-    // What it says is what that credential actually is. It used to add "it is
-    // refused once the turn that issued it has ended", which nothing does: the
-    // key is derived from the app key and the thread id with no deadline in it,
-    // so it verifies for as long as the app key does. A 401 is a bad place to
-    // learn a boundary that is not there — the gap itself is recorded in
-    // thread-api-key.ts and docs/security.md.
-    return `This shell carries a thread credential (${PATCHER_THREAD_KEY_ENV}), not the app key. It proves this thread and is charged this thread's limits, and it does not open routes that are the app's alone. Nothing to fix here from inside the turn.`;
+    // This line once claimed the credential is "refused once the turn that
+    // issued it has ended" when nothing did that, and PR #45 took the claim
+    // out. It is true now, and specifically: a turn credential is accepted
+    // while its thread has a turn running, a terminal's while that terminal is
+    // open. So the likeliest reason for the 401 that brought you here is that
+    // the lifetime is over — which is worth saying, because it is the one
+    // thing a caller inside the shell cannot see. Which of the two it holds is
+    // read off the credential rather than guessed.
+    const claim = parseThreadCredential(threadKey);
+    const lifetime =
+      claim?.kind === "terminal"
+        ? "It is this terminal's credential: accepted while the terminal is open, so a refusal means the terminal has closed."
+        : "It is this turn's credential: accepted while the turn is running, so a refusal most likely means the turn has ended.";
+    return `This shell carries a thread credential (${PATCHER_THREAD_KEY_ENV}), not the app key. It proves this thread and is charged this thread's limits, and it does not open routes that are the app's alone. ${lifetime} Nothing to fix here from inside the turn.`;
   }
   const fromEnv = toOptionalString(env.PATCHER_APP_KEY);
   if (fromEnv !== undefined) {

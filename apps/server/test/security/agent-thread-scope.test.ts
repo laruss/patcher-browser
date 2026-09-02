@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { deriveThreadApiKey } from "@patcher/config/thread-api-key";
+import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import {
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
@@ -42,7 +42,7 @@ afterEach(async () => {
 function agentHeaders(threadId: string): Record<string, string> {
   return {
     [PATCHER_THREAD_ID_HEADER]: threadId,
-    [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
+    [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
       appApiKey: TEST_APP_API_KEY,
       threadId,
     }),
@@ -63,7 +63,14 @@ function seedFamily(harness: TestAppHarness) {
       environmentId: environment.id,
       parentThreadId,
     });
-  const caller = seed(null);
+  // Mid-turn, because that is what a turn credential is accepted for now: an
+  // idle caller would be refused before this file's scope rules were reached.
+  const caller = seedThread(harness.deps, {
+    projectId: project.id,
+    environmentId: environment.id,
+    parentThreadId: null,
+    status: "active",
+  });
   const child = seed(caller.id);
   const grandchild = seed(child.id);
   const stranger = seed(null);

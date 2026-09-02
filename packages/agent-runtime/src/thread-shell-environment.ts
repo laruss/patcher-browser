@@ -1,5 +1,5 @@
 import {
-  deriveThreadApiKey,
+  deriveThreadTurnApiKey,
   PATCHER_THREAD_KEY_ENV,
 } from "@patcher/config/thread-api-key";
 import type { AgentRuntimeShellEnvironment } from "./types.js";
@@ -32,6 +32,12 @@ const APP_KEY_ENV = "PATCHER_APP_KEY";
  * server can now charge it a policy, and that omitting the thread declaration
  * costs it the ability to call at all rather than promoting it to the app.
  *
+ * Specifically the *turn* credential, which the server accepts only while this
+ * thread has a turn running. A process that has to outlive a turn is a
+ * terminal, and a terminal is given its own key with its own lifetime — see
+ * `thread-api-key.ts`. So an agent that saves what is in this environment
+ * cannot act as the thread once the turn it was given for has ended.
+ *
  * A base environment with no app key stays that way: a daemon that could not
  * find one had nothing to hand over before either, and the CLI in that shell
  * reports the 401 it always did.
@@ -44,7 +50,7 @@ export function buildThreadShellEnvironment(
     ...baseShellEnv,
     ...(appApiKey
       ? {
-          [PATCHER_THREAD_KEY_ENV]: deriveThreadApiKey({
+          [PATCHER_THREAD_KEY_ENV]: deriveThreadTurnApiKey({
             appApiKey,
             threadId: args.threadId,
           }),

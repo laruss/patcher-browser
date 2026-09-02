@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deriveThreadApiKey } from "@patcher/config/thread-api-key";
+import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import { createTerminalSession, type TerminalSessionRow } from "@patcher/db";
 import {
   PATCHER_THREAD_ID_HEADER,
@@ -73,7 +73,16 @@ async function createFixture(): Promise<Fixture> {
       projectId: project.id,
       status: "idle",
     });
-  const caller = seed(null);
+  // The caller is an agent mid-turn, and that is now a fact the server checks:
+  // a turn credential is accepted while its thread has a turn running, so a
+  // fixture that left it idle would be testing an expired credential instead
+  // of the terminal scope this file is about.
+  const caller = seedThread(harness.deps, {
+    environmentId: environment.id,
+    parentThreadId: null,
+    projectId: project.id,
+    status: "active",
+  });
   const sentMessages: string[] = [];
   harness.hub.registerDaemon(session.id, host.id, {
     close: vi.fn(() => {}),
@@ -96,7 +105,7 @@ async function createFixture(): Promise<Fixture> {
 function agentHeaders(threadId: string): Record<string, string> {
   return {
     [PATCHER_THREAD_ID_HEADER]: threadId,
-    [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
+    [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
       appApiKey: TEST_APP_API_KEY,
       threadId,
     }),

@@ -8,7 +8,7 @@ import type { TerminalSessionCloseReason } from "@patcher/domain";
 import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import { sanitizeInheritedChildProcessEnv } from "@patcher/process-utils";
 import {
-  deriveThreadApiKey,
+  deriveTerminalApiKey,
   PATCHER_THREAD_KEY_ENV,
 } from "@patcher/config/thread-api-key";
 import type { HostDaemonServerTerminalMessage } from "../server-connection-support.js";
@@ -385,9 +385,13 @@ function threadScopedShellEnv(
     // and the CLI in that shell reports the 401 it always did.
     ...(appApiKey
       ? {
-          [PATCHER_THREAD_KEY_ENV]: deriveThreadApiKey({
+          // The terminal's own credential, not the turn's: this shell is the
+          // thing that legitimately outlives a turn, so it is accepted while
+          // the terminal is open rather than while a turn runs.
+          [PATCHER_THREAD_KEY_ENV]: deriveTerminalApiKey({
             appApiKey,
             threadId,
+            terminalId: args.terminalId,
           }),
         }
       : {}),
