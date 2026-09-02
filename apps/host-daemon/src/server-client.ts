@@ -1,6 +1,7 @@
 import pRetry, { AbortError } from "p-retry";
 import {
   HOST_DAEMON_PROTOCOL_VERSION,
+  hostDaemonEgressHostConsentResponseSchema,
   hostDaemonEnvSetupScriptConsentResponseSchema,
   hostDaemonEventBatchResponseSchema,
   hostDaemonInteractiveInterruptResponseSchema,
@@ -8,6 +9,8 @@ import {
   hostDaemonSessionOpenResponseSchema,
   hostDaemonSkillTreeSchema,
   hostDaemonToolCallResponseSchema,
+  type HostDaemonEgressHostConsentRequest,
+  type HostDaemonEgressHostConsentResponse,
   type HostDaemonEnvSetupScriptConsentRequest,
   type HostDaemonEnvSetupScriptConsentResponse,
   type HostDaemonInteractiveInterruptResponse,
@@ -212,6 +215,12 @@ export interface ServerClient {
     scriptByteLength: number;
     signal?: AbortSignal;
   }): Promise<HostDaemonEnvSetupScriptConsentResponse>;
+  requestEgressHostConsent(args: {
+    threadId: string;
+    providerId: string;
+    host: string;
+    port: number;
+  }): Promise<HostDaemonEgressHostConsentResponse>;
 }
 
 const INTERACTIVE_REQUEST_REGISTRATION_RETRIES = 5;
@@ -593,6 +602,49 @@ export function createServerClient(
       }
 
       return hostDaemonEnvSetupScriptConsentResponseSchema.parse(
+        await response.json(),
+      );
+    },
+
+    /**
+     * Asks whether a network-confined turn may reach one host, and holds the
+     * request open while a person decides.
+     *
+     * Carries no abort signal, unlike the setup-script consent, and that is the
+     * point rather than an omission: the connection that triggered the question
+     * is an agent's socket, and it will usually be gone before an answer
+     * arrives. The question outlives it, the daemon remembers the answer, and
+     * the agent's next attempt is the one that goes through. Not retried, for
+     * the same reason its sibling is not: a question asked twice can be
+     * answered differently by accident.
+     */
+    async requestEgressHostConsent(
+      args,
+    ): Promise<HostDaemonEgressHostConsentResponse> {
+      const payload: HostDaemonEgressHostConsentRequest = {
+        sessionId: requireSessionId(),
+        threadId: args.threadId,
+        providerId: args.providerId,
+        host: args.host,
+        port: args.port,
+      };
+      const response = await fetchFn(
+        buildInternalUrl("/session/egress-host-consent"),
+        {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!response.ok) {
+        throw await createResponseError(
+          "ask whether the turn may reach that host",
+          response,
+        );
+      }
+
+      return hostDaemonEgressHostConsentResponseSchema.parse(
         await response.json(),
       );
     },

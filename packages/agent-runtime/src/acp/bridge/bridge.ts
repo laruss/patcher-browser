@@ -333,11 +333,47 @@ async function ensureDynamicToolBridge(): Promise<AcpDynamicToolBridge> {
         port: address.port,
         server,
         token: randomBytes(32).toString("hex"),
+        loopbackServers: new Map(),
       });
     });
   });
 
   return dynamicToolBridgePromise;
+}
+
+/**
+ * Carries the tool bridge's port into a network namespace that has no host
+ * loopback in it, by putting a socket named for that port where the relay in
+ * front of the agent will find it.
+ *
+ * Nothing about the MCP server's configuration changes: it still dials
+ * `127.0.0.1:<port>`, and inside the namespace that address exists because of
+ * this socket. Failing is not fatal — the turn loses its plugin tools and says
+ * so, rather than losing the session.
+ */
+async function serveDynamicToolBridgeOverLoopbackSocket(
+  bridge: AcpDynamicToolBridge,
+  socketDir: string,
+): Promise<void> {
+  if (bridge.loopbackServers.has(socketDir)) {
+    return;
+  }
+  const socketPath = resolve(socketDir, `${bridge.port}.sock`);
+  const server = createServer((socket) => {
+    handleDynamicToolBridgeSocket(bridge, socket);
+  });
+  bridge.loopbackServers.set(socketDir, server);
+  await fs.rm(socketPath, { force: true });
+  await new Promise<void>((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(socketPath, () => {
+      server.removeListener("error", rejectListen);
+      resolveListen();
+    });
+  }).catch((error: unknown) => {
+    bridge.loopbackServers.delete(socketDir);
+    throw error;
+  });
 }
 
 async function buildSessionMcpServers(
@@ -348,6 +384,19 @@ async function buildSessionMcpServers(
     return [];
   }
   const bridge = await ensureDynamicToolBridge();
+  const loopbackSocketDir = params.agentSandbox?.loopbackSocketDir;
+  if (loopbackSocketDir !== undefined) {
+    try {
+      await serveDynamicToolBridgeOverLoopbackSocket(bridge, loopbackSocketDir);
+    } catch (error) {
+      sendNotification(ACP_WARNING_METHOD, {
+        threadId: params.threadId,
+        summary:
+          "This turn's plugin tools may not be reachable: its network is confined, and Patcher could not open the local socket the agent reaches them through " +
+          `(${error instanceof Error ? error.message : String(error)}).`,
+      });
+    }
+  }
   return [
     buildAcpMcpServerConfig({
       bridgeArgs: resolveBridgeProcessArgsForMcpServer(),
@@ -593,6 +642,18 @@ interface AcpDynamicToolBridge {
   port: number;
   server: Server;
   token: string;
+  /**
+   * The same protocol on a unix socket, for a turn whose network namespace has
+   * no host loopback in it.
+   *
+   * A confined Linux turn reaches this port only if a socket named for it
+   * appears in the directory the daemon bound into the sandbox — the relay in
+   * front of the agent mirrors what it finds there onto the namespace's own
+   * loopback (see the daemon's `sandbox-loopback.ts`). Keyed by directory
+   * because a bridge process serves several sessions and only some of them are
+   * confined.
+   */
+  loopbackServers: Map<string, Server>;
 }
 
 const dynamicToolBridgeRequestSchema = z.object({
@@ -2042,13 +2103,18 @@ async function stopAllSessions(): Promise<void> {
   const dynamicToolBridge = dynamicToolBridgePromise
     ? await dynamicToolBridgePromise.catch(() => null)
     : null;
-  await new Promise<void>((resolveClose) => {
-    if (!dynamicToolBridge) {
-      resolveClose();
-      return;
-    }
-    dynamicToolBridge.server.close(() => resolveClose());
-  });
+  if (!dynamicToolBridge) {
+    return;
+  }
+  await Promise.all(
+    [
+      dynamicToolBridge.server,
+      ...dynamicToolBridge.loopbackServers.values(),
+    ].map(
+      (server) =>
+        new Promise<void>((resolveClose) => server.close(() => resolveClose())),
+    ),
+  );
 }
 
 function isMainModule(): boolean {

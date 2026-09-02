@@ -38,7 +38,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 115 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 116 as const;
 
 /**
  * The first protocol version whose daemon can install this server's artifact.

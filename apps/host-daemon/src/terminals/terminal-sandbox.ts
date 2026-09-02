@@ -33,8 +33,9 @@ import path from "node:path";
  * so in as many words.
  *
  * A *provider process* can ask for more, through `egressConfined` below: there
- * the way out is a proxy Patcher runs, so a refused host is a list somebody can
- * change rather than a dead end. Terminals leave it unset.
+ * the way out is a proxy Patcher runs, so a host that is not on the list is a
+ * question on the thread rather than a dead end. Terminals leave it unset —
+ * nothing in a terminal can raise one.
  *
  * One visible edge on macOS: a login shell cannot write the user's own
  * `~/.zsh_history`, and says so once at startup. Left alone deliberately — the
@@ -67,6 +68,27 @@ export interface TerminalSandboxPolicy {
    * own is a way around the proxy for whoever goes looking.
    */
   egressConfined?: boolean;
+  /**
+   * How a Linux launch keeps that loopback, since it cannot keep it the way
+   * macOS does.
+   *
+   * Seatbelt can deny what leaves the machine and leave localhost alone.
+   * Bubblewrap cannot: `--unshare-net` is the only unprivileged way to take
+   * the network and it takes the host's loopback with it. So on Linux the
+   * loopback Patcher needs is carried in over bind-mounted unix sockets and
+   * mirrored back onto the namespace's own loopback by a relay that runs as
+   * the first process inside it (`sandbox-net-relay.ts`).
+   *
+   * Required for `egressConfined` on Linux and unused everywhere else — a
+   * launch that confines egress without one is refused rather than started
+   * with the network open.
+   */
+  loopbackRelay?: {
+    /** `node <relay module>`, the first process inside the namespace. */
+    argv: readonly string[];
+    /** Directory of `<port>.sock` files, bound in read-only. */
+    socketDir: string;
+  };
 }
 
 export interface TerminalCommand {
@@ -148,12 +170,31 @@ function isExecutableFile(candidatePath: string): boolean {
  */
 const linuxSandboxProbeResults = new Map<string, string | null>();
 
-function probeLinuxSandbox(helperPath: string): string | null {
-  const cached = linuxSandboxProbeResults.get(helperPath);
+/**
+ * `unshareNet` is probed separately rather than assumed from the rest: taking
+ * the network needs a network namespace, and a machine or container that
+ * forbids one would otherwise pass this probe and then fail at launch, which
+ * is the failure this probe exists to move earlier.
+ */
+function probeLinuxSandbox(
+  helperPath: string,
+  options: { unshareNet: boolean },
+): string | null {
+  const cacheKey = `${helperPath}\u0000${String(options.unshareNet)}`;
+  const cached = linuxSandboxProbeResults.get(cacheKey);
   if (cached !== undefined) return cached;
   const result = spawnSync(
     helperPath,
-    ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "/bin/true"],
+    [
+      "--ro-bind",
+      "/",
+      "/",
+      "--dev-bind",
+      "/dev",
+      "/dev",
+      ...(options.unshareNet ? ["--unshare-net"] : []),
+      "/bin/true",
+    ],
     { encoding: "utf8", timeout: LINUX_SANDBOX_PROBE_TIMEOUT_MS },
   );
   const failure =
@@ -162,7 +203,7 @@ function probeLinuxSandbox(helperPath: string): string | null {
       : (result.stderr?.trim().split("\n").at(-1) ??
         result.error?.message ??
         `exited with ${String(result.status)}`);
-  linuxSandboxProbeResults.set(helperPath, failure);
+  linuxSandboxProbeResults.set(cacheKey, failure);
   return failure;
 }
 
@@ -297,7 +338,25 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     if (!pathExists(deniedPath)) continue;
     bindArgs.push("--bind", "/dev/null", deniedPath);
   }
-  return [...bindArgs, "--chdir", resolvedPath(args.cwd)];
+  const relay = args.policy.loopbackRelay;
+  if (args.policy.egressConfined === true && relay !== undefined) {
+    // Read-only: connecting to a unix socket through a read-only bind works
+    // — measured — so the sandbox can reach the sockets the daemon put there
+    // and cannot add one of its own for the relay to mirror.
+    bindArgs.push(
+      "--ro-bind",
+      relay.socketDir,
+      relay.socketDir,
+      "--unshare-net",
+    );
+  }
+  const bwrapArgs = [...bindArgs, "--chdir", resolvedPath(args.cwd)];
+  if (args.policy.egressConfined !== true || relay === undefined) {
+    return bwrapArgs;
+  }
+  // The relay is the first process inside the namespace and the command is
+  // appended after its `--`, so it ends up running the launch it wrapped.
+  return [...bwrapArgs, ...relay.argv, "--socket-dir", relay.socketDir, "--"];
 }
 
 /**
@@ -343,20 +402,18 @@ export function buildTerminalSandboxLauncher(
   }
 
   if (args.platform === "linux") {
-    if (args.policy.egressConfined === true) {
-      // Measured in a container on bubblewrap 0.9.0: `--unshare-net` is the
-      // only unprivileged way to take the network, and it takes the host's
-      // loopback with it — a fresh namespace has its own. So the proxy on
-      // 127.0.0.1 is unreachable from inside, and so are the local server the
-      // `patcher` CLI talks to and the bridge an agent's plugin tools reach. A
-      // bind-mounted unix socket *does* cross into the namespace, which is what
-      // the Linux half will be built on; until Patcher's own channels travel
-      // that way, this refuses instead of confining a turn into uselessness.
+    const confinesEgress = args.policy.egressConfined === true;
+    if (confinesEgress && args.policy.loopbackRelay === undefined) {
+      // Bubblewrap can only take the network by taking the whole network
+      // namespace, and that takes the host's loopback with it — the proxy that
+      // is the turn's one way out included. A launch that wants egress
+      // confined on Linux has to carry the relay that gives that loopback
+      // back; a terminal never does, for the reason in this file's header.
       return {
         sandboxed: false,
         reason:
-          "bubblewrap can only take the network by taking the whole network namespace, " +
-          "which also takes the loopback the `patcher` CLI and plugin tools reach Patcher through",
+          "confining the network on Linux takes the whole network namespace, " +
+          "and this launch carries no relay for the loopback that goes with it",
         remedy:
           'turn off Settings → General → "Confine the network of sandboxed turns", or run the thread at Full Access',
       };
@@ -370,7 +427,9 @@ export function buildTerminalSandboxLauncher(
           "install bubblewrap, open the terminal yourself, or run the thread at Full Access",
       };
     }
-    const probeFailure = probeLinuxSandbox(helperPath);
+    const probeFailure = probeLinuxSandbox(helperPath, {
+      unshareNet: confinesEgress,
+    });
     if (probeFailure !== null) {
       return {
         sandboxed: false,

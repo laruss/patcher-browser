@@ -230,6 +230,7 @@ describe("acp adapter command plans", () => {
           sandboxed: true,
           launcher: { command: "/usr/bin/sandbox-exec", args: ["-p", "(p)"] },
           env: { HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9" },
+          loopbackSocketDir: "/tmp/patcher-sandbox-1-abc",
         };
       },
     });
@@ -263,7 +264,14 @@ describe("acp adapter command plans", () => {
     // same boundary: a process confined to a proxy it was never told about
     // reaches nothing at all.
     expect(plan.params).toMatchObject({
-      agentSandbox: { env: { HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9" } },
+      agentSandbox: {
+        env: { HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9" },
+        // The bridge needs the directory for one port in particular: its own.
+        // An agent's plugin tools dial a loopback port this process binds when
+        // the session starts, and inside a Linux network namespace that port
+        // exists only if a socket named for it is in here to be mirrored.
+        loopbackSocketDir: "/tmp/patcher-sandbox-1-abc",
+      },
     });
     expect(plan.params).not.toHaveProperty("agentSandboxWarning");
   });

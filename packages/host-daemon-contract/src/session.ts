@@ -783,6 +783,56 @@ export type HostDaemonEnvSetupScriptConsentResponse = z.infer<
   typeof hostDaemonEnvSetupScriptConsentResponseSchema
 >;
 
+/**
+ * The daemon asking whether a network-confined turn may reach one host.
+ *
+ * Asked by the egress proxy when a connection names a host that is on neither
+ * the provider's own declaration nor the person's list. It carries the thread
+ * because that is where the question can be put, and the port because
+ * "reaching a host" is not the same claim on 443 as on 25.
+ *
+ * The daemon holds the request open while a person decides, the way the
+ * setup-script consent does — and unlike that one, the connection that
+ * triggered it may well be gone by the time the answer arrives. The answer is
+ * still the answer: the daemon remembers it, and the agent's next attempt is
+ * the one that goes through.
+ */
+export const hostDaemonEgressHostConsentRequestSchema = z.object({
+  sessionId: z.string().min(1),
+  /** Thread the prompt is raised on. A launch without one cannot ask. */
+  threadId: z.string().min(1),
+  /** Whose confined process wants out, named in the prompt. */
+  providerId: z.string().min(1),
+  /** Hostname only — `CONNECT` names a host, never a URL. */
+  host: z.string().min(1).max(255),
+  port: z.number().int().min(1).max(65535),
+});
+export type HostDaemonEgressHostConsentRequest = z.infer<
+  typeof hostDaemonEgressHostConsentRequestSchema
+>;
+
+/**
+ * Three outcomes rather than two, because the daemon remembers them
+ * differently: a decision either way is remembered for the life of the grant,
+ * while `unanswered` is not remembered at all. Caching a timeout as a refusal
+ * would turn one unattended turn into a host refused for good.
+ */
+export const hostDaemonEgressHostConsentResponseSchema = z.discriminatedUnion(
+  "outcome",
+  [
+    z.object({ outcome: z.literal("allowed") }),
+    z.object({ outcome: z.literal("declined") }),
+    z.object({
+      outcome: z.literal("unanswered"),
+      /** Read by a person in the agent's own error, so it is a sentence. */
+      reason: z.string().min(1),
+    }),
+  ],
+);
+export type HostDaemonEgressHostConsentResponse = z.infer<
+  typeof hostDaemonEgressHostConsentResponseSchema
+>;
+
 export const hostDaemonInteractiveInterruptRequestSchema = z.object({
   sessionId: z.string().min(1),
   providerId: z.string().min(1),
@@ -880,6 +930,13 @@ export type HostDaemonInternalSchema = {
     $post: Endpoint<
       { json: HostDaemonEnvSetupScriptConsentRequest },
       HostDaemonEnvSetupScriptConsentResponse
+    >;
+  };
+  "/session/egress-host-consent": {
+    /** Used by the daemon to ask before a network-confined turn reaches a host that is on nobody's list. */
+    $post: Endpoint<
+      { json: HostDaemonEgressHostConsentRequest },
+      HostDaemonEgressHostConsentResponse
     >;
   };
   "/session/interactive-request/interrupt": {

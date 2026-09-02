@@ -40,6 +40,8 @@ export function formatPendingInteractionConsentSummary(
       return `Run ${payload.subjectName} from this repository`;
     case "move-workspace":
       return `Move this thread to ${payload.subjectName}`;
+    case "reach-host":
+      return `Let this turn reach ${payload.subjectName}`;
     default:
       return assertNever(payload.action);
   }
@@ -69,6 +71,17 @@ export function formatPendingInteractionConsentDetailLines(
       ...(payload.detail === null ? [] : [payload.detail]),
       "Runs on the machine, outside any agent sandbox, as you.",
       "Allowing is remembered for this repository on this machine, until the script changes.",
+    ];
+  }
+  // The one consent that is answered while something waits on it: the agent's
+  // connection is open while this is on screen. So the lines say what the
+  // answer covers and that it is kept — an answer that were not kept would put
+  // the same question back on screen on the agent's next retry.
+  if (payload.action === "reach-host") {
+    return [
+      ...(payload.detail === null ? [] : [payload.detail]),
+      "Everything else this turn sends off the machine still goes through Patcher, checked against its list.",
+      "Either answer is remembered for this workspace's turns until Patcher restarts. Add the host in Settings to keep it for good.",
     ];
   }
   // On enable, install, update and configure the list is what saying yes hands

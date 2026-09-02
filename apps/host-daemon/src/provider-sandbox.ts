@@ -64,8 +64,15 @@ export interface ProviderSandboxArgs {
   /**
    * Where this launch's only way out of the machine listens, when the turn
    * confines egress. Absent leaves the network alone, exactly as before.
+   *
+   * `loopbackRelay` is what makes the same boundary buildable on Linux, where
+   * taking the network takes the loopback the proxy listens on with it; macOS
+   * needs none and passes none. See `terminals/terminal-sandbox.ts`.
    */
-  egress?: { proxyUrl: string };
+  egress?: {
+    proxyUrl: string;
+    loopbackRelay?: { argv: readonly string[]; socketDir: string };
+  };
 }
 
 /**
@@ -125,6 +132,9 @@ export function buildProviderSandboxLauncher(
       readOnlyPaths: args.protectedRepositoryPaths,
       deniedReadPaths: args.protectedCredentialPaths,
       ...(args.egress !== undefined ? { egressConfined: true } : {}),
+      ...(args.egress?.loopbackRelay !== undefined
+        ? { loopbackRelay: args.egress.loopbackRelay }
+        : {}),
     },
   });
   return built.sandboxed
@@ -136,6 +146,9 @@ export function buildProviderSandboxLauncher(
         },
         ...(args.egress !== undefined
           ? { env: egressProxyEnv(args.egress.proxyUrl) }
+          : {}),
+        ...(args.egress?.loopbackRelay !== undefined
+          ? { loopbackSocketDir: args.egress.loopbackRelay.socketDir }
           : {}),
       }
     : { sandboxed: false, reason: built.reason, remedy: built.remedy };

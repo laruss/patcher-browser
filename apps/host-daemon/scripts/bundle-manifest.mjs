@@ -77,6 +77,15 @@ export const bundleTargets = [
     outfile: resolve(packageRoot, "dist", "patcher"),
   },
   {
+    // First process inside a network-confined Linux sandbox: mirrors the unix
+    // sockets the daemon exposes onto the namespace's own loopback, then runs
+    // the launch it wrapped. See apps/host-daemon/src/sandbox-net-relay.ts.
+    banner: NODE_ESM_REQUIRE_BANNER,
+    entryPoint: resolve(packageRoot, "src", "sandbox-net-relay-entry.ts"),
+    label: "sandbox net relay",
+    outfile: resolve(packageRoot, "dist", "patcher-sandbox-net-relay.mjs"),
+  },
+  {
     // Forked child that runs @parcel/watcher in isolation (PATCHER_WATCHER_SUBPROCESS=1).
     // Emitted next to the daemon bundle so fork-channel resolves it as a sibling.
     banner: NODE_ESM_REQUIRE_BANNER,

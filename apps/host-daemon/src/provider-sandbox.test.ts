@@ -259,12 +259,13 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
 );
 
 describe("a turn that confines egress", () => {
-  it("is refused on Linux, where taking the network takes loopback too", () => {
-    // Measured on bubblewrap 0.9.0: `--unshare-net` is the only unprivileged
+  it("is refused on Linux when the launch carries no loopback relay", () => {
+    // Measured on bubblewrap 0.8.0: `--unshare-net` is the only unprivileged
     // way to take the network, and the namespace it makes has its own loopback
     // — so the proxy, the local server the `patcher` CLI talks to, and the
-    // bridge an agent's plugin tools reach are all gone with it. Refusing beats
-    // confining a turn into uselessness.
+    // bridge an agent's plugin tools reach are all gone with it. The relay is
+    // what carries those back in, and a launch without one is refused rather
+    // than confined into uselessness.
     const built = buildProviderSandboxLauncher({
       cwd: "/workspace",
       stateDirs: [],
@@ -280,6 +281,44 @@ describe("a turn that confines egress", () => {
     if (built.sandboxed) throw new Error("Expected a refusal here");
     expect(built.reason).toContain("network namespace");
     expect(built.remedy).toContain("Full Access");
+  });
+
+  it("hands Linux the relay it needs, and the bridge the directory", () => {
+    const socketDir = "/tmp/patcher-sandbox-probe";
+    const built = buildProviderSandboxLauncher({
+      cwd: "/workspace",
+      stateDirs: [],
+      homeDirectory: "/home/somebody",
+      additionalWorkspaceWriteRoots: [],
+      protectedRepositoryPaths: [],
+      protectedCredentialPaths: [],
+      env: {},
+      platform: "linux",
+      egress: {
+        proxyUrl: "http://patcher:tok@127.0.0.1:1",
+        loopbackRelay: { argv: ["/usr/bin/node", "/relay.mjs"], socketDir },
+      },
+    });
+
+    // Two outcomes, both of which say the relay got through: on a machine with
+    // bubblewrap the namespace is built around it, and on one without, the
+    // answer is now about bubblewrap rather than about a missing relay — which
+    // is the check one step earlier. Asserted this way so it holds on the
+    // machine it is read on as well as the one CI runs.
+    if (built.sandboxed) {
+      expect(built.launcher.args).toContain("--unshare-net");
+      expect(built.launcher.args).toContain("/relay.mjs");
+      // Read-only: connecting to a unix socket through a read-only bind works,
+      // and a confined process must not be able to add a socket of its own for
+      // the relay to mirror.
+      expect(built.launcher.args.join(" ")).toContain(
+        `--ro-bind ${socketDir} ${socketDir}`,
+      );
+      expect(built.loopbackSocketDir).toBe(socketDir);
+    } else {
+      expect(built.reason).toContain("bubblewrap");
+      expect(built.reason).not.toContain("carries no relay");
+    }
   });
 
   it("hands the process the proxy, in every spelling a client reads", () => {

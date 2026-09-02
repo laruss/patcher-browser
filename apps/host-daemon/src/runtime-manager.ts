@@ -24,6 +24,7 @@ import type {
 import { turnScope } from "@patcher/domain";
 import type {
   HostDaemonActiveThread,
+  HostDaemonEgressHostConsentResponse,
   HostDaemonEnvironmentChange,
   HostDaemonLoadedEnvironment,
   HostDaemonInjectedSkillSource,
@@ -49,6 +50,8 @@ import { reconnectProvisionArgs } from "./workspace-provision-target.js";
 import type { FetchSkillTree } from "./skill-trees.js";
 import { EgressProxy } from "./egress-proxy.js";
 import { buildProviderSandboxLauncher } from "./provider-sandbox.js";
+import { SandboxLoopback } from "./sandbox-loopback.js";
+import { resolveSandboxNetRelayArgv } from "./sandbox-net-relay.js";
 import type { WrapAcpAgentLaunchResult } from "@patcher/agent-runtime";
 
 type StopWatching = () => void | Promise<void>;
@@ -196,6 +199,17 @@ export interface RefreshEnvironmentWorkspaceArgs {
 
 export interface RuntimeManagerOptions {
   bridgeBundleDir?: AgentRuntimeOptions["bridgeBundleDir"];
+  /**
+   * Puts an unlisted host to the person whose thread a confined turn belongs
+   * to, through the server. Absent leaves a refusal a refusal, which is what a
+   * daemon with no session can do about it anyway.
+   */
+  requestEgressHostConsent?: (args: {
+    threadId: string;
+    providerId: string;
+    host: string;
+    port: number;
+  }) => Promise<HostDaemonEgressHostConsentResponse>;
   createRuntime?: (options: AgentRuntimeOptions) => AgentRuntime;
   dataDir?: string;
   dataDirSkillsRootPath?: string | null;
@@ -298,6 +312,38 @@ function providerProcessEnvFromShellEnv(
   return Object.keys(env).length > 0 ? env : null;
 }
 
+/**
+ * The loopback port a URL names, including the one it leaves implicit.
+ *
+ * `PATCHER_SERVER_URL` is what the `patcher` CLI in a turn's shell calls, and
+ * on a machine that never set a port explicitly it is the scheme's default.
+ *
+ * Answers nothing for a URL that is not loopback, which is the case worth the
+ * check: a *remote* host daemon reaches the server over the network, and a
+ * socket forwarding to `127.0.0.1:443` on that machine would forward to
+ * nothing while presenting as the channel Patcher's own CLI travels. Such a
+ * daemon's confined turn reaches the server only if its host is on the
+ * allowlist, on either platform; `docs/security.md` says so.
+ */
+const LOOPBACK_URL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function loopbackPortOfUrl(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.replace(/^\[|\]$/gu, "").toLowerCase();
+    if (!LOOPBACK_URL_HOSTNAMES.has(hostname)) return undefined;
+    if (url.port !== "") return Number(url.port);
+    return url.protocol === "https:"
+      ? 443
+      : url.protocol === "http:"
+        ? 80
+        : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class RuntimeManager {
   private readonly createRuntime;
   private readonly hostWatcher;
@@ -333,9 +379,31 @@ export class RuntimeManager {
    * nothing else.
    */
   private readonly egressProxy = new EgressProxy({
+    /**
+     * A host on nobody's list becomes a question on the thread rather than a
+     * refusal, when there is a thread to ask in and a session to ask through.
+     * The answer is remembered by the proxy for the life of the grant — see
+     * `egress-proxy.ts`, which explains why a decline is remembered too.
+     */
+    askAboutHost: async (refusal) => {
+      const ask = this.options.requestEgressHostConsent;
+      if (ask === undefined || refusal.threadId === undefined) {
+        return {
+          outcome: "unanswered",
+          reason: "this daemon has nowhere to put the question",
+        };
+      }
+      return await ask({
+        threadId: refusal.threadId,
+        providerId: refusal.providerId,
+        host: refusal.host,
+        port: refusal.port,
+      });
+    },
     onRefused: (refusal) => {
-      // Without prompts this is the record. The agent sees its own connection
-      // fail, and this is where a person looks to find out which host to allow.
+      // The record of every refusal, including the ones a person made: the
+      // agent sees its own connection fail, and this is where somebody looks
+      // to find out which host a turn wanted.
       this.options.logger?.warn(
         {
           providerId: refusal.providerId,
@@ -347,6 +415,35 @@ export class RuntimeManager {
       );
     },
   });
+  /**
+   * The loopback a network-confined Linux turn would otherwise lose.
+   *
+   * Opened with the first environment's runtime for the same reason as the
+   * proxy — a launcher is built inside a synchronous callback and cannot open a
+   * socket — and only on Linux, where taking the network takes loopback with
+   * it. Every socket in it forwards to a port any process of this user can
+   * already reach, so opening it exposes nothing the machine did not have; see
+   * `sandbox-loopback.ts`.
+   */
+  private readonly sandboxLoopback = new SandboxLoopback({
+    onError: (message) => {
+      this.options.logger?.warn(
+        { sandboxLoopbackError: message },
+        "A sandbox loopback socket failed",
+      );
+    },
+  });
+  /**
+   * What a confined Linux launch needs to keep its loopback, once it exists.
+   *
+   * Undefined until the first environment opens it, and undefined for good on
+   * a machine where opening it failed — in which case a turn that asks for a
+   * confined network is refused rather than run with the network open, which
+   * is the same answer this platform gave before any of it existed.
+   */
+  private sandboxLoopbackRelay:
+    | { argv: readonly string[]; socketDir: string }
+    | undefined;
   private providerMaintenanceRuntime: AgentRuntime | null = null;
   private pendingProviderMaintenanceRuntime: PendingProviderMaintenanceRuntime | null =
     null;
@@ -1245,6 +1342,7 @@ export class RuntimeManager {
     this.stopWatchingDataDirSkillsRoot = STOP_WATCHING;
     await this.cleanupUnusedInjectedSkillStagingDirs([]);
     await this.egressProxy.close();
+    await this.sandboxLoopback.close();
   }
 
   /**
@@ -1323,6 +1421,7 @@ export class RuntimeManager {
     protectedRepositoryPaths: readonly string[];
   }): WrapAcpAgentLaunchResult {
     const { egress, environmentId, providerId, threadId, ...rest } = args;
+    const loopbackRelay = this.sandboxLoopbackRelay;
     return buildProviderSandboxLauncher({
       ...rest,
       env: process.env,
@@ -1338,10 +1437,51 @@ export class RuntimeManager {
                 ...(threadId !== undefined ? { threadId } : {}),
                 allowedHosts: egress.allowedHosts,
               }).proxyUrl,
+              ...(loopbackRelay !== undefined ? { loopbackRelay } : {}),
             },
           }
         : {}),
     });
+  }
+
+  /**
+   * Opens the loopback a network-confined Linux turn reaches Patcher through.
+   *
+   * Three ports and no more, which is what makes this narrower than the macOS
+   * profile rather than equal to it: the local server the `patcher` CLI calls,
+   * the daemon's own port, and the proxy that is the turn's only way off the
+   * machine. An ACP agent's plugin-tool bridge adds a fourth from inside the
+   * bridge process, which binds it when a session starts.
+   *
+   * A failure here is left as a refusal rather than raised: the next confined
+   * launch on this platform is told it has no relay and does not start, and
+   * every unconfined launch is unaffected.
+   */
+  private async openSandboxLoopback(): Promise<void> {
+    if (process.platform !== "linux") return;
+    if (this.sandboxLoopbackRelay !== undefined) return;
+    const shellEnv = this.getShellEnv();
+    const ports = [
+      this.egressProxy.port,
+      loopbackPortOfUrl(shellEnv.PATCHER_SERVER_URL),
+      Number(shellEnv.PATCHER_HOST_DAEMON_PORT ?? ""),
+    ].filter(
+      (port): port is number => Number.isInteger(port) && (port ?? 0) > 0,
+    );
+    try {
+      const socketDir = await this.sandboxLoopback.open(ports);
+      this.sandboxLoopbackRelay = {
+        argv: resolveSandboxNetRelayArgv({
+          bridgeBundleDir: this.options.bridgeBundleDir,
+        }),
+        socketDir,
+      };
+    } catch (error) {
+      this.options.logger?.warn(
+        { err: error },
+        "Could not open the loopback a network-confined turn needs; such turns will be refused on this machine",
+      );
+    }
   }
 
   private async createProviderMaintenanceRuntime(args: {
@@ -1434,6 +1574,7 @@ export class RuntimeManager {
     const shellEnv = this.getShellEnv();
     const providerProcessEnv = providerProcessEnvFromShellEnv(shellEnv);
     await this.egressProxy.start();
+    await this.openSandboxLoopback();
     runtime = this.createRuntime({
       workspacePath: workspace.path,
       additionalWorkspaceWriteRoots,

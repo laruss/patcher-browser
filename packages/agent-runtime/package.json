@@ -13,6 +13,11 @@
       "types": "./src/capture.ts",
       "default": "./src/capture.ts"
     },
+    "./shared/bridge-path": {
+      "source": "./src/shared/bridge-path.ts",
+      "types": "./src/shared/bridge-path.ts",
+      "default": "./src/shared/bridge-path.ts"
+    },
     "./shared/json-rpc-envelope": {
       "source": "./src/shared/json-rpc-envelope.ts",
       "types": "./src/shared/json-rpc-envelope.ts",

@@ -382,6 +382,11 @@ export const pendingInteractionConsentActionValues = [
   // writable root of every turn after it, so the widening is the question —
   // `subjectId` and `subjectName` are the path.
   "move-workspace",
+  // Nor a plugin action: one host a network-confined turn wants to reach and
+  // nobody has allowed. Raised by the daemon's egress proxy, which is holding
+  // the connection while this is on screen — `subjectId` and `subjectName` are
+  // the hostname, because the hostname is the whole of what is being allowed.
+  "reach-host",
 ] as const;
 export const pendingInteractionConsentActionSchema = z.enum(
   pendingInteractionConsentActionValues,

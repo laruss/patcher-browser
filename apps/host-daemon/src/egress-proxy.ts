@@ -35,11 +35,16 @@ import net from "node:net";
  * an unconfined process running as you already has the whole network and needs
  * nothing from here.
  *
+ * A host on neither list is put to the person rather than only refused — see
+ * `askAboutHost` and `answerFor`, where the interesting part is not the asking
+ * but which answers are remembered.
+ *
  * What this does not buy, said plainly because the alternative is implying it:
  * an allowed host that accepts arbitrary bytes is still a way off the machine.
  * `github.com` takes a push; the model API takes a prompt. What the boundary
  * removes is unattended egress to anywhere at all, and what it adds is a list
- * somebody chose and a record of what was refused.
+ * somebody chose, a question for what is not on it, and a record of what was
+ * refused.
  */
 
 /** How much of a request head to buffer before giving up on it. */
@@ -85,13 +90,42 @@ export interface EgressRefusal {
   port: number;
 }
 
+/**
+ * What came back from putting an unlisted host to the person, and how much of
+ * it is an answer.
+ *
+ * The three cases are here rather than folded into a boolean because they are
+ * remembered differently: a decision — either way — is remembered for as long
+ * as the grant lives, and "nobody answered" is not remembered at all. Caching a
+ * timeout as a refusal would turn one unattended turn into a host that is
+ * refused for good; not caching a decline would let an agent's retry loop put
+ * the same question on screen until the person gives in.
+ */
+export type EgressAskOutcome =
+  | { outcome: "allowed" }
+  | { outcome: "declined" }
+  | { outcome: "unanswered"; reason: string };
+
 export interface EgressProxyOptions {
   /**
-   * Called for every host this proxy refuses. The daemon logs it: without
-   * prompts, this record and the agent's own connection error are the only
-   * places a refusal is visible, so it must name who asked for what.
+   * Called for every host this proxy refuses, after any question about it has
+   * been answered. The daemon logs it: a refusal is otherwise visible only as
+   * the agent's own connection error, so it must name who asked for what.
    */
   onRefused?: (refusal: EgressRefusal) => void;
+  /**
+   * Puts an unlisted host to the person whose thread this launch serves.
+   *
+   * Absent leaves the refusal a refusal, which is what this was before the
+   * prompt existed and what a launch with no thread to ask in still gets.
+   *
+   * Deliberately not tied to the connection that triggered it. A client gives
+   * up long before a person decides — undici stops waiting for a socket in ten
+   * seconds — so the connection waits as long as it can and the *question*
+   * outlives it. The answer is remembered either way, which is what makes the
+   * agent's next attempt the one that goes through.
+   */
+  askAboutHost?: (refusal: EgressRefusal) => Promise<EgressAskOutcome>;
 }
 
 interface Grant extends EgressGrantRequest {
@@ -198,13 +232,43 @@ function credentialOf(head: RequestHead): string | undefined {
 
 export class EgressProxy {
   private server: net.Server | undefined;
-  private port: number | undefined;
+  private listeningPort: number | undefined;
   private readonly grants = new Map<string, Grant>();
   private readonly tokensByKey = new Map<string, string>();
   private starting: Promise<void> | undefined;
   private readonly sockets = new Set<net.Socket>();
+  /**
+   * Answers already given, per grant key, for hosts that were not on its list.
+   *
+   * Scoped to the grant rather than to the thread or the machine, because the
+   * grant is what the boundary actually is: one token for one environment's
+   * turns of one provider, held by a process several threads share. An answer
+   * kept per thread would be a claim the enforcement cannot make — a sibling
+   * thread's turn runs in the same process, under the same token.
+   */
+  private readonly decisionsByKey = new Map<
+    string,
+    Map<string, { allowed: boolean; reason: string }>
+  >();
+  /** One question per host at a time; every waiting connection joins it. */
+  private readonly asking = new Map<
+    string,
+    Promise<{ allowed: boolean; reason: string }>
+  >();
 
   constructor(private readonly options: EgressProxyOptions = {}) {}
+
+  /**
+   * The loopback port this listens on, once it does.
+   *
+   * Read by the daemon to carry it into a Linux network namespace, which has
+   * no host loopback of its own: see `sandbox-loopback.ts`. A grant's proxy URL
+   * names the same port, but a URL a launch is handed is not a thing to parse
+   * a port back out of.
+   */
+  get port(): number | undefined {
+    return this.listeningPort;
+  }
 
   /**
    * Starts listening, once. The address has to exist before a launcher is
@@ -240,11 +304,11 @@ export class EgressProxy {
     }
     server.unref();
     this.server = server;
-    this.port = address.port;
+    this.listeningPort = address.port;
   }
 
   grant(request: EgressGrantRequest): EgressGrant {
-    if (this.port === undefined) {
+    if (this.listeningPort === undefined) {
       throw new Error("The egress proxy is not listening yet.");
     }
     const matchers = request.allowedHosts
@@ -256,10 +320,11 @@ export class EgressProxy {
     this.tokensByKey.set(request.key, token);
     this.grants.set(token, { ...request, matchers });
     return {
-      proxyUrl: `http://patcher:${token}@127.0.0.1:${this.port}`,
+      proxyUrl: `http://patcher:${token}@127.0.0.1:${this.listeningPort}`,
       revoke: () => {
         this.grants.delete(token);
         this.tokensByKey.delete(request.key);
+        this.decisionsByKey.delete(request.key);
       },
     };
   }
@@ -267,12 +332,14 @@ export class EgressProxy {
   async close(): Promise<void> {
     this.grants.clear();
     this.tokensByKey.clear();
+    this.decisionsByKey.clear();
+    this.asking.clear();
     this.starting = undefined;
     for (const socket of this.sockets) socket.destroy();
     this.sockets.clear();
     const server = this.server;
     this.server = undefined;
-    this.port = undefined;
+    this.listeningPort = undefined;
     if (server === undefined) return;
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -315,9 +382,9 @@ export class EgressProxy {
         // without waiting. Held until `pipe` resumes it on the far side.
         client.pause();
         if (head.method === "CONNECT") {
-          this.tunnel({ client, grant, head, pending: rest });
+          void this.tunnel({ client, grant, head, pending: rest });
         } else {
-          this.forward({ client, grant, head, pending: rest });
+          void this.forward({ client, grant, head, pending: rest });
         }
         return;
       }
@@ -325,19 +392,109 @@ export class EgressProxy {
     client.on("data", onData);
   }
 
-  /** Whether this grant may reach the target, and the refusal record if not. */
-  private permits(args: { grant: Grant; host: string; port: number }): boolean {
-    if (LOOPBACK_HOSTNAMES.has(args.host.toLowerCase())) return true;
-    if (matchesHost(args.grant.matchers, args.host)) return true;
-    this.options.onRefused?.({
+  /**
+   * Whether this grant may reach the target — asking the person when the list
+   * does not already answer it, and recording the refusal when nothing does.
+   *
+   * The order matters and is the whole policy: the list is checked first, so a
+   * host somebody already allowed never raises a question; then the answers
+   * given for this grant, so a decision is asked for once; and only then is
+   * anybody interrupted.
+   */
+  private async decide(args: {
+    grant: Grant;
+    host: string;
+    port: number;
+  }): Promise<{ allowed: boolean; reason: string }> {
+    if (LOOPBACK_HOSTNAMES.has(args.host.toLowerCase())) {
+      return { allowed: true, reason: "" };
+    }
+    if (matchesHost(args.grant.matchers, args.host)) {
+      return { allowed: true, reason: "" };
+    }
+    const decision = await this.answerFor(args);
+    if (!decision.allowed) {
+      this.options.onRefused?.({
+        providerId: args.grant.providerId,
+        ...(args.grant.threadId !== undefined
+          ? { threadId: args.grant.threadId }
+          : {}),
+        host: args.host,
+        port: args.port,
+      });
+    }
+    return decision;
+  }
+
+  private answerFor(args: {
+    grant: Grant;
+    host: string;
+    port: number;
+  }): Promise<{ allowed: boolean; reason: string }> {
+    const host = args.host.toLowerCase();
+    const ask = this.options.askAboutHost;
+    if (ask === undefined) {
+      return Promise.resolve({
+        allowed: false,
+        reason: `${args.host} is not on this turn's allowed-hosts list`,
+      });
+    }
+    if (args.grant.threadId === undefined) {
+      // Told apart from the case above deliberately: one is a daemon that
+      // cannot ask anybody anything, the other is a launch with no thread to
+      // raise the question in — a maintenance runtime, or a provider process
+      // started before any turn.
+      return Promise.resolve({
+        allowed: false,
+        reason: `${args.host} is not on this turn's allowed-hosts list, and this launch has no thread to ask in`,
+      });
+    }
+    const remembered = this.decisionsByKey.get(args.grant.key)?.get(host);
+    if (remembered !== undefined) return Promise.resolve(remembered);
+    const askKey = `${args.grant.key}\u0000${host}`;
+    const pending = this.asking.get(askKey);
+    if (pending !== undefined) return pending;
+
+    const threadId = args.grant.threadId;
+    const question = ask({
       providerId: args.grant.providerId,
-      ...(args.grant.threadId !== undefined
-        ? { threadId: args.grant.threadId }
-        : {}),
+      threadId,
       host: args.host,
       port: args.port,
-    });
-    return false;
+    })
+      .catch(
+        (error: unknown): EgressAskOutcome => ({
+          outcome: "unanswered",
+          reason: `asking you failed (${error instanceof Error ? error.message : String(error)})`,
+        }),
+      )
+      .then((answer) => {
+        const decision =
+          answer.outcome === "allowed"
+            ? { allowed: true, reason: "" }
+            : answer.outcome === "declined"
+              ? {
+                  allowed: false,
+                  reason: `you did not allow ${args.host} for this workspace's turns`,
+                }
+              : {
+                  allowed: false,
+                  reason: `${args.host} is not on this turn's allowed-hosts list and ${answer.reason}`,
+                };
+        if (answer.outcome !== "unanswered") {
+          const decisions =
+            this.decisionsByKey.get(args.grant.key) ??
+            new Map<string, { allowed: boolean; reason: string }>();
+          decisions.set(host, decision);
+          this.decisionsByKey.set(args.grant.key, decisions);
+        }
+        return decision;
+      })
+      .finally(() => {
+        this.asking.delete(askKey);
+      });
+    this.asking.set(askKey, question);
+    return question;
   }
 
   /**
@@ -345,10 +502,14 @@ export class EgressProxy {
    * this body is the only place the reason can go — and some clients print it
    * while others report the status alone, which is why the daemon logs it too.
    */
-  private refuse(args: { client: net.Socket; host: string }): void {
+  private refuse(args: {
+    client: net.Socket;
+    host: string;
+    reason: string;
+  }): void {
     const body =
-      `Patcher refused this connection: ${args.host} is not on this turn's allowed-hosts list. ` +
-      "Add it in Settings, or run the thread at Full Access.\n";
+      `Patcher refused this connection: ${args.reason}. ` +
+      "Add the host in Settings, or run the thread at Full Access.\n";
     args.client.end(
       "HTTP/1.1 403 Forbidden\r\n" +
         "Content-Type: text/plain; charset=utf-8\r\n" +
@@ -358,15 +519,20 @@ export class EgressProxy {
     );
   }
 
-  private tunnel(args: {
+  private async tunnel(args: {
     client: net.Socket;
     grant: Grant;
     head: RequestHead;
     pending: Buffer;
-  }): void {
+  }): Promise<void> {
     const { host, port } = splitAuthority(args.head.target, 443);
-    if (!this.permits({ grant: args.grant, host, port })) {
-      this.refuse({ client: args.client, host });
+    const decision = await this.decide({ grant: args.grant, host, port });
+    // The client may well have given up while a person was deciding: the
+    // question is deliberately allowed to outlive the connection, so this is
+    // an ordinary end rather than a failure.
+    if (args.client.destroyed) return;
+    if (!decision.allowed) {
+      this.refuse({ client: args.client, host, reason: decision.reason });
       return;
     }
     const upstream = net.connect(port, host, () => {
@@ -389,12 +555,12 @@ export class EgressProxy {
    * `Connection: close` goes on deliberately: keep-alive would put a second
    * request on this socket that no policy check ever saw.
    */
-  private forward(args: {
+  private async forward(args: {
     client: net.Socket;
     grant: Grant;
     head: RequestHead;
     pending: Buffer;
-  }): void {
+  }): Promise<void> {
     let url: URL;
     try {
       url = new URL(args.head.target);
@@ -403,8 +569,18 @@ export class EgressProxy {
       return;
     }
     const port = url.port === "" ? 80 : Number(url.port);
-    if (!this.permits({ grant: args.grant, host: url.hostname, port })) {
-      this.refuse({ client: args.client, host: url.hostname });
+    const decision = await this.decide({
+      grant: args.grant,
+      host: url.hostname,
+      port,
+    });
+    if (args.client.destroyed) return;
+    if (!decision.allowed) {
+      this.refuse({
+        client: args.client,
+        host: url.hostname,
+        reason: decision.reason,
+      });
       return;
     }
     const path = `${url.pathname}${url.search}`;

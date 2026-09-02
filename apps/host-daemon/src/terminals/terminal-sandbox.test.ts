@@ -2,7 +2,10 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import net from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
+import { SandboxLoopback } from "../sandbox-loopback.js";
+import { resolveSandboxNetRelayArgv } from "../sandbox-net-relay.js";
 import {
   buildTerminalSandboxLaunch,
   type TerminalSandboxPolicy,
@@ -102,11 +105,46 @@ function runInSandbox(fixture: Fixture, script: string): string {
   return `${result.stdout}${result.stderr}`;
 }
 
+/** A loopback listener that answers, so a probe can tell reached from refused. */
+const loopbackServers: net.Server[] = [];
+
+async function listenOnLoopback(): Promise<number> {
+  const server = net.createServer((socket) => socket.end("ok\n"));
+  loopbackServers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return (server.address() as net.AddressInfo).port;
+}
+
+/**
+ * Run as the confined command: connects to the port the daemon exposed, to one
+ * it did not, and to something off the machine, and says which answered.
+ *
+ * A file rather than `-e`, so the three attempts read as three attempts.
+ */
+const LOOPBACK_PROBE_SOURCE = `import net from "node:net";
+const attempt = (label, port, host) =>
+  new Promise((resolve) => {
+    const socket = net.connect(port, host);
+    const done = (outcome) => {
+      socket.destroy();
+      console.log(label + " " + outcome);
+      resolve();
+    };
+    socket.setTimeout(4000, () => done("refused"));
+    socket.on("connect", () => done("reached"));
+    socket.on("error", () => done("refused"));
+  });
+await attempt("exposed-port", Number(process.argv[2]), "127.0.0.1");
+await attempt("withheld-port", Number(process.argv[3]), "127.0.0.1");
+await attempt("off-the-machine", 443, "example.com");
+`;
+
 let fixture: Fixture | null = null;
 
 afterEach(() => {
   fixture?.cleanup();
   fixture = null;
+  for (const server of loopbackServers.splice(0)) server.close();
   rmSync(OUTSIDE_PROBE_PATH, { force: true });
 });
 
@@ -219,6 +257,85 @@ describe("a machine that cannot build one", () => {
 
     expect(launch.sandboxed).toBe(false);
   });
+});
+
+describe("the Linux network boundary", () => {
+  it("refuses a confined launch with no relay to carry loopback in", () => {
+    // Asserted from any machine: this check comes before bubblewrap is looked
+    // for, because a launch that asks for a confined network without the relay
+    // is a mistake in the caller rather than a fact about the host.
+    const launch = buildTerminalSandboxLaunch({
+      command: { file: "/bin/sh", args: ["-c", "true"] },
+      cwd: "/tmp",
+      env: { PATH: "" },
+      platform: "linux",
+      policy: {
+        workspacePath: "/tmp",
+        writableRoots: [],
+        readOnlyPaths: [],
+        deniedReadPaths: [],
+        egressConfined: true,
+      },
+    });
+
+    expect(launch.sandboxed).toBe(false);
+    if (launch.sandboxed) return;
+    expect(launch.reason).toContain("network namespace");
+    expect(launch.remedy).toContain("Full Access");
+  });
+
+  it.skipIf(process.platform !== "linux" || !SANDBOX_AVAILABLE_HERE)(
+    "keeps the loopback it was handed, and only that",
+    async () => {
+      // The whole Linux half, run rather than inspected: `--unshare-net` takes
+      // the network *and* the host's loopback, and the relay in front of the
+      // command puts back exactly the ports the daemon exposed a socket for.
+      // Three claims, and the middle one is what makes this narrower than the
+      // macOS profile, which allows all of localhost.
+      fixture = createFixture();
+      const exposed = await listenOnLoopback();
+      const withheld = await listenOnLoopback();
+      const loopback = new SandboxLoopback();
+      try {
+        const socketDir = await loopback.open([exposed]);
+        const probePath = path.join(fixture.workspacePath, "probe.mjs");
+        writeFileSync(probePath, LOOPBACK_PROBE_SOURCE);
+        const launch = buildTerminalSandboxLaunch({
+          command: {
+            file: process.execPath,
+            args: [probePath, String(exposed), String(withheld)],
+          },
+          cwd: fixture.workspacePath,
+          env: process.env,
+          platform: "linux",
+          policy: {
+            ...fixture.policy,
+            egressConfined: true,
+            loopbackRelay: {
+              argv: resolveSandboxNetRelayArgv({}),
+              socketDir,
+            },
+          },
+        });
+        expect(launch.sandboxed).toBe(true);
+        if (!launch.sandboxed) return;
+
+        const result = spawnSync(
+          launch.command.file,
+          [...launch.command.args],
+          { cwd: fixture.workspacePath, encoding: "utf8", env: process.env },
+        );
+        expect(result.error).toBeUndefined();
+        const output = `${result.stdout}${result.stderr}`;
+
+        expect(output).toContain("exposed-port reached");
+        expect(output).toContain("withheld-port refused");
+        expect(output).toContain("off-the-machine refused");
+      } finally {
+        await loopback.close();
+      }
+    },
+  );
 });
 
 describe("the macOS profile", () => {
