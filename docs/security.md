@@ -161,6 +161,24 @@ planted under either runs only for a git process that recurses into it, which
 Patcher's plumbing never does, while denying them would take `git submodule
 update` and `git worktree add` from every sandboxed turn.
 
+**A linked worktree is the shape this actually runs in, and it was the one not
+measured.** A managed worktree's gitdir sits *outside* the workspace and has to
+stay writable — its index and refs live there — so the refusals and the
+permissions interleave in a way a plain checkout never shows. Measured under
+the real profile on that layout: the pointer `.git`, the common `config`,
+`hooks` and `info/attributes`, and the worktree's own `config.worktree` are all
+refused, while the gitdir's other files and the workspace stay writable and a
+turn can still `git add` and commit.
+
+What stays writable inside that gitdir is inert, and that rests on git rather
+than on Patcher, so it is pinned by its own tests: a hook planted in a linked
+worktree's own gitdir **is not run** — git takes hooks from the common
+directory, which is denied — and a per-worktree `info/attributes` **is not
+read**, while the common one is. A future git that changed either would make
+the list silently incomplete, and those two tests are what would say so.
+Patcher's git also runs no `rebase` or `cherry-pick`, so a todo list planted in
+the writable half has nothing to consume it.
+
 The deny holds for the agent's own Write tool as well as for Bash, and it holds
 through symlink, hardlink, `cp`/`tar`/`rsync` and rename indirection — measured
 attempt by attempt against a live session. Where Bash gets a plain "operation not
