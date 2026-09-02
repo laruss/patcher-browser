@@ -291,6 +291,7 @@ describe("resolveSystemExecutionOptions", () => {
             ".local/share/opencode",
             ".cache/opencode",
           ],
+          egressHosts: ["opencode.ai", "models.dev"],
         },
       });
     });
@@ -383,6 +384,12 @@ describe("resolveSystemExecutionOptions", () => {
             defaultLevel: "high",
           },
           stateDirs: [".grok"],
+          egressHosts: [
+            "api.x.ai",
+            "auth.x.ai",
+            "grok.com",
+            "cli-chat-proxy.grok.com",
+          ],
         },
       });
     });
@@ -460,6 +467,7 @@ describe("resolveSystemExecutionOptions", () => {
             defaultLevel: "medium",
           },
           stateDirs: [".hermes"],
+          egressHosts: ["hermes-agent.nousresearch.com", "models.dev"],
         },
       });
     });

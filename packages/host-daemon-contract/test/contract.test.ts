@@ -1257,6 +1257,32 @@ describe("host-daemon command schemas", () => {
     ).toHaveProperty("stateDirs", []);
   });
 
+  // Same distinction on the network half, and the same consequence: `[]` says
+  // this agent needs no host of its own, while a missing declaration leaves its
+  // turns' network alone. Normalizing one into the other would turn a boundary
+  // into an open network, or the reverse.
+  it("keeps an empty host declaration apart from a missing one", () => {
+    const spec: HostDaemonAcpLaunchSpec = {
+      displayName: "Offline ACP",
+      command: "offline-agent",
+      args: ["acp"],
+      env: {},
+    };
+
+    expect(
+      normalizeHostDaemonAcpLaunchSpec({ ...spec, egressHosts: [] }),
+    ).toEqual({ ...spec, egressHosts: [] });
+    expect(normalizeHostDaemonAcpLaunchSpec(spec)).not.toHaveProperty(
+      "egressHosts",
+    );
+    expect(
+      normalizeHostDaemonAcpLaunchSpec({
+        ...spec,
+        egressHosts: ["api.example.com", "*.example.org"],
+      }),
+    ).toHaveProperty("egressHosts", ["api.example.com", "*.example.org"]);
+  });
+
   // The list is joined onto $HOME and handed to the sandbox as writable roots,
   // so a path that climbs out of it would widen the boundary rather than
   // describe an agent.

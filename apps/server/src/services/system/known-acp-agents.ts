@@ -25,6 +25,22 @@ export interface KnownAcpAgentExecutableQuery {
  * confining it on a guess would stop it from starting at all
  * (`packages/agent-runtime/src/acp/profiles.ts`).
  *
+ * `egressHosts` is measured the same way and read the same way, with one thing
+ * learned the hard way: **the measurement over-collects, so it cannot be
+ * transcribed.** A real turn inside the confined profile asks for the person's
+ * own MCP servers, the registry an agent installs their plugins from, the
+ * agent's telemetry, and whatever providers it probes at startup — a list of
+ * nine for Grok, where four are its own. Declaring all nine would hand every
+ * confined turn of that agent whatever this machine happened to have
+ * configured.
+ *
+ * So the rule is what the agent needs to *be that agent* — its own service,
+ * its model catalog, its login — and each entry below was then checked by
+ * taking everything else away: allow only the declared hosts, refuse the rest,
+ * and see the session still start and the prompt still get answered. What the
+ * *work* needs stays the person's list in Settings, and anything missing from
+ * either is now a question on the thread rather than a dead connection.
+ *
  * One thing the sandbox does not grant back, deliberately: the caches an
  * agent's *own* globally configured MCP servers write when they install
  * themselves through `npx` or `uvx` (`~/.npm`, `~/.cache/uv`). Measured on Grok
@@ -51,6 +67,18 @@ export const KNOWN_ACP_AGENTS: readonly KnownAcpAgent[] = [
     // came back with `package.json`, `bun.lock` and `node_modules/` written
     // there.
     stateDirs: [".config/opencode", ".local/share/opencode", ".cache/opencode"],
+    // Measured the same way, then checked by taking everything else away: with
+    // only these two allowed, opencode still created its session and answered
+    // a prompt. `opencode.ai` is where its own gateway serves the model;
+    // `models.dev` is the catalog it reads at startup.
+    //
+    // What it also asked for and does not get: `registry.npmjs.org`, which it
+    // uses to install the plugins the *person's* config declares — the same
+    // reason the caches for those installs are not granted back either — and
+    // that person's own MCP servers. Both are their configuration rather than
+    // opencode's, so both are theirs to allow, and a refusal now asks instead
+    // of failing.
+    egressHosts: ["opencode.ai", "models.dev"],
   },
   {
     // omp (oh-my-pi) speaks the Agent Client Protocol via `omp acp`
@@ -83,6 +111,22 @@ export const KNOWN_ACP_AGENTS: readonly KnownAcpAgent[] = [
     // unconfined start was under that one directory — its session store, logs,
     // `active_sessions.json` and the docs it unpacks.
     stateDirs: [".grok"],
+    // Measured across two turns and then checked by taking everything else
+    // away: with only these four allowed, Grok created its session and
+    // answered a prompt. `api.x.ai` is the model, `grok.com` and
+    // `cli-chat-proxy.grok.com` its own service, and `auth.x.ai` appeared only
+    // in the run that had to log in — declared anyway, because a token
+    // refreshing mid-turn should not be the first anyone hears of that host.
+    //
+    // Not declared, though a real turn asked for both: `api.mixpanel.com`,
+    // which is telemetry rather than something the agent needs to work, and
+    // the person's own MCP servers.
+    egressHosts: [
+      "api.x.ai",
+      "auth.x.ai",
+      "grok.com",
+      "cli-chat-proxy.grok.com",
+    ],
     modelCli: {
       listArgs: ["models"],
       selectFlag: "--model",
@@ -120,6 +164,15 @@ export const KNOWN_ACP_AGENTS: readonly KnownAcpAgent[] = [
     // permitted: ~/.hermes/logs/agent.log"; with `.hermes` writable it creates
     // the session. It keeps its own Python venv there too.
     stateDirs: [".hermes"],
+    // Measured, and the check changed what it looked like it needed. A
+    // collecting run asked for `chatgpt.com`, `api.anthropic.com`,
+    // `api.githubcopilot.com` and `api.github.com` as well — but with only
+    // these two allowed the session was still created and the prompt still
+    // answered, so those are Hermes probing what a machine has rather than
+    // where its model lives: the model goes through its own service. Declaring
+    // them would have handed every confined Hermes turn the GitHub API and
+    // three model vendors on the strength of a startup probe.
+    egressHosts: ["hermes-agent.nousresearch.com", "models.dev"],
     nativeReasoning: {
       configId: "reasoning_effort",
       supportedLevels: ["none", "low", "medium", "high", "xhigh", "max"],

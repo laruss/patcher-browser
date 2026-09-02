@@ -317,6 +317,66 @@ describe("patcherAppManagedConfigSchema", () => {
     ]);
   });
 
+  it("keeps the hosts a custom ACP agent declares", () => {
+    const parsed = patcherAppManagedConfigSchema.parse({
+      customAcpAgents: [
+        {
+          id: "amp",
+          displayName: "Amp",
+          command: "amp-acp",
+          egressHosts: ["api.amp.example", "*.cdn.amp.example"],
+        },
+      ],
+    });
+
+    // Without this a registered agent could never be confined on the network:
+    // the wire carries the field and the built-in profiles fill it, but the
+    // person who registered the agent is the only one who can answer for it.
+    expect(parsed.customAcpAgents?.[0]?.egressHosts).toEqual([
+      "api.amp.example",
+      "*.cdn.amp.example",
+    ]);
+  });
+
+  // The same distinction as the state directories, for the same reason: `[]`
+  // says this agent needs no host of its own, and a missing list says nobody
+  // has measured it, which leaves its turns' network alone.
+  it("keeps an empty host list apart from a missing one", () => {
+    const parsed = patcherAppManagedConfigSchema.parse({
+      customAcpAgents: [
+        { id: "amp", displayName: "Amp", command: "amp-acp", egressHosts: [] },
+        { id: "sol", displayName: "Sol", command: "sol-acp" },
+      ],
+    });
+
+    expect(parsed.customAcpAgents?.[0]?.egressHosts).toEqual([]);
+    expect(parsed.customAcpAgents?.[1]).not.toHaveProperty("egressHosts");
+  });
+
+  // `CONNECT` names a host, so a URL or a port here would be a rule that
+  // matches nothing and would do it quietly.
+  it("rejects hosts that are not hostnames", () => {
+    for (const host of [
+      "https://api.amp.example",
+      "api.amp.example:443",
+      "api.amp.example/v1",
+    ]) {
+      expect(
+        patcherAppManagedConfigSchema.safeParse({
+          customAcpAgents: [
+            {
+              id: "amp",
+              displayName: "Amp",
+              command: "amp-acp",
+              egressHosts: [host],
+            },
+          ],
+        }).success,
+        host,
+      ).toBe(false);
+    }
+  });
+
   // An empty list is an answer — "needs nothing under $HOME" — and a missing
   // one is not: the sandbox confines the first and leaves the second alone.
   it("keeps an empty state-directory list apart from a missing one", () => {
