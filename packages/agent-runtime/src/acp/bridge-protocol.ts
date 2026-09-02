@@ -132,6 +132,17 @@ const acpBridgeAgentSandboxSchema = z.object({
    * process confined to a proxy it was never told about reaches nothing.
    */
   env: z.record(z.string().min(1), z.string()).optional(),
+  /**
+   * Directory of unix sockets, one per host loopback port, that a Linux
+   * launch's network namespace reaches Patcher through.
+   *
+   * The bridge needs it for one port in particular: its own. An agent's plugin
+   * tools dial a loopback port this process binds when the session starts, and
+   * inside a `--unshare-net` namespace that port exists only if a socket named
+   * for it is here for the relay to mirror. Absent on macOS, where the profile
+   * leaves loopback alone, and absent when only the filesystem is confined.
+   */
+  loopbackSocketDir: z.string().min(1).optional(),
 });
 
 const acpBridgeSessionParamsSchema = z.object({

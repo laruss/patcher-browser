@@ -1373,6 +1373,7 @@ export function createAcpProviderAdapter(
       command: string;
       args: string[];
       env?: Record<string, string>;
+      loopbackSocketDir?: string;
     };
     agentSandboxWarning?: string;
   } {
@@ -1425,6 +1426,9 @@ export function createAcpProviderAdapter(
       agentSandbox: {
         ...wrapped.launcher,
         ...(wrapped.env !== undefined ? { env: wrapped.env } : {}),
+        ...(wrapped.loopbackSocketDir !== undefined
+          ? { loopbackSocketDir: wrapped.loopbackSocketDir }
+          : {}),
       },
       ...(egressRequested && egressHosts === undefined
         ? {

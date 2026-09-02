@@ -491,6 +491,11 @@ export async function createHostDaemonApp(
   });
   runtimeManager = new RuntimeManager({
     bridgeBundleDir: options.bridgeBundleDir,
+    requestEgressHostConsent: (args) =>
+      runSessionRequest({
+        source: "requestEgressHostConsent",
+        request: () => serverClient.requestEgressHostConsent(args),
+      }),
     createRuntime: options.createRuntime,
     dataDir: options.dataDir,
     dataDirSkillsRootPath,

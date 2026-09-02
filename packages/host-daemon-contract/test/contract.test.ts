@@ -1130,8 +1130,15 @@ describe("host-daemon command schemas", () => {
   // them. A 114 daemon drops all three and leaves the network open, so the app
   // would say a turn's egress is confined while nothing confines it — the same
   // silence as 113, one boundary along.
-  it("uses protocol version 115 after ACP agents declared their egress hosts", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(115);
+  //
+  // 116 added `/session/egress-host-consent`: the daemon asks before a
+  // network-confined turn reaches a host that is on nobody's list, instead of
+  // refusing it outright. A 115 server has no such route, so every question a
+  // 116 daemon puts would come back as a transport failure and be reported to
+  // the agent as "asking you failed" — the version is what makes the two
+  // halves of a prompt arrive together.
+  it("uses protocol version 116 after a refused host became a question", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(116);
   });
 
   // The subprotocol is agreed between two processes by string, so no build

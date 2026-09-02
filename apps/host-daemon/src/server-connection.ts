@@ -58,6 +58,7 @@ export type ServerSessionInvalidationSource =
   | "interruptInteractiveRequests"
   | "postEvents"
   | "registerInteractiveRequest"
+  | "requestEgressHostConsent"
   | "requestEnvSetupScriptConsent";
 
 export interface HandleServerSessionInvalidatedArgs {

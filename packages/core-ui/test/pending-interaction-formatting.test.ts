@@ -65,6 +65,37 @@ describe("setup script consent copy", () => {
   });
 });
 
+describe("egress host consent copy", () => {
+  const payload = {
+    kind: "consent",
+    action: "reach-host",
+    subjectId: "registry.npmjs.org",
+    subjectName: "registry.npmjs.org",
+    permissions: [],
+    sites: [],
+    detail: "Asked for by this thread's acp-cursor process, on port 443.",
+  } as const satisfies ConsentPendingInteractionPayload;
+
+  it("names the host, because the host is the whole of what is allowed", () => {
+    expect(formatPendingInteractionConsentSummary(payload)).toBe(
+      "Let this turn reach registry.npmjs.org",
+    );
+  });
+
+  it("says what the answer covers and that it is kept", () => {
+    // The one consent answered while something waits on it: the agent's
+    // connection is open while this is on screen. Both halves of the scope are
+    // load-bearing — an answer that were not kept would put this same question
+    // back on screen on the agent's next retry, and one that were kept forever
+    // would widen every other thread's boundary on the machine.
+    expect(formatPendingInteractionConsentDetailLines(payload)).toEqual([
+      payload.detail,
+      "Everything else this turn sends off the machine still goes through Patcher, checked against its list.",
+      "Either answer is remembered for this workspace's turns until Patcher restarts. Add the host in Settings to keep it for good.",
+    ]);
+  });
+});
+
 describe("pending interaction formatting", () => {
   it("summarizes requested permissions consistently", () => {
     expect(

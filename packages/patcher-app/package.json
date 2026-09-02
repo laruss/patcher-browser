@@ -51,6 +51,7 @@
     "host-daemon/dist/patcher-claude-code-bridge.mjs",
     "host-daemon/dist/patcher-parcel-watcher-child.mjs",
     "host-daemon/dist/patcher-pi-bridge.mjs",
+    "host-daemon/dist/patcher-sandbox-net-relay.mjs",
     "host-daemon/dist/daemon-bundle.mjs",
     "server/dist",
     "!server/dist/index.js.map",

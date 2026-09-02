@@ -339,7 +339,8 @@ Four things about it are decisions rather than defaults:
   opencode dies on "Failed to start server on port 0". So a local service that
   has the network of its own is a way around the proxy for whoever goes looking,
   and Patcher's own browser is one of those. What the boundary closes is the
-  direct, unattended path off the machine.
+  direct, unattended path off the machine. How much of loopback stays open
+  differs by platform, and the Linux half below says so.
 - **An allowed host is still a way out.** `github.com` takes a push and a model
   API takes a prompt. Confining egress to a list removes egress to _anywhere_;
   it does not make a turn unable to leak through what it was allowed.
@@ -352,21 +353,60 @@ Four things about it are decisions rather than defaults:
   thread says so, for the same reason an undeclared `stateDirs` runs unconfined:
   a list short by one host does not confine an agent, it cuts it off from its
   own model.
-- **Pi is not covered yet, and macOS only.** Pi has declared no hosts, because
-  this machine has no Pi credential to measure a real turn with — the same gap
-  that leaves its sandboxed turn unmeasured above. And bubblewrap can only take
-  the network by taking the whole network namespace, which takes the host
-  loopback the CLI and plugin tools need with it; a bind-mounted unix socket
-  does cross into such a namespace, which is what a Linux half would be built
-  on. Until then Linux refuses a turn that asks for this rather than running it
-  unconfined, naming what is missing.
+- **Pi is not covered yet.** Pi has declared no hosts, because this machine has
+  no Pi credential to measure a real turn with — the same gap that leaves its
+  sandboxed turn unmeasured above. A turn it runs keeps its network, and the
+  switch says so rather than implying otherwise.
+
+**A host nobody listed is a question, not only a refusal.** The proxy holds the
+connection and the thread shows a prompt naming the host, the provider that
+asked for it and the port; allowing it opens the tunnel. What is worth knowing
+about the timing, because it decides how this behaves in practice: an agent's
+own HTTP client gives up long before a person decides — undici stops waiting
+for a socket in ten seconds — so the attempt that raised the question usually
+fails anyway. The answer is what matters, and it is remembered, so the agent's
+_next_ attempt is the one that goes through.
+
+Which is also why declining is remembered: an answer that were not kept would
+let an agent put the same host back on screen by retrying, until somebody gave
+in. Both answers last for the life of the boundary they were given for — one
+environment's turns of one provider, until Patcher restarts — and Settings is
+where a permanent answer goes. A yes given inside one turn should not quietly
+widen every other thread's boundary on the machine for good.
+
+The three outcomes are told apart on purpose. A decision either way is kept; a
+question nobody could be asked — an archived thread, a thread already holding
+another prompt, a prompt that timed out — is not kept, so the host can be asked
+about again. Keeping a timeout would turn one unattended turn into a host
+refused for good. And a thread shows one prompt at a time, which is what keeps
+an agent that tries a hundred hosts from filling the screen: the rest come back
+as unaskable rather than as a queue.
+
+**On Linux the same boundary is built differently, and comes out narrower.**
+Seatbelt can refuse what leaves the machine and leave localhost alone.
+Bubblewrap cannot: `--unshare-net` is the only unprivileged way to take the
+network and it takes the host's loopback with it — measured on bubblewrap 0.8.0,
+where a namespace's own `lo` is up while the host's loopback services answer
+nothing at all. So the loopback Patcher needs is carried in over bind-mounted
+unix sockets, one per port, and a relay running as the first process inside the
+namespace mirrors them back onto its loopback. Connecting to a unix socket works
+through a **read-only** bind, so the directory is mounted read-only and a
+confined process cannot add a channel of its own to it.
+
+What that changes for a person: a confined Linux turn reaches the local server,
+the daemon, an ACP agent's plugin-tool bridge and the proxy — and nothing else
+on loopback. On macOS it reaches all of localhost, because seatbelt has no way
+to name ports. So a local service of your own is reachable from a confined turn
+on macOS and not on Linux; the whole chain was measured end to end under
+bubblewrap before it was written down, including that a direct connection off
+the machine is refused in 0 ms both by name and by literal IP.
 
 What the switch costs, so nobody discovers it in a turn: `git push` over an SSH
 remote stops working, because SSH has no proxy to use and the connection is
 refused — HTTPS remotes keep working. Anything else that is not proxy-aware
-stops too. And a host nobody listed is refused rather than asked about; the
-prompt that would make this self-service is the next piece of work, not this
-one.
+stops too. And on a machine whose daemon talks to a *remote* server rather than
+one on its own loopback, the `patcher` CLI in a turn's shell is refused like
+anything else off the machine until that server's host is on the list.
 
 **And the repository's own setup script asks before it runs.** A managed
 worktree runs `.patcher-env-setup.sh` from the repository it was created from —

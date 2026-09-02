@@ -19,6 +19,9 @@ import {
 import { handleLine } from "./bridge.js";
 import { ACP_BRIDGE_MCP_SERVER_NAME } from "./tool-proxy-mcp.js";
 
+/** Socket directories this suite made, removed after each test. */
+const socketDirs: string[] = [];
+
 const FAKE_AGENT_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "fake-acp-agent.mjs",
@@ -94,6 +97,7 @@ interface StartThreadArgs {
     command: string;
     args: string[];
     env?: Record<string, string>;
+    loopbackSocketDir?: string;
   };
   agentSandboxWarning?: string;
   dynamicTools?: DynamicTool[];
@@ -309,6 +313,9 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   output.restore();
   rmSync(workspaceDir, { recursive: true, force: true });
+  for (const socketDir of socketDirs.splice(0)) {
+    rmSync(socketDir, { recursive: true, force: true });
+  }
 });
 
 describe("acp bridge", () => {
@@ -832,6 +839,68 @@ describe("acp bridge", () => {
     expect(agentMessageTexts()).toContain(
       "proxy-env:http://patcher:tok@127.0.0.1:9 no:localhost,127.0.0.1,::1",
     );
+  });
+
+  it("puts its own tool port where a confined Linux turn can find it", async () => {
+    // An agent's plugin tools dial a loopback port this process binds. Inside
+    // a `--unshare-net` namespace that port does not exist, so the relay in
+    // front of the agent mirrors whatever sockets the daemon left in this
+    // directory — and the tool bridge's own port is not one the daemon can
+    // know, because this process binds it when the session starts. So the
+    // bridge drops a socket named for it here itself.
+    chmodSync(FAKE_AGENT_PATH, 0o755);
+    // Straight under the temp root, not under the workspace: a unix socket
+    // path is capped at ~104 bytes by the kernel, and this suite's workspace
+    // lives under a `mkdtemp` path that spends most of that on macOS. The
+    // daemon's own directory is chosen the same way, for the same reason.
+    const socketDir = mkdtempSync(join(tmpdir(), "p-sock-"));
+    socketDirs.push(socketDir);
+
+    const { providerThreadId } = await startThread({
+      agent: { command: FAKE_AGENT_PATH, args: ["acp"] },
+      agentSandbox: {
+        command: "/usr/bin/env",
+        args: [],
+        loopbackSocketDir: socketDir,
+      },
+      dynamicTools: [
+        {
+          name: "update_environment_directory",
+          description: "Move this thread to another environment directory.",
+          inputSchema: {
+            type: "object",
+            properties: { path: { type: "string" } },
+            required: ["path"],
+          },
+        },
+      ],
+    });
+
+    sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "echo-mcp-server-config", mentions: [] }],
+    });
+    await waitForTurnCompleted();
+
+    const configPrefix = "mcp-server-config:";
+    const configText = agentMessageTexts().find((text) =>
+      text.startsWith(configPrefix),
+    );
+    if (!configText) {
+      throw new Error("Fake ACP agent did not report MCP server config");
+    }
+    const [mcpServerConfig] = JSON.parse(
+      configText.slice(configPrefix.length),
+    ) as { env: { name: string; value: string }[] }[];
+    const port = mcpServerConfig?.env.find(
+      ({ name }) => name === "PATCHER_ACP_DYNAMIC_TOOL_PORT",
+    )?.value;
+
+    // The socket has to be named for the very port the MCP server was told to
+    // dial: the relay maps one to the other by name, so a mismatch here is a
+    // tool bridge that is reachable from nowhere.
+    expect(port).toBeDefined();
+    expect(existsSync(join(socketDir, `${String(port)}.sock`))).toBe(true);
   });
 
   it("raises the unconfined-agent warning at session start", async () => {

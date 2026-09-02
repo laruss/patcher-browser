@@ -99,6 +99,20 @@ export type WrapAcpAgentLaunchResult =
        * environment and nowhere a timeline or a log can reach.
        */
       env?: Record<string, string>;
+      /**
+       * Where a Linux launch carries loopback into a network namespace that
+       * has none of its own: a directory of unix sockets named for the ports
+       * they forward to, bound into the sandbox and mirrored back onto its
+       * loopback by the relay in front of the command.
+       *
+       * The bridge needs it because one of those ports is the bridge's own:
+       * an agent's plugin tools reach Patcher through a loopback port the
+       * bridge binds when the session starts, and inside the namespace that
+       * port exists only if a socket for it appears here. Absent on macOS,
+       * where the profile leaves loopback alone, and absent for an
+       * unconfined launch.
+       */
+      loopbackSocketDir?: string;
     }
   | { sandboxed: false; reason: string; remedy: string };
 

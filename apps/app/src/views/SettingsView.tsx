@@ -913,7 +913,7 @@ export function ProviderEgressSettingsControl({
     <div className="space-y-2.5">
       <SettingsWithControl
         label={PROVIDER_EGRESS_SETTING_LABEL}
-        description="A sandboxed ACP turn reaches only the hosts its agent declared and the ones listed here. macOS only. SSH git remotes stop working, HTTPS ones keep working. Pi is not covered yet: it has not declared which hosts it needs."
+        description="A sandboxed ACP turn reaches only the hosts its agent declared and the ones listed here; anything else asks you first, on the thread. macOS and Linux. SSH git remotes stop working, HTTPS ones keep working. Pi is not covered yet: it has not declared which hosts it needs."
       >
         <Switch
           checked={confined}
