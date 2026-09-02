@@ -7,6 +7,10 @@ import { spawn as spawnPty } from "node-pty";
 import type { TerminalSessionCloseReason } from "@patcher/domain";
 import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import { sanitizeInheritedChildProcessEnv } from "@patcher/process-utils";
+import {
+  deriveThreadApiKey,
+  PATCHER_THREAD_KEY_ENV,
+} from "@patcher/config/thread-api-key";
 import type { HostDaemonServerTerminalMessage } from "../server-connection-support.js";
 import type { HostDaemonLogger } from "../logger.js";
 import { RuntimeManager, type RuntimeEntry } from "../runtime-manager.js";
@@ -135,9 +139,14 @@ interface ShutdownTerminalArgs {
   terminalId: string;
 }
 
+/** What the daemon puts the app key in, for a thread's terminal to trade away. */
+const APP_KEY_ENV = "PATCHER_APP_KEY";
+
 interface BuildTerminalEnvArgs {
   shellEnv: NodeJS.ProcessEnv;
   terminalId: string;
+  /** The thread this terminal belongs to, when it belongs to one. */
+  threadId?: string;
 }
 
 interface ResizeTerminalArgs {
@@ -325,10 +334,33 @@ export async function resolveDefaultTerminalShell(): Promise<string> {
   return "/bin/sh";
 }
 
+/**
+ * The credential a terminal carries, and the one it must not.
+ *
+ * A turn's own processes were taken off the app key deliberately: it is what
+ * the app, the CLI and the launcher present, so an agent holding it can act as
+ * any of them — and derive *any* thread's key, since a thread key is an HMAC
+ * under it. A terminal is a shell whose environment an agent can print, and an
+ * agent may open and drive a sandboxed terminal for its own thread, so the app
+ * key arriving there handed straight back what taking it out of the turn's
+ * shell removed. Measured: `PATCHER_APP_KEY` was in the environment of every
+ * terminal Patcher opened.
+ *
+ * So a terminal that belongs to a thread carries that thread's key instead —
+ * the same trade `buildThreadShellEnvironment` makes for a turn, done here with
+ * the same primitives rather than through it, because a terminal is not a turn:
+ * it has no project or thread-storage of its own to declare.
+ *
+ * A terminal that belongs to no thread keeps what it had. That is a person's
+ * own shell — an agent may not drive one, and there is no narrower credential a
+ * shell with no thread could carry. It is also why the thread id goes in: the
+ * `patcher` CLI in a terminal could not name its own thread before, so `--self`
+ * had nothing to resolve.
+ */
 function buildTerminalEnv(args: BuildTerminalEnvArgs): NodeJS.ProcessEnv {
   return {
     ...sanitizeInheritedChildProcessEnv({ env: process.env }),
-    ...args.shellEnv,
+    ...threadScopedShellEnv(args),
     PATCHER_TERMINAL_SESSION_ID: args.terminalId,
     COLORTERM: "truecolor",
     DISABLE_AUTO_TITLE: "true",
@@ -336,6 +368,30 @@ function buildTerminalEnv(args: BuildTerminalEnvArgs): NodeJS.ProcessEnv {
     // without a newline. It becomes noisy when scrollback is replayed.
     PROMPT_EOL_MARK: "",
     TERM: "xterm-256color",
+  };
+}
+
+function threadScopedShellEnv(
+  args: BuildTerminalEnvArgs,
+): NodeJS.ProcessEnv {
+  const { threadId } = args;
+  if (threadId === undefined) {
+    return args.shellEnv;
+  }
+  const { [APP_KEY_ENV]: appApiKey, ...withoutAppKey } = args.shellEnv;
+  return {
+    ...withoutAppKey,
+    // A daemon that never found an app key had nothing to trade before either,
+    // and the CLI in that shell reports the 401 it always did.
+    ...(appApiKey
+      ? {
+          [PATCHER_THREAD_KEY_ENV]: deriveThreadApiKey({
+            appApiKey,
+            threadId,
+          }),
+        }
+      : {}),
+    PATCHER_THREAD_ID: threadId,
   };
 }
 
@@ -586,6 +642,9 @@ export class TerminalManager {
       const env = buildTerminalEnv({
         shellEnv: this.options.runtimeManager.getShellEnv(),
         terminalId: message.terminalId,
+        ...(message.threadId !== undefined
+          ? { threadId: message.threadId }
+          : {}),
       });
       const command = terminalSpawnCommand({
         command: { args: terminalSpawnArgsForStart(message), file: shell },

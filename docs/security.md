@@ -700,6 +700,19 @@ Named here rather than left to be rediscovered:
   using it. Until then the honest part is that nothing claims otherwise: the
   CLI's 401 hint used to say the key is refused once the turn ends, and now says
   what the credential actually is.
+
+  One thing that made this worse than it read is closed: **a terminal's
+  environment carried the app key.** Measured — `PATCHER_APP_KEY` was in the
+  environment of every terminal Patcher opened, and an agent may open and drive
+  a sandboxed terminal for its own thread, so `echo $PATCHER_APP_KEY` in a shell
+  it asked for returned the credential taking it out of the turn's shell had
+  removed. With the app key an agent is the app, and it can derive *any*
+  thread's key, since a thread key is an HMAC under it — so the boundary above
+  was one command from being decorative. A terminal that belongs to a thread now
+  carries that thread's key instead, the same trade a turn's shell makes, plus
+  the thread id its `patcher --self` needs. A terminal that belongs to no thread
+  keeps what it had: that is a person's own shell, an agent may not drive one,
+  and there is no narrower credential a shell with no thread could hold.
 - **A terminal's network.** Named above and repeated here because it is the
   shape of what is left: an agent's terminal is confined on the filesystem and
   not on the network, so `curl` inside one reaches whatever the machine can. It
