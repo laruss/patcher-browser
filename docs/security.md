@@ -161,6 +161,35 @@ planted under either runs only for a git process that recurses into it, which
 Patcher's plumbing never does, while denying them would take `git submodule
 update` and `git worktree add` from every sandboxed turn.
 
+**A linked worktree is the shape this actually runs in, and it was the one not
+measured.** A managed worktree's gitdir sits *outside* the workspace and has to
+stay writable — its index and refs live there — so the refusals and the
+permissions interleave in a way a plain checkout never shows. Measured under
+the real profile on that layout: the pointer `.git`, the common `config`,
+`hooks` and `info/attributes`, and the worktree's own `config.worktree` are all
+refused, while the gitdir's other files and the workspace stay writable and a
+turn can still `git add` and commit.
+
+That measurement found the list meaning two different things. **On Linux a
+protected path that did not exist yet was not protected**: bubblewrap has no
+rule about a name, only about a mount, and a missing path was skipped — so on a
+fresh repository `info/attributes` and `config.worktree` were refused under
+seatbelt and *written* under bubblewrap, because neither file exists until
+something creates it. The profile now binds `/dev/null` over such a path when
+its parent is writable, which is the only case that needs it: with a read-only
+parent bwrap cannot create the mount point and fails the whole launch, and a
+turn could not have created the file either. What it costs is an empty file
+left in the repository, which git reads as absent for all four of these.
+
+What stays writable inside that gitdir is inert, and that rests on git rather
+than on Patcher, so it is pinned by its own tests: a hook planted in a linked
+worktree's own gitdir **is not run** — git takes hooks from the common
+directory, which is denied — and a per-worktree `info/attributes` **is not
+read**, while the common one is. A future git that changed either would make
+the list silently incomplete, and those two tests are what would say so.
+Patcher's git also runs no `rebase` or `cherry-pick`, so a todo list planted in
+the writable half has nothing to consume it.
+
 The deny holds for the agent's own Write tool as well as for Bash, and it holds
 through symlink, hardlink, `cp`/`tar`/`rsync` and rename indirection — measured
 attempt by attempt against a live session. Where Bash gets a plain "operation not

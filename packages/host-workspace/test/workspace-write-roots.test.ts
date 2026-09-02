@@ -124,6 +124,82 @@ describe("resolveProtectedRepositoryPaths", () => {
     expect(paths).toContain(path.join(sourcePath, ".git", "hooks"));
   });
 
+  /**
+   * The list above names the *common* hooks directory and the *common*
+   * `info/attributes`, and never their per-worktree namesakes — because a
+   * linked worktree's own gitdir has to stay writable for its index and refs,
+   * so anything named there would be a rule the turn can undo.
+   *
+   * That is only safe because git reads both from the common directory. These
+   * two pin that, since it is git's behaviour rather than Patcher's: a future
+   * git that honoured a per-worktree hook would make the list silently
+   * incomplete, and this is what would say so.
+   */
+  it("relies on git running hooks from the common directory, not the worktree's", async () => {
+    const sourcePath = await initRepo("patcher-hook-source-");
+    const worktreeParent = await mkTempDir("patcher-hook-worktree-");
+    const worktreePath = path.join(worktreeParent, "wt");
+    await runGit(["worktree", "add", "-b", "feature", worktreePath], {
+      cwd: sourcePath,
+    });
+    const gitDir = (
+      await runGit(["rev-parse", "--absolute-git-dir"], { cwd: worktreePath })
+    ).stdout.trim();
+    const ranMarker = path.join(worktreeParent, "hook-ran");
+
+    await fs.mkdir(path.join(gitDir, "hooks"), { recursive: true });
+    await fs.writeFile(
+      path.join(gitDir, "hooks", "pre-commit"),
+      `#!/bin/sh
+touch ${ranMarker}
+`,
+      { mode: 0o755 },
+    );
+    await fs.writeFile(path.join(worktreePath, "changed.txt"), "change\n");
+    await runGit(["add", "-A"], { cwd: worktreePath });
+    await runGit(["commit", "-m", "with a per-worktree hook in place"], {
+      cwd: worktreePath,
+    });
+
+    await expect(fs.stat(ranMarker)).rejects.toThrow();
+  });
+
+  it("relies on git reading attributes from the common directory too", async () => {
+    const sourcePath = await initRepo("patcher-attr-source-");
+    const worktreeParent = await mkTempDir("patcher-attr-worktree-");
+    const worktreePath = path.join(worktreeParent, "wt");
+    await runGit(["worktree", "add", "-b", "feature", worktreePath], {
+      cwd: sourcePath,
+    });
+    const gitDir = (
+      await runGit(["rev-parse", "--absolute-git-dir"], { cwd: worktreePath })
+    ).stdout.trim();
+
+    await fs.mkdir(path.join(gitDir, "info"), { recursive: true });
+    await fs.writeFile(
+      path.join(gitDir, "info", "attributes"),
+      "* diff=fromtheworktree\n",
+    );
+    const fromWorktree = await runGit(["check-attr", "diff", "--", "file.txt"], {
+      cwd: worktreePath,
+    });
+
+    // Unread, so the writable half of the gitdir cannot name a diff or filter
+    // driver. The common one is read, and the list above denies it.
+    expect(fromWorktree.stdout.trim()).toContain("diff: unspecified");
+
+    await fs.mkdir(path.join(sourcePath, ".git", "info"), { recursive: true });
+    await fs.writeFile(
+      path.join(sourcePath, ".git", "info", "attributes"),
+      "* diff=fromthecommondir\n",
+    );
+    const fromCommon = await runGit(["check-attr", "diff", "--", "file.txt"], {
+      cwd: worktreePath,
+    });
+
+    expect(fromCommon.stdout.trim()).toContain("diff: fromthecommondir");
+  });
+
   it("denies the pointer file of a checkout whose gitdir sits elsewhere", async () => {
     const workspacePath = await mkTempDir("patcher-protected-separate-");
     const gitDirPath = await mkTempDir("patcher-protected-separate-gitdir-");

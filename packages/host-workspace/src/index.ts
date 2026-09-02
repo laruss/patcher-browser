@@ -8,6 +8,14 @@ export type {
   EnvSetupScriptApproval,
   EnvSetupScriptApprovalRequest,
 } from "./provisioning.js";
+// The definition of a workspace-write sandbox's boundary: what stays writable
+// so git works, and what is refused because git executes it. Exported because
+// the sandbox that enforces them lives in the daemon, and a test of that
+// enforcement has to use these lists rather than a copy of them.
+export {
+  resolveAdditionalWorkspaceWriteRoots,
+  resolveProtectedRepositoryPaths,
+} from "./workspace-write-roots.js";
 export type {
   HostWorkspace,
   PersonalWorkspaceOpts,
