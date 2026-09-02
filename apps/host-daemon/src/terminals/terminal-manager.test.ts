@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AgentRuntime } from "@patcher/agent-runtime";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
+import { deriveThreadApiKey } from "@patcher/config/thread-api-key";
 import type { HostDaemonDaemonWsMessage } from "@patcher/host-daemon-contract";
 import type { HostWorkspace } from "@patcher/host-workspace";
 import {
@@ -59,6 +60,8 @@ interface Deferred<T> {
 type TerminalMessageObserver = (message: HostDaemonDaemonWsMessage) => void;
 
 interface CreateHarnessOptions {
+  /** Extra daemon shell environment, for what a terminal inherits from it. */
+  shellEnv?: Record<string, string>;
   closeGracePeriodMs?: number;
   dataDir?: string;
   onSendMessage: TerminalMessageObserver;
@@ -323,6 +326,7 @@ function createHarnessWithOptions(
     provisionWorkspace: async () => workspace,
     shellEnv: {
       PATCHER_BASE_ENV: "1",
+      ...args.shellEnv,
     },
   });
   const manager = new TerminalManager({
@@ -489,6 +493,65 @@ describe("TerminalManager", () => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
     await cleanupTempDirs();
+  });
+
+  it("keeps the app key out of a thread's terminal, trading it for the thread's", async () => {
+    // A turn's own processes were taken off the app key deliberately: it is the
+    // credential the app, the CLI and the launcher present, and an agent
+    // holding it can act as any of them — and derive any thread's key, since
+    // the thread key is an HMAC under it. A terminal an agent opens for its own
+    // thread is a shell it reads the environment of, so the app key arriving
+    // there would hand back what taking it out of the turn's shell removed.
+    const harness = createHarnessWithOptions({
+      onSendMessage: () => undefined,
+      resolveShell: async () => "/bin/zsh",
+      shellEnv: { PATCHER_APP_KEY: "app-key-probe-secret" },
+    });
+    await openTerminal(harness);
+
+    const env = harness.adapter.spawned[0]?.args.env ?? {};
+    expect(env).not.toHaveProperty("PATCHER_APP_KEY");
+    expect(JSON.stringify(env)).not.toContain("app-key-probe-secret");
+    // What it carries instead: this thread's key, which is the credential the
+    // turn's own shell was given, and the thread id the CLI's `--self` needs.
+    expect(env.PATCHER_THREAD_KEY).toBe(
+      deriveThreadApiKey({
+        appApiKey: "app-key-probe-secret",
+        threadId: "thr-1",
+      }),
+    );
+    expect(env.PATCHER_THREAD_ID).toBe("thr-1");
+  });
+
+  it("leaves a terminal that belongs to no thread as it was", async () => {
+    // A person's own shell, which an agent may not drive: there is no narrower
+    // credential a terminal with no thread could carry, and taking the app key
+    // away would only cost the person their CLI.
+    const harness = createHarnessWithOptions({
+      onSendMessage: () => undefined,
+      resolveShell: async () => "/bin/zsh",
+      shellEnv: { PATCHER_APP_KEY: "app-key-probe-secret" },
+    });
+    await harness.manager.handleMessage({
+      type: "terminal.open",
+      requestId: "open-no-thread",
+      terminalId: "term-no-thread",
+      target: {
+        kind: "workspace",
+        environmentId: "env-1",
+        workspaceContext: {
+          workspacePath: "/tmp/terminal-workspace",
+          workspaceProvisionType: "unmanaged",
+        },
+      },
+      cols: 100,
+      rows: 30,
+      start: DEFAULT_TERMINAL_START,
+    });
+
+    const env = harness.adapter.spawned[0]?.args.env ?? {};
+    expect(env.PATCHER_APP_KEY).toBe("app-key-probe-secret");
+    expect(env).not.toHaveProperty("PATCHER_THREAD_KEY");
   });
 
   it("opens a PTY in the workspace and keeps the environment active", async () => {
