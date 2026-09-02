@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readdirSync, watch } from "node:fs";
 import net from "node:net";
+import { constants } from "node:os";
 import path from "node:path";
 import { resolveBridgeProcessArgs } from "@patcher/agent-runtime/shared/bridge-path";
 
@@ -38,7 +39,8 @@ import { resolveBridgeProcessArgs } from "@patcher/agent-runtime/shared/bridge-p
  *   relay that only read the directory once would leave plugin tools dead on
  *   Linux.
  * - **The command's exit status is this process's.** Measured through both
- *   hops: a command that exits 5 arrives at the daemon as 5.
+ *   hops: a command that exits 5 arrives as 5, one killed by `SIGTERM` as 143,
+ *   and a command that is not there as 126 with a line saying which.
  * - **Signals are forwarded**, though bubblewrap does not forward them itself:
  *   with and without this relay in between, a `SIGTERM` to `bwrap` never
  *   reaches the command. That is unchanged either way, and forwarding is what
@@ -249,7 +251,11 @@ export async function runSandboxNetRelay(
   }
 
   const [file, ...args] = invocation.command;
-  const child = spawn(file as string, args, { stdio: "inherit" });
+  if (file === undefined) {
+    process.stderr.write("patcher sandbox net relay: no command to run\n");
+    process.exit(64);
+  }
+  const child = spawn(file, args, { stdio: "inherit" });
   for (const signal of FORWARDED_SIGNALS) {
     process.on(signal, () => {
       child.kill(signal);
@@ -262,6 +268,12 @@ export async function runSandboxNetRelay(
     process.exit(126);
   });
   child.on("exit", (code, signal) => {
-    process.exit(signal === null ? (code ?? 1) : 128);
+    // `128 + signum`, the way a shell reports it, rather than a flat 128: this
+    // process stands in for the command, so what the daemon reads about how it
+    // ended has to be about the command and not about the relay.
+    if (signal === null) {
+      process.exit(code ?? 1);
+    }
+    process.exit(128 + (constants.signals[signal] ?? 0));
   });
 }
