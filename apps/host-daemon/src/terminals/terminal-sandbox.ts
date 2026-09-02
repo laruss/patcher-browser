@@ -245,6 +245,17 @@ function resolvedPaths(candidatePaths: readonly string[]): string[] {
   return candidatePaths.map(resolvedPath);
 }
 
+/** Whether `candidatePath` sits at or under `root`, both already resolved. */
+function isInside(candidatePath: string, root: string): boolean {
+  const relative = path.relative(root, candidatePath);
+  return (
+    relative === "" ||
+    (relative !== "" &&
+      !relative.startsWith("..") &&
+      !path.isAbsolute(relative))
+  );
+}
+
 function pathExists(candidatePath: string): boolean {
   try {
     statSync(candidatePath);
@@ -319,18 +330,38 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     "--proc",
     "/proc",
   ];
-  for (const writablePath of resolvedPaths([
+  const writablePaths = resolvedPaths([
     args.policy.workspacePath,
     ...args.policy.writableRoots,
     "/tmp",
     ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
-  ])) {
+  ]);
+  for (const writablePath of writablePaths) {
     if (!pathExists(writablePath)) continue;
     bindArgs.push("--bind-try", writablePath, writablePath);
   }
   for (const readOnlyPath of resolvedPaths(args.policy.readOnlyPaths)) {
-    if (!pathExists(readOnlyPath)) continue;
-    bindArgs.push("--ro-bind-try", readOnlyPath, readOnlyPath);
+    if (pathExists(readOnlyPath)) {
+      bindArgs.push("--ro-bind-try", readOnlyPath, readOnlyPath);
+      continue;
+    }
+    // A protected path that does not exist yet is a path the turn can still
+    // create, and this backend has no rule about a name — only about a mount.
+    // Seatbelt denies a path whether or not anything is there, so skipping it
+    // here made the same list mean two different things: measured on a linked
+    // worktree, `info/attributes` and `config.worktree` were refused on macOS
+    // and written on Linux, because a fresh repository has neither.
+    //
+    // Only when the parent is writable, and that is not tidiness: with a
+    // read-only parent bwrap cannot create the mount point and fails the whole
+    // launch — while a turn could not have created the file either, so there
+    // is nothing to deny. The cost where it does apply is an empty file left
+    // in the repository: git reads all four of these as absent when empty, and
+    // a file where `hooks` would be is the same "no hooks" a missing directory
+    // already means.
+    if (writablePaths.some((root) => isInside(readOnlyPath, root))) {
+      bindArgs.push("--ro-bind", "/dev/null", readOnlyPath);
+    }
   }
   for (const deniedPath of resolvedPaths(args.policy.deniedReadPaths)) {
     // Only what is there: binding over a path that does not exist asks bwrap

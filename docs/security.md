@@ -170,6 +170,17 @@ the real profile on that layout: the pointer `.git`, the common `config`,
 refused, while the gitdir's other files and the workspace stay writable and a
 turn can still `git add` and commit.
 
+That measurement found the list meaning two different things. **On Linux a
+protected path that did not exist yet was not protected**: bubblewrap has no
+rule about a name, only about a mount, and a missing path was skipped — so on a
+fresh repository `info/attributes` and `config.worktree` were refused under
+seatbelt and *written* under bubblewrap, because neither file exists until
+something creates it. The profile now binds `/dev/null` over such a path when
+its parent is writable, which is the only case that needs it: with a read-only
+parent bwrap cannot create the mount point and fails the whole launch, and a
+turn could not have created the file either. What it costs is an empty file
+left in the repository, which git reads as absent for all four of these.
+
 What stays writable inside that gitdir is inert, and that rests on git rather
 than on Patcher, so it is pinned by its own tests: a hook planted in a linked
 worktree's own gitdir **is not run** — git takes hooks from the common
