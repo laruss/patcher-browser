@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -50,6 +50,8 @@ interface SandboxTestRuntimeArgs {
   spawnedAdapters: string[];
   workspacePath: string;
   wrapCalls: RecordedWrapCall[];
+  /** Environment for the bridge process, as the daemon supplies it. */
+  env?: Record<string, string>;
   /** Omitted to model a runtime with no way to confine a bridge at all. */
   wrap?: (args: WrapAcpAgentLaunchArgs) => WrapAcpAgentLaunchResult;
 }
@@ -79,6 +81,7 @@ function createSandboxTestRuntime(args: SandboxTestRuntimeArgs) {
           },
         }
       : {}),
+    ...(args.env ? { env: args.env } : {}),
     adapterFactory: (providerId) => {
       args.spawnedAdapters.push(providerId);
       const adapter = createFakeAdapter({ id: providerId });
@@ -146,15 +149,57 @@ describe("a provider whose own bridge is the turn's boundary", () => {
     // The turn ran, so the launcher was really in front of the bridge rather
     // than only recorded: `/usr/bin/env node …` is what started it.
     expect(wrapCalls).toEqual([
-      // No `egress`: Pi has declared no hosts, so its network is left alone
-      // rather than confined to a guess. The provider id travels because a
-      // refused connection has to be recorded against somebody.
+      // No `egress`, and not because nobody measured Pi's hosts: its own HTTP
+      // client does not use an env proxy at all, so confining its network
+      // would end the turn at its first model call rather than bound it. The
+      // thread is told that instead — see `piUnconfinedNetworkWarning`. The
+      // provider id travels because a refused connection has to be recorded
+      // against somebody.
       {
         cwd: workspacePath,
         stateDirs: PI_BRIDGE_STATE_DIRS,
         providerId: "pi",
       },
     ]);
+    await runtime.shutdown();
+  });
+
+  it("hands the confined bridge the proxy it is confined to", async () => {
+    const environmentLog = join(workspacePath, "bridge-env.json");
+    const runtime = createSandboxTestRuntime({
+      events,
+      recordedCommands,
+      spawnedAdapters,
+      workspacePath,
+      wrapCalls,
+      env: { PATCHER_FAKE_PROVIDER_ENV_LOG: environmentLog },
+      wrap: () => ({
+        sandboxed: true,
+        launcher: { command: "/usr/bin/env", args: [] },
+        env: {
+          HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9",
+          NO_PROXY: "localhost,127.0.0.1,::1",
+        },
+      }),
+    });
+
+    await runtime.startThread({
+      environmentId: "env-1",
+      projectId: "p1",
+      threadId: "t1",
+      providerId: "pi",
+      options: workspaceScopedOptions,
+    });
+
+    // The launcher is only half of a network-confined bridge: the profile
+    // refuses everything that leaves the machine, so a process that was never
+    // told where the proxy is reaches nothing at all — its own model included.
+    // Asserted from inside the spawned process, because between the launcher
+    // and the spawn is exactly where the environment can be dropped.
+    expect(JSON.parse(readFileSync(environmentLog, "utf8"))).toEqual({
+      HTTPS_PROXY: "http://patcher:tok@127.0.0.1:9",
+      NO_PROXY: "localhost,127.0.0.1,::1",
+    });
     await runtime.shutdown();
   });
 

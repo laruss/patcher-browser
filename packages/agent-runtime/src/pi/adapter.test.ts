@@ -14,7 +14,10 @@ import {
   createPiProviderAdapter,
 } from "./adapter.js";
 import { buildPiAvailableModels } from "./model-list.js";
-import type { ProviderExecutionContext } from "../provider-adapter.js";
+import type {
+  AdapterCommand,
+  ProviderExecutionContext,
+} from "../provider-adapter.js";
 import { promptTextInput } from "../test/prompt-input.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -196,6 +199,73 @@ describe("pi provider adapter", () => {
       // does have is the sandbox Patcher puts around its bridge.
       supportedPermissionModes: ["auto", "full"],
     });
+  });
+
+  it("says on the thread that a confined turn's network is not confined", () => {
+    const adapter = createPiProviderAdapter();
+    const confinedTurn = (): Extract<AdapterCommand, { type: "turn/start" }> => ({
+      type: "turn/start",
+      threadId: "t1",
+      providerThreadId: "pi-1",
+      clientRequestId: "creq_23456789af",
+      input: [promptTextInput({ text: "hello" })],
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "auto",
+        permissionScope: "workspace",
+        approvalReviewer: "automatic",
+        permissionEscalation: "ask",
+        model: "anthropic/claude-opus-4-8",
+        providerEgressConfined: true,
+      },
+    });
+
+    // Measured, not assumed: with every proxy variable set before the process
+    // started, on three Node versions, a real Pi turn reached the model's API
+    // directly — so confining its network would end the turn instead of
+    // bounding it. The one thing that must not happen is for the person who
+    // turned the setting on to believe otherwise.
+    const [warning] = adapter.translateAcceptedCommand({
+      command: confinedTurn(),
+    });
+
+    expect(warning).toMatchObject({
+      type: "provider/warning",
+      threadId: "t1",
+      category: "general",
+    });
+    expect((warning as { summary: string }).summary).toContain(
+      "does not use Patcher's proxy",
+    );
+
+    // Once per thread: the fact is about Pi, not about the turn.
+    expect(
+      adapter.translateAcceptedCommand({ command: confinedTurn() }),
+    ).toEqual([]);
+  });
+
+  it("says nothing about the network when no turn asked for it", () => {
+    const adapter = createPiProviderAdapter();
+
+    expect(
+      adapter.translateAcceptedCommand({
+        command: {
+          type: "turn/start",
+          threadId: "t1",
+          providerThreadId: "pi-1",
+          clientRequestId: "creq_23456789ag",
+          input: [promptTextInput({ text: "hello" })],
+          options: {
+            ...fullProviderExecutionContext,
+            permissionMode: "auto",
+            permissionScope: "workspace",
+            approvalReviewer: "automatic",
+            permissionEscalation: "ask",
+            model: "anthropic/claude-opus-4-8",
+          },
+        },
+      }),
+    ).toEqual([]);
   });
 
   it("translates accepted steers to input accepted events", () => {

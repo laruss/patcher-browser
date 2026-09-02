@@ -382,7 +382,13 @@ export class RuntimeProviderProcessManager {
    */
   private resolveBridgeSandboxLauncher(
     args: SpawnProviderArgs,
-  ): { command: string; args: readonly string[] } | undefined {
+  ):
+    | {
+        command: string;
+        args: readonly string[];
+        env?: Record<string, string>;
+      }
+    | undefined {
     const stateDirs = args.bridgeSandboxStateDirs;
     if (stateDirs === undefined) {
       return undefined;
@@ -393,10 +399,13 @@ export class RuntimeProviderProcessManager {
         `Provider "${args.providerId}" runs its own tools inside its bridge process, so a workspace-scoped turn needs that process confined, and this runtime was built without a way to confine it. Run the thread at Full Access to work without a sandbox.`,
       );
     }
-    // No egress half here yet: Pi has not declared which hosts it needs, and
-    // the rule is the one `stateDirs` already follows — an unmeasured
-    // declaration is not guessed at, because a list short by one host cuts the
-    // provider off from its own model instead of confining it.
+    // No `egress`, and the reason is Pi's own HTTP client rather than a
+    // missing declaration: it does not use an env proxy. Measured with every
+    // proxy variable set before the process started, on three Node versions —
+    // a real turn reached the model's API directly, while the bare SDK under
+    // the same conditions went through the proxy. So confining Pi's egress
+    // would end its turns instead of bounding them, and the thread is told so
+    // (`piUnconfinedNetworkWarning`) rather than left to find out.
     const wrapped = wrap({
       cwd: this.args.workspacePath,
       stateDirs,
@@ -407,7 +416,14 @@ export class RuntimeProviderProcessManager {
         `Provider "${args.providerId}" runs its own tools inside its bridge process, so a workspace-scoped turn needs that process confined, and this machine cannot build a sandbox: ${wrapped.reason}. Either ${wrapped.remedy}, or run the thread at Full Access to work without a sandbox.`,
       );
     }
-    return wrapped.launcher;
+    // The environment travels with the launcher, and dropping it here would
+    // have been the whole boundary's undoing: the profile refuses everything
+    // that leaves the machine, so a bridge that was never told where the proxy
+    // is reaches nothing at all — its model included.
+    return {
+      ...wrapped.launcher,
+      ...(wrapped.env !== undefined ? { env: wrapped.env } : {}),
+    };
   }
 
   private spawnProvider(args: SpawnProviderArgs): RuntimeProviderProcess {
@@ -425,7 +441,9 @@ export class RuntimeProviderProcessManager {
         ? [...launcher.args, processConfig.command, ...processConfig.args]
         : processConfig.args,
       cwd: this.args.workspacePath,
-      env,
+      // The boundary's own variables go on last, so nothing a provider's
+      // process config carries can point the bridge at a different proxy.
+      env: { ...env, ...(launcher?.env ?? {}) },
     });
 
     const providerProcess: RuntimeProviderProcess = {
