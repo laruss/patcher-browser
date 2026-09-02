@@ -353,10 +353,34 @@ Four things about it are decisions rather than defaults:
   thread says so, for the same reason an undeclared `stateDirs` runs unconfined:
   a list short by one host does not confine an agent, it cuts it off from its
   own model.
-- **Pi is not covered yet.** Pi has declared no hosts, because this machine has
-  no Pi credential to measure a real turn with — the same gap that leaves its
-  sandboxed turn unmeasured above. A turn it runs keeps its network, and the
-  switch says so rather than implying otherwise.
+- **Pi cannot be covered, and the reason is its own HTTP client.** Not a
+  missing declaration — measured. With `HTTPS_PROXY`, `https_proxy`,
+  `HTTP_PROXY`, `ALL_PROXY`, `all_proxy` and `NODE_USE_ENV_PROXY=1` all set
+  *before* the process started, on Node 22.20, 22.22 and 25.6.1, a real Pi turn
+  reached `api.anthropic.com` directly every time — proven by a genuine 401
+  from the API against a deliberately fake key, while a local proxy logged
+  nothing. Two controls rule out Patcher: the bare `@anthropic-ai/sdk` under
+  exactly those conditions logs `CONNECT api.anthropic.com:443` (three times,
+  its retries), and the daemon's child-environment sanitizer strips only
+  `NODE_ENV` and `PATCHER_*`. So pi-ai overrides the dispatcher the SDK would
+  otherwise use, and confining Pi's egress would end its turns rather than
+  bound them: the profile refuses the direct connection, Pi never falls back to
+  the proxy, and the turn dies at its first model call **whatever is on the host
+  list**. Pi therefore keeps its network, and a turn that asked for the boundary
+  says so on the thread instead of presenting as confined. What would unblock it
+  is Pi honouring a proxy — upstream, not here; an allow-by-IP hole in the
+  profile would need DNS open and would rot with every address change.
+
+  Worth recording for whenever that changes, because it is the part that was
+  hard to know: Pi's hosts could not be *declared* the way an ACP agent's are.
+  Its catalog is 38 providers, 1153 models and **37 distinct hosts**, and the
+  address lives on the model — `anthropic/…` is `api.anthropic.com`,
+  `openrouter/…` is `openrouter.ai`, `google-vertex/…` is a
+  `{location}-aiplatform…` template resolved at request time. So one measured
+  turn would have produced the list for one model, and the union of all 37 would
+  say "any of 38 model vendors", which is not a boundary. The answer is to
+  derive it per turn from that same catalog — the `baseUrl` Pi builds its own
+  request from.
 
 **A host nobody listed is a question, not only a refusal.** The proxy holds the
 connection and the thread shows a prompt naming the host, the provider that
@@ -670,12 +694,14 @@ Named here rather than left to be rediscovered:
   (above), which makes the old reason for leaving a terminal alone — a blocked
   connection has nowhere to raise a prompt — the thing to revisit rather than
   the end of it.
-- **What the egress boundary leaves open, when it is on.** Three things, each
+- **What the egress boundary leaves open, when it is on.** Two things, both
   named where the feature is described: loopback stays reachable, so a local
-  service with a network of its own is a way around the proxy; an allowed host
-  that accepts arbitrary bytes is still a way out; and Pi declares no hosts yet,
-  so its turns keep their network while ACP's are confined. Linux refuses the
-  mode outright rather than half-building it.
+  service with a network of its own is a way around the proxy — and how much of
+  loopback differs by platform, Linux being the narrower of the two; and an
+  allowed host that accepts arbitrary bytes is still a way out. A host on
+  nobody's list is now a question on the thread rather than a refusal. Pi is
+  not covered at all, for a measured reason its own bullet above gives, and a
+  turn that asked for the boundary is told so.
 - ~~**The app does not say which terminals are confined.**~~ Closed: a confined
   terminal's tab says `sandboxed` — the same word as the `Sandbox` column in
   `patcher terminal list` — and the panel carries a line above the shell naming

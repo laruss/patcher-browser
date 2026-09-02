@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 type JsonRecord = Record<string, unknown>;
@@ -717,6 +718,26 @@ function handleMessage(message: JsonRecord): void {
       error: { code: -32601, message: `Method not found: ${method}` },
     });
   }
+}
+
+/**
+ * Reports the environment this process was started with, when asked.
+ *
+ * A test seam for one claim that cannot be observed from the outside: a
+ * confined bridge is handed the proxy's address through its environment, and
+ * an environment dropped between the launcher and the spawn would leave the
+ * process confined to a proxy it was never told about — reaching nothing, its
+ * model included.
+ */
+const environmentLogPath = process.env.PATCHER_FAKE_PROVIDER_ENV_LOG;
+if (environmentLogPath !== undefined && environmentLogPath !== "") {
+  writeFileSync(
+    environmentLogPath,
+    JSON.stringify({
+      HTTPS_PROXY: process.env.HTTPS_PROXY ?? null,
+      NO_PROXY: process.env.NO_PROXY ?? null,
+    }),
+  );
 }
 
 rl.on("line", (line) => {

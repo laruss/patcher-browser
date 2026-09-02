@@ -690,6 +690,11 @@ export interface CreatePiProviderAdapterOptions {
 
 interface PiTurnState {
   assistantMessageCounter: number;
+  /**
+   * Whether this thread was already told its network is not confined. Once is
+   * enough: the fact is about Pi rather than about any one turn.
+   */
+  warnedUnconfinedNetwork?: boolean;
   commandOutputSnapshotsByCallId: Map<string, string>;
   counter: number;
   currentTurnId: string | undefined;
@@ -1560,18 +1565,26 @@ export function createPiProviderAdapter(
 
       if (command.type === "turn/start") {
         const state = turnState.getOrCreate({ threadId: command.threadId });
+        // Prepended to whatever this turn already reports rather than replacing
+        // it: the boundary is worth a line, and the turn still has to be
+        // accepted exactly as it was before.
+        const egressWarning = piUnconfinedNetworkWarning({ command, state });
         if (state.currentTurnId !== undefined) {
-          return buildAcceptedUserMessageEvent({
-            clientRequestId: command.clientRequestId,
-            providerThreadId: command.providerThreadId,
-            threadId: command.threadId,
-            turnId: state.currentTurnId,
-          });
+          return [
+            ...egressWarning,
+            ...buildAcceptedUserMessageEvent({
+              clientRequestId: command.clientRequestId,
+              providerThreadId: command.providerThreadId,
+              threadId: command.threadId,
+              turnId: state.currentTurnId,
+            }),
+          ];
         }
         queueAcceptedUserMessage({
           clientRequestId: command.clientRequestId,
           state,
         });
+        return egressWarning;
       }
 
       if (command.type === "turn/steer") {
@@ -1605,6 +1618,57 @@ export function createPiProviderAdapter(
       );
     },
   };
+}
+
+/**
+ * Says on the thread that this turn's network is *not* confined, when the
+ * setting says it should be.
+ *
+ * Pi is the one provider the egress boundary cannot cover, and the reason is
+ * not a missing declaration — it is measured, and it is Pi's own HTTP client.
+ * With `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `ALL_PROXY`, `all_proxy`
+ * and `NODE_USE_ENV_PROXY=1` all set before the process started, on Node
+ * 22.20, 22.22 and 25.6.1, a real Pi turn reached `api.anthropic.com`
+ * directly every time — proven by a genuine 401 from the API against a fake
+ * key, while a local proxy logged nothing. The control rules out Patcher: the
+ * bare `@anthropic-ai/sdk` under exactly those conditions logs
+ * `CONNECT api.anthropic.com:443`, so pi-ai overrides the dispatcher the SDK
+ * would otherwise use.
+ *
+ * Which makes confining Pi's egress a way to end its turns rather than bound
+ * them: the profile refuses the direct connection and Pi never falls back to
+ * the proxy, so the turn dies at its first model call whatever is on the host
+ * list. So Pi keeps its network — and this says so where the person turned the
+ * setting on, instead of leaving them to believe a turn is confined when the
+ * one provider with no permission system of its own is not.
+ *
+ * Once per thread: the fact is about Pi, not about the turn or the model.
+ */
+function piUnconfinedNetworkWarning(args: {
+  command: Extract<AdapterCommand, { type: "turn/start" }>;
+  state: PiTurnState;
+}): ThreadEvent[] {
+  const { command, state } = args;
+  const confinementAsked =
+    command.options.providerEgressConfined === true &&
+    command.options.permissionScope === "workspace";
+  if (!confinementAsked || state.warnedUnconfinedNetwork === true) {
+    return [];
+  }
+  state.warnedUnconfinedNetwork = true;
+  return [
+    {
+      type: "provider/warning",
+      threadId: command.threadId,
+      providerThreadId: command.providerThreadId,
+      scope: threadScope(),
+      category: "general",
+      summary:
+        "This turn's network is not confined: Pi's own client does not use Patcher's proxy, " +
+        "so confining it would cut the turn off from its model rather than bound it. " +
+        "Everything else about this turn's sandbox still holds — its files, and the commands it runs.",
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------
