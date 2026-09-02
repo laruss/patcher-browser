@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { upsertHost } from "@patcher/db";
 import { permissionsForApiPath } from "@patcher/domain";
-import { deriveThreadApiKey } from "@patcher/config/thread-api-key";
+import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import {
   HOST_DAEMON_PROTOCOL_VERSION,
   createHostDaemonClient,
@@ -190,12 +190,16 @@ describe("who may read it", () => {
     const thread = seedThread(server.deps, {
       environmentId: environment.id,
       projectId: project.id,
+      // Mid-turn, as the name says: a turn credential is accepted while its
+      // thread has a turn running, so an idle thread would be refused here for
+      // the wrong reason.
+      status: "active",
     });
 
     const response = await keyRequest(server, {
       headers: {
         [PATCHER_THREAD_ID_HEADER]: thread.id,
-        [PATCHER_THREAD_KEY_HEADER]: deriveThreadApiKey({
+        [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
           appApiKey: TEST_APP_API_KEY,
           threadId: thread.id,
         }),

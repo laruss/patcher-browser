@@ -305,7 +305,13 @@ export function createApp(
 ): ServerApp {
   const app = new Hono();
   const appIdentity = createAppApiIdentity(deps.appApiKey);
-  const threadIdentity = createThreadApiIdentity(deps.appApiKey);
+  // The db comes along because a thread key is now held to a lifetime: a turn
+  // that is still running, or a terminal that is still open. See
+  // thread-identity.ts.
+  const threadIdentity = createThreadApiIdentity({
+    appApiKey: deps.appApiKey,
+    db: deps.db,
+  });
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });

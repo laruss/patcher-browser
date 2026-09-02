@@ -1137,8 +1137,17 @@ describe("host-daemon command schemas", () => {
   // 116 daemon puts would come back as a transport failure and be reported to
   // the agent as "asking you failed" — the version is what makes the two
   // halves of a prompt arrive together.
-  it("uses protocol version 116 after a refused host became a question", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(116);
+  //
+  // 117 changed what a thread credential *is*. It used to be one bare digest
+  // with no deadline in it, good for as long as the app key; it is now two —
+  // a turn's, accepted while its thread has a turn running, and a terminal's,
+  // accepted while that terminal is open — and each says which it is so the
+  // server knows which state decides. A 116 daemon injects the old shape,
+  // which a 117 server cannot accept and must not guess at, so every `patcher`
+  // call from inside a turn would answer 401. The version is what makes the
+  // two halves arrive together.
+  it("uses protocol version 117 after a thread credential gained a lifetime", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(117);
   });
 
   // The subprotocol is agreed between two processes by string, so no build

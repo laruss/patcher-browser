@@ -718,19 +718,35 @@ Named here rather than left to be rediscovered:
   answer is still about content, so an agent that rewrites the script between
   runs gets a skipped script and a fresh question rather than a standing
   channel.
-- **A thread key outlives its turn.** The key is derived from the app key and
-  the thread id with no deadline in it, so it verifies for as long as the app key
-  does. An agent that saves the one handed to its shell can present it after the
-  turn has ended and go on acting as that thread: reading, opening terminals for
-  it, sending it new work. What it cannot do is become another thread, or the
-  app. Closing it needs a server-side store of live keys or a refresh path,
-  because the processes carrying it outlive a turn on purpose — a terminal a turn
-  opened is still there tomorrow, and a stamped deadline would stop the person
-  using it. Until then the honest part is that nothing claims otherwise: the
-  CLI's 401 hint used to say the key is refused once the turn ends, and now says
-  what the credential actually is.
+- ~~**A thread key outlives its turn.**~~ Closed, and not with a deadline. The
+  key used to be one bare digest derived from the app key and the thread id, so
+  it verified for as long as the app key did: an agent that saved the one handed
+  to its shell could present it after the turn ended and go on acting as that
+  thread. A stamped deadline could not have fixed that on its own — the
+  processes carrying a key outlive a turn on purpose, and a refresh path with
+  nothing to revoke against is an agent extending itself.
 
-  One thing that made this worse than it read is closed: **a terminal's
+  So there are two credentials with two lifetimes, each held to state the
+  server already keeps, which is why neither needs a store of live keys:
+
+  - A **turn** key is accepted while its thread has a turn running —
+    `starting`, `active` or `stopping`. `idle` and `error` are exactly the
+    window an agent used to keep.
+  - A **terminal** key is accepted while that terminal is open and still
+    belongs to the thread presenting it. That is the lifetime which
+    legitimately outlives a turn, and unlike a saved string it is something a
+    person can see and close.
+
+  Neither can borrow the other's validity: the two derivations use separate
+  HMAC contexts, and a terminal's own id is inside its MAC, so a key cannot be
+  moved onto another terminal. What this costs, said plainly: a process an
+  agent leaves running from its turn's own shell — `nohup something &` — loses
+  the API when the turn ends. Keeping something alive past a turn is what a
+  terminal is for, and a terminal has the lifetime for it. The CLI's 401 hint
+  says which of the two the shell holds and what ended it, which is the one
+  thing a caller inside the shell cannot see for itself.
+
+  One thing that made this worse than it read is also closed: **a terminal's
   environment carried the app key.** Measured — `PATCHER_APP_KEY` was in the
   environment of every terminal Patcher opened, and an agent may open and drive
   a sandboxed terminal for its own thread, so `echo $PATCHER_APP_KEY` in a shell
