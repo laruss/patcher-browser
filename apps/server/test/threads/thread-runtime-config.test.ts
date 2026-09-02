@@ -262,10 +262,11 @@ describe("thread runtime config", () => {
     );
   });
 
-  // The `stateDirs` below are the measured ones, and this is where they have to
-  // survive: the daemon confines an ACP turn with what the launch spec carries,
-  // so a declaration that never leaves the server is the same as no declaration
-  // at all — the turn would run unconfined and say so.
+  // The `stateDirs` and `egressHosts` below are the measured ones, and this is
+  // where they have to survive: the daemon confines an ACP turn with what the
+  // launch spec carries, so a declaration that never leaves the server is the
+  // same as no declaration at all — the turn would run unconfined and say so,
+  // on the filesystem or on the network.
   it.each([
     {
       expectedSpec: {
@@ -278,14 +279,15 @@ describe("thread runtime config", () => {
           ".local/share/opencode",
           ".cache/opencode",
         ],
+        egressHosts: ["opencode.ai", "models.dev"],
       },
       providerId: "acp-opencode",
       requestedModel: "opencode/default",
     },
     {
       // The other half of the same contract: nobody has run omp, so the spec
-      // carries no `stateDirs` at all and the bridge leaves its turns
-      // unconfined instead of confining them into failing to start.
+      // carries neither declaration and the bridge leaves its turns unconfined
+      // instead of confining them into failing to start.
       expectedSpec: {
         displayName: "omp",
         command: "omp",
@@ -322,6 +324,12 @@ describe("thread runtime config", () => {
           defaultLevel: "high",
         },
         stateDirs: [".grok"],
+        egressHosts: [
+          "api.x.ai",
+          "auth.x.ai",
+          "grok.com",
+          "cli-chat-proxy.grok.com",
+        ],
       },
       providerId: "acp-grok",
       requestedModel: "grok-4.5",
@@ -338,6 +346,7 @@ describe("thread runtime config", () => {
           defaultLevel: "medium",
         },
         stateDirs: [".hermes"],
+        egressHosts: ["hermes-agent.nousresearch.com", "models.dev"],
       },
       providerId: "acp-hermes-agent",
       requestedModel: "acp-default",

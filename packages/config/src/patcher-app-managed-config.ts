@@ -6,6 +6,7 @@ import {
 import {
   acpNativeReasoningSchema,
   acpReasoningCliSchema,
+  acpEgressHostsSchema,
   acpStateDirsSchema,
   providerNativeSkillRootsSchema,
 } from "@patcher/domain";
@@ -123,6 +124,13 @@ export const customAcpAgentSchema = z
     // and until they do the turn runs unconfined and says so — declaring the
     // directories is what turns that warning into a boundary.
     stateDirs: acpStateDirsSchema.optional(),
+    // The same for the network half: the hosts this agent needs to be itself —
+    // its own service, its model catalog — so a turn that confines egress does
+    // not cut it off from them. What the *work* needs is the person's list in
+    // Settings, and anything missing from either is asked about rather than
+    // refused. Without this a registered agent's turns keep their network and
+    // the thread says so, exactly as an undeclared `stateDirs` does.
+    egressHosts: acpEgressHostsSchema.optional(),
   })
   .strict()
   .superRefine((agent, context) => {

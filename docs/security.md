@@ -346,13 +346,29 @@ Four things about it are decisions rather than defaults:
   it does not make a turn unable to leak through what it was allowed.
 - **The list is two lists.** The agent's own hosts come from its profile,
   because only the profile can know them, and they are measured the same way
-  `stateDirs` are: Cursor's is `api2.cursor.sh` and nothing else, taken from a
-  whole turn rather than a session start — `initialize`, `session/new`, a prompt
-  answered — with every other host refused. What the _work_ needs is the
-  person's to allow. An agent nobody has measured keeps its network and the
-  thread says so, for the same reason an undeclared `stateDirs` runs unconfined:
-  a list short by one host does not confine an agent, it cuts it off from its
-  own model.
+  `stateDirs` are — from a whole turn rather than a session start, since that
+  is where the model call happens. Four agents are measured: Cursor
+  (`api2.cursor.sh`), opencode (`opencode.ai`, `models.dev`), Grok (`api.x.ai`,
+  `auth.x.ai`, `grok.com`, `cli-chat-proxy.grok.com`) and Hermes
+  (`hermes-agent.nousresearch.com`, `models.dev`). A person who registers their
+  own agent declares its hosts the same way, beside its `stateDirs`. What the
+  _work_ needs stays the person's to allow, and an agent nobody has measured
+  keeps its network with the thread saying so — the same rule an undeclared
+  `stateDirs` follows.
+
+  **The measurement over-collects, so it is not transcribed.** A real turn asks
+  for far more than the agent needs: the person's own MCP servers, the registry
+  an agent installs their plugins from, its telemetry, and whatever model
+  providers it probes at startup — nine hosts for Grok, of which four are its
+  own. So each declaration is what the agent needs to _be that agent_, and each
+  was then checked by taking everything else away: allow only the declared
+  hosts, refuse the rest, and confirm the session still starts and the prompt
+  still gets answered. Hermes is why that check matters — it asked for
+  `chatgpt.com`, `api.anthropic.com`, `api.githubcopilot.com` and
+  `api.github.com`, and answered a turn with all four refused, because its model
+  goes through its own service. Declaring them would have handed every confined
+  Hermes turn the GitHub API and three model vendors on the strength of a
+  startup probe.
 - **Pi cannot be covered, and the reason is its own HTTP client.** Not a
   missing declaration — measured. With `HTTPS_PROXY`, `https_proxy`,
   `HTTP_PROXY`, `ALL_PROXY`, `all_proxy` and `NODE_USE_ENV_PROXY=1` all set
