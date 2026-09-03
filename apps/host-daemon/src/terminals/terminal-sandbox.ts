@@ -475,13 +475,20 @@ function linuxWritablePaths(args: BuildTerminalSandboxLauncherArgs): string[] {
 function findUnbindableProtectedPath(
   args: BuildTerminalSandboxLauncherArgs,
 ): string | null {
+  const writableForms = policyPathForms(linuxWritablePaths(args));
   const protectedForms = policyPathForms(args.policy.readOnlyPaths);
   return findSymlinkedPath([
-    ...protectedForms,
-    ...resolveProtectedEntryPaths(
-      protectedForms,
-      policyPathForms(linuxWritablePaths(args)),
+    // Only where the link could actually be replaced, which is where its
+    // parent is writable. A linked worktree's common `.git` sits in the source
+    // repository, outside every writable root — measured there, `rm` and `mv`
+    // on a symlinked `config` both answer "Read-only file system", so refusing
+    // that launch would cost the turn its terminal and buy nothing.
+    ...protectedForms.filter((protectedPath) =>
+      writableForms.some((root) => isInside(path.dirname(protectedPath), root)),
     ),
+    // The entries are already only the ones with a writable parent — that is
+    // the question the walk asks to collect them at all.
+    ...resolveProtectedEntryPaths(protectedForms, writableForms),
   ]);
 }
 
@@ -499,9 +506,11 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     "/proc",
   ];
   const writablePaths = resolvedPaths(linuxWritablePaths(args));
+  const boundWritablePaths = new Set<string>();
   for (const writablePath of writablePaths) {
     if (!pathExists(writablePath)) continue;
     bindArgs.push("--bind-try", writablePath, writablePath);
+    boundWritablePaths.add(writablePath);
   }
   // Before the read-only binds, and that order is the point: each of these
   // mounts a directory onto itself so `rename()` on it answers EBUSY, and a
@@ -514,10 +523,14 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     resolvedPaths(args.policy.readOnlyPaths),
     writablePaths,
   )) {
-    // A writable root is already bound above, so it is already a mount point
-    // and already answers EBUSY — this is what keeps the workspace directory
-    // from being bound twice.
-    if (writablePaths.includes(entryPath)) continue;
+    // A writable root that was bound above is already a mount point and
+    // already answers EBUSY — this is what keeps the workspace directory from
+    // being bound twice. Asking the set of binds actually emitted rather than
+    // the list they were drawn from, because that loop skips a root that is
+    // not there: the `/dev/null` bind below would then create the directory
+    // with no mount on it, which is the one case this `continue` must not
+    // cover.
+    if (boundWritablePaths.has(entryPath)) continue;
     if (pathExists(entryPath)) {
       bindArgs.push("--bind", entryPath, entryPath);
       continue;

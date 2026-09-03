@@ -98,6 +98,7 @@ async function createPlainCheckout(
  */
 function buildRenameWalkAroundScript(workspacePath: string): string {
   const workspaceName = path.basename(workspacePath);
+  const temporaryRootName = path.basename(path.dirname(workspacePath));
   return [
     `cd '${workspacePath}'`,
     // The directory that holds every protected file in a plain checkout.
@@ -128,6 +129,18 @@ function buildRenameWalkAroundScript(workspacePath: string): string {
     `  mv '${workspaceName}x' '${workspaceName}' 2>/dev/null`,
     `else`,
     `  echo refused:rename-workspace`,
+    `fi`,
+    // And one further out again. The walk does not stop at the workspace — it
+    // keeps going while the parent is writable — so the temporary root the
+    // fixture sits in is an entry of its own, and renaming *it* carries the
+    // workspace and everything under it just as well. Without this line an
+    // implementation that stopped at the workspace passed the whole file.
+    `cd ..`,
+    `if mv '${temporaryRootName}' '${temporaryRootName}x' 2>/dev/null; then`,
+    `  echo renamed:temp-root`,
+    `  mv '${temporaryRootName}x' '${temporaryRootName}' 2>/dev/null`,
+    `else`,
+    `  echo refused:rename-temp-root`,
     `fi`,
   ].join("\n");
 }
@@ -333,6 +346,12 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
         resolveAdditionalWorkspaceWriteRoots(worktree.workspacePath),
       ]);
       const workspaceName = path.basename(worktree.workspacePath);
+      // The directory the fixture's whole layout sits in. The walk keeps going
+      // while the parent is writable, so this is an entry of its own, and
+      // moving it carries the workspace and the source repository together.
+      const temporaryRootName = path.basename(
+        path.dirname(worktree.workspacePath),
+      );
 
       const outcomes = await runSandboxed({
         workspacePath: worktree.workspacePath,
@@ -343,11 +362,14 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
           `if mv .git .gitx 2>/dev/null; then echo renamed:pointer; mv .gitx .git; else echo refused:rename-pointer; fi`,
           `cd ..`,
           `if mv '${workspaceName}' '${workspaceName}x' 2>/dev/null; then echo renamed:workspace; mv '${workspaceName}x' '${workspaceName}'; else echo refused:rename-workspace; fi`,
+          `cd ..`,
+          `if mv '${temporaryRootName}' '${temporaryRootName}x' 2>/dev/null; then echo renamed:temp-root; mv '${temporaryRootName}x' '${temporaryRootName}'; else echo refused:rename-temp-root; fi`,
         ].join("; "),
       });
 
       expect(outcomes).toContain("refused:rename-pointer");
       expect(outcomes).toContain("refused:rename-workspace");
+      expect(outcomes).toContain("refused:rename-temp-root");
       // The pointer is still the one git wrote, so the layout the other tests
       // measure is the layout this one left behind.
       expect(
@@ -392,6 +414,7 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
       expect(outcomes).toContain("refused:rename-git-dir");
       expect(outcomes).toContain("refused:rename-info-dir");
       expect(outcomes).toContain("refused:rename-workspace");
+      expect(outcomes).toContain("refused:rename-temp-root");
 
       // What the shell said, checked against what the repository holds: a
       // refusal the turn walked around would have printed the same line.
@@ -436,6 +459,7 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
       });
 
       expect(outcomes).toContain("refused:rename-workspace");
+      expect(outcomes).toContain("refused:rename-temp-root");
       expect(outcomes).toContain("refused:rename-git-dir");
       expect(
         readFileSync(path.join(workspacePath, ".git", "config"), "utf8"),
