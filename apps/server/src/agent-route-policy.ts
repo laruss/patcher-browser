@@ -15,6 +15,16 @@
  *   sandbox. All three were already meant to be app-only — deliberately absent
  *   from the SDK and the CLI — and this is what makes that true of an agent
  *   that calls the route directly.
+ * - **The app's own settings.** `PUT /settings/general` takes the whole
+ *   settings object, and three of its fields are the boundary the turn is
+ *   running inside: whether a sandboxed turn's traffic is confined to a list
+ *   of hosts, which hosts that list holds, and whether Codex's own commands
+ *   get the network at all. `thread-commands.ts` reads them when it builds the
+ *   next turn, so a turn that could write them would choose its own network
+ *   and then send itself a message. The `/settings` prefix rather than that one
+ *   route, because naming the route is how this was missed in the first place:
+ *   a setting added next to it would be open until somebody remembered to come
+ *   back here, and the two exceptions below say which of them are not.
  *
  * Terminals were on this list, for the same reason and just as truly: a PTY on
  * the host, outside any sandbox, running as the user — the shortest way out
@@ -67,6 +77,17 @@
  * `/plugins/:id/cli` and `/plugins/:id/rpc/:method` execute plugin code with no
  * consent prompt because the grant happens at install and enable, which are
  * gated; invoking is using what was granted. See docs/security.md.
+ *
+ * **A deny list, still, and the cost is why.** Inverting this into an allow-list
+ * for turn callers would close a policy route nobody classified, which is the
+ * failure this list has already had once. It would also mean naming every route
+ * a turn legitimately mutates — its thread and the ones it spawned, queued
+ * messages, interactions, terminals, environments, projects, plugin calls — and
+ * there one forgotten entry is a 403 in front of somebody mid-task rather than
+ * a hole. The two mistakes are not the same size, and they do not point the
+ * same way. What the family that actually carries policy gets instead is the
+ * prefix above, so the next setting is closed on arrival, with the exceptions
+ * named rather than the rule left open.
  *
  * Both halves of a denial matter for how it reads to whoever hits it, so the
  * message names the route and the reason rather than saying "forbidden".
@@ -121,6 +142,45 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
     path: "/projects/:id/setup-script-consents",
     reason:
       "whether a repository's setup script may run on the machine, outside this turn's sandbox, is the owner's to answer",
+  },
+  {
+    // The prefix, not `/settings/general`: the route that carries the egress
+    // switch, its host list and `codexNetworkDisabled` is the boundary the next
+    // turn is built from, and naming only that route is how it stayed open. A
+    // GET stays open — a turn may read what it is running under.
+    path: "/settings",
+    reason:
+      "it writes the app-wide settings the next turn is built from, including whether a sandboxed turn's traffic is confined to a list of hosts and whether Codex's own commands get the network at all",
+  },
+];
+
+/**
+ * Routes under a denied prefix that a turn may write anyway, checked first.
+ *
+ * The prefix above is what makes the next settings route closed on arrival, and
+ * the cost of a prefix is that it also closes what nobody meant to close. These
+ * two are that: how the app looks to the person watching, not how the turn runs.
+ *
+ * `/settings/appearance` is the end of a workflow this product documents for an
+ * agent — `references/theming.md` in the built-in CLI skill is a theme-authoring
+ * guide that has a turn write `theme.css` and then run `patcher theme set`, and
+ * denying the route would have left that workflow one command short of working.
+ * `/settings/keyboard` is the same kind of thing seen smaller: a shortcut the
+ * person asked for. Neither is read when a turn is built, and neither is a way
+ * out of one.
+ *
+ * The bar for adding to this list is that last sentence, and it is meant to be
+ * hard to clear: an entry here is a hole in a rule that exists because holes in
+ * it are how this policy has already failed once.
+ */
+const ALLOWED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
+  {
+    path: "/settings/appearance",
+    reason: "the theme is the person's to see and a turn's to apply for them",
+  },
+  {
+    path: "/settings/keyboard",
+    reason: "a shortcut binding is a preference, not a boundary",
   },
 ];
 
@@ -177,6 +237,14 @@ export function agentRoutePolicyDenial(
   const method = request.method.toUpperCase();
   const path = normalizePath(request.path);
   const isMutation = MUTATION_METHODS.some((mutation) => mutation === method);
+  // An exception is only ever to a mutation deny — nothing on the reads list has
+  // one, and a route that answers with a credential could not have one.
+  if (
+    isMutation &&
+    ALLOWED_AGENT_ROUTES.some((route) => pathMatches(path, route))
+  ) {
+    return null;
+  }
   const denied = [
     ...DENIED_AGENT_ROUTES_INCLUDING_READS,
     // A GET on any of these paths stays readable; only the mutations are denied.

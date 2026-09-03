@@ -109,11 +109,44 @@ agent mid-turn, because each one hands back exactly what the sandbox took away:
   then records you as having allowed it. Refused in the interactions handler
   rather than by route, so that denying, answering a question, and a plugin's
   form submit all keep working from inside a turn — only _allowing_ does not.
+- **The app's own settings** — the `/settings` prefix, on writes, less two
+  routes named below. `PUT /settings/general` takes the entire settings object,
+  and three of its fields are the boundary the turn is running inside:
+  `providerEgressConfined`, the host list that boundary answers by, and
+  `codexNetworkDisabled`. The next turn is built from them, so a turn that could
+  write them would read its own config, switch the network back on or add a host
+  to the list, then send itself a message and run with the network it chose.
+  Reads stay open — a turn may know what it is running under, and
+  `GET /system/config` answers with the same object.
 
 Terminals were on this list, and the reason was true: opening one is a PTY on
 the host, outside any sandbox, running as you — the shortest way out there was.
 They came off it when the terminal changed rather than the judgement, which is
 its own section below.
+
+The settings entry is a **prefix** rather than the one route that carries the
+policy, and that is the shape of the fix rather than a detail: `/settings/general`
+alone would leave the next settings route open until somebody remembered to come
+back here, which is exactly how this one was missed. Inverting the whole list
+into an allow-list would go further and is deliberately not done — it would mean
+naming every route a turn legitimately writes, from its own thread and queued
+messages to interactions, terminals, environments and plugin calls, and a
+forgotten entry there is a 403 in front of somebody mid-task rather than a hole.
+The two mistakes are not the same size.
+
+A prefix has its own cost, though, and it is the second mistake in miniature: it
+closes what nobody meant to close. **`/settings/appearance` and
+`/settings/keyboard` are excepted by name**, because they are how the app looks
+to the person watching rather than how the turn runs. The appearance one is not
+a nicety — `references/theming.md` in the built-in CLI skill is a theme-authoring
+guide that has a turn write `theme.css` and then run `patcher theme set`, which
+is that route, so denying it would have left a documented workflow one command
+short of working. Neither route is read when a turn is built and neither is a way
+out of one, which is the bar for being on that list at all. So the family that
+carries policy is closed as a family, the exceptions are named rather than the
+rule left open, and `agent-route-policy.test.ts` reads the router's own table to
+check that the set of settings writes a turn can still reach is the set somebody
+decided on.
 
 Generic reads are not on the list: an agent reads files through its own tools
 anyway, so gating `files/read` would gate the polite path and nothing else. The

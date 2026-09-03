@@ -1,6 +1,8 @@
 # Configuring patcher: settings, agent instructions, skills
 
-Server-backed configuration an agent can read and change from the CLI.
+Server-backed configuration an agent can read and change from the CLI. The
+General settings and the experiments are the exception: a turn may read them and
+not write them.
 
 - [App settings](#app-settings)
 - [Agent instructions](#agent-instructions)
@@ -51,19 +53,23 @@ Server-backed configuration an agent can read and change from the CLI.
   actions apply in browser and desktop clients, and desktop menu accelerators
   use the same resolved bindings. For details, read
   [app-settings.md](app-settings.md).
-- Use `patcher settings show`, `patcher settings general`, `patcher settings experiment`,
-  `patcher settings keyboard`, `patcher settings usage`, and `patcher settings version` to
-  inspect or change these server-backed values from agents. Pass
+- Use `patcher settings show`, `patcher settings keyboard`,
+  `patcher settings usage`, and `patcher settings version` from agents. Pass
   `patcher settings usage --machine <id-or-name>` to read provider limits from a
-  specific connected machine instead of the primary machine.
+  specific connected machine instead of the primary machine. Four commands are
+  refused inside a turn and are the person's to run — `patcher settings general`,
+  `patcher settings experiment`, `patcher settings egress-hosts`, and
+  `patcher settings replay-onboarding`, which writes both of the first two; see
+  [app-settings.md](app-settings.md).
 - The default-off `toolsHub` experiment exposes the unified Skills, Plugins,
   and Automations management UI. Change it with
   `patcher settings experiment toolsHub <true|false>`. It does not load or unload
   tools.
 - The default-off `newOnboarding` experiment exposes the first-run agent and
-  project setup guide. Change it with
-  `patcher settings experiment newOnboarding <true|false>`. Use
-  `patcher settings replay-onboarding` to enable it and show the guide again.
+  project setup guide. The person changes it with
+  `patcher settings experiment newOnboarding <true|false>`, or with
+  `patcher settings replay-onboarding` to enable it and show the guide again;
+  both are refused inside a turn.
 - The default-off `editMessages` experiment allows completed user messages in
   Codex, Claude Code, and Pi threads to be replaced and rerun. Change it with
   `patcher settings experiment editMessages <true|false>`.

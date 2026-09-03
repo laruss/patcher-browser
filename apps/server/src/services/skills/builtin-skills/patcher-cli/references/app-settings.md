@@ -3,6 +3,16 @@
 Server-backed preferences in Settings. They are persisted on the server, so
 every window and client sees the same value.
 
+Reading them is open to anyone. **Writing the General settings and the
+experiments is refused from inside a turn**: they are app-wide, and three of
+them — `codexNetworkDisabled`, `providerEgressConfined` and the egress host
+list — are the boundary the turn itself is running inside. So an agent running
+`patcher settings general`, `patcher settings experiment`,
+`patcher settings egress-hosts` or `patcher settings replay-onboarding` gets a
+403; ask the person in the thread to make the change. `patcher settings show`,
+the keyboard commands and `patcher theme` keep working — a shortcut and a
+palette are the person's look, not the turn's boundary.
+
 ## Caffeinate (macOS only)
 
 - Keeps the Mac awake while Patcher is running: when enabled, the server asks the
@@ -57,6 +67,6 @@ every window and client sees the same value.
 ## New onboarding
 
 - The `newOnboarding` experiment defaults to false.
-- Enable it with `patcher settings experiment newOnboarding true`.
-- Use `patcher settings replay-onboarding` to enable the experiment and show the
-  agent and project setup guide again.
+- The person enables it with `patcher settings experiment newOnboarding true`,
+  or with `patcher settings replay-onboarding` to enable the experiment and show
+  the agent and project setup guide again. Both are refused inside a turn.
