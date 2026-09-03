@@ -736,9 +736,17 @@ resolve a host.
 Outside the sandbox is exactly the part worth being careful about, so three
 things bound it:
 
-- **It runs the CLI and nothing else.** The arguments go to the CLI entry point
-  through `execFile` — never a shell — so no argument can become another command.
-  What the tool can do is what the CLI can do, which is talk to `/api/v1`.
+- **It runs the CLI, and of the CLI the part that talks to `/api/v1`.** The
+  arguments go to the CLI entry point through `execFile` — never a shell — so no
+  argument can become another command. That used to be the whole of it, and it
+  was not enough: the CLI also has commands that open a path on _this_ machine,
+  and this is the one process where nothing bounds which path. Measured on the
+  built binary: `project attachment upload --client-file <any path>` read that
+  file and failed only at the network, and `plugin types <any directory>` wrote
+  into that directory with no server involved at all. So `mcp-serve` now holds
+  the argv to the API commands and refuses the rest, naming the turn's own shell
+  as the place for them — the shell being where the workspace is, and where the
+  sandbox says which paths exist.
 - **With the turn's own credential.** The environment carries the derived thread
   key, the same one the turn's shell has: same identity, same route policy, same
   scope. The app key is not passed, is dropped from the child's environment, and
@@ -754,6 +762,24 @@ itself — asking a person to allow the CLI that Patcher put there, on every cal
 would be a prompt about plumbing nobody chose. That answer is keyed to the server
 name Patcher writes, so a server _the person_ configured still raises the prompt
 described above.
+
+That argv check is a list of what may run rather than of what may not, which is
+the opposite of the route policy above and is opposite for a reason: the cost of
+being wrong points the other way. A forgotten entry on the route deny list is a
+hole; a forgotten entry on an allow list there would be a 403 in front of a
+person mid-task. Here the caller is a model that still has its shell, and the
+refusal tells it so — so the cheaper mistake is to refuse too much, and a command
+added to the CLI tomorrow is refused through this tool until somebody decides
+otherwise. The alternative considered was naming the options that take a path,
+`--client-file` and `--file`. `plugin types` is why it was not taken: its path is
+a positional argument, and no list of option names would have caught it.
+
+What is deliberately _not_ done is denying the attachment routes themselves to a
+thread identity. `patcher project attachment upload --client-file` is documented
+for agents, and from the turn's own shell the path it names is one the sandbox
+already lets the turn read — uploading a file it can read is not an escalation.
+The escalation was never the route; it was the process that ran outside the
+sandbox, which is where it is closed.
 
 ### What this does not yet close
 

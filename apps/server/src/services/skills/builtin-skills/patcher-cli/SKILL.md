@@ -56,6 +56,12 @@ all of them.
   permission limit, join codes, provider-CLI installs — and whether a
   repository's setup script may run on the machine, which the person answers in
   the project's settings. Reads are not affected.
+- If your provider offers you a `patcher` tool alongside the shell, that tool
+  runs the API commands only. It spawns the CLI outside your sandbox, so
+  everything that reads, writes, or runs something on the machine is refused
+  there and the refusal names it: `patcher project attachment`,
+  `patcher skill update`, `patcher voice transcribe`, and every
+  `patcher plugin` command. Run those in your own shell, where your workspace is.
 - `patcher terminal` is yours to use, for your own thread and the threads you
   spawned: `patcher terminal create --self`. A terminal you open runs inside the
   same boundary your turn runs in. An environment or machine scope is refused

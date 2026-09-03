@@ -1,6 +1,9 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { serveMcpOverStdio } from "../commands/mcp-serve.js";
+import {
+  mcpToolArgvRefusal,
+  serveMcpOverStdio,
+} from "../commands/mcp-serve.js";
 
 /**
  * The CLI as an MCP server, at the protocol level.
@@ -178,6 +181,62 @@ describe("serveMcpOverStdio", () => {
     expect(harness.replies()[0]).toMatchObject({ id: 8 });
   });
 
+  it("refuses an argv that would open a path on this machine", async () => {
+    const runCli = vi.fn();
+    const harness = createHarness(runCli as never);
+
+    harness.send({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: {
+        name: "patcher",
+        arguments: {
+          args: [
+            "project",
+            "attachment",
+            "upload",
+            "prj_1",
+            "--client-file",
+            "/Users/someone/.patcher/app-api-key",
+          ],
+        },
+      },
+    });
+    await flush();
+
+    // The CLI is never reached: this process is outside the turn's sandbox, so
+    // the path in that argv is bounded by nothing.
+    expect(runCli).not.toHaveBeenCalled();
+    const [reply] = harness.replies();
+    expect(reply.error).toBeUndefined();
+    expect(reply.result.isError).toBe(true);
+    expect(reply.result.content[0].text).toContain("project attachment");
+    expect(reply.result.content[0].text).toContain("your own shell");
+  });
+
+  it("refuses a command that is not Patcher's API, and says what is here", async () => {
+    const runCli = vi.fn();
+    const harness = createHarness(runCli as never);
+
+    harness.send({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/call",
+      params: {
+        name: "patcher",
+        arguments: { args: ["plugin", "types", "/Users/someone/plugin"] },
+      },
+    });
+    await flush();
+
+    expect(runCli).not.toHaveBeenCalled();
+    const text = harness.replies()[0].result.content[0].text;
+    expect(text).toContain("`patcher plugin`");
+    // A model told only "no" tries again, so the refusal lists the way through.
+    expect(text).toContain("thread");
+  });
+
   it("refuses a tool it does not have", async () => {
     const harness = createHarness();
 
@@ -193,5 +252,41 @@ describe("serveMcpOverStdio", () => {
       id: 9,
       error: { code: -32602, message: expect.stringContaining("rm") },
     });
+  });
+});
+
+describe("mcpToolArgvRefusal", () => {
+  it("runs the API commands, and the argv that names no command at all", () => {
+    for (const args of [
+      [],
+      ["--help"],
+      ["--version"],
+      ["help", "thread"],
+      ["status"],
+      ["thread", "tell", "thr_1", "done"],
+      ["project", "list"],
+      ["settings", "show"],
+      ["file", "read", "/etc/hosts"],
+    ]) {
+      expect(mcpToolArgvRefusal(args)).toBeNull();
+    }
+  });
+
+  it("refuses what is not on the list, matching whole segments", () => {
+    // `project` is here and `project attachment` is not, so the exception has to
+    // be read before the family — and a longer name that merely starts the same
+    // way is neither.
+    expect(mcpToolArgvRefusal(["project", "attachment", "upload"])).toContain(
+      "project attachment",
+    );
+    expect(mcpToolArgvRefusal(["projects", "list"])).toContain(
+      "patcher projects",
+    );
+    expect(
+      mcpToolArgvRefusal(["voice", "transcribe", "/tmp/a.webm"]),
+    ).toContain("not one of them");
+    // A plugin's own `patcher` command reaches the server through the CLI, but
+    // only the running server knows its name, so the tool cannot admit it.
+    expect(mcpToolArgvRefusal(["tasks", "list"])).not.toBeNull();
   });
 });
