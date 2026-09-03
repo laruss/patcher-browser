@@ -97,6 +97,8 @@ status|install` to inspect or install provider CLIs on a selected machine.
   other files at 25MB. `patcher project attachment download <project-id>
 <attachment-path> --client-file <path>` writes existing attachment bytes on
   the CLI machine. There is no project-attachment list or per-file remove API.
+  Both run in your own shell: the `patcher` MCP tool refuses them, because it
+  runs outside your sandbox and the path you named would be bounded by nothing.
 - `patcher project history|reorder` exposes project prompt recall and sidebar order.
 - Direct environment inspection accepts any environment ID: use `patcher environment
 status|branches|paths|diff|diff-files|diff-file|diff-patch <id>` and `patcher
