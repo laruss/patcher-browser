@@ -44,6 +44,13 @@ function buildCommonGitWriteRoots(commonGitDir: string): string[] {
  * by a name a tracked `.gitattributes` chooses, so no fixed list of keys
  * pre-empts it. Keeping the files unwritable is the side of it the sandbox owns.
  *
+ * This is a list of files, and a rule about a file is a rule about its name in
+ * a directory — so the sandbox also has to hold the directories on the way to
+ * one, or `mv .git .gitx` walks around every entry here. That belongs to the
+ * backend rather than to this list, because it needs the *entry* denied while
+ * writes inside it stay allowed: see `resolveProtectedEntryPaths` in
+ * `apps/host-daemon/src/terminals/terminal-sandbox.ts`.
+ *
  * Narrow rather than all of `.git`, and that is measured, not assumed: with
  * `.git` denied wholesale, `git add` fails on `index.lock`, so a sandboxed turn
  * could no longer stage or commit its own work. A re-allow inside the deny does

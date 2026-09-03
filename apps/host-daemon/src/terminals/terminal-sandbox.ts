@@ -265,6 +265,54 @@ function pathExists(candidatePath: string): boolean {
   }
 }
 
+/**
+ * The directory entries on the way to a protected path, which have to be
+ * nailed down as well as the path itself.
+ *
+ * Every rule in this file names a path, and a path is a name in a directory: a
+ * deny on `<ws>/.git/config` is a deny on that *name*, not on that file. `.git`
+ * sits in the workspace a turn may write, so `mv .git .gitx`, an edit, and
+ * `mv .gitx .git` puts the config back where it was with the rule stepped over.
+ * Measured on both backends, with the argv this module builds: a direct write
+ * to `.git/config` is refused and the same write through the rename is rc 0,
+ * ending with `core.fsmonitor` in the real file and a hook in `.git/hooks` —
+ * which the daemon's own git then runs, outside the sandbox, as the user.
+ *
+ * So each directory between a writable root and a protected path is protected
+ * as an entry rather than as a subtree: the name may not be renamed or
+ * unlinked, while writes *inside* it stay allowed. That distinction is the
+ * whole reason this is separate from `readOnlyPaths` — `.git` denied as a
+ * subtree takes `index.lock` with it, and a turn that cannot write that cannot
+ * `git add` its own work.
+ *
+ * An entry is reachable for a rename exactly when its parent is writable, which
+ * is what the walk asks. That answers both layouts the issue named without
+ * either being special-cased: `.git` and `.git/info` in a plain checkout, and
+ * the workspace directory itself wherever it sits under `/tmp` or `$TMPDIR`,
+ * where renaming the workspace moves a linked worktree's `.git` pointer file
+ * out from under its rule the same way.
+ */
+function resolveProtectedEntryPaths(
+  protectedPaths: readonly string[],
+  writablePaths: readonly string[],
+): string[] {
+  const entries = new Set<string>();
+  for (const protectedPath of protectedPaths) {
+    let candidate = path.dirname(protectedPath);
+    while (candidate !== path.dirname(candidate)) {
+      const parent = path.dirname(candidate);
+      if (writablePaths.some((root) => isInside(parent, root))) {
+        entries.add(candidate);
+      }
+      candidate = parent;
+    }
+  }
+  // Sorted so a parent is always named before its own children: on bubblewrap
+  // these become mounts, and a mount applied later would hide the ones already
+  // made underneath it.
+  return [...entries].sort();
+}
+
 /** Seatbelt takes a quoted string, so a path with a quote in it must survive. */
 function quoteForSeatbelt(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
@@ -306,6 +354,20 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
       : []),
     // After the allows: a rule later in the profile wins, and these sit inside
     // the workspace the line above just made writable.
+    //
+    // The entry denies come first because they are the coarser statement: a
+    // `literal` names the directory and nothing under it, so `.git` cannot be
+    // renamed or unlinked while `.git/index.lock` is still written. Measured:
+    // with these in the profile `mv .git .gitx` and `mv <ws> <ws>x` are both
+    // "Operation not permitted", and `git add`, `commit`, `status` and
+    // `checkout -b` all still succeed.
+    ...resolveProtectedEntryPaths(
+      resolvedPaths(args.policy.readOnlyPaths),
+      writable,
+    ).map(
+      (entryPath) =>
+        `(deny file-write* (literal ${quoteForSeatbelt(entryPath)}))`,
+    ),
     ...resolvedPaths(args.policy.readOnlyPaths).map(
       (readOnlyPath) =>
         `(deny file-write* (subpath ${quoteForSeatbelt(readOnlyPath)}))`,
@@ -339,6 +401,37 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
   for (const writablePath of writablePaths) {
     if (!pathExists(writablePath)) continue;
     bindArgs.push("--bind-try", writablePath, writablePath);
+  }
+  // Before the read-only binds, and that order is the point: each of these
+  // mounts a directory onto itself so `rename()` on it answers EBUSY, and a
+  // mount made here after the rules underneath it would hide them instead.
+  // Measured in a Debian container under unprivileged `bwrap`: without them
+  // `mv .git .gitx && mkdir .git && cp -a .gitx/. .git/` writes both the
+  // config and a hook, visible on the host; with them the rename is refused
+  // and `git add`, `commit`, `status` and `checkout -b` still succeed.
+  for (const entryPath of resolveProtectedEntryPaths(
+    resolvedPaths(args.policy.readOnlyPaths),
+    writablePaths,
+  )) {
+    // A writable root is already bound above, so it is already a mount point
+    // and already answers EBUSY — this is what keeps the workspace directory
+    // from being bound twice.
+    if (writablePaths.includes(entryPath)) continue;
+    if (pathExists(entryPath)) {
+      bindArgs.push("--bind", entryPath, entryPath);
+      continue;
+    }
+    // A directory a turn deleted before this launch — `.git/info` is writable,
+    // so that is a state a turn can arrange. `--bind` has no source to take,
+    // and skipping it would hand the next turn the same rename back, because
+    // the loop below is about to create the path underneath it anyway. An
+    // empty tmpfs is what git already reads a missing `.git/info` as, and it
+    // is a mount point, so the rename is refused. Measured with `.git/info`
+    // deleted first: the rename refused, `git add` and `commit` still fine,
+    // and nothing written inside it left on the host — the cost is the same
+    // empty entry the bind below already leaves, a directory instead of a
+    // file.
+    bindArgs.push("--tmpfs", entryPath);
   }
   for (const readOnlyPath of resolvedPaths(args.policy.readOnlyPaths)) {
     if (pathExists(readOnlyPath)) {

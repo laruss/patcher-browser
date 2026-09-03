@@ -181,6 +181,35 @@ parent bwrap cannot create the mount point and fails the whole launch, and a
 turn could not have created the file either. What it costs is an empty file
 left in the repository, which git reads as absent for all four of these.
 
+**And a deny names a path, which is a name in a directory rather than a file.**
+`.git` sits in the workspace a turn may write, so for as long as only the four
+files carried rules, `mv .git .gitx`, an edit, and `mv .gitx .git` put the
+config back where the daemon's own git reads it with every rule stepped over.
+Measured with the argv this module builds, on both backends: a direct write to
+`.git/config` refused and the same write through the rename rc 0, ending with
+`core.fsmonitor` in the real file, a `pre-commit` hook in place, and — under
+bubblewrap, where the mounts travel with the renamed dentry so `mkdir .git &&
+cp -a` is enough — git answering `fatal: cannot exec '/tmp/patcher-evil'` on
+the next command. One level in, `info/attributes` had a rule and `.git/info`
+did not, and the workspace directory itself is renameable wherever it sits
+under `/tmp` or `$TMPDIR`, which are writable so a shell works at all — that is
+the linked worktree's `.git` pointer file moved out from under its own rule.
+
+So every directory between a writable root and a protected path is now
+protected as an *entry* rather than as a subtree: seatbelt gets
+`(deny file-write* (literal …))`, which refuses a rename or an unlink of the
+directory while a write *inside* it still succeeds, and bubblewrap gets
+`--bind <dir> <dir>`, which makes it a mount point so `rename()` answers
+`EBUSY`. The distinction is the whole point — `.git` denied as a subtree takes
+`index.lock` with it, and a turn that cannot write that cannot `git add`. An
+entry is reachable for a rename exactly when its parent is writable, which is
+what the walk asks, so the same rule answers both layouts without either being
+named. Measured on both backends: `.git`, `.git/info` and the workspace refuse
+the rename, and `git add`, `commit`, `status` and `checkout -b` all still work.
+`terminal-sandbox.git.test.ts` runs it on the plain checkout and on the linked
+worktree, and CI's Linux shard installs bubblewrap, so both are re-measured
+rather than reasoned about.
+
 What stays writable inside that gitdir is inert, and that rests on git rather
 than on Patcher, so it is pinned by its own tests: a hook planted in a linked
 worktree's own gitdir **is not run** — git takes hooks from the common
@@ -196,6 +225,32 @@ attempt by attempt against a live session. Where Bash gets a plain "operation no
 permitted", the Write tool raises a permission request instead, so on a turn
 whose escalation is _ask_ the person in the thread decides; a turn whose
 escalation is denied is refused outright.
+
+**A provider that builds its own sandbox from this list keeps its own answer to
+the rename, and the answers differ.** Patcher hands Claude Code and Codex the
+same paths and neither takes an entry rule, because neither config language has
+one — a deny on `.git` there is a deny on everything under it. So this was
+measured rather than assumed, without a model turn on either side: `claude` with
+the `sandbox.filesystem.denyWrite` Patcher sends, and `codex sandbox` with the
+permission profile from `permission-profile.ts`, each running the same probe.
+
+- **macOS: both refuse it.** `.git`, `.git/info` and the workspace all refuse
+  the rename, while a write in the workspace, a write in `.git` and `git add`
+  all succeed — so the four files hold there by their sandbox's own doing, not
+  by the list's.
+- **Linux, Codex: `.git/info` can be renamed and an `info/attributes` written
+  in its place.** `.git`, `.git/hooks`, the workspace, and both a rename and an
+  unlink of `.git/config` are refused. What the one gap buys is an *untracked*
+  attributes file, which is not a privilege a turn lacks — it can commit a
+  `.gitattributes` saying the same thing — because the config half that would
+  have to *define* the filter driver stays refused. Left as it is on purpose:
+  closing it needs `.git/info` as a whole read-only in Codex's map, which takes
+  `git sparse-checkout` from every Codex turn for nothing gained.
+- **Linux, Claude Code: not measured.** Its sandbox needs a live session, and a
+  session needs credentials this measurement had no way to put in a container.
+
+The class is closed where Patcher builds the sandbox itself — the terminal, an
+ACP turn's agent, a Pi turn's bridge — and rests on the provider elsewhere.
 
 **A terminal an agent opens runs inside its turn's boundary.** This one is a
 sandbox Patcher builds rather than one a provider offers, which is what makes it
