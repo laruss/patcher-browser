@@ -314,8 +314,16 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
       // The gate on `:id` says this thread is the caller's to change; it says
       // nothing about the thread being moved *under*, and a parent is sent a
       // turn when its child finishes. So the same question is asked of the new
-      // parent, and re-parenting a thread out from under the caller is left
-      // alone: dropping a parent tells nobody anything.
+      // parent.
+      //
+      // Clearing it is not asked about, and not because clearing is quiet: the
+      // old parent is sent an `ownership-removed` turn of its own
+      // (`thread-ownership.ts`). It reaches nowhere new, though. The `:id` gate
+      // has already established that this thread is the caller or one of its
+      // descendants, so the parent it is leaving is the caller, a descendant of
+      // it, or — where a turn detaches its own thread — the caller's own
+      // parent, which is told when this thread's turns end anyway. Refusing
+      // that would cost a real operation and close nothing.
       const callerThreadId = getAgentThreadId(context);
       if (callerThreadId !== undefined) {
         const parentDenial = agentParentThreadDenial(deps.db, {

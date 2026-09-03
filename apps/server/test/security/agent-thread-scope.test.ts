@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { listNonDeletedChildThreads } from "@patcher/db";
+import { getThread, listNonDeletedChildThreads } from "@patcher/db";
 import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import {
   PATCHER_THREAD_ID_HEADER,
@@ -35,9 +35,10 @@ import {
  *
  * The `:id` was not the only way to name one, though. A creation body names a
  * parent — and a parent is sent a turn when its child finishes, so adopting a
- * Full Access thread is the same escalation with a delay — and both create and
- * update name a project, which is what the workspace check reads to decide
- * which folders a turn may point the next sandbox at.
+ * Full Access thread is the same escalation with a delay — and it names a
+ * project, which is what the workspace check reads to decide which folders a
+ * turn may point the next sandbox at. An update names a parent too, and that
+ * one is the same question asked of a route whose `:id` gate passes.
  */
 
 let server: RunningTestServer | null = null;
@@ -358,6 +359,11 @@ describe("a turn creating a thread, at the HTTP boundary", () => {
 
     expect(response.status).toBe(403);
     expect(await response.text()).toContain("not this turn's to parent");
+    // The row, not just the answer: a route that wrote the parent and then
+    // threw the same 403 would pass on the response alone.
+    expect(getThread(server.deps.db, family.child.id)?.parentThreadId).toBe(
+      family.caller.id,
+    );
   });
 
   it("cannot start a thread in another project", async () => {

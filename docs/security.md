@@ -901,8 +901,12 @@ Named here rather than left to be rediscovered:
   of the right project at a workable depth, and a stranger's thread is all
   three. A parent is now held to the same relationship as an `:id`, both where a
   thread is created and on `PATCH /threads/:id`, where the `:id` gate passes
-  because the thread being moved really is the caller's. Dropping a parent is
-  left alone: telling nobody about a child is not an escalation.
+  because the thread being moved really is the caller's. Clearing a parent is
+  left alone, and not because clearing is quiet — the old parent is sent a turn
+  of its own saying the thread is no longer its child. It reaches nowhere new:
+  the `:id` gate means the thread being changed is the caller or one of its
+  descendants, so the parent it leaves is the caller, a descendant of it, or the
+  caller's own parent, which hears from this thread when its turns end anyway.
 
   **And the project came out of the request body**, which is the input both of
   those checks read: a parent has to be in the named project, and a turn may
