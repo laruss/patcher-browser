@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { agentRoutePolicyDenial } from "../../src/agent-route-policy.js";
 import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
+import { defaultAppSettings, type AppSettings } from "@patcher/domain";
 import {
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
@@ -13,10 +14,15 @@ import {
   seedThread,
 } from "../helpers/seed.js";
 import {
+  createTestAppHarness,
   startTestServer,
   TEST_APP_API_KEY,
   type RunningTestServer,
+  type TestAppHarness,
 } from "../helpers/test-app.js";
+
+/** The methods this policy treats as writes, matching the module's own list. */
+const MUTATION_METHODS = ["POST", "PUT", "PATCH", "DELETE"];
 
 let server: RunningTestServer | null = null;
 
@@ -39,6 +45,18 @@ function seedThreadMidTurn(deps: Pick<AppDeps, "db" | "hub">): string {
   const host = seedHost(deps, { id: "host-agent-policy" });
   const { project } = seedProjectWithSource(deps, { hostId: host.id });
   return seedThread(deps, { projectId: project.id, status: "active" }).id;
+}
+
+/** The same `PUT`, sent as the person at the machine rather than as a turn. */
+function appPut(settings: AppSettings): RequestInit {
+  return {
+    method: "PUT",
+    headers: {
+      [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(settings),
+  };
 }
 
 /** The headers a turn's `patcher` CLI sends: its thread, and no app key. */
@@ -135,6 +153,41 @@ describe("agentRoutePolicyDenial", () => {
       agentRoutePolicyDenial({
         method: "PATCH",
         path: "/api/v1/projects/proj-1",
+      }),
+    ).toBeNull();
+  });
+
+  it("refuses writing the app-wide settings the next turn is built from", () => {
+    // `/settings/general` carries the egress switch, the host list it answers
+    // by, and `codexNetworkDisabled` — the boundary this turn is running
+    // inside, read again when the next turn is built.
+    for (const path of [
+      "/api/v1/settings/general",
+      "/api/v1/settings/keyboard",
+      "/api/v1/settings/experiments",
+      "/api/v1/settings/appearance",
+    ]) {
+      const denial = agentRoutePolicyDenial({ method: "PUT", path });
+
+      expect(denial?.route).toBe("/settings");
+      expect(denial?.message).toContain("confined to a list of hosts");
+    }
+    // Reading what it is running under is not writing it, here and on the
+    // route that answers with the same object.
+    expect(
+      agentRoutePolicyDenial({
+        method: "GET",
+        path: "/api/v1/settings/themes",
+      }),
+    ).toBeNull();
+    expect(
+      agentRoutePolicyDenial({ method: "GET", path: "/api/v1/system/config" }),
+    ).toBeNull();
+    // A prefix is a segment, not a string.
+    expect(
+      agentRoutePolicyDenial({
+        method: "PUT",
+        path: "/api/v1/settings-registry",
       }),
     ).toBeNull();
   });
@@ -294,6 +347,43 @@ describe("an agent mid-turn", () => {
     expect(response.status).toBe(403);
   });
 
+  it("is refused the network settings it would run the next turn under", async () => {
+    server = await startTestServer();
+    const threadId = seedThreadMidTurn(server.deps);
+
+    // Confined first, by the person at the machine, so the flip below has
+    // something to undo rather than a default to agree with.
+    const confined = await fetch(
+      `${server.baseUrl}/api/v1/settings/general`,
+      appPut({ ...defaultAppSettings, providerEgressConfined: true }),
+    );
+    expect(confined.status).toBe(200);
+
+    const response = await fetch(`${server.baseUrl}/api/v1/settings/general`, {
+      method: "PUT",
+      headers: agentHeaders(threadId),
+      body: JSON.stringify({
+        ...defaultAppSettings,
+        providerEgressConfined: false,
+        codexNetworkDisabled: false,
+        providerEgressAllowedHosts: ["exfil.example.com"],
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("confined to a list of hosts");
+    // The refusal is worth nothing unless the row is unchanged: read it back
+    // through the same route the next turn is built from.
+    const config = await fetch(`${server.baseUrl}/api/v1/system/config`, {
+      headers: agentHeaders(threadId),
+    });
+    const { generalSettings } = (await config.json()) as {
+      generalSettings: AppSettings;
+    };
+    expect(generalSettings.providerEgressConfined).toBe(true);
+    expect(generalSettings.providerEgressAllowedHosts).toEqual([]);
+  });
+
   it("cannot drop its thread declaration to be taken for the app", async () => {
     server = await startTestServer();
 
@@ -348,6 +438,20 @@ describe("an agent mid-turn", () => {
       headers: { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY },
     });
     expect(listed.status).toBe(200);
+
+    // Including the settings the turn above was refused: the route works, and
+    // whose request it is decides.
+    const settings = await fetch(
+      `${server.baseUrl}/api/v1/settings/general`,
+      appPut({
+        ...defaultAppSettings,
+        providerEgressAllowedHosts: ["github.com"],
+      }),
+    );
+    expect(settings.status).toBe(200);
+    expect((await settings.json()) as AppSettings).toMatchObject({
+      providerEgressAllowedHosts: ["github.com"],
+    });
   });
 });
 
@@ -397,5 +501,49 @@ describe("a turn allowing its own permission prompt", () => {
     const response = await resolveAsAgent("deny");
 
     expect(response.status).not.toBe(403);
+  });
+});
+
+/**
+ * The settings writes this server actually mounts, read off the router.
+ *
+ * The deny entry is the `/settings` prefix, so a settings route added later is
+ * refused without anyone touching the policy — that is what the prefix is for,
+ * and this test agrees with it rather than proving it. What it catches is the
+ * edit that narrows the prefix back into a route apiece: forget one of the four
+ * and it fails here instead of in a turn. It reads Hono's own table for the
+ * same reason `plugin-api-path-coverage.test.ts` does — a hand-written list is
+ * the thing that falls behind the server.
+ */
+describe("every settings write this server mounts", () => {
+  let harness: TestAppHarness;
+
+  beforeEach(async () => {
+    harness = await createTestAppHarness();
+  });
+
+  afterEach(async () => {
+    await harness.pluginService.stop();
+    await harness.cleanup();
+  });
+
+  it("is refused for a turn caller", () => {
+    const mounted = harness.app.routes
+      .filter((route) => route.path.startsWith("/api/v1/settings"))
+      .flatMap((route) =>
+        // A wildcard mount answers every method, so charge it every one that
+        // writes rather than reading "ALL" as a method of its own.
+        (route.method === "ALL" ? MUTATION_METHODS : [route.method])
+          .filter((method) => MUTATION_METHODS.includes(method))
+          .map((method) => ({ method, path: route.path })),
+      );
+
+    // A check whose evidence can be empty is not a check.
+    expect(mounted.length).toBeGreaterThanOrEqual(4);
+    expect(
+      mounted
+        .filter((request) => agentRoutePolicyDenial(request) === null)
+        .map((request) => `${request.method} ${request.path}`),
+    ).toEqual([]);
   });
 });

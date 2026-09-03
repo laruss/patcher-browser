@@ -3,6 +3,13 @@
 Server-backed preferences in Settings. They are persisted on the server, so
 every window and client sees the same value.
 
+Reading them is open to anyone; **writing them is refused from inside a turn**.
+`patcher settings show` works, and every `patcher settings ...` command below
+that changes a value answers 403 when an agent runs it — these are app-wide, and
+three of them (`codexNetworkDisabled`, `providerEgressConfined` and the egress
+host list) are the boundary the turn itself is running inside. Ask the person in
+the thread to make the change.
+
 ## Caffeinate (macOS only)
 
 - Keeps the Mac awake while Patcher is running: when enabled, the server asks the

@@ -1,6 +1,7 @@
 # Configuring patcher: settings, agent instructions, skills
 
-Server-backed configuration an agent can read and change from the CLI.
+Server-backed configuration an agent can read and change from the CLI. The
+app-wide settings are the exception: a turn may read them and not write them.
 
 - [App settings](#app-settings)
 - [Agent instructions](#agent-instructions)
@@ -51,11 +52,14 @@ Server-backed configuration an agent can read and change from the CLI.
   actions apply in browser and desktop clients, and desktop menu accelerators
   use the same resolved bindings. For details, read
   [app-settings.md](app-settings.md).
-- Use `patcher settings show`, `patcher settings general`, `patcher settings experiment`,
-  `patcher settings keyboard`, `patcher settings usage`, and `patcher settings version` to
-  inspect or change these server-backed values from agents. Pass
-  `patcher settings usage --machine <id-or-name>` to read provider limits from a
-  specific connected machine instead of the primary machine.
+- Use `patcher settings show`, `patcher settings usage`, and
+  `patcher settings version` to inspect these server-backed values from agents.
+  Pass `patcher settings usage --machine <id-or-name>` to read provider limits
+  from a specific connected machine instead of the primary machine. The commands
+  that _change_ a value — `patcher settings general`, `patcher settings experiment`,
+  `patcher settings keyboard`, `patcher settings egress-hosts` — are refused
+  inside a turn and are the person's to run; see
+  [app-settings.md](app-settings.md).
 - The default-off `toolsHub` experiment exposes the unified Skills, Plugins,
   and Automations management UI. Change it with
   `patcher settings experiment toolsHub <true|false>`. It does not load or unload

@@ -15,6 +15,16 @@
  *   sandbox. All three were already meant to be app-only — deliberately absent
  *   from the SDK and the CLI — and this is what makes that true of an agent
  *   that calls the route directly.
+ * - **The app's own settings.** `PUT /settings/general` takes the whole
+ *   settings object, and three of its fields are the boundary the turn is
+ *   running inside: whether a sandboxed turn's traffic is confined to a list
+ *   of hosts, which hosts that list holds, and whether Codex's own commands
+ *   get the network at all. `thread-commands.ts` reads them when it builds the
+ *   next turn, so a turn that could write them would choose its own network
+ *   and then send itself a message. The whole `/settings` prefix rather than
+ *   that one route: none of the others is a turn's to write either, and naming
+ *   the prefix is what makes a setting added later refused without anyone
+ *   remembering to come back here.
  *
  * Terminals were on this list, for the same reason and just as truly: a PTY on
  * the host, outside any sandbox, running as the user — the shortest way out
@@ -67,6 +77,16 @@
  * `/plugins/:id/cli` and `/plugins/:id/rpc/:method` execute plugin code with no
  * consent prompt because the grant happens at install and enable, which are
  * gated; invoking is using what was granted. See docs/security.md.
+ *
+ * **A deny list, still, and the cost is why.** Inverting this into an allow-list
+ * for turn callers would close a policy route nobody classified, which is the
+ * failure this list has already had once. It would also mean naming every route
+ * a turn legitimately mutates — its thread and the ones it spawned, queued
+ * messages, interactions, terminals, environments, projects, plugin calls — and
+ * there one forgotten entry is a 403 in front of somebody mid-task rather than
+ * a hole. The two mistakes are not the same size, and they do not point the
+ * same way. What the family that actually carries policy gets instead is the
+ * prefix above, so the next setting is closed on arrival.
  *
  * Both halves of a denial matter for how it reads to whoever hits it, so the
  * message names the route and the reason rather than saying "forbidden".
@@ -121,6 +141,15 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
     path: "/projects/:id/setup-script-consents",
     reason:
       "whether a repository's setup script may run on the machine, outside this turn's sandbox, is the owner's to answer",
+  },
+  {
+    // The prefix, not `/settings/general`: every route under it writes app-wide
+    // configuration, and the one that carries the egress switch, its host list
+    // and `codexNetworkDisabled` is the boundary the next turn is built from.
+    // A GET stays open — a turn may read what it is running under.
+    path: "/settings",
+    reason:
+      "it writes the app-wide settings the next turn is built from, including whether a sandboxed turn's traffic is confined to a list of hosts and whether Codex's own commands get the network at all",
   },
 ];
 
