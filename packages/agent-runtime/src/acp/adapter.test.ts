@@ -153,9 +153,44 @@ describe("acp adapter command plans", () => {
         permissionMode: "accept-edits",
         permissionEscalation: "ask",
         workspaceWriteRoots: ["/workspace", "/extra-root"],
+        protectedCredentialPaths: [],
+        protectedRepositoryPaths: [],
         envVars: { PATCHER_THREAD_ID: "thread-1" },
         instructions: "Stay focused.",
       },
+    });
+  });
+
+  it("carries the turn's sandbox lists to the bridge, which is outside it", () => {
+    // The bridge answers `fs/read_text_file` and `fs/write_text_file` for the
+    // agent from outside the sandbox the agent itself runs in, so it needs the
+    // same two lists the daemon built that sandbox from. Without this the
+    // bridge's own check has nothing to check against, and every deny in the
+    // profile is one JSON-RPC call away from being stepped around.
+    const adapter = createAcpProviderAdapter({
+      profile: getAcpAgentProfile("acp-cursor"),
+      additionalWorkspaceWriteRoots: [],
+      protectedCredentialPaths: ["/data/app-api-key", "/data/patcher.db"],
+      protectedRepositoryPaths: ["/workspace/.git/config"],
+    });
+
+    const plan = adapter.buildCommandPlan({
+      type: "thread/start",
+      threadId: "thread-1",
+      cwd: "/workspace",
+      options: {
+        ...fullProviderExecutionContext,
+        permissionMode: "accept-edits",
+        permissionScope: "workspace",
+        approvalReviewer: "user",
+        permissionEscalation: "ask",
+      },
+      instructionMode: "append",
+    });
+
+    expect(plan.params).toMatchObject({
+      protectedCredentialPaths: ["/data/app-api-key", "/data/patcher.db"],
+      protectedRepositoryPaths: ["/workspace/.git/config"],
     });
   });
 

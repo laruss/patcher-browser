@@ -20,8 +20,10 @@ import {
   extname,
   isAbsolute,
   basename,
+  join,
   relative,
   resolve,
+  sep,
 } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -107,10 +109,18 @@ import {
 // Session state
 // ---------------------------------------------------------------------------
 
+/**
+ * What this turn's client fs methods may reach. Every path already resolved —
+ * see `resolveSessionFsPolicy`.
+ */
 interface AcpSessionPolicy {
   permissionMode: "accept-edits" | "full";
   permissionEscalation: "ask" | "deny" | null;
   workspaceWriteRoots: string[];
+  /** Patcher's own credential files: no read, no write. */
+  protectedCredentialPaths: string[];
+  /** Repository entries git executes from: readable, not writable. */
+  protectedRepositoryPaths: string[];
 }
 
 interface PendingAcpPermission {
@@ -1383,15 +1393,121 @@ function handlePermissionRequest(
 // Client fs methods
 // ---------------------------------------------------------------------------
 
-function isPathInsideRoots(targetPath: string, roots: string[]): boolean {
-  const resolvedTarget = resolve(targetPath);
-  return roots.some((root) => {
-    const relativePath = relative(resolve(root), resolvedTarget);
+/**
+ * Where a path lands, for a path that need not be there yet.
+ *
+ * Resolving is the whole of the check: a rule about `<workspace>/link/x` is a
+ * rule about nothing when `link` points at `/etc`, and the sandbox this mirrors
+ * matches what a lookup resolves to rather than the string it was handed — see
+ * `resolvedPath` in `terminals/terminal-sandbox.ts`, where that was measured.
+ *
+ * The tail may not exist, because a write creates the file and its directories
+ * with it, so the longest existing prefix is resolved and the rest put back on.
+ * A path that resolves nowhere at all is answered as given rather than dropped:
+ * an unresolvable path stays inside the policy instead of falling past it.
+ */
+async function resolveFsPolicyPath(targetPath: string): Promise<string> {
+  const absolute = resolve(targetPath);
+  const tail: string[] = [];
+  let current = absolute;
+  for (;;) {
+    try {
+      return join(await fs.realpath(current), ...tail);
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return absolute;
+      tail.unshift(basename(current));
+      current = parent;
+    }
+  }
+}
+
+/**
+ * Whether `targetPath` is `root` or sits under it, both already resolved.
+ *
+ * On path *segments*, not on the string: `..` and anything under `../` step
+ * outside, while `..projects` is an ordinary name that happens to start with two
+ * dots. Reading the prefix alone is a mistake this repository has already made
+ * once, in the sandbox these rules mirror, where it left a whole workspace
+ * unprotected — see `isInside` in `terminals/terminal-sandbox.ts`.
+ */
+function isSamePathOrInside(targetPath: string, root: string): boolean {
+  const relativePath = relative(root, targetPath);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(relativePath))
+  );
+}
+
+/**
+ * Why this fs request is refused, or null when it may proceed.
+ *
+ * The agent's own process runs inside the sandbox the daemon builds for a
+ * workspace-scoped turn (`provider-sandbox.ts`), and this process does not: the
+ * bridge is Patcher's side of ACP, and it is spawned before the turn exists. So
+ * every rule that sandbox carries has to be carried here as well, or the agent
+ * asks the bridge for what the kernel just refused it — `fs/read_text_file` on
+ * the app key, `fs/write_text_file` on `.git/config`, one JSON-RPC call each,
+ * and every deny in the profile is one the agent may politely step around.
+ * Measured on a live `grok agent stdio` turn, which does ask: before this, the
+ * key came back verbatim and `fsmonitor = /tmp/patcher-evil` went into the
+ * workspace's own `.git/config`.
+ *
+ * The same two lists as there, read the same way: the credential files denied
+ * outright (`deniedReadPaths` in the profile), the repository entries git
+ * executes from readable but not writable (`readOnlyPaths`), on top of the
+ * workspace roots this file already held writes to.
+ *
+ * **Reads that are not credentials stay open, deliberately.** The sandbox allows
+ * them — its profile is `(allow default)` with those files denied — so confining
+ * the bridge's reads to the workspace would gate the polite path only, while the
+ * agent's own tools read the same file with no bridge involved. The one read
+ * that is closed is the one whose answer *is* a credential, which is the line
+ * `agent-route-policy.ts` draws on the API for the same reason.
+ *
+ * **Full Access is left alone**, because that mode asks for no sandbox: there is
+ * no boundary here to mirror, and `runtime-manager.ts` says the same where the
+ * credential list is built.
+ *
+ * Both halves of a denial matter to whoever reads it — here a model deciding
+ * what to do next — so the message names the file and the reason, and says
+ * where the work belongs instead.
+ */
+function fsPolicyRefusal(args: {
+  policy: AcpSessionPolicy;
+  /** The path as the agent asked for it, which is the one to name back. */
+  requestedPath: string;
+  resolvedPath: string;
+  access: "read" | "write";
+}): string | null {
+  const { policy, requestedPath, resolvedPath, access } = args;
+  if (policy.permissionMode !== "accept-edits") return null;
+  const hits = (paths: readonly string[]): boolean =>
+    paths.some((denied) => isSamePathOrInside(resolvedPath, denied));
+  if (hits(policy.protectedCredentialPaths)) {
     return (
-      relativePath === "" ||
-      (!relativePath.startsWith("..") && !isAbsolute(relativePath))
+      `Patcher will not ${access} ${requestedPath}: it is one of Patcher's own ` +
+      "credential files, and this turn's agent is denied it in its own sandbox too."
     );
-  });
+  }
+  if (access === "read") return null;
+  if (hits(policy.protectedRepositoryPaths)) {
+    return (
+      `Patcher will not write ${requestedPath}: git runs what this file ` +
+      "configures, in the daemon and outside the sandbox this turn is in. " +
+      "Edit the repository's own files instead."
+    );
+  }
+  if (
+    !policy.workspaceWriteRoots.some((root) =>
+      isSamePathOrInside(resolvedPath, root),
+    )
+  ) {
+    return `File writes outside the workspace are denied by Patcher's accept-edits permission mode: ${requestedPath}`;
+  }
+  return null;
 }
 
 function sliceFileContent(
@@ -1409,6 +1525,7 @@ function sliceFileContent(
 }
 
 async function handleFsReadTextFile(
+  session: AcpThreadSession,
   params: unknown,
   responder: AcpAgentRequestResponder,
 ): Promise<void> {
@@ -1418,7 +1535,19 @@ async function handleFsReadTextFile(
     return;
   }
   try {
-    const content = await fs.readFile(parsed.data.path, "utf8");
+    const resolvedPath = await resolveFsPolicyPath(parsed.data.path);
+    const refusal = fsPolicyRefusal({
+      policy: session.policy,
+      requestedPath: parsed.data.path,
+      resolvedPath,
+      access: "read",
+    });
+    if (refusal !== null) {
+      responder.error(-32000, refusal);
+      return;
+    }
+    // The resolved path, so the file read is the file the check was about.
+    const content = await fs.readFile(resolvedPath, "utf8");
     responder.result({
       content: sliceFileContent(content, parsed.data.line, parsed.data.limit),
     });
@@ -1441,26 +1570,28 @@ async function handleFsWriteTextFile(
     return;
   }
 
-  if (
-    session.policy.permissionMode === "accept-edits" &&
-    !isPathInsideRoots(parsed.data.path, session.policy.workspaceWriteRoots)
-  ) {
-    responder.error(
-      -32000,
-      `File writes outside the workspace are denied by Patcher's accept-edits permission mode: ${parsed.data.path}`,
-    );
+  const resolvedPath = await resolveFsPolicyPath(parsed.data.path);
+  const refusal = fsPolicyRefusal({
+    policy: session.policy,
+    requestedPath: parsed.data.path,
+    resolvedPath,
+    access: "write",
+  });
+  if (refusal !== null) {
+    responder.error(-32000, refusal);
     return;
   }
 
   try {
     let oldText: string | undefined;
     try {
-      oldText = await fs.readFile(parsed.data.path, "utf8");
+      oldText = await fs.readFile(resolvedPath, "utf8");
     } catch {
       oldText = undefined;
     }
-    await fs.mkdir(dirname(parsed.data.path), { recursive: true });
-    await fs.writeFile(parsed.data.path, parsed.data.content, "utf8");
+    // The resolved path, so the file written is the file the check was about.
+    await fs.mkdir(dirname(resolvedPath), { recursive: true });
+    await fs.writeFile(resolvedPath, parsed.data.content, "utf8");
 
     const diff = buildEditDiff(parsed.data.path, oldText, parsed.data.content);
     sendNotification(ACP_FS_WRITE_METHOD, {
@@ -1508,6 +1639,32 @@ type AcpSessionStartParams =
   | { kind: "start"; params: AcpBridgeThreadStartParams }
   | { kind: "resume"; params: AcpBridgeThreadResumeParams };
 
+/**
+ * The session's fs policy, with every path resolved once here rather than on
+ * each request: these are the rules for the whole session, and the sandbox they
+ * mirror is likewise built at launch and not per syscall.
+ */
+async function resolveSessionFsPolicy(
+  params: AcpBridgeThreadStartParams,
+): Promise<AcpSessionPolicy> {
+  const [
+    workspaceWriteRoots,
+    protectedCredentialPaths,
+    protectedRepositoryPaths,
+  ] = await Promise.all([
+    Promise.all(params.workspaceWriteRoots.map(resolveFsPolicyPath)),
+    Promise.all(params.protectedCredentialPaths.map(resolveFsPolicyPath)),
+    Promise.all(params.protectedRepositoryPaths.map(resolveFsPolicyPath)),
+  ]);
+  return {
+    permissionMode: params.permissionMode,
+    permissionEscalation: params.permissionEscalation,
+    workspaceWriteRoots,
+    protectedCredentialPaths,
+    protectedRepositoryPaths,
+  };
+}
+
 async function startAgentSession(
   request: AcpSessionStartParams,
 ): Promise<AcpThreadSession> {
@@ -1519,6 +1676,7 @@ async function startAgentSession(
     await stopSession(existing);
   }
 
+  const policy = await resolveSessionFsPolicy(params);
   const launch = await resolveAgentLaunchArgs(params);
   if (launch.warning) {
     sendNotification(ACP_WARNING_METHOD, {
@@ -1582,11 +1740,7 @@ async function startAgentSession(
     connection,
     agentLabel,
     supportsImageInput: false,
-    policy: {
-      permissionMode: params.permissionMode,
-      permissionEscalation: params.permissionEscalation,
-      workspaceWriteRoots: params.workspaceWriteRoots,
-    },
+    policy,
     cwd: params.cwd,
     pendingInstructions: params.instructions,
     activePromptKind: null,
@@ -1859,7 +2013,7 @@ function handleAgentRequest(
       handlePermissionRequest(session, params, responder);
       return;
     case "fs/read_text_file":
-      void handleFsReadTextFile(params, responder);
+      void handleFsReadTextFile(session, params, responder);
       return;
     case "fs/write_text_file":
       void handleFsWriteTextFile(session, params, responder);

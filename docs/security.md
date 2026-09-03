@@ -361,6 +361,37 @@ provider process launched through the terminal sandbox above: same backends,
 same policy path for path, and confined the probe is refused while the workspace
 write still succeeds.
 
+**The bridge is not inside that boundary, and it answers the agent's file
+requests from outside it.** Patcher's ACP client advertises `fs/readTextFile`
+and `fs/writeTextFile`, and the bridge serving them is spawned by the runtime
+before the turn has a permission mode at all — so every rule the sandbox holds
+the agent to was one JSON-RPC call away from being asked of a process that is
+not in it. Measured on `grok agent stdio` with a real workspace-scoped turn and
+the traffic teed on both sides: it asked the bridge for `<dataDir>/app-api-key`
+and got the key back verbatim, and it asked the bridge to write
+`fsmonitor = /tmp/patcher-evil` into the workspace's own `.git/config` — the
+file the daemon's git then reads, outside the sandbox — and the bridge wrote it.
+Both are refused now, by name and with the reason, on the same two lists the
+sandbox itself is built from: the credential files denied outright, the
+repository entries git executes from readable and not writable, and the
+workspace roots compared after resolving rather than as strings. On the same
+turn, re-measured: the key read is refused, the `.git/config` write is refused,
+and reading `.git/config` still works, which is what read-only means.
+
+Not every agent asks. Of the four installed here, `cursor-agent acp` and
+`opencode acp` never call the client fs methods at all — they read and write
+with their own tools, in the process the sandbox does hold. Grok does. That is
+why the capability keeps a policy rather than being withdrawn: withdrawing it
+takes the feature from the one agent measured using it, and an agent is a
+version away from changing its mind in either direction.
+
+Reads that are not credentials stay open there, which is the judgement the API's
+route policy makes for the same reason: the sandbox allows them, so refusing
+them in the bridge would gate the polite path while the agent's own tools opened
+the file anyway. What is closed is the read whose answer is a credential. A Full
+Access turn is left alone entirely — that mode asks for no sandbox, which is the
+same line drawn where the credential list is built.
+
 One thing the policy has to add beyond a terminal's is the provider's own state
 directory. `cursor-agent acp` does not run at all until `~/.cursor` is writable:
 measured twice, it exits before answering `initialize`, and in an earlier probe

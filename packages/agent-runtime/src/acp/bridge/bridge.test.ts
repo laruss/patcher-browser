@@ -1,9 +1,12 @@
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
@@ -90,6 +93,8 @@ function notifications(method: string): BridgeJsonRpcOutputMessage[] {
 interface StartThreadArgs {
   permissionMode?: "accept-edits" | "full";
   permissionEscalation?: "ask" | "deny" | null;
+  protectedCredentialPaths?: string[];
+  protectedRepositoryPaths?: string[];
   envVars?: Record<string, string>;
   instructions?: string;
   agent?: { command: string; args: string[] };
@@ -166,6 +171,8 @@ async function startThread(args?: StartThreadArgs): Promise<{
         ? null
         : args.permissionEscalation,
     workspaceWriteRoots: [workspaceDir],
+    protectedCredentialPaths: args?.protectedCredentialPaths ?? [],
+    protectedRepositoryPaths: args?.protectedRepositoryPaths ?? [],
     ...(args?.envVars ? { envVars: args.envVars } : {}),
     ...(args?.instructions ? { instructions: args.instructions } : {}),
     ...(args?.dynamicTools ? { dynamicTools: args.dynamicTools } : {}),
@@ -204,6 +211,23 @@ async function waitForCompactionCompleted(): Promise<BridgeJsonRpcOutputMessage>
     () => notifications("acp/compaction/completed").at(-1),
     "acp/compaction/completed notification",
   );
+}
+
+/**
+ * The one agent message that starts with `prefix`, for asserting its reason.
+ *
+ * Throws with the whole transcript rather than answering undefined: the message
+ * being absent is the interesting failure, and `toContain` on undefined says
+ * only that undefined is not a string.
+ */
+function agentMessageStartingWith(prefix: string): string {
+  const message = agentMessageTexts().find((text) => text.startsWith(prefix));
+  if (message === undefined) {
+    throw new Error(
+      `No agent message starting with "${prefix}". Messages: ${agentMessageTexts().join(" | ")}`,
+    );
+  }
+  return message;
 }
 
 function agentMessageTexts(): string[] {
@@ -1740,8 +1764,214 @@ describe("acp bridge", () => {
       await waitForResponse(turnId);
       await waitForTurnCompleted();
 
-      expect(agentMessageTexts()).toContain("write:denied");
+      expect(agentMessageStartingWith("write:denied:")).toContain(
+        "File writes outside the workspace are denied",
+      );
       expect(existsSync(targetPath)).toBe(false);
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a client fs read of Patcher's own credential file", async () => {
+    // The agent's own process is denied this file by the sandbox the daemon
+    // builds; this process is not in that sandbox, so without the same list
+    // here the agent just asks the bridge to read it instead.
+    const dataDir = mkdtempSync(join(tmpdir(), "patcher-acp-data-"));
+    const appKeyPath = join(dataDir, "app-api-key");
+    writeFileSync(appKeyPath, "patcher-app-key-secret\n", "utf8");
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "accept-edits",
+        permissionEscalation: "ask",
+        protectedCredentialPaths: [appKeyPath],
+        envVars: { FAKE_ACP_READ_PATH: appKeyPath },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "read-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("read:denied:")).toContain(
+        "credential files",
+      );
+      expect(agentMessageTexts().join("\n")).not.toContain(
+        "patcher-app-key-secret",
+      );
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a client fs read that lands on a credential file through a link", async () => {
+    // A rule about a path is a rule about where the path lands, or it is a rule
+    // about nothing: an ordinary-looking name in the workspace pointing at the
+    // app key is the whole of the bypass.
+    const dataDir = mkdtempSync(join(tmpdir(), "patcher-acp-data-"));
+    const appKeyPath = join(dataDir, "app-api-key");
+    writeFileSync(appKeyPath, "patcher-app-key-secret\n", "utf8");
+    const linkPath = join(workspaceDir, "notes.txt");
+    symlinkSync(appKeyPath, linkPath);
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "accept-edits",
+        permissionEscalation: "ask",
+        protectedCredentialPaths: [appKeyPath],
+        envVars: { FAKE_ACP_READ_PATH: linkPath },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "read-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("read:denied:")).toContain(
+        "credential files",
+      );
+      expect(agentMessageTexts().join("\n")).not.toContain(
+        "patcher-app-key-secret",
+      );
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it("serves a client fs read outside the workspace, as the sandbox does", async () => {
+    // Deliberate, and the reason is that the alternative buys nothing: the
+    // agent's sandbox allows this read, so a bridge that refused it would gate
+    // the polite path while the agent's own tools opened the same file.
+    const outsideDir = mkdtempSync(join(tmpdir(), "patcher-acp-outside-"));
+    const notePath = join(outsideDir, "note.txt");
+    writeFileSync(notePath, "a note outside the workspace\n", "utf8");
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "accept-edits",
+        permissionEscalation: "ask",
+        protectedCredentialPaths: [join(outsideDir, "app-api-key")],
+        envVars: { FAKE_ACP_READ_PATH: notePath },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "read-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("read:ok:")).toContain(
+        "a note outside the workspace",
+      );
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves a Full Access turn's reads alone, there being no sandbox to mirror", async () => {
+    // Full Access is the mode that asks for no boundary, and these lists are a
+    // mirror of one — the same line `runtime-manager.ts` draws where it builds
+    // the credential list. A turn at Full Access reads this file with its own
+    // tools anyway.
+    const dataDir = mkdtempSync(join(tmpdir(), "patcher-acp-data-"));
+    const appKeyPath = join(dataDir, "app-api-key");
+    writeFileSync(appKeyPath, "patcher-app-key-secret\n", "utf8");
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "full",
+        protectedCredentialPaths: [appKeyPath],
+        envVars: { FAKE_ACP_READ_PATH: appKeyPath },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "read-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("read:ok:")).toContain(
+        "patcher-app-key-secret",
+      );
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a client fs write to a repository file git executes", async () => {
+    // Inside the workspace, so the write-roots check has nothing to say about
+    // it — and git reads it in the daemon, outside the sandbox.
+    const gitDir = join(workspaceDir, ".git");
+    mkdirSync(gitDir, { recursive: true });
+    const configPath = join(gitDir, "config");
+    writeFileSync(configPath, "[core]\n", "utf8");
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      protectedRepositoryPaths: [configPath],
+      envVars: { FAKE_ACP_WRITE_PATH: configPath },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("write:denied:")).toContain(
+      "git runs what this file configures",
+    );
+    expect(readFileSync(configPath, "utf8")).toBe("[core]\n");
+  });
+
+  it("refuses a client fs write inside a protected directory", async () => {
+    // `hooks` is on the list as a directory, and a rule about a directory that
+    // let its children through would be no rule at all.
+    const hooksDir = join(workspaceDir, ".git", "hooks");
+    mkdirSync(hooksDir, { recursive: true });
+    const hookPath = join(hooksDir, "pre-commit");
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      protectedRepositoryPaths: [hooksDir],
+      envVars: { FAKE_ACP_WRITE_PATH: hookPath },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("write:denied:")).toContain(
+      "git runs what this file configures",
+    );
+    expect(existsSync(hookPath)).toBe(false);
+  });
+
+  it("refuses a client fs write that leaves the workspace through a link", async () => {
+    // The write-roots check compared the path it was handed: a link in the
+    // workspace pointing anywhere made every root in the list an opinion about
+    // the string rather than about the file.
+    const outsideDir = mkdtempSync(join(tmpdir(), "patcher-acp-outside-"));
+    symlinkSync(outsideDir, join(workspaceDir, "escape"));
+    const targetPath = join(workspaceDir, "escape", "outside.txt");
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "accept-edits",
+        permissionEscalation: "ask",
+        envVars: { FAKE_ACP_WRITE_PATH: targetPath },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "write-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("write:denied:")).toContain(
+        "File writes outside the workspace are denied",
+      );
+      expect(existsSync(join(outsideDir, "outside.txt"))).toBe(false);
     } finally {
       rmSync(outsideDir, { recursive: true, force: true });
     }
