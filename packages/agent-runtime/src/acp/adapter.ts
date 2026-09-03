@@ -127,6 +127,13 @@ export interface CreateAcpProviderAdapterOptions {
   profile: AcpAgentProfile;
   /** Extra roots (beyond the workspace) where client fs writes are allowed. */
   additionalWorkspaceWriteRoots: readonly string[];
+  /**
+   * The turn's sandbox lists, forwarded to the bridge because the bridge is
+   * outside that sandbox and serves the agent's fs requests from there. Same
+   * lists the daemon builds the sandbox itself from — see `bridge.ts`.
+   */
+  protectedCredentialPaths?: readonly string[];
+  protectedRepositoryPaths?: readonly string[];
   /** Override the directory containing bundled bridge files. */
   bridgeBundleDir?: string;
   /** Optional environment values needed by the Node runtime that launches the bridge. */
@@ -559,6 +566,8 @@ export function createAcpProviderAdapter(
         logoUrl: null,
       });
   const additionalWorkspaceWriteRoots = opts.additionalWorkspaceWriteRoots;
+  const protectedCredentialPaths = opts.protectedCredentialPaths ?? [];
+  const protectedRepositoryPaths = opts.protectedRepositoryPaths ?? [];
 
   function buildModelListCommand():
     | {
@@ -1473,6 +1482,11 @@ export function createAcpProviderAdapter(
       permissionMode: command.options.permissionMode,
       permissionEscalation: command.options.permissionEscalation,
       workspaceWriteRoots: [cwd, ...additionalWorkspaceWriteRoots],
+      // Sent whatever the mode is, like the write roots above: the bridge holds
+      // them to a workspace-scoped turn and lets a Full Access one alone, and
+      // that decision belongs in one place rather than two.
+      protectedCredentialPaths: [...protectedCredentialPaths],
+      protectedRepositoryPaths: [...protectedRepositoryPaths],
       ...(Object.keys(envVars).length > 0 ? { envVars } : {}),
       ...(instructions ? { instructions } : {}),
       ...(command.dynamicTools && command.dynamicTools.length > 0

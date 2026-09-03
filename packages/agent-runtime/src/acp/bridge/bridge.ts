@@ -13,15 +13,23 @@
 
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { promises as fs, readFileSync, realpathSync } from "node:fs";
+import {
+  promises as fs,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import {
   dirname,
   extname,
   isAbsolute,
   basename,
+  join,
   relative,
   resolve,
+  sep,
 } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -107,10 +115,18 @@ import {
 // Session state
 // ---------------------------------------------------------------------------
 
+/**
+ * What this turn's client fs methods may reach. Every path already resolved —
+ * see `resolveSessionFsPolicy`.
+ */
 interface AcpSessionPolicy {
   permissionMode: "accept-edits" | "full";
   permissionEscalation: "ask" | "deny" | null;
   workspaceWriteRoots: string[];
+  /** Patcher's own credential files: no read, no write. */
+  protectedCredentialPaths: string[];
+  /** Repository entries git executes from: readable, not writable. */
+  protectedRepositoryPaths: string[];
 }
 
 interface PendingAcpPermission {
@@ -1383,15 +1399,244 @@ function handlePermissionRequest(
 // Client fs methods
 // ---------------------------------------------------------------------------
 
-function isPathInsideRoots(targetPath: string, roots: string[]): boolean {
-  const resolvedTarget = resolve(targetPath);
-  return roots.some((root) => {
-    const relativePath = relative(resolve(root), resolvedTarget);
+/** How many links a walk follows before it calls the path a loop. */
+const MAX_SYMLINK_HOPS = 32;
+
+/** What a resolved path is, in the one `stat` the walk needs per step. */
+type ResolvedKind = "directory" | "other" | "absent";
+
+function classifyPath(path: string): ResolvedKind {
+  try {
+    return statSync(path).isDirectory() ? "directory" : "other";
+  } catch {
+    return "absent";
+  }
+}
+
+/** Where a symlink points, as written, or null when the path is not one. */
+function symlinkTarget(path: string): string | null {
+  try {
+    return readlinkSync(path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where a path lands, for a path that need not be there yet.
+ *
+ * Resolving is the whole of the check: a rule about `<workspace>/link/x` is a
+ * rule about nothing when `link` points at `/etc`, and the sandbox this mirrors
+ * matches what a lookup resolves to rather than the string it was handed — see
+ * `resolvedPath` in `terminals/terminal-sandbox.ts`, where that was measured.
+ *
+ * So this walks the path the way a lookup does — a component at a time, each
+ * one checked, every link read and its target walked in turn — because nothing
+ * shorter agrees with the kernel. Three measurements say why, and each of them
+ * was a file the handlers would have read or written in place of the one asked
+ * for:
+ *
+ * - **`path.resolve` and Node's `realpath` collapse a `..` as text**, before
+ *   resolving anything, so `<ws>/link/../file` becomes `<ws>/file` — while a
+ *   lookup follows `link` first and lands beside what it points at. Measured on
+ *   a link to `<outside>/dir`: the read gave `<outside>/file`, both of those
+ *   answered `<ws>/file`, and only `realpath.native`, the OS call, agreed.
+ * - **Darwin's `realpath(3)` accepts a `.`, a `..` or a trailing slash after a
+ *   name that is a file**, where a lookup refuses: opening
+ *   `<ws>/note.txt/../other.txt` is ENOTDIR, and it answered `<ws>/other.txt`.
+ *   Linux refuses that itself, so only walking makes the two agree.
+ * - **A link's target is a path in its own right, and `realpath(3)` on the link
+ *   hides that.** A link to `note.txt/../other.txt` is ENOTDIR to open and a
+ *   link to `missing/../other.txt` is ENOENT, on both platforms — and both
+ *   answered `<t>/other.txt`, since the call resolves the target rather than
+ *   walking it. Hence `symlinkTarget` before anything else, and the target
+ *   walked by this same function.
+ *
+ * A prefix this walk has resolved holds no links, so `..` on it is `dirname` —
+ * the same collapse as above, applied where it is finally true. A relative link
+ * target is joined to that prefix as a *string*, because `join` would collapse
+ * the `..` in `missing/../other.txt` before the walk ever saw it, which is the
+ * last measurement above.
+ *
+ * The tail may not exist, because a write creates the file and its directories
+ * with it, so the walk keeps appending names once it steps past what is there.
+ * What it will not do is honour a `.`, a `..` or a slash past that point:
+ * `<ws>/missing/../note.txt` and `<ws>/afile/../note.txt` are ENOENT and
+ * ENOTDIR, and a resolver that put the tail back answered `<ws>/note.txt` for
+ * both.
+ *
+ * That is also why a link whose target is not there is followed rather than
+ * treated as a name to create. Measured before it was: `<ws>/dangling` pointing
+ * at `<outside>/x` resolved to itself, sat inside the workspace as far as the
+ * policy could see, and the write created `<outside>/x` — the write roots
+ * stepped around with a symlink the agent makes itself.
+ */
+function resolveFsPolicyPath(targetPath: string): string | null {
+  // Shared across the whole walk, not per recursion: a lookup counts every link
+  // it follows, wherever in the path it sits. Measured on 60 links in separate
+  // components, each pointing at `.` — the read is ELOOP on both platforms,
+  // while a budget copied into each target let the walk reach the file, and the
+  // handlers act on what it returns rather than on the path they were given.
+  // The limit is Darwin's; Linux allows 40, so between 33 and 40 this is
+  // stricter than that kernel, which is the safe side of a path nothing sane
+  // asks for.
+  let hopsLeft = MAX_SYMLINK_HOPS;
+
+  const walk = (path: string): string | null => {
+    let resolved: string;
+    try {
+      resolved = isAbsolute(path) ? sep : realpathSync.native(".");
+    } catch {
+      return null;
+    }
+    for (const segment of path.split(sep)) {
+      const here = classifyPath(resolved);
+      if (segment === "" || segment === ".") {
+        // Punctuation: it names no component of its own, so it asks only that
+        // what precedes it is not a file. Past what exists it is allowed too —
+        // `<ws>/fresh//out.txt` writes the same file as `<ws>/fresh/out.txt`,
+        // measured, and refusing it would turn a supported write down.
+        if (here === "other") return null;
+        continue;
+      }
+      if (segment === "..") {
+        // This one moves, so it needs somewhere to move out of.
+        if (here !== "directory") return null;
+        resolved = dirname(resolved);
+        continue;
+      }
+      if (here !== "directory") {
+        // Nothing further to resolve: past what exists — a file a write
+        // creates, with the directories above it — or a name under something
+        // that is not a directory, where the open is what refuses, with ENOTDIR.
+        resolved = join(resolved, segment);
+        continue;
+      }
+      const candidate = join(resolved, segment);
+      const linkTarget = symlinkTarget(candidate);
+      if (linkTarget === null) {
+        resolved = candidate;
+        continue;
+      }
+      if (hopsLeft === 0) return null;
+      hopsLeft -= 1;
+      const followed = walk(
+        isAbsolute(linkTarget) ? linkTarget : `${resolved}${sep}${linkTarget}`,
+      );
+      if (followed === null) return null;
+      resolved = followed;
+    }
+    // A path whose last segment is a slash, a `.` or a `..` names a directory,
+    // and only one that is there will do: `<ws>/fresh/` is ENOENT to open on
+    // macOS and EISDIR on Linux — measured — not a file to create along with
+    // its parents. Inside the walk rather than after it, because a link's
+    // target is such a path in its own right: one stored as `missing/` is
+    // ENOENT and EISDIR the same way, while `missing` alone is a file to make,
+    // and the request that names the link ends in the link's own name.
+    const lastSegment = path.split(sep).at(-1);
+    if (
+      (lastSegment === "" || lastSegment === "." || lastSegment === "..") &&
+      classifyPath(resolved) !== "directory"
+    ) {
+      return null;
+    }
+    return resolved;
+  };
+
+  return walk(targetPath);
+}
+
+/** What the filesystem would have said about a path that resolves nowhere. */
+function unresolvablePathError(targetPath: string): string {
+  return `Cannot resolve ${targetPath}: a component of it is not there, or is not a directory, so the path names no file.`;
+}
+
+/**
+ * Whether `targetPath` is `root` or sits under it, both already resolved.
+ *
+ * On path *segments*, not on the string: `..` and anything under `../` step
+ * outside, while `..projects` is an ordinary name that happens to start with two
+ * dots. Reading the prefix alone is a mistake this repository has already made
+ * once, in the sandbox these rules mirror, where it left a whole workspace
+ * unprotected — see `isInside` in `terminals/terminal-sandbox.ts`.
+ */
+function isSamePathOrInside(targetPath: string, root: string): boolean {
+  const relativePath = relative(root, targetPath);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(relativePath))
+  );
+}
+
+/**
+ * Why this fs request is refused, or null when it may proceed.
+ *
+ * The agent's own process runs inside the sandbox the daemon builds for a
+ * workspace-scoped turn (`provider-sandbox.ts`), and this process does not: the
+ * bridge is Patcher's side of ACP, and it is spawned before the turn exists. So
+ * every rule that sandbox carries has to be carried here as well, or the agent
+ * asks the bridge for what the kernel just refused it — `fs/read_text_file` on
+ * the app key, `fs/write_text_file` on `.git/config`, one JSON-RPC call each,
+ * and every deny in the profile is one the agent may politely step around.
+ * Measured on a live `grok agent stdio` turn, which does ask: before this, the
+ * key came back verbatim and `fsmonitor = /tmp/patcher-evil` went into the
+ * workspace's own `.git/config`.
+ *
+ * The same two lists as there, read the same way: the credential files denied
+ * outright (`deniedReadPaths` in the profile), the repository entries git
+ * executes from readable but not writable (`readOnlyPaths`), on top of the
+ * workspace roots this file already held writes to.
+ *
+ * **Reads that are not credentials stay open, deliberately.** The sandbox allows
+ * them — its profile is `(allow default)` with those files denied — so confining
+ * the bridge's reads to the workspace would gate the polite path only, while the
+ * agent's own tools read the same file with no bridge involved. The one read
+ * that is closed is the one whose answer *is* a credential, which is the line
+ * `agent-route-policy.ts` draws on the API for the same reason.
+ *
+ * **Full Access is left alone**, because that mode asks for no sandbox: there is
+ * no boundary here to mirror, and `runtime-manager.ts` says the same where the
+ * credential list is built.
+ *
+ * Both halves of a denial matter to whoever reads it — here a model deciding
+ * what to do next — so the message names the file and the reason, and says
+ * where the work belongs instead.
+ */
+function fsPolicyRefusal(args: {
+  policy: AcpSessionPolicy;
+  /** The path as the agent asked for it, which is the one to name back. */
+  requestedPath: string;
+  resolvedPath: string;
+  access: "read" | "write";
+}): string | null {
+  const { policy, requestedPath, resolvedPath, access } = args;
+  if (policy.permissionMode !== "accept-edits") return null;
+  const hits = (paths: readonly string[]): boolean =>
+    paths.some((denied) => isSamePathOrInside(resolvedPath, denied));
+  if (hits(policy.protectedCredentialPaths)) {
     return (
-      relativePath === "" ||
-      (!relativePath.startsWith("..") && !isAbsolute(relativePath))
+      `Patcher will not ${access} ${requestedPath}: it is one of Patcher's own ` +
+      "credential files, and this turn's agent is denied it in its own sandbox too."
     );
-  });
+  }
+  if (access === "read") return null;
+  if (hits(policy.protectedRepositoryPaths)) {
+    return (
+      `Patcher will not write ${requestedPath}: git runs what this file ` +
+      "configures, in the daemon and outside the sandbox this turn is in. " +
+      "Edit the repository's own files instead."
+    );
+  }
+  if (
+    !policy.workspaceWriteRoots.some((root) =>
+      isSamePathOrInside(resolvedPath, root),
+    )
+  ) {
+    return `File writes outside the workspace are denied by Patcher's accept-edits permission mode: ${requestedPath}`;
+  }
+  return null;
 }
 
 function sliceFileContent(
@@ -1409,6 +1654,7 @@ function sliceFileContent(
 }
 
 async function handleFsReadTextFile(
+  session: AcpThreadSession,
   params: unknown,
   responder: AcpAgentRequestResponder,
 ): Promise<void> {
@@ -1418,7 +1664,23 @@ async function handleFsReadTextFile(
     return;
   }
   try {
-    const content = await fs.readFile(parsed.data.path, "utf8");
+    const resolvedPath = resolveFsPolicyPath(parsed.data.path);
+    if (resolvedPath === null) {
+      responder.error(-32603, unresolvablePathError(parsed.data.path));
+      return;
+    }
+    const refusal = fsPolicyRefusal({
+      policy: session.policy,
+      requestedPath: parsed.data.path,
+      resolvedPath,
+      access: "read",
+    });
+    if (refusal !== null) {
+      responder.error(-32000, refusal);
+      return;
+    }
+    // The resolved path, so the file read is the file the check was about.
+    const content = await fs.readFile(resolvedPath, "utf8");
     responder.result({
       content: sliceFileContent(content, parsed.data.line, parsed.data.limit),
     });
@@ -1441,26 +1703,32 @@ async function handleFsWriteTextFile(
     return;
   }
 
-  if (
-    session.policy.permissionMode === "accept-edits" &&
-    !isPathInsideRoots(parsed.data.path, session.policy.workspaceWriteRoots)
-  ) {
-    responder.error(
-      -32000,
-      `File writes outside the workspace are denied by Patcher's accept-edits permission mode: ${parsed.data.path}`,
-    );
+  const resolvedPath = resolveFsPolicyPath(parsed.data.path);
+  if (resolvedPath === null) {
+    responder.error(-32603, unresolvablePathError(parsed.data.path));
+    return;
+  }
+  const refusal = fsPolicyRefusal({
+    policy: session.policy,
+    requestedPath: parsed.data.path,
+    resolvedPath,
+    access: "write",
+  });
+  if (refusal !== null) {
+    responder.error(-32000, refusal);
     return;
   }
 
   try {
     let oldText: string | undefined;
     try {
-      oldText = await fs.readFile(parsed.data.path, "utf8");
+      oldText = await fs.readFile(resolvedPath, "utf8");
     } catch {
       oldText = undefined;
     }
-    await fs.mkdir(dirname(parsed.data.path), { recursive: true });
-    await fs.writeFile(parsed.data.path, parsed.data.content, "utf8");
+    // The resolved path, so the file written is the file the check was about.
+    await fs.mkdir(dirname(resolvedPath), { recursive: true });
+    await fs.writeFile(resolvedPath, parsed.data.content, "utf8");
 
     const diff = buildEditDiff(parsed.data.path, oldText, parsed.data.content);
     sendNotification(ACP_FS_WRITE_METHOD, {
@@ -1508,6 +1776,29 @@ type AcpSessionStartParams =
   | { kind: "start"; params: AcpBridgeThreadStartParams }
   | { kind: "resume"; params: AcpBridgeThreadResumeParams };
 
+/**
+ * The session's fs policy, with every path resolved once here rather than on
+ * each request: these are the rules for the whole session, and the sandbox they
+ * mirror is likewise built at launch and not per syscall.
+ */
+function resolveSessionFsPolicy(
+  params: AcpBridgeThreadStartParams,
+): AcpSessionPolicy {
+  // A rule whose path resolves nowhere is kept as given rather than dropped:
+  // dropping it would quietly widen the policy, which is the same answer
+  // `resolvedPath` gives in `terminals/terminal-sandbox.ts`. A *request* for
+  // such a path is refused instead — see the handlers.
+  const resolveRule = (rule: string): string =>
+    resolveFsPolicyPath(rule) ?? resolve(rule);
+  return {
+    permissionMode: params.permissionMode,
+    permissionEscalation: params.permissionEscalation,
+    workspaceWriteRoots: params.workspaceWriteRoots.map(resolveRule),
+    protectedCredentialPaths: params.protectedCredentialPaths.map(resolveRule),
+    protectedRepositoryPaths: params.protectedRepositoryPaths.map(resolveRule),
+  };
+}
+
 async function startAgentSession(
   request: AcpSessionStartParams,
 ): Promise<AcpThreadSession> {
@@ -1519,6 +1810,7 @@ async function startAgentSession(
     await stopSession(existing);
   }
 
+  const policy = resolveSessionFsPolicy(params);
   const launch = await resolveAgentLaunchArgs(params);
   if (launch.warning) {
     sendNotification(ACP_WARNING_METHOD, {
@@ -1582,11 +1874,7 @@ async function startAgentSession(
     connection,
     agentLabel,
     supportsImageInput: false,
-    policy: {
-      permissionMode: params.permissionMode,
-      permissionEscalation: params.permissionEscalation,
-      workspaceWriteRoots: params.workspaceWriteRoots,
-    },
+    policy,
     cwd: params.cwd,
     pendingInstructions: params.instructions,
     activePromptKind: null,
@@ -1859,7 +2147,7 @@ function handleAgentRequest(
       handlePermissionRequest(session, params, responder);
       return;
     case "fs/read_text_file":
-      void handleFsReadTextFile(params, responder);
+      void handleFsReadTextFile(session, params, responder);
       return;
     case "fs/write_text_file":
       void handleFsWriteTextFile(session, params, responder);

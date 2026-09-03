@@ -289,8 +289,20 @@ async function handlePrompt(message) {
         content: "hello from agent\n",
       });
       notifyUpdate(messageChunk("write:ok"));
-    } catch {
-      notifyUpdate(messageChunk("write:denied"));
+    } catch (error) {
+      notifyUpdate(messageChunk(`write:denied:${error.message}`));
+    }
+  } else if (text.includes("read-file")) {
+    // The client's answer, verbatim: a bridge test asserts both what came back
+    // and, when it is a refusal, that the refusal says why.
+    try {
+      const result = await requestClient("fs/read_text_file", {
+        sessionId: activeSessionId,
+        path: process.env.FAKE_ACP_READ_PATH,
+      });
+      notifyUpdate(messageChunk(`read:ok:${result?.content ?? ""}`));
+    } catch (error) {
+      notifyUpdate(messageChunk(`read:denied:${error.message}`));
     }
   } else if (text.includes("hang")) {
     // Stay pending until the client sends session/cancel.

@@ -174,6 +174,17 @@ const acpBridgeSessionParamsSchema = z.object({
   permissionEscalation: permissionEscalationSchema.nullable(),
   /** Roots (workspace plus configured extras) where client fs writes are allowed. */
   workspaceWriteRoots: z.array(z.string()),
+  /**
+   * The two lists the turn's own sandbox is built from, carried here because
+   * the bridge is outside it and answers `fs/read_text_file` and
+   * `fs/write_text_file` on the agent's behalf: Patcher's own credential files,
+   * which nothing in a sandboxed turn may read, and the repository entries git
+   * executes from, which such a turn may read and not write. Carried whatever
+   * the mode is; the bridge applies them to a workspace-scoped turn and leaves
+   * a Full Access one alone, that mode having asked for no sandbox at all.
+   */
+  protectedCredentialPaths: z.array(z.string()).default([]),
+  protectedRepositoryPaths: z.array(z.string()).default([]),
   envVars: z.record(z.string(), z.string()).optional(),
   /** Server-owned instructions; prepended to the session's first prompt. */
   instructions: z.string().optional(),

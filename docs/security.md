@@ -361,6 +361,103 @@ provider process launched through the terminal sandbox above: same backends,
 same policy path for path, and confined the probe is refused while the workspace
 write still succeeds.
 
+**The bridge is not inside that boundary, and it answers the agent's file
+requests from outside it.** Patcher's ACP client advertises `fs/readTextFile`
+and `fs/writeTextFile`, and the bridge serving them is spawned by the runtime
+before the turn has a permission mode at all — so every rule the sandbox holds
+the agent to was one JSON-RPC call away from being asked of a process that is
+not in it. Measured on `grok agent stdio` with a real workspace-scoped turn and
+the traffic teed on both sides: it asked the bridge for `<dataDir>/app-api-key`
+and got the key back verbatim, and it asked the bridge to write
+`fsmonitor = /tmp/patcher-evil` into the workspace's own `.git/config` — the
+file the daemon's git then reads, outside the sandbox — and the bridge wrote it.
+Both are refused now, by name and with the reason, on the same two lists the
+sandbox itself is built from: the credential files denied outright, the
+repository entries git executes from readable and not writable, and the
+workspace roots compared after resolving rather than as strings. On the same
+turn, re-measured: the listed file is refused with the reason, the
+`.git/config` write is refused with the reason, and reading `.git/config` still
+works, which is what read-only means.
+
+Resolving means the OS's answer, and not Node's. A lookup follows each link as
+it walks, so the `..` in `<ws>/link/../file` is the parent of what `link` points
+at — while `path.resolve` and Node's own `realpath` both collapse that `..` as
+text first. Measured on a link to `<outside>/dir`: reading the path gave
+`<outside>/file` while both of those answered `<ws>/file`, and only
+`realpath.native` agreed with the kernel. A rule built on the other answer is a
+rule about a different file.
+
+Handed a whole path, though, that call is not the kernel either. Darwin's
+`realpath(3)` accepts a `.`, a `..` or a trailing slash after a name that is a
+file rather than a directory, where a lookup refuses: opening
+`<ws>/note.txt/../other.txt` is ENOTDIR, and it answered
+`<ws>/other.txt` — again a second file, existing and unasked for. Linux refuses
+those itself, so the two agree only where the path is walked a component at a
+time, each one checked to be a directory before the walk steps through it. Where
+a path cannot be resolved at all — a `..` behind a component that is missing or
+is not a directory, which the kernel answers with ENOENT and ENOTDIR — the
+request is refused rather than answered about whatever the string collapses to,
+which for `<ws>/missing/../note.txt` would have been a real file nobody asked
+for.
+
+A link's target is a path in its own right, so it is read with `readlink` and
+walked in turn rather than handed to `realpath(3)` — which resolves it instead
+of walking it, and so hides everything above. Measured on both platforms: a link
+to `note.txt/../other.txt` is ENOTDIR to open and one to `missing/../other.txt`
+is ENOENT, and asking `realpath(3)` about either link answered `<t>/other.txt`.
+A relative target is joined onto the resolved prefix as a string for the same
+reason `..` is not collapsed anywhere else here: `path.join` would take the `..`
+out of `missing/../other.txt` before the walk ever saw it.
+
+Two things the walk deliberately does not treat as components. A slash or a `.`
+names nothing of its own, so it asks only that what precedes it is not a file —
+past what exists it is allowed, because `<ws>/fresh//out.txt` writes the file
+`<ws>/fresh/out.txt` once the handler has made the directories, measured on both
+platforms, and refusing it would turn down a write this bridge supports. A path
+whose last segment is one, though, names a directory and only an existing one
+will do:
+`<ws>/fresh/` is ENOENT to open on macOS and EISDIR on Linux, not a file to
+create along with its parents. That check belongs to each path the walk
+expands, not to the request alone — a link's target is such a path too, and one
+stored as `missing/` refuses the same way while `missing` alone is a file the
+write creates.
+
+The count of links followed is shared across the whole walk rather than reset
+for each target, because a lookup counts every link wherever in the path it
+sits. Measured on 60 links in separate components, each pointing at `.`: the
+read is ELOOP on both platforms, while a per-target budget let the walk reach
+the file — and the handlers act on what the walk returns, never on the path they
+were handed, so that file would have been served. The limit is Darwin's 32;
+Linux allows 40, so a path between the two is refused here and would not be
+there, which is the safe side of a shape nothing sane asks for.
+
+That also means a link that leads nowhere is followed rather than treated as a
+name about to be created. Measured before it was: `<ws>/dangling`, pointing at
+`<outside>/x`, resolved to itself, sat inside the workspace as far as the write
+roots could tell, and the write created `<outside>/x` — the roots stepped around
+with a symlink the agent makes itself. Followed, the policy is given the path
+the kernel would open, and refuses it for the reason that is true.
+
+Not every agent asks. Of the four installed here, `cursor-agent acp` and
+`opencode acp` never call the client fs methods at all — they read and write
+with their own tools, in the process the sandbox does hold. Grok does. That is
+why the capability keeps a policy rather than being withdrawn: withdrawing it
+takes the feature from the one agent measured using it, and an agent is a
+version away from changing its mind in either direction.
+
+Reads that are not credentials stay open there, which is the judgement the API's
+route policy makes for the same reason: the sandbox allows them, so refusing
+them in the bridge would gate the polite path while the agent's own tools opened
+the file anyway. That is not a guess about what an agent would do — measured on
+the enforced run above, grok answered the refusal by running `cat` on the same
+path in its own shell, and got the file, because the harness the measurement ran
+in confines nothing. Which is the whole shape of this: the bridge mirrors the
+boundary and the sandbox *is* the boundary, and a bridge refusing more than the
+sandbox does buys a detour rather than a denial. What is closed here is the read
+whose answer is a credential. A Full Access turn is left alone entirely — that
+mode asks for no sandbox, which is the same line drawn where the credential list
+is built.
+
 One thing the policy has to add beyond a terminal's is the provider's own state
 directory. `cursor-agent acp` does not run at all until `~/.cursor` is writable:
 measured twice, it exits before answering `initialize`, and in an earlier probe
