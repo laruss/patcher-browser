@@ -13,7 +13,13 @@
 
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { promises as fs, readFileSync, realpathSync } from "node:fs";
+import {
+  promises as fs,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import {
   dirname,
@@ -1393,6 +1399,26 @@ function handlePermissionRequest(
 // Client fs methods
 // ---------------------------------------------------------------------------
 
+/** How many links a walk follows before it calls the path a loop. */
+const MAX_SYMLINK_HOPS = 32;
+
+function isDirectoryPath(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Where a symlink points, or null when the path is not one. */
+function symlinkTarget(path: string): string | null {
+  try {
+    return readlinkSync(path);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Where a path lands, for a path that need not be there yet.
  *
@@ -1401,42 +1427,90 @@ function handlePermissionRequest(
  * matches what a lookup resolves to rather than the string it was handed — see
  * `resolvedPath` in `terminals/terminal-sandbox.ts`, where that was measured.
  *
- * **`realpathSync.native`, and the ordinary one will not do.** A lookup follows
- * each link as it walks, so the `..` in `<ws>/link/../file` is the parent of
- * what `link` points at — while both `path.resolve` and Node's own `realpath`
- * collapse that `..` as text before resolving anything. Measured on a link to
- * `<outside>/dir`: reading the path gave `<outside>/file`, `path.resolve` and
- * `realpathSync` both answered `<ws>/file`, and `realpathSync.native`, which is
- * the OS call, answered `<outside>/file`. The handlers act on what this returns,
- * so the difference is a file the agent did not ask for.
+ * **The OS call, and the ordinary one will not do.** A lookup follows each link
+ * as it walks, so the `..` in `<ws>/link/../file` is the parent of what `link`
+ * points at — while both `path.resolve` and Node's own `realpath` collapse that
+ * `..` as text before resolving anything. Measured on a link to `<outside>/dir`:
+ * reading the path gave `<outside>/file`, `path.resolve` and `realpathSync` both
+ * answered `<ws>/file`, and `realpathSync.native`, which is the OS call,
+ * answered `<outside>/file`. The handlers act on what this returns, so the
+ * difference is a file the agent did not ask for.
+ *
+ * **One component at a time, because handed the whole path that call is not the
+ * kernel either.** Darwin's `realpath(3)` accepts a `.`, a `..` or a trailing
+ * slash after a *file*, where a lookup refuses: measured, opening
+ * `<ws>/note.txt/../other.txt` is ENOTDIR while `realpathSync.native` answered
+ * `<ws>/other.txt` — again a second file, existing and unasked for. Linux
+ * refuses those itself, so walking is also what makes the two platforms agree.
+ * A component the path steps through is therefore checked to be a directory
+ * here, which is the rule those cases break.
+ *
+ * A resolved prefix holds no links, so `..` on it is `dirname` — the same
+ * collapse as above, applied where it is true rather than before it is.
  *
  * The tail may not exist, because a write creates the file and its directories
- * with it, so the longest existing prefix is resolved and the rest put back on —
- * peeled off the path as given, since collapsing it first is the mistake above.
+ * with it, so the walk keeps appending names once it steps past what is there.
+ * What it will not do is honour a `.`, a `..` or a slash past that point:
+ * measured, `<ws>/missing/../note.txt` and `<ws>/afile/../note.txt` are ENOENT
+ * and ENOTDIR, and putting the tail back answered `<ws>/note.txt` for both.
  *
- * Null where that cannot be done honestly: a `..` behind a component that is not
- * there, or is not a directory. Putting such a tail back collapses it, and the
- * answer is then a file that does exist while the kernel would have refused the
- * lookup — measured, `<ws>/missing/../note.txt` and `<ws>/afile/../note.txt` are
- * ENOENT and ENOTDIR, and joining answered `<ws>/note.txt` for both. Names that
- * are merely missing are still put back, because that is what a write creating a
- * file, and its directories with it, asks for.
+ * **A link that leads nowhere is followed by hand**, because `realpath(3)` fails
+ * on it and a name that fails to resolve is otherwise taken here for a file
+ * about to be created. Measured before this: `<ws>/dangling` pointing at
+ * `<outside>/x` resolved to itself, sat inside the workspace as far as the
+ * policy could see, and the write created `<outside>/x` — the write root
+ * stepped around with a symlink the agent makes itself. Followed, the policy
+ * gets the path the kernel would open, and refuses it for the real reason.
  */
-function resolveFsPolicyPath(targetPath: string): string | null {
-  const tail: string[] = [];
-  let current = targetPath;
-  for (;;) {
-    try {
-      return join(realpathSync.native(current), ...tail);
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return null;
-      const name = basename(current);
-      if (name === "..") return null;
-      tail.unshift(name);
-      current = parent;
-    }
+function resolveFsPolicyPath(
+  targetPath: string,
+  hopsLeft = MAX_SYMLINK_HOPS,
+): string | null {
+  let resolved: string;
+  try {
+    resolved = isAbsolute(targetPath) ? sep : realpathSync.native(".");
+  } catch {
+    return null;
   }
+  // False once the walk is past what exists: what follows is a name a write
+  // would create. A `.` or a `..` there has nothing to resolve against, and the
+  // directory check below is what refuses it — a path the walk is past does not
+  // exist, so it is not a directory either.
+  let present = true;
+  for (const segment of targetPath.split(sep)) {
+    if (segment === "" || segment === "." || segment === "..") {
+      if (!isDirectoryPath(resolved)) return null;
+      if (segment === "..") resolved = dirname(resolved);
+      continue;
+    }
+    if (!present) {
+      resolved = join(resolved, segment);
+      continue;
+    }
+    if (!isDirectoryPath(resolved)) return null;
+    const candidate = join(resolved, segment);
+    try {
+      resolved = realpathSync.native(candidate);
+      continue;
+    } catch {
+      // Not there at all, or there and pointing at something that is not.
+    }
+    const linkTarget = symlinkTarget(candidate);
+    if (linkTarget === null) {
+      resolved = candidate;
+      present = false;
+      continue;
+    }
+    if (hopsLeft === 0) return null;
+    const followed = resolveFsPolicyPath(
+      isAbsolute(linkTarget) ? linkTarget : join(resolved, linkTarget),
+      hopsLeft - 1,
+    );
+    if (followed === null) return null;
+    resolved = followed;
+    present = false;
+  }
+  return resolved;
 }
 
 /** What the filesystem would have said about a path that resolves nowhere. */

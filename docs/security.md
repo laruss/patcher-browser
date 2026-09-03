@@ -379,17 +379,34 @@ turn, re-measured: the listed file is refused with the reason, the
 `.git/config` write is refused with the reason, and reading `.git/config` still
 works, which is what read-only means.
 
-Resolving means the OS's answer, not Node's. A lookup follows each link as it
-walks, so the `..` in `<ws>/link/../file` is the parent of what `link` points
+Resolving means the OS's answer, and not Node's. A lookup follows each link as
+it walks, so the `..` in `<ws>/link/../file` is the parent of what `link` points
 at — while `path.resolve` and Node's own `realpath` both collapse that `..` as
 text first. Measured on a link to `<outside>/dir`: reading the path gave
 `<outside>/file` while both of those answered `<ws>/file`, and only
 `realpath.native` agreed with the kernel. A rule built on the other answer is a
-rule about a different file. Where a path cannot be resolved that way at all —
-a `..` behind a component that is missing or is not a directory, which the
-kernel answers with ENOENT and ENOTDIR — the request is refused rather than
-answered about whatever the string collapses to, which for
-`<ws>/missing/../note.txt` would have been a real file nobody asked for.
+rule about a different file.
+
+Handed a whole path, though, that call is not the kernel either. Darwin's
+`realpath(3)` accepts a `.`, a `..` or a trailing slash after a name that is a
+file rather than a directory, where a lookup refuses: opening
+`<ws>/note.txt/../other.txt` is ENOTDIR, and it answered
+`<ws>/other.txt` — again a second file, existing and unasked for. Linux refuses
+those itself, so the two agree only where the path is walked a component at a
+time, each one checked to be a directory before the walk steps through it. Where
+a path cannot be resolved at all — a `..` behind a component that is missing or
+is not a directory, which the kernel answers with ENOENT and ENOTDIR — the
+request is refused rather than answered about whatever the string collapses to,
+which for `<ws>/missing/../note.txt` would have been a real file nobody asked
+for.
+
+A link that leads nowhere is followed by hand, because `realpath(3)` fails on
+one whose target is not there, and a name that fails to resolve is otherwise
+taken here for a file about to be created. Measured: `<ws>/dangling`, pointing
+at `<outside>/x`, resolved to itself, sat inside the workspace as far as the
+write roots could tell, and the write created `<outside>/x` — the roots stepped
+around with a symlink the agent makes itself. Followed, the policy is given the
+path the kernel would open, and refuses it for the reason that is true.
 
 Not every agent asks. Of the four installed here, `cursor-agent acp` and
 `opencode acp` never call the client fs methods at all — they read and write
