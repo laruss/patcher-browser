@@ -3,7 +3,9 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -69,8 +71,10 @@ interface Worktree {
  *
  * This is the layout the rename walks around, and the one nothing measured.
  */
-async function createPlainCheckout(): Promise<string> {
-  const root = mkdtempSync(path.join(tmpdir(), "patcher-git-sandbox-"));
+async function createPlainCheckout(
+  rootPrefix = path.join(tmpdir(), "patcher-git-sandbox-"),
+): Promise<string> {
+  const root = mkdtempSync(rootPrefix);
   temporaryRoots.push(root);
   const workspacePath = path.join(root, "checkout");
   await run("mkdir", ["-p", workspacePath]);
@@ -401,6 +405,104 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
       expect(
         existsSync(attributesPath) ? readFileSync(attributesPath, "utf8") : "",
       ).not.toContain("patcher-evil");
+    });
+
+    it("holds when the workspace sits under a directory whose name starts with ..", async () => {
+      // `isInside` decides which entries get a rename rule, and it used to read
+      // the `..` prefix of a *string* rather than a path segment — so a
+      // directory named `..projects` directly under a writable temp root
+      // looked like a step outside it, the workspace under it got no rule, and
+      // `mv wt wtx` walked the whole deny list around. `mkdtemp` puts the name
+      // straight under `$TMPDIR`, which is where the misreading bites.
+      // `/tmp` rather than `tmpdir()`: on macOS the latter sits under
+      // `/private/var/folders`, which is a writable root of its own, and being
+      // inside *that* covered for the misreading. `/tmp` has no writable
+      // ancestor in the list, so the answer for this directory is the only one
+      // there is — and a workspace under `/tmp` is a shape this module makes
+      // writable on purpose.
+      const workspacePath = await createPlainCheckout(
+        "/tmp/..patcher-git-sandbox-",
+      );
+      const [readOnlyPaths, writableRoots] = await Promise.all([
+        resolveProtectedRepositoryPaths(workspacePath),
+        resolveAdditionalWorkspaceWriteRoots(workspacePath),
+      ]);
+
+      const outcomes = await runSandboxed({
+        workspacePath,
+        writableRoots,
+        readOnlyPaths,
+        script: buildRenameWalkAroundScript(workspacePath),
+      });
+
+      expect(outcomes).toContain("refused:rename-workspace");
+      expect(outcomes).toContain("refused:rename-git-dir");
+      expect(
+        readFileSync(path.join(workspacePath, ".git", "config"), "utf8"),
+      ).not.toContain("fsmonitor");
+    });
+
+    it("does not leave a symlinked protected path standing on its own name", async () => {
+      // A rule names a path, and a symlink is two paths: deny the target and
+      // the link is still an ordinary entry in a writable directory, so
+      // `rm .git/config` and a fresh file in its place hand the daemon's git
+      // the turn's own config. Seatbelt takes a rule about the link's name.
+      // Bubblewrap cannot — a mount follows the link — so there the launch is
+      // refused instead, which is the same answer this module gives a machine
+      // that cannot build the sandbox at all.
+      const workspacePath = await createPlainCheckout();
+      const gitDir = path.join(workspacePath, ".git");
+      renameSync(path.join(gitDir, "config"), path.join(gitDir, "config.real"));
+      symlinkSync("config.real", path.join(gitDir, "config"));
+      const [readOnlyPaths, writableRoots] = await Promise.all([
+        resolveProtectedRepositoryPaths(workspacePath),
+        resolveAdditionalWorkspaceWriteRoots(workspacePath),
+      ]);
+      const policy = {
+        workspacePath,
+        writableRoots,
+        readOnlyPaths,
+        deniedReadPaths: [],
+      };
+
+      if (process.platform === "linux") {
+        const launch = buildTerminalSandboxLaunch({
+          command: { file: "/bin/sh", args: ["-c", "true"] },
+          cwd: workspacePath,
+          env: process.env,
+          platform: process.platform,
+          policy,
+        });
+        expect(launch.sandboxed).toBe(false);
+        if (launch.sandboxed) return;
+        expect(launch.reason).toContain("symbolic link");
+        expect(launch.remedy).toContain("Full Access");
+        return;
+      }
+
+      const outcomes = await runSandboxed({
+        ...policy,
+        script: [
+          `cd '${workspacePath}'`,
+          `if printf x >> .git/config 2>/dev/null; then echo wrote:through-link; else echo refused:through-link; fi`,
+          `if rm .git/config 2>/dev/null; then`,
+          `  echo removed:link`,
+          `  printf '[core]\\n\\tfsmonitor = /tmp/patcher-evil\\n' > .git/config 2>/dev/null`,
+          `else`,
+          `  echo refused:remove-link`,
+          `fi`,
+          `if mv .git/config .git/configx 2>/dev/null; then echo renamed:link; else echo refused:rename-link; fi`,
+        ].join("\n"),
+      });
+
+      expect(outcomes).toContain("refused:through-link");
+      expect(outcomes).toContain("refused:remove-link");
+      expect(outcomes).toContain("refused:rename-link");
+      // The link is still the one git follows, and it still leads to the file
+      // the repository had.
+      expect(readFileSync(path.join(gitDir, "config"), "utf8")).not.toContain(
+        "fsmonitor",
+      );
     });
 
     it("can still stage and commit its own work", async () => {

@@ -210,6 +210,31 @@ the rename, and `git add`, `commit`, `status` and `checkout -b` all still work.
 worktree, and CI's Linux shard installs bubblewrap, so both are re-measured
 rather than reasoned about.
 
+**A symlink is two names, and only one of them is the target.** The rules are
+built from the path a lookup lands on, which is what makes them rules about
+anything at all — but where a protected path is *itself* a link, that resolves
+to the target and leaves the link an ordinary entry in a writable directory.
+Measured on a checkout whose `.git/config` was a symlink: the write through it
+refused, and `rm .git/config` followed by a fresh file of the same name allowed,
+so the daemon's git read the turn's own config. Seatbelt now denies both names,
+which refuses the `rm` and the `mv` while an unrelated symlink in the same
+directory can still be made. Bubblewrap cannot be given that rule at all — a
+mount resolves its destination, so a bind for the link's name lands on the
+target and the name stays free, measured with the bind in place and the link
+still removable. There the launch is **refused**, naming the path and asking for
+a regular file in its place or a Full Access thread, which is the answer this
+module already gives a machine that cannot build a sandbox. Narrow on purpose:
+only a protected path or one of the directories on the way to it, and only when
+that entry is a link — a workspace reached *through* a symlinked ancestor is not
+this, and a linked worktree's `.git` is a regular file, so the layout Patcher
+runs by default never meets it.
+
+**And "inside a writable root" is a question about path segments.** The check
+read the `..` prefix of a string, so a directory named `..projects` looked like
+a step outside its own parent — which decides who gets a rename rule, so a
+workspace at `/tmp/..projects/wt` got none and `mv wt wtx` walked the whole list
+around. Measured on the profile this module builds, before and after.
+
 What stays writable inside that gitdir is inert, and that rests on git rather
 than on Patcher, so it is pinned by its own tests: a hook planted in a linked
 worktree's own gitdir **is not run** — git takes hooks from the common

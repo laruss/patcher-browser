@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { accessSync, constants, realpathSync, statSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  lstatSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 
 /**
@@ -245,13 +251,63 @@ function resolvedPaths(candidatePaths: readonly string[]): string[] {
   return candidatePaths.map(resolvedPath);
 }
 
-/** Whether `candidatePath` sits at or under `root`, both already resolved. */
+/**
+ * Both names a policy path can be known by, because a rule about one is not a
+ * rule about the other.
+ *
+ * `resolvedPath` above exists because a rule has to name what a lookup lands
+ * on. But a *symlink* has two names — its own and its target's — and only the
+ * second is what a write goes through. Deny the target alone and the link
+ * itself is an ordinary entry in a writable directory: measured on a checkout
+ * whose `.git/config` was a symlink, a write through it was refused and
+ * `rm .git/config` then `printf '[core] fsmonitor = …' > .git/config` was not,
+ * leaving the daemon's git reading the turn's own file. Naming both closes it —
+ * measured on the same layout, `rm` and `mv` of the link both refused, while an
+ * unrelated symlink in the same directory can still be made.
+ *
+ * Seatbelt takes both. Bubblewrap cannot: a mount resolves its destination, so
+ * a bind for the link's name lands on the target and leaves the name free —
+ * `buildTerminalSandboxLauncher` refuses the launch there instead.
+ */
+function policyPathForms(candidatePaths: readonly string[]): string[] {
+  const forms = new Set<string>();
+  for (const candidatePath of candidatePaths) {
+    forms.add(path.resolve(candidatePath));
+    forms.add(resolvedPath(candidatePath));
+  }
+  return [...forms];
+}
+
+/** A path whose own last component is a symlink, if the list holds one. */
+function findSymlinkedPath(candidatePaths: readonly string[]): string | null {
+  for (const candidatePath of candidatePaths) {
+    try {
+      if (lstatSync(candidatePath).isSymbolicLink()) return candidatePath;
+    } catch {
+      // Not there is not a symlink, and a path that is not there is handled by
+      // the `/dev/null` bind below.
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether `candidatePath` sits at or under `root`, both already resolved.
+ *
+ * The test is on path *segments*, not on the string: `..` and anything under
+ * `../` step outside, while `..projects` is an ordinary name that happens to
+ * start with two dots. Reading the prefix alone called such a directory
+ * outside its own parent, and this answer decides which entries get a rename
+ * rule — so with a workspace at `<tmp>/..projects/wt` the workspace itself was
+ * left unprotected and `mv wt wtx` put `core.fsmonitor` back in reach.
+ * Measured, on the profile this module builds.
+ */
 function isInside(candidatePath: string, root: string): boolean {
   const relative = path.relative(root, candidatePath);
   return (
     relative === "" ||
-    (relative !== "" &&
-      !relative.startsWith("..") &&
+    (relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
       !path.isAbsolute(relative))
   );
 }
@@ -362,13 +418,21 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
     // "Operation not permitted", and `git add`, `commit`, `status` and
     // `checkout -b` all still succeed.
     ...resolveProtectedEntryPaths(
-      resolvedPaths(args.policy.readOnlyPaths),
-      writable,
+      policyPathForms(args.policy.readOnlyPaths),
+      policyPathForms([
+        args.policy.workspacePath,
+        ...args.policy.writableRoots,
+        ...MACOS_WRITABLE_TEMP_SUBPATHS,
+        ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
+      ]),
     ).map(
       (entryPath) =>
         `(deny file-write* (literal ${quoteForSeatbelt(entryPath)}))`,
     ),
-    ...resolvedPaths(args.policy.readOnlyPaths).map(
+    // Both names, for the reason in `policyPathForms`: the target is what a
+    // write goes through, the link is what a `rm` and a `mv` act on. A form
+    // the kernel never sees is a rule that never matches, which costs a line.
+    ...policyPathForms(args.policy.readOnlyPaths).map(
       (readOnlyPath) =>
         `(deny file-write* (subpath ${quoteForSeatbelt(readOnlyPath)}))`,
     ),
@@ -377,6 +441,48 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
         `(deny file-read* (subpath ${quoteForSeatbelt(deniedPath)}))`,
     ),
   ].join("\n");
+}
+
+/** The roots a Linux launch makes writable, before they are resolved. */
+function linuxWritablePaths(args: BuildTerminalSandboxLauncherArgs): string[] {
+  return [
+    args.policy.workspacePath,
+    ...args.policy.writableRoots,
+    "/tmp",
+    ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
+  ];
+}
+
+/**
+ * A protected path bubblewrap cannot hold by name, if this policy has one.
+ *
+ * Every rule this backend makes is a mount, and a mount resolves its
+ * destination — so a bind for a symlink's own name lands on the target and
+ * leaves the name an ordinary entry in a writable directory. Measured: with
+ * `.git/config` a symlink, binding both the target and the link still left
+ * `rm .git/config` working, and `ls` inside the sandbox showed the link
+ * untouched. Seatbelt takes a rule about the name and this cannot, so the
+ * honest answer here is to refuse the launch rather than build a boundary that
+ * is a name short — the same answer this module already gives a machine with no
+ * bubblewrap.
+ *
+ * Narrow on purpose: only the protected paths themselves and the directory
+ * entries on the way to them, and only when the entry *is* a link. A workspace
+ * reached through a symlinked ancestor is not this — there the rule and the
+ * kernel agree on one name — and a linked worktree's `.git` is a regular file,
+ * so the layout Patcher runs by default never meets this.
+ */
+function findUnbindableProtectedPath(
+  args: BuildTerminalSandboxLauncherArgs,
+): string | null {
+  const protectedForms = policyPathForms(args.policy.readOnlyPaths);
+  return findSymlinkedPath([
+    ...protectedForms,
+    ...resolveProtectedEntryPaths(
+      protectedForms,
+      policyPathForms(linuxWritablePaths(args)),
+    ),
+  ]);
 }
 
 function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
@@ -392,12 +498,7 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     "--proc",
     "/proc",
   ];
-  const writablePaths = resolvedPaths([
-    args.policy.workspacePath,
-    ...args.policy.writableRoots,
-    "/tmp",
-    ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
-  ]);
+  const writablePaths = resolvedPaths(linuxWritablePaths(args));
   for (const writablePath of writablePaths) {
     if (!pathExists(writablePath)) continue;
     bindArgs.push("--bind-try", writablePath, writablePath);
@@ -549,6 +650,16 @@ export function buildTerminalSandboxLauncher(
         reason: "this machine has no bubblewrap",
         remedy:
           "install bubblewrap, open the terminal yourself, or run the thread at Full Access",
+      };
+    }
+    const unbindablePath = findUnbindableProtectedPath(args);
+    if (unbindablePath !== null) {
+      return {
+        sandboxed: false,
+        reason:
+          `${unbindablePath} is a symbolic link, and this backend confines a path ` +
+          "by mounting over it — a mount follows the link, so the link's own name would stay writable",
+        remedy: `replace ${unbindablePath} with a regular file or directory, or run the thread at Full Access`,
       };
     }
     const probeFailure = probeLinuxSandbox(helperPath, {
