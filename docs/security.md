@@ -400,13 +400,21 @@ request is refused rather than answered about whatever the string collapses to,
 which for `<ws>/missing/../note.txt` would have been a real file nobody asked
 for.
 
-A link that leads nowhere is followed by hand, because `realpath(3)` fails on
-one whose target is not there, and a name that fails to resolve is otherwise
-taken here for a file about to be created. Measured: `<ws>/dangling`, pointing
-at `<outside>/x`, resolved to itself, sat inside the workspace as far as the
-write roots could tell, and the write created `<outside>/x` — the roots stepped
-around with a symlink the agent makes itself. Followed, the policy is given the
-path the kernel would open, and refuses it for the reason that is true.
+A link's target is a path in its own right, so it is read with `readlink` and
+walked in turn rather than handed to `realpath(3)` — which resolves it instead
+of walking it, and so hides everything above. Measured on both platforms: a link
+to `note.txt/../other.txt` is ENOTDIR to open and one to `missing/../other.txt`
+is ENOENT, and asking `realpath(3)` about either link answered `<t>/other.txt`.
+A relative target is joined onto the resolved prefix as a string for the same
+reason `..` is not collapsed anywhere else here: `path.join` would take the `..`
+out of `missing/../other.txt` before the walk ever saw it.
+
+That also means a link that leads nowhere is followed rather than treated as a
+name about to be created. Measured before it was: `<ws>/dangling`, pointing at
+`<outside>/x`, resolved to itself, sat inside the workspace as far as the write
+roots could tell, and the write created `<outside>/x` — the roots stepped around
+with a symlink the agent makes itself. Followed, the policy is given the path
+the kernel would open, and refuses it for the reason that is true.
 
 Not every agent asks. Of the four installed here, `cursor-agent acp` and
 `opencode acp` never call the client fs methods at all — they read and write

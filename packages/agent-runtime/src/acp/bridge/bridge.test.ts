@@ -2311,6 +2311,66 @@ describe("acp bridge", () => {
     }
   });
 
+  it("refuses a read through a link whose target steps past a file", async () => {
+    // A link's target is a path in its own right. `note.txt/../other.txt` is
+    // ENOTDIR to open — measured, on both platforms — and `realpath(3)` asked
+    // about the link answered `<ws>/other.txt`, because it resolves the target
+    // instead of walking it. The handler would have served that second file.
+    writeFileSync(join(workspaceDir, "note.txt"), "the file named\n", "utf8");
+    writeFileSync(
+      join(workspaceDir, "other.txt"),
+      "the one beside it\n",
+      "utf8",
+    );
+    symlinkSync("note.txt/../other.txt", join(workspaceDir, "through-a-file"));
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_READ_PATH: join(workspaceDir, "through-a-file"),
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "read-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("read:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(agentMessageTexts().join("\n")).not.toContain("the one beside it");
+  });
+
+  it("refuses a write through a link whose target steps past a missing name", async () => {
+    // The same shape with the `..` behind a name that is not there: ENOENT to
+    // open. Joining the target onto the prefix collapses that `..` as text
+    // before the walk sees it, and the write then lands on `other.txt`.
+    writeFileSync(join(workspaceDir, "other.txt"), "left alone\n", "utf8");
+    symlinkSync("missing/../other.txt", join(workspaceDir, "through-nothing"));
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_WRITE_PATH: join(workspaceDir, "through-nothing"),
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("write:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(readFileSync(join(workspaceDir, "other.txt"), "utf8")).toBe(
+      "left alone\n",
+    );
+  });
+
   it("chains steer input onto the active turn", async () => {
     const { providerThreadId } = await startThread();
     const turnId = sendRequest("turn/start", {

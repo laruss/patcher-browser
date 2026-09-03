@@ -1402,15 +1402,18 @@ function handlePermissionRequest(
 /** How many links a walk follows before it calls the path a loop. */
 const MAX_SYMLINK_HOPS = 32;
 
-function isDirectoryPath(path: string): boolean {
+/** What a resolved path is, in the one `stat` the walk needs per step. */
+type ResolvedKind = "directory" | "other" | "absent";
+
+function classifyPath(path: string): ResolvedKind {
   try {
-    return statSync(path).isDirectory();
+    return statSync(path).isDirectory() ? "directory" : "other";
   } catch {
-    return false;
+    return "absent";
   }
 }
 
-/** Where a symlink points, or null when the path is not one. */
+/** Where a symlink points, as written, or null when the path is not one. */
 function symlinkTarget(path: string): string | null {
   try {
     return readlinkSync(path);
@@ -1427,40 +1430,46 @@ function symlinkTarget(path: string): string | null {
  * matches what a lookup resolves to rather than the string it was handed — see
  * `resolvedPath` in `terminals/terminal-sandbox.ts`, where that was measured.
  *
- * **The OS call, and the ordinary one will not do.** A lookup follows each link
- * as it walks, so the `..` in `<ws>/link/../file` is the parent of what `link`
- * points at — while both `path.resolve` and Node's own `realpath` collapse that
- * `..` as text before resolving anything. Measured on a link to `<outside>/dir`:
- * reading the path gave `<outside>/file`, `path.resolve` and `realpathSync` both
- * answered `<ws>/file`, and `realpathSync.native`, which is the OS call,
- * answered `<outside>/file`. The handlers act on what this returns, so the
- * difference is a file the agent did not ask for.
+ * So this walks the path the way a lookup does — a component at a time, each
+ * one checked, every link read and its target walked in turn — because nothing
+ * shorter agrees with the kernel. Three measurements say why, and each of them
+ * was a file the handlers would have read or written in place of the one asked
+ * for:
  *
- * **One component at a time, because handed the whole path that call is not the
- * kernel either.** Darwin's `realpath(3)` accepts a `.`, a `..` or a trailing
- * slash after a *file*, where a lookup refuses: measured, opening
- * `<ws>/note.txt/../other.txt` is ENOTDIR while `realpathSync.native` answered
- * `<ws>/other.txt` — again a second file, existing and unasked for. Linux
- * refuses those itself, so walking is also what makes the two platforms agree.
- * A component the path steps through is therefore checked to be a directory
- * here, which is the rule those cases break.
+ * - **`path.resolve` and Node's `realpath` collapse a `..` as text**, before
+ *   resolving anything, so `<ws>/link/../file` becomes `<ws>/file` — while a
+ *   lookup follows `link` first and lands beside what it points at. Measured on
+ *   a link to `<outside>/dir`: the read gave `<outside>/file`, both of those
+ *   answered `<ws>/file`, and only `realpath.native`, the OS call, agreed.
+ * - **Darwin's `realpath(3)` accepts a `.`, a `..` or a trailing slash after a
+ *   name that is a file**, where a lookup refuses: opening
+ *   `<ws>/note.txt/../other.txt` is ENOTDIR, and it answered `<ws>/other.txt`.
+ *   Linux refuses that itself, so only walking makes the two agree.
+ * - **A link's target is a path in its own right, and `realpath(3)` on the link
+ *   hides that.** A link to `note.txt/../other.txt` is ENOTDIR to open and a
+ *   link to `missing/../other.txt` is ENOENT, on both platforms — and both
+ *   answered `<t>/other.txt`, since the call resolves the target rather than
+ *   walking it. Hence `symlinkTarget` before anything else, and the target
+ *   walked by this same function.
  *
- * A resolved prefix holds no links, so `..` on it is `dirname` — the same
- * collapse as above, applied where it is true rather than before it is.
+ * A prefix this walk has resolved holds no links, so `..` on it is `dirname` —
+ * the same collapse as above, applied where it is finally true. A relative link
+ * target is joined to that prefix as a *string*, because `join` would collapse
+ * the `..` in `missing/../other.txt` before the walk ever saw it, which is the
+ * last measurement above.
  *
  * The tail may not exist, because a write creates the file and its directories
  * with it, so the walk keeps appending names once it steps past what is there.
  * What it will not do is honour a `.`, a `..` or a slash past that point:
- * measured, `<ws>/missing/../note.txt` and `<ws>/afile/../note.txt` are ENOENT
- * and ENOTDIR, and putting the tail back answered `<ws>/note.txt` for both.
+ * `<ws>/missing/../note.txt` and `<ws>/afile/../note.txt` are ENOENT and
+ * ENOTDIR, and a resolver that put the tail back answered `<ws>/note.txt` for
+ * both.
  *
- * **A link that leads nowhere is followed by hand**, because `realpath(3)` fails
- * on it and a name that fails to resolve is otherwise taken here for a file
- * about to be created. Measured before this: `<ws>/dangling` pointing at
- * `<outside>/x` resolved to itself, sat inside the workspace as far as the
- * policy could see, and the write created `<outside>/x` — the write root
- * stepped around with a symlink the agent makes itself. Followed, the policy
- * gets the path the kernel would open, and refuses it for the real reason.
+ * That is also why a link whose target is not there is followed rather than
+ * treated as a name to create. Measured before it was: `<ws>/dangling` pointing
+ * at `<outside>/x` resolved to itself, sat inside the workspace as far as the
+ * policy could see, and the write created `<outside>/x` — the write roots
+ * stepped around with a symlink the agent makes itself.
  */
 function resolveFsPolicyPath(
   targetPath: string,
@@ -1472,43 +1481,34 @@ function resolveFsPolicyPath(
   } catch {
     return null;
   }
-  // False once the walk is past what exists: what follows is a name a write
-  // would create. A `.` or a `..` there has nothing to resolve against, and the
-  // directory check below is what refuses it — a path the walk is past does not
-  // exist, so it is not a directory either.
-  let present = true;
   for (const segment of targetPath.split(sep)) {
+    const here = classifyPath(resolved);
     if (segment === "" || segment === "." || segment === "..") {
-      if (!isDirectoryPath(resolved)) return null;
+      // A slash, a `.` or a `..` names the thing before it as a directory.
+      if (here !== "directory") return null;
       if (segment === "..") resolved = dirname(resolved);
       continue;
     }
-    if (!present) {
+    if (here !== "directory") {
+      // Nothing further to resolve: past what exists — a file a write creates,
+      // with the directories above it — or a name under something that is not
+      // a directory, where the open is what refuses, with ENOTDIR.
       resolved = join(resolved, segment);
       continue;
     }
-    if (!isDirectoryPath(resolved)) return null;
     const candidate = join(resolved, segment);
-    try {
-      resolved = realpathSync.native(candidate);
-      continue;
-    } catch {
-      // Not there at all, or there and pointing at something that is not.
-    }
     const linkTarget = symlinkTarget(candidate);
     if (linkTarget === null) {
       resolved = candidate;
-      present = false;
       continue;
     }
     if (hopsLeft === 0) return null;
     const followed = resolveFsPolicyPath(
-      isAbsolute(linkTarget) ? linkTarget : join(resolved, linkTarget),
+      isAbsolute(linkTarget) ? linkTarget : `${resolved}${sep}${linkTarget}`,
       hopsLeft - 1,
     );
     if (followed === null) return null;
     resolved = followed;
-    present = false;
   }
   return resolved;
 }
