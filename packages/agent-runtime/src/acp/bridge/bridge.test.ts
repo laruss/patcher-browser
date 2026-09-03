@@ -2371,11 +2371,11 @@ describe("acp bridge", () => {
     );
   });
 
-  it("writes a file whose path carries an extra separator or a dot", async () => {
-    // `fresh//out.txt` and `fresh/./out.txt` name the same file as
-    // `fresh/out.txt`, and the handler creates the directories above it — so
-    // both write, measured, on both platforms. A walk that asked for a
-    // directory at every punctuation mark turned a supported write down.
+  it("writes a file whose path carries an extra separator", async () => {
+    // `fresh//out.txt` names the same file as `fresh/out.txt`, and the handler
+    // creates the directories above it — so it writes, measured, on both
+    // platforms. A walk that asked for a directory at every punctuation mark
+    // turned a supported write down.
     const targetPath = pathKeepingDotDot(workspaceDir, "fresh", "", "out.txt");
     const { providerThreadId } = await startThread({
       permissionMode: "accept-edits",
@@ -2476,6 +2476,84 @@ describe("acp bridge", () => {
       "the path names no file",
     );
     expect(existsSync(join(workspaceDir, "missing"))).toBe(false);
+  });
+
+  it("writes a file whose path carries a literal dot segment", async () => {
+    // The other punctuation mark, and a separate request because one path
+    // cannot carry both: `fresh/./out.txt` is the same file again, and `join`
+    // would take the `.` out before the bridge ever saw it.
+    const targetPath = pathKeepingDotDot(workspaceDir, "fresh", ".", "out.txt");
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: { FAKE_ACP_WRITE_PATH: targetPath },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageTexts()).toContain("write:ok");
+    expect(readFileSync(join(workspaceDir, "fresh", "out.txt"), "utf8")).toBe(
+      "hello from agent\n",
+    );
+  });
+
+  it("refuses a link chain longer than a lookup follows", async () => {
+    // The budget seen the other way round: 40 links in a single component, each
+    // pointing at the next. A budget made fresh inside each target would never
+    // run out here, however deep the chain, while the read is ELOOP — so this
+    // and the one above pin the same counter from both directions.
+    writeFileSync(join(workspaceDir, "note.txt"), "past the chain\n", "utf8");
+    let target = "note.txt";
+    for (let index = 0; index < 40; index += 1) {
+      const name = `c${index}`;
+      symlinkSync(target, join(workspaceDir, name));
+      target = name;
+    }
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: { FAKE_ACP_READ_PATH: join(workspaceDir, target) },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "read-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("read:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(agentMessageTexts().join("\n")).not.toContain("past the chain");
+  });
+
+  it("follows a link chain that stays within the budget", async () => {
+    // And the other side of that limit, so the budget cannot be made to refuse
+    // everything and still pass: 20 links deep reads the file at the end.
+    writeFileSync(join(workspaceDir, "note.txt"), "at the end\n", "utf8");
+    let target = "note.txt";
+    for (let index = 0; index < 20; index += 1) {
+      const name = `s${index}`;
+      symlinkSync(target, join(workspaceDir, name));
+      target = name;
+    }
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: { FAKE_ACP_READ_PATH: join(workspaceDir, target) },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "read-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("read:ok:")).toContain("at the end");
   });
 
   it("chains steer input onto the active turn", async () => {
