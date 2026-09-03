@@ -396,6 +396,16 @@ function buildWorkspaceWriteSandbox(
     // survives symlink, hardlink, `cp`/`tar`/`rsync` and rename indirection. A
     // more specific `allowWrite` does *not* beat a broader deny, which is why
     // the denied list is narrow instead of `.git` wholesale.
+    //
+    // Narrow leaves the directories themselves out of the list, and a deny
+    // names a path rather than a file — so `mv .git .gitx`, an edit, and
+    // `mv .gitx .git` is the shape Patcher's own backends had to grow a rule
+    // for (`terminals/terminal-sandbox.ts`). This list cannot carry that rule:
+    // a deny on `.git` here is a deny on `index.lock` too. Measured instead,
+    // with this `denyWrite` and a real session on macOS: the rename of `.git`,
+    // of `.git/info` and of the workspace are all refused while a write in the
+    // workspace and one in `.git` still succeed, so the sandbox answers it on
+    // its own. Linux is not measured — see `docs/security.md`.
     ...(allowWrite.length > 0 || denyWrite.length > 0
       ? {
           filesystem: {

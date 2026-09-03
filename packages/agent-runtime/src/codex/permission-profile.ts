@@ -35,6 +35,21 @@ import type { JsonValue } from "./generated/codex-app-server/schema/serde_json/J
  *   workspace-write mode allows has to be said out loud here.
  * - `network` has to be said out loud too: a profile that omits it inherits the
  *   restricted default, which would take the loopback the `patcher` CLI needs.
+ * - **The entries are paths, and a path is a name in a directory.** Patcher's
+ *   own backends had to grow a rule for `.git` itself, because renaming it and
+ *   putting it back walked around every rule underneath — this map has no way
+ *   to say that, since `read` on `.git` is `read` on everything in it and takes
+ *   `index.lock` with it. Measured here rather than assumed, with `codex
+ *   sandbox` and this exact profile: on macOS the rename is refused for `.git`,
+ *   `.git/info` and the workspace, so the four files hold. On Linux only
+ *   `.git/info` gives — an `info/attributes` can be written in a fresh
+ *   directory beside it, while `.git`, `.git/hooks`, the workspace and both a
+ *   rename and an unlink of `.git/config` are refused. That leaves an untracked
+ *   attributes file and nothing else: with no writable config to *define* a
+ *   filter driver it selects a name that does not exist, and a turn could
+ *   commit a `.gitattributes` saying the same thing anyway. Closing it would
+ *   mean `.git/info` read-only, which takes `git sparse-checkout` from every
+ *   Codex turn for nothing gained.
  *
  * The profile is selected by `default_permissions`, and both go through the
  * per-thread config overrides — not through `thread/start`'s own `sandbox`

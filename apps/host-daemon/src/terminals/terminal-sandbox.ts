@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { accessSync, constants, realpathSync, statSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  lstatSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 
 /**
@@ -245,13 +251,63 @@ function resolvedPaths(candidatePaths: readonly string[]): string[] {
   return candidatePaths.map(resolvedPath);
 }
 
-/** Whether `candidatePath` sits at or under `root`, both already resolved. */
+/**
+ * Both names a policy path can be known by, because a rule about one is not a
+ * rule about the other.
+ *
+ * `resolvedPath` above exists because a rule has to name what a lookup lands
+ * on. But a *symlink* has two names — its own and its target's — and only the
+ * second is what a write goes through. Deny the target alone and the link
+ * itself is an ordinary entry in a writable directory: measured on a checkout
+ * whose `.git/config` was a symlink, a write through it was refused and
+ * `rm .git/config` then `printf '[core] fsmonitor = …' > .git/config` was not,
+ * leaving the daemon's git reading the turn's own file. Naming both closes it —
+ * measured on the same layout, `rm` and `mv` of the link both refused, while an
+ * unrelated symlink in the same directory can still be made.
+ *
+ * Seatbelt takes both. Bubblewrap cannot: a mount resolves its destination, so
+ * a bind for the link's name lands on the target and leaves the name free —
+ * `buildTerminalSandboxLauncher` refuses the launch there instead.
+ */
+function policyPathForms(candidatePaths: readonly string[]): string[] {
+  const forms = new Set<string>();
+  for (const candidatePath of candidatePaths) {
+    forms.add(path.resolve(candidatePath));
+    forms.add(resolvedPath(candidatePath));
+  }
+  return [...forms];
+}
+
+/** A path whose own last component is a symlink, if the list holds one. */
+function findSymlinkedPath(candidatePaths: readonly string[]): string | null {
+  for (const candidatePath of candidatePaths) {
+    try {
+      if (lstatSync(candidatePath).isSymbolicLink()) return candidatePath;
+    } catch {
+      // Not there is not a symlink, and a path that is not there is handled by
+      // the `/dev/null` bind below.
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether `candidatePath` sits at or under `root`, both already resolved.
+ *
+ * The test is on path *segments*, not on the string: `..` and anything under
+ * `../` step outside, while `..projects` is an ordinary name that happens to
+ * start with two dots. Reading the prefix alone called such a directory
+ * outside its own parent, and this answer decides which entries get a rename
+ * rule — so with a workspace at `<tmp>/..projects/wt` the workspace itself was
+ * left unprotected and `mv wt wtx` put `core.fsmonitor` back in reach.
+ * Measured, on the profile this module builds.
+ */
 function isInside(candidatePath: string, root: string): boolean {
   const relative = path.relative(root, candidatePath);
   return (
     relative === "" ||
-    (relative !== "" &&
-      !relative.startsWith("..") &&
+    (relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
       !path.isAbsolute(relative))
   );
 }
@@ -263,6 +319,54 @@ function pathExists(candidatePath: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The directory entries on the way to a protected path, which have to be
+ * nailed down as well as the path itself.
+ *
+ * Every rule in this file names a path, and a path is a name in a directory: a
+ * deny on `<ws>/.git/config` is a deny on that *name*, not on that file. `.git`
+ * sits in the workspace a turn may write, so `mv .git .gitx`, an edit, and
+ * `mv .gitx .git` puts the config back where it was with the rule stepped over.
+ * Measured on both backends, with the argv this module builds: a direct write
+ * to `.git/config` is refused and the same write through the rename is rc 0,
+ * ending with `core.fsmonitor` in the real file and a hook in `.git/hooks` —
+ * which the daemon's own git then runs, outside the sandbox, as the user.
+ *
+ * So each directory between a writable root and a protected path is protected
+ * as an entry rather than as a subtree: the name may not be renamed or
+ * unlinked, while writes *inside* it stay allowed. That distinction is the
+ * whole reason this is separate from `readOnlyPaths` — `.git` denied as a
+ * subtree takes `index.lock` with it, and a turn that cannot write that cannot
+ * `git add` its own work.
+ *
+ * An entry is reachable for a rename exactly when its parent is writable, which
+ * is what the walk asks. That answers both layouts the issue named without
+ * either being special-cased: `.git` and `.git/info` in a plain checkout, and
+ * the workspace directory itself wherever it sits under `/tmp` or `$TMPDIR`,
+ * where renaming the workspace moves a linked worktree's `.git` pointer file
+ * out from under its rule the same way.
+ */
+function resolveProtectedEntryPaths(
+  protectedPaths: readonly string[],
+  writablePaths: readonly string[],
+): string[] {
+  const entries = new Set<string>();
+  for (const protectedPath of protectedPaths) {
+    let candidate = path.dirname(protectedPath);
+    while (candidate !== path.dirname(candidate)) {
+      const parent = path.dirname(candidate);
+      if (writablePaths.some((root) => isInside(parent, root))) {
+        entries.add(candidate);
+      }
+      candidate = parent;
+    }
+  }
+  // Sorted so a parent is always named before its own children: on bubblewrap
+  // these become mounts, and a mount applied later would hide the ones already
+  // made underneath it.
+  return [...entries].sort();
 }
 
 /** Seatbelt takes a quoted string, so a path with a quote in it must survive. */
@@ -306,7 +410,29 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
       : []),
     // After the allows: a rule later in the profile wins, and these sit inside
     // the workspace the line above just made writable.
-    ...resolvedPaths(args.policy.readOnlyPaths).map(
+    //
+    // The entry denies come first because they are the coarser statement: a
+    // `literal` names the directory and nothing under it, so `.git` cannot be
+    // renamed or unlinked while `.git/index.lock` is still written. Measured:
+    // with these in the profile `mv .git .gitx` and `mv <ws> <ws>x` are both
+    // "Operation not permitted", and `git add`, `commit`, `status` and
+    // `checkout -b` all still succeed.
+    ...resolveProtectedEntryPaths(
+      policyPathForms(args.policy.readOnlyPaths),
+      policyPathForms([
+        args.policy.workspacePath,
+        ...args.policy.writableRoots,
+        ...MACOS_WRITABLE_TEMP_SUBPATHS,
+        ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
+      ]),
+    ).map(
+      (entryPath) =>
+        `(deny file-write* (literal ${quoteForSeatbelt(entryPath)}))`,
+    ),
+    // Both names, for the reason in `policyPathForms`: the target is what a
+    // write goes through, the link is what a `rm` and a `mv` act on. A form
+    // the kernel never sees is a rule that never matches, which costs a line.
+    ...policyPathForms(args.policy.readOnlyPaths).map(
       (readOnlyPath) =>
         `(deny file-write* (subpath ${quoteForSeatbelt(readOnlyPath)}))`,
     ),
@@ -315,6 +441,55 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
         `(deny file-read* (subpath ${quoteForSeatbelt(deniedPath)}))`,
     ),
   ].join("\n");
+}
+
+/** The roots a Linux launch makes writable, before they are resolved. */
+function linuxWritablePaths(args: BuildTerminalSandboxLauncherArgs): string[] {
+  return [
+    args.policy.workspacePath,
+    ...args.policy.writableRoots,
+    "/tmp",
+    ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
+  ];
+}
+
+/**
+ * A protected path bubblewrap cannot hold by name, if this policy has one.
+ *
+ * Every rule this backend makes is a mount, and a mount resolves its
+ * destination — so a bind for a symlink's own name lands on the target and
+ * leaves the name an ordinary entry in a writable directory. Measured: with
+ * `.git/config` a symlink, binding both the target and the link still left
+ * `rm .git/config` working, and `ls` inside the sandbox showed the link
+ * untouched. Seatbelt takes a rule about the name and this cannot, so the
+ * honest answer here is to refuse the launch rather than build a boundary that
+ * is a name short — the same answer this module already gives a machine with no
+ * bubblewrap.
+ *
+ * Narrow on purpose: only the protected paths themselves and the directory
+ * entries on the way to them, and only when the entry *is* a link. A workspace
+ * reached through a symlinked ancestor is not this — there the rule and the
+ * kernel agree on one name — and a linked worktree's `.git` is a regular file,
+ * so the layout Patcher runs by default never meets this.
+ */
+function findUnbindableProtectedPath(
+  args: BuildTerminalSandboxLauncherArgs,
+): string | null {
+  const writableForms = policyPathForms(linuxWritablePaths(args));
+  const protectedForms = policyPathForms(args.policy.readOnlyPaths);
+  return findSymlinkedPath([
+    // Only where the link could actually be replaced, which is where its
+    // parent is writable. A linked worktree's common `.git` sits in the source
+    // repository, outside every writable root — measured there, `rm` and `mv`
+    // on a symlinked `config` both answer "Read-only file system", so refusing
+    // that launch would cost the turn its terminal and buy nothing.
+    ...protectedForms.filter((protectedPath) =>
+      writableForms.some((root) => isInside(path.dirname(protectedPath), root)),
+    ),
+    // The entries are already only the ones with a writable parent — that is
+    // the question the walk asks to collect them at all.
+    ...resolveProtectedEntryPaths(protectedForms, writableForms),
+  ]);
 }
 
 function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
@@ -330,15 +505,47 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     "--proc",
     "/proc",
   ];
-  const writablePaths = resolvedPaths([
-    args.policy.workspacePath,
-    ...args.policy.writableRoots,
-    "/tmp",
-    ...(args.env.TMPDIR ? [args.env.TMPDIR] : []),
-  ]);
+  const writablePaths = resolvedPaths(linuxWritablePaths(args));
+  const boundWritablePaths = new Set<string>();
   for (const writablePath of writablePaths) {
     if (!pathExists(writablePath)) continue;
     bindArgs.push("--bind-try", writablePath, writablePath);
+    boundWritablePaths.add(writablePath);
+  }
+  // Before the read-only binds, and that order is the point: each of these
+  // mounts a directory onto itself so `rename()` on it answers EBUSY, and a
+  // mount made here after the rules underneath it would hide them instead.
+  // Measured in a Debian container under unprivileged `bwrap`: without them
+  // `mv .git .gitx && mkdir .git && cp -a .gitx/. .git/` writes both the
+  // config and a hook, visible on the host; with them the rename is refused
+  // and `git add`, `commit`, `status` and `checkout -b` still succeed.
+  for (const entryPath of resolveProtectedEntryPaths(
+    resolvedPaths(args.policy.readOnlyPaths),
+    writablePaths,
+  )) {
+    // A writable root that was bound above is already a mount point and
+    // already answers EBUSY — this is what keeps the workspace directory from
+    // being bound twice. Asking the set of binds actually emitted rather than
+    // the list they were drawn from, because that loop skips a root that is
+    // not there: the `/dev/null` bind below would then create the directory
+    // with no mount on it, which is the one case this `continue` must not
+    // cover.
+    if (boundWritablePaths.has(entryPath)) continue;
+    if (pathExists(entryPath)) {
+      bindArgs.push("--bind", entryPath, entryPath);
+      continue;
+    }
+    // A directory a turn deleted before this launch — `.git/info` is writable,
+    // so that is a state a turn can arrange. `--bind` has no source to take,
+    // and skipping it would hand the next turn the same rename back, because
+    // the loop below is about to create the path underneath it anyway. An
+    // empty tmpfs is what git already reads a missing `.git/info` as, and it
+    // is a mount point, so the rename is refused. Measured with `.git/info`
+    // deleted first: the rename refused, `git add` and `commit` still fine,
+    // and nothing written inside it left on the host — the cost is the same
+    // empty entry the bind below already leaves, a directory instead of a
+    // file.
+    bindArgs.push("--tmpfs", entryPath);
   }
   for (const readOnlyPath of resolvedPaths(args.policy.readOnlyPaths)) {
     if (pathExists(readOnlyPath)) {
@@ -456,6 +663,16 @@ export function buildTerminalSandboxLauncher(
         reason: "this machine has no bubblewrap",
         remedy:
           "install bubblewrap, open the terminal yourself, or run the thread at Full Access",
+      };
+    }
+    const unbindablePath = findUnbindableProtectedPath(args);
+    if (unbindablePath !== null) {
+      return {
+        sandboxed: false,
+        reason:
+          `${unbindablePath} is a symbolic link, and this backend confines a path ` +
+          "by mounting over it — a mount follows the link, so the link's own name would stay writable",
+        remedy: `replace ${unbindablePath} with a regular file or directory, or run the thread at Full Access`,
       };
     }
     const probeFailure = probeLinuxSandbox(helperPath, {
