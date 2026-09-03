@@ -1995,6 +1995,64 @@ describe("acp bridge", () => {
     }
   });
 
+  it("refuses a read whose `..` sits behind a component that is not there", async () => {
+    // The kernel walks the path and fails on `missing` — measured, ENOENT.
+    // Putting the peeled tail back would collapse the `..` and answer with
+    // `<ws>/note.txt`, a file that does exist and that nobody asked for.
+    writeFileSync(join(workspaceDir, "note.txt"), "beside nothing\n", "utf8");
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_READ_PATH: pathKeepingDotDot(
+          workspaceDir,
+          "missing",
+          "..",
+          "note.txt",
+        ),
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "read-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("read:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(agentMessageTexts().join("\n")).not.toContain("beside nothing");
+  });
+
+  it("refuses a write whose `..` sits behind a component that is not there", async () => {
+    // Same path shape on the write side, where inventing an answer would have
+    // created a file at a path the request never named.
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_WRITE_PATH: pathKeepingDotDot(
+          workspaceDir,
+          "missing",
+          "..",
+          "out.txt",
+        ),
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("write:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(existsSync(join(workspaceDir, "out.txt"))).toBe(false);
+  });
+
   it("denies a write whose `..` steps out of the workspace behind a link", async () => {
     // The same resolution seen from the policy's side: collapsed as text this
     // path looks like an ordinary file in the workspace, and the write would

@@ -385,7 +385,11 @@ at — while `path.resolve` and Node's own `realpath` both collapse that `..` as
 text first. Measured on a link to `<outside>/dir`: reading the path gave
 `<outside>/file` while both of those answered `<ws>/file`, and only
 `realpath.native` agreed with the kernel. A rule built on the other answer is a
-rule about a different file.
+rule about a different file. Where a path cannot be resolved that way at all —
+a `..` behind a component that is missing or is not a directory, which the
+kernel answers with ENOENT and ENOTDIR — the request is refused rather than
+answered about whatever the string collapses to, which for
+`<ws>/missing/../note.txt` would have been a real file nobody asked for.
 
 Not every agent asks. Of the four installed here, `cursor-agent acp` and
 `opencode acp` never call the client fs methods at all — they read and write

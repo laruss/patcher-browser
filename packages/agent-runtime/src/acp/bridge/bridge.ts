@@ -1413,10 +1413,16 @@ function handlePermissionRequest(
  * The tail may not exist, because a write creates the file and its directories
  * with it, so the longest existing prefix is resolved and the rest put back on —
  * peeled off the path as given, since collapsing it first is the mistake above.
- * A path that resolves nowhere at all is answered as given rather than dropped:
- * an unresolvable path stays inside the policy instead of falling past it.
+ *
+ * Null where that cannot be done honestly: a `..` behind a component that is not
+ * there, or is not a directory. Putting such a tail back collapses it, and the
+ * answer is then a file that does exist while the kernel would have refused the
+ * lookup — measured, `<ws>/missing/../note.txt` and `<ws>/afile/../note.txt` are
+ * ENOENT and ENOTDIR, and joining answered `<ws>/note.txt` for both. Names that
+ * are merely missing are still put back, because that is what a write creating a
+ * file, and its directories with it, asks for.
  */
-function resolveFsPolicyPath(targetPath: string): string {
+function resolveFsPolicyPath(targetPath: string): string | null {
   const tail: string[] = [];
   let current = targetPath;
   for (;;) {
@@ -1424,11 +1430,18 @@ function resolveFsPolicyPath(targetPath: string): string {
       return join(realpathSync.native(current), ...tail);
     } catch {
       const parent = dirname(current);
-      if (parent === current) return resolve(targetPath);
-      tail.unshift(basename(current));
+      if (parent === current) return null;
+      const name = basename(current);
+      if (name === "..") return null;
+      tail.unshift(name);
       current = parent;
     }
   }
+}
+
+/** What the filesystem would have said about a path that resolves nowhere. */
+function unresolvablePathError(targetPath: string): string {
+  return `Cannot resolve ${targetPath}: a component of it is not there, or is not a directory, so the path names no file.`;
 }
 
 /**
@@ -1545,6 +1558,10 @@ async function handleFsReadTextFile(
   }
   try {
     const resolvedPath = resolveFsPolicyPath(parsed.data.path);
+    if (resolvedPath === null) {
+      responder.error(-32603, unresolvablePathError(parsed.data.path));
+      return;
+    }
     const refusal = fsPolicyRefusal({
       policy: session.policy,
       requestedPath: parsed.data.path,
@@ -1580,6 +1597,10 @@ async function handleFsWriteTextFile(
   }
 
   const resolvedPath = resolveFsPolicyPath(parsed.data.path);
+  if (resolvedPath === null) {
+    responder.error(-32603, unresolvablePathError(parsed.data.path));
+    return;
+  }
   const refusal = fsPolicyRefusal({
     policy: session.policy,
     requestedPath: parsed.data.path,
@@ -1656,14 +1677,18 @@ type AcpSessionStartParams =
 function resolveSessionFsPolicy(
   params: AcpBridgeThreadStartParams,
 ): AcpSessionPolicy {
+  // A rule whose path resolves nowhere is kept as given rather than dropped:
+  // dropping it would quietly widen the policy, which is the same answer
+  // `resolvedPath` gives in `terminals/terminal-sandbox.ts`. A *request* for
+  // such a path is refused instead — see the handlers.
+  const resolveRule = (rule: string): string =>
+    resolveFsPolicyPath(rule) ?? resolve(rule);
   return {
     permissionMode: params.permissionMode,
     permissionEscalation: params.permissionEscalation,
-    workspaceWriteRoots: params.workspaceWriteRoots.map(resolveFsPolicyPath),
-    protectedCredentialPaths:
-      params.protectedCredentialPaths.map(resolveFsPolicyPath),
-    protectedRepositoryPaths:
-      params.protectedRepositoryPaths.map(resolveFsPolicyPath),
+    workspaceWriteRoots: params.workspaceWriteRoots.map(resolveRule),
+    protectedCredentialPaths: params.protectedCredentialPaths.map(resolveRule),
+    protectedRepositoryPaths: params.protectedRepositoryPaths.map(resolveRule),
   };
 }
 
