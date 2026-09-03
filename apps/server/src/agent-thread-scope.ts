@@ -20,6 +20,11 @@ import { MAX_THREAD_HIERARCHY_DEPTH } from "./services/threads/thread-parent.js"
  * Reads are not scoped. An agent that can read another thread learns what it
  * says, which is a smaller thing than making it act, and the app's own views
  * are built from the same routes.
+ *
+ * The `:id` in the path is not the only place a request names a thread, and
+ * the two denials at the foot of this file are about the other one: a creation
+ * body names a parent and a project, and both of those decide what happens to
+ * threads the caller never addressed.
  */
 
 export const AGENT_THREAD_ID_CONTEXT_KEY = "patcherAgentThreadId";
@@ -138,4 +143,52 @@ export function agentThreadScopeDenial(
     targetThreadId,
     message: `Thread ${targetThreadId} is not this turn's to drive: a turn acts on its own thread and on the threads it spawned. Nothing changed. Spawn a thread of your own with \`patcher thread spawn\`, or ask in your reply for someone to act on that one.`,
   };
+}
+
+/**
+ * Why this turn must not hang a thread under that parent, or null when it may.
+ *
+ * The same relationship as `agentMayDriveThread`, asked about a different
+ * field. A parent is not a label: when a child's turn ends, Patcher dispatches
+ * a turn on the parent carrying the child's title and output
+ * (`parent-system-messages.ts`), at the parent's own permission mode and with
+ * nobody having asked for it. So naming another thread as the parent is a way
+ * to make that thread act — the thing the check above exists to refuse — one
+ * indirection and one turn later, and `assertValidParentThread` was never
+ * asking that question: it asks whether the parent is a live thread of the
+ * right project at a workable depth, which a Full Access thread is.
+ */
+export function agentParentThreadDenial(
+  db: DbConnection,
+  args: { callerThreadId: string; parentThreadId: string },
+): string | null {
+  if (
+    agentMayDriveThread(db, {
+      callerThreadId: args.callerThreadId,
+      targetThreadId: args.parentThreadId,
+    })
+  ) {
+    return null;
+  }
+  return `Thread ${args.parentThreadId} is not this turn's to parent: a turn hangs a new thread under itself or under one it spawned, and a parent is sent a turn when its child finishes. Nothing changed. Use your own thread id — \`patcher thread spawn --parent-self\` fills it in for you.`;
+}
+
+/**
+ * Why this turn must not start a thread in that project, or null when it may.
+ *
+ * The project is not a filing label either: it is where the workspace check
+ * looks for its answer. A turn may point a new thread at the project's own
+ * registered sources (`workspace-path-claims.ts`), so a project read out of the
+ * request body lets the caller choose which sources it is held to — and, with
+ * the parent check above, which threads are in reach of being adopted. It is
+ * read from the caller's own thread instead.
+ */
+export function agentProjectDenial(
+  db: DbConnection,
+  args: { callerThreadId: string; projectId: string },
+): string | null {
+  const callerThread = getThread(db, args.callerThreadId);
+  if (callerThread?.projectId === args.projectId) return null;
+  const own = callerThread === null ? "" : ` (${callerThread.projectId})`;
+  return `Project ${args.projectId} is not this turn's to start a thread in: a turn starts threads in the project its own thread belongs to${own}. Nothing changed.`;
 }

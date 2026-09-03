@@ -889,6 +889,33 @@ Named here rather than left to be rediscovered:
   relationship one link further — and anything else is refused. Reads are not
   scoped: learning what another thread says is a smaller thing than making it
   act, and the app's own views are built from those routes.
+
+  **The `:id` was not the only way to name a thread**, and the second door was
+  the creation body. `parentThreadId` is not a filing label: when a child's turn
+  ends Patcher dispatches a turn on the parent carrying the child's title and
+  its output, at the parent's own permission mode, with nobody having asked for
+  it. So naming a Full Access thread as the parent of a thread you are creating
+  anyway is the refused `send`, one turn later and through a route whose `:id`
+  is nobody in particular. The check that stood there was asking a different
+  question — `assertValidParentThread` asks whether the parent is a live thread
+  of the right project at a workable depth, and a stranger's thread is all
+  three. A parent is now held to the same relationship as an `:id`, both where a
+  thread is created and on `PATCH /threads/:id`, where the `:id` gate passes
+  because the thread being moved really is the caller's. Clearing a parent is
+  left alone, and not because clearing is quiet — the old parent is sent a turn
+  of its own saying the thread is no longer its child. It reaches nowhere new:
+  the `:id` gate means the thread being changed is the caller or one of its
+  descendants, so the parent it leaves is the caller, a descendant of it, or the
+  caller's own parent, which hears from this thread when its turns end anyway.
+
+  **And the project came out of the request body**, which is the input both of
+  those checks read: a parent has to be in the named project, and a turn may
+  point a new thread's workspace at that project's registered sources (below).
+  A caller that could name any project was choosing what both of them would
+  accept. It is read off the caller's own thread now, and a turn naming another
+  one is refused and told which is its own — a person still names whichever they
+  like, the same split as everywhere else here.
+
 - ~~**Asking for a more privileged turn.**~~ Closed: a requested
   `permissionMode` is now bounded by the asking turn's own mode as well as by
   the machine's ceiling, so a turn cannot arrange more privilege than it has —
@@ -900,9 +927,10 @@ Named here rather than left to be rediscovered:
   becomes the writable root of the next turn, at any permission mode — the mode
   says how the sandbox is built, not how wide it is — so a turn is now held to
   the project's own registered sources on that machine, or to a Patcher-managed
-  workspace the project already owns. A person is not: the same split as the
-  thread and terminal scopes, because someone choosing a folder on their own
-  machine is choosing where to work.
+  workspace the project already owns. Which project that is, is not the caller's
+  to say either — see the first entry above. A person is not held to any of it:
+  the same split as the thread and terminal scopes, because someone choosing a
+  folder on their own machine is choosing where to work.
   - `workspace: { type: "unmanaged", path }` on thread creation, which is the
     door this entry knew about.
   - **`update_environment_directory`**, which nothing named until now and which

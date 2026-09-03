@@ -187,6 +187,10 @@ describe("the two ways a turn can name a workspace", () => {
         path: SOURCE_PATH,
       });
 
+      // A real caller thread, because the create path now reads the project it
+      // holds a turn to off the caller's own row rather than out of the body.
+      const caller = seedThread(harness.deps, { projectId: project.id });
+
       await expect(
         createThreadFromRequest(
           harness.deps,
@@ -203,7 +207,7 @@ describe("the two ways a turn can name a workspace", () => {
             providerId: "codex",
             startedOnBehalfOf: null,
           },
-          { requestedByThreadId: "thr_caller" },
+          { requestedByThreadId: caller.id },
         ),
       ).rejects.toThrow(/project's own sources/);
     });

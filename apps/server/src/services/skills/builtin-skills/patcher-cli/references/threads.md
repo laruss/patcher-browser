@@ -16,6 +16,10 @@ Everything `patcher thread` and `patcher terminal` do beyond the essentials in S
   context variables. Omitted execution flags use remembered project defaults;
   without a remembered model, Patcher uses the explicitly requested provider or
   Codex and resolves its provider-reported default model on the target machine.
+- **From inside a turn the project has to be your own thread's**, and anything
+  else is refused with a 403 naming the one you are in. The project decides
+  which folders a new thread's workspace may point at, so choosing it would be
+  choosing that. `patcher status` prints yours.
 - Add repeatable `--file <path>` / `--image <path>` flags for structured prompt
   attachments, and `--section <id>` to add the new thread to a section. These
   flags pass host-readable absolute paths (or relative server-upload tokens)
@@ -57,7 +61,11 @@ isolated|reuse`, or anchor with `--source-seq-end`. Permission mode inherits
   execution.
 - Use `--parent-self` inside a thread to parent the new thread to the current
   thread.
-- Use `--parent-thread <thread-id>` to choose another specific parent.
+- Use `--parent-thread <thread-id>` to choose another specific parent. **From
+  inside a turn that has to be your own thread or one you spawned**, the same
+  threads `patcher thread tell` will reach: a parent is sent a turn carrying its
+  child's output when the child finishes, so parenting a thread onto someone
+  else's is a way of making that thread act. Anything else is refused with a 403.
 
 ## Opening threads and files in the app
 
