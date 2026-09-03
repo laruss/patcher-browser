@@ -417,7 +417,10 @@ platforms, and refusing it would turn down a write this bridge supports. A path
 whose last segment is one, though, names a directory and only an existing one
 will do:
 `<ws>/fresh/` is ENOENT to open on macOS and EISDIR on Linux, not a file to
-create along with its parents.
+create along with its parents. That check belongs to each path the walk
+expands, not to the request alone — a link's target is such a path too, and one
+stored as `missing/` refuses the same way while `missing` alone is a file the
+write creates.
 
 The count of links followed is shared across the whole walk rather than reset
 for each target, because a lookup counts every link wherever in the path it

@@ -1526,22 +1526,24 @@ function resolveFsPolicyPath(targetPath: string): string | null {
       if (followed === null) return null;
       resolved = followed;
     }
+    // A path whose last segment is a slash, a `.` or a `..` names a directory,
+    // and only one that is there will do: `<ws>/fresh/` is ENOENT to open on
+    // macOS and EISDIR on Linux — measured — not a file to create along with
+    // its parents. Inside the walk rather than after it, because a link's
+    // target is such a path in its own right: one stored as `missing/` is
+    // ENOENT and EISDIR the same way, while `missing` alone is a file to make,
+    // and the request that names the link ends in the link's own name.
+    const lastSegment = path.split(sep).at(-1);
+    if (
+      (lastSegment === "" || lastSegment === "." || lastSegment === "..") &&
+      classifyPath(resolved) !== "directory"
+    ) {
+      return null;
+    }
     return resolved;
   };
 
-  const resolved = walk(targetPath);
-  if (resolved === null) return null;
-  // A path ending in a slash, a `.` or a `..` names a directory, and only one
-  // that is there will do: `<ws>/fresh/` is ENOENT to open on macOS and EISDIR
-  // on Linux — measured — not a file to create along with its parents.
-  const lastSegment = targetPath.split(sep).at(-1);
-  if (
-    (lastSegment === "" || lastSegment === "." || lastSegment === "..") &&
-    classifyPath(resolved) !== "directory"
-  ) {
-    return null;
-  }
-  return resolved;
+  return walk(targetPath);
 }
 
 /** What the filesystem would have said about a path that resolves nowhere. */

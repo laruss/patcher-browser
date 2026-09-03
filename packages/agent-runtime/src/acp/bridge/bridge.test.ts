@@ -2452,6 +2452,32 @@ describe("acp bridge", () => {
     expect(agentMessageTexts().join("\n")).not.toContain("past sixty links");
   });
 
+  it("refuses a write through a link whose target names a directory", async () => {
+    // The link's target is a path of its own, and `missing/` names a directory
+    // there is none of: ENOENT to open on macOS, EISDIR on Linux, measured —
+    // while `missing` alone is a file the write would create. The request ends
+    // in the link's own name, so only a check inside the walk sees the slash.
+    symlinkSync("missing/", join(workspaceDir, "to-a-directory"));
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_WRITE_PATH: join(workspaceDir, "to-a-directory"),
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("write:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(existsSync(join(workspaceDir, "missing"))).toBe(false);
+  });
+
   it("chains steer input onto the active turn", async () => {
     const { providerThreadId } = await startThread();
     const turnId = sendRequest("turn/start", {
