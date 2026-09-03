@@ -375,8 +375,17 @@ Both are refused now, by name and with the reason, on the same two lists the
 sandbox itself is built from: the credential files denied outright, the
 repository entries git executes from readable and not writable, and the
 workspace roots compared after resolving rather than as strings. On the same
-turn, re-measured: the key read is refused, the `.git/config` write is refused,
-and reading `.git/config` still works, which is what read-only means.
+turn, re-measured: the listed file is refused with the reason, the
+`.git/config` write is refused with the reason, and reading `.git/config` still
+works, which is what read-only means.
+
+Resolving means the OS's answer, not Node's. A lookup follows each link as it
+walks, so the `..` in `<ws>/link/../file` is the parent of what `link` points
+at — while `path.resolve` and Node's own `realpath` both collapse that `..` as
+text first. Measured on a link to `<outside>/dir`: reading the path gave
+`<outside>/file` while both of those answered `<ws>/file`, and only
+`realpath.native` agreed with the kernel. A rule built on the other answer is a
+rule about a different file.
 
 Not every agent asks. Of the four installed here, `cursor-agent acp` and
 `opencode acp` never call the client fs methods at all — they read and write
@@ -388,9 +397,15 @@ version away from changing its mind in either direction.
 Reads that are not credentials stay open there, which is the judgement the API's
 route policy makes for the same reason: the sandbox allows them, so refusing
 them in the bridge would gate the polite path while the agent's own tools opened
-the file anyway. What is closed is the read whose answer is a credential. A Full
-Access turn is left alone entirely — that mode asks for no sandbox, which is the
-same line drawn where the credential list is built.
+the file anyway. That is not a guess about what an agent would do — measured on
+the enforced run above, grok answered the refusal by running `cat` on the same
+path in its own shell, and got the file, because the harness the measurement ran
+in confines nothing. Which is the whole shape of this: the bridge mirrors the
+boundary and the sandbox *is* the boundary, and a bridge refusing more than the
+sandbox does buys a detour rather than a denial. What is closed here is the read
+whose answer is a credential. A Full Access turn is left alone entirely — that
+mode asks for no sandbox, which is the same line drawn where the credential list
+is built.
 
 One thing the policy has to add beyond a terminal's is the provider's own state
 directory. `cursor-agent acp` does not run at all until `~/.cursor` is writable:

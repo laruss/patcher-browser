@@ -1401,21 +1401,30 @@ function handlePermissionRequest(
  * matches what a lookup resolves to rather than the string it was handed — see
  * `resolvedPath` in `terminals/terminal-sandbox.ts`, where that was measured.
  *
+ * **`realpathSync.native`, and the ordinary one will not do.** A lookup follows
+ * each link as it walks, so the `..` in `<ws>/link/../file` is the parent of
+ * what `link` points at — while both `path.resolve` and Node's own `realpath`
+ * collapse that `..` as text before resolving anything. Measured on a link to
+ * `<outside>/dir`: reading the path gave `<outside>/file`, `path.resolve` and
+ * `realpathSync` both answered `<ws>/file`, and `realpathSync.native`, which is
+ * the OS call, answered `<outside>/file`. The handlers act on what this returns,
+ * so the difference is a file the agent did not ask for.
+ *
  * The tail may not exist, because a write creates the file and its directories
- * with it, so the longest existing prefix is resolved and the rest put back on.
+ * with it, so the longest existing prefix is resolved and the rest put back on —
+ * peeled off the path as given, since collapsing it first is the mistake above.
  * A path that resolves nowhere at all is answered as given rather than dropped:
  * an unresolvable path stays inside the policy instead of falling past it.
  */
-async function resolveFsPolicyPath(targetPath: string): Promise<string> {
-  const absolute = resolve(targetPath);
+function resolveFsPolicyPath(targetPath: string): string {
   const tail: string[] = [];
-  let current = absolute;
+  let current = targetPath;
   for (;;) {
     try {
-      return join(await fs.realpath(current), ...tail);
+      return join(realpathSync.native(current), ...tail);
     } catch {
       const parent = dirname(current);
-      if (parent === current) return absolute;
+      if (parent === current) return resolve(targetPath);
       tail.unshift(basename(current));
       current = parent;
     }
@@ -1535,7 +1544,7 @@ async function handleFsReadTextFile(
     return;
   }
   try {
-    const resolvedPath = await resolveFsPolicyPath(parsed.data.path);
+    const resolvedPath = resolveFsPolicyPath(parsed.data.path);
     const refusal = fsPolicyRefusal({
       policy: session.policy,
       requestedPath: parsed.data.path,
@@ -1570,7 +1579,7 @@ async function handleFsWriteTextFile(
     return;
   }
 
-  const resolvedPath = await resolveFsPolicyPath(parsed.data.path);
+  const resolvedPath = resolveFsPolicyPath(parsed.data.path);
   const refusal = fsPolicyRefusal({
     policy: session.policy,
     requestedPath: parsed.data.path,
@@ -1644,24 +1653,17 @@ type AcpSessionStartParams =
  * each request: these are the rules for the whole session, and the sandbox they
  * mirror is likewise built at launch and not per syscall.
  */
-async function resolveSessionFsPolicy(
+function resolveSessionFsPolicy(
   params: AcpBridgeThreadStartParams,
-): Promise<AcpSessionPolicy> {
-  const [
-    workspaceWriteRoots,
-    protectedCredentialPaths,
-    protectedRepositoryPaths,
-  ] = await Promise.all([
-    Promise.all(params.workspaceWriteRoots.map(resolveFsPolicyPath)),
-    Promise.all(params.protectedCredentialPaths.map(resolveFsPolicyPath)),
-    Promise.all(params.protectedRepositoryPaths.map(resolveFsPolicyPath)),
-  ]);
+): AcpSessionPolicy {
   return {
     permissionMode: params.permissionMode,
     permissionEscalation: params.permissionEscalation,
-    workspaceWriteRoots,
-    protectedCredentialPaths,
-    protectedRepositoryPaths,
+    workspaceWriteRoots: params.workspaceWriteRoots.map(resolveFsPolicyPath),
+    protectedCredentialPaths:
+      params.protectedCredentialPaths.map(resolveFsPolicyPath),
+    protectedRepositoryPaths:
+      params.protectedRepositoryPaths.map(resolveFsPolicyPath),
   };
 }
 
@@ -1676,7 +1678,7 @@ async function startAgentSession(
     await stopSession(existing);
   }
 
-  const policy = await resolveSessionFsPolicy(params);
+  const policy = resolveSessionFsPolicy(params);
   const launch = await resolveAgentLaunchArgs(params);
   if (launch.warning) {
     sendNotification(ACP_WARNING_METHOD, {

@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DynamicTool, ReasoningLevel } from "@patcher/domain";
@@ -211,6 +211,14 @@ async function waitForCompactionCompleted(): Promise<BridgeJsonRpcOutputMessage>
     () => notifications("acp/compaction/completed").at(-1),
     "acp/compaction/completed notification",
   );
+}
+
+/**
+ * A path with its `..` still in it: `join` collapses that away as text, which
+ * is exactly the thing these two tests are about.
+ */
+function pathKeepingDotDot(...segments: string[]): string {
+  return segments.join(sep);
 }
 
 /**
@@ -1946,6 +1954,82 @@ describe("acp bridge", () => {
       "git runs what this file configures",
     );
     expect(existsSync(hookPath)).toBe(false);
+  });
+
+  it("follows a link before the `..` after it, as the filesystem does", async () => {
+    // `<ws>/link/../note.txt` is not `<ws>/note.txt`: the lookup follows `link`
+    // first, so the `..` is the parent of what it points at. `path.resolve` and
+    // Node's own `realpath` both collapse that `..` as text — measured — and
+    // only `realpath.native` asks the OS. The handler acts on the resolved
+    // path, so getting this wrong reads a file nobody asked for.
+    const outsideDir = mkdtempSync(join(tmpdir(), "patcher-acp-outside-"));
+    mkdirSync(join(outsideDir, "dir"), { recursive: true });
+    writeFileSync(join(outsideDir, "note.txt"), "beside the target\n", "utf8");
+    writeFileSync(join(workspaceDir, "note.txt"), "beside the link\n", "utf8");
+    symlinkSync(join(outsideDir, "dir"), join(workspaceDir, "link"));
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "accept-edits",
+        permissionEscalation: "ask",
+        envVars: {
+          FAKE_ACP_READ_PATH: pathKeepingDotDot(
+            workspaceDir,
+            "link",
+            "..",
+            "note.txt",
+          ),
+        },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "read-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("read:ok:")).toContain(
+        "beside the target",
+      );
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("denies a write whose `..` steps out of the workspace behind a link", async () => {
+    // The same resolution seen from the policy's side: collapsed as text this
+    // path looks like an ordinary file in the workspace, and the write would
+    // have gone to one.
+    const outsideDir = mkdtempSync(join(tmpdir(), "patcher-acp-outside-"));
+    mkdirSync(join(outsideDir, "dir"), { recursive: true });
+    symlinkSync(join(outsideDir, "dir"), join(workspaceDir, "link"));
+    try {
+      const { providerThreadId } = await startThread({
+        permissionMode: "accept-edits",
+        permissionEscalation: "ask",
+        envVars: {
+          FAKE_ACP_WRITE_PATH: pathKeepingDotDot(
+            workspaceDir,
+            "link",
+            "..",
+            "out.txt",
+          ),
+        },
+      });
+      const turnId = sendRequest("turn/start", {
+        threadId: providerThreadId,
+        input: [{ type: "text", text: "write-file", mentions: [] }],
+      });
+      await waitForResponse(turnId);
+      await waitForTurnCompleted();
+
+      expect(agentMessageStartingWith("write:denied:")).toContain(
+        "File writes outside the workspace are denied",
+      );
+      expect(existsSync(join(outsideDir, "out.txt"))).toBe(false);
+      expect(existsSync(join(workspaceDir, "out.txt"))).toBe(false);
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it("refuses a client fs write that leaves the workspace through a link", async () => {
