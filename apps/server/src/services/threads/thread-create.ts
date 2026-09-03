@@ -18,6 +18,10 @@ import type {
   UnmanagedBranchSpec,
 } from "@patcher/server-contract";
 import type { LoggedPendingInteractionWorkSessionDeps } from "../../types.js";
+import {
+  agentParentThreadDenial,
+  agentProjectDenial,
+} from "../../agent-thread-scope.js";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
 import {
@@ -630,6 +634,19 @@ export async function createThreadFromRequest(
     requestedByThreadId: string | null;
   },
 ) {
+  // Whose project this is, before anything is looked up in it: the project
+  // decides which sources the workspace check below will accept and which
+  // threads `assertValidParentThread` will call a valid parent, so a turn that
+  // could name any project would be choosing both.
+  if (options.requestedByThreadId !== null) {
+    const projectDenial = agentProjectDenial(deps.db, {
+      callerThreadId: options.requestedByThreadId,
+      projectId: rawRequestInput.projectId,
+    });
+    if (projectDenial !== null) {
+      throw new ApiError(403, "forbidden", projectDenial);
+    }
+  }
   const project = requirePublicProjectForThreadCreate(
     deps,
     rawRequestInput.projectId,
@@ -678,6 +695,19 @@ export async function createThreadFromRequest(
     (originKind !== null ? requestInput.parentThreadId : undefined);
   const hierarchyParentThreadId =
     originKind === null ? requestInput.parentThreadId : undefined;
+  // Whose parent this is, before it is checked for being a workable one: the
+  // reasons `assertValidParentThread` refuses are about the hierarchy, and a
+  // thread the caller has no business under is a live thread of the right
+  // project at a workable depth.
+  if (hierarchyParentThreadId && options.requestedByThreadId !== null) {
+    const parentDenial = agentParentThreadDenial(deps.db, {
+      callerThreadId: options.requestedByThreadId,
+      parentThreadId: hierarchyParentThreadId,
+    });
+    if (parentDenial !== null) {
+      throw new ApiError(403, "forbidden", parentDenial);
+    }
+  }
   const parentThread = hierarchyParentThreadId
     ? assertValidParentThread(deps, {
         parentThreadId: hierarchyParentThreadId,

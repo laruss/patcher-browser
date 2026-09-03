@@ -25,7 +25,10 @@ import {
 } from "@patcher/server-contract";
 import type { Hono } from "hono";
 import type { AppDeps } from "../../types.js";
-import { getAgentThreadId } from "../../agent-thread-scope.js";
+import {
+  agentParentThreadDenial,
+  getAgentThreadId,
+} from "../../agent-thread-scope.js";
 import { ApiError } from "../../errors.js";
 import { parseOptionalInteger } from "../../services/lib/validation.js";
 import {
@@ -308,6 +311,21 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
   patch(routes.update, async (context, payload) => {
     const thread = requirePublicThread(deps.db, context.req.param("id"));
     if (payload.parentThreadId) {
+      // The gate on `:id` says this thread is the caller's to change; it says
+      // nothing about the thread being moved *under*, and a parent is sent a
+      // turn when its child finishes. So the same question is asked of the new
+      // parent, and re-parenting a thread out from under the caller is left
+      // alone: dropping a parent tells nobody anything.
+      const callerThreadId = getAgentThreadId(context);
+      if (callerThreadId !== undefined) {
+        const parentDenial = agentParentThreadDenial(deps.db, {
+          callerThreadId,
+          parentThreadId: payload.parentThreadId,
+        });
+        if (parentDenial !== null) {
+          throw new ApiError(403, "forbidden", parentDenial);
+        }
+      }
       assertValidParentThread(deps, {
         childThreadId: thread.id,
         parentThreadId: payload.parentThreadId,
