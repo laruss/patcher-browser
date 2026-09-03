@@ -160,12 +160,12 @@ describe("agentRoutePolicyDenial", () => {
   it("refuses writing the app-wide settings the next turn is built from", () => {
     // `/settings/general` carries the egress switch, the host list it answers
     // by, and `codexNetworkDisabled` — the boundary this turn is running
-    // inside, read again when the next turn is built.
+    // inside, read again when the next turn is built. Denied by the prefix, so
+    // a settings route added beside them is denied too.
     for (const path of [
       "/api/v1/settings/general",
-      "/api/v1/settings/keyboard",
       "/api/v1/settings/experiments",
-      "/api/v1/settings/appearance",
+      "/api/v1/settings/network-that-does-not-exist-yet",
     ]) {
       const denial = agentRoutePolicyDenial({ method: "PUT", path });
 
@@ -190,6 +190,28 @@ describe("agentRoutePolicyDenial", () => {
         path: "/api/v1/settings-registry",
       }),
     ).toBeNull();
+  });
+
+  it("keeps the two settings writes that are the person's look, not the turn's boundary", () => {
+    // The cost of a prefix is that it closes what nobody meant to close. The
+    // built-in CLI skill's `theming.md` is a theme-authoring guide that has a
+    // turn write `theme.css` and then run `patcher theme set` — which is
+    // `PUT /settings/appearance` — so denying it would have left a documented
+    // workflow one command short of working.
+    for (const path of [
+      "/api/v1/settings/appearance",
+      "/api/v1/settings/keyboard",
+    ]) {
+      expect(agentRoutePolicyDenial({ method: "PUT", path })).toBeNull();
+    }
+    // The exception is to a mutation deny and to nothing else: a sibling it
+    // does not name is still refused.
+    expect(
+      agentRoutePolicyDenial({
+        method: "PUT",
+        path: "/api/v1/settings/appearances",
+      }),
+    ).not.toBeNull();
   });
 
   it("leaves the rest of the hosts and threads routes alone", () => {
@@ -384,6 +406,25 @@ describe("an agent mid-turn", () => {
     expect(generalSettings.providerEgressAllowedHosts).toEqual([]);
   });
 
+  it("can still apply a theme, which is the workflow the skill documents", async () => {
+    server = await startTestServer();
+
+    // The last command of `references/theming.md`: the turn writes `theme.css`
+    // and runs `patcher theme set`, which is this route. Refusing it with the
+    // prefix would have left that guide one step short of working.
+    const response = await fetch(
+      `${server.baseUrl}/api/v1/settings/appearance`,
+      {
+        method: "PUT",
+        headers: agentHeaders(seedThreadMidTurn(server.deps)),
+        body: JSON.stringify({ themeId: "nord", faviconColor: "blue" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ themeId: "nord" });
+  });
+
   it("cannot drop its thread declaration to be taken for the app", async () => {
     server = await startTestServer();
 
@@ -507,15 +548,17 @@ describe("a turn allowing its own permission prompt", () => {
 /**
  * The settings writes this server actually mounts, read off the router.
  *
- * The deny entry is the `/settings` prefix, so a settings route added later is
- * refused without anyone touching the policy — that is what the prefix is for,
- * and this test agrees with it rather than proving it. What it catches is the
- * edit that narrows the prefix back into a route apiece: forget one of the four
- * and it fails here instead of in a turn. It reads Hono's own table for the
- * same reason `plugin-api-path-coverage.test.ts` does — a hand-written list is
- * the thing that falls behind the server.
+ * The prefix denies them all and two are excepted by name, so what needs
+ * checking is not "are they refused" but "is the set of exceptions still the
+ * set somebody decided on". Mount `/settings/network` tomorrow and it is denied
+ * by the prefix and this list does not move; make it an exception, or narrow
+ * the prefix back into a route apiece and forget one, and the list grows here
+ * rather than in a turn.
+ *
+ * It reads Hono's own table for the same reason `plugin-api-path-coverage.test.ts`
+ * does — a hand-written list of routes is the thing that falls behind the server.
  */
-describe("every settings write this server mounts", () => {
+describe("the settings writes this server mounts", () => {
   let harness: TestAppHarness;
 
   beforeEach(async () => {
@@ -527,7 +570,7 @@ describe("every settings write this server mounts", () => {
     await harness.cleanup();
   });
 
-  it("is refused for a turn caller", () => {
+  it("are refused for a turn caller, except the two that are decided", () => {
     const mounted = harness.app.routes
       .filter((route) => route.path.startsWith("/api/v1/settings"))
       .flatMap((route) =>
@@ -543,7 +586,11 @@ describe("every settings write this server mounts", () => {
     expect(
       mounted
         .filter((request) => agentRoutePolicyDenial(request) === null)
-        .map((request) => `${request.method} ${request.path}`),
-    ).toEqual([]);
+        .map((request) => `${request.method} ${request.path}`)
+        .sort(),
+    ).toEqual([
+      "PUT /api/v1/settings/appearance",
+      "PUT /api/v1/settings/keyboard",
+    ]);
   });
 });
