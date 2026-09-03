@@ -1471,44 +1471,75 @@ function symlinkTarget(path: string): string | null {
  * policy could see, and the write created `<outside>/x` — the write roots
  * stepped around with a symlink the agent makes itself.
  */
-function resolveFsPolicyPath(
-  targetPath: string,
-  hopsLeft = MAX_SYMLINK_HOPS,
-): string | null {
-  let resolved: string;
-  try {
-    resolved = isAbsolute(targetPath) ? sep : realpathSync.native(".");
-  } catch {
+function resolveFsPolicyPath(targetPath: string): string | null {
+  // Shared across the whole walk, not per recursion: a lookup counts every link
+  // it follows, wherever in the path it sits. Measured on 60 links in separate
+  // components, each pointing at `.` — the read is ELOOP on both platforms,
+  // while a budget copied into each target let the walk reach the file, and the
+  // handlers act on what it returns rather than on the path they were given.
+  // The limit is Darwin's; Linux allows 40, so between 33 and 40 this is
+  // stricter than that kernel, which is the safe side of a path nothing sane
+  // asks for.
+  let hopsLeft = MAX_SYMLINK_HOPS;
+
+  const walk = (path: string): string | null => {
+    let resolved: string;
+    try {
+      resolved = isAbsolute(path) ? sep : realpathSync.native(".");
+    } catch {
+      return null;
+    }
+    for (const segment of path.split(sep)) {
+      const here = classifyPath(resolved);
+      if (segment === "" || segment === ".") {
+        // Punctuation: it names no component of its own, so it asks only that
+        // what precedes it is not a file. Past what exists it is allowed too —
+        // `<ws>/fresh//out.txt` writes the same file as `<ws>/fresh/out.txt`,
+        // measured, and refusing it would turn a supported write down.
+        if (here === "other") return null;
+        continue;
+      }
+      if (segment === "..") {
+        // This one moves, so it needs somewhere to move out of.
+        if (here !== "directory") return null;
+        resolved = dirname(resolved);
+        continue;
+      }
+      if (here !== "directory") {
+        // Nothing further to resolve: past what exists — a file a write
+        // creates, with the directories above it — or a name under something
+        // that is not a directory, where the open is what refuses, with ENOTDIR.
+        resolved = join(resolved, segment);
+        continue;
+      }
+      const candidate = join(resolved, segment);
+      const linkTarget = symlinkTarget(candidate);
+      if (linkTarget === null) {
+        resolved = candidate;
+        continue;
+      }
+      if (hopsLeft === 0) return null;
+      hopsLeft -= 1;
+      const followed = walk(
+        isAbsolute(linkTarget) ? linkTarget : `${resolved}${sep}${linkTarget}`,
+      );
+      if (followed === null) return null;
+      resolved = followed;
+    }
+    return resolved;
+  };
+
+  const resolved = walk(targetPath);
+  if (resolved === null) return null;
+  // A path ending in a slash, a `.` or a `..` names a directory, and only one
+  // that is there will do: `<ws>/fresh/` is ENOENT to open on macOS and EISDIR
+  // on Linux — measured — not a file to create along with its parents.
+  const lastSegment = targetPath.split(sep).at(-1);
+  if (
+    (lastSegment === "" || lastSegment === "." || lastSegment === "..") &&
+    classifyPath(resolved) !== "directory"
+  ) {
     return null;
-  }
-  for (const segment of targetPath.split(sep)) {
-    const here = classifyPath(resolved);
-    if (segment === "" || segment === "." || segment === "..") {
-      // A slash, a `.` or a `..` names the thing before it as a directory.
-      if (here !== "directory") return null;
-      if (segment === "..") resolved = dirname(resolved);
-      continue;
-    }
-    if (here !== "directory") {
-      // Nothing further to resolve: past what exists — a file a write creates,
-      // with the directories above it — or a name under something that is not
-      // a directory, where the open is what refuses, with ENOTDIR.
-      resolved = join(resolved, segment);
-      continue;
-    }
-    const candidate = join(resolved, segment);
-    const linkTarget = symlinkTarget(candidate);
-    if (linkTarget === null) {
-      resolved = candidate;
-      continue;
-    }
-    if (hopsLeft === 0) return null;
-    const followed = resolveFsPolicyPath(
-      isAbsolute(linkTarget) ? linkTarget : `${resolved}${sep}${linkTarget}`,
-      hopsLeft - 1,
-    );
-    if (followed === null) return null;
-    resolved = followed;
   }
   return resolved;
 }

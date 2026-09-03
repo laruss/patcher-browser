@@ -409,6 +409,25 @@ A relative target is joined onto the resolved prefix as a string for the same
 reason `..` is not collapsed anywhere else here: `path.join` would take the `..`
 out of `missing/../other.txt` before the walk ever saw it.
 
+Two things the walk deliberately does not treat as components. A slash or a `.`
+names nothing of its own, so it asks only that what precedes it is not a file —
+past what exists it is allowed, because `<ws>/fresh//out.txt` writes the file
+`<ws>/fresh/out.txt` once the handler has made the directories, measured on both
+platforms, and refusing it would turn down a write this bridge supports. A path
+whose last segment is one, though, names a directory and only an existing one
+will do:
+`<ws>/fresh/` is ENOENT to open on macOS and EISDIR on Linux, not a file to
+create along with its parents.
+
+The count of links followed is shared across the whole walk rather than reset
+for each target, because a lookup counts every link wherever in the path it
+sits. Measured on 60 links in separate components, each pointing at `.`: the
+read is ELOOP on both platforms, while a per-target budget let the walk reach
+the file — and the handlers act on what the walk returns, never on the path they
+were handed, so that file would have been served. The limit is Darwin's 32;
+Linux allows 40, so a path between the two is refused here and would not be
+there, which is the safe side of a shape nothing sane asks for.
+
 That also means a link that leads nowhere is followed rather than treated as a
 name about to be created. Measured before it was: `<ws>/dangling`, pointing at
 `<outside>/x`, resolved to itself, sat inside the workspace as far as the write

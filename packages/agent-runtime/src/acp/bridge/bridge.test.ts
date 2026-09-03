@@ -2371,6 +2371,87 @@ describe("acp bridge", () => {
     );
   });
 
+  it("writes a file whose path carries an extra separator or a dot", async () => {
+    // `fresh//out.txt` and `fresh/./out.txt` name the same file as
+    // `fresh/out.txt`, and the handler creates the directories above it — so
+    // both write, measured, on both platforms. A walk that asked for a
+    // directory at every punctuation mark turned a supported write down.
+    const targetPath = pathKeepingDotDot(workspaceDir, "fresh", "", "out.txt");
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: { FAKE_ACP_WRITE_PATH: targetPath },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageTexts()).toContain("write:ok");
+    expect(readFileSync(join(workspaceDir, "fresh", "out.txt"), "utf8")).toBe(
+      "hello from agent\n",
+    );
+  });
+
+  it("refuses a write to a directory that is not there", async () => {
+    // The trailing slash names a directory, and the write roots do not make one
+    // out of thin air: `<ws>/fresh/` is ENOENT to open on macOS and EISDIR on
+    // Linux, measured, where `<ws>/fresh` alone would have been a file to make.
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_WRITE_PATH: `${join(workspaceDir, "fresh")}${sep}`,
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "write-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("write:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(existsSync(join(workspaceDir, "fresh"))).toBe(false);
+  });
+
+  it("refuses a path that walks through more links than a lookup would", async () => {
+    // A lookup counts every link it follows, wherever in the path it sits: 60
+    // of them in separate components, each pointing at `.`, is ELOOP on both
+    // platforms — measured. A budget copied into each link target instead of
+    // shared across the walk let this reach the file, and the handler would
+    // have read it, since it acts on the resolved path and never on this one.
+    writeFileSync(join(workspaceDir, "note.txt"), "past sixty links\n", "utf8");
+    const links: string[] = [];
+    for (let index = 0; index < 60; index += 1) {
+      const name = `l${index}`;
+      symlinkSync(".", join(workspaceDir, name));
+      links.push(name);
+    }
+    const { providerThreadId } = await startThread({
+      permissionMode: "accept-edits",
+      permissionEscalation: "ask",
+      envVars: {
+        FAKE_ACP_READ_PATH: join(workspaceDir, ...links, "note.txt"),
+      },
+    });
+    const turnId = sendRequest("turn/start", {
+      threadId: providerThreadId,
+      input: [{ type: "text", text: "read-file", mentions: [] }],
+    });
+    await waitForResponse(turnId);
+    await waitForTurnCompleted();
+
+    expect(agentMessageStartingWith("read:denied:")).toContain(
+      "the path names no file",
+    );
+    expect(agentMessageTexts().join("\n")).not.toContain("past sixty links");
+  });
+
   it("chains steer input onto the active turn", async () => {
     const { providerThreadId } = await startThread();
     const turnId = sendRequest("turn/start", {
