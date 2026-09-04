@@ -74,7 +74,8 @@ const OPTION_HELP = {
   "--full-page": "Screenshot the whole document, not the visible viewport",
   "--encode": "Encode a stopped film to video.mp4 (needs ffmpeg)",
   "--fps": "Frames a second to keep while filming (1-30)",
-  "--text": "Wait until the page's text contains this",
+  "--text":
+    "Wait until the page's text contains this (as much as one read carries)",
   "--url": "Wait until the tab's URL matches this (substring, or a * glob)",
   "--network-idle": "Wait until the tab stops making requests",
   "--timeout": "Give up after this many milliseconds (default 30000)",
@@ -1801,8 +1802,14 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
             /** One check. Null means "not yet"; a string is what it saw. */
             const check = async (): Promise<string | null> => {
               if (parsed.waitText !== undefined) {
+                // No `maxLength`. The default 20 000 characters exists to keep
+                // one read off an agent's context, and this read is never shown
+                // to anyone — it is tested with `includes` and thrown away. All
+                // the cap bought here was a wait that could not see the text it
+                // was waiting for, and looped to 124 saying the page never got
+                // there. Omitting it takes the shell's own cap instead.
                 const read = await patcher.browser.page.getText(
-                  { tabId, maxLength: DEFAULT_PAGE_TEXT_MAX_LENGTH },
+                  { tabId },
                   options,
                 );
                 return read.text.includes(parsed.waitText)

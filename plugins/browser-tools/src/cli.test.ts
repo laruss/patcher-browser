@@ -1506,6 +1506,26 @@ describe("patcher browser CLI waiting", () => {
     ).toHaveLength(1);
   });
 
+  it("searches more of the page than a read hands back", async () => {
+    const host = waitingHost();
+    // Past the 20 000 characters this used to ask for. The read is tested with
+    // `includes` and never printed, so the cap that keeps a read off an agent's
+    // context only made the text it was waiting for unreachable — and a wait
+    // that cannot see its own condition loops to 124 and reports the page.
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      text: `${"filler ".repeat(4_000)}Total: $42`,
+    });
+
+    const result = await host.harness.runCli(["wait", "--text", "Total: $42"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.get_text",
+      ),
+    ).toEqual([{ type: "page.get_text", args: { tabId: undefined } }]);
+  });
+
   it("waits for text that arrives after the page has loaded", async () => {
     const host = waitingHost();
     // The x.com case from the report: the document is loaded, the posts are
