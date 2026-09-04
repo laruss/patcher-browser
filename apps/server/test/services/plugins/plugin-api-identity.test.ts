@@ -10,6 +10,10 @@ import {
   recordEnvSetupScriptQuestion,
 } from "@patcher/db";
 import {
+  createCommandApprovalPayload,
+  createDenyResolution,
+} from "../../helpers/pending-interactions.js";
+import {
   createPluginApiFetch,
   createPluginApiIdentities,
   PLUGIN_API_ID_HEADER,
@@ -20,6 +24,7 @@ import {
   seedHostSession,
   seedProjectWithSource,
   seedThread,
+  seedTurnStarted,
 } from "../../helpers/seed.js";
 import {
   createTestAppHarness,
@@ -189,7 +194,32 @@ describe("plugin identity on the loopback API", () => {
     const { headers, id } = await install("patcher-plugin-answerer", [
       "threads",
     ]);
-    const { host } = seedHostSession(harness.deps, { id: "host-consent" });
+    const { interaction, thread } = await threadAwaitingConsent("host-consent");
+
+    const response = await harness.app.request(
+      `${BASE}/api/v1/threads/${thread.id}/interactions/${interaction.id}/respond`,
+      {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ value: { kind: "consent", approved: true } }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { message: string };
+    // Names the plugin: whoever reads the log should not have to work out which
+    // caller was refused.
+    expect(body.message).toContain(id);
+    expect(body.message).toContain("answered by the user");
+    // And nothing was decided.
+    expect(
+      harness.deps.pendingInteractions.listPendingThreadInteractions(thread.id),
+    ).toHaveLength(1);
+  });
+
+  /** Seeds a thread and raises a consent prompt on it, the way a turn's CLI does. */
+  async function threadAwaitingConsent(hostId: string) {
+    const { host } = seedHostSession(harness.deps, { id: hostId });
     const { project } = seedProjectWithSource(harness.deps, {
       hostId: host.id,
     });
@@ -214,24 +244,132 @@ describe("plugin identity on the loopback API", () => {
         detail: null,
       },
     });
-    const interaction = await waitForConsentInteraction(harness, thread.id);
+    return {
+      interaction: await waitForConsentInteraction(harness, thread.id),
+      thread,
+    };
+  }
+
+  it("refuses a plugin the allowing of a permission prompt", async () => {
+    // The neighbour of the consent route above, and the one that gates
+    // privilege rather than a plugin change: an approval interaction is what a
+    // blocked tool call raises — a sandboxed command asking to run
+    // unsandboxed, a file-change grant, a permission grant, a plan review. The
+    // turn that raised it is refused by its thread declaration, which a plugin
+    // never sends, so `threads` was enough to allow somebody else's — and the
+    // timeline would record the user as having allowed it.
+    const { headers, id } = await install("patcher-plugin-approver", [
+      "threads",
+    ]);
+    const { host } = seedHostSession(harness.deps, { id: "host-approval" });
+    const { project } = seedProjectWithSource(harness.deps, {
+      hostId: host.id,
+    });
+    const thread = seedThread(harness.deps, { projectId: project.id });
 
     const response = await harness.app.request(
-      `${BASE}/api/v1/threads/${thread.id}/interactions/${interaction.id}/respond`,
+      `${BASE}/api/v1/threads/${thread.id}/interactions/pint_abc234567z/resolve`,
       {
         method: "POST",
         headers: { ...headers, "content-type": "application/json" },
-        body: JSON.stringify({ value: { kind: "consent", approved: true } }),
+        body: JSON.stringify({
+          decision: "allow_once",
+          grantedPermissions: null,
+        }),
       },
     );
 
     expect(response.status).toBe(403);
     const body = (await response.json()) as { message: string };
-    // Names the plugin: whoever reads the log should not have to work out which
-    // caller was refused.
     expect(body.message).toContain(id);
-    expect(body.message).toContain("answered by the user");
-    // And nothing was decided.
+    expect(body.message).toContain("allowed by the user");
+  });
+
+  it("leaves a plugin the denying of one, which lowers privilege", async () => {
+    // The same split the turn gate makes: `deny` takes privilege away, so it is
+    // not this gate's business. A real approval interaction rather than a
+    // made-up id, and the denial is asserted as having happened: "not this
+    // gate's 403" would pass just as well on a handler that answered 404.
+    const { headers } = await install("patcher-plugin-denier", ["threads"]);
+    const { host } = seedHostSession(harness.deps, { id: "host-denial" });
+    const { project } = seedProjectWithSource(harness.deps, {
+      hostId: host.id,
+    });
+    const environment = seedEnvironment(harness.deps, {
+      hostId: host.id,
+      projectId: project.id,
+    });
+    const thread = seedThread(harness.deps, {
+      environmentId: environment.id,
+      projectId: project.id,
+    });
+    seedTurnStarted(harness.deps, {
+      threadId: thread.id,
+      turnId: "turn-plugin-deny",
+      providerThreadId: "provider-thread-plugin-deny",
+    });
+    const registered =
+      harness.deps.pendingInteractions.registerPendingInteraction({
+        interaction: {
+          threadId: thread.id,
+          turnId: "turn-plugin-deny",
+          providerId: "codex",
+          providerThreadId: "provider-thread-plugin-deny",
+          providerRequestId: "request-plugin-deny",
+          payload: createCommandApprovalPayload({
+            command: "git push",
+            cwd: "/tmp/project",
+            itemId: "item-1",
+            reason: "Approve command",
+          }),
+        },
+      });
+    if (registered.outcome === "rejected") {
+      throw new Error(
+        `Expected interaction registration to succeed: ${registered.reason}`,
+      );
+    }
+
+    const response = await harness.app.request(
+      `${BASE}/api/v1/threads/${thread.id}/interactions/${registered.interaction.id}/resolve`,
+      {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify(createDenyResolution()),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: registered.interaction.id,
+      resolution: createDenyResolution(),
+      status: "resolving",
+    });
+  });
+
+  it("refuses a plugin the dismissal of a consent prompt", async () => {
+    // Dismissing is not denying: it is recorded as the person having closed the
+    // question without deciding, and nobody remembers it — a dismissed
+    // reach-host prompt resolves to `unanswered`, which the egress proxy
+    // deliberately does not remember. So a caller that could dismiss could
+    // re-raise on every retry, and the person would never get to give the
+    // remembered "no".
+    const { headers, id } = await install("patcher-plugin-dismisser", [
+      "threads",
+    ]);
+    const { interaction, thread } =
+      await threadAwaitingConsent("host-dismissal");
+
+    const response = await harness.app.request(
+      `${BASE}/api/v1/threads/${thread.id}/interactions/${interaction.id}/cancel`,
+      { method: "POST", headers },
+    );
+
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { message: string };
+    expect(body.message).toContain(id);
+    expect(body.message).toContain("dismissed by the user");
+    // And the question still stands.
     expect(
       harness.deps.pendingInteractions.listPendingThreadInteractions(thread.id),
     ).toHaveLength(1);

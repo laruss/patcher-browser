@@ -380,12 +380,15 @@ function shellQuote(value: string): string {
 
 async function openTerminal(
   harness: TerminalManagerHarness,
+  /** What an agent's open adds: the boundary the terminal runs inside. */
+  overrides: { sandbox?: { mode: "workspace" } } = {},
 ): Promise<FakeTerminalPty> {
   await harness.manager.handleMessage({
     type: "terminal.open",
     requestId: "open-1",
     terminalId: "term-1",
     threadId: "thr-1",
+    ...overrides,
     target: {
       kind: "workspace",
       environmentId: "env-1",
@@ -495,7 +498,7 @@ describe("TerminalManager", () => {
     await cleanupTempDirs();
   });
 
-  it("keeps the app key out of a thread's terminal, trading it for the thread's", async () => {
+  it("keeps the app key out of a sandboxed terminal, trading it for the thread's", async () => {
     // A turn's own processes were taken off the app key deliberately: it is the
     // credential the app, the CLI and the launcher present, and an agent
     // holding it can act as any of them — and derive any thread's key, since
@@ -507,7 +510,7 @@ describe("TerminalManager", () => {
       resolveShell: async () => "/bin/zsh",
       shellEnv: { PATCHER_APP_KEY: "app-key-probe-secret" },
     });
-    await openTerminal(harness);
+    await openTerminal(harness, { sandbox: { mode: "workspace" } });
 
     const env = harness.adapter.spawned[0]?.args.env ?? {};
     expect(env).not.toHaveProperty("PATCHER_APP_KEY");
@@ -525,6 +528,29 @@ describe("TerminalManager", () => {
       }),
     );
     expect(env.PATCHER_THREAD_ID).toBe("thr-1");
+  });
+
+  it("leaves a person's terminal in a thread view as it was", async () => {
+    // The thread is not the discriminator: the app opens every thread-view
+    // terminal with the thread it was opened from, and nobody sandboxes those.
+    // Trading the key there took the app's own credential off the person
+    // typing and handed them a turn's — the agent route policy, thread scope,
+    // "a person opened it" on their own terminal, and, through the thread id
+    // the trade brings with it, their own consent prompts unanswerable from
+    // that shell.
+    const harness = createHarnessWithOptions({
+      onSendMessage: () => undefined,
+      resolveShell: async () => "/bin/zsh",
+      shellEnv: { PATCHER_APP_KEY: "app-key-probe-secret" },
+    });
+    await openTerminal(harness);
+
+    const env = harness.adapter.spawned[0]?.args.env ?? {};
+    expect(env.PATCHER_APP_KEY).toBe("app-key-probe-secret");
+    expect(env).not.toHaveProperty("PATCHER_THREAD_KEY");
+    // And no declared thread: the CLI turns this into a header on every call,
+    // and a request that declares a thread is read as a command inside a turn.
+    expect(env).not.toHaveProperty("PATCHER_THREAD_ID");
   });
 
   it("leaves a terminal that belongs to no thread as it was", async () => {

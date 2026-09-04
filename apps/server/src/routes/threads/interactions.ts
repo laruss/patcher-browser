@@ -86,15 +86,31 @@ export function registerThreadInteractionRoutes(
     // (a user question) and a plugin's form submit are other shapes entirely, so
     // `patcher thread interactions deny/answer --self` keeps working.
     if (
-      declaresThread(context) &&
       isApprovalPendingInteractionResolution(payload) &&
       payload.decision !== "deny"
     ) {
-      throw new ApiError(
-        403,
-        "invalid_request",
-        "A permission prompt is allowed by the user, not from inside the turn that raised it. Nothing changed. Explain what you need and why in your reply instead.",
-      );
+      if (declaresThread(context)) {
+        throw new ApiError(
+          403,
+          "invalid_request",
+          "A permission prompt is allowed by the user, not from inside the turn that raised it. Nothing changed. Explain what you need and why in your reply instead.",
+        );
+      }
+      // And not by a plugin, for the reason the consent branch of `/respond`
+      // gives: the check above is a declaration, which is the right shape for a
+      // turn and blind to a plugin — a plugin authenticates with its own id and
+      // key and sends no thread header, so `threads` was enough to allow a
+      // prompt raised for somebody else. Here that prompt is a sandboxed
+      // command asking to run unsandboxed, and the timeline would record the
+      // user as having allowed it.
+      const callerPluginId = getPluginApiId(context);
+      if (callerPluginId !== undefined) {
+        throw new ApiError(
+          403,
+          "invalid_request",
+          `A permission prompt is allowed by the user, not by the "${callerPluginId}" plugin. Nothing changed.`,
+        );
+      }
     }
     const thread = requirePublicThread(deps.db, context.req.param("id"));
     return context.json(
@@ -191,6 +207,31 @@ export function registerThreadInteractionRoutes(
     // Dismissing a consent prompt is not a denial: the user closed it without
     // deciding, and the caller is told so rather than told "no".
     if (isConsentPendingInteraction(current)) {
+      // Which is exactly why neither the turn that raised it nor a plugin may
+      // do it, and why this route needed the gates `/respond` already had.
+      //
+      // A dismissal is attributed to the person and remembered by nobody. The
+      // setup-script transcript says "you dismissed the question without
+      // answering it", and a dismissed reach-host prompt resolves to
+      // `unanswered`, which the egress proxy deliberately does not remember —
+      // so a caller that could dismiss its own prompt could re-raise it on
+      // every retry, and the person would never get to give the remembered
+      // "no" that is what stops retry-until-someone-gives-in.
+      if (declaresThread(context)) {
+        throw new ApiError(
+          403,
+          "invalid_request",
+          "A consent prompt is dismissed by the user, not from inside a turn. Nothing changed, and the question still stands. Ask in your reply instead of dismissing it.",
+        );
+      }
+      const callerPluginId = getPluginApiId(context);
+      if (callerPluginId !== undefined) {
+        throw new ApiError(
+          403,
+          "invalid_request",
+          `A consent prompt is dismissed by the user, not by the "${callerPluginId}" plugin. Nothing changed.`,
+        );
+      }
       return context.json(
         deps.pendingInteractions.cancelConsentInteraction({
           threadId: thread.id,

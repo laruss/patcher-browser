@@ -65,3 +65,89 @@
 - Manual guard: the Claude Code square needs a live session, so it stays in
   `qa/provider-permission-mode-runbook.md` ("Git-Metadata Boundary Probe"), with
   the answers recorded in `docs/security.md`.
+
+## A person's own terminal, handed a turn's credential
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#62), and
+  three reviewers hit it independently.
+- Invariant missed: the credential a terminal carries follows the **sandbox**,
+  not the thread. A terminal an agent asked for is confined and trades the app
+  key for the thread's; a terminal a person opened is not confined and keeps
+  what it had — including in a thread view, which is where the app opens every
+  one of its own.
+- Why the existing tests missed it: `#52`'s pair pinned `threadId` as the
+  discriminator, which is what the daemon read, so both tests agreed with the
+  bug. Nothing opened an unsandboxed terminal _with_ a thread — the shape the
+  app actually sends — so the case that regressed had no test at all. It is not
+  a hole but a downgrade, and a downgrade shows up as things quietly not
+  working: the agent route policy applied to the person (no installs, no
+  ceiling, no join codes), `patcher terminal restart|close|input` on the
+  terminal they were sitting in was refused "because a person opened it", and
+  the declared thread the trade brings with it made their own consent prompts
+  unanswerable from that shell — which is exactly the headless-host story
+  `63665b9e0` added.
+- Automated guard added: `terminal-manager.test.ts` now opens the app's shape —
+  a thread, no sandbox — and asserts the app key stays, no thread key arrives,
+  and no `PATCHER_THREAD_ID` is exported; the trade test opens a sandboxed
+  terminal instead of relying on the thread. Falsified by keying the trade back
+  on `threadId`: only the new test failed.
+- Manual guard: none needed. The daemon computes the confinement and the
+  credential in one place, off one value.
+
+## A collection route read as a thread id
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#61).
+- Invariant missed: the thread-scope gate reads the `:id` out of the path with a
+  regex, so a route with no `:id` must not be read as naming a thread.
+  `/threads/fork` was read as one: the capture returned `fork`, no turn owns a
+  thread called that, and every turn was refused the route with "Thread fork is
+  not this turn's to drive" — always, from the commit that added the gate.
+- Why the existing tests missed it: the gate's own tests asked whether it reads
+  a thread route correctly and whether it is fooled by a path that merely
+  contains the word. Both were about paths shaped like `/threads/:id`. And
+  nothing forked as a turn, though `40032eeaf` had wired `requestedByThreadId`
+  into the route for agents and the agent-facing docs told them to use it — so
+  the feature shipped green and refused.
+- Automated guard added: the collection segments are taken off the route table
+  rather than listed, and `agent-thread-scope.test.ts` derives the same list the
+  same way — every group of `publicApiRoutes`, not just `threads`, since which
+  group a route is filed under is not what the router matches — and asserts
+  every one of them reads as "not a thread route". So a collection route mounted
+  tomorrow is covered on the day it is added, wherever it is declared. Plus the
+  two HTTP tests that were missing: a turn forking its own thread reaches the
+  fork service, and a turn forking a stranger's is refused.
+- And the fix was not only the regex: a route with no `:id` names its thread in
+  the body, so the fork source is now held to the same relationship an `:id` is
+  (`agentForkSourceThreadDenial`). Un-refusing the route without that would have
+  turned a false 403 into an unscoped route — see `docs/security.md`.
+
+## Two routes beside the one that was gated
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#60).
+- Invariant missed: a prompt that decides privilege is answered by the person,
+  and "the person" means neither the turn that raised it nor a plugin. That was
+  established for `interactions/:id/respond` in `7d325137c` and not carried to
+  its two neighbours: `/resolve`, which is where every _approval_ is answered,
+  gated the turn only; `/cancel` gated nobody, and a dismissal is recorded as
+  the person having closed the question while nothing remembers it.
+- Why the existing tests missed it: each gate was tested on the route it was
+  added to. `plugin-api-identity.test.ts` covered `/respond` and the
+  setup-script route; `agent-route-policy.test.ts` covered the turn on
+  `/resolve`. No test asked the same question of a route nobody had thought to
+  ask it about, which is the shape of this whole class: the policy is per-route
+  and the tests were written per-fix.
+- Automated guard added: plugin-identity tests for `/resolve` (allow refused,
+  `deny` left open) and `/cancel`, and a turn test for `/cancel` with the
+  person's own dismissal as the positive control. Falsified by removing each of
+  the three refusals in turn: each sabotage failed exactly its own assertion.
+- The `deny` controls resolve a real interaction and assert the resolution,
+  rather than asserting that the answer was "not this gate's 403". The weaker
+  form was there already on the turn side and is the failure mode worth naming:
+  a control aimed at a made-up interaction id passes on a 404, so it stays green
+  for a handler that stopped working for reasons of its own. Both controls now
+  fail if the interaction id is pointed at nothing, which is how that was
+  checked.
+- Still per-route, and worth saying: the general guard would enumerate the
+  mounted `/threads/:id/interactions/*` writes and require a decision about each
+  caller kind for every one, the way `agent-route-policy.test.ts` reads Hono's
+  own table for the settings writes. Not built here.

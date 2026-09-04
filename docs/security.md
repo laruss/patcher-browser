@@ -934,6 +934,20 @@ Named here rather than left to be rediscovered:
   one is refused and told which is its own — a person still names whichever they
   like, the same split as everywhere else here.
 
+  **And a third door, on a route with no `:id` at all**: `POST /threads/fork`
+  names its source thread in the body. A fork is not the read this entry leaves
+  unscoped — it clones the source's own provider session into a thread the
+  caller then drives, which is the model's context rather than the timeline,
+  including the agent-only inputs the timeline never shows, and with `workspace:
+  "reuse"` the source's environment becomes the new thread's. Creation was
+  already bounded (the project comes from the source thread, so another
+  project's is refused by the check above, and the permission mode is clamped to
+  the caller's ceiling), leaving only "whose conversation" — which is now the
+  same relationship as an `:id`. This one was hiding behind a bug rather than
+  being open: the scope middleware read `fork` as the thread id and refused the
+  route to _every_ turn, always, so nothing exercised what would happen once it
+  did not.
+
 - ~~**Asking for a more privileged turn.**~~ Closed: a requested
   `permissionMode` is now bounded by the asking turn's own mode as well as by
   the machine's ceiling, so a turn cannot arrange more privilege than it has —
@@ -982,6 +996,21 @@ Named here rather than left to be rediscovered:
   allow a prompt raised for somebody else — and have the timeline record the
   _user_ as having allowed it, which is the record the prompt exists to leave. A
   plugin's own wants are still asked about, at install and enable.
+
+  **The two neighbouring routes now have the same gates**, which they did not
+  when this entry was written. `interactions/:id/resolve` is where every
+  _approval_ is answered — a sandboxed command asking to run unsandboxed, a
+  file-change grant, a permission grant, a plan review, Codex's `mcp_tool_call`
+  — and it gated the turn only, so a plugin holding `threads` could allow one.
+  `interactions/:id/cancel` gated nobody: a turn or a plugin could dismiss a
+  consent prompt, and a dismissal is neither an answer nor a denial. It is
+  recorded as the person having closed the question without deciding, and
+  nothing remembers it — a dismissed reach-host prompt resolves to `unanswered`,
+  which the egress proxy deliberately does not remember — so dismissing was a
+  way to re-raise the prompt on every retry and never let the person give the
+  remembered "no" that stops retry-until-someone-gives-in. Both are refused to a
+  turn and to a plugin now; `deny` stays open, because lowering privilege is not
+  the question.
 - ~~**A remembered setup-script allow is keyed to a project, not a
   repository.**~~ Closed: migration `0099` re-keys the row on the project, the
   **machine**, the **checkout** the worktree came from, and the hash. So

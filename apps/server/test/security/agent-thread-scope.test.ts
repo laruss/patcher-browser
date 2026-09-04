@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getThread, listNonDeletedChildThreads } from "@patcher/db";
 import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
 import {
+  publicApiRoutes,
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
 } from "@patcher/server-contract";
 import {
+  agentForkSourceThreadDenial,
   agentParentThreadDenial,
   agentProjectDenial,
   agentThreadScopeDenial,
@@ -135,6 +137,32 @@ describe("targetThreadIdFromPath", () => {
         "/api/v1/threads/thr_1/interactions/pint_2/cancel",
       ),
     ).toBe("thr_1");
+  });
+
+  it("does not read a collection route's own segment as a thread id", () => {
+    // `POST /threads/fork` was refused to every turn, always: `fork` read as a
+    // thread id, and no turn owns a thread called that. Taken off the route
+    // table rather than listed here, so a collection route mounted tomorrow is
+    // covered by this test on the day it is added.
+    const collectionPaths = Object.values(publicApiRoutes)
+      .flatMap((group) => Object.values(group))
+      .map((route) => route.path)
+      .filter((path) => /^\/threads\/[^/:]/u.test(path));
+
+    // A check whose evidence can be empty is not a check.
+    expect(collectionPaths).toEqual(
+      expect.arrayContaining(["/threads/fork", "/threads/search"]),
+    );
+    for (const path of collectionPaths) {
+      expect(targetThreadIdFromPath(`/api/v1${path}`)).toBeNull();
+    }
+  });
+
+  it("reads the route rather than the encoding", () => {
+    // `for%6b` decodes to `fork` but the router matched it against
+    // `/threads/:id`, so it is a thread id — one nobody owns, which is the
+    // answer this gate should give rather than waving it through.
+    expect(targetThreadIdFromPath("/api/v1/threads/for%6b/send")).toBe("fork");
   });
 
   it("is not fooled by a path that merely contains the word", () => {
@@ -269,6 +297,38 @@ describe("agentParentThreadDenial", () => {
   });
 });
 
+describe("agentForkSourceThreadDenial", () => {
+  it("lets a turn fork its own thread and the ones it spawned", async () => {
+    await withTestHarness(async (harness) => {
+      const family = seedFamily(harness);
+
+      for (const source of [family.caller, family.child, family.grandchild]) {
+        expect(
+          agentForkSourceThreadDenial(harness.deps.db, {
+            callerThreadId: family.caller.id,
+            sourceThreadId: source.id,
+          }),
+        ).toBeNull();
+      }
+    });
+  });
+
+  it("refuses a source it did not spawn, and names it", async () => {
+    await withTestHarness(async (harness) => {
+      const family = seedFamily(harness);
+
+      for (const source of [family.stranger, family.siblingOfCaller]) {
+        const denial = agentForkSourceThreadDenial(harness.deps.db, {
+          callerThreadId: family.caller.id,
+          sourceThreadId: source.id,
+        });
+        expect(denial).toContain(source.id);
+        expect(denial).toContain("not this turn's to fork");
+      }
+    });
+  });
+});
+
 describe("agentProjectDenial", () => {
   it("lets a turn work in the project its own thread belongs to", async () => {
     await withTestHarness(async (harness) => {
@@ -309,6 +369,55 @@ describe("agentProjectDenial", () => {
           projectId: family.project.id,
         }),
       ).toContain("not this turn's to start a thread in");
+    });
+  });
+});
+
+describe("a turn forking a thread, at the HTTP boundary", () => {
+  function forkBody(sourceThreadId: string): string {
+    return JSON.stringify({ sourceThreadId, origin: "cli" });
+  }
+
+  it("cannot fork a thread it did not spawn", async () => {
+    // A fork is not the read this file leaves unscoped: it clones the source's
+    // provider session into a thread the caller drives, which is the model's
+    // own context rather than the timeline.
+    server = await startTestServer();
+    const family = seedFamily(server);
+
+    const response = await fetch(`${server.baseUrl}/api/v1/threads/fork`, {
+      method: "POST",
+      headers: agentHeaders(family.caller.id),
+      body: forkBody(family.stranger.id),
+    });
+
+    expect(response.status).toBe(403);
+    const body = await response.text();
+    expect(body).toContain(family.stranger.id);
+    expect(body).toContain("not this turn's to fork");
+  });
+
+  it("reaches the fork route at all, forking its own thread", async () => {
+    // The regression: the scope middleware read `fork` as the thread id, so
+    // every turn was refused this route with "Thread fork is not this turn's to
+    // drive" — including on its own thread. What the fork route then says about
+    // a seeded thread with no live provider session is its own business; that
+    // it is the fork route answering is the assertion.
+    server = await startTestServer();
+    const family = seedFamily(server);
+
+    const response = await fetch(`${server.baseUrl}/api/v1/threads/fork`, {
+      method: "POST",
+      headers: agentHeaders(family.caller.id),
+      body: forkBody(family.caller.id),
+    });
+
+    // Positive evidence rather than an absent refusal: this is the fork
+    // service's own answer about a seeded thread that has no provider session
+    // to clone, which only the fork service can give.
+    expect(response.status).toBe(400);
+    expect((await response.json()) as { code: string }).toMatchObject({
+      code: "fork_source_session_unavailable",
     });
   });
 });

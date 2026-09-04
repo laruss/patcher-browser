@@ -26,6 +26,7 @@ import {
 import type { Hono } from "hono";
 import type { AppDeps } from "../../types.js";
 import {
+  agentForkSourceThreadDenial,
   agentParentThreadDenial,
   getAgentThreadId,
 } from "../../agent-thread-scope.js";
@@ -276,10 +277,24 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
   });
 
   post(routes.fork, async (context, payload) => {
+    // This route has no `:id`, so the scope middleware has nothing to check —
+    // the thread a fork acts on is named in the body. Asked here, where the
+    // body is parsed, for the same reason the parent check on `update` below
+    // is: a field naming another thread is a way to reach it.
+    const callerThreadId = getAgentThreadId(context);
+    if (callerThreadId !== undefined) {
+      const sourceDenial = agentForkSourceThreadDenial(deps.db, {
+        callerThreadId,
+        sourceThreadId: payload.sourceThreadId,
+      });
+      if (sourceDenial !== null) {
+        throw new ApiError(403, "forbidden", sourceDenial);
+      }
+    }
     const thread = await createThreadForkFromRequest(
       deps,
       payload,
-      getAgentThreadId(context) ?? null,
+      callerThreadId ?? null,
     );
     return context.json(toThreadResponseFromThread(deps, { thread }), 201);
   });

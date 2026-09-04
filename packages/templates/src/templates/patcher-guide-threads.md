@@ -76,6 +76,10 @@ Forking:
   Forks clone the source provider session on the same machine. Isolated forks
   create a fresh managed worktree (or personal workspace for personal threads);
   reuse attaches the source environment. Omit --prompt to create an idle fork.
+  From inside a turn the source has to be your own thread or one you spawned,
+  and anything else is refused with a 403 naming it: a fork continues that
+  thread's conversation under a thread you then drive. Fork your own with
+  `patcher thread fork "$PATCHER_THREAD_ID"`.
 
 Editing a sent message (requires the `editMessages` experiment):
 

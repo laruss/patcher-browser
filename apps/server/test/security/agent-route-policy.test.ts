@@ -9,9 +9,15 @@ import {
 } from "@patcher/server-contract";
 import type { AppDeps } from "../../src/types.js";
 import {
+  createCommandApprovalPayload,
+  createDenyResolution,
+} from "../helpers/pending-interactions.js";
+import {
   seedHost,
   seedProjectWithSource,
   seedThread,
+  seedThreadFixture,
+  seedTurnStarted,
 } from "../helpers/seed.js";
 import {
   createTestAppHarness,
@@ -536,12 +542,144 @@ describe("a turn allowing its own permission prompt", () => {
   });
 
   it("does not stand in the way of denying, which lowers privilege", async () => {
-    // Reaches the handler, which then answers on the request's own merits — the
-    // thread and interaction do not exist here, so any status but this policy's
-    // 403 is the assertion.
-    const response = await resolveAsAgent("deny");
+    // A real interaction rather than a made-up id, and the denial asserted as
+    // having happened: "any status but this policy's 403" would pass just as
+    // well on a handler that answered 404, which is what this used to assert.
+    server = await startTestServer();
+    const running = server;
+    // Its own fixture rather than `seedThreadMidTurn`, because resolving for
+    // real needs a workspace and a connected machine to dispatch to, and the
+    // three refusals above deliberately have neither: the gate answers before
+    // the thread is looked up, and their made-up ids are what shows that.
+    const { thread } = seedThreadFixture(running, {
+      session: { id: "host-agent-deny" },
+      thread: { status: "active" },
+    });
+    const threadId = thread.id;
+    seedTurnStarted(running.deps, {
+      threadId,
+      turnId: "turn-agent-deny",
+      providerThreadId: "provider-thread-agent-deny",
+    });
+    const registered =
+      running.deps.pendingInteractions.registerPendingInteraction({
+        interaction: {
+          threadId,
+          turnId: "turn-agent-deny",
+          providerId: "codex",
+          providerThreadId: "provider-thread-agent-deny",
+          providerRequestId: "request-agent-deny",
+          payload: createCommandApprovalPayload({
+            command: "git push",
+            cwd: "/tmp/project",
+            itemId: "item-1",
+            reason: "Approve command",
+          }),
+        },
+      });
+    if (registered.outcome === "rejected") {
+      throw new Error(
+        `Expected interaction registration to succeed: ${registered.reason}`,
+      );
+    }
 
-    expect(response.status).not.toBe(403);
+    const response = await fetch(
+      `${running.baseUrl}/api/v1/threads/${threadId}/interactions/${registered.interaction.id}/resolve`,
+      {
+        method: "POST",
+        headers: agentHeaders(threadId),
+        body: JSON.stringify(createDenyResolution()),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: registered.interaction.id,
+      resolution: createDenyResolution(),
+      status: "resolving",
+    });
+  });
+});
+
+/**
+ * And the neighbour of it: dismissing the prompt instead of answering it.
+ *
+ * A dismissal is not a denial. It is recorded as the person having closed the
+ * question without deciding — the setup-script transcript says so in as many
+ * words — and nobody remembers it: a dismissed reach-host prompt resolves to
+ * `unanswered`, which the egress proxy deliberately does not remember. So a
+ * turn that could dismiss its own prompt could re-raise it on every retry, and
+ * the person would never get to give the remembered "no" that is what stops
+ * retry-until-someone-gives-in.
+ */
+describe("a turn dismissing a consent prompt raised on its thread", () => {
+  async function consentPromptOnAgentThread(): Promise<{
+    interactionId: string;
+    threadId: string;
+  }> {
+    server = await startTestServer();
+    const running = server;
+    const threadId = seedThreadMidTurn(running.deps);
+    void running.deps.pendingInteractions.requestConsentInteraction({
+      threadId,
+      timeoutMs: 60_000,
+      payload: {
+        kind: "consent",
+        action: "enable",
+        subjectId: "some-plugin",
+        subjectName: "Some plugin",
+        permissions: [],
+        sites: [],
+        detail: null,
+      },
+    });
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const [interaction] =
+        running.deps.pendingInteractions.listPendingThreadInteractions(
+          threadId,
+        );
+      if (interaction) return { interactionId: interaction.id, threadId };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("No consent interaction was raised");
+  }
+
+  it("is refused, and the question still stands", async () => {
+    const { interactionId, threadId } = await consentPromptOnAgentThread();
+    const running = server;
+    if (running === null) throw new Error("Expected a running server");
+
+    const response = await fetch(
+      `${running.baseUrl}/api/v1/threads/${threadId}/interactions/${interactionId}/cancel`,
+      { method: "POST", headers: agentHeaders(threadId) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("dismissed by the user");
+    // The prompt, not just the answer: a route that cancelled and then threw
+    // the same 403 would pass on the response alone.
+    expect(
+      running.deps.pendingInteractions.listPendingThreadInteractions(threadId),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the person at the machine dismissing it", async () => {
+    const { interactionId, threadId } = await consentPromptOnAgentThread();
+    const running = server;
+    if (running === null) throw new Error("Expected a running server");
+
+    const response = await fetch(
+      `${running.baseUrl}/api/v1/threads/${threadId}/interactions/${interactionId}/cancel`,
+      {
+        method: "POST",
+        headers: { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      running.deps.pendingInteractions.listPendingThreadInteractions(threadId),
+    ).toHaveLength(0);
   });
 });
 

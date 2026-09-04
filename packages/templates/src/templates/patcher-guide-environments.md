@@ -35,7 +35,10 @@ Making your repo work with patcher:
     patcher thread interactions approve <interaction-id> <thread-id>
 
   `deny` declines it. Neither works from inside a turn — an agent cannot allow
-  the script it may have written.
+  the script it may have written. So the shell has to be one you opened: over
+  SSH, or a Patcher terminal you opened yourself, both of which hold the app
+  key. A terminal an agent asked for carries that turn's own credential
+  instead, and is refused here for the same reason the turn is.
 
   Patcher runs the hook as `env bash .patcher-env-setup.sh` with cwd set to the new
   workspace. POSIX shell setup scripts are not supported on Windows. The hook
