@@ -85,7 +85,7 @@ const PINNED_OVER_LIMIT = {
   "apps/server/src/services/plugins/plugin-api.ts": 3413,
   "apps/app/src/components/promptbox/PromptBoxInternal.tsx": 3299,
   "apps/app/src/components/promptbox/PromptBoxInternal.test.tsx": 3282,
-  "plugins/browser-tools/src/cli.ts": 3115,
+  "plugins/browser-tools/src/cli.ts": 3014,
 };
 
 function maxLinesRule(max) {
