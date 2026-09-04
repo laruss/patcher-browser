@@ -53,6 +53,35 @@ jobs:
       - name: Verify arm64 runner
         run: test "$(uname -m)" = "arm64"
 
+      # A release page that says only how to install the build is the failure
+      # this catches, and the publish step that would otherwise catch it sits at
+      # the end of this job -- after the install, the typecheck, the tests, the
+      # packaging and the smoke test, in a job budgeted 45 minutes.
+      # `packages/scripts`' own suite asserts the same thing on every pull
+      # request, but this workflow is dispatched by hand and can run on any ref,
+      # and it runs only the desktop and launcher suites -- so the commit that
+      # ships is not necessarily one that check ever saw.
+      #
+      # Only the alpha channel: qa publishes no release page, and the stable
+      # channel does not read CHANGELOG.md at all (its notes are one line naming
+      # the version), so requiring an entry there would refuse a build for a
+      # file it then ignores.
+      - name: Require a CHANGELOG entry for the alpha
+        env:
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          RELEASE_CHANNEL: ${{ inputs.release_channel }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$INPUT_PUBLISH" != "true" || "$RELEASE_CHANNEL" != "alpha" ]]; then
+            echo "Not an alpha publish; no CHANGELOG entry is required."
+            exit 0
+          fi
+
+          VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          node scripts/changelog-release-notes.mjs "$VERSION" > /dev/null
+          echo "CHANGELOG.md carries an entry for ${VERSION}."
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -303,21 +332,13 @@ jobs:
           fi
 
           # The release page should say what is in the build, and CHANGELOG.md
-          # is where that is already written. A version with no entry still
-          # publishes: the install instructions below stand on their own.
-          CHANGELOG_ENTRY=""
-          if CHANGELOG_ENTRY="$(node scripts/changelog-release-notes.mjs "$VERSION")" && [[ -n "$CHANGELOG_ENTRY" ]]; then
-            echo "Release notes lead with the CHANGELOG entry for ${VERSION}."
-          else
-            CHANGELOG_ENTRY=""
-            echo "::warning::CHANGELOG.md carries no entry for ${VERSION}; the release notes are the install instructions alone."
-          fi
+          # is where that is already written. The step at the top of this job has
+          # already refused a version with no entry, so this reads one rather
+          # than tolerating its absence -- and `set -e` still stops the publish
+          # if that step is ever removed.
+          CHANGELOG_ENTRY="$(node scripts/changelog-release-notes.mjs "$VERSION")"
 
-          : > release-notes.md
-
-          if [[ -n "$CHANGELOG_ENTRY" ]]; then
-            printf '%s\n\n' "$CHANGELOG_ENTRY" >> release-notes.md
-          fi
+          printf '%s\n\n' "$CHANGELOG_ENTRY" > release-notes.md
 
           cat >> release-notes.md <<NOTES
           Patcher desktop ${VERSION} — alpha. macOS on Apple Silicon only.

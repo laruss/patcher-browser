@@ -1,7 +1,12 @@
 // Prints the CHANGELOG entry for one version, so a release page says what is in
-// the build instead of only how to install it. `build-desktop.yml` calls this
-// when it publishes an alpha; a version with no entry is not an error there,
-// since the install instructions still stand on their own.
+// the build instead of only how to install it. `build-desktop.yml` calls it
+// twice when it publishes an alpha: once before the build, where a missing entry
+// is what stops the release, and again at the publish step, where the entry
+// becomes the first section of the release notes.
+//
+// Exiting non-zero for a version with no entry is therefore the point rather
+// than an inconvenience. It used to be caught and turned into a `::warning::`,
+// which published an alpha whose page carried the install instructions alone.
 import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";

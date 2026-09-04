@@ -13,7 +13,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { bumpVersion } from "../../../scripts/bump-version.mjs";
+import {
+  bumpVersion,
+  documentTargets,
+} from "../../../scripts/bump-version.mjs";
 import {
   deriveNightlyVersion,
   prepareNightlyVersion,
@@ -32,7 +35,15 @@ function createPackageJson({ name, version }) {
   return `${JSON.stringify({ name, version, type: "module" }, null, 2)}\n`;
 }
 
-function createTestRepo({ patcherAppVersion, desktopVersion }) {
+function createReadme(version) {
+  return `**[Download the alpha](https://example.invalid/releases)** --\na \`.dmg\` for **macOS on Apple Silicon**, currently \`${version}\`. Open it and\ndrag Patcher to Applications.\n\nWhat the browser sends with a request (currently \`nothing\`) is in the security\nmodel.\n`;
+}
+
+function createInstallationDoc(version) {
+  return `The releases page carries\na \`.dmg\` -- \`${version}\` at the time of writing. Alphas are published as\nprereleases.\n`;
+}
+
+function createTestRepo({ patcherAppVersion, desktopVersion, readme }) {
   const repoRoot = mkdtempSync(join(tmpdir(), "patcher-bump-version-"));
   testRoots.push(repoRoot);
 
@@ -45,6 +56,15 @@ function createTestRepo({ patcherAppVersion, desktopVersion }) {
   writeFileSync(
     join(repoRoot, "apps", "desktop", "package.json"),
     createPackageJson({ name: "@patcher/desktop", version: desktopVersion }),
+  );
+  mkdirSync(join(repoRoot, "docs"), { recursive: true });
+  writeFileSync(
+    join(repoRoot, "README.md"),
+    readme ?? createReadme(patcherAppVersion),
+  );
+  writeFileSync(
+    join(repoRoot, "docs", "installation.md"),
+    createInstallationDoc(patcherAppVersion),
   );
 
   return repoRoot;
@@ -126,12 +146,88 @@ describe("bump-version", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
-      "Bumped: patcher-app + @patcher/desktop → 0.0.7",
+      "Bumped: patcher-app + @patcher/desktop + README.md + docs/installation.md → 0.0.7",
     );
     expect(readVersion(repoRoot, "packages/patcher-app/package.json")).toBe(
       "0.0.7",
     );
     expect(readVersion(repoRoot, "apps/desktop/package.json")).toBe("0.0.7");
+  });
+
+  // README.md and docs/installation.md name the newest download in prose, and
+  // before this they were updated by hand -- which is to say, not updated.
+  it("rewrites the version the documents name", () => {
+    const repoRoot = createTestRepo({
+      patcherAppVersion: "0.0.6",
+      desktopVersion: "0.0.6",
+    });
+    const result = runScript(repoRoot, ["0.0.7"]);
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(repoRoot, "README.md"), "utf8")).toContain(
+      "currently `0.0.7`",
+    );
+    expect(
+      readFileSync(join(repoRoot, "docs", "installation.md"), "utf8"),
+    ).toContain("`0.0.7` at the time of writing");
+  });
+
+  // A rewriter that shrugs at prose it can no longer find reports a bump it did
+  // not make, which is the drift it was added to stop.
+  it("refuses the whole bump when a document no longer carries the sentence", () => {
+    const repoRoot = createTestRepo({
+      patcherAppVersion: "0.0.6",
+      desktopVersion: "0.0.6",
+      readme: "Download the alpha from the releases page.\n",
+    });
+    const result = runScript(repoRoot, ["0.0.7"]);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "Expected one version mention in README.md, found 0",
+    );
+    expect(readVersion(repoRoot, "packages/patcher-app/package.json")).toBe(
+      "0.0.6",
+    );
+    expect(readVersion(repoRoot, "apps/desktop/package.json")).toBe("0.0.6");
+    expect(
+      readFileSync(join(repoRoot, "docs", "installation.md"), "utf8"),
+    ).toContain("`0.0.6` at the time of writing");
+  });
+
+  // A short anchor -- "currently `" on its own -- matches other sentences in the
+  // same shape, so a reworded download sentence would leave the bump rewriting
+  // one of those and reporting success. The README fixture carries such a
+  // sentence; the version in it may not move.
+  it("rewrites the download sentence and not another in the same shape", () => {
+    const repoRoot = createTestRepo({
+      patcherAppVersion: "0.0.6",
+      desktopVersion: "0.0.6",
+    });
+    const result = runScript(repoRoot, ["0.0.7"]);
+    const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+
+    expect(result.status).toBe(0);
+    expect(readme).toContain("Apple Silicon**, currently `0.0.7`");
+    expect(readme).toContain("(currently `nothing`)");
+  });
+
+  // The bump is the only thing that keeps those two documents true, and it runs
+  // once a release. This asserts the same thing on every pull request instead:
+  // each pattern matches its document exactly once, and what it matches is the
+  // version the packages are on. A reworded sentence fails here rather than
+  // during the release it would have silently skipped.
+  it("matches each document once, on the version the packages are on", () => {
+    const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+    const version = readVersion(repoRoot, "packages/patcher-app/package.json");
+
+    for (const target of documentTargets) {
+      const content = readFileSync(join(repoRoot, target.path), "utf8");
+      const matches = [...content.matchAll(target.pattern)];
+
+      expect(matches, `${target.path} / ${target.pattern}`).toHaveLength(1);
+      expect(matches[0][2], target.path).toBe(version);
+    }
   });
 
   it("restores the first package file when the second rename fails", async () => {

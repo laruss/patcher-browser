@@ -249,6 +249,45 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"],
       "env": ["PATCHER_CODEX_CLI_VERSION"]
     },
+    // The scripts suite reaches further outside its own package than any other,
+    // and the task hash reached none of it.
+    //
+    // Two kinds of reach. It asserts things about the *repository*: that
+    // CHANGELOG.md carries an entry for the version the two lockstep packages
+    // are on, and that the sentences in README.md and docs/installation.md
+    // naming the download are still the ones bump-version.mjs rewrites. None of
+    // those files is a package-local default, and neither are the four root
+    // scripts the suite imports. And `source-cli-wrapper.test.ts` runs the
+    // repository's own `patcher` script, whose first act is
+    // `turbo run build --filter=@patcher/scripts --filter=@patcher/cli` -- so
+    // both of those builds are dependencies of this suite, and `@patcher/scripts`
+    // declares neither, which is why `topo` never carried them.
+    //
+    // Measured, not assumed. Without this block the task hash is byte-identical
+    // before and after editing scripts/bump-version.mjs, README.md, CHANGELOG.md
+    // or apps/cli/src, and moves only for the test file itself and for declared
+    // dependencies -- so a release commit is exactly the shape that would have
+    // been served from cache: two versions, a changelog entry and two documents,
+    // with nothing under packages/scripts touched at all. CI restores
+    // .turbo/cache across runs, so this is a hit that can happen there.
+    "@patcher/scripts#test": {
+      "dependsOn": [
+        "//#ensure-native-modules",
+        "@patcher/scripts#build",
+        "@patcher/cli#build",
+        "topo"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/vitest.shared.ts",
+        "$TURBO_ROOT$/scripts/*.mjs",
+        "$TURBO_ROOT$/CHANGELOG.md",
+        "$TURBO_ROOT$/README.md",
+        "$TURBO_ROOT$/docs/installation.md",
+        "$TURBO_ROOT$/packages/patcher-app/package.json",
+        "$TURBO_ROOT$/apps/desktop/package.json"
+      ]
+    },
     "@patcher/templates#test": {
       "dependsOn": [
         "//#ensure-native-modules",

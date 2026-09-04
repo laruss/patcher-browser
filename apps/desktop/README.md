@@ -104,9 +104,19 @@ To bump for a release:
 node scripts/bump-version.mjs <new-version>
 ```
 
-The script rewrites both `package.json` versions and nothing else — no commit,
-no tag. You can also use `--patch`, `--minor`, or `--major` instead of an
-explicit version.
+The script rewrites both `package.json` versions and the two documents that name
+the current download in prose — `README.md` and `docs/installation.md` — and
+nothing else: no commit, no tag. A document whose sentence no longer matches the
+pattern in `scripts/bump-version.mjs` fails the bump instead of being skipped
+quietly. You can also use `--patch`, `--minor`, or `--major` instead of an
+explicit version — but `--patch` from a prerelease resolves to the stable version
+that prerelease was leading up to, `0.1.1-alpha.3` → `0.1.1`, and the alpha
+channel then refuses to publish it. Cutting another alpha means naming it:
+`0.1.1-alpha.4`.
+
+Write the `CHANGELOG.md` entry for the new version in the same commit.
+`packages/scripts` has a test that requires an entry for whatever version the
+two packages are on, and an alpha publish refuses to build without one.
 
 Commit the bump on a short-lived branch, open a PR, and merge it into `main`
 once CI and Version Lockstep are green. Then cut the release from `main`:
@@ -206,6 +216,12 @@ account behind it. It publishes the ad-hoc-signed `.dmg`, `.zip`, blockmaps and
 `desktop-version.json` to their own `desktop-v<version>` prerelease, and
 requires the version to be a prerelease number so an ad-hoc build cannot occupy
 one reserved for a signed release.
+
+It also requires a `CHANGELOG.md` entry for that version, checked before the
+install step rather than at the publish step — which sits after the build, the
+packaging and the smoke test. The entry is the first section of the release
+notes; without one the page would say only how to install the build, which is
+what an alpha used to do, with a warning in a log nobody reads.
 
 What it deliberately does not do is touch `desktop-latest` or publish
 `latest-mac.yml`. That is the auto-update feed, and `electron-updater` installs

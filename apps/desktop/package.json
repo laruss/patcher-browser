@@ -1,6 +1,6 @@
 {
   "name": "@patcher/desktop",
-  "version": "0.1.1-alpha.2",
+  "version": "0.1.1-alpha.3",
   "private": true,
   "description": "macOS Electron shell for Patcher",
   "main": "dist/main.js",

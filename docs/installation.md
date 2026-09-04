@@ -16,7 +16,7 @@ arm64-only by configuration.
 ### Download the alpha
 
 The [releases page](https://github.com/laruss/patcher-browser/releases) carries
-a `.dmg` — `0.1.1-alpha.2` at the time of writing. Alphas are published as
+a `.dmg` — `0.1.1-alpha.3` at the time of writing. Alphas are published as
 prereleases, so `/releases/latest` and the release API skip them by design; the
 page itself is the list. Open the `.dmg`, drag Patcher to Applications, and
 expect one refusal on first launch: the build is ad-hoc signed, not signed with an Apple Developer ID, so
