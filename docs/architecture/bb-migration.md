@@ -92,8 +92,13 @@ Two structural gaps:
 
 Plugin manifest is the `patcher` field of a plugin's own `package.json` (name,
 description, `branding.icon`, `server` entry, `app` entry). 13 bundled plugins
-under `plugins/` served as live examples at `aefe3ea49`; there are 14 today,
-this fork's own `browser-tools` being the addition.
+under `plugins/` served as live examples at `aefe3ea49`, and there are still 13
+— but not the same 13. `connect` went with the rename described above, and this
+fork's own `browser-tools` took its place; `BUILTIN_PLUGINS` in
+`apps/server/src/services/plugins/builtin-registry.ts` is the list, and it
+agrees with `git ls-files plugins/`. Counting the working tree with `ls` gives
+14 on a checkout that predates the removal, because `plugins/connect` survives
+there as untracked build output.
 
 `@patcher/plugin-sdk` already exposes, verified in
 `packages/plugin-sdk/src/app-contract.ts` (1412 lines) and
@@ -211,7 +216,8 @@ removed both, along with `plugins/connect`, `packages/connect-db`,
 5. **Native module ABI.** `better-sqlite3` 12.10.0 is pinned in 9 `package.json`
    files — `apps/host-daemon`, `apps/server`, `packages/db`,
    `packages/patcher-app`, `packages/plugin-sdk`, `plugins/automations`,
-   `plugins/workflows` and both example plugins — plus `node-pty` 1.1.0 and
+   `plugins/workflows`, `examples/plugins/site-tweaks` and
+   `examples/plugins/t3sidebar` — plus `node-pty` 1.1.0 and
    `sharp`. `apps/desktop/electron-builder.config.json` sets `npmRebuild: false`
    and fetches the Electron prebuild in the `afterPack` hook
    `apps/desktop/scripts/prepare-native-modules.cjs` (the config names it

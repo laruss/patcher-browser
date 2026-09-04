@@ -708,9 +708,14 @@ than discovered later:
   argv binds `/` read-only with no `tmpfs` over `/run`, `/var/run` or
   `$XDG_RUNTIME_DIR`, so a docker socket, the D-Bus session bus and
   `$SSH_AUTH_SOCK` stay connectable — and the session bus in particular is a
-  command run outside the sandbox, with the network. macOS is closed here:
-  `connect()` on an AF_UNIX path is `Operation not permitted` under the profile,
-  measured.
+  command run outside the sandbox, with the network. macOS is closed here, and
+  the discriminating pair is what makes that worth saying: under the profile's
+  own egress rules — `(deny network*)` and the three `localhost:*` allows — one
+  process refused `connect()` on an AF_UNIX path with `EPERM` and reached a TCP
+  loopback listener in the same breath. Seatbelt's allow names an `ip`
+  remote, which a unix-socket connect does not match, so the blanket deny takes
+  it. No test covers this; it was measured by hand with `sandbox-exec` and is
+  recorded here because nothing else records it.
 - **The proxy itself will dial the host's loopback.** It allows `localhost`,
   `127.0.0.1` and `::1` unconditionally — a well-behaved client never sends
   those through a proxy, so the allowance costs nothing against one — and then
@@ -1086,9 +1091,10 @@ Named here rather than left to be rediscovered:
   says which of the two the shell holds and what ended it, which is the one
   thing a caller inside the shell cannot see for itself.
 
-  **"Loses the API" means while the thread is idle, not for good.** The turn
-  key's MAC covers the app key and the thread id and nothing else, so the same
-  string is accepted again the moment that thread has a turn running — which the
+  **"Loses the API" means while the thread is idle, not for good.** The turn key
+  is `HMAC(app key, "patcher-thread-api-key:turn:v2:<thread id>")` — a fixed
+  context and the thread id, and nothing that varies with the turn — so the same
+  string is accepted again the moment that thread has a turn running, which the
   person's next message starts. So a `nohup`ed process regains the API on the
   next turn rather than being locked out of it: what the lifetime removes is the
   *idle* window an agent used to keep, which is the window nobody is watching.

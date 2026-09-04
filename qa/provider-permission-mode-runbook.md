@@ -19,15 +19,18 @@ with, which is what the app calls Accept Edits, Approve for me and Full Access:
 - `auto` — workspace sandbox, escalations reviewed by the provider
 - `full` — no sandbox, no approvals
 
-`readonly` still appears below, and only where it is meant to: `readonly` is not
-reachable through a preset at all — `toClaudePermissionMode` maps only the three
-above, and the Claude session-mode override accepts nothing but `plan` — while
-the implementation is still in the tree
-(`claude-code/bridge/readonly-bash-policy.ts` and the hooks that use it). So its
-Expected Semantics and its supplemental probe are kept rather than deleted, and
-should be read as exercising code no preset reaches today; nothing spawns a
-readonly thread, because the server would refuse to create one. The old name
-`workspace-write` is gone from this runbook — it is `accept-edits` now.
+`readonly` still appears below, and it is worth being exact about what that is
+worth. The mode is not reachable at all: `toClaudePermissionMode` maps only the
+three above, the Claude session-mode override accepts nothing but `plan`, and
+the server will not create a thread with it. The implementation is still in the
+tree — `packages/agent-runtime/src/claude-code/bridge/readonly-bash-policy.ts`
+and the hooks that use it — so its Expected Semantics and its supplemental probe
+are kept as a record of what that code is supposed to do, and **neither can be
+run through a thread today**: there is no way to raise a readonly session, so
+the probe below is a list of commands with nothing to send them to. Treat it as
+a specification for whoever revives the mode or deletes it, not as a step in a
+manual pass. The old name `workspace-write` is gone from this runbook — it is
+`accept-edits` now, which is also what the CLI turns it into.
 
 Pi and the ACP providers now run sandboxed too, so their advertised modes are
 narrower than Codex's rather than absent: Pi offers `auto` and `full`, ACP
@@ -35,9 +38,23 @@ offers `accept-edits` and `full` (`PI_CAPABILITIES` and `ACP_CAPABILITIES` in
 `packages/agent-providers/src/catalog.ts`). Pi has no permission system of its
 own and no channel for an approval, which is why it declares `auto` rather than
 both sandboxed modes — a write outside the workspace is refused rather than
-asked about. Confirm that a mode a provider does not advertise is rejected by
-existing server/runtime tests. A machine at the default sandbox ceiling refuses
-the pairing outright — that is `host_permission_ceiling_conflict`, not a bug.
+asked about.
+
+Which means the **default machine ceiling no longer refuses either pairing**,
+and this runbook used to say it did. `DEFAULT_HOST_MAX_PERMISSION_MODE` is
+`auto`, and `clampPermissionModeToCeiling` answers with the most capable
+advertised mode at or below the ceiling — `auto` for Pi, `accept-edits` for ACP.
+`host_permission_ceiling_conflict` is raised only where a provider advertises
+nothing that low, which was Pi's position when it was Full Access only. Where it
+does still fire it is a refusal by design, not a bug.
+
+One caveat if you go looking for the tests that pin this:
+`packages/agent-runtime/src/pi/adapter.test.ts` and
+`apps/server/test/threads/thread-default-policy.test.ts` are the live ones, and
+`packages/agent-runtime/src/integration.interactive-requests.test.ts` still
+expects Pi's supported modes to equal `["full"]` — stale, and never failing
+because `packages/agent-runtime/vitest.config.ts` excludes
+`src/integration*.test.ts` from every run.
 
 Core behaviors under test:
 
@@ -210,9 +227,14 @@ this does not yet close".
   are gated for an agent, and invoking a plugin command is using what was
   granted.
 - **An unconfined caller can still ask the server for a machine's daemon key.**
-  The app key is a file; a Full Access turn, a Pi or ACP turn, or any plugin
-  process can read it and present it at `/host-daemon-keys/:hostId`. A sandboxed
-  turn cannot do either half.
+  The app key is a file, so any process that is not confined can read it and
+  present it at `/host-daemon-keys/:hostId`: a Full Access turn on any provider,
+  any plugin process, and an ACP agent that declares no `stateDirs` — `acp-omp`
+  in `apps/server/src/services/system/known-acp-agents.ts` is the built-in
+  example, deliberately unmeasured. **No longer every Pi or ACP turn**, which is
+  what this bullet used to say: a workspace-scoped turn on Pi, or on an ACP
+  agent with declared `stateDirs`, is confined by the provider sandbox and
+  cannot read the file. A sandboxed turn cannot do either half.
 - **`filter.<driver>.smudge` planted in `.git/config`** still runs on
   `git checkout` and `git worktree add` — the driver name comes from
   `.gitattributes`, so no fixed config deny-list can pre-empt it. What is worth
@@ -411,13 +433,16 @@ update the platform table in `docs/security.md` if any answer moved.
 ## CLI Matrix Spawn
 
 Spawn fresh managed worktrees — three modes per provider, which is every mode
-the server accepts. `--permission-mode readonly` and
-`--permission-mode workspace-write` are what this block used to pass, and both
-are rejected by `permissionModeSchema` before a thread is created
-(`permissionModeValues` in `packages/domain/src/shared-types.ts`), so the
-readonly sections above are exercised by their supplemental probes rather than
-from here. Set the six `*_PROMPT` variables first: each is the Probe Prompt above
-with `PROVIDER MODE` replaced by that row's provider and mode.
+the server accepts. This block used to pass `--permission-mode readonly` and
+`--permission-mode workspace-write`, and exactly one of those was broken:
+`parsePermissionMode` in `apps/cli/src/commands/thread/helpers.ts` parses with
+`permissionModeInputSchema`, which still accepts `workspace-write` and
+transforms it to `accept-edits` for one compatibility window — pinned by
+`apps/cli/src/__tests__/command-output/thread-spawn.test.ts`. `readonly` is in
+no schema and fails before a thread exists. The current names are used below so
+the runbook does not depend on a deprecation. Set the six `*_PROMPT` variables
+first: each is the Probe Prompt above with `PROVIDER MODE` replaced by that
+row's provider and mode.
 
 ```bash
 CODEX_ACCEPT_EDITS=$(patcher thread spawn --project "$PATCHER_PROJECT_ID" --provider codex --model "$CODEX_MODEL" --reasoning-level low --permission-mode accept-edits --new-environment worktree --prompt "$CODEX_ACCEPT_EDITS_PROMPT" --json | jq -r '.id')

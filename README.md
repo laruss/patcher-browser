@@ -199,10 +199,10 @@ The reasoning, the exits a plugin can still take, and the telemetry position
   put to you; only sanitized clipboard writes and fullscreen are allowed. This
   is about what _websites_ may ask for, and is unrelated to the permissions a
   plugin declares.
-- **Linux and WSL2 need setting up, and only CI has run them.** A C++ toolchain
-  to install at all, and bubblewrap plus unprivileged user namespaces for the
-  sandboxed permission modes; CI exercises both on `ubuntu-latest`, and nobody
-  has logged a manual pass on a Linux desktop.
+- **Linux and WSL2 need setting up.** A C++ toolchain to install at all, and
+  bubblewrap plus unprivileged user namespaces for the sandboxed permission
+  modes. CI exercises both on `ubuntu-latest`; nobody has logged a manual pass
+  on a Linux desktop, and WSL2 is not in CI at all.
   [Installation](docs/installation.md#supported-platforms) has the commands.
 
 The full list, with the reasoning and what is decided versus merely unbuilt, is

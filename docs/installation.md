@@ -132,13 +132,18 @@ not a prerequisite there.
 and Approve for me run the agent inside a workspace sandbox, and Patcher refuses
 to start such a turn on a machine that cannot build one rather than running it
 unsandboxed under the same name. macOS composes its sandbox from Seatbelt, which
-ships with the OS; on Linux the backend is `bwrap`, and without it every
-sandboxed thread refuses with a message naming the missing package. Install it
-before the first turn:
+ships with the OS; on Linux the backend is `bwrap`, and without it a thread on
+Codex, Claude Code or Pi refuses with a message naming the missing package.
+Install it before the first turn:
 
 ```bash
 sudo apt install bubblewrap      # or: dnf install bubblewrap
 ```
+
+The one exception is an ACP agent that has not declared where it writes its own
+state: there is nothing to confine it into, so Patcher runs it unconfined with
+the thread saying so rather than refusing. `acp-omp` ships that way on purpose —
+confining an unmeasured agent on a guess stops it from starting at all.
 
 **Installed is not the same as usable.** `bwrap` needs unprivileged user
 namespaces, and Ubuntu 24.04 restricts them through AppArmor — there `bwrap` is
@@ -163,12 +168,17 @@ fixed this way; run those threads at Full Access, having read what that means in
 
 **What is verified on Linux, and what is not.** CI runs the whole test suite on
 `ubuntu-latest` with bubblewrap installed and that sysctl lifted, so the Linux
-sandbox is exercised rather than asserted, and the `patcher-app` tarball is
-smoke-installed there on Node 22 — server and daemon started, the web app
-answering, every default-enabled builtin plugin reaching `running` — with Node
-24 and 26 on top of that on `main`. What no CI job covers is a person's own
-Linux desktop end to end: no manual pass has been logged on one, and the desktop
-shell is macOS-only regardless.
+sandbox is exercised rather than asserted — and the workflow lifts it with
+`|| true`, so on a runner where it cannot be lifted the suite asserts the
+refusal instead and still passes. The `patcher-app` tarball is also
+smoke-installed there on Node 22, with Node 24 and 26 on top of that on `main`:
+that one packs the tarball, installs it, starts the server and the daemon, waits
+for both `/health` endpoints, and waits for every default-enabled builtin plugin
+to reach `running`. Note what it does not do — it never requests `/` or a web
+asset, so "the web app serves" is not among the things Linux CI establishes.
+What no CI job covers at all is a person's own Linux desktop end to end: no
+manual pass has been logged on one, and the desktop shell is macOS-only
+regardless.
 
 **Windows** fails npm's own platform check; run Patcher inside WSL2, which
 [`packages/patcher-app/README.md`](../packages/patcher-app/README.md) describes.
