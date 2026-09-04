@@ -83,12 +83,23 @@ export async function resolveTabTarget(
  * Whether a URL matches what a caller asked to wait for.
  *
  * A substring by default, because that is what gets typed (`--url x.com`), and
- * Playwright's glob when there is a wildcard in it, because that is what gets
- * typed when a substring is not enough. Every non-wildcard character is escaped,
- * so a query string full of regex syntax matches itself.
+ * Playwright's glob when there is a `*` in it, because that is what gets typed
+ * when a substring is not enough. Every non-wildcard character is escaped, so a
+ * query string full of regex syntax matches itself.
+ *
+ * **A `*` is what makes it a glob, and only a `*`.** In the dialect this
+ * repository writes URL patterns in (`@patcher/domain/browser-url-pattern`) a `?`
+ * is a wildcard too — but a glob is anchored at both ends, and a `?` in
+ * something typed after `--url` is the query separator: `--url "search?q=cats"`
+ * used to become an anchored pattern and could never match
+ * `https://example.com/search?q=cats`, the URL it is a substring of. It waited
+ * out the full thirty seconds and exited 124 instead, which is the one answer
+ * that reads as "the page never got there". Inside a pattern that *is* a glob
+ * the `?` keeps its meaning — `--url "https://example.com/search?q=*"` is read
+ * the way it would be read anywhere else here.
  */
 export function urlMatches(url: string, pattern: string): boolean {
-  if (!pattern.includes("*") && !pattern.includes("?")) {
+  if (!pattern.includes("*")) {
     return url.includes(pattern);
   }
   let source = "";

@@ -1584,6 +1584,32 @@ describe("patcher browser CLI waiting", () => {
     expect(missed.exitCode).toBe(124);
   });
 
+  it("waits for a URL with a query string in it", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.setTabs([
+      {
+        tabId: "tab-1",
+        url: "https://example.com/search?q=cats",
+        title: "cats",
+      },
+    ]);
+
+    // A redirect that lands on a query is one of the two things `--url` is for,
+    // and the `?` used to turn the pattern into an anchored glob — so this call
+    // spent the whole timeout and exited 124 whatever the tab did.
+    const result = await host.harness.runCli([
+      "wait",
+      "--url",
+      "search?q=cats",
+      "--timeout",
+      "50",
+      "--poll-interval",
+      "5",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+  });
+
   it("waits for the network to go quiet", async () => {
     const host = waitingHost();
 
