@@ -1,5 +1,6 @@
 import tsParser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
+import { fileSizeConfigs } from "./eslint.max-lines.mjs";
 
 const noBlockingChildProcessSyntaxRestrictions = [
   {
@@ -148,4 +149,9 @@ export default [
       ],
     },
   },
+  // How long a file may be, as an error. Shared with the repository-wide
+  // entry point so there is one limit and one list of what is already over it;
+  // `eslint.max-lines.mjs` says why. Last, because the per-file pins in it have
+  // to win over the general limit.
+  ...fileSizeConfigs,
 ];

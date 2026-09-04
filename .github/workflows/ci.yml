@@ -49,6 +49,16 @@ jobs:
       - name: Audit the Patcher rename
         run: node scripts/rename-audit.mjs
 
+      # How long a source file may be, as an error rather than a warning:
+      # `desktop-browser-view.ts` was 819 lines at Phase 0 and is 5 742 now, and
+      # nothing above says when a file crossed from long to unreadable. Its own
+      # step because `turbo run lint` above finds one lint task — `@patcher/app`
+      # is the only package that declares one — and this is the one rule that
+      # has to see the whole tree. The files already over the limit are pinned
+      # at their current size in eslint.max-lines.mjs and may only shrink.
+      - name: Check source file sizes
+        run: bun run lint:file-size
+
   # Tests run on their own runners instead of inside the checks job: the big
   # suites are CPU-bound and previously fought each other (and the builds) for
   # the same 4 vCPUs, which made tests the critical path of every run.

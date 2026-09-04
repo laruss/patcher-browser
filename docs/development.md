@@ -90,6 +90,15 @@ bun run typecheck
 bun run lint
 ```
 
+`bun run lint` ends with `lint:file-size`, which is `max-lines` over the whole
+tree as an **error**: no file may pass 3 000 lines. The files already over it are
+pinned at their current size in `eslint.max-lines.mjs` — they may shrink and
+cannot grow, so a change that needs more code in one of them puts that code in a
+new module. Shrink one below its pin and tighten the pin in the same commit; take
+it under 3 000 and delete its entry. CI runs this as its own step because
+`turbo run lint` finds one lint task (`@patcher/app` is the only package with
+one) and the limit has to see everything.
+
 ## Reaching a dev instance from another machine
 
 To use the dev app from another machine over Tailscale, run `bun run dev`, note
