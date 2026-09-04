@@ -151,3 +151,55 @@
   mounted `/threads/:id/interactions/*` writes and require a decision about each
   caller kind for every one, the way `agent-route-policy.test.ts` reads Hono's
   own table for the settings writes. Not built here.
+
+## Four shorthands in a CLI nothing drove end to end
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#66).
+- Invariant missed: what `patcher browser` promises in its own `--help` is what
+  it does. `--url` said "substring, or a `*` glob" and read a `?` as a glob too,
+  which anchored the pattern and made every query string unwaitable; `--tab`
+  offered "a substring of the URL or title" and sent anything with a colon
+  straight to the browser as a tab id, so `localhost:3000` and `https://x.com`
+  — the two ways anyone names a tab by its address — came back `unknown_tab`;
+  `wait --text` searched the 20 000 characters a _read_ hands an agent rather
+  than the 65 536 the shell will carry, and looped to 124 on text it could not
+  see. Three flags, three wrong answers, each of them the flag's own help.
+- Also missed, and a different invariant: every path that reads a page answers
+  within the page-read deadline. The unscoped read's was written around the
+  script it runs (`runIsolatedScript`), so the scoped read — four CDP sends,
+  none of which has a deadline of its own — was added a year later with none,
+  and `wait --selector` asked for one every 250 ms.
+- Why the existing tests missed it: the flags had tests, and each was written
+  against the case its author had in hand. `--url`'s covered `*` and `**`, never
+  a `?`. `--tab`'s covered an index, a substring with no colon, and `active` —
+  the tab ids in the fake host have no colon either, so the branch that reads
+  one was never taken by any test. `wait --text`'s pages were shorter than the
+  cap. And the scoped read had no test at this level at all: `readPageIn`
+  appeared in the IPC suite against a fake manager and in the preload's channel
+  list, so the real implementation was reached by nothing.
+- Automated guard added: `cli-targets.test.ts` asks `urlMatches` directly —
+  which is why the resolvers moved out of `cli.ts` — plus CLI-level tests for a
+  query string, a colon in a substring, a minted id still costing no listing,
+  and `browser:foo:bar`, which is the narrower version of the `--tab` defect a
+  Codex review found still open: the first fix asked for "three colon-separated
+  parts" rather than for the shape, so a substring shaped like that was still
+  taken for an id. The predicate now carries nanoid's own 21 characters,
+  measured rather than read off the library's docs. `wait --text` now asserts the recorded call carries no cap at all,
+  rather than a bigger one. The scoped read has its first two manager-level
+  tests, an ordinary read and the timeout, and `withPageReadDeadline` has its
+  own. Falsified one at a time: each sabotage failed exactly its own assertion.
+- One test in that set asserted nothing until the same review said so: the `?`
+  wildcard case matched a URL with a literal `?` in the same position, so it
+  passed whether the branch under test existed or not. It now also matches a URL
+  where the `?` has to stand for something else. Worth naming because it is the
+  shape of a test that reads as thorough: the right function, the right input,
+  and an expectation the code cannot fail.
+- One test was written and deleted: that a read rejecting after the deadline
+  does not surface as an unhandled rejection. Removing the `.catch` it was aimed
+  at changed nothing, because `Promise.race` subscribes to the read when the
+  race starts and a rejection is handled from then on. The line came out with
+  the test, and the reasoning is in the comment instead.
+- Not closed: a page whose text is longer than the shell's own cap still cannot
+  be matched past it. The flag's help says so; there is no runtime hint, because
+  the truncation flag it would read is one the plugin's fake host cannot
+  produce for an uncapped read.

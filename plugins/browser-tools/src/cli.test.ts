@@ -1333,6 +1333,9 @@ describe("patcher browser CLI option checking", () => {
   });
 });
 
+/** A tab id of the shape `createBrowserFixedPanelTab` mints: nanoid is 21. */
+const MINTED_ID = "browser:V1StGXR8_Z5jdHi6B-myT:none";
+
 describe("patcher browser CLI tab names", () => {
   it("takes an index from the listing", async () => {
     const host = createHost();
@@ -1349,6 +1352,69 @@ describe("patcher browser CLI tab names", () => {
     const result = await host.harness.runCli(["url", "--tab", "other.test"]);
 
     expect(result.stdout).toBe("https://other.test/\n");
+  });
+
+  it("takes a substring with a colon in it, like a port or a scheme", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      { tabId: "browser:a:none", url: "http://localhost:3000/", title: "Dev" },
+      {
+        tabId: "browser:b:none",
+        url: "https://example.com/",
+        title: "Example",
+      },
+    ]);
+
+    const port = await host.harness.runCli(["url", "--tab", "localhost:3000"]);
+    const scheme = await host.harness.runCli([
+      "url",
+      "--tab",
+      "https://example.com",
+    ]);
+
+    // Both used to be sent straight through as tab ids, on the theory that a
+    // colon only appears in one, and both came back `unknown_tab` against a
+    // USAGE line promising "a substring of the URL or title".
+    expect(port.stdout).toBe("http://localhost:3000/\n");
+    expect(scheme.stdout).toBe("https://example.com/\n");
+  });
+
+  it("spends no round trip on a tab id in the minted shape", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      { tabId: MINTED_ID, url: "http://localhost:3000/", title: "Dev" },
+    ]);
+
+    const result = await host.harness.runCli(["url", "--tab", MINTED_ID]);
+
+    expect(result.stdout).toBe("http://localhost:3000/\n");
+    // The point of keeping a shape test rather than listing first: the precise
+    // spelling is the one an agent copies out of `tabs`, and it stays cheap.
+    expect(
+      host.harness.inspection.browserCalls.map((call) => call.type),
+    ).toEqual(["page.get_url"]);
+  });
+
+  it("does not read three colon-separated words as an id", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      {
+        tabId: MINTED_ID,
+        url: "https://docs.test/browser:foo:bar",
+        title: "Docs",
+      },
+    ]);
+
+    const result = await host.harness.runCli([
+      "url",
+      "--tab",
+      "browser:foo:bar",
+    ]);
+
+    // The narrower version of the same defect: three parts and two colons is
+    // not the shape, because the middle one of a real id is 21 characters of
+    // nanoid. So this is a substring like any other.
+    expect(result.stdout).toBe("https://docs.test/browser:foo:bar\n");
   });
 
   it('reads "active" as the default, without listing tabs to find it', async () => {
@@ -1461,6 +1527,26 @@ describe("patcher browser CLI waiting", () => {
     ).toHaveLength(1);
   });
 
+  it("searches more of the page than a read hands back", async () => {
+    const host = waitingHost();
+    // Past the 20 000 characters this used to ask for. The read is tested with
+    // `includes` and never printed, so the cap that keeps a read off an agent's
+    // context only made the text it was waiting for unreachable — and a wait
+    // that cannot see its own condition loops to 124 and reports the page.
+    host.harness.behavior.browser.setPageContent("tab-1", {
+      text: `${"filler ".repeat(4_000)}Total: $42`,
+    });
+
+    const result = await host.harness.runCli(["wait", "--text", "Total: $42"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      host.harness.inspection.browserCalls.filter(
+        (call) => call.type === "page.get_text",
+      ),
+    ).toEqual([{ type: "page.get_text", args: { tabId: undefined } }]);
+  });
+
   it("waits for text that arrives after the page has loaded", async () => {
     const host = waitingHost();
     // The x.com case from the report: the document is loaded, the posts are
@@ -1506,6 +1592,28 @@ describe("patcher browser CLI waiting", () => {
     expect(result.exitCode).toBe(124);
     expect(result.stderr).toContain("did not come");
     expect(result.stderr).toContain("https://example.com/");
+  });
+
+  it("waits through a poll the page was too busy to answer", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.failNextCall("page_read_timeout");
+
+    const result = await host.harness.runCli([
+      "wait",
+      "--selector",
+      "article",
+      "--poll-interval",
+      "5",
+      "--timeout",
+      "2000",
+    ]);
+
+    // The scoped read has a two-second deadline of its own now, and a page busy
+    // for that long is a page that may well answer the next poll. Ending the
+    // wait on the first slow read would spend a `--timeout` of 30 s to report
+    // 1 after 2 — and this wait's own timeout is what bounds a page that never
+    // answers.
+    expect(result.exitCode).toBe(0);
   });
 
   it("waits for a selector, treating no match as not yet", async () => {
@@ -1582,6 +1690,32 @@ describe("patcher browser CLI waiting", () => {
     expect(substring.exitCode).toBe(0);
     expect(glob.exitCode).toBe(0);
     expect(missed.exitCode).toBe(124);
+  });
+
+  it("waits for a URL with a query string in it", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.setTabs([
+      {
+        tabId: "tab-1",
+        url: "https://example.com/search?q=cats",
+        title: "cats",
+      },
+    ]);
+
+    // A redirect that lands on a query is one of the two things `--url` is for,
+    // and the `?` used to turn the pattern into an anchored glob — so this call
+    // spent the whole timeout and exited 124 whatever the tab did.
+    const result = await host.harness.runCli([
+      "wait",
+      "--url",
+      "search?q=cats",
+      "--timeout",
+      "50",
+      "--poll-interval",
+      "5",
+    ]);
+
+    expect(result.exitCode).toBe(0);
   });
 
   it("waits for the network to go quiet", async () => {

@@ -1,4 +1,3 @@
-import type { WebContentsView } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
@@ -34,16 +33,12 @@ import {
   PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
   PATCHER_BROWSER_READ_CHECKED_SCRIPT,
 } from "../src/desktop-browser-actions.js";
+import { FakeHostWindow } from "./desktop-browser-host-window-fakes.js";
 import {
   createDesktopBrowserViewManager as createProductionDesktopBrowserViewManager,
   isAllowedBrowserPermission,
   type CreateDesktopBrowserViewManagerArgs,
   type DesktopBrowserViewManager,
-  type DesktopBrowserHostContentBounds,
-  type DesktopBrowserHostContentView,
-  type DesktopBrowserHostWebContents,
-  type DesktopBrowserHostWebContentsPayload,
-  type DesktopBrowserHostWindow,
 } from "../src/desktop-browser-view.js";
 
 const TEST_DOWNLOAD_DIRECTORY = "/tmp/patcher-test-downloads";
@@ -1318,91 +1313,6 @@ vi.mock("electron", () => ({
   WebContentsView: electronMock.FakeWebContentsView,
   session: electronMock.session,
 }));
-
-interface FakeHostWindowArgs {
-  contentBounds: DesktopBrowserHostContentBounds;
-  webContentsId: number;
-}
-
-class FakeHostWebContents implements DesktopBrowserHostWebContents {
-  public destroyed = false;
-  public readonly sentPayloads: DesktopBrowserHostWebContentsPayload[] = [];
-  public readonly sentMessages: Array<{
-    channel: string;
-    payload: DesktopBrowserHostWebContentsPayload;
-  }> = [];
-  readonly #id: number;
-
-  constructor(id: number) {
-    this.#id = id;
-  }
-
-  /**
-   * Throws once destroyed, the way Electron's does — a plain field here is a
-   * lie, and it is the lie that let a crash on window close reach a user: the
-   * host's `webContents` is already gone when its child views finish closing.
-   */
-  get id(): number {
-    if (this.destroyed) {
-      throw new TypeError("Object has been destroyed");
-    }
-    return this.#id;
-  }
-
-  isDestroyed(): boolean {
-    return this.destroyed;
-  }
-
-  send(channel: string, payload: DesktopBrowserHostWebContentsPayload): void {
-    this.sentPayloads.push(payload);
-    this.sentMessages.push({ channel, payload });
-  }
-}
-
-class FakeContentView implements DesktopBrowserHostContentView {
-  public readonly addedViews: WebContentsView[] = [];
-  public readonly removedViews: WebContentsView[] = [];
-
-  addChildView(view: WebContentsView): void {
-    this.addedViews.push(view);
-  }
-
-  removeChildView(view: WebContentsView): void {
-    this.removedViews.push(view);
-  }
-}
-
-class FakeHostWindow implements DesktopBrowserHostWindow {
-  public contentBounds: DesktopBrowserHostContentBounds;
-  public destroyed = false;
-  public fullScreen = false;
-  /** Every `setFullScreen` the manager asked for, in order. */
-  public readonly fullScreenCalls: boolean[] = [];
-  public readonly contentView = new FakeContentView();
-  public readonly webContents: FakeHostWebContents;
-
-  constructor({ contentBounds, webContentsId }: FakeHostWindowArgs) {
-    this.contentBounds = contentBounds;
-    this.webContents = new FakeHostWebContents(webContentsId);
-  }
-
-  getContentBounds(): DesktopBrowserHostContentBounds {
-    return this.contentBounds;
-  }
-
-  isDestroyed(): boolean {
-    return this.destroyed;
-  }
-
-  isFullScreen(): boolean {
-    return this.fullScreen;
-  }
-
-  setFullScreen(fullScreen: boolean): void {
-    this.fullScreenCalls.push(fullScreen);
-    this.fullScreen = fullScreen;
-  }
-}
 
 beforeEach(() => {
   electronMock.fakeSessions.length = 0;
@@ -3204,6 +3114,85 @@ describe("DesktopBrowserViewManager page reads", () => {
       expect(result.title).toHaveLength(
         PATCHER_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
       );
+    }
+  });
+
+  // The scoped read's own tests, which it had none of at this level: it reaches
+  // the element over the debugger rather than through the read script, so none
+  // of the cases above touch a single line of it.
+  function attachTabForScopedReads(): {
+    hostWindow: FakeHostWindow;
+    manager: DesktopBrowserViewManager;
+    webContents: ReturnType<typeof requireFakeView>["webContents"];
+  } {
+    const attached = attachTabForReads();
+    const { debugger: cdp } = attached.webContents;
+    cdp.results.set("DOM.getDocument", { root: { nodeId: 1 } });
+    cdp.results.set("DOM.querySelector", { nodeId: 4 });
+    cdp.results.set("DOM.describeNode", { node: { backendNodeId: 44 } });
+    cdp.results.set("Page.getFrameTree", {
+      frameTree: { frame: { id: "f1" } },
+    });
+    cdp.results.set("Page.createIsolatedWorld", { executionContextId: 7 });
+    cdp.results.set("DOM.resolveNode", { object: { objectId: "object-1" } });
+    cdp.results.set("Runtime.callFunctionOn", {
+      result: { value: { text: "The article.", textTruncated: false } },
+    });
+    return attached;
+  }
+
+  it("reads the text of the element a selector matches", async () => {
+    const { hostWindow, manager, webContents } = attachTabForScopedReads();
+
+    const result = await manager.readPageIn({
+      hostWindow,
+      request: { tabId: "browser:a", selector: "article" },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      text: "The article.",
+      textTruncated: false,
+      contentKind: "html",
+      // An element is not a selection, and answering with the page's would be
+      // answering with something this read never looked at.
+      selection: "",
+    });
+    // Into the automation world, not the page's own: `innerText` is ours for
+    // the same reason the unscoped read runs in an isolated world.
+    expect(webContents.debugger.commands).toContainEqual({
+      method: "DOM.resolveNode",
+      params: { backendNodeId: 44, executionContextId: 7 },
+    });
+  });
+
+  it("times out a scoped read the page never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      const { hostWindow, manager, webContents } = attachTabForScopedReads();
+      // Every step of this read is a CDP send, and a CDP send has no deadline
+      // of its own — so before the fix a page that would not describe its own
+      // document held the IPC invoke open until something further out gave up,
+      // and `wait --selector` asked for one of these every 250ms.
+      webContents.debugger.results.set(
+        "DOM.getDocument",
+        () =>
+          new Promise(() => {
+            // Never settles.
+          }),
+      );
+
+      const pending = manager.readPageIn({
+        hostWindow,
+        request: { tabId: "browser:a", selector: "article" },
+      });
+      await vi.advanceTimersByTimeAsync(
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS + 1,
+      );
+
+      await expect(pending).resolves.toEqual({ ok: false, reason: "timeout" });
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

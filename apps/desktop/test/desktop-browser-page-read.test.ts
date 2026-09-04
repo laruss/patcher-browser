@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   PATCHER_DESKTOP_BROWSER_MAX_PAGE_SELECTION_LENGTH,
   PATCHER_DESKTOP_BROWSER_MAX_PAGE_TEXT_LENGTH,
@@ -7,9 +7,11 @@ import {
 import {
   PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
+  PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
   parseBrowserElementReadContent,
   parseBrowserPageReadContent,
+  withPageReadDeadline,
 } from "../src/desktop-browser-page-read.js";
 
 describe("browser page read script", () => {
@@ -246,5 +248,39 @@ describe("browser element read", () => {
     expect(
       unknown.success && !unknown.data.ok ? unknown.data.reason : null,
     ).toBe("unreadable");
+  });
+});
+
+/**
+ * The deadline both reads share, on its own: that a read in time is the answer,
+ * and that a read that never comes is not waited for. What each read then does
+ * with the answer is the manager's suite — including the case this was added
+ * for, a scoped read whose first CDP send never returns.
+ */
+describe("withPageReadDeadline", () => {
+  it("answers with the read when the read is in time", async () => {
+    await expect(
+      withPageReadDeadline(Promise.resolve("read"), "timed out"),
+    ).resolves.toBe("read");
+  });
+
+  it("answers on its own when the read never comes", async () => {
+    vi.useFakeTimers();
+    try {
+      const raced = withPageReadDeadline(
+        new Promise<string>(() => {
+          // Never settles: the page that stopped answering.
+        }),
+        "timed out",
+      );
+
+      await vi.advanceTimersByTimeAsync(
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS + 1,
+      );
+
+      await expect(raced).resolves.toBe("timed out");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

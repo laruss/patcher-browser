@@ -6,7 +6,6 @@ import type {
   PluginBrowserCookie,
   PluginBrowserNetworkEntry,
   PluginBrowserAction,
-  PluginBrowserCallOptions,
   PluginBrowserKeyModifier,
   PluginBrowserPageState,
   PluginBrowserRouteState,
@@ -18,6 +17,8 @@ import type {
   PluginBrowserVideo,
   PluginCliResult,
 } from "@patcher/plugin-sdk";
+import { delay, waitForQuiet } from "./cli-settle.js";
+import { resolveTabTarget, urlMatches } from "./cli-targets.js";
 import { DEFAULT_PAGE_TEXT_MAX_LENGTH, explainBrowserError } from "./tools.js";
 import {
   NO_FFMPEG_MESSAGE,
@@ -72,7 +73,8 @@ const OPTION_HELP = {
   "--full-page": "Screenshot the whole document, not the visible viewport",
   "--encode": "Encode a stopped film to video.mp4 (needs ffmpeg)",
   "--fps": "Frames a second to keep while filming (1-30)",
-  "--text": "Wait until the page's text contains this",
+  "--text":
+    "Wait until the page's text contains this (as much as one read carries)",
   "--url": "Wait until the tab's URL matches this (substring, or a * glob)",
   "--network-idle": "Wait until the tab stops making requests",
   "--timeout": "Give up after this many milliseconds (default 30000)",
@@ -682,13 +684,6 @@ const DEFAULT_POLL_INTERVAL_MS = 250;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 /** timeout(1)'s convention, and `patcher terminal wait`'s. */
 const WAIT_TIMEOUT_EXIT_CODE = 124;
-/**
- * How many network entries a settle fingerprints. More than one because two
- * requests can finish in the same millisecond and a single-entry window would
- * then look unchanged; few enough that the check stays one small read.
- */
-const NETWORK_FINGERPRINT_LIMIT = 5;
-
 interface ParsedArgs {
   positionals: string[];
   /** Which flags were actually given, so a command can refuse one it ignores. */
@@ -1357,210 +1352,6 @@ function parseStorageStateFile(raw: string): BrowserStorageStateFile | null {
   };
 }
 
-/**
- * Turn what a caller typed after `--tab` into a tab id.
- *
- * A tab id is `browser:<nanoid>:none` — 30-odd characters an agent has to carry
- * through every command in a chain, and mistype once to act on the wrong thing
- * or nothing. So four spellings are accepted, and only the first costs nothing:
- *
- * - a real tab id
- * - `active` — the tab the user is looking at, which is also the default
- * - an index from the `tabs` listing, counting from 1
- * - a substring of the URL or title, when exactly one tab matches
- *
- * The last three need the tab list, which is one extra call. A tab id in the
- * shape this browser mints (`browser:<id>:<scope>` — a colon is in none of the
- * other three spellings) skips it, so the precise form stays the cheap one;
- * anything else is matched against the list, an exact id first.
- */
-async function resolveTabTarget(
-  patcher: PatcherPluginApi,
-  target: string | undefined,
-  options: PluginBrowserCallOptions,
-): Promise<{ tabId: string | undefined } | { error: string }> {
-  if (target === undefined) return { tabId: undefined };
-  // Undefined rather than the active tab's id: every call already defaults to
-  // the active tab, and resolving it here would cost a list for nothing.
-  if (target === "active") return { tabId: undefined };
-  if (target.includes(":")) return { tabId: target };
-
-  const tabs = await patcher.browser.tabs.list(options);
-  // An exact id wins over every other reading, so a tab whose id happens to
-  // look like a number or to appear in another tab's URL is still addressable
-  // by the id the browser gave it.
-  if (tabs.some((tab) => tab.tabId === target)) return { tabId: target };
-  const index = Number(target);
-  if (Number.isInteger(index) && String(index) === target) {
-    const tab = tabs[index - 1];
-    if (tab === undefined) {
-      return {
-        error: `There is no tab ${index}; the browser has ${tabs.length}. Run \`patcher browser tabs\` for the list.`,
-      };
-    }
-    return { tabId: tab.tabId };
-  }
-
-  const needle = target.toLowerCase();
-  const matched = tabs.filter(
-    (tab) =>
-      tab.url.toLowerCase().includes(needle) ||
-      (tab.title ?? "").toLowerCase().includes(needle),
-  );
-  if (matched.length === 1) return { tabId: matched[0]?.tabId };
-  if (matched.length === 0) {
-    return {
-      error: `No open tab matches ${JSON.stringify(target)}. Run \`patcher browser tabs\` for the list.`,
-    };
-  }
-  // Refusing rather than taking the first: acting on the wrong tab is a silent
-  // wrong answer, and the caller has enough here to name the one it meant.
-  return {
-    error: `${matched.length} tabs match ${JSON.stringify(target)}:\n${matched
-      .map((tab) => `  ${tab.tabId}\t${tab.url}`)
-      .join("\n")}\nName one, or use its index from \`patcher browser tabs\`.`,
-  };
-}
-
-function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    function onAbort() {
-      clearTimeout(timer);
-      resolve();
-    }
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-/**
- * What the tab's network log looks like right now, as one comparable string.
- *
- * Deliberately a fingerprint rather than a timestamp comparison. Entries are
- * stamped by the machine running the desktop app, and this code runs in the
- * server process — which on a remote install is a different machine with a
- * different clock. Two samples taken here, an interval apart measured here, say
- * "nothing finished in between" without either clock having to agree with the
- * other.
- */
-async function networkFingerprint(
-  patcher: PatcherPluginApi,
-  tabId: string | undefined,
-  options: PluginBrowserCallOptions,
-): Promise<string> {
-  const log = await patcher.browser.page.network(
-    { tabId, limit: NETWORK_FINGERPRINT_LIMIT },
-    options,
-  );
-  return `${log.droppedCount}|${log.entries
-    .map((entry) => `${entry.timestamp}:${entry.method}:${entry.url}`)
-    .join("|")}`;
-}
-
-interface QuietArgs {
-  patcher: PatcherPluginApi;
-  tabId: string | undefined;
-  budgetMs: number;
-  idleMs: number;
-  pollIntervalMs: number;
-  options: PluginBrowserCallOptions;
-}
-
-/**
- * Wait until the tab has finished no request for `idleMs`, or until the budget
- * runs out.
- *
- * This is what a page load event cannot tell you. On anything built as a
- * single-page app the document is "loaded" before its content is fetched, so a
- * read taken the moment a navigation settles returns the frame around the page
- * — and reports it as the page, which is the expensive kind of wrong: the caller
- * concludes there is nothing there.
- *
- * Never throws. A tab with no live page, a browser that went away, a missing
- * permission — none of those should turn a command that already did its job into
- * a failure, so an unreadable log answers "not quiet" and the caller says so.
- */
-async function waitForQuiet(
-  args: QuietArgs,
-): Promise<{ quiet: boolean; waitedMs: number; unavailable: boolean }> {
-  const { patcher, tabId, budgetMs, idleMs, pollIntervalMs, options } = args;
-  const startedAt = Date.now();
-  let fingerprint: string;
-  try {
-    fingerprint = await networkFingerprint(patcher, tabId, options);
-  } catch {
-    return { quiet: false, waitedMs: 0, unavailable: true };
-  }
-  let quietSince = Date.now();
-  for (;;) {
-    const now = Date.now();
-    if (now - quietSince >= idleMs) {
-      return { quiet: true, waitedMs: now - startedAt, unavailable: false };
-    }
-    if (now - startedAt >= budgetMs || options.signal?.aborted === true) {
-      return { quiet: false, waitedMs: now - startedAt, unavailable: false };
-    }
-    await delay(
-      Math.min(pollIntervalMs, Math.max(1, budgetMs - (now - startedAt))),
-      options.signal,
-    );
-    let next: string;
-    try {
-      next = await networkFingerprint(patcher, tabId, options);
-    } catch {
-      return {
-        quiet: false,
-        waitedMs: Date.now() - startedAt,
-        unavailable: true,
-      };
-    }
-    if (next !== fingerprint) {
-      fingerprint = next;
-      quietSince = Date.now();
-    }
-  }
-}
-
-/**
- * Whether a URL matches what a caller asked to wait for.
- *
- * A substring by default, because that is what gets typed (`--url x.com`), and
- * Playwright's glob when there is a wildcard in it, because that is what gets
- * typed when a substring is not enough. Every non-wildcard character is escaped,
- * so a query string full of regex syntax matches itself.
- */
-function urlMatches(url: string, pattern: string): boolean {
-  if (!pattern.includes("*") && !pattern.includes("?")) {
-    return url.includes(pattern);
-  }
-  let source = "";
-  for (let index = 0; index < pattern.length; index += 1) {
-    const char = pattern[index] ?? "";
-    if (char === "*") {
-      if (pattern[index + 1] === "*") {
-        index += 1;
-        source += ".*";
-      } else {
-        source += "[^/]*";
-      }
-      continue;
-    }
-    if (char === "?") {
-      source += "[^/]";
-      continue;
-    }
-    source += char.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  }
-  try {
-    return new RegExp(`^${source}$`, "u").test(url);
-  } catch {
-    return false;
-  }
-}
-
 /** The scroll positions a `scroll` reports back, as the page measured them. */
 interface ScrollPosition {
   top: number;
@@ -2010,8 +1801,14 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
             /** One check. Null means "not yet"; a string is what it saw. */
             const check = async (): Promise<string | null> => {
               if (parsed.waitText !== undefined) {
+                // No `maxLength`. The default 20 000 characters exists to keep
+                // one read off an agent's context, and this read is never shown
+                // to anyone — it is tested with `includes` and thrown away. All
+                // the cap bought here was a wait that could not see the text it
+                // was waiting for, and looped to 124 saying the page never got
+                // there. Omitting it takes the shell's own cap instead.
                 const read = await patcher.browser.page.getText(
-                  { tabId, maxLength: DEFAULT_PAGE_TEXT_MAX_LENGTH },
+                  { tabId },
                   options,
                 );
                 return read.text.includes(parsed.waitText)
@@ -2043,7 +1840,13 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
                   typeof error === "object" && error !== null && "code" in error
                     ? String((error as { code: unknown }).code)
                     : "";
-                if (code === "no_match") return null;
+                // `page_read_timeout` alongside `no_match` because the read
+                // has a two-second deadline of its own and a page busy for
+                // that long is a page that may be ready on the next poll —
+                // this wait's own `--timeout` is what bounds one that is not.
+                if (code === "no_match" || code === "page_read_timeout") {
+                  return null;
+                }
                 // An unparseable selector will never match, and neither will a
                 // tab with no page. Waiting out the timeout on either would
                 // spend thirty seconds to report the wrong problem.
