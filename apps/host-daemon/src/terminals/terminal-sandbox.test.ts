@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -564,6 +565,7 @@ describe("the Linux credential boundary", () => {
       const dataDir = mkdtempSync(
         path.join(homedir(), ".patcher-sandbox-test-data-"),
       );
+      let writer: ReturnType<typeof spawn> | undefined;
       const existingPath = path.join(dataDir, "app-key");
       const laterPath = path.join(dataDir, "patcher.db-wal");
       const siblingPath = path.join(dataDir, "host-id");
@@ -581,18 +583,34 @@ describe("the Linux credential boundary", () => {
         // two refusals below would have been a file that was never there —
         // which is exactly how this test first passed on a machine that skips
         // it.
-        spawn(
+        //
+        // And the sandbox waits for a marker the writer leaves *afterwards*,
+        // rather than for a fixed sleep. Two sleeps racing each other is not an
+        // ordering: a slow writer would have left the refusal below measuring
+        // the same absent file again, and passing.
+        const donePath = path.join(fixture.workspacePath, "written");
+        writer = spawn(
           "/bin/sh",
-          ["-c", `sleep 1; printf 'NEWEST-ROWS\\n' > ${laterPath}`],
+          [
+            "-c",
+            `sleep 0.2; printf 'NEWEST-ROWS\\n' > ${laterPath}; ` +
+              `printf 'done' > ${donePath}`,
+          ],
           { stdio: "ignore" },
         );
 
         const output = runInSandbox(
           fixture,
           `cat ${existingPath} || echo existing-refused; ` +
-            `sleep 2; cat ${laterPath} || echo later-refused; ` +
+            // Bounded, so a writer that never runs is a failed test rather than
+            // a hung one — and named, so the failure says which it was.
+            `for i in $(seq 100); do [ -e ${donePath} ] && break; sleep 0.1; done; ` +
+            `[ -e ${donePath} ] || echo WRITER-NEVER-RAN; ` +
+            `cat ${laterPath} || echo later-refused; ` +
             `cat ${siblingPath} || echo SIBLING-REFUSED`,
         );
+
+        expect(output).not.toContain("WRITER-NEVER-RAN");
 
         // The control is the sibling: a directory replaced wholesale would
         // pass the two refusals and take the reads the sandbox is meant to
@@ -611,6 +629,7 @@ describe("the Linux credential boundary", () => {
         // loop, so Node has not reaped it yet and `exitCode` is still null.
         expect(readFileSync(laterPath, "utf8")).toContain("NEWEST-ROWS");
       } finally {
+        writer?.kill("SIGKILL");
         rmSync(dataDir, { recursive: true, force: true });
       }
     },
@@ -678,7 +697,13 @@ describe("the Linux sandbox probe", () => {
       // expire. It used to be kept for the daemon's life.
       rmSync(helper.failurePath);
       expect(build().sandboxed).toBe(false);
-      vi.setSystemTime(new Date(Date.now() + 61_000));
+      // A second before the minute is still the same answer, which is the edge
+      // that makes this about a minute rather than about any delay at all: the
+      // jump alone would pass for a TTL of one millisecond.
+      vi.setSystemTime(new Date(Date.now() + 59_000));
+      expect(build().sandboxed).toBe(false);
+      expect(helper.probeCalls()).toHaveLength(1);
+      vi.setSystemTime(new Date(Date.now() + 2_000));
       expect(build().sandboxed).toBe(true);
       expect(helper.probeCalls()).toHaveLength(2);
 
@@ -691,6 +716,63 @@ describe("the Linux sandbox probe", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/**
+ * The mounts that hide a service's socket, read out of the argv.
+ *
+ * Behaviour is measured by the Linux describes above; this is here because the
+ * *ordering* of two mounts cannot be seen by running one launch, and because
+ * the guard it pins was wrong in a way that emitted a correct-looking argv with
+ * one flag missing.
+ */
+describe("the Linux socket boundary's argv", () => {
+  it("hides a runtime directory that sits inside a writable one", () => {
+    // The guard this pins read the overlap both ways, so `/tmp/.X11-unix` —
+    // inside `/tmp`, which is always writable — was skipped and the argv the
+    // comment describes was never emitted. A directory *inside* a writable one
+    // is the case that needs the tmpfs, and the ordering is what makes it work:
+    // the writable bind first, the tmpfs after it.
+    //
+    // `$XDG_RUNTIME_DIR` under the temp root rather than the X11 socket
+    // directory, because a test has no business making one of those on
+    // somebody's machine — it is the same overlap either way.
+    const helper = createFakeSandboxHelper();
+    const runtimeDir = mkdtempSync(path.join(tmpdir(), "patcher-xdg-"));
+    fakeHelperDirectories.push(runtimeDir);
+
+    const launch = buildTerminalSandboxLaunch({
+      command: { file: "/bin/sh", args: ["-c", "true"] },
+      cwd: tmpdir(),
+      env: { ...helper.env, XDG_RUNTIME_DIR: runtimeDir },
+      platform: "linux",
+      policy: {
+        workspacePath: tmpdir(),
+        writableRoots: [],
+        readOnlyPaths: [],
+        deniedReadPaths: [],
+        egressConfined: true,
+        loopbackRelay: { argv: ["/bin/true"], socketDir: runtimeDir },
+      },
+    });
+
+    expect(launch.sandboxed).toBe(true);
+    if (!launch.sandboxed) return;
+    const args = [...launch.command.args];
+    const resolvedRuntimeDir = realpathSync(runtimeDir);
+    const tmpfsAt = args.findIndex(
+      (arg, index) =>
+        arg === "--tmpfs" && args[index + 1] === resolvedRuntimeDir,
+    );
+    expect(tmpfsAt).toBeGreaterThan(-1);
+    // After the bind that would otherwise put the host's directory back.
+    const writableAt = args.findIndex(
+      (arg, index) =>
+        arg === "--bind-try" && args[index + 1] === realpathSync(tmpdir()),
+    );
+    expect(writableAt).toBeGreaterThan(-1);
+    expect(tmpfsAt).toBeGreaterThan(writableAt);
   });
 });
 

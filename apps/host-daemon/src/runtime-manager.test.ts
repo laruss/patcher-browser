@@ -2220,3 +2220,50 @@ describe("RuntimeManager", () => {
     expect(workspaceB.destroy).not.toHaveBeenCalled();
   });
 });
+
+describe("the empty file a Linux sandbox stands in with", () => {
+  it("is there again on the next daemon, though the last one left it read-only", async () => {
+    // The file is 0444 so that nothing rewrites it, and that is exactly what
+    // broke the second run: `writeFileSync`'s `mode` applies only when it
+    // creates the file, so reopening this one for truncation is `EACCES` for
+    // the user who owns it — the catch answered `undefined`, the sandbox fell
+    // back to `/dev/null`, and git's warnings came back on every command from
+    // the second daemon start onwards. Nothing said so; a review found it.
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "patcher-empty-"));
+    try {
+      const first = new RuntimeManager({
+        provisionWorkspace: async () => createFakeWorkspace("/tmp/env-empty"),
+        createRuntime: () => createFakeRuntime(),
+        dataDir,
+      });
+      const filePath = first.sandboxEmptyFilePath();
+      expect(filePath).toBe(path.join(dataDir, "sandbox-empty-file"));
+      if (filePath === undefined) return;
+      expect((await fs.stat(filePath)).size).toBe(0);
+      expect((await fs.stat(filePath)).mode & 0o777).toBe(0o444);
+
+      const second = new RuntimeManager({
+        provisionWorkspace: async () => createFakeWorkspace("/tmp/env-empty"),
+        createRuntime: () => createFakeRuntime(),
+        dataDir,
+      });
+      expect(second.sandboxEmptyFilePath()).toBe(filePath);
+      expect((await fs.stat(filePath)).size).toBe(0);
+
+      // And a file that somehow has content in it is not handed on as a
+      // stand-in for an empty one: whatever is in there would be bound as the
+      // repository file it stands in for.
+      await fs.chmod(filePath, 0o644);
+      await fs.writeFile(filePath, "* filter=not-empty\n");
+      const third = new RuntimeManager({
+        provisionWorkspace: async () => createFakeWorkspace("/tmp/env-empty"),
+        createRuntime: () => createFakeRuntime(),
+        dataDir,
+      });
+      expect(third.sandboxEmptyFilePath()).toBe(filePath);
+      expect((await fs.stat(filePath)).size).toBe(0);
+    } finally {
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  });
+});

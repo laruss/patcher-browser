@@ -645,18 +645,22 @@ function findUnbindableProtectedPath(
  * network is deliberately open, keeps its name resolution, some of which lives
  * under `/run` on a systemd-resolved machine.
  *
- * `/var/run` is in the list and is a symlink to `/run` on Debian, where
- * mounting over it fails the whole launch ("Can't mount on symlink
- * destination") — so each is taken only when it is a directory in its own
- * right. `$XDG_RUNTIME_DIR` is usually `/run/user/<uid>` and so already
- * covered; it is named for the machines where it is not.
+ * Each is resolved before it is used, and `/var/run` is why: it is a symlink to
+ * `/run` on Debian, and mounting over a symlink fails the whole launch ("Can't
+ * mount on symlink destination"). Resolving turns it into `/run`, which the
+ * list already has, so it drops out rather than being skipped — and the same
+ * resolution is what lets an `$XDG_RUNTIME_DIR` that is a link to a directory
+ * be covered at all. `$XDG_RUNTIME_DIR` is usually `/run/user/<uid>` and so
+ * already inside `/run`; it is named for the machines where it is not.
  *
  * These come after the writable binds, because `/tmp/.X11-unix` sits inside
  * one — a `--bind /tmp /tmp` applied later would restore the host's socket
- * along with the rest of `/tmp`. Which is also why a directory holding a
- * writable path is left alone rather than replaced: there is no order that
- * both hides it and keeps the turn's own writable area, and a launch that
- * loses `$TMPDIR` is a launch that fails at its first command. A machine that
+ * along with the rest of `/tmp`. So a directory *inside* a writable path is
+ * exactly the case this has to cover, and only a directory that *holds* one is
+ * left alone: there is no order that both hides it and keeps the turn's own
+ * writable area, and a launch that loses `$TMPDIR` fails at its first command.
+ * An overlap test that read both directions the same way was the X11 socket
+ * never being hidden at all, because `/tmp` is always writable. A machine that
  * puts `$TMPDIR` under `/run` therefore keeps that one reachable, and
  * `docs/security.md` says so.
  */
@@ -672,28 +676,36 @@ function linuxServiceSocketDirectories(
   ];
   const directories: string[] = [];
   for (const candidate of candidates) {
-    if (!isRealDirectory(candidate)) continue;
-    if (directories.some((chosen) => isInside(candidate, chosen))) continue;
+    const directory = resolveDirectoryPath(candidate);
+    if (directory === undefined) continue;
+    if (directories.some((chosen) => isInside(directory, chosen))) continue;
+    // Only when it would swallow something the turn has to be able to write.
     if (
-      writablePaths.some(
-        (writablePath) =>
-          isInside(writablePath, candidate) ||
-          isInside(candidate, writablePath),
-      )
+      writablePaths.some((writablePath) => isInside(writablePath, directory))
     ) {
       continue;
     }
-    directories.push(candidate);
+    directories.push(directory);
   }
   return directories;
 }
 
-/** A directory by its own name, rather than by what a symlink resolves to. */
-function isRealDirectory(candidatePath: string): boolean {
+/**
+ * The directory a path names, following links, or undefined if it is not one.
+ *
+ * Following is the point: a mount's destination is resolved by the kernel, so a
+ * symlink is never a destination this backend can use — and a candidate that is
+ * a link to a directory is one it can, under the target's name. Asking `lstat`
+ * whether the *link* was a directory answered no for both, which dropped a
+ * symlinked data directory and a symlinked `$XDG_RUNTIME_DIR` out of the rules
+ * meant to cover them.
+ */
+function resolveDirectoryPath(candidatePath: string): string | undefined {
   try {
-    return lstatSync(candidatePath).isDirectory();
+    const resolved = realpathSync.native(candidatePath);
+    return statSync(resolved).isDirectory() ? resolved : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -729,9 +741,13 @@ function resolveHiddenDeniedParents(
   const parents = new Set<string>();
   for (const deniedPath of deniedPaths) {
     if (pathExists(deniedPath)) continue;
-    const parent = path.dirname(deniedPath);
+    // Resolved, and not only tidied: a denied path that does not exist yet is
+    // named as given — `resolvedPath` cannot resolve what is not there — so the
+    // parent of `<dataDir>/patcher.db-wal` is still whatever the caller
+    // spelled, and where that is a symlink the mount has to name the target.
+    const parent = resolveDirectoryPath(path.dirname(deniedPath));
+    if (parent === undefined) continue;
     if (writablePaths.some((root) => isInside(parent, root))) continue;
-    if (!isRealDirectory(parent)) continue;
     parents.add(parent);
   }
   return [...parents].sort();
@@ -777,10 +793,26 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
   );
   for (const parent of hiddenParents) {
     bindArgs.push("--tmpfs", parent);
-    for (const entry of readdirSync(parent)) {
+    // A directory this cannot list is one whose entries stay hidden, which is
+    // the safe half of the trade rather than a reason to throw: an unreadable
+    // parent, or one that went away between the `stat` above and here, would
+    // otherwise leave the builder by an exception where every other failure
+    // leaves it as a refusal with a reason.
+    let entries: readonly string[] = [];
+    try {
+      entries = readdirSync(parent);
+    } catch {
+      entries = [];
+    }
+    for (const entry of entries) {
       const entryPath = path.join(parent, entry);
       if (deniedPathsInHiddenParents.has(entryPath)) continue;
-      bindArgs.push("--ro-bind", entryPath, entryPath);
+      // `-try`, because a listing is only true at the instant it was taken: a
+      // dangling symlink has no source to bind at all, and an ordinary entry
+      // can be gone before bwrap reads this argv. A mandatory bind would then
+      // exit with "Can't find source path" on a launch this module has already
+      // answered `sandboxed: true` for.
+      bindArgs.push("--ro-bind-try", entryPath, entryPath);
     }
   }
   const boundWritablePaths = new Set<string>();

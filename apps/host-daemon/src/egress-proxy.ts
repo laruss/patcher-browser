@@ -76,70 +76,148 @@ function isLoopbackTarget(host: string): boolean {
   const bare = host
     .replace(/^\[|\]$/gu, "")
     .replace(/%.*$/u, "")
+    // The absolute DNS spelling: `localhost.` resolves the way `localhost`
+    // does, and a comparison that did not strip the root dot let it past.
+    .replace(/\.$/u, "")
     .toLowerCase();
   // An empty host is not nothing: `net.connect` reads it as localhost.
   if (bare === "" || bare === "localhost" || bare.endsWith(".localhost")) {
     return true;
   }
-  if (bare.includes(":")) return isLoopbackIpv6(bare);
-  return isLoopbackIpv4(bare);
+  const embedded = bare.includes(":")
+    ? embeddedIpv4OfIpv6(bare)
+    : parseIpv4Address(bare);
+  if (embedded === undefined) return false;
+  // 127/8 is loopback by name, and the unspecified address is here because
+  // `connect` to it goes to loopback rather than nowhere — measured on
+  // `0.0.0.0`, which reached a listener on 127.0.0.1. Only the address that is
+  // *all* zero: `0.0.0.1` is neither, and reading the first octet alone
+  // refused a quarter of a million addresses that are not this machine.
+  return embedded >>> 24 === 127 || embedded === 0;
 }
 
 /**
- * The two IPv6 addresses that are this machine, and the IPv4 ones written as
- * IPv6.
+ * The IPv4 address an IPv6 literal stands for, where it stands for one.
  *
- * Only the `::ffff:` form carries an IPv4 address, which is the whole reason
- * this is not "the part after the last colon": `2001:db8::1` ends in `:1` and
- * is somebody's public address, and reading its tail as IPv4 refused it as
- * loopback. Written out rather than parsed, because the question is whether
- * this is one of two addresses and not what the address is.
+ * Three of the eight-group forms name this machine or an IPv4 address, and
+ * nothing else does: `::` is unspecified, `::1` is loopback, and `::ffff:a.b.c.d`
+ * — which Node's URL parser writes as `::ffff:7f00:1` — carries an IPv4 address
+ * in the last two groups. Everything else answers `undefined`.
+ *
+ * Written as a parser because the shortcuts are wrong in both directions: the
+ * part after the last colon is not an IPv4 address (`2001:db8::1` ends in `:1`
+ * and belongs to somebody), and a pattern loose enough to catch `0:0:…:1`
+ * catches `1::` with it.
  */
-function isLoopbackIpv6(address: string): boolean {
-  const mapped = /^::ffff:(?:0:)?([^:]+)$/u.exec(address);
-  if (mapped?.[1] !== undefined) return isLoopbackIpv4(mapped[1]);
-  const groups = address.split(":");
-  const filled = groups.filter((group) => group !== "");
-  // `::1` and `::`, and the same two written in full.
-  return (
-    (address.includes("::") || groups.length === 8) &&
-    filled.every((group) => /^0*1?$/u.test(group)) &&
-    filled.filter((group) => /1/u.test(group)).length <= 1
-  );
+function embeddedIpv4OfIpv6(address: string): number | undefined {
+  const groups = parseIpv6Groups(address);
+  if (groups === undefined) return undefined;
+  const [g0, g1, g2, g3, g4, g5, g6, g7] = groups;
+  if (g0 !== 0 || g1 !== 0 || g2 !== 0 || g3 !== 0 || g4 !== 0) {
+    return undefined;
+  }
+  if (g5 === 0xffff) return (((g6 ?? 0) << 16) | (g7 ?? 0)) >>> 0;
+  if (g5 !== 0 || g6 !== 0) return undefined;
+  // `::` and `::1`, and the same two written in full, answered as the IPv4
+  // address of the same name — `0.0.0.0` and `127.0.0.1` — because that is what
+  // the caller then compares. Returning the group itself made `::1` answer 1,
+  // which is neither, and the address slipped through.
+  if (g7 === 0) return 0;
+  return g7 === 1 ? 0x7f000001 : undefined;
+}
+
+/** An IPv6 literal as its eight groups, or undefined when it is not one. */
+function parseIpv6Groups(address: string): number[] | undefined {
+  const halves = address.split("::");
+  if (halves.length > 2) return undefined;
+  const parseSide = (side: string): number[] | undefined => {
+    if (side === "") return [];
+    const groups: number[] = [];
+    const parts = side.split(":");
+    for (const [index, part] of parts.entries()) {
+      // A trailing dotted quad, which is the only place a `.` belongs.
+      if (part.includes(".")) {
+        if (index !== parts.length - 1) return undefined;
+        const packed = parseDottedQuad(part);
+        if (packed === undefined) return undefined;
+        groups.push(packed >>> 16, packed & 0xffff);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/u.test(part)) return undefined;
+      groups.push(Number.parseInt(part, 16));
+    }
+    return groups;
+  };
+  const head = parseSide(halves[0] ?? "");
+  const tail = halves.length === 2 ? parseSide(halves[1] ?? "") : [];
+  if (head === undefined || tail === undefined) return undefined;
+  if (halves.length === 1) return head.length === 8 ? head : undefined;
+  const filler = 8 - head.length - tail.length;
+  if (filler < 1) return undefined;
+  return [...head, ...Array.from({ length: filler }, () => 0), ...tail];
+}
+
+/** The strict four-part form, which is all an IPv6 literal may embed. */
+function parseDottedQuad(address: string): number | undefined {
+  const parts = address.split(".");
+  if (parts.length !== 4) return undefined;
+  let value = 0;
+  for (const part of parts) {
+    if (!/^[0-9]{1,3}$/u.test(part)) return undefined;
+    const octet = Number.parseInt(part, 10);
+    if (octet > 255) return undefined;
+    value = value * 256 + octet;
+  }
+  return value >>> 0;
 }
 
 /**
  * IPv4 in every form `connect` accepts, not only the dotted quad.
  *
  * `getaddrinfo` takes the historical short and packed forms — `127.1` and
- * `2130706433` are both `127.0.0.1`, and a leading `0x` is hexadecimal — so a
- * check that only understood four decimal parts would be a check somebody
- * writes their way around. Anything that is not a number in one of those forms
- * is a name, and a name is not this function's question.
+ * `2130706433` are both `127.0.0.1`, a leading `0x` is hexadecimal and a
+ * leading `0` is octal — so a check that only understood four decimal parts
+ * would be a check somebody writes their way around.
+ *
+ * The ranges are checked rather than assumed, and that is the half that keeps
+ * this from over-refusing: a part out of range makes the whole thing an invalid
+ * address, which Linux then resolves as a *name*. So `127.0.0.256` and
+ * `4294967296` are names here, not addresses, and answering `undefined` for
+ * them is the difference between refusing this machine and refusing somebody's
+ * hostname.
  */
-function isLoopbackIpv4(address: string): boolean {
+function parseIpv4Address(address: string): number | undefined {
   const parts = address.split(".");
-  if (parts.length === 0) return false;
-  if (parts.length > 4 || parts.some((part) => part === "")) return false;
+  if (parts.length === 0 || parts.length > 4) return undefined;
   const numbers: number[] = [];
   for (const part of parts) {
-    const value = /^0x[0-9a-f]+$/u.test(part)
-      ? Number.parseInt(part.slice(2), 16)
-      : /^0[0-7]+$/u.test(part)
-        ? Number.parseInt(part.slice(1), 8)
-        : /^[0-9]+$/u.test(part)
-          ? Number.parseInt(part, 10)
-          : Number.NaN;
-    if (!Number.isInteger(value)) return false;
+    const value = parseNumericPart(part);
+    if (value === undefined) return undefined;
     numbers.push(value);
   }
-  // The last part carries whatever the dots left out, so the first octet is the
-  // first number for a dotted form and the top byte for a packed one.
-  const first = numbers.length > 1 ? numbers[0] : (numbers[0] ?? 0) >>> 24;
-  // 127/8 is loopback by name; 0/8 is here because `connect` to the
-  // unspecified address goes to loopback rather than nowhere — measured on
-  // `0.0.0.0`, which reached a listener on 127.0.0.1.
-  return first === 127 || first === 0;
+  // The last part carries whatever the dots left out — one part is the whole
+  // address, two are `a.bbb`, and so on — so its range is the one that widens.
+  const leading = numbers.slice(0, -1);
+  const last = numbers.at(-1) ?? 0;
+  if (leading.some((number) => number > 255)) return undefined;
+  if (last >= 2 ** (8 * (4 - leading.length))) return undefined;
+  let value = last;
+  for (const [index, number] of leading.entries()) {
+    value += number * 2 ** (8 * (3 - index));
+  }
+  return value >>> 0;
+}
+
+/** One part of an IPv4 address, in decimal, octal or hexadecimal. */
+function parseNumericPart(part: string): number | undefined {
+  const value = /^0x[0-9a-f]+$/u.test(part)
+    ? Number.parseInt(part.slice(2), 16)
+    : /^0[0-7]+$/u.test(part)
+      ? Number.parseInt(part.slice(1), 8)
+      : /^[0-9]+$/u.test(part)
+        ? Number.parseInt(part, 10)
+        : Number.NaN;
+  return Number.isSafeInteger(value) ? value : undefined;
 }
 
 export interface EgressGrantRequest {

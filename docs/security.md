@@ -821,13 +821,18 @@ recorded here with what closed them:
   where a systemd-resolved machine keeps the resolver a terminal's own open
   network needs, and a terminal never unshares the network.
 
-  Two things that shape it. `/var/run` is a symlink to `/run` on Debian and
-  mounting over a symlink fails the whole launch, so each is taken only when it
-  is a directory in its own right. And a directory holding a writable path is
-  left alone — there is no mount order that both hides it and keeps the turn's
-  own `$TMPDIR` — so a machine that puts `$TMPDIR` under `/run` keeps that one
-  reachable. `$SSH_AUTH_SOCK` under `/tmp` is reachable for the same reason:
-  `/tmp` is a writable root, and the turn needs it.
+  Two things that shape it. Each directory is resolved before it is mounted,
+  because `/var/run` is a symlink to `/run` on Debian and mounting over a
+  symlink fails the whole launch — resolving turns it into `/run`, which the
+  list already has, and the same resolution is what lets an `$XDG_RUNTIME_DIR`
+  that is a link be covered at all. And a directory *holding* a writable path is
+  left alone while one *inside* a writable path is not: there is no mount order
+  that both hides the first and keeps the turn's own `$TMPDIR`, and the second
+  is the ordinary case — `/tmp/.X11-unix` sits inside `/tmp`, which is always
+  writable, so a rule that skipped it would have skipped the X11 socket
+  entirely. A machine that puts `$TMPDIR` under `/run` therefore keeps that one
+  reachable, and `$SSH_AUTH_SOCK` under `/tmp` is reachable for the same
+  reason: `/tmp` is a writable root, and the turn needs it.
 
   macOS was closed here already, and the discriminating pair is what makes that
   worth saying: under the profile's own egress rules — `(deny network*)` and the
@@ -849,8 +854,13 @@ recorded here with what closed them:
   loopback, which is macOS — there the profile lets the confined process reach
   it directly, so refusing would take away nothing and break every client that
   ignores `NO_PROXY`, and Pi's does. The refusal is by address rather than by
-  spelling: `127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `0.0.0.0` and
-  `::ffff:127.0.0.1` all arrive where `127.0.0.1` does. It also refuses without
+  spelling: `127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `0.0.0.0`,
+  `localhost.` and `::ffff:127.0.0.1` — which Node writes as `::ffff:7f00:1` —
+  all arrive where `127.0.0.1` does. Read as an address and not as a pattern,
+  which is the half that keeps it from over-refusing: `2001:db8::1` ends in
+  `:1` and belongs to somebody, `0.0.0.1` is not this machine, and a numeric
+  form out of range — `4294967296`, `127.0.0.256` — is not an address at all
+  but a name, which Linux resolves as one. It also refuses without
   asking anybody — a prompt saying "allow 127.0.0.1?" is one nobody can answer
   usefully, because the loopback the proxy could dial is not the one the caller
   means — and it refuses ahead of the list, so a host somebody typed into

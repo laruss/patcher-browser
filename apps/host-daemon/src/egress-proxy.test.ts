@@ -301,12 +301,18 @@ describe("what a grant may reach", () => {
     expect(conversation).not.toContain("host-service");
   });
 
-  it("refuses the other spellings of the same address, and asks nobody", async () => {
+  it("reads the address rather than the spelling, in both directions", async () => {
     // The spelling is the easy part to vary, so the rule is about the address:
-    // `getaddrinfo` reads all of these as 127.0.0.1 or as another loopback,
-    // and a check that only knew the dotted quad would be one somebody writes
-    // their way around. `askAboutHost` is given and must go uncalled — a
-    // question about loopback is one nobody can answer usefully.
+    // `getaddrinfo` reads the first list as this machine, and a check that only
+    // knew the dotted quad would be one somebody writes their way around.
+    //
+    // The second list is the half that took two goes to get right. Reading "the
+    // part after the last colon" as IPv4 refused `2001:db8::1`, which ends in
+    // `:1` and belongs to somebody; a pattern loose enough to catch `0:0:…:1`
+    // caught `1::` with it; and checking the first octet alone refused all of
+    // `0/8` and every numeric form that is out of range — which Linux resolves
+    // as a *name*, so `127.0.0.256` is somebody's hostname and not this
+    // machine. Both lists run through the real proxy.
     const askAboutHost = vi.fn(async () => ({ outcome: "allowed" }) as const);
     const proxy = new EgressProxy({
       sandboxHasPrivateLoopback: true,
@@ -324,14 +330,23 @@ describe("what a grant may reach", () => {
     );
 
     for (const target of [
+      "127.0.0.1:8080",
       "127.0.0.2:8080",
       "127.1:8080",
+      "127.0.1:8080",
       "2130706433:8080",
       "0x7f000001:8080",
+      "017700000001:8080",
       "0.0.0.0:8080",
-      "[::1]:8080",
-      "[::ffff:127.0.0.1]:8080",
+      "0:8080",
+      "localhost.:8080",
       "anything.localhost:8080",
+      "[::1]:8080",
+      "[::]:8080",
+      "[0:0:0:0:0:0:0:1]:8080",
+      "[::ffff:127.0.0.1]:8080",
+      // What Node's URL parser writes that last one as.
+      "[::ffff:7f00:1]:8080",
     ]) {
       const conversation = await speak({
         port,
@@ -340,17 +355,20 @@ describe("what a grant may reach", () => {
       expect(conversation, target).toContain("403");
       expect(conversation, target).toContain("network namespace");
     }
+    // And nobody was asked: a prompt saying "allow 127.0.0.1?" is one nobody
+    // can answer usefully, because the loopback this proxy could dial is not
+    // the one the caller means.
     expect(askAboutHost).not.toHaveBeenCalled();
 
-    // The other direction, which is where reading "the part after the last
-    // colon" as IPv4 went wrong: `2001:db8::1` ends in `:1` and belongs to
-    // somebody. These have to reach the list and be refused for not being on
-    // it — with the person asked — rather than be refused as loopback.
     for (const target of [
       "[2001:db8::1]:443",
+      "[1::]:443",
       "[::ffff:93.184.216.34]:443",
       "93.184.216.34:443",
       "128.0.0.1:443",
+      "0.0.0.1:443",
+      "4294967296:443",
+      "127.0.0.256:443",
       "example.com:443",
     ]) {
       const conversation = await speak({

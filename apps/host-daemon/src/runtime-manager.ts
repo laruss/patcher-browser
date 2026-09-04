@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
@@ -444,10 +444,11 @@ export class RuntimeManager {
    * confined network is refused rather than run with the network open, which
    * is the same answer this platform gave before any of it existed.
    */
-  private sandboxEmptyFilePathCache: string | undefined;
   private sandboxLoopbackRelay:
     | { argv: readonly string[]; socketDir: string }
     | undefined;
+  /** Memo for {@link sandboxEmptyFilePath}, which does file I/O to answer. */
+  private sandboxEmptyFilePathCache: string | undefined;
   private providerMaintenanceRuntime: AgentRuntime | null = null;
   private pendingProviderMaintenanceRuntime: PendingProviderMaintenanceRuntime | null =
     null;
@@ -506,7 +507,17 @@ export class RuntimeManager {
     const filePath = path.join(dataDir, SANDBOX_EMPTY_FILE_NAME);
     try {
       mkdirSync(dataDir, { recursive: true });
-      writeFileSync(filePath, "", { mode: 0o444 });
+      // Not a plain `writeFileSync`: `mode` applies only when the file is
+      // created, and reopening the 0444 file this wrote last time is `EACCES`
+      // for the user who owns it. So the first daemon run made the file and
+      // every restart after it fell into the catch below and answered
+      // `undefined` — the fallback, and the git warnings back with it. Caught
+      // by review; the file it makes is the same either way.
+      const existing = statSync(filePath, { throwIfNoEntry: false });
+      if (existing === undefined || !existing.isFile() || existing.size !== 0) {
+        rmSync(filePath, { force: true });
+        writeFileSync(filePath, "", { mode: 0o444 });
+      }
     } catch {
       return undefined;
     }
