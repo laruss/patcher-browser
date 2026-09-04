@@ -206,8 +206,8 @@ it costs a CDP attach the unscoped read does not, which is why it can answer
 `debugger_unavailable`, `invalid_selector` or `no_match`, and why omitting the
 selector stays the cheap path. It answers `page_read_timeout` as well, and did
 not at first: the deadline the unscoped read has was written around the script
-it runs, and the four CDP sends this one makes instead have none of their own
-(#66). Both now share `withPageReadDeadline`. An older shell is told it cannot do this rather
+it runs, and the five CDP sends this one makes instead — more on the first read
+— have none of their own (#66). Both now share `withPageReadDeadline`. An older shell is told it cannot do this rather
 than being allowed to read the whole document and call it a success.
 
 `open --background` could not be faked either, and for a while it looked like it

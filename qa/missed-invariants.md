@@ -179,11 +179,21 @@
   list, so the real implementation was reached by nothing.
 - Automated guard added: `cli-targets.test.ts` asks `urlMatches` directly —
   which is why the resolvers moved out of `cli.ts` — plus CLI-level tests for a
-  query string, a colon in a substring, and a minted id still costing no
-  listing. `wait --text` now asserts the recorded call carries no cap at all,
+  query string, a colon in a substring, a minted id still costing no listing,
+  and `browser:foo:bar`, which is the narrower version of the `--tab` defect a
+  Codex review found still open: the first fix asked for "three colon-separated
+  parts" rather than for the shape, so a substring shaped like that was still
+  taken for an id. The predicate now carries nanoid's own 21 characters,
+  measured rather than read off the library's docs. `wait --text` now asserts the recorded call carries no cap at all,
   rather than a bigger one. The scoped read has its first two manager-level
   tests, an ordinary read and the timeout, and `withPageReadDeadline` has its
   own. Falsified one at a time: each sabotage failed exactly its own assertion.
+- One test in that set asserted nothing until the same review said so: the `?`
+  wildcard case matched a URL with a literal `?` in the same position, so it
+  passed whether the branch under test existed or not. It now also matches a URL
+  where the `?` has to stand for something else. Worth naming because it is the
+  shape of a test that reads as thorough: the right function, the right input,
+  and an expectation the code cannot fail.
 - One test was written and deleted: that a read rejecting after the deadline
   does not surface as an unhandled rejection. Removing the `.catch` it was aimed
   at changed nothing, because `Promise.race` subscribes to the read when the

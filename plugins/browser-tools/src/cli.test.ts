@@ -1333,6 +1333,9 @@ describe("patcher browser CLI option checking", () => {
   });
 });
 
+/** A tab id of the shape `createBrowserFixedPanelTab` mints: nanoid is 21. */
+const MINTED_ID = "browser:V1StGXR8_Z5jdHi6B-myT:none";
+
 describe("patcher browser CLI tab names", () => {
   it("takes an index from the listing", async () => {
     const host = createHost();
@@ -1379,14 +1382,10 @@ describe("patcher browser CLI tab names", () => {
   it("spends no round trip on a tab id in the minted shape", async () => {
     const host = createHost();
     host.harness.behavior.browser.setTabs([
-      { tabId: "browser:a:none", url: "http://localhost:3000/", title: "Dev" },
+      { tabId: MINTED_ID, url: "http://localhost:3000/", title: "Dev" },
     ]);
 
-    const result = await host.harness.runCli([
-      "url",
-      "--tab",
-      "browser:a:none",
-    ]);
+    const result = await host.harness.runCli(["url", "--tab", MINTED_ID]);
 
     expect(result.stdout).toBe("http://localhost:3000/\n");
     // The point of keeping a shape test rather than listing first: the precise
@@ -1394,6 +1393,28 @@ describe("patcher browser CLI tab names", () => {
     expect(
       host.harness.inspection.browserCalls.map((call) => call.type),
     ).toEqual(["page.get_url"]);
+  });
+
+  it("does not read three colon-separated words as an id", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      {
+        tabId: MINTED_ID,
+        url: "https://docs.test/browser:foo:bar",
+        title: "Docs",
+      },
+    ]);
+
+    const result = await host.harness.runCli([
+      "url",
+      "--tab",
+      "browser:foo:bar",
+    ]);
+
+    // The narrower version of the same defect: three parts and two colons is
+    // not the shape, because the middle one of a real id is 21 characters of
+    // nanoid. So this is a substring like any other.
+    expect(result.stdout).toBe("https://docs.test/browser:foo:bar\n");
   });
 
   it('reads "active" as the default, without listing tabs to find it', async () => {

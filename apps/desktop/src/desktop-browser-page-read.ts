@@ -55,9 +55,10 @@ export const PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS = 2_000;
  * script in the page, and script execution is suspended while a page loads, so
  * a wedged subresource or a busy-looping main thread arrives as "no answer
  * yet". The scoped one asks the debugger which element a selector means, and a
- * CDP send has no deadline of its own either — four of them in a row, on a page
- * `DOM.getDocument` cannot get a word out of, is an IPC invoke held open until
- * something further out gives up. `wait --selector` polls that every 250ms.
+ * CDP send has no deadline of its own either — five of them in a row on a warm
+ * tab, more on the first read, and a page `DOM.getDocument` cannot get a word
+ * out of holds every one of them: an IPC invoke open until something further
+ * out gives up. `wait --selector` polls that every 250ms.
  *
  * Whichever loses the race is dropped: a late answer must not resolve a call
  * already reported as timed out, the same discipline `startResizeSnapshot`

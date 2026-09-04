@@ -31,6 +31,16 @@ describe("urlMatches", () => {
     expect(
       urlMatches("https://example.com/search?q=cats", "**/search?q=*"),
     ).toBe(true);
+    // The discriminating half: that one passes whether the `?` is a wildcard or
+    // an escaped literal, because the URL happens to have a `?` in the same
+    // place. This one only passes if it is still a wildcard.
+    expect(
+      urlMatches("https://example.com/searchXq=cats", "**/search?q=*"),
+    ).toBe(true);
+    // And it stops at a separator, as `*` does.
+    expect(
+      urlMatches("https://example.com/search/q=cats", "**/search?q=*"),
+    ).toBe(false);
   });
 
   it("matches a pattern full of regex syntax against itself", () => {

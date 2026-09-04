@@ -6,7 +6,6 @@ import type {
   PluginBrowserCookie,
   PluginBrowserNetworkEntry,
   PluginBrowserAction,
-  PluginBrowserCallOptions,
   PluginBrowserKeyModifier,
   PluginBrowserPageState,
   PluginBrowserRouteState,

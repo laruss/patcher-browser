@@ -18,21 +18,25 @@ import type {
  * A tab id in the shape the browser mints, which is the one spelling of a tab
  * that costs no round trip.
  *
- * Three segments — the literal `browser`, a nanoid minted per tab, and the
- * environment (`createBrowserFixedPanelTab` and `buildFixedPanelTabId`, in the
- * app's `fixed-panel-tabs-state.ts`). Neither of the last two can hold a colon:
- * nanoid's alphabet has none, and the environment is percent-encoded, which
- * turns one into `%3A`. So a real id carries exactly two, and an address is not
- * mistakable for one.
+ * Three segments: the literal `browser`, a nanoid, and the environment
+ * percent-encoded (`createBrowserFixedPanelTab` and `buildFixedPanelTabId`, in
+ * the app's `fixed-panel-tabs-state.ts`). The nanoid is 21 characters of
+ * `A-Za-z0-9_-` — measured rather than read off the library's documentation —
+ * and percent-encoding is why the environment cannot hold a colon either.
  *
- * By shape rather than by "has a colon in it", which is what this used to ask.
- * `--tab localhost:3000` and `--tab https://x.com` are how a caller names a tab
- * by its address — the spelling the USAGE line offers — and both were sent to
- * the browser as tab ids and refused `unknown_tab`. Should the app ever mint a
- * different shape, the cost is a list call per command rather than a wrong
- * answer, because the list is matched against an exact id first.
+ * The whole shape, not "three colon-separated parts", and certainly not "has a
+ * colon in it", which is what this used to ask. `--tab localhost:3000` and
+ * `--tab https://x.com` are how a caller names a tab by its address — the
+ * spelling the USAGE line offers — and both were sent to the browser as tab ids
+ * and refused `unknown_tab`. Anything looser leaves a narrower version of the
+ * same defect: `browser:foo:bar` is a substring somebody could type, and
+ * nothing minted looks remotely like it.
+ *
+ * Should the app ever mint ids differently, the cost is a list call per command
+ * rather than a wrong answer, because the list is matched against an exact id
+ * first.
  */
-const MINTED_TAB_ID = /^browser:[^:]*:[^:]*$/u;
+const MINTED_TAB_ID = /^browser:[A-Za-z0-9_-]{21}:[^:]*$/u;
 
 /**
  * Turn what a caller typed after `--tab` into a tab id.
