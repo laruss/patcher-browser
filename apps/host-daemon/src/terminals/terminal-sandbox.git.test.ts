@@ -158,7 +158,10 @@ async function createLinkedWorktree(): Promise<Worktree> {
   writeFileSync(path.join(repositoryPath, "file.txt"), "hello\n");
   await git(["add", "-A"], repositoryPath);
   await git(["commit", "-m", "init"], repositoryPath);
-  await git(["worktree", "add", "-b", "feature", workspacePath], repositoryPath);
+  await git(
+    ["worktree", "add", "-b", "feature", workspacePath],
+    repositoryPath,
+  );
   return {
     commonGitDir: await git(
       ["rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -174,6 +177,7 @@ interface SandboxRunArgs {
   writableRoots: readonly string[];
   readOnlyPaths: readonly string[];
   script: string;
+  emptyFilePath?: string;
 }
 
 /** The launch this module builds, run, with its lines back. */
@@ -188,6 +192,9 @@ async function runSandboxed(args: SandboxRunArgs): Promise<string[]> {
       writableRoots: args.writableRoots,
       readOnlyPaths: args.readOnlyPaths,
       deniedReadPaths: [],
+      ...(args.emptyFilePath !== undefined
+        ? { emptyFilePath: args.emptyFilePath }
+        : {}),
     },
   });
   expect(launch.sandboxed).toBe(true);
@@ -197,6 +204,15 @@ async function runSandboxed(args: SandboxRunArgs): Promise<string[]> {
     encoding: "utf8",
   });
   return stdout.trim().split("\n");
+}
+
+/** An empty file outside the workspace, the way the daemon keeps one. */
+function createEmptyStandIn(): string {
+  const root = mkdtempSync(path.join(tmpdir(), "patcher-git-empty-"));
+  temporaryRoots.push(root);
+  const filePath = path.join(root, "sandbox-empty-file");
+  writeFileSync(filePath, "", { mode: 0o444 });
+  return filePath;
 }
 
 /** Whether this machine can build the sandbox at all; asked once. */
@@ -239,10 +255,7 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
           "common-attributes",
           path.join(worktree.commonGitDir, "info", "attributes"),
         ],
-        [
-          "worktree-config",
-          path.join(worktree.gitDir, "config.worktree"),
-        ],
+        ["worktree-config", path.join(worktree.gitDir, "config.worktree")],
         ["gitdir-file", path.join(worktree.gitDir, "patcher-probe")],
         ["workspace-file", path.join(worktree.workspacePath, "probe.txt")],
       ];
@@ -329,9 +342,9 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
       );
 
       expect(stdout.trim()).toMatch(/^[0-9a-f]{7,}$/u);
-      expect(await git(["log", "-1", "--format=%s"], worktree.workspacePath)).toBe(
-        "from the turn",
-      );
+      expect(
+        await git(["log", "-1", "--format=%s"], worktree.workspacePath),
+      ).toBe("from the turn");
     });
 
     it("cannot move the pointer file, or the workspace holding it, out from under its rule", async () => {
@@ -527,6 +540,59 @@ describe.skipIf(!SANDBOX_AVAILABLE_HERE)(
       expect(readFileSync(path.join(gitDir, "config"), "utf8")).not.toContain(
         "fsmonitor",
       );
+    });
+
+    it("leaves git quiet about the protected files the repository does not have", async () => {
+      // The other half of #53: a protected path a turn could still create has
+      // to have something mounted where it would be, and *what* turns out to
+      // matter. `/dev/null` is a character device, bubblewrap mounts `nodev`,
+      // and git then reads it as unreadable rather than as absent — two
+      // `warning: unable to access` lines per command, which is what a person
+      // sees on every `git status` in their own terminal. An empty directory
+      // removes the warning and breaks worse: with `extensions.worktreeConfig`
+      // set, which is the layout a managed worktree runs, a directory where
+      // `config.worktree` belongs makes git exit 128.
+      //
+      // So the assertion is git's own output, from a repository arranged the
+      // way the layout arranges it: neither file exists, and both are on the
+      // protected list.
+      const workspacePath = await createPlainCheckout();
+      await git(["config", "extensions.worktreeConfig", "true"], workspacePath);
+      rmSync(path.join(workspacePath, ".git", "info"), {
+        recursive: true,
+        force: true,
+      });
+      const readOnlyPaths =
+        await resolveProtectedRepositoryPaths(workspacePath);
+      expect(readOnlyPaths.some((candidate) => !existsSync(candidate))).toBe(
+        true,
+      );
+
+      const lines = await runSandboxed({
+        workspacePath,
+        writableRoots: [],
+        readOnlyPaths,
+        emptyFilePath: createEmptyStandIn(),
+        script: [
+          `cd '${workspacePath}'`,
+          `git status --porcelain 2>&1`,
+          `echo "status:$?"`,
+          `git config --list >/dev/null 2>&1`,
+          `echo "config-list:$?"`,
+          `printf 'x' > .git/config.worktree 2>/dev/null && echo wrote:config-worktree || echo refused:config-worktree`,
+          `printf 'x' > .git/info/attributes 2>/dev/null && echo wrote:attributes || echo refused:attributes`,
+        ].join("\n"),
+      });
+
+      expect(lines.join("\n")).not.toContain("unable to access");
+      expect(lines).toContain("status:0");
+      // `git config --list` is the discriminator: with `config.worktree`
+      // bound as an empty file it is 0, and with a directory there git exits
+      // 128 on "unknown error occurred while reading the configuration files".
+      expect(lines).toContain("config-list:0");
+      // And still protected, which is the half the quiet must not have cost.
+      expect(lines).toContain("refused:config-worktree");
+      expect(lines).toContain("refused:attributes");
     });
 
     it("can still stage and commit its own work", async () => {

@@ -1,16 +1,17 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import net from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SandboxLoopback } from "../sandbox-loopback.js";
 import { resolveSandboxNetRelayArgv } from "../sandbox-net-relay.js";
 import {
@@ -147,10 +148,18 @@ await attempt("off-the-machine", 443, "example.com");
 `;
 
 let fixture: Fixture | null = null;
+const fakeHelperDirectories: string[] = [];
+const serviceSocketPaths: string[] = [];
 
 afterEach(() => {
   fixture?.cleanup();
   fixture = null;
+  for (const directory of fakeHelperDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+  for (const socketPath of serviceSocketPaths.splice(0)) {
+    rmSync(socketPath, { force: true });
+  }
   for (const server of loopbackServers.splice(0)) server.close();
   rmSync(OUTSIDE_PROBE_PATH, { force: true });
 });
@@ -292,6 +301,78 @@ describe("the Linux network boundary", () => {
   });
 
   it.skipIf(process.platform !== "linux" || !SANDBOX_AVAILABLE_HERE)(
+    "cannot reach a service outside the namespace over its unix socket",
+    async (ctx) => {
+      // `--unshare-net` takes the network and leaves unix sockets, which are
+      // not network-namespaced — that is how the relay reaches the daemon at
+      // all — and `--ro-bind / /` carries every other one in. On a desktop the
+      // one on the other end is the session bus or systemd, where the command
+      // is `systemd-run --user`: an arbitrary program outside the sandbox, with
+      // the network the sandbox just gave up.
+      fixture = createFixture();
+      const socketPath = await listenOnServiceSocket();
+      if (socketPath === null) {
+        ctx.skip(
+          "no directory under /run this test can put a socket in, so the refusal below would prove nothing",
+        );
+        return;
+      }
+      const loopback = new SandboxLoopback();
+      try {
+        // The control, from outside the sandbox: the same socket has to answer
+        // here, or "refused" inside says nothing about the boundary.
+        const control = await new Promise<string>((resolve) => {
+          const socket = net.connect(socketPath);
+          socket.on("connect", () => {
+            socket.destroy();
+            resolve("reached");
+          });
+          socket.on("error", () => resolve("refused"));
+        });
+        expect(control).toBe("reached");
+
+        const socketDir = await loopback.open([]);
+        const probePath = path.join(fixture.workspacePath, "socket-probe.mjs");
+        writeFileSync(probePath, UNIX_SOCKET_PROBE_SOURCE);
+        const launch = buildTerminalSandboxLaunch({
+          command: {
+            file: process.execPath,
+            args: [probePath, socketPath],
+          },
+          cwd: fixture.workspacePath,
+          env: process.env,
+          platform: "linux",
+          policy: {
+            ...fixture.policy,
+            egressConfined: true,
+            loopbackRelay: {
+              argv: resolveSandboxNetRelayArgv({}),
+              socketDir,
+            },
+          },
+        });
+        expect(launch.sandboxed).toBe(true);
+        if (!launch.sandboxed) return;
+
+        const result = spawnSync(
+          launch.command.file,
+          [...launch.command.args],
+          {
+            cwd: fixture.workspacePath,
+            encoding: "utf8",
+            env: process.env,
+          },
+        );
+        expect(result.error).toBeUndefined();
+
+        expect(`${result.stdout}${result.stderr}`).toContain("socket refused");
+      } finally {
+        await loopback.close();
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== "linux" || !SANDBOX_AVAILABLE_HERE)(
     "keeps the loopback it was handed, and only that",
     async () => {
       // The whole Linux half, run rather than inspected: `--unshare-net` takes
@@ -343,6 +424,252 @@ describe("the Linux network boundary", () => {
       }
     },
   );
+});
+
+/**
+ * What the daemon asks bubblewrap before it trusts it, and how long it
+ * remembers the answer.
+ *
+ * Run from any machine, because neither claim is about this host: a fake
+ * `bwrap` on `PATH` records the argv it was called with and answers whatever
+ * the test wants. That is the only way to see the *probe* at all — the launch's
+ * own argv is returned rather than executed, so a test that ran the real thing
+ * would measure the launch and not the question asked before it.
+ */
+function createFakeSandboxHelper(): {
+  env: Record<string, string>;
+  failurePath: string;
+  probeCalls: () => string[];
+} {
+  const directory = mkdtempSync(path.join(tmpdir(), "patcher-fake-bwrap-"));
+  fakeHelperDirectories.push(directory);
+  const recordPath = path.join(directory, "calls");
+  const failurePath = path.join(directory, "fail");
+  const helperPath = path.join(directory, "bwrap");
+  writeFileSync(
+    helperPath,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(recordPath)}\n` +
+      `if [ -e ${JSON.stringify(failurePath)} ]; then\n` +
+      `  echo 'setting up uid map: Permission denied' >&2\n  exit 1\nfi\nexit 0\n`,
+  );
+  chmodSync(helperPath, 0o755);
+  return {
+    env: { PATH: directory },
+    failurePath,
+    probeCalls: () =>
+      existsSync(recordPath)
+        ? readFileSync(recordPath, "utf8").trim().split("\n").filter(Boolean)
+        : [],
+  };
+}
+
+/**
+ * A probe run as the confined command: connects to one unix socket path and
+ * says whether it answered. A file rather than `-e`, so it reads as a probe.
+ */
+const UNIX_SOCKET_PROBE_SOURCE = `import net from "node:net";
+const socket = net.connect(process.argv[2]);
+const done = (outcome) => {
+  socket.destroy();
+  console.log("socket " + outcome);
+  process.exit(0);
+};
+socket.setTimeout(4000, () => done("refused"));
+socket.on("connect", () => done("reached"));
+socket.on("error", () => done("refused"));
+`;
+
+/** A unix socket outside the sandbox, in a directory a service would use. */
+async function listenOnServiceSocket(): Promise<string | null> {
+  const candidates = [
+    process.env.XDG_RUNTIME_DIR,
+    `/run/user/${String(process.getuid?.() ?? 0)}`,
+    "/run",
+  ];
+  for (const directory of candidates) {
+    if (directory === undefined) continue;
+    const socketPath = path.join(
+      directory,
+      `patcher-sandbox-test-${String(process.pid)}.sock`,
+    );
+    const server = net.createServer((socket) => socket.end("ok\n"));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(socketPath, resolve);
+      });
+    } catch {
+      continue;
+    }
+    serviceSocketPaths.push(socketPath);
+    loopbackServers.push(server);
+    return socketPath;
+  }
+  return null;
+}
+
+describe("the Linux process table", () => {
+  it.skipIf(process.platform !== "linux" || !SANDBOX_AVAILABLE_HERE)(
+    "cannot signal a process outside the sandbox",
+    () => {
+      // The PID namespace was shared, so the process table a confined turn saw
+      // was the machine's: the daemon, the other terminals, everything. Reading
+      // a sibling's environment was already refused by the user namespace —
+      // that was #52 — and signalling it was not.
+      fixture = createFixture();
+      const victim = spawn("/bin/sleep", ["30"], { stdio: "ignore" });
+      try {
+        // The control: the same signal from here, where nothing is confined,
+        // has to be the thing that works — otherwise "refused" below could be
+        // a pid that was never there.
+        expect(victim.pid).toBeGreaterThan(0);
+        expect(process.kill(victim.pid ?? 0, 0)).toBe(true);
+
+        const output = runInSandbox(
+          fixture,
+          `kill ${String(victim.pid)} && echo KILLED || echo kill-refused`,
+        );
+
+        expect(output).toContain("kill-refused");
+        expect(process.kill(victim.pid ?? 0, 0)).toBe(true);
+      } finally {
+        victim.kill("SIGKILL");
+      }
+    },
+  );
+});
+
+describe("the Linux credential boundary", () => {
+  it.skipIf(process.platform !== "linux" || !SANDBOX_AVAILABLE_HERE)(
+    "hides a credential file the daemon has not written yet",
+    () => {
+      // Seatbelt denies a path whether or not anything is there; this backend
+      // can only mount over what exists, and the file that does not exist yet
+      // is the interesting one — SQLite writes `-wal` beside the database at
+      // the first checkpoint, and a provider process outlives that.
+      //
+      // The directory has to sit outside every writable root for this to be
+      // the case under test, and `/tmp` is always one on Linux, so the fixture
+      // borrows the home directory the way the outside-write probe does.
+      fixture = createFixture();
+      const dataDir = mkdtempSync(
+        path.join(homedir(), ".patcher-sandbox-test-data-"),
+      );
+      const existingPath = path.join(dataDir, "app-key");
+      const laterPath = path.join(dataDir, "patcher.db-wal");
+      const siblingPath = path.join(dataDir, "host-id");
+      try {
+        writeFileSync(existingPath, "APP-KEY\n");
+        writeFileSync(siblingPath, "HOST-ID\n");
+        fixture.policy = {
+          ...fixture.policy,
+          deniedReadPaths: [existingPath, laterPath],
+        };
+        // Written after the launch has started, from outside it, which is the
+        // daemon's own timing.
+        setTimeout(() => writeFileSync(laterPath, "NEWEST-ROWS\n"), 300);
+
+        const output = runInSandbox(
+          fixture,
+          `cat ${existingPath} || echo existing-refused; ` +
+            `sleep 2; cat ${laterPath} || echo later-refused; ` +
+            `cat ${siblingPath} || echo SIBLING-REFUSED`,
+        );
+
+        // The control is the sibling: a directory replaced wholesale would
+        // pass the two refusals and take the reads the sandbox is meant to
+        // keep, and nothing here would say so.
+        expect(output).toContain("HOST-ID");
+        expect(output).toContain("existing-refused");
+        expect(output).toContain("later-refused");
+        expect(output).not.toContain("APP-KEY");
+        expect(output).not.toContain("NEWEST-ROWS");
+        // And the daemon's own write went through: bwrap creates a mount point
+        // it has to make as a mode-0444 file, so a boundary built that way
+        // would have left SQLite unable to write its own WAL.
+        expect(readFileSync(laterPath, "utf8")).toContain("NEWEST-ROWS");
+      } finally {
+        rmSync(dataDir, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
+describe("the Linux sandbox probe", () => {
+  it("asks for the same namespaces the launch does", () => {
+    const helper = createFakeSandboxHelper();
+
+    const launch = buildTerminalSandboxLaunch({
+      command: { file: "/bin/sh", args: ["-c", "true"] },
+      cwd: tmpdir(),
+      env: helper.env,
+      platform: "linux",
+      policy: {
+        workspacePath: tmpdir(),
+        writableRoots: [],
+        readOnlyPaths: [],
+        deniedReadPaths: [],
+      },
+    });
+
+    expect(launch.sandboxed).toBe(true);
+    if (!launch.sandboxed) return;
+    // The probe, not the launch: one call, and it has to carry everything the
+    // kernel could refuse. `--proc` was missing, so a machine that cannot
+    // mount `/proc` passed here and killed the shell one step later instead.
+    expect(helper.probeCalls()).toHaveLength(1);
+    const probe = helper.probeCalls()[0] ?? "";
+    expect(probe).toContain("--proc /proc");
+    expect(probe).toContain("--unshare-pid");
+    for (const flag of ["--proc", "--unshare-pid"]) {
+      expect(launch.command.args.join(" "), flag).toContain(flag);
+    }
+  });
+
+  it("keeps a success, and asks again a minute after a refusal", () => {
+    const helper = createFakeSandboxHelper();
+    const build = (): ReturnType<typeof buildTerminalSandboxLaunch> =>
+      buildTerminalSandboxLaunch({
+        command: { file: "/bin/sh", args: ["-c", "true"] },
+        cwd: tmpdir(),
+        env: helper.env,
+        platform: "linux",
+        policy: {
+          workspacePath: tmpdir(),
+          writableRoots: [],
+          readOnlyPaths: [],
+          deniedReadPaths: [],
+        },
+      });
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      writeFileSync(helper.failurePath, "");
+      expect(build().sandboxed).toBe(false);
+      // Still refused a second later, which is the half worth keeping: the
+      // probe costs a process and this is a per-terminal path.
+      expect(build().sandboxed).toBe(false);
+      expect(helper.probeCalls()).toHaveLength(1);
+
+      // The remedy this module prints is something a person does while the
+      // daemon runs — CI does it with one `sysctl` — so the refusal has to
+      // expire. It used to be kept for the daemon's life.
+      rmSync(helper.failurePath);
+      expect(build().sandboxed).toBe(false);
+      vi.setSystemTime(new Date(Date.now() + 61_000));
+      expect(build().sandboxed).toBe(true);
+      expect(helper.probeCalls()).toHaveLength(2);
+
+      // And a success is kept: a machine that can build a namespace does not
+      // stop being able to, so nothing asks again.
+      writeFileSync(helper.failurePath, "");
+      vi.setSystemTime(new Date(Date.now() + 600_000));
+      expect(build().sandboxed).toBe(true);
+      expect(helper.probeCalls()).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 /**

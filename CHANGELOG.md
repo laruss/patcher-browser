@@ -34,6 +34,17 @@ running it unconfined.
   another application. The cost is `open` itself: a confined terminal can no
   longer hand a URL or a file to an application, so a tool that wanted a browser
   has to print its link instead.
+- **What runs outside a Linux sandbox, on the sandbox's behalf.** The same
+  class as the one above, on the other backend. A confined turn shared the
+  machine's process table, so it could signal the daemon and anybody else's
+  terminal; it now has a process table of its own. A turn whose network is
+  confined could reach the sockets of services outside its namespace — a
+  session bus is a program run outside the sandbox, with the network the turn
+  had just given up — and those are gone from its view now, along with the
+  proxy's willingness to dial the machine's own loopback for a client that asks
+  it to. And Patcher's own credential files are hidden by the directory rather
+  than one by one, so a database's newest rows are not readable through the
+  file SQLite writes a moment after the turn starts.
 - **Other threads.** A turn drives its own thread and the ones it spawned. A
   thread it creates can only name the caller's own thread as its parent and the
   caller's own project — a parent is not a filing label, it is a turn dispatched
@@ -128,6 +139,12 @@ running it unconfined.
 - A turn can fork a thread again. The scope check read `fork` as a thread id and
   refused every turn that tried; the fork is now held to the same relationship
   as any other thread a turn drives.
+- A terminal on Linux no longer prints
+  `warning: unable to access '.git/info/attributes'` twice for every git
+  command. That file is one Patcher protects, and on a repository that does not
+  have one, what stood in its place was unreadable rather than empty.
+- A Linux machine that has just been given permission to build sandboxes no
+  longer has to have its daemon restarted before the next terminal will open.
 
 ### Docs
 

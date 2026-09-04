@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
@@ -59,6 +60,8 @@ type StopWatching = () => void | Promise<void>;
 const STOP_WATCHING: StopWatching = () => undefined;
 const PROVIDER_MAINTENANCE_WORKSPACE_DIR = "provider-maintenance-workspace";
 const PROVIDER_PROCESS_EXIT_DETAIL_MAX_LENGTH = 4000;
+/** What `sandboxEmptyFilePath` keeps in the data directory. */
+const SANDBOX_EMPTY_FILE_NAME = "sandbox-empty-file";
 
 interface RuntimeSkillConfig {
   catalogHash: string;
@@ -441,6 +444,7 @@ export class RuntimeManager {
    * confined network is refused rather than run with the network open, which
    * is the same answer this platform gave before any of it existed.
    */
+  private sandboxEmptyFilePathCache: string | undefined;
   private sandboxLoopbackRelay:
     | { argv: readonly string[]; socketDir: string }
     | undefined;
@@ -475,6 +479,41 @@ export class RuntimeManager {
    * of which get this list as denied reads in their own profile. A Full Access
    * turn has no sandbox for it to live in, which is what the mode means.
    */
+  /**
+   * An empty file this daemon owns, for the Linux sandbox to put where a
+   * protected repository file does not exist yet.
+   *
+   * Why an empty regular file and not `/dev/null` or an empty directory is in
+   * `TerminalSandboxPolicy.emptyFilePath`; why it lives *here* is the part that
+   * belongs to this class. The sandbox binds it read-only at the destination
+   * and the source stays writable to whoever owns it, so a source under `/tmp`
+   * — which every sandbox has as a writable root — would be a file the turn
+   * could fill in and have bound as its own repository's `.gitattributes` on
+   * the next launch. The data directory is not writable in any sandbox this
+   * daemon builds.
+   *
+   * Created once and truncated on the way, so a file that somehow gained
+   * content does not stay that way. A daemon with no data directory has
+   * nowhere to keep one and says so with `undefined`; the sandbox then falls
+   * back to `/dev/null` and git's warning, which is where this started.
+   */
+  sandboxEmptyFilePath(): string | undefined {
+    const dataDir = this.options.dataDir;
+    if (!dataDir) return undefined;
+    if (this.sandboxEmptyFilePathCache !== undefined) {
+      return this.sandboxEmptyFilePathCache;
+    }
+    const filePath = path.join(dataDir, SANDBOX_EMPTY_FILE_NAME);
+    try {
+      mkdirSync(dataDir, { recursive: true });
+      writeFileSync(filePath, "", { mode: 0o444 });
+    } catch {
+      return undefined;
+    }
+    this.sandboxEmptyFilePathCache = filePath;
+    return filePath;
+  }
+
   protectedCredentialPaths(): string[] {
     const dataDir = this.options.dataDir;
     if (!dataDir) return [];
@@ -1422,12 +1461,14 @@ export class RuntimeManager {
   }): WrapAcpAgentLaunchResult {
     const { egress, environmentId, providerId, threadId, ...rest } = args;
     const loopbackRelay = this.sandboxLoopbackRelay;
+    const emptyFilePath = this.sandboxEmptyFilePath();
     return buildProviderSandboxLauncher({
       ...rest,
       env: process.env,
       homeDirectory: process.env.HOME,
       platform: process.platform,
       protectedCredentialPaths: this.protectedCredentialPaths(),
+      ...(emptyFilePath !== undefined ? { emptyFilePath } : {}),
       ...(egress !== undefined
         ? {
             egress: {

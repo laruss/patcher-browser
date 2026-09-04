@@ -50,8 +50,76 @@ import net from "node:net";
 /** How much of a request head to buffer before giving up on it. */
 const MAX_HEAD_BYTES = 32 * 1024;
 
-/** Loopback targets are allowed by the profile itself, so they are allowed here. */
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+/**
+ * Whether a target names this machine's own loopback.
+ *
+ * Loopback was allowed here unconditionally, ahead of the list, on the
+ * reasoning that the sandbox lets a confined process reach loopback directly
+ * so proxying it changes nothing. That is true on macOS and backwards on
+ * Linux. This proxy runs in the daemon, **outside** the sandbox, and a socket
+ * opened from here lands on the daemon's loopback — so where a confined launch
+ * has a network namespace of its own, `CONNECT 127.0.0.1:<port>` reached every
+ * local service the relay was built to withhold, and the "only the ports
+ * Patcher mirrored" claim held against well-behaved clients alone. It was
+ * wrong on its own terms too: an agent that runs a server inside the namespace
+ * — opencode does — and routes through the proxy reached the host's port of
+ * that number instead of its own. Which platform is which is
+ * `sandboxHasPrivateLoopback`.
+ *
+ * By address rather than by spelling, because the spelling is the easy part to
+ * vary: `127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `0.0.0.0` and
+ * `::ffff:127.0.0.1` all arrive where `127.0.0.1` does. What this cannot see is
+ * a *name* that resolves to loopback; that one stays where it lands, behind the
+ * list like any other name, and `docs/security.md` says so.
+ */
+function isLoopbackTarget(host: string): boolean {
+  const bare = host
+    .replace(/^\[|\]$/gu, "")
+    .replace(/%.*$/u, "")
+    .toLowerCase();
+  if (bare === "localhost" || bare.endsWith(".localhost")) return true;
+  if (bare.includes(":")) {
+    return (
+      bare === "::1" ||
+      bare === "::" ||
+      isLoopbackIpv4(bare.split(":").at(-1) ?? "")
+    );
+  }
+  return isLoopbackIpv4(bare);
+}
+
+/**
+ * IPv4 in every form `connect` accepts, not only the dotted quad.
+ *
+ * `getaddrinfo` takes the historical short and packed forms — `127.1` and
+ * `2130706433` are both `127.0.0.1`, and a leading `0x` is hexadecimal — so a
+ * check that only understood four decimal parts would be a check somebody
+ * writes their way around. Anything that is not a number in one of those forms
+ * is a name, and a name is not this function's question.
+ */
+function isLoopbackIpv4(address: string): boolean {
+  const parts = address.split(".");
+  if (parts.length > 4 || parts.some((part) => part === "")) return false;
+  const numbers: number[] = [];
+  for (const part of parts) {
+    const value = /^0x[0-9a-f]+$/u.test(part)
+      ? Number.parseInt(part.slice(2), 16)
+      : /^0[0-7]+$/u.test(part)
+        ? Number.parseInt(part.slice(1), 8)
+        : /^[0-9]+$/u.test(part)
+          ? Number.parseInt(part, 10)
+          : Number.NaN;
+    if (!Number.isInteger(value)) return false;
+    numbers.push(value);
+  }
+  // The last part carries whatever the dots left out, so the first octet is the
+  // first number for a dotted form and the top byte for a packed one.
+  const first = numbers.length > 1 ? numbers[0] : (numbers[0] ?? 0) >>> 24;
+  // 127/8 is loopback by name; 0/8 is here because `connect` to the
+  // unspecified address goes to loopback rather than nowhere — measured on
+  // `0.0.0.0`, which reached a listener on 127.0.0.1.
+  return first === 127 || first === 0;
+}
 
 export interface EgressGrantRequest {
   /**
@@ -126,6 +194,23 @@ export interface EgressProxyOptions {
    * agent's next attempt the one that goes through.
    */
   askAboutHost?: (refusal: EgressRefusal) => Promise<EgressAskOutcome>;
+  /**
+   * Whether a confined launch's loopback is its own rather than this one.
+   *
+   * The answer is the platform's and decides what a `CONNECT 127.0.0.1:<port>`
+   * means here — see `isLoopbackTarget`. On Linux a confined launch has a
+   * network namespace of its own, so this proxy's loopback is the *daemon's*
+   * and tunnelling to it is a way past the relay's mirrored ports; on macOS
+   * there is one loopback and the Seatbelt profile already lets the confined
+   * process reach it directly, so refusing here would take away nothing and
+   * break every client that ignores `NO_PROXY` — Pi's does, measured.
+   *
+   * Defaults to the platform this daemon runs on. Given explicitly by the
+   * suite, which needs both answers: one to exercise the refusal, and one to
+   * have an upstream at all, because every server a test can start is on
+   * loopback.
+   */
+  sandboxHasPrivateLoopback?: boolean;
 }
 
 interface Grant extends EgressGrantRequest {
@@ -401,13 +486,34 @@ export class EgressProxy {
    * given for this grant, so a decision is asked for once; and only then is
    * anybody interrupted.
    */
+  private hasPrivateLoopback(): boolean {
+    return (
+      this.options.sandboxHasPrivateLoopback ?? process.platform === "linux"
+    );
+  }
+
   private async decide(args: {
     grant: Grant;
     host: string;
     port: number;
   }): Promise<{ allowed: boolean; reason: string }> {
-    if (LOOPBACK_HOSTNAMES.has(args.host.toLowerCase())) {
-      return { allowed: true, reason: "" };
+    if (isLoopbackTarget(args.host)) {
+      // Ahead of the list in both directions, because on neither platform is
+      // this a question for a list or for a person. Where the sandbox keeps a
+      // loopback of its own the answer is no, whatever anybody put on the
+      // list — the loopback this proxy can dial is not the one the caller
+      // means, so allowing it would be answering a different question. Where
+      // there is one loopback the answer is yes, because the profile already
+      // allows it directly and a refusal here would only break the clients
+      // that route it through a proxy.
+      if (!this.hasPrivateLoopback()) return { allowed: true, reason: "" };
+      return {
+        allowed: false,
+        reason:
+          `${args.host} is loopback, and this proxy runs outside the sandbox's ` +
+          "own network namespace: a tunnel to it would reach the host's services " +
+          "rather than this turn's. Reach loopback directly instead — NO_PROXY names it.",
+      };
     }
     if (matchesHost(args.grant.matchers, args.host)) {
       return { allowed: true, reason: "" };

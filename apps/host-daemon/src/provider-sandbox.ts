@@ -57,6 +57,13 @@ export interface ProviderSandboxArgs {
   /** `$HOME`, or undefined where the environment has none. */
   homeDirectory: string | undefined;
   additionalWorkspaceWriteRoots: readonly string[];
+  /**
+   * The daemon's own empty file, for a protected repository path that does not
+   * exist yet — `TerminalSandboxPolicy.emptyFilePath` says what it is for.
+   * Passed through rather than resolved here, because the daemon is what owns a
+   * data directory.
+   */
+  emptyFilePath?: string;
   protectedRepositoryPaths: readonly string[];
   protectedCredentialPaths: readonly string[];
   env: NodeJS.ProcessEnv;
@@ -131,6 +138,9 @@ export function buildProviderSandboxLauncher(
       writableRoots: [...args.additionalWorkspaceWriteRoots, ...stateDirs],
       readOnlyPaths: args.protectedRepositoryPaths,
       deniedReadPaths: args.protectedCredentialPaths,
+      ...(args.emptyFilePath !== undefined
+        ? { emptyFilePath: args.emptyFilePath }
+        : {}),
       ...(args.egress !== undefined ? { egressConfined: true } : {}),
       ...(args.egress?.loopbackRelay !== undefined
         ? { loopbackRelay: args.egress.loopbackRelay }

@@ -389,9 +389,7 @@ function buildTerminalEnv(args: BuildTerminalEnvArgs): NodeJS.ProcessEnv {
   };
 }
 
-function threadScopedShellEnv(
-  args: BuildTerminalEnvArgs,
-): NodeJS.ProcessEnv {
+function threadScopedShellEnv(args: BuildTerminalEnvArgs): NodeJS.ProcessEnv {
   const { threadId } = args;
   if (!args.sandboxed || threadId === undefined) {
     return args.shellEnv;
@@ -811,11 +809,13 @@ export class TerminalManager {
       entry.workspace.getAdditionalWorkspaceWriteRoots(),
       entry.workspace.getProtectedRepositoryPaths(),
     ]);
+    const emptyFilePath = this.options.runtimeManager.sandboxEmptyFilePath();
     return {
       deniedReadPaths: this.options.runtimeManager.protectedCredentialPaths(),
       readOnlyPaths,
       workspacePath: entry.path,
       writableRoots,
+      ...(emptyFilePath !== undefined ? { emptyFilePath } : {}),
     };
   }
 
