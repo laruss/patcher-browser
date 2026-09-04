@@ -1172,10 +1172,11 @@ Named here rather than left to be rediscovered:
   connection has nowhere to raise a prompt — the thing to revisit rather than
   the end of it.
 - **What a confined terminal can still ask the system to do for it.** The macOS
-  profile now denies the three IPC operations a shell could write or launch
-  through, and two measured things are knowingly left behind: the pasteboard, so
-  `pbcopy` still reaches whoever is at the keyboard, and `launchctl kickstart` of
-  a service the user already has, which restarted Finder from inside the
+  profile denies the two operations a shell was measured writing and launching
+  through, plus the AppleEvent it was already refused for want of an
+  entitlement. Two measured things are knowingly left behind: the pasteboard, so
+  `pbcopy` still reaches whoever is at the keyboard, and `launchctl kickstart`
+  of a service the user already has, which restarted Finder from inside the
   sandbox. Neither runs a program the shell chose — that needs the `launchctl
   bootstrap` the sandbox is refused, or a plist in a directory the profile does
   not make writable — so what is left is nuisance and a channel to the person,
