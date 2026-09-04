@@ -66,7 +66,7 @@ const PINNED_OVER_LIMIT = {
   "apps/desktop/test/desktop-browser-view-manager.test.ts": 8371,
   "packages/agent-runtime/src/codex/adapter.test.ts": 6088,
   "packages/agent-runtime/src/claude-code/adapter.test.ts": 5795,
-  "apps/desktop/src/desktop-browser-view.ts": 5742,
+  "apps/desktop/src/desktop-browser-view.ts": 5540,
   "apps/server/test/public/public-thread-data.test.ts": 5128,
   "packages/db/test/migrate.test.ts": 4679,
   "packages/db/test/data/events.test.ts": 4455,
