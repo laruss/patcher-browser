@@ -115,6 +115,23 @@ jobs:
             && echo "bubblewrap can build a sandbox on this runner" \
             || echo "bubblewrap cannot build a sandbox here; the suite will assert the refusal"
 
+      # Codex builds its own sandbox from the permission profile Patcher sends
+      # it, and what that sandbox then refuses is the provider's answer rather
+      # than ours — so it is measured rather than asserted, by
+      # `codex/permission-profile.sandbox.test.ts`. `codex sandbox` runs a plain
+      # command under a named profile with no model turn and no credentials,
+      # which is what lets this run here at all; the Linux backend is bubblewrap,
+      # so it needs the same namespace permission the step above lifts.
+      #
+      # Pinned, and bumping it is the point: the profile's own doc comment
+      # records which Codex version each measurement was taken against, so a
+      # bump here is a deliberate re-measurement rather than a surprise on an
+      # unrelated pull request. Without the binary the suite skips, which is why
+      # it is installed rather than left to chance.
+      - name: Install the Codex CLI for the provider-boundary measurement
+        if: matrix.shard == 'packages'
+        run: npm i -g --no-fund --no-audit @openai/codex@0.153.1
+
       - name: Test
         # --concurrency matches the root `test` script: the packages shard runs
         # everything that spawns git, watchers and daemons, and vitest already

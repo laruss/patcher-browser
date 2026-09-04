@@ -307,6 +307,24 @@ permission profile from `permission-profile.ts`, each running the same probe.
 - **Linux, Claude Code: not measured.** Its sandbox needs a live session, and a
   session needs credentials this measurement had no way to put in a container.
 
+Three of those four squares are now pinned by tests rather than by this
+paragraph. `codex/permission-profile.sandbox.test.ts` runs the probe above
+under `codex sandbox` with the profile `permission-profile.ts` builds — no model
+turn, no credentials, so CI runs it on Linux and a developer on macOS gets the
+Seatbelt half; the `.git/info` gap is asserted per platform, so a future Codex
+that closes it fails the test rather than quietly outdating this text. The
+remaining square, Claude Code on Linux, stays manual: `qa/provider-permission-mode-runbook.md`
+carries the probe, because a live session is the only way to raise that sandbox.
+
+What no measurement can answer is whether every enforcer was *given* the list in
+the first place. Each one had a test written against a hand-written path, so
+adding an entry to `GIT_EXECUTION_ENTRIES` failed nothing:
+`apps/host-daemon/src/provider-boundary-matrix.test.ts` resolves the real list on
+a real repository and checks all four enforcers carry every path — the three
+provider translations by what they put on the wire, and Patcher's own sandbox by
+the argv it launches with, including the entry rules a rename would otherwise
+walk around.
+
 The class is closed where Patcher builds the sandbox itself — the terminal, an
 ACP turn's agent, a Pi turn's bridge — and rests on the provider elsewhere.
 

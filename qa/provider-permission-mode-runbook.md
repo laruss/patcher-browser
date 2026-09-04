@@ -335,6 +335,59 @@ Expected:
 - `workspace-write` and `full` can create and remove the empty commit.
 - `readonly` must not attempt the commit probe.
 
+## Git-Metadata Boundary Probe (Claude Code, Linux)
+
+The one square of the provider-boundary matrix no test can reach. Everything
+else about the git-execution files is pinned automatically — Codex by
+`packages/agent-runtime/src/codex/permission-profile.sandbox.test.ts` on both
+backends, Patcher's own sandbox by
+`apps/host-daemon/src/terminals/terminal-sandbox.git.test.ts`, and the fact that
+all four enforcers are handed the whole list by
+`apps/host-daemon/src/provider-boundary-matrix.test.ts`. Claude Code's own
+sandbox needs a live session, and a session needs credentials, so this half is
+run by a person. `docs/security.md` records the answers; run this when the
+`denyWrite` list, the sandbox settings in
+`claude-code/bridge/session-options.ts`, or the Claude Code version changes.
+
+Needs no Patcher thread — `claude` applies the same settings from a file:
+
+```bash
+WS=$(mktemp -d)/checkout && mkdir -p "$WS" && cd "$WS"
+git init -q -b main && git config user.email qa@example.com && git config user.name QA
+printf hello > file.txt && git add -A && git commit -qm init
+mkdir -p .git/info && : > .git/info/attributes && : > .git/config.worktree
+
+cat > /tmp/patcher-deny.json <<JSON
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "denyWrite": [
+        "$WS/.git/config",
+        "$WS/.git/config.worktree",
+        "$WS/.git/hooks",
+        "$WS/.git/info/attributes"
+      ]
+    }
+  }
+}
+JSON
+
+claude -p 'Run exactly this one command and show me its output verbatim, then stop: sh -c "for f in .git/config .git/config.worktree .git/info/attributes; do if printf x >> \$f 2>/dev/null; then echo wrote:\$f; else echo refused:\$f; fi; done; if printf x > .git/hooks/pre-commit 2>/dev/null; then echo wrote:hooks; else echo refused:hooks; fi; if mv .git .gitx 2>/dev/null; then echo renamed:git; mv .gitx .git; else echo refused:rename-git; fi; if printf x > allowed.txt 2>/dev/null; then echo wrote:workspace; else echo refused:workspace; fi; if printf x > .git/probe 2>/dev/null; then echo wrote:git-inside; else echo refused:git-inside; fi; if git add -A >/dev/null 2>&1; then echo staged:ok; else echo refused:staging; fi"' \
+  --settings /tmp/patcher-deny.json --permission-mode acceptEdits --allowedTools Bash
+```
+
+Expected — and the last three lines matter as much as the refusals, because a
+misapplied settings file refuses everything and a run of all-refusals reads
+exactly like a boundary that holds:
+
+- `refused:` for the four git-execution entries and for `mv .git .gitx`
+- `wrote:workspace`, `wrote:git-inside`, `staged:ok`
+
+Record the result in `qa/manual-pass-log.md` with the Claude Code version, and
+update the platform table in `docs/security.md` if any answer moved.
+
 ## CLI Matrix Spawn
 
 Spawn fresh managed worktrees:
