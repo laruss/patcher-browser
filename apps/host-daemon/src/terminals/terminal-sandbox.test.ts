@@ -566,8 +566,17 @@ describe("the Linux credential boundary", () => {
           deniedReadPaths: [existingPath, laterPath],
         };
         // Written after the launch has started, from outside it, which is the
-        // daemon's own timing.
-        setTimeout(() => writeFileSync(laterPath, "NEWEST-ROWS\n"), 300);
+        // daemon's own timing. A *process* rather than a `setTimeout`: the
+        // launch below runs through `spawnSync`, which holds the event loop, so
+        // a timer would not fire until the sandbox had already looked and the
+        // two refusals below would have been a file that was never there —
+        // which is exactly how this test first passed on a machine that skips
+        // it.
+        const writer = spawn(
+          "/bin/sh",
+          ["-c", `sleep 1; printf 'NEWEST-ROWS\\n' > ${laterPath}`],
+          { stdio: "ignore" },
+        );
 
         const output = runInSandbox(
           fixture,
@@ -588,6 +597,7 @@ describe("the Linux credential boundary", () => {
         // it has to make as a mode-0444 file, so a boundary built that way
         // would have left SQLite unable to write its own WAL.
         expect(readFileSync(laterPath, "utf8")).toContain("NEWEST-ROWS");
+        expect(writer.exitCode).toBe(0);
       } finally {
         rmSync(dataDir, { recursive: true, force: true });
       }
