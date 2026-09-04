@@ -36,7 +36,7 @@ function createPackageJson({ name, version }) {
 }
 
 function createReadme(version) {
-  return `**[Download the alpha](https://example.invalid/releases)** --\na \`.dmg\` for **macOS on Apple Silicon**, currently \`${version}\`. Open it and\ndrag Patcher to Applications.\n`;
+  return `**[Download the alpha](https://example.invalid/releases)** --\na \`.dmg\` for **macOS on Apple Silicon**, currently \`${version}\`. Open it and\ndrag Patcher to Applications.\n\nWhat the browser sends with a request (currently \`nothing\`) is in the security\nmodel.\n`;
 }
 
 function createInstallationDoc(version) {
@@ -193,6 +193,23 @@ describe("bump-version", () => {
     expect(
       readFileSync(join(repoRoot, "docs", "installation.md"), "utf8"),
     ).toContain("`0.0.6` at the time of writing");
+  });
+
+  // A short anchor -- "currently `" on its own -- matches other sentences in the
+  // same shape, so a reworded download sentence would leave the bump rewriting
+  // one of those and reporting success. The README fixture carries such a
+  // sentence; the version in it may not move.
+  it("rewrites the download sentence and not another in the same shape", () => {
+    const repoRoot = createTestRepo({
+      patcherAppVersion: "0.0.6",
+      desktopVersion: "0.0.6",
+    });
+    const result = runScript(repoRoot, ["0.0.7"]);
+    const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+
+    expect(result.status).toBe(0);
+    expect(readme).toContain("Apple Silicon**, currently `0.0.7`");
+    expect(readme).toContain("(currently `nothing`)");
   });
 
   // The bump is the only thing that keeps those two documents true, and it runs

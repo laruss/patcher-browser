@@ -53,16 +53,20 @@ running it unconfined.
 ### Consent
 
 - A repository's own `.patcher-env-setup.sh` asks before it runs. The answer is
-  remembered per machine, checkout and file contents, and is revocable in
-  Project Settings; allows made before this build are dropped, so the question
-  is asked once more.
+  remembered per project, machine, checkout and file contents, and is revocable
+  in Project Settings; allows made before this build are dropped, so the
+  question is asked once more.
 - A terminal can answer a consent prompt, so a headless host is no longer a
   thread nobody can unblock.
 - A plugin cannot answer one — in either direction. Allowing and dismissing are
   a person's, not something a plugin holding `threads` settles while a turn
   waits.
 - An MCP server's tool in a Codex turn asks, instead of being refused.
-- A host nobody put on the list asks, instead of failing as a network error.
+- A host nobody put on the list raises a prompt naming the host, the provider
+  and the port. The attempt that raised it has usually given up by the time it
+  is answered — an agent's own HTTP client stops waiting after ten seconds — so
+  the answer is what matters: it is remembered, and the next attempt is the one
+  that goes through.
 
 ### Terminals
 
@@ -85,7 +89,9 @@ running it unconfined.
   default.
 - ACP agents — Cursor, OpenCode, Grok and Hermes — run inside the boundary their
   mode promises, with the state directories and hosts each one needs measured
-  rather than guessed, and a registered agent can declare its own.
+  rather than guessed, and a registered agent can declare its own. An agent that
+  has declared none has nothing to confine it into, and runs unconfined with the
+  thread saying so rather than being refused.
 - Pi has a mode besides Full Access. Its network is not confined there, and
   Patcher says so rather than implying otherwise: its client ignores the proxy.
 - The `patcher` CLI reaches a Codex turn as a tool, not only over the network.
@@ -98,13 +104,13 @@ running it unconfined.
 
 ### Browser tools
 
-- Nine things an agent trips over in `patcher browser`, including a scoped page
-  read, and four more a later review found: `wait --url` matches a pattern with
-  a `?` in it, so a redirect ending in a query string is waitable at all;
-  `--tab` takes a URL or title substring rather than only something shaped like
-  an id; a scoped read has a deadline of its own instead of hanging on the
-  page's; and `wait --text` searches the whole page rather than the first 20 000
-  characters of it.
+- Nine `patcher browser` fixes, including a scoped page read, and four more a
+  later review found: `wait --url` matches a pattern with a `?` in it, so a
+  redirect ending in a query string is waitable at all; `--tab` takes a URL or
+  title substring rather than only something shaped like an id; a scoped read
+  has a deadline of its own instead of waiting out the server's; and
+  `wait --text` searches the whole page rather than the first 20 000 characters
+  of it.
 - A browser action that refuses says which check refused it, instead of
   sometimes reporting a deadline that expired while it was asking.
 

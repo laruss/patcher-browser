@@ -24,11 +24,17 @@ const packageTargets = [
  * they fall behind a bump: `.github/workflows/check-version-lockstep.mjs`
  * compares the two `package.json` files with each other, not with the documents.
  *
- * Each pattern anchors on the sentence around the number rather than on the
- * number itself. A version string on its own appears in the tree for reasons
- * that must not move with a bump -- `desktop-v0.1.1-alpha.2` names the tag a
- * review ran against -- so a rewriter hunting for the old number would take
- * those with it.
+ * Each pattern anchors on the download sentence rather than on the number, and
+ * on enough of that sentence to be unique to it. A version string on its own
+ * appears in the tree for reasons that must not move with a bump --
+ * `desktop-v0.1.1-alpha.2` names the tag a review ran against -- so a rewriter
+ * hunting for the old number would take those with it. And a short anchor is
+ * worse than a long one in a way that is easy to miss: `currently \`` alone goes
+ * on matching after the download sentence is reworded, taking whatever other
+ * sentence of that shape the document has grown -- README.md is one punctuation
+ * mark away from such a sentence already, at line 180 -- and the bump would then
+ * rewrite that one and report success. The test fixture carries the matching
+ * form, so this is pinned rather than argued.
  *
  * **A pattern that does not match exactly once fails the bump.** Prose does get
  * reworded, and a rewriter that shrugs at a pattern it can no longer find is how
@@ -47,12 +53,16 @@ export const documentTargets = [
   {
     label: "README.md",
     path: "README.md",
-    pattern: /(currently `)([^`\n]+)(`)/gu,
+    pattern:
+      /(a `\.dmg` for \*\*macOS on Apple Silicon\*\*, currently `)([^`\n]+)(`)/gu,
   },
   {
     label: "docs/installation.md",
     path: "docs/installation.md",
-    pattern: /(`)([^`\n]+)(` at the time of writing)/gu,
+    // The dash between `.dmg` and the number is matched loosely on purpose: it
+    // is an em dash in the document, and spelling one in a source file is a
+    // needless way to make this pattern depend on an encoding.
+    pattern: /(a `\.dmg` [^`\n]*`)([^`\n]+)(` at the time of writing)/gu,
   },
 ];
 const semverPattern =

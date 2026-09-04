@@ -249,6 +249,34 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"],
       "env": ["PATCHER_CODEX_CLI_VERSION"]
     },
+    // The scripts suite is the only one that asserts things about the repository
+    // rather than about its own package: that CHANGELOG.md carries an entry for
+    // the version the two lockstep packages are on, and that the sentences in
+    // README.md and docs/installation.md naming the download are still the ones
+    // bump-version.mjs rewrites. None of those files is a package-local default,
+    // and neither are the four root scripts the suite imports.
+    //
+    // Measured, not assumed. Without this block the task hash is byte-identical
+    // before and after editing scripts/bump-version.mjs, README.md or
+    // CHANGELOG.md, and moves only for the test file itself -- so a release
+    // commit is exactly the shape that would have been served from cache: two
+    // versions, a changelog entry and two documents, with nothing under
+    // packages/scripts touched at all. With it, all seven files probed move the
+    // hash: the two root scripts the suite imports, the three documents, and the
+    // two manifests.
+    "@patcher/scripts#test": {
+      "dependsOn": ["//#ensure-native-modules", "topo"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/vitest.shared.ts",
+        "$TURBO_ROOT$/scripts/*.mjs",
+        "$TURBO_ROOT$/CHANGELOG.md",
+        "$TURBO_ROOT$/README.md",
+        "$TURBO_ROOT$/docs/installation.md",
+        "$TURBO_ROOT$/packages/patcher-app/package.json",
+        "$TURBO_ROOT$/apps/desktop/package.json"
+      ]
+    },
     "@patcher/templates#test": {
       "dependsOn": [
         "//#ensure-native-modules",
