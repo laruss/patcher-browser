@@ -368,6 +368,51 @@ shell somebody is typing into — so confining it would turn `npm install` and
 `git push` into silent failures. What the boundary closes is the filesystem
 class, which is what made the route a hole.
 
+**A write does not have to be a write, and this section used to overstate what
+the macOS backend closed.** The Seatbelt profile starts from `(allow default)`
+and takes writes away, which leaves every Mach service on the machine reachable
+— and a service that writes or launches for its caller does it as itself, where
+none of those rules apply. Measured under the profile the product builds:
+`defaults write patcher.sbx.probe escaped -bool true` was rc 0 and the plist
+appeared in `~/Library/Preferences`, written by cfprefsd on the shell's behalf;
+and an `.app` bundle written inside the workspace and handed to `open` ran with
+the user's whole home and network, touching a file in `$HOME` and fetching 559
+bytes from `example.com`. The second one is not only a filesystem escape: with
+the same bundle under an egress-confined profile, `curl` inside the sandbox
+could not resolve a name and the copy `open` launched fetched those bytes
+anyway, so the proxy a confined provider turn is held to was one command from
+being decorative too.
+
+Both are refused now, and by the operation each is checked under rather than by
+service name — `user-preference-write`, so `defaults read` keeps answering,
+which taking cfprefsd away by name would not; and `lsopen`, because denying
+`com.apple.coreservices.launchservicesd`, the `com.apple.lsd.*` names and
+`com.apple.CoreServices.coreservicesd` each left the launch at rc 0, while
+denying `mach-lookup` wholesale, which does stop it, is not a profile a shell
+survives. `appleevent-send` is denied as well: it was already refused before the
+rule, because a sandboxed process has no apple-events entitlement — measured
+under a bare `(version 1)(allow default)`, where `tell application "Finder"` is
+a privilege violation while the same line unsandboxed answers — and the rule is
+kept so that the refusal is the profile's rather than a framework's.
+`launchctl bootstrap` of a plist in the workspace was already refused too, with
+EIO, and `~/Library/LaunchAgents` is a denied write.
+
+The cost is `open`: a shell in a confined terminal can no longer open a URL or a
+file in an application, and a CLI that wanted a browser for an auth flow has to
+print its URL instead. That is the same trade every rule here makes — the
+browser `open` would have launched is a program with the user's whole machine.
+
+What stays open on macOS, measured under the same profile: the pasteboard, so
+`pbcopy` still puts text in front of whoever is at the keyboard; `launchctl
+kickstart` of a service the user already has, which restarted Finder from inside
+the sandbox — disruption rather than execution, since a job of the shell's own
+choosing needs the `bootstrap` that is refused or a plist in a directory it
+cannot write; and reads, because `(allow default)` still reads every file the
+user can, minus the credential files the policy names. The Linux backend has the
+same class through unix sockets and it is not closed here — a session bus or a
+systemd user session is a way to ask something outside the namespace to run a
+program, tracked in #64 below.
+
 **An ACP turn's agent runs inside that same boundary.** ACP has a sandboxed
 mode on paper — Cursor's `accept-edits` — and it is a path check on
 `fs/write_text_file` in Patcher's bridge, so it holds for the edits the agent
@@ -1126,6 +1171,17 @@ Named here rather than left to be rediscovered:
   (above), which makes the old reason for leaving a terminal alone — a blocked
   connection has nowhere to raise a prompt — the thing to revisit rather than
   the end of it.
+- **What a confined terminal can still ask the system to do for it.** The macOS
+  profile denies the two operations a shell was measured writing and launching
+  through, plus the AppleEvent it was already refused for want of an
+  entitlement. Two measured things are knowingly left behind: the pasteboard, so
+  `pbcopy` still reaches whoever is at the keyboard, and `launchctl kickstart`
+  of a service the user already has, which restarted Finder from inside the
+  sandbox. Neither runs a program the shell chose — that needs the `launchctl
+  bootstrap` the sandbox is refused, or a plist in a directory the profile does
+  not make writable — so what is left is nuisance and a channel to the person,
+  not a way out. On Linux the same class is open wider, over unix sockets, and
+  is tracked in #64.
 - **What the egress boundary leaves open, when it is on.** Three things, all
   named where the feature is described: loopback stays reachable, so a local
   service with a network of its own is a way around the proxy; an allowed host

@@ -25,6 +25,15 @@ running it unconfined.
   path is spelled the way the rule expected. Renaming `.git`, editing the file
   and renaming it back walked around every one of those denies; each directory
   on the way to a protected path is now protected as a name.
+- **A program outside its own sandbox.** On macOS a confined shell could ask the
+  system to do what it had been refused directly: `defaults write` put a file in
+  `~/Library/Preferences` through the preferences daemon, and an application
+  bundle written inside the workspace and handed to `open` ran with the whole of
+  the user's home and network — including the network of a turn whose egress was
+  confined to a list. Both are refused now, and so is sending an AppleEvent to
+  another application. The cost is `open` itself: a confined terminal can no
+  longer hand a URL or a file to an application, so a tool that wanted a browser
+  has to print its link instead.
 - **Other threads.** A turn drives its own thread and the ones it spawned. A
   thread it creates can only name the caller's own thread as its parent and the
   caller's own project — a parent is not a filing label, it is a turn dispatched

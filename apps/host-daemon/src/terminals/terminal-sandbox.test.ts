@@ -1,5 +1,12 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import net from "node:net";
@@ -334,6 +341,203 @@ describe("the Linux network boundary", () => {
       } finally {
         await loopback.close();
       }
+    },
+  );
+});
+
+/**
+ * The IPC half of the macOS profile: a write or a launch a Mach service makes
+ * on the shell's behalf, which the file rules say nothing about.
+ *
+ * These only ever run on a developer's Mac — CI runs the suites on
+ * `ubuntu-latest` — so what CI protects here is the Linux backend and nothing
+ * else. That is the same reach the quote test below has, and the reason each of
+ * these runs the sandbox rather than reading the profile back: a profile
+ * assertion would pass on Linux while proving nothing anywhere.
+ *
+ * Each one establishes its own positive control first, and that is the whole
+ * design rather than caution. A refusal is the easiest thing in the world to
+ * get for the wrong reason — a `PATH` without `/usr/bin`, a Mac with no GUI
+ * session, Gatekeeper, an application that is not running — and every one of
+ * those leaves the same "it was refused" the boundary leaves. So the shape here
+ * is: prove the operation works outside the sandbox on this machine, then prove
+ * it does not inside.
+ */
+
+/** Wait for a program `open` started, which runs after `open` has answered. */
+function waitForLaunchedProgram(): void {
+  execFileSync("/bin/sleep", ["3"]);
+}
+
+/**
+ * A path as one word to `/bin/sh`.
+ *
+ * `JSON.stringify` is not this: it produces double quotes, where a `$` or a
+ * backtick in the path is still expanded, and `TMPDIR` is the environment's to
+ * choose. The suite has a test for a quote in a path for the same reason.
+ */
+function quoteForShell(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+/** The bundle an agent would build: a program of its own, inside the workspace. */
+function writeLaunchableBundle(bundlePath: string, markerPath: string): void {
+  const executablePath = path.join(bundlePath, "Contents", "MacOS", "escape");
+  mkdirSync(path.dirname(executablePath), { recursive: true });
+  writeFileSync(
+    path.join(bundlePath, "Contents", "Info.plist"),
+    `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>escape</string>
+<key>CFBundleIdentifier</key><string>patcher.terminal.sandbox.test.escape</string>
+<key>CFBundleName</key><string>Escape</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+`,
+  );
+  writeFileSync(
+    executablePath,
+    `#!/bin/sh\n/usr/bin/touch ${quoteForShell(markerPath)}\n`,
+  );
+  chmodSync(executablePath, 0o755);
+}
+
+describe("the macOS profile's IPC boundary", () => {
+  it.skipIf(process.platform !== "darwin")(
+    "refuses the preference write cfprefsd would make for it, and keeps the read",
+    () => {
+      fixture = createFixture();
+      // Unique to this process, and removed either way below — a broken
+      // boundary is exactly the case where the domain gains a key.
+      const domain = `patcher.terminal.sandbox.test.${process.pid}`;
+      const plistPath = path.join(
+        homedir(),
+        "Library",
+        "Preferences",
+        `${domain}.plist`,
+      );
+
+      try {
+        // The control, and it does two jobs: it proves `defaults` runs and
+        // writes on this machine, and it gives the read below something to
+        // answer with. Without it, a read that is refused and a read of a
+        // domain that does not exist look the same.
+        execFileSync("/usr/bin/defaults", [
+          "write",
+          domain,
+          "seeded",
+          "-bool",
+          "true",
+        ]);
+
+        const output = runInSandbox(
+          fixture,
+          `/usr/bin/defaults read ${domain}; ` +
+            `/usr/bin/defaults write ${domain} escaped -bool true && echo WROTE || echo write-refused; ` +
+            `/usr/bin/defaults read ${domain}`,
+        );
+
+        // The read answers, so the deny is on writing rather than on the
+        // service: a profile that took cfprefsd away by name would leave every
+        // tool that reads a preference failing.
+        expect(output).toContain("seeded = 1");
+        expect(output).toContain("write-refused");
+        // And the domain is what it was, asked from inside and from outside:
+        // `defaults` reporting a failure is not the same statement as nothing
+        // having been written, and the store this one lands in is the user's.
+        expect(output).not.toContain("escaped");
+        expect(
+          spawnSync("/usr/bin/defaults", ["read", domain], {
+            encoding: "utf8",
+          }).stdout,
+        ).not.toContain("escaped");
+      } finally {
+        spawnSync("/usr/bin/defaults", ["delete", domain]);
+        rmSync(plistPath, { force: true });
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "refuses to launch a program outside the sandbox through LaunchServices",
+    (ctx) => {
+      fixture = createFixture();
+      // The bundle goes in the workspace the turn may write, and `open` asks
+      // launchd to run it — so the process that appears is not a child of this
+      // one and none of the rules above reach it. Its program only touches the
+      // fixture, so a broken boundary leaves a marker to assert on and nothing
+      // on the machine.
+      const markerPath = path.join(fixture.workspacePath, "..", "escaped");
+      const bundlePath = path.join(fixture.workspacePath, "Escape.app");
+      writeLaunchableBundle(bundlePath, markerPath);
+
+      // The control: the same bundle, opened from here. A Mac that refuses to
+      // launch it at all — Gatekeeper, a policy — cannot tell the boundary's
+      // refusal from its own, so it says so instead of passing. `spawnSync`
+      // rather than `execFileSync`, because `open` failing is one of the ways
+      // that machine presents and throwing here would read as a defect.
+      spawnSync("/usr/bin/open", ["-g", bundlePath]);
+      waitForLaunchedProgram();
+      if (!existsSync(markerPath)) {
+        ctx.skip(
+          `this machine did not launch ${bundlePath} outside the sandbox either, so the refusal below would prove nothing`,
+        );
+        return;
+      }
+      rmSync(markerPath, { force: true });
+
+      const output = runInSandbox(
+        fixture,
+        `open -g ${quoteForShell(bundlePath)} && echo OPENED || echo open-refused`,
+      );
+
+      // Both halves: the message says LaunchServices is what refused, and the
+      // marker says nothing ran anyway.
+      expect(output).toContain("open-refused");
+      expect(output).toContain("_LSOpenURLsWithCompletionHandler");
+      waitForLaunchedProgram();
+      expect(existsSync(markerPath)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "refuses an AppleEvent to an application outside the sandbox",
+    (ctx) => {
+      fixture = createFixture();
+      const script = `tell application "Finder" to get name of home`;
+      const homeName = path.basename(homedir());
+
+      // The control again, and here it carries the assertion as well: this is
+      // the answer the event returns when it goes through, so its absence
+      // below is what "refused" means. A Mac with no GUI session, or one whose
+      // automation permission this caller does not have, fails the same way
+      // the boundary does — and says so rather than passing.
+      const control = spawnSync("/usr/bin/osascript", ["-e", script], {
+        encoding: "utf8",
+      });
+      if (control.status !== 0 || !control.stdout.includes(homeName)) {
+        ctx.skip(
+          `this machine does not answer '${script}' outside the sandbox (${control.status}), so the refusal below would prove nothing`,
+        );
+        return;
+      }
+
+      const output = runInSandbox(
+        fixture,
+        `osascript -e ${quoteForShell(script)} && echo SENT || echo event-refused`,
+      );
+
+      expect(output).toContain("event-refused");
+      expect(output).not.toContain(homeName);
+      // And refused by this profile, which is the part `(deny appleevent-send)`
+      // adds: without the rule a sandboxed process is refused anyway, for
+      // having no apple-events entitlement, and that refusal is a privilege
+      // violation (-10004). Measured three times each way. Asserting the
+      // absence of that code rather than the presence of the one seen with the
+      // rule (-600, the application "isn't running") leaves room for macOS to
+      // spell the profile's refusal differently without failing here.
+      expect(output).not.toContain("-10004");
     },
   );
 });

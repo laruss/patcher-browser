@@ -31,12 +31,33 @@ import path from "node:path";
  *   under seatbelt, "Permission denied" under the `/dev/null` bind, which is a
  *   character device where a regular file was.
  *
+ * A write does not have to be a write, and that is the second half of the
+ * filesystem policy rather than a separate one. The macOS profile starts from
+ * `(allow default)`, so every Mach service on the machine stays reachable, and
+ * a service that writes or launches for its caller does so as itself — where
+ * the rules above are not. Measured under the product profile: `defaults write`
+ * put a plist in `~/Library/Preferences` through cfprefsd, and an `.app`
+ * written inside the workspace and handed to `open` ran with the user's whole
+ * home and network. Both are refused now, by the operation each is checked
+ * under rather than by service name; `buildSeatbeltProfile` records the
+ * measurements and what is knowingly left open.
+ *
+ * The Linux backend has the same class and it is not closed here. A service
+ * outside the namespace is reached over a unix socket, and a unix socket
+ * through a read-only bind connects — measured, for the loopback relay below,
+ * which is built on exactly that. So a machine with a systemd user session or
+ * a D-Bus session bus has a way to ask something outside the sandbox to run a
+ * program, and `--ro-bind / /` carries the socket in. Which sockets a launch
+ * should not see is the question issue #64 is about; measuring it in a
+ * container would answer the wrong machine, because a container has no user
+ * session bus to begin with and a negative there says nothing about a desktop.
+ *
  * A terminal's network is not confined, and that is a decision rather than an
  * omission. A blocked connection in a terminal has nowhere to raise a prompt —
  * nobody can grant it back — so confining it would turn `npm install` and `git
  * push` into silent failures. The class this closes for a terminal is the
  * filesystem one, which is what made the route a hole; `docs/security.md` says
- * so in as many words.
+ * so in as many words, and says which IPC-mediated writes stay open with it.
  *
  * A *provider process* can ask for more, through `egressConfined` below: there
  * the way out is a proxy Patcher runs, so a host that is not on the list is a
@@ -383,10 +404,62 @@ function buildSeatbeltProfile(args: BuildTerminalSandboxLauncherArgs): string {
   ]);
   return [
     "(version 1)",
-    // Reads and everything else stay as they are: this confines writes and the
-    // named files, and nothing else. A deny-by-default profile would be a
+    // Reads stay as they are: this confines writes, the named files, and the
+    // three IPC operations below. A deny-by-default profile would be a
     // different feature, and one no shell survives without a much longer list.
     "(allow default)",
+    // The IPC half of a write. `(allow default)` leaves every Mach service
+    // reachable, and a service that writes or launches on a caller's behalf
+    // does it as itself — outside this profile, where the rules above say
+    // nothing. Measured on the profile this function builds, before these
+    // three lines and after:
+    //
+    // - `defaults write patcher.sbx.probe escaped -bool true` was rc 0 and
+    //   `~/Library/Preferences/patcher.sbx.probe.plist` appeared: cfprefsd
+    //   wrote it. `user-preference-write` is the operation that path is
+    //   checked under, and denying it leaves `defaults read` answering, which
+    //   a Mach-name deny would not. It is the operation and not the tool: with
+    //   it, `-g`, `-currentHost`, a domain named by path, another user domain
+    //   (`com.apple.dock`) and `defaults delete` are all refused, and none of
+    //   them left anything behind.
+    // - An `.app` bundle written inside the workspace and handed to `open` ran
+    //   with the user's whole home and network: it touched `~/.probe` and
+    //   fetched 559 bytes from example.com. `open` returns before the program
+    //   runs, and the program is launchd's child rather than the shell's, so
+    //   nothing above reaches it — including `egressConfined`, measured on the
+    //   same bundle under a profile with `(deny network*)`, where `curl` inside
+    //   the sandbox could not resolve a name (rc 6) and the launched copy
+    //   fetched the 559 bytes anyway. The operation is `lsopen` rather
+    //   than a service name — denying
+    //   `com.apple.coreservices.launchservicesd`, `com.apple.lsd.*` and
+    //   `com.apple.CoreServices.coreservicesd` by name each left the launch at
+    //   rc 0, and `(deny mach-lookup)` wholesale, which does stop it, is not a
+    //   profile a shell survives. With `lsopen` denied the same launch is
+    //   `_LSOpenURLsWithCompletionHandler() failed with error -54` and nothing
+    //   starts.
+    // - An AppleEvent to another application was already refused, and not by
+    //   this profile: a sandboxed process has no
+    //   `com.apple.security.automation.apple-events` entitlement, so under a
+    //   bare `(version 1)(allow default)` `tell application "Finder"` is a
+    //   privilege violation (-10004) while the same line unsandboxed answers.
+    //   The rule is kept because it makes that a rule rather than an
+    //   assumption about a framework's entitlement check: with it the refusal
+    //   changes shape (the application "isn't running"), and it costs nothing
+    //   measurable — `osascript` still evaluates and its `do shell script`
+    //   still runs, inside the sandbox.
+    //
+    // What stays open is in `docs/security.md`: the pasteboard, and
+    // `launchctl kickstart` of a service the user already has. Both were
+    // measured too, and neither runs code this side chose — `launchctl
+    // bootstrap` of a plist in the workspace is refused with EIO, and
+    // `~/Library/LaunchAgents` is a denied write. There is no rule here for
+    // the second one, and that is measured rather than skipped: denying
+    // `mach-lookup` for the `com.apple.xpc.launchd.*` names left
+    // `launchctl kickstart gui/<uid>/com.apple.Finder` at rc 0, so launchctl
+    // is not reaching launchd through a name a profile can filter.
+    "(deny user-preference-write)",
+    "(deny lsopen)",
+    "(deny appleevent-send)",
     '(deny file-write* (subpath "/"))',
     ...writable.map(
       (writablePath) =>
