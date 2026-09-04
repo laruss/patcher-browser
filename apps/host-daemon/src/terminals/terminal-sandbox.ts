@@ -3,6 +3,7 @@ import {
   accessSync,
   constants,
   lstatSync,
+  readdirSync,
   realpathSync,
   statSync,
 } from "node:fs";
@@ -80,6 +81,34 @@ export interface TerminalSandboxPolicy {
   readOnlyPaths: readonly string[];
   /** Files that must not be read at all. */
   deniedReadPaths: readonly string[];
+  /**
+   * An empty file the daemon owns, for a read-only path that does not exist.
+   *
+   * Bubblewrap only confines a path by mounting over it, so a protected file a
+   * turn could still create has to have *something* mounted where it would be
+   * — and what that something is turns out to matter. `/dev/null` was the
+   * obvious choice and is a character device: bubblewrap mounts `nodev`, so git
+   * reads it as unreadable rather than as empty and prints
+   * `warning: unable to access '.git/info/attributes': Permission denied`
+   * twice per command. An empty directory (`--tmpfs`) removes the warning and
+   * breaks something worse — measured with `extensions.worktreeConfig` set,
+   * which is the layout `workspace: managed-worktree` runs: a directory where
+   * `config.worktree` belongs makes `git status`, `git add` and `git config`
+   * all exit 128 with "unknown error occurred while reading the configuration
+   * files", and bubblewrap leaves that directory behind on the host.
+   *
+   * So an empty regular file, and one the sandbox cannot write: it is bound
+   * read-only at the destination, but a source under `/tmp` would be a source
+   * the turn can rewrite — `/proc/self/mountinfo` names it — and the next
+   * launch would bind whatever it wrote there as that repository's
+   * `.gitattributes`. The daemon keeps it in its own data directory instead.
+   *
+   * Optional because the module has callers with no daemon behind them: a
+   * launch without one falls back to `/dev/null` and the warning, which is
+   * where this started. macOS never needs it — Seatbelt denies a path whether
+   * or not anything is there.
+   */
+  emptyFilePath?: string;
   /**
    * Refuse every outbound connection that leaves the machine, leaving loopback
    * alone. Set for a provider process whose turn confines egress, where the
@@ -192,16 +221,38 @@ function isExecutableFile(candidatePath: string): boolean {
  * probe Patcher would report a sandbox, open the terminal, and hand back a
  * shell that dies on its first line with a message about uid maps.
  *
- * Run once per daemon and remembered: it costs a process, and the answer
- * cannot change without a reboot.
+ * A success is remembered for the daemon's life, because it costs a process and
+ * a machine that can build a namespace does not stop being able to. **A failure
+ * is remembered for a minute and no longer**, which is the correction: the old
+ * cache kept both forever, and the remedy this module prints — "allow
+ * unprivileged user namespaces on this machine" — is something a user does
+ * *while the daemon is running*. CI does it in one line
+ * (`sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`), and until the
+ * daemon restarted, every terminal on a machine that had just been fixed was
+ * still refused. A probe that timed out once under load was cached the same
+ * way: as a permanent property of the machine.
  */
-const linuxSandboxProbeResults = new Map<string, string | null>();
+const linuxSandboxProbeResults = new Map<
+  string,
+  { failure: string | null; expiresAt: number }
+>();
+
+/** How long a refusal is trusted before the probe is run again. */
+const LINUX_SANDBOX_PROBE_FAILURE_TTL_MS = 60_000;
 
 /**
  * `unshareNet` is probed separately rather than assumed from the rest: taking
  * the network needs a network namespace, and a machine or container that
  * forbids one would otherwise pass this probe and then fail at launch, which
  * is the failure this probe exists to move earlier.
+ *
+ * The argv is the launch's own shape, and that is the point rather than
+ * tidiness: it used to omit `--proc /proc`, so on a machine where `/proc`
+ * cannot be mounted this passed and the shell died on its first line instead,
+ * with the row still reading `sandboxed: true` — the failure `ec1d5a00e` moved
+ * earlier, arriving one step later. `--unshare-pid` is here for the same
+ * reason, and anything the launch adds that the kernel can refuse belongs here
+ * too.
  */
 function probeLinuxSandbox(
   helperPath: string,
@@ -209,7 +260,9 @@ function probeLinuxSandbox(
 ): string | null {
   const cacheKey = `${helperPath}\u0000${String(options.unshareNet)}`;
   const cached = linuxSandboxProbeResults.get(cacheKey);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined && cached.expiresAt > Date.now()) {
+    return cached.failure;
+  }
   const result = spawnSync(
     helperPath,
     [
@@ -219,6 +272,9 @@ function probeLinuxSandbox(
       "--dev-bind",
       "/dev",
       "/dev",
+      "--proc",
+      "/proc",
+      "--unshare-pid",
       ...(options.unshareNet ? ["--unshare-net"] : []),
       "/bin/true",
     ],
@@ -230,7 +286,13 @@ function probeLinuxSandbox(
       : (result.stderr?.trim().split("\n").at(-1) ??
         result.error?.message ??
         `exited with ${String(result.status)}`);
-  linuxSandboxProbeResults.set(cacheKey, failure);
+  linuxSandboxProbeResults.set(cacheKey, {
+    failure,
+    expiresAt:
+      failure === null
+        ? Number.POSITIVE_INFINITY
+        : Date.now() + LINUX_SANDBOX_PROBE_FAILURE_TTL_MS,
+  });
   return failure;
 }
 
@@ -565,6 +627,138 @@ function findUnbindableProtectedPath(
   ]);
 }
 
+/**
+ * The places a Linux machine keeps the sockets of services outside the
+ * sandbox, hidden from a launch that confines the network.
+ *
+ * A unix socket is not network-namespaced — that is how the loopback relay
+ * reaches the daemon from inside `--unshare-net` at all — and `--ro-bind / /`
+ * carries every other one in with it. Measured in a Debian container with the
+ * argv this module builds: a `socat` listener outside the namespace, reached
+ * from inside a `--unshare-net` sandbox, ran `touch` on the host. On a desktop
+ * that listener is the session bus or systemd's own socket, where the command
+ * is `systemd-run --user`, and `/run/docker.sock` is one more.
+ *
+ * Only for a launch that already unshares the network, which is what makes
+ * this cheap: such a launch reaches the network through the proxy over the
+ * relay's sockets, so it has no use for `/run` — while a terminal, whose
+ * network is deliberately open, keeps its name resolution, some of which lives
+ * under `/run` on a systemd-resolved machine.
+ *
+ * Each is resolved before it is used, and `/var/run` is why: it is a symlink to
+ * `/run` on Debian, and mounting over a symlink fails the whole launch ("Can't
+ * mount on symlink destination"). Resolving turns it into `/run`, which the
+ * list already has, so it drops out rather than being skipped — and the same
+ * resolution is what lets an `$XDG_RUNTIME_DIR` that is a link to a directory
+ * be covered at all. `$XDG_RUNTIME_DIR` is usually `/run/user/<uid>` and so
+ * already inside `/run`; it is named for the machines where it is not.
+ *
+ * These come after the writable binds, because `/tmp/.X11-unix` sits inside
+ * one — a `--bind /tmp /tmp` applied later would restore the host's socket
+ * along with the rest of `/tmp`. So a directory *inside* a writable path is
+ * exactly the case this has to cover, and only a directory that *holds* one is
+ * left alone: there is no order that both hides it and keeps the turn's own
+ * writable area, and a launch that loses `$TMPDIR` fails at its first command.
+ * An overlap test that read both directions the same way was the X11 socket
+ * never being hidden at all, because `/tmp` is always writable. A machine that
+ * puts `$TMPDIR` under `/run` therefore keeps that one reachable, and
+ * `docs/security.md` says so.
+ */
+function linuxServiceSocketDirectories(
+  args: BuildTerminalSandboxLauncherArgs,
+  writablePaths: readonly string[],
+): string[] {
+  const candidates = [
+    "/run",
+    "/var/run",
+    "/tmp/.X11-unix",
+    ...(args.env.XDG_RUNTIME_DIR ? [args.env.XDG_RUNTIME_DIR] : []),
+  ];
+  const directories: string[] = [];
+  for (const candidate of candidates) {
+    const directory = resolveDirectoryPath(candidate);
+    if (directory === undefined) continue;
+    if (directories.some((chosen) => isInside(directory, chosen))) continue;
+    // Only when it would swallow something the turn has to be able to write.
+    if (
+      writablePaths.some((writablePath) => isInside(writablePath, directory))
+    ) {
+      continue;
+    }
+    directories.push(directory);
+  }
+  return directories;
+}
+
+/**
+ * The directory a path names, following links, or undefined if it is not one.
+ *
+ * Following is the point: a mount's destination is resolved by the kernel, so a
+ * symlink is never a destination this backend can use — and a candidate that is
+ * a link to a directory is one it can, under the target's name. Asking `lstat`
+ * whether the *link* was a directory answered no for both, which dropped a
+ * symlinked data directory and a symlinked `$XDG_RUNTIME_DIR` out of the rules
+ * meant to cover them.
+ */
+function resolveDirectoryPath(candidatePath: string): string | undefined {
+  try {
+    const resolved = realpathSync.native(candidatePath);
+    return statSync(resolved).isDirectory() ? resolved : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The directories that have to be replaced wholesale, because a denied path
+ * inside them does not exist yet.
+ *
+ * Seatbelt denies a path whether or not anything is there; this backend can
+ * only mount over what exists, and mounting over a name whose parent is
+ * read-only fails outright — measured: `Can't create file …: Read-only file
+ * system`. So a credential file Patcher writes *after* the launch was readable
+ * to a process that outlives it, which is not hypothetical: SQLite's `-wal`
+ * and `-shm` appear beside the database at the first checkpoint, and a
+ * long-lived provider process is exactly the reader. Measured with the argv
+ * this module builds: with the pre-existing file denied and refused, a file
+ * created on the host a second later was read in full from inside.
+ *
+ * The answer is a fresh empty filesystem over the directory, with everything
+ * that *is* there re-bound read-only — so the sandbox keeps the reads it had,
+ * loses the denied files, and cannot see a name that appears later. What it
+ * costs is a directory listing frozen at launch, which for a directory nothing
+ * inside the sandbox is even told the path of is a cost on paper.
+ *
+ * Not where the parent is writable, and there the answer is to do nothing at
+ * all rather than something narrower: a directory the sandbox may write is one
+ * where the turn is the only thing that can create the file, and a turn's own
+ * file is not a credential. Binding `/dev/null` over the name would work there
+ * — measured — and it leaves a mode-0444 file behind on the host, which for a
+ * `<db>-wal` beside a live database is worse than the leak. The denied-path
+ * loop says the same where it skips them.
+ *
+ * And not where no denied path is missing: a directory whose denied files all
+ * exist is already covered by binding over each of them.
+ */
+function resolveHiddenDeniedParents(
+  deniedPaths: readonly string[],
+  writablePaths: readonly string[],
+): string[] {
+  const parents = new Set<string>();
+  for (const deniedPath of deniedPaths) {
+    if (pathExists(deniedPath)) continue;
+    // Resolved, and not only tidied: a denied path that does not exist yet is
+    // named as given — `resolvedPath` cannot resolve what is not there — so the
+    // parent of `<dataDir>/patcher.db-wal` is still whatever the caller
+    // spelled, and where that is a symlink the mount has to name the target.
+    const parent = resolveDirectoryPath(path.dirname(deniedPath));
+    if (parent === undefined) continue;
+    if (writablePaths.some((root) => isInside(parent, root))) continue;
+    parents.add(parent);
+  }
+  return [...parents].sort();
+}
+
 function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
   const bindArgs: string[] = [
     // Everything readable, nothing writable, and then the exceptions: bwrap
@@ -577,8 +771,56 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     "/dev",
     "--proc",
     "/proc",
+    // A namespace of its own for the process table, because the shared one is
+    // reach. Measured with the argv this module builds: `kill <pid>` from
+    // inside killed a process outside the sandbox — the daemon and the other
+    // terminals are in that table — and with this flag the same kill is
+    // refused, `ps` sees the sandbox's own four processes, and git, a shell and
+    // the launch's exit code (42, checked both ways) are unaffected.
+    //
+    // Reading a sibling's environment was already refused by the user
+    // namespace, which is what #52 was about; this is the other half.
+    "--unshare-pid",
   ];
   const writablePaths = resolvedPaths(linuxWritablePaths(args));
+  // Before the writable binds, and that order is what makes it safe: an empty
+  // filesystem over a directory hides everything under it, so a writable root
+  // inside one — or the workspace itself — is restored by the bind that comes
+  // after. See `resolveHiddenDeniedParents` for why a directory rather than a
+  // file, and for what it costs.
+  const hiddenParents = resolveHiddenDeniedParents(
+    resolvedPaths(args.policy.deniedReadPaths),
+    writablePaths,
+  );
+  const deniedPathsInHiddenParents = new Set(
+    resolvedPaths(args.policy.deniedReadPaths).filter((deniedPath) =>
+      hiddenParents.some((parent) => path.dirname(deniedPath) === parent),
+    ),
+  );
+  for (const parent of hiddenParents) {
+    bindArgs.push("--tmpfs", parent);
+    // A directory this cannot list is one whose entries stay hidden, which is
+    // the safe half of the trade rather than a reason to throw: an unreadable
+    // parent, or one that went away between the `stat` above and here, would
+    // otherwise leave the builder by an exception where every other failure
+    // leaves it as a refusal with a reason.
+    let entries: readonly string[] = [];
+    try {
+      entries = readdirSync(parent);
+    } catch {
+      entries = [];
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(parent, entry);
+      if (deniedPathsInHiddenParents.has(entryPath)) continue;
+      // `-try`, because a listing is only true at the instant it was taken: a
+      // dangling symlink has no source to bind at all, and an ordinary entry
+      // can be gone before bwrap reads this argv. A mandatory bind would then
+      // exit with "Can't find source path" on a launch this module has already
+      // answered `sandboxed: true` for.
+      bindArgs.push("--ro-bind-try", entryPath, entryPath);
+    }
+  }
   const boundWritablePaths = new Set<string>();
   for (const writablePath of writablePaths) {
     if (!pathExists(writablePath)) continue;
@@ -638,19 +880,49 @@ function buildBubblewrapArgs(args: BuildTerminalSandboxLauncherArgs): string[] {
     // is nothing to deny. The cost where it does apply is an empty file left
     // in the repository: git reads all four of these as absent when empty, and
     // a file where `hooks` would be is the same "no hooks" a missing directory
-    // already means.
+    // already means. Measured, and worth knowing before somebody debugs it:
+    // bwrap creates that leftover mode 0444, so a person who later runs
+    // `git config --worktree` on the repository is told "Permission denied"
+    // until they remove an empty file they never made.
     if (writablePaths.some((root) => isInside(readOnlyPath, root))) {
-      bindArgs.push("--ro-bind", "/dev/null", readOnlyPath);
+      // An empty regular file where the policy has one, and `/dev/null`
+      // otherwise — `emptyFilePath` records what each of those costs.
+      bindArgs.push(
+        "--ro-bind",
+        args.policy.emptyFilePath ?? "/dev/null",
+        readOnlyPath,
+      );
     }
   }
   for (const deniedPath of resolvedPaths(args.policy.deniedReadPaths)) {
-    // Only what is there: binding over a path that does not exist asks bwrap
-    // to create it on a read-only root, which fails the whole launch.
+    // Already gone: the empty filesystem over its directory took it, along
+    // with any name that appears there later, which is the point of it.
+    if (deniedPathsInHiddenParents.has(deniedPath)) continue;
+    // Still only what is there, and the reason is a measurement rather than
+    // bwrap's own limit. Where the parent is writable bwrap *can* create the
+    // mount point — and leaves it behind on the host as a mode-0444 file, so a
+    // `--bind /dev/null` over a `<db>-wal` that does not exist yet ends with
+    // the daemon unable to write its own WAL ("Permission denied", measured).
+    // Nothing is lost by skipping it: a directory the sandbox may write is one
+    // where the turn is the only thing that can create the file, and a turn's
+    // own file is not a credential. Where the parent is *not* writable the
+    // bind fails the whole launch, which is the case
+    // `resolveHiddenDeniedParents` answers instead.
     if (!pathExists(deniedPath)) continue;
     bindArgs.push("--bind", "/dev/null", deniedPath);
   }
   const relay = args.policy.loopbackRelay;
   if (args.policy.egressConfined === true && relay !== undefined) {
+    // The sockets of services outside the sandbox go first, because the relay's
+    // own directory has to be bound after them to survive it — see
+    // `linuxServiceSocketDirectories` for what they are and why this belongs to
+    // the network boundary rather than to the filesystem one.
+    for (const socketDirectory of linuxServiceSocketDirectories(
+      args,
+      writablePaths,
+    )) {
+      bindArgs.push("--tmpfs", socketDirectory);
+    }
     // Read-only: connecting to a unix socket through a read-only bind works
     // — measured — so the sandbox can reach the sockets the daemon put there
     // and cannot add one of its own for the relay to mirror.

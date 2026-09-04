@@ -50,8 +50,191 @@ import net from "node:net";
 /** How much of a request head to buffer before giving up on it. */
 const MAX_HEAD_BYTES = 32 * 1024;
 
-/** Loopback targets are allowed by the profile itself, so they are allowed here. */
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+/**
+ * Whether a target names this machine's own loopback.
+ *
+ * Loopback was allowed here unconditionally, ahead of the list, on the
+ * reasoning that the sandbox lets a confined process reach loopback directly
+ * so proxying it changes nothing. That is true on macOS and backwards on
+ * Linux. This proxy runs in the daemon, **outside** the sandbox, and a socket
+ * opened from here lands on the daemon's loopback — so where a confined launch
+ * has a network namespace of its own, `CONNECT 127.0.0.1:<port>` reached every
+ * local service the relay was built to withhold, and the "only the ports
+ * Patcher mirrored" claim held against well-behaved clients alone. It was
+ * wrong on its own terms too: an agent that runs a server inside the namespace
+ * — opencode does — and routes through the proxy reached the host's port of
+ * that number instead of its own. Which platform is which is
+ * `sandboxHasPrivateLoopback`.
+ *
+ * By address rather than by spelling, because the spelling is the easy part to
+ * vary: `127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `0.0.0.0` and
+ * `::ffff:127.0.0.1` all arrive where `127.0.0.1` does. What this cannot see is
+ * a *name* that resolves to loopback; that one stays where it lands, behind the
+ * list like any other name, and `docs/security.md` says so.
+ */
+function isLoopbackTarget(host: string): boolean {
+  const bare = host
+    .replace(/^\[|\]$/gu, "")
+    .replace(/%.*$/u, "")
+    .toLowerCase();
+  // The absolute DNS spelling, and only for the *name*: `localhost.` resolves
+  // the way `localhost` does, while `127.0.0.1.` is not an address at all —
+  // the trailing dot takes it out of the numeric grammar, so `getaddrinfo`
+  // resolves it as a name. Stripping the dot before the parsers made it 127/8.
+  const named = bare.replace(/\.$/u, "");
+  // An empty host is not nothing: `net.connect` reads it as localhost.
+  if (named === "" || named === "localhost" || named.endsWith(".localhost")) {
+    return true;
+  }
+  const embedded = bare.includes(":")
+    ? embeddedIpv4OfIpv6(bare)
+    : parseIpv4Address(bare);
+  if (embedded === undefined) return false;
+  // 127/8 is loopback by name, and the unspecified address is here because
+  // `connect` to it goes to loopback rather than nowhere — measured on
+  // `0.0.0.0`, which reached a listener on 127.0.0.1. Only the address that is
+  // *all* zero: `0.0.0.1` is neither, and reading the first octet alone
+  // refused a quarter of a million addresses that are not this machine.
+  return embedded >>> 24 === 127 || embedded === 0;
+}
+
+/**
+ * The IPv4 address an IPv6 literal stands for, where it stands for one.
+ *
+ * Three of the eight-group forms name this machine or an IPv4 address, and
+ * nothing else does: `::` is unspecified, `::1` is loopback, and `::ffff:a.b.c.d`
+ * — which Node's URL parser writes as `::ffff:7f00:1` — carries an IPv4 address
+ * in the last two groups. Everything else answers `undefined`.
+ *
+ * Written as a parser because the shortcuts are wrong in both directions: the
+ * part after the last colon is not an IPv4 address (`2001:db8::1` ends in `:1`
+ * and belongs to somebody), and a pattern loose enough to catch `0:0:…:1`
+ * catches `1::` with it.
+ */
+function embeddedIpv4OfIpv6(address: string): number | undefined {
+  const groups = parseIpv6Groups(address);
+  if (groups === undefined) return undefined;
+  const [g0, g1, g2, g3, g4, g5, g6, g7] = groups;
+  if (g0 !== 0 || g1 !== 0 || g2 !== 0 || g3 !== 0 || g4 !== 0) {
+    return undefined;
+  }
+  if (g5 === 0xffff) return (((g6 ?? 0) << 16) | (g7 ?? 0)) >>> 0;
+  if (g5 !== 0 || g6 !== 0) return undefined;
+  // `::` and `::1`, and the same two written in full, answered as the IPv4
+  // address of the same name — `0.0.0.0` and `127.0.0.1` — because that is what
+  // the caller then compares. Returning the group itself made `::1` answer 1,
+  // which is neither, and the address slipped through.
+  if (g7 === 0) return 0;
+  return g7 === 1 ? 0x7f000001 : undefined;
+}
+
+/** An IPv6 literal as its eight groups, or undefined when it is not one. */
+function parseIpv6Groups(address: string): number[] | undefined {
+  const halves = address.split("::");
+  if (halves.length > 2) return undefined;
+  const parseSide = (side: string, isTail: boolean): number[] | undefined => {
+    if (side === "") return [];
+    const groups: number[] = [];
+    const parts = side.split(":");
+    for (const [index, part] of parts.entries()) {
+      // A dotted quad ends the whole literal, so it belongs to the last group
+      // of the *last* half: `0.0.0.0::` has one in the head, which the strict
+      // grammar rejects and this read as the unspecified address.
+      if (part.includes(".")) {
+        if (!isTail || index !== parts.length - 1) return undefined;
+        const packed = parseDottedQuad(part);
+        if (packed === undefined) return undefined;
+        groups.push(packed >>> 16, packed & 0xffff);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/u.test(part)) return undefined;
+      groups.push(Number.parseInt(part, 16));
+    }
+    return groups;
+  };
+  const head = parseSide(halves[0] ?? "", halves.length === 1);
+  const tail = halves.length === 2 ? parseSide(halves[1] ?? "", true) : [];
+  if (head === undefined || tail === undefined) return undefined;
+  if (halves.length === 1) return head.length === 8 ? head : undefined;
+  const filler = 8 - head.length - tail.length;
+  if (filler < 1) return undefined;
+  return [...head, ...Array.from({ length: filler }, () => 0), ...tail];
+}
+
+/** The strict four-part form, which is all an IPv6 literal may embed. */
+function parseDottedQuad(address: string): number | undefined {
+  const parts = address.split(".");
+  if (parts.length !== 4) return undefined;
+  let value = 0;
+  for (const part of parts) {
+    // `inet_pton` is the strict one, and it is what parses the embedded form:
+    // no leading zeros, so `::ffff:127.0.0.01` is a name rather than this
+    // machine written oddly.
+    if (!/^(?:0|[1-9][0-9]{0,2})$/u.test(part)) return undefined;
+    const octet = Number.parseInt(part, 10);
+    if (octet > 255) return undefined;
+    value = value * 256 + octet;
+  }
+  return value >>> 0;
+}
+
+/**
+ * IPv4 in every form `connect` accepts, not only the dotted quad.
+ *
+ * `getaddrinfo` takes the historical short and packed forms — `127.1` and
+ * `2130706433` are both `127.0.0.1`, a leading `0x` is hexadecimal and a
+ * leading `0` is octal — so a check that only understood four decimal parts
+ * would be a check somebody writes their way around.
+ *
+ * The ranges are checked rather than assumed, and that is the half that keeps
+ * this from over-refusing: a part out of range makes the whole thing an invalid
+ * address, which Linux then resolves as a *name*. So `127.0.0.256` and
+ * `4294967296` are names here, not addresses, and answering `undefined` for
+ * them is the difference between refusing this machine and refusing somebody's
+ * hostname.
+ */
+function parseIpv4Address(address: string): number | undefined {
+  const parts = address.split(".");
+  if (parts.length === 0 || parts.length > 4) return undefined;
+  const numbers: number[] = [];
+  for (const part of parts) {
+    const value = parseNumericPart(part);
+    if (value === undefined) return undefined;
+    numbers.push(value);
+  }
+  // The last part carries whatever the dots left out — one part is the whole
+  // address, two are `a.bbb`, and so on — so its range is the one that widens.
+  const leading = numbers.slice(0, -1);
+  const last = numbers.at(-1) ?? 0;
+  if (leading.some((number) => number > 255)) return undefined;
+  if (last >= 2 ** (8 * (4 - leading.length))) return undefined;
+  let value = last;
+  for (const [index, number] of leading.entries()) {
+    value += number * 2 ** (8 * (3 - index));
+  }
+  return value >>> 0;
+}
+
+/**
+ * One part of an IPv4 address, in decimal, octal or hexadecimal.
+ *
+ * A leading zero *selects* the octal grammar rather than suggesting it, so
+ * `08` is not eight — it is not a number at all, which makes the whole target
+ * a name. Falling through to the decimal branch read `127.0.0.08` as this
+ * machine and refused a hostname.
+ */
+function parseNumericPart(part: string): number | undefined {
+  const value = /^0x[0-9a-f]+$/u.test(part)
+    ? Number.parseInt(part.slice(2), 16)
+    : /^0[0-9]/u.test(part)
+      ? /^0[0-7]+$/u.test(part)
+        ? Number.parseInt(part.slice(1), 8)
+        : Number.NaN
+      : /^[0-9]+$/u.test(part)
+        ? Number.parseInt(part, 10)
+        : Number.NaN;
+  return Number.isSafeInteger(value) ? value : undefined;
+}
 
 export interface EgressGrantRequest {
   /**
@@ -126,6 +309,23 @@ export interface EgressProxyOptions {
    * agent's next attempt the one that goes through.
    */
   askAboutHost?: (refusal: EgressRefusal) => Promise<EgressAskOutcome>;
+  /**
+   * Whether a confined launch's loopback is its own rather than this one.
+   *
+   * The answer is the platform's and decides what a `CONNECT 127.0.0.1:<port>`
+   * means here — see `isLoopbackTarget`. On Linux a confined launch has a
+   * network namespace of its own, so this proxy's loopback is the *daemon's*
+   * and tunnelling to it is a way past the relay's mirrored ports; on macOS
+   * there is one loopback and the Seatbelt profile already lets the confined
+   * process reach it directly, so refusing here would take away nothing and
+   * break every client that ignores `NO_PROXY` — Pi's does, measured.
+   *
+   * Defaults to the platform this daemon runs on. Given explicitly by the
+   * suite, which needs both answers: one to exercise the refusal, and one to
+   * have an upstream at all, because every server a test can start is on
+   * loopback.
+   */
+  sandboxHasPrivateLoopback?: boolean;
 }
 
 interface Grant extends EgressGrantRequest {
@@ -401,13 +601,34 @@ export class EgressProxy {
    * given for this grant, so a decision is asked for once; and only then is
    * anybody interrupted.
    */
+  private hasPrivateLoopback(): boolean {
+    return (
+      this.options.sandboxHasPrivateLoopback ?? process.platform === "linux"
+    );
+  }
+
   private async decide(args: {
     grant: Grant;
     host: string;
     port: number;
   }): Promise<{ allowed: boolean; reason: string }> {
-    if (LOOPBACK_HOSTNAMES.has(args.host.toLowerCase())) {
-      return { allowed: true, reason: "" };
+    if (isLoopbackTarget(args.host)) {
+      // Ahead of the list in both directions, because on neither platform is
+      // this a question for a list or for a person. Where the sandbox keeps a
+      // loopback of its own the answer is no, whatever anybody put on the
+      // list — the loopback this proxy can dial is not the one the caller
+      // means, so allowing it would be answering a different question. Where
+      // there is one loopback the answer is yes, because the profile already
+      // allows it directly and a refusal here would only break the clients
+      // that route it through a proxy.
+      if (!this.hasPrivateLoopback()) return { allowed: true, reason: "" };
+      return {
+        allowed: false,
+        reason:
+          `${args.host} is loopback, and this proxy runs outside the sandbox's ` +
+          "own network namespace: a tunnel to it would reach the host's services " +
+          "rather than this turn's. Reach loopback directly instead — NO_PROXY names it.",
+      };
     }
     if (matchesHost(args.grant.matchers, args.host)) {
       return { allowed: true, reason: "" };

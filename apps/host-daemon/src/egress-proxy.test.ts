@@ -21,6 +21,14 @@ import {
  * gets no answer at all until the upstream connection settles. The loopback
  * tunnel is measured end to end, bytes included, because loopback is the one
  * upstream a test can really have.
+ *
+ * Which is why every proxy here is given `sandboxHasPrivateLoopback`
+ * explicitly, rather than letting it default to the platform. Whether a
+ * loopback target is refused is a fact about the sandbox's network namespace,
+ * so a suite that left it to `process.platform` would measure one rule on a
+ * developer's Mac and the other on CI, and the tunnel tests would only have an
+ * upstream on one of them. `startProxy` pins it to the single-loopback answer,
+ * the way macOS runs; the tests about the refusal pin the other and say so.
  */
 
 const proxies: EgressProxy[] = [];
@@ -38,6 +46,7 @@ async function startProxy(
   askAboutHost?: (refusal: EgressRefusal) => Promise<EgressAskOutcome>,
 ): Promise<EgressProxy> {
   const proxy = new EgressProxy({
+    sandboxHasPrivateLoopback: false,
     ...(onRefused ? { onRefused } : {}),
     ...(askAboutHost ? { askAboutHost } : {}),
   });
@@ -242,8 +251,10 @@ describe("what a grant may reach", () => {
     const upstream = await startUpstream("local-service");
 
     // A client that ignores NO_PROXY sends its own loopback traffic here —
-    // measured on opencode, which talks to its own server. Refusing it would
-    // break the agent while closing nothing: the sandbox leaves loopback open.
+    // measured on opencode, which talks to its own server, and on Pi, whose
+    // client ignores it outright. Where there is one loopback, refusing that
+    // would break the agent and close nothing: the profile already lets the
+    // confined process reach it directly.
     const conversation = await speak({
       port,
       requests: [
@@ -254,6 +265,127 @@ describe("what a grant may reach", () => {
 
     expect(conversation).toContain("200 Connection Established");
     expect(conversation).toContain("local-service");
+  });
+
+  it("refuses loopback where the sandbox keeps a loopback of its own", async () => {
+    // The Linux answer, and the defect: this proxy runs in the daemon, outside
+    // the launch's network namespace, so the socket it opens lands on the
+    // *host's* loopback — every local service the relay was built to withhold,
+    // reached through the one host the list never had to name.
+    const proxy = new EgressProxy({ sandboxHasPrivateLoopback: true });
+    proxies.push(proxy);
+    await proxy.start();
+    const { port, token } = parseProxyUrl(
+      proxy.grant({
+        key: "env\u0000acp-cursor",
+        providerId: "acp-cursor",
+        // On the list, which is the direction that matters: the setting behind
+        // it is the user's to edit, so a rule that honoured the list would be
+        // one typo from being off.
+        allowedHosts: ["127.0.0.1"],
+      }).proxyUrl,
+    );
+    const upstream = await startUpstream("host-service");
+
+    const conversation = await speak({
+      port,
+      requests: [
+        connectRequest(`127.0.0.1:${upstream}`, token),
+        "GET / HTTP/1.1\r\nHost: x\r\n\r\n",
+      ],
+    });
+
+    expect(conversation).toContain("403");
+    expect(conversation).toContain("network namespace");
+    expect(conversation).not.toContain("200 Connection Established");
+    expect(conversation).not.toContain("host-service");
+  });
+
+  it("reads the address rather than the spelling, in both directions", async () => {
+    // The spelling is the easy part to vary, so the rule is about the address:
+    // `getaddrinfo` reads the first list as this machine, and a check that only
+    // knew the dotted quad would be one somebody writes their way around.
+    //
+    // The second list is the half that took two goes to get right. Reading "the
+    // part after the last colon" as IPv4 refused `2001:db8::1`, which ends in
+    // `:1` and belongs to somebody; a pattern loose enough to catch `0:0:…:1`
+    // caught `1::` with it; and checking the first octet alone refused all of
+    // `0/8` and every numeric form that is out of range — which Linux resolves
+    // as a *name*, so `127.0.0.256` is somebody's hostname and not this
+    // machine. Both lists run through the real proxy.
+    const askAboutHost = vi.fn(async () => ({ outcome: "allowed" }) as const);
+    const proxy = new EgressProxy({
+      sandboxHasPrivateLoopback: true,
+      askAboutHost,
+    });
+    proxies.push(proxy);
+    await proxy.start();
+    const { port, token } = parseProxyUrl(
+      proxy.grant({
+        key: "env\u0000acp-cursor",
+        providerId: "acp-cursor",
+        threadId: "thread-1",
+        allowedHosts: [],
+      }).proxyUrl,
+    );
+
+    for (const target of [
+      "127.0.0.1:8080",
+      "127.0.0.2:8080",
+      "127.1:8080",
+      "127.0.1:8080",
+      "2130706433:8080",
+      "0x7f000001:8080",
+      "017700000001:8080",
+      "0.0.0.0:8080",
+      "0:8080",
+      "localhost.:8080",
+      "anything.localhost:8080",
+      "[::1]:8080",
+      "[::]:8080",
+      "[0:0:0:0:0:0:0:1]:8080",
+      "[::ffff:127.0.0.1]:8080",
+      // What Node's URL parser writes that last one as.
+      "[::ffff:7f00:1]:8080",
+    ]) {
+      const conversation = await speak({
+        port,
+        requests: [connectRequest(target, token)],
+      });
+      expect(conversation, target).toContain("403");
+      expect(conversation, target).toContain("network namespace");
+    }
+    // And nobody was asked: a prompt saying "allow 127.0.0.1?" is one nobody
+    // can answer usefully, because the loopback this proxy could dial is not
+    // the one the caller means.
+    expect(askAboutHost).not.toHaveBeenCalled();
+
+    const reachTheQuestion = [
+      "[2001:db8::1]:443",
+      "[1::]:443",
+      "[::ffff:93.184.216.34]:443",
+      "[0.0.0.0::]:443",
+      "[::ffff:127.0.0.01]:443",
+      "93.184.216.34:443",
+      "128.0.0.1:443",
+      "0.0.0.1:443",
+      "4294967296:443",
+      "127.0.0.256:443",
+      "127.0.0.08:443",
+      "127.0.0.1.:443",
+      "example.com:443",
+    ];
+    for (const [index, target] of reachTheQuestion.entries()) {
+      const conversation = await speak({
+        port,
+        requests: [connectRequest(target, token)],
+      });
+      expect(conversation, target).not.toContain("network namespace");
+      // Each one has to have *reached* the question, not merely avoided one
+      // phrase: a request dropped on the way back answers nothing at all, and
+      // an empty conversation contains no phrase either.
+      expect(askAboutHost, target).toHaveBeenCalledTimes(index + 1);
+    }
   });
 
   it("keeps what a client sends before the tunnel is open", async () => {
@@ -351,7 +483,9 @@ describe("a host nobody listed, put to the person", () => {
 
   it("refuses when the answer is no, and says the person said so", async () => {
     const refusals: EgressRefusal[] = [];
-    const { asked, ask } = asker({ "evil.example.com": { outcome: "declined" } });
+    const { asked, ask } = asker({
+      "evil.example.com": { outcome: "declined" },
+    });
     const proxy = await startProxy((refusal) => refusals.push(refusal), ask);
     const { port, token } = parseProxyUrl(
       proxy.grant({
@@ -376,7 +510,9 @@ describe("a host nobody listed, put to the person", () => {
   });
 
   it("asks once for a host, however many connections want it", async () => {
-    const { asked, ask } = asker({ "evil.example.com": { outcome: "declined" } });
+    const { asked, ask } = asker({
+      "evil.example.com": { outcome: "declined" },
+    });
     const proxy = await startProxy(undefined, ask);
     const { port, token } = parseProxyUrl(
       proxy.grant({
@@ -392,8 +528,14 @@ describe("a host nobody listed, put to the person", () => {
     // both halves an agent's retry loop would put the same prompt on screen
     // until somebody gave in.
     const [first, second] = await Promise.all([
-      speak({ port, requests: [connectRequest("evil.example.com:443", token)] }),
-      speak({ port, requests: [connectRequest("evil.example.com:443", token)] }),
+      speak({
+        port,
+        requests: [connectRequest("evil.example.com:443", token)],
+      }),
+      speak({
+        port,
+        requests: [connectRequest("evil.example.com:443", token)],
+      }),
     ]);
     const third = await speak({
       port,
@@ -502,7 +644,9 @@ describe("a host nobody listed, put to the person", () => {
   });
 
   it("forgets what was answered when the grant is revoked", async () => {
-    const { asked, ask } = asker({ "evil.example.com": { outcome: "declined" } });
+    const { asked, ask } = asker({
+      "evil.example.com": { outcome: "declined" },
+    });
     const proxy = await startProxy(undefined, ask);
     const grant = proxy.grant({
       key: "env acp-cursor",

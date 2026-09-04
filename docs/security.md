@@ -208,11 +208,46 @@ protected path that did not exist yet was not protected**: bubblewrap has no
 rule about a name, only about a mount, and a missing path was skipped — so on a
 fresh repository `info/attributes` and `config.worktree` were refused under
 seatbelt and *written* under bubblewrap, because neither file exists until
-something creates it. The profile now binds `/dev/null` over such a path when
+something creates it. The profile now mounts something over such a path when
 its parent is writable, which is the only case that needs it: with a read-only
 parent bwrap cannot create the mount point and fails the whole launch, and a
-turn could not have created the file either. What it costs is an empty file
-left in the repository, which git reads as absent for all four of these.
+turn could not have created the file either.
+
+**What that something is turned out to matter, twice.** `/dev/null` was the
+obvious answer and is a character device; bubblewrap mounts `nodev`, so git read
+it as unreadable rather than as empty and printed
+`warning: unable to access '.git/info/attributes': Permission denied` twice on
+every command a person ran in their own terminal. An empty directory removes the
+warning and breaks something worse: measured with `extensions.worktreeConfig`
+set, which is the layout a managed worktree runs, a directory where
+`config.worktree` belongs makes `git status`, `git add` and `git config` all
+exit 128 on "unknown error occurred while reading the configuration files" — and
+bubblewrap leaves that directory behind on the host. So it is an empty regular
+file the daemon keeps in its own data directory, and not one under `/tmp`: the
+sandbox binds it read-only at the destination while the source stays writable to
+whoever owns it, and `/tmp` is a writable root of every sandbox, so a source
+there would be a file the turn could fill in and have bound as that repository's
+`.gitattributes` on the next launch. What it costs is an empty file left in the
+repository, which git reads as absent for all four of these — created mode 0444
+by bwrap, so a person who later runs `git config --worktree` on that repository
+is told "Permission denied" until they remove a file they never made.
+
+**The same gap on the credential list needed a different answer.** A denied path
+that does not exist at spawn is the ordinary case there rather than the corner
+one: SQLite writes `-wal` and `-shm` beside the database at the first
+checkpoint, and a provider process outlives that. Measured with the argv this
+module builds: the file denied at launch was refused and a file created on the
+host a second later was read in full from inside. Binding over the name is not
+available — the daemon's data directory is not a writable root, so bwrap cannot
+create the mount point there, and where it *can* it leaves a mode-0444 file that
+the daemon then cannot write, which for a `-wal` beside a live database is worse
+than the leak. So a directory holding a denied path that does not exist is
+replaced wholesale: an empty `tmpfs`, with everything already in it re-bound
+read-only, before the writable binds so a writable root inside is restored
+after. Measured: the denied file is gone, `host-id` beside it still reads, a
+file written a second later is not there at all, and the daemon can still write
+its own WAL. What it costs is a directory listing frozen at launch, for a
+directory nothing inside the sandbox is told the path of.
 
 **And a deny names a path, which is a name in a directory rather than a file.**
 `.git` sits in the workspace a turn may write, so for as long as only the four
@@ -349,6 +384,30 @@ that replaces the file on Linux. The paths are resolved through `realpath`
 before they are named, because both backends match what a lookup resolves to,
 and a rule about `/var/folders/...` is a rule about nothing on a machine where
 that is a symlink.
+
+**A Linux launch gets a process table of its own.** The PID namespace was
+shared, so what a confined turn saw was the machine's: the daemon, the other
+terminals, everything — and `kill <pid>` from inside worked, measured. Reading a
+sibling's environment was already refused by the user namespace; signalling one
+was not. `--unshare-pid` closes it, and costs nothing measurable: the same kill
+is refused, `ps` sees the sandbox's own handful of processes, and git, a login
+shell and the launch's exit code all come through unchanged. macOS has no
+equivalent — Seatbelt's `(allow default)` leaves signals alone, and that is
+named in the list of what a confined terminal can still do.
+
+**And what the daemon asks bubblewrap before it trusts it.** Installed is not
+usable — Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor,
+so `bwrap` answers "setting up uid map: Permission denied" for every command —
+so the daemon probes once and refuses the terminal rather than handing back a
+shell that dies on its first line. Two corrections to that probe. It asked for
+fewer namespaces than the launch uses, so a machine that cannot mount `/proc`
+passed it and killed the shell one step later instead; it now asks for exactly
+what the launch asks for. And it remembered a refusal for the daemon's whole
+life, while the remedy it prints — allow unprivileged user namespaces — is
+something a person does *while the daemon is running*, so a machine that had
+just been fixed kept being refused, and a probe that timed out once under load
+was cached as a permanent property of the machine. A success is still kept; a
+refusal is re-asked after a minute.
 
 The terminal websocket is not part of this: it takes the app key or a plugin
 holding `shell`, and a turn holds neither — so an agent reads and writes its
@@ -743,39 +802,73 @@ confined turn on macOS and not on Linux; the whole chain was measured end to end
 under bubblewrap before it was written down, including that a direct connection
 off the machine is refused in 0 ms both by name and by literal IP.
 
-**"Nothing else on loopback" is about TCP, and two ways around it are open
-(#64).** Both belong to the Linux backend, and both are recorded here rather
-than discovered later:
+**"Nothing else on loopback" used to be about TCP alone, and the two ways
+around it are closed.** Both belonged to the Linux backend, and both are
+recorded here with what closed them:
 
 - **Unix sockets are not network-namespaced.** That is what lets the relay reach
   the daemon's sockets from inside a `--unshare-net` namespace in the first
-  place, and it applies to every other socket on the machine too. The bubblewrap
-  argv binds `/` read-only with no `tmpfs` over `/run`, `/var/run` or
-  `$XDG_RUNTIME_DIR`, so a docker socket, the D-Bus session bus and
-  `$SSH_AUTH_SOCK` stay connectable — and the session bus in particular is a
-  command run outside the sandbox, with the network. macOS is closed here, and
-  the discriminating pair is what makes that worth saying: under the profile's
-  own egress rules — `(deny network*)` and the three `localhost:*` allows — one
-  process refused `connect()` on an AF_UNIX path with `EPERM` and reached a TCP
-  loopback listener in the same breath. Seatbelt's allow names an `ip`
-  remote, which a unix-socket connect does not match, so the blanket deny takes
-  it. No test covers this; it was measured by hand with `sandbox-exec` and is
-  recorded here because nothing else records it.
-- **The proxy itself will dial the host's loopback.** It allows `localhost`,
-  `127.0.0.1` and `::1` unconditionally — a well-behaved client never sends
-  those through a proxy, so the allowance costs nothing against one — and then
-  connects from the *host's* namespace. A client that asks explicitly
-  (`curl -x "$HTTPS_PROXY" --noproxy '' http://127.0.0.1:<port>`) reaches any
-  loopback service the relay withheld. The same seam is a functional bug from
-  the other side: an agent's own in-namespace server, routed through the proxy,
-  lands on the host's port of that number instead.
+  place, and it applied to every other socket on the machine too: the argv bound
+  `/` read-only with no `tmpfs` anywhere, so a docker socket, the D-Bus session
+  bus and `$SSH_AUTH_SOCK` stayed connectable — and the session bus in
+  particular is a command run outside the sandbox, with the network the sandbox
+  had just given up. Measured in a Debian container with the argv the module
+  builds: a listener outside the namespace, reached from inside, ran `touch` on
+  the host. A confined launch now gets an empty `tmpfs` over `/run`,
+  `/var/run`, `$XDG_RUNTIME_DIR` and `/tmp/.X11-unix`, with the relay's own
+  socket directory bound after them, and the same probe is refused with `/run`
+  empty inside. Only a launch that confines the network gets this: `/run` is
+  where a systemd-resolved machine keeps the resolver a terminal's own open
+  network needs, and a terminal never unshares the network.
 
-So the Linux half is narrower in intent than it is in fact. Both fixes are
-known — a `tmpfs` over the runtime directories with only the relay's own socket
-directory re-bound, and refusing a loopback target in the proxy, which no
-well-behaved client sends — and until they land, read a confined Linux turn as
-reaching the host's loopback much the way a macOS one does, plus whatever unix
-sockets the machine leaves under `/run`.
+  Two things that shape it. Each directory is resolved before it is mounted,
+  because `/var/run` is a symlink to `/run` on Debian and mounting over a
+  symlink fails the whole launch — resolving turns it into `/run`, which the
+  list already has, and the same resolution is what lets an `$XDG_RUNTIME_DIR`
+  that is a link be covered at all. And a directory *holding* a writable path is
+  left alone while one *inside* a writable path is not: there is no mount order
+  that both hides the first and keeps the turn's own `$TMPDIR`, and the second
+  is the ordinary case — `/tmp/.X11-unix` sits inside `/tmp`, which is always
+  writable, so a rule that skipped it would have skipped the X11 socket
+  entirely. A machine that puts `$TMPDIR` under `/run` therefore keeps that one
+  reachable, and `$SSH_AUTH_SOCK` under `/tmp` is reachable for the same
+  reason: `/tmp` is a writable root, and the turn needs it.
+
+  macOS was closed here already, and the discriminating pair is what makes that
+  worth saying: under the profile's own egress rules — `(deny network*)` and the
+  three `localhost:*` allows — one process refused `connect()` on an AF_UNIX
+  path with `EPERM` and reached a TCP loopback listener in the same breath.
+  Seatbelt's allow names an `ip` remote, which a unix-socket connect does not
+  match, so the blanket deny takes it.
+- **The proxy itself would dial the host's loopback.** It allowed `localhost`,
+  `127.0.0.1` and `::1` unconditionally, ahead of the list — a well-behaved
+  client never sends those through a proxy, so the allowance looked free — and
+  then connected from the *host's* namespace. A client that asked explicitly
+  (`curl -x "$HTTPS_PROXY" --noproxy '' http://127.0.0.1:<port>`) reached any
+  loopback service the relay withheld. It was a functional bug from the other
+  side too: an agent's own in-namespace server, routed through the proxy, landed
+  on the host's port of that number instead.
+
+  The proxy now refuses a loopback target wherever the sandbox keeps a loopback
+  of its own, which is Linux, and still allows one where there is a single
+  loopback, which is macOS — there the profile lets the confined process reach
+  it directly, so refusing would take away nothing and break every client that
+  ignores `NO_PROXY`, and Pi's does. The refusal is by address rather than by
+  spelling: `127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `0.0.0.0`,
+  `localhost.` and `::ffff:127.0.0.1` — which Node writes as `::ffff:7f00:1` —
+  all arrive where `127.0.0.1` does. Read as an address and not as a pattern,
+  which is the half that keeps it from over-refusing: `2001:db8::1` ends in
+  `:1` and belongs to somebody, `0.0.0.1` is not this machine, and anything
+  outside the numeric grammar is a *name* rather than an address — a part out
+  of range (`127.0.0.256`, `4294967296`), a leading zero that is not octal
+  (`127.0.0.08`), a trailing root dot (`127.0.0.1.`) — which Linux resolves as
+  one, so refusing it would be refusing somebody's hostname. It also refuses without
+  asking anybody — a prompt saying "allow 127.0.0.1?" is one nobody can answer
+  usefully, because the loopback the proxy could dial is not the one the caller
+  means — and it refuses ahead of the list, so a host somebody typed into
+  Settings cannot turn it back on. What is left is a *name* that resolves to
+  loopback: the check reads addresses, not answers from a resolver, so such a
+  name is refused only if it is not on the list.
 
 What the switch costs, so nobody discovers it in a turn: `git push` over an SSH
 remote stops working, because SSH has no proxy to use and the connection is
@@ -1182,13 +1275,15 @@ Named here rather than left to be rediscovered:
   not make writable — so what is left is nuisance and a channel to the person,
   not a way out. On Linux the same class is open wider, over unix sockets, and
   is tracked in #64.
-- **What the egress boundary leaves open, when it is on.** Three things, all
+- **What the egress boundary leaves open, when it is on.** Two things, both
   named where the feature is described: loopback stays reachable, so a local
-  service with a network of its own is a way around the proxy; an allowed host
-  that accepts arbitrary bytes is still a way out; and the Linux backend's
-  loopback is narrower in intent than in fact — unix sockets under `/run` are
-  not network-namespaced and the proxy will dial the host's own loopback for a
-  client that asks it to, both tracked in #64. A host on nobody's list is now a
+  service with a network of its own is a way around the proxy; and an allowed
+  host that accepts arbitrary bytes is still a way out. The two Linux items that
+  stood here are closed — the sockets of services outside the namespace are gone
+  from a confined launch, and the proxy no longer dials the daemon's own
+  loopback for a client that asks it to — and what is left of that pair is a
+  *name* somebody allows which resolves to loopback: the proxy reads addresses,
+  not answers from a resolver. A host on nobody's list is now a
   question on the thread rather than a refusal. Pi is not covered at all, for a
   measured reason its own bullet above gives, and a turn that asked for the
   boundary is told so.
