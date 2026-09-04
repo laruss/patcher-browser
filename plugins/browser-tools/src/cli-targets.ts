@@ -15,6 +15,26 @@ import type {
  */
 
 /**
+ * A tab id in the shape the browser mints, which is the one spelling of a tab
+ * that costs no round trip.
+ *
+ * Three segments — the literal `browser`, a nanoid minted per tab, and the
+ * environment (`createBrowserFixedPanelTab` and `buildFixedPanelTabId`, in the
+ * app's `fixed-panel-tabs-state.ts`). Neither of the last two can hold a colon:
+ * nanoid's alphabet has none, and the environment is percent-encoded, which
+ * turns one into `%3A`. So a real id carries exactly two, and an address is not
+ * mistakable for one.
+ *
+ * By shape rather than by "has a colon in it", which is what this used to ask.
+ * `--tab localhost:3000` and `--tab https://x.com` are how a caller names a tab
+ * by its address — the spelling the USAGE line offers — and both were sent to
+ * the browser as tab ids and refused `unknown_tab`. Should the app ever mint a
+ * different shape, the cost is a list call per command rather than a wrong
+ * answer, because the list is matched against an exact id first.
+ */
+const MINTED_TAB_ID = /^browser:[^:]*:[^:]*$/u;
+
+/**
  * Turn what a caller typed after `--tab` into a tab id.
  *
  * A tab id is `browser:<nanoid>:none` — 30-odd characters an agent has to carry
@@ -26,10 +46,9 @@ import type {
  * - an index from the `tabs` listing, counting from 1
  * - a substring of the URL or title, when exactly one tab matches
  *
- * The last three need the tab list, which is one extra call. A tab id in the
- * shape this browser mints (`browser:<id>:<scope>` — a colon is in none of the
- * other three spellings) skips it, so the precise form stays the cheap one;
- * anything else is matched against the list, an exact id first.
+ * The last three need the tab list, which is one extra call. An id in the shape
+ * this browser mints skips it, so the precise form stays the cheap one; anything
+ * else is matched against the list, an exact id first.
  */
 export async function resolveTabTarget(
   patcher: PatcherPluginApi,
@@ -40,7 +59,7 @@ export async function resolveTabTarget(
   // Undefined rather than the active tab's id: every call already defaults to
   // the active tab, and resolving it here would cost a list for nothing.
   if (target === "active") return { tabId: undefined };
-  if (target.includes(":")) return { tabId: target };
+  if (MINTED_TAB_ID.test(target)) return { tabId: target };
 
   const tabs = await patcher.browser.tabs.list(options);
   // An exact id wins over every other reading, so a tab whose id happens to

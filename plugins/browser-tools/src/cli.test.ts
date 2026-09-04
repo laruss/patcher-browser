@@ -1351,6 +1351,51 @@ describe("patcher browser CLI tab names", () => {
     expect(result.stdout).toBe("https://other.test/\n");
   });
 
+  it("takes a substring with a colon in it, like a port or a scheme", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      { tabId: "browser:a:none", url: "http://localhost:3000/", title: "Dev" },
+      {
+        tabId: "browser:b:none",
+        url: "https://example.com/",
+        title: "Example",
+      },
+    ]);
+
+    const port = await host.harness.runCli(["url", "--tab", "localhost:3000"]);
+    const scheme = await host.harness.runCli([
+      "url",
+      "--tab",
+      "https://example.com",
+    ]);
+
+    // Both used to be sent straight through as tab ids, on the theory that a
+    // colon only appears in one, and both came back `unknown_tab` against a
+    // USAGE line promising "a substring of the URL or title".
+    expect(port.stdout).toBe("http://localhost:3000/\n");
+    expect(scheme.stdout).toBe("https://example.com/\n");
+  });
+
+  it("spends no round trip on a tab id in the minted shape", async () => {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      { tabId: "browser:a:none", url: "http://localhost:3000/", title: "Dev" },
+    ]);
+
+    const result = await host.harness.runCli([
+      "url",
+      "--tab",
+      "browser:a:none",
+    ]);
+
+    expect(result.stdout).toBe("http://localhost:3000/\n");
+    // The point of keeping a shape test rather than listing first: the precise
+    // spelling is the one an agent copies out of `tabs`, and it stays cheap.
+    expect(
+      host.harness.inspection.browserCalls.map((call) => call.type),
+    ).toEqual(["page.get_url"]);
+  });
+
   it('reads "active" as the default, without listing tabs to find it', async () => {
     const host = createHost();
 
