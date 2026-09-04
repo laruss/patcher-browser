@@ -36,6 +36,14 @@ const packageTargets = [
  * rewrite that one and report success. The test fixture carries the matching
  * form, so this is pinned rather than argued.
  *
+ * Both sentences are alpha copy -- "Download the alpha", published as a
+ * prerelease, ad-hoc signed -- and a stable bump writes a stable number into
+ * them (`--patch` from a prerelease lands on one). That is deliberately not
+ * worth a channel switch here: the first stable release rewrites both sections
+ * by hand, because everything around the number stops being true in the same
+ * moment -- the prerelease, the signature, the absent auto-update -- and these
+ * patterns move with the sentences they name.
+ *
  * **A pattern that does not match exactly once fails the bump.** Prose does get
  * reworded, and a rewriter that shrugs at a pattern it can no longer find is how
  * the drift comes back: it would report a successful bump having changed nothing.

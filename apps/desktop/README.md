@@ -109,7 +109,10 @@ the current download in prose — `README.md` and `docs/installation.md` — and
 nothing else: no commit, no tag. A document whose sentence no longer matches the
 pattern in `scripts/bump-version.mjs` fails the bump instead of being skipped
 quietly. You can also use `--patch`, `--minor`, or `--major` instead of an
-explicit version.
+explicit version — but `--patch` from a prerelease resolves to the stable version
+that prerelease was leading up to, `0.1.1-alpha.3` → `0.1.1`, and the alpha
+channel then refuses to publish it. Cutting another alpha means naming it:
+`0.1.1-alpha.4`.
 
 Write the `CHANGELOG.md` entry for the new version in the same commit.
 `packages/scripts` has a test that requires an entry for whatever version the
