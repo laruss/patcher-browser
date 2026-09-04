@@ -10,6 +10,10 @@ import {
   recordEnvSetupScriptQuestion,
 } from "@patcher/db";
 import {
+  createCommandApprovalPayload,
+  createDenyResolution,
+} from "../../helpers/pending-interactions.js";
+import {
   createPluginApiFetch,
   createPluginApiIdentities,
   PLUGIN_API_ID_HEADER,
@@ -20,6 +24,7 @@ import {
   seedHostSession,
   seedProjectWithSource,
   seedThread,
+  seedTurnStarted,
 } from "../../helpers/seed.js";
 import {
   createTestAppHarness,
@@ -282,26 +287,64 @@ describe("plugin identity on the loopback API", () => {
 
   it("leaves a plugin the denying of one, which lowers privilege", async () => {
     // The same split the turn gate makes: `deny` takes privilege away, so it is
-    // not this gate's business. Reaches the handler, which then answers on the
-    // request's own merits — the interaction does not exist here, so any status
-    // but this gate's 403 is the assertion.
+    // not this gate's business. A real approval interaction rather than a
+    // made-up id, and the denial is asserted as having happened: "not this
+    // gate's 403" would pass just as well on a handler that answered 404.
     const { headers } = await install("patcher-plugin-denier", ["threads"]);
     const { host } = seedHostSession(harness.deps, { id: "host-denial" });
     const { project } = seedProjectWithSource(harness.deps, {
       hostId: host.id,
     });
-    const thread = seedThread(harness.deps, { projectId: project.id });
+    const environment = seedEnvironment(harness.deps, {
+      hostId: host.id,
+      projectId: project.id,
+    });
+    const thread = seedThread(harness.deps, {
+      environmentId: environment.id,
+      projectId: project.id,
+    });
+    seedTurnStarted(harness.deps, {
+      threadId: thread.id,
+      turnId: "turn-plugin-deny",
+      providerThreadId: "provider-thread-plugin-deny",
+    });
+    const registered =
+      harness.deps.pendingInteractions.registerPendingInteraction({
+        interaction: {
+          threadId: thread.id,
+          turnId: "turn-plugin-deny",
+          providerId: "codex",
+          providerThreadId: "provider-thread-plugin-deny",
+          providerRequestId: "request-plugin-deny",
+          payload: createCommandApprovalPayload({
+            command: "git push",
+            cwd: "/tmp/project",
+            itemId: "item-1",
+            reason: "Approve command",
+          }),
+        },
+      });
+    if (registered.outcome === "rejected") {
+      throw new Error(
+        `Expected interaction registration to succeed: ${registered.reason}`,
+      );
+    }
 
     const response = await harness.app.request(
-      `${BASE}/api/v1/threads/${thread.id}/interactions/pint_abc234567z/resolve`,
+      `${BASE}/api/v1/threads/${thread.id}/interactions/${registered.interaction.id}/resolve`,
       {
         method: "POST",
         headers: { ...headers, "content-type": "application/json" },
-        body: JSON.stringify({ decision: "deny" }),
+        body: JSON.stringify(createDenyResolution()),
       },
     );
 
-    expect(response.status).not.toBe(403);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: registered.interaction.id,
+      resolution: createDenyResolution(),
+      status: "resolving",
+    });
   });
 
   it("refuses a plugin the dismissal of a consent prompt", async () => {

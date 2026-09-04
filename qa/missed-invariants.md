@@ -109,11 +109,13 @@
   into the route for agents and the agent-facing docs told them to use it — so
   the feature shipped green and refused.
 - Automated guard added: the collection segments are taken off the route table
-  rather than listed, and `agent-thread-scope.test.ts` derives the same list
-  from `publicApiRoutes.threads` and asserts every one of them reads as "not a
-  thread route" — so a collection route mounted tomorrow is covered on the day
-  it is added. Plus the two HTTP tests that were missing: a turn forking its own
-  thread reaches the fork service, and a turn forking a stranger's is refused.
+  rather than listed, and `agent-thread-scope.test.ts` derives the same list the
+  same way — every group of `publicApiRoutes`, not just `threads`, since which
+  group a route is filed under is not what the router matches — and asserts
+  every one of them reads as "not a thread route". So a collection route mounted
+  tomorrow is covered on the day it is added, wherever it is declared. Plus the
+  two HTTP tests that were missing: a turn forking its own thread reaches the
+  fork service, and a turn forking a stranger's is refused.
 - And the fix was not only the regex: a route with no `:id` names its thread in
   the body, so the fork source is now held to the same relationship an `:id` is
   (`agentForkSourceThreadDenial`). Un-refusing the route without that would have
@@ -138,6 +140,13 @@
   `deny` left open) and `/cancel`, and a turn test for `/cancel` with the
   person's own dismissal as the positive control. Falsified by removing each of
   the three refusals in turn: each sabotage failed exactly its own assertion.
+- The `deny` controls resolve a real interaction and assert the resolution,
+  rather than asserting that the answer was "not this gate's 403". The weaker
+  form was there already on the turn side and is the failure mode worth naming:
+  a control aimed at a made-up interaction id passes on a 404, so it stays green
+  for a handler that stopped working for reasons of its own. Both controls now
+  fail if the interaction id is pointed at nothing, which is how that was
+  checked.
 - Still per-route, and worth saying: the general guard would enumerate the
   mounted `/threads/:id/interactions/*` writes and require a decision about each
   caller kind for every one, the way `agent-route-policy.test.ts` reads Hono's

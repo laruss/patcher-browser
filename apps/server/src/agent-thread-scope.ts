@@ -23,9 +23,10 @@ import { MAX_THREAD_HIERARCHY_DEPTH } from "./services/threads/thread-parent.js"
  * are built from the same routes.
  *
  * The `:id` in the path is not the only place a request names a thread, and
- * the two denials at the foot of this file are about the other one: a creation
- * body names a parent and a project, and both of those decide what happens to
- * threads the caller never addressed.
+ * the three denials at the foot of this file are about the other one: a
+ * creation body names a parent and a project, a fork body names its source,
+ * and each of those decides what happens to a thread the caller never
+ * addressed. The fork is also the case where there is no `:id` to read.
  */
 
 export const AGENT_THREAD_ID_CONTEXT_KEY = "patcherAgentThreadId";

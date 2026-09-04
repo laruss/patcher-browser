@@ -9,9 +9,15 @@ import {
 } from "@patcher/server-contract";
 import type { AppDeps } from "../../src/types.js";
 import {
+  createCommandApprovalPayload,
+  createDenyResolution,
+} from "../helpers/pending-interactions.js";
+import {
   seedHost,
   seedProjectWithSource,
   seedThread,
+  seedThreadFixture,
+  seedTurnStarted,
 } from "../helpers/seed.js";
 import {
   createTestAppHarness,
@@ -536,12 +542,62 @@ describe("a turn allowing its own permission prompt", () => {
   });
 
   it("does not stand in the way of denying, which lowers privilege", async () => {
-    // Reaches the handler, which then answers on the request's own merits — the
-    // thread and interaction do not exist here, so any status but this policy's
-    // 403 is the assertion.
-    const response = await resolveAsAgent("deny");
+    // A real interaction rather than a made-up id, and the denial asserted as
+    // having happened: "any status but this policy's 403" would pass just as
+    // well on a handler that answered 404, which is what this used to assert.
+    server = await startTestServer();
+    const running = server;
+    // Its own fixture rather than `seedThreadMidTurn`, because resolving for
+    // real needs a workspace and a connected machine to dispatch to, and the
+    // three refusals above deliberately have neither: the gate answers before
+    // the thread is looked up, and their made-up ids are what shows that.
+    const { thread } = seedThreadFixture(running, {
+      session: { id: "host-agent-deny" },
+      thread: { status: "active" },
+    });
+    const threadId = thread.id;
+    seedTurnStarted(running.deps, {
+      threadId,
+      turnId: "turn-agent-deny",
+      providerThreadId: "provider-thread-agent-deny",
+    });
+    const registered =
+      running.deps.pendingInteractions.registerPendingInteraction({
+        interaction: {
+          threadId,
+          turnId: "turn-agent-deny",
+          providerId: "codex",
+          providerThreadId: "provider-thread-agent-deny",
+          providerRequestId: "request-agent-deny",
+          payload: createCommandApprovalPayload({
+            command: "git push",
+            cwd: "/tmp/project",
+            itemId: "item-1",
+            reason: "Approve command",
+          }),
+        },
+      });
+    if (registered.outcome === "rejected") {
+      throw new Error(
+        `Expected interaction registration to succeed: ${registered.reason}`,
+      );
+    }
 
-    expect(response.status).not.toBe(403);
+    const response = await fetch(
+      `${running.baseUrl}/api/v1/threads/${threadId}/interactions/${registered.interaction.id}/resolve`,
+      {
+        method: "POST",
+        headers: agentHeaders(threadId),
+        body: JSON.stringify(createDenyResolution()),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: registered.interaction.id,
+      resolution: createDenyResolution(),
+      status: "resolving",
+    });
   });
 });
 
