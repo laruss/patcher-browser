@@ -129,23 +129,26 @@ import {
 } from "./desktop-browser-download.js";
 import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
 import {
+  InteractionDeadline,
+  InteractionRefusal,
+  callOnElement,
+  delay,
+  waitForActionable,
+  type InteractionTarget,
+} from "./desktop-browser-actionability.js";
+import {
   buildBrowserSnapshot,
   findBrowserSnapshotRoot,
   type AxNode,
 } from "./desktop-browser-snapshot.js";
 import {
-  PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
   PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS,
   PATCHER_BROWSER_ACTION_TIMEOUT_MS,
   PATCHER_BROWSER_AUTOMATION_WORLD_NAME,
   PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
   PATCHER_BROWSER_READ_CHECKED_SCRIPT,
   PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
-  browserActionRectsAgree,
-  parseBrowserActionSample,
   parseBrowserScriptOutcome,
-  type BrowserActionBlockedReason,
-  type BrowserActionRect,
 } from "./desktop-browser-actions.js";
 import {
   CDP_MODIFIER_ALT,
@@ -1109,100 +1112,6 @@ function invalidateSnapshotRefs(entry: BrowserViewEntry): void {
   entry.snapshotGeneration += 1;
 }
 
-type InteractionRefusalReason = Extract<
-  PatcherDesktopBrowserInteractResult,
-  { ok: false }
->["reason"];
-
-/**
- * A refusal an interaction can answer with, thrown so the many steps of an
- * action do not each have to thread a result type back out.
- */
-class InteractionRefusal extends Error {
-  readonly reason: InteractionRefusalReason;
-
-  constructor(reason: InteractionRefusalReason, message: string) {
-    super(message);
-    this.name = "InteractionRefusal";
-    this.reason = reason;
-  }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * The clock one interaction runs against.
- *
- * Two jobs, and the second is the one that matters. It bounds every round trip
- * into the page, so a renderer that stops answering — a busy main thread, a
- * frame that never comes — ends as our typed refusal instead of running past the
- * bridge's own timeout. And it is checked once more immediately before the first
- * input event of an action, which is what makes a refusal mean *nothing
- * happened*: an action the caller has already been told about must never land
- * afterwards and overwrite whatever they did instead.
- *
- * Deliberately not checked *between* the input events of one action. Once the
- * first keystroke of a `type` is in the page, stopping halfway would leave the
- * field holding half the text, which is worse than finishing late.
- */
-class InteractionDeadline {
-  private readonly at: number;
-
-  constructor(budgetMs: number) {
-    this.at = Date.now() + budgetMs;
-  }
-
-  remainingMs(): number {
-    return this.at - Date.now();
-  }
-
-  expired(): boolean {
-    return this.remainingMs() <= 0;
-  }
-
-  private expiry(what: string): InteractionRefusal {
-    return new InteractionRefusal(
-      "not-actionable",
-      `Ran out of time ${what}; nothing was sent to the page.`,
-    );
-  }
-
-  /**
-   * Refuse unless there is still time to act. `what` names the step, so the
-   * agent reading this knows how far the action got.
-   */
-  assertTimeToAct(what: string): void {
-    if (this.expired()) {
-      throw this.expiry(`before ${what}`);
-    }
-  }
-
-  /**
-   * Bound one round trip into the page. The abandoned call is left to settle on
-   * its own — a CDP request cannot be recalled, and its answer is no longer
-   * anyone's to read.
-   */
-  async race<T>(work: Promise<T>, what: string): Promise<T> {
-    const remaining = this.remainingMs();
-    if (remaining <= 0) {
-      void work.catch(() => undefined);
-      throw this.expiry(what);
-    }
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const expiry = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(this.expiry(what)), remaining);
-    });
-    try {
-      return await Promise.race([work, expiry]);
-    } finally {
-      clearTimeout(timer);
-      void work.catch(() => undefined);
-    }
-  }
-}
-
 /**
  * The isolated world the interaction scripts run in.
  *
@@ -1237,11 +1146,6 @@ async function ensureAutomationWorld(
   }
   entry.automationWorldId = created.executionContextId;
   return created.executionContextId;
-}
-
-interface InteractionTarget {
-  backendNodeId: number;
-  objectId: string;
 }
 
 /**
@@ -1295,112 +1199,6 @@ async function resolveInteractionTarget(
     );
   }
   return { backendNodeId, objectId };
-}
-
-/** Run one of the constant scripts against a resolved element. */
-async function callOnElement(
-  session: CdpSession,
-  objectId: string,
-  functionDeclaration: string,
-  callArguments?: { value: unknown }[],
-): Promise<unknown> {
-  const response = await session.send<{
-    result?: { value?: unknown };
-    exceptionDetails?: { text?: string };
-  }>("Runtime.callFunctionOn", {
-    objectId,
-    functionDeclaration,
-    returnByValue: true,
-    awaitPromise: true,
-    ...(callArguments === undefined ? {} : { arguments: callArguments }),
-  });
-  if (response.exceptionDetails !== undefined) {
-    throw new InteractionRefusal(
-      "failed",
-      `The page threw while being inspected: ${
-        response.exceptionDetails.text ?? "unknown error"
-      }`,
-    );
-  }
-  return response.result?.value;
-}
-
-const BLOCKED_REASON_TEXT: Record<BrowserActionBlockedReason, string> = {
-  detached: "the element left the page",
-  not_visible: "the element is hidden",
-  unstable: "the element is still moving",
-  disabled: "the element is disabled",
-  offscreen: "the element is outside the viewport and would not scroll into it",
-  covered: "something else is on top of the element",
-};
-
-/**
- * Wait until the element can actually be acted on, and answer with the point to
- * act at.
- *
- * This is the wait Playwright performs before every action and the reason its
- * actions are not races. Polling rather than observing: the conditions that
- * matter (an overlay's opacity, a layout settling) have no single event to
- * subscribe to.
- *
- * The settle check lives here rather than in the page. Two samples an interval
- * apart with the same box means the element has stopped moving; the interval is
- * this loop's own timer, in the main process, where no page-visibility
- * throttling can stretch or stop it. Doing it the obvious way — awaiting two
- * animation frames inside the page — is what made every ref-based action hang
- * whenever the app window was covered or minimised, because Chromium stops
- * producing frames for a view nobody can see and the wait simply never ended.
- */
-async function waitForActionable(
-  session: CdpSession,
-  target: InteractionTarget,
-  deadline: InteractionDeadline,
-): Promise<{ x: number; y: number }> {
-  // Best-effort: an element with no layout box throws here, and the sample below
-  // reports that in terms the caller can act on.
-  await session
-    .send("DOM.scrollIntoViewIfNeeded", { backendNodeId: target.backendNodeId })
-    .catch(() => undefined);
-
-  let blocked: BrowserActionBlockedReason = "detached";
-  let previous: BrowserActionRect | null = null;
-  for (;;) {
-    const sample = parseBrowserActionSample(
-      await deadline.race(
-        callOnElement(
-          session,
-          target.objectId,
-          PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
-        ),
-        "while checking whether the element could be acted on",
-      ),
-    );
-    if (sample === null) {
-      throw new InteractionRefusal(
-        "failed",
-        "The page answered the actionability check with something unusable.",
-      );
-    }
-    if (sample.ready) {
-      if (previous !== null && browserActionRectsAgree(previous, sample.rect)) {
-        return { x: sample.x, y: sample.y };
-      }
-      // One good sample only says where the element is now, not that it will
-      // still be there when the click lands.
-      blocked = "unstable";
-      previous = sample.rect;
-    } else {
-      blocked = sample.reason;
-      previous = null;
-    }
-    if (deadline.remainingMs() <= PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS) {
-      throw new InteractionRefusal(
-        "not-actionable",
-        `Gave up waiting for the element: ${BLOCKED_REASON_TEXT[blocked]}. Nothing was sent to the page.`,
-      );
-    }
-    await delay(PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS);
-  }
 }
 
 const MOUSE_BUTTON_MASK: Record<string, number> = {

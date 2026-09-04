@@ -49,6 +49,16 @@ jobs:
       - name: Audit the Patcher rename
         run: node scripts/rename-audit.mjs
 
+      # How long a source file may be, as an error rather than a warning:
+      # `desktop-browser-view.ts` was 819 lines at Phase 0 and is 5 742 now, and
+      # nothing above says when a file crossed from long to unreadable. Its own
+      # step because `turbo run lint` above finds one lint task — `@patcher/app`
+      # is the only package that declares one — and this is the one rule that
+      # has to see the whole tree. The files already over the limit are pinned
+      # at their current size in eslint.max-lines.mjs and may only shrink.
+      - name: Check source file sizes
+        run: bun run lint:file-size
+
   # Tests run on their own runners instead of inside the checks job: the big
   # suites are CPU-bound and previously fought each other (and the builds) for
   # the same 4 vCPUs, which made tests the critical path of every run.
@@ -56,6 +66,12 @@ jobs:
     name: Tests (${{ matrix.shard }}, ubuntu-latest, Node 22.x)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    env:
+      # One place for the pin, read by the install step below and hashed into
+      # `@patcher/agent-runtime#test` (see turbo.json) so that bumping it
+      # actually re-runs the measurement instead of restoring it from cache.
+      PATCHER_CODEX_CLI_VERSION: "0.153.1"
 
     strategy:
       fail-fast: false
@@ -104,6 +120,25 @@ jobs:
           bwrap --ro-bind / / --dev-bind /dev /dev /bin/true \
             && echo "bubblewrap can build a sandbox on this runner" \
             || echo "bubblewrap cannot build a sandbox here; the suite will assert the refusal"
+
+      # Codex builds its own sandbox from the permission profile Patcher sends
+      # it, and what that sandbox then refuses is the provider's answer rather
+      # than ours — so it is measured rather than asserted, by
+      # `codex/permission-profile.sandbox.test.ts`. `codex sandbox` runs a plain
+      # command under a named profile with no model turn and no credentials,
+      # which is what lets this run here at all; the Linux backend is bubblewrap,
+      # so it needs the same namespace permission the step above lifts.
+      #
+      # Pinned in this job's `env` above, and bumping it is the point: the
+      # profile's own doc comment records which Codex version each measurement
+      # was taken against, so a bump is a deliberate re-measurement rather than a
+      # surprise on an unrelated pull request. The pin is hashed into that
+      # package's test task, so the bump cannot be served from the turbo cache.
+      # And the suite refuses to be skipped here — see the availability check in
+      # the test itself.
+      - name: Install the Codex CLI for the provider-boundary measurement
+        if: matrix.shard == 'packages'
+        run: npm i -g --no-fund --no-audit "@openai/codex@$PATCHER_CODEX_CLI_VERSION"
 
       - name: Test
         # --concurrency matches the root `test` script: the packages shard runs

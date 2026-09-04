@@ -238,6 +238,17 @@
       "dependsOn": ["//#ensure-native-modules", "topo"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"]
     },
+    // Same task as `test`, plus one hash input that is not a file: the Codex CLI
+    // version CI installs. `permission-profile.sandbox.test.ts` measures what
+    // that binary's sandbox refuses, and the binary is not an input turbo can
+    // see — so without this, bumping the pin in ci.yml leaves the hash
+    // unchanged and the "deliberate re-measurement" is served from cache.
+    // Unset locally, which keeps the hash stable there.
+    "@patcher/agent-runtime#test": {
+      "dependsOn": ["//#ensure-native-modules", "topo"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"],
+      "env": ["PATCHER_CODEX_CLI_VERSION"]
+    },
     "@patcher/templates#test": {
       "dependsOn": [
         "//#ensure-native-modules",

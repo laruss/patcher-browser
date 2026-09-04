@@ -27,3 +27,41 @@
   inspect server/daemon logs for protocol disconnects or host-RPC mismatch
   entries around that action. This is only a symptom check; malformed protocol
   invariants belong in automated boundary tests.
+
+## One policy, four enforcers, and a list only one of them was tested against
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#74), second bullet.
+- Invariant missed: the paths a sandboxed turn may not write are resolved once,
+  by `resolveProtectedRepositoryPaths`, and every enforcer built from them must
+  carry **all** of them. There are four — Claude Code's SDK sandbox, Codex's
+  permission profile, the ACP bridge's path check, and the seatbelt/bwrap
+  sandbox Patcher builds for an ACP turn's agent, a Pi turn's bridge and every
+  terminal.
+- Why the existing tests missed it: each enforcer had one, and each was written
+  against a hand-written list — `["/tmp/worktree/.git/config"]` in the Claude
+  adapter's suite, `["/workspace/.git/config"]` in the ACP one. So adding an
+  entry to `GIT_EXECUTION_ENTRIES` failed nothing, and an enforcer that dropped
+  a whole class of path (`config.worktree`, or the `.git` pointer file a linked
+  worktree is reached through) kept them all green. No defect was found this
+  way; the point is that one would not have been.
+- Automated guard added: `apps/host-daemon/src/provider-boundary-matrix.test.ts`
+  resolves the real list on a real checkout and checks all four carry every
+  path — the three provider translations through
+  `@patcher/agent-runtime/test`'s `buildProviderBoundaryTranslations`, and
+  Patcher's own sandbox through the argv `buildProviderSandboxLauncher`
+  produces, including the entry rules a rename would otherwise walk around
+  (#57). Falsified by removing one path from each enforcer in turn: each
+  sabotage failed exactly the assertion for that enforcer and nothing else. It
+  also pins the list itself at four entries, so a fifth is a deliberate edit in
+  two places rather than a silent widening.
+- Also automated, and a different question: whether each provider's own sandbox
+  then _refuses_ the write.
+  `packages/agent-runtime/src/codex/permission-profile.sandbox.test.ts` measures
+  the Codex half with `codex sandbox` — no model turn, no credentials — on both
+  backends, including the `.git/info` rename that Linux leaves open on purpose.
+  CI installs the pinned Codex CLI for it; without the binary the suite skips,
+  and the availability gate runs a real sandbox rather than `--version` so "no
+  namespaces here" is not read as a refusal.
+- Manual guard: the Claude Code square needs a live session, so it stays in
+  `qa/provider-permission-mode-runbook.md` ("Git-Metadata Boundary Probe"), with
+  the answers recorded in `docs/security.md`.
