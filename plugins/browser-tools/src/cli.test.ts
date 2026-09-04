@@ -1553,6 +1553,28 @@ describe("patcher browser CLI waiting", () => {
     expect(result.stderr).toContain("https://example.com/");
   });
 
+  it("waits through a poll the page was too busy to answer", async () => {
+    const host = waitingHost();
+    host.harness.behavior.browser.failNextCall("page_read_timeout");
+
+    const result = await host.harness.runCli([
+      "wait",
+      "--selector",
+      "article",
+      "--poll-interval",
+      "5",
+      "--timeout",
+      "2000",
+    ]);
+
+    // The scoped read has a two-second deadline of its own now, and a page busy
+    // for that long is a page that may well answer the next poll. Ending the
+    // wait on the first slow read would spend a `--timeout` of 30 s to report
+    // 1 after 2 — and this wait's own timeout is what bounds a page that never
+    // answers.
+    expect(result.exitCode).toBe(0);
+  });
+
   it("waits for a selector, treating no match as not yet", async () => {
     const host = waitingHost();
     host.harness.behavior.browser.failNextCall("no_match");

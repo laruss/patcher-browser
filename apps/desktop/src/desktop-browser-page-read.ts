@@ -48,6 +48,48 @@ export const PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID = 1729;
 export const PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS = 2_000;
 
 /**
+ * The read, or {@link PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS} of waiting
+ * for it — whichever comes first.
+ *
+ * Both reads need this and neither gets it for free. The unscoped one runs a
+ * script in the page, and script execution is suspended while a page loads, so
+ * a wedged subresource or a busy-looping main thread arrives as "no answer
+ * yet". The scoped one asks the debugger which element a selector means, and a
+ * CDP send has no deadline of its own either — four of them in a row, on a page
+ * `DOM.getDocument` cannot get a word out of, is an IPC invoke held open until
+ * something further out gives up. `wait --selector` polls that every 250ms.
+ *
+ * Whichever loses the race is dropped: a late answer must not resolve a call
+ * already reported as timed out, the same discipline `startResizeSnapshot`
+ * applies to a late capture. Nothing is cancelled, because neither an isolated
+ * script nor a CDP command can be.
+ *
+ * `work` answers with an outcome rather than throwing — both callers turn their
+ * failures into one — and if it throws anyway *after* the deadline has answered,
+ * the rejection goes nowhere: `Promise.race` subscribed to it when the race
+ * started, so it is a handled rejection with nothing left to report to, not an
+ * unhandled one taking the main process down. Measured, not assumed: a spare
+ * `.catch` here made no difference to a test that rejects a lost read.
+ */
+export function withPageReadDeadline<T>(
+  work: Promise<T>,
+  onTimeout: T,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race<T>([
+    work,
+    new Promise<T>((resolve) => {
+      timer = setTimeout(
+        () => resolve(onTimeout),
+        PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
+      );
+    }),
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+/**
  * Slicing inside the page keeps a document with megabytes of text from crossing
  * the process boundary just to be thrown away here. The script reports what it
  * cut, because after the slice the original length is gone.

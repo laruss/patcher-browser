@@ -18,6 +18,7 @@ import type {
   PluginBrowserVideo,
   PluginCliResult,
 } from "@patcher/plugin-sdk";
+import { delay, waitForQuiet } from "./cli-settle.js";
 import { resolveTabTarget, urlMatches } from "./cli-targets.js";
 import { DEFAULT_PAGE_TEXT_MAX_LENGTH, explainBrowserError } from "./tools.js";
 import {
@@ -683,13 +684,6 @@ const DEFAULT_POLL_INTERVAL_MS = 250;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 /** timeout(1)'s convention, and `patcher terminal wait`'s. */
 const WAIT_TIMEOUT_EXIT_CODE = 124;
-/**
- * How many network entries a settle fingerprints. More than one because two
- * requests can finish in the same millisecond and a single-entry window would
- * then look unchanged; few enough that the check stays one small read.
- */
-const NETWORK_FINGERPRINT_LIMIT = 5;
-
 interface ParsedArgs {
   positionals: string[];
   /** Which flags were actually given, so a command can refuse one it ignores. */
@@ -1358,108 +1352,6 @@ function parseStorageStateFile(raw: string): BrowserStorageStateFile | null {
   };
 }
 
-function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    function onAbort() {
-      clearTimeout(timer);
-      resolve();
-    }
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-/**
- * What the tab's network log looks like right now, as one comparable string.
- *
- * Deliberately a fingerprint rather than a timestamp comparison. Entries are
- * stamped by the machine running the desktop app, and this code runs in the
- * server process — which on a remote install is a different machine with a
- * different clock. Two samples taken here, an interval apart measured here, say
- * "nothing finished in between" without either clock having to agree with the
- * other.
- */
-async function networkFingerprint(
-  patcher: PatcherPluginApi,
-  tabId: string | undefined,
-  options: PluginBrowserCallOptions,
-): Promise<string> {
-  const log = await patcher.browser.page.network(
-    { tabId, limit: NETWORK_FINGERPRINT_LIMIT },
-    options,
-  );
-  return `${log.droppedCount}|${log.entries
-    .map((entry) => `${entry.timestamp}:${entry.method}:${entry.url}`)
-    .join("|")}`;
-}
-
-interface QuietArgs {
-  patcher: PatcherPluginApi;
-  tabId: string | undefined;
-  budgetMs: number;
-  idleMs: number;
-  pollIntervalMs: number;
-  options: PluginBrowserCallOptions;
-}
-
-/**
- * Wait until the tab has finished no request for `idleMs`, or until the budget
- * runs out.
- *
- * This is what a page load event cannot tell you. On anything built as a
- * single-page app the document is "loaded" before its content is fetched, so a
- * read taken the moment a navigation settles returns the frame around the page
- * — and reports it as the page, which is the expensive kind of wrong: the caller
- * concludes there is nothing there.
- *
- * Never throws. A tab with no live page, a browser that went away, a missing
- * permission — none of those should turn a command that already did its job into
- * a failure, so an unreadable log answers "not quiet" and the caller says so.
- */
-async function waitForQuiet(
-  args: QuietArgs,
-): Promise<{ quiet: boolean; waitedMs: number; unavailable: boolean }> {
-  const { patcher, tabId, budgetMs, idleMs, pollIntervalMs, options } = args;
-  const startedAt = Date.now();
-  let fingerprint: string;
-  try {
-    fingerprint = await networkFingerprint(patcher, tabId, options);
-  } catch {
-    return { quiet: false, waitedMs: 0, unavailable: true };
-  }
-  let quietSince = Date.now();
-  for (;;) {
-    const now = Date.now();
-    if (now - quietSince >= idleMs) {
-      return { quiet: true, waitedMs: now - startedAt, unavailable: false };
-    }
-    if (now - startedAt >= budgetMs || options.signal?.aborted === true) {
-      return { quiet: false, waitedMs: now - startedAt, unavailable: false };
-    }
-    await delay(
-      Math.min(pollIntervalMs, Math.max(1, budgetMs - (now - startedAt))),
-      options.signal,
-    );
-    let next: string;
-    try {
-      next = await networkFingerprint(patcher, tabId, options);
-    } catch {
-      return {
-        quiet: false,
-        waitedMs: Date.now() - startedAt,
-        unavailable: true,
-      };
-    }
-    if (next !== fingerprint) {
-      fingerprint = next;
-      quietSince = Date.now();
-    }
-  }
-}
-
 /** The scroll positions a `scroll` reports back, as the page measured them. */
 interface ScrollPosition {
   top: number;
@@ -1942,7 +1834,13 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
                   typeof error === "object" && error !== null && "code" in error
                     ? String((error as { code: unknown }).code)
                     : "";
-                if (code === "no_match") return null;
+                // `page_read_timeout` alongside `no_match` because the read
+                // has a two-second deadline of its own and a page busy for
+                // that long is a page that may be ready on the next poll —
+                // this wait's own `--timeout` is what bounds one that is not.
+                if (code === "no_match" || code === "page_read_timeout") {
+                  return null;
+                }
                 // An unparseable selector will never match, and neither will a
                 // tab with no page. Waiting out the timeout on either would
                 // spend thirty seconds to report the wrong problem.

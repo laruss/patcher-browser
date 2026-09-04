@@ -59,7 +59,7 @@ const SOURCE_FILES = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"];
 /**
  * Files over the limit when the rule landed, at the size they were then.
  *
- * Ten of the eighteen are tests, and they are held to the same limit for the
+ * Ten of the seventeen are tests, and they are held to the same limit for the
  * same reason: `desktop-browser-view-manager.test.ts` is the longest file in the
  * repository, and a test nobody can navigate is where a duplicate case hides.
  *
@@ -68,10 +68,10 @@ const SOURCE_FILES = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"];
  * under the limit.
  */
 const PINNED_OVER_LIMIT = {
-  "apps/desktop/test/desktop-browser-view-manager.test.ts": 8371,
+  "apps/desktop/test/desktop-browser-view-manager.test.ts": 8360,
   "packages/agent-runtime/src/codex/adapter.test.ts": 6088,
   "packages/agent-runtime/src/claude-code/adapter.test.ts": 5795,
-  "apps/desktop/src/desktop-browser-view.ts": 5540,
+  "apps/desktop/src/desktop-browser-view.ts": 5531,
   "apps/server/test/public/public-thread-data.test.ts": 5128,
   "packages/db/test/migrate.test.ts": 4679,
   "packages/db/test/data/events.test.ts": 4455,
@@ -85,7 +85,6 @@ const PINNED_OVER_LIMIT = {
   "apps/server/src/services/plugins/plugin-api.ts": 3413,
   "apps/app/src/components/promptbox/PromptBoxInternal.tsx": 3299,
   "apps/app/src/components/promptbox/PromptBoxInternal.test.tsx": 3282,
-  "plugins/browser-tools/src/cli.ts": 3014,
 };
 
 function maxLinesRule(max) {

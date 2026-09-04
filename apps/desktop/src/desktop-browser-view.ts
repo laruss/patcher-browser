@@ -174,10 +174,10 @@ import {
 import {
   PATCHER_DESKTOP_BROWSER_ELEMENT_READ_FUNCTION,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_SCRIPT,
-  PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
   PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
   parseBrowserElementReadContent,
   parseBrowserPageReadContent,
+  withPageReadDeadline,
 } from "./desktop-browser-page-read.js";
 import {
   PATCHER_DESKTOP_BROWSER_PDF_READ_TIMEOUT_MS,
@@ -2265,21 +2265,16 @@ type IsolatedScriptOutcome =
   | { kind: "failed" };
 
 /**
- * Run one of our own scripts in the page-read isolated world, under a deadline.
- *
- * The deadline is mandatory rather than defensive: script execution is
- * suspended while a page loads, so a wedged subresource or a busy-looping main
- * thread reaches us as "no answer yet" and would otherwise hold a tool call
- * open forever. Whichever of the two loses the race is dropped — a late script
- * result must not resolve a call already reported as timed out, the same
- * discipline `startResizeSnapshot` applies to a late capture.
+ * Run one of our own scripts in the page-read isolated world, under the
+ * deadline every page read shares — see {@link withPageReadDeadline} for why
+ * there is one. A script that throws is `failed` rather than a rejection, so
+ * the deadline has an outcome to race against.
  */
-async function runIsolatedScript(
+function runIsolatedScript(
   webContents: WebContentsView["webContents"],
   code: string,
 ): Promise<IsolatedScriptOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return await Promise.race<IsolatedScriptOutcome>([
+  return withPageReadDeadline<IsolatedScriptOutcome>(
     webContents
       .executeJavaScriptInIsolatedWorld(
         PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
@@ -2287,15 +2282,8 @@ async function runIsolatedScript(
       )
       .then((value: unknown) => ({ kind: "value" as const, value }))
       .catch(() => ({ kind: "failed" as const })),
-    new Promise<{ kind: "timeout" }>((resolve) => {
-      timer = setTimeout(
-        () => resolve({ kind: "timeout" }),
-        PATCHER_DESKTOP_BROWSER_PAGE_READ_TIMEOUT_MS,
-      );
-    }),
-  ]).finally(() => {
-    clearTimeout(timer);
-  });
+    { kind: "timeout" },
+  );
 }
 
 /**
@@ -5143,7 +5131,10 @@ export function createDesktopBrowserViewManager(
       };
     },
     readPageIn({ hostWindow, request }) {
-      return readTabElementText({ hostWindow, request });
+      return withPageReadDeadline(readTabElementText({ hostWindow, request }), {
+        ok: false,
+        reason: "timeout",
+      });
     },
     snapshot({ hostWindow, request }) {
       return captureTabSnapshot({ hostWindow, request });
