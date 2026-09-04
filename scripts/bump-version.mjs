@@ -15,6 +15,46 @@ const packageTargets = [
     path: "apps/desktop/package.json",
   },
 ];
+
+/**
+ * The documents that name the current download's version in prose.
+ *
+ * `README.md` and `docs/installation.md` are the two places a reader is told
+ * which alpha is the newest one, and nothing else in the repository notices when
+ * they fall behind a bump: `.github/workflows/check-version-lockstep.mjs`
+ * compares the two `package.json` files with each other, not with the documents.
+ *
+ * Each pattern anchors on the sentence around the number rather than on the
+ * number itself. A version string on its own appears in the tree for reasons
+ * that must not move with a bump -- `desktop-v0.1.1-alpha.2` names the tag a
+ * review ran against -- so a rewriter hunting for the old number would take
+ * those with it.
+ *
+ * **A pattern that does not match exactly once fails the bump.** Prose does get
+ * reworded, and a rewriter that shrugs at a pattern it can no longer find is how
+ * the drift comes back: it would report a successful bump having changed nothing.
+ *
+ * `prepareNightlyVersion` passes none of these, which is what the empty default
+ * in {@link bumpVersion} is for. A nightly version is derived in CI for a
+ * checkout that is thrown away and its number is never printed in a document, so
+ * a nightly publish has no business failing on the wording of the README.
+ *
+ * Exported for the test that asserts these patterns still match, on every pull
+ * request rather than at the release that would otherwise be the first thing to
+ * notice.
+ */
+export const documentTargets = [
+  {
+    label: "README.md",
+    path: "README.md",
+    pattern: /(currently `)([^`\n]+)(`)/gu,
+  },
+  {
+    label: "docs/installation.md",
+    path: "docs/installation.md",
+    pattern: /(`)([^`\n]+)(` at the time of writing)/gu,
+  },
+];
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
 const numericIdentifierPattern = /^\d+$/u;
@@ -242,6 +282,37 @@ function createUpdatedPackageContent({ content, packageJson, newVersion }) {
   )}${trailingNewline}`;
 }
 
+async function readDocumentTarget({ fileSystem, repoRoot, target }) {
+  const absolutePath = resolve(repoRoot, target.path);
+  const content = await fileSystem.readFile(absolutePath, "utf8");
+
+  return {
+    absolutePath,
+    content,
+    target,
+  };
+}
+
+function createUpdatedDocumentContent({ content, newVersion, target }) {
+  let matchCount = 0;
+  const nextContent = content.replace(
+    target.pattern,
+    (_match, prefix, _currentVersion, suffix) => {
+      matchCount += 1;
+
+      return `${prefix}${newVersion}${suffix}`;
+    },
+  );
+
+  if (matchCount !== 1) {
+    throw new Error(
+      `Expected one version mention in ${target.path}, found ${matchCount}: ${target.pattern} no longer matches the sentence it was written for. Fix the pattern in scripts/bump-version.mjs, or the document.`,
+    );
+  }
+
+  return nextContent;
+}
+
 function findMaxCurrentVersion(packageReads) {
   return packageReads.reduce((maxVersion, packageRead) => {
     const currentVersion = packageRead.packageJson.version;
@@ -261,7 +332,7 @@ function createPackageVersionSummary(packageReads) {
     .join(" ");
 }
 
-async function writePackageTargetsAtomically({ fileSystem, updates }) {
+async function writeTargetsAtomically({ fileSystem, updates }) {
   const preparedUpdates = [];
   const renamedUpdates = [];
 
@@ -308,9 +379,15 @@ export async function bumpVersion(options) {
     );
   }
 
+  const requestedDocumentTargets = options.documentTargets ?? [];
   const packageReads = await Promise.all(
     packageTargets.map((target) =>
       readPackageTarget({ fileSystem, repoRoot, target }),
+    ),
+  );
+  const documentReads = await Promise.all(
+    requestedDocumentTargets.map((target) =>
+      readDocumentTarget({ fileSystem, repoRoot, target }),
     ),
   );
   const maxCurrentVersion = findMaxCurrentVersion(packageReads);
@@ -322,17 +399,30 @@ export async function bumpVersion(options) {
     );
   }
 
-  const updates = packageReads.map((packageRead) => ({
-    ...packageRead,
-    nextContent: createUpdatedPackageContent({
-      content: packageRead.content,
-      packageJson: packageRead.packageJson,
-      newVersion,
-    }),
-  }));
+  const updates = [
+    ...packageReads.map((packageRead) => ({
+      ...packageRead,
+      nextContent: createUpdatedPackageContent({
+        content: packageRead.content,
+        packageJson: packageRead.packageJson,
+        newVersion,
+      }),
+    })),
+    ...documentReads.map((documentRead) => ({
+      ...documentRead,
+      nextContent: createUpdatedDocumentContent({
+        content: documentRead.content,
+        newVersion,
+        target: documentRead.target,
+      }),
+    })),
+  ];
+  const changedLabels = updates
+    .map((update) => update.target.label)
+    .join(" + ");
 
-  await writePackageTargetsAtomically({ fileSystem, updates });
-  log(`Bumped: patcher-app + @patcher/desktop → ${newVersion}`);
+  await writeTargetsAtomically({ fileSystem, updates });
+  log(`Bumped: ${changedLabels} → ${newVersion}`);
 }
 
 async function main() {
@@ -341,6 +431,7 @@ async function main() {
 
   await bumpVersion({
     args: process.argv.slice(2),
+    documentTargets,
     log: console.log,
     repoRoot,
   });

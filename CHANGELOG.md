@@ -1,5 +1,129 @@
 # Changelog
 
+## 0.1.1-alpha.3
+
+alpha.2 made a sandboxed turn the default. This build is what came of taking
+that seriously: a review went looking for ways out of the sandbox and found
+them — the app key sitting in a terminal's environment, a rename that walked
+around a deny, a CLI a turn spawned outside its own boundary — and each one was
+measured before and after rather than reasoned about. Beyond that, a sandboxed
+turn's network can be held to a list, an ACP agent and Pi run inside the
+boundary their mode promises, and a repository's own setup script asks before it
+runs.
+
+Still macOS on Apple Silicon, still ad-hoc signed, and still without
+auto-update: the first launch needs one explicit approval in System Settings,
+and a newer alpha has to be downloaded rather than offered. On Linux the sandbox
+is `bubblewrap`, and a machine that cannot build one refuses the turn instead of
+running it unconfined.
+
+### What a sandboxed turn no longer reaches
+
+- **The files git executes.** A clone whose config, hooks or `.gitattributes`
+  name a program no longer runs it inside Patcher's git — for Codex turns as
+  well as Claude ones, on Linux as well as macOS, and no longer only where the
+  path is spelled the way the rule expected. Renaming `.git`, editing the file
+  and renaming it back walked around every one of those denies; each directory
+  on the way to a protected path is now protected as a name.
+- **Other threads.** A turn drives its own thread and the ones it spawned. A
+  thread it creates can only name the caller's own thread as its parent and the
+  caller's own project — a parent is not a filing label, it is a turn dispatched
+  on that thread when the child finishes, at that thread's own permission mode.
+- **A more privileged next turn.** A turn cannot ask for more privilege than it
+  has, and it can no longer write the app settings it is running under: three
+  fields of that object decide what network the next turn gets. Appearance and
+  keyboard stay writable, because a documented agent workflow ends in one of
+  them.
+- **A workspace outside the project's sources.** Refused when the thread is
+  created, and asked for through `update_environment_directory` instead.
+- **The app key.** Out of a terminal's environment, and out of the ACP bridge —
+  which runs outside the sandbox its agent runs inside and used to answer
+  `fs/readTextFile` and `fs/writeTextFile` for any path at all. The bridge now
+  carries the same denied credential files, the same protected repository
+  entries, and the same write roots as the profile.
+- **A key that outlives its turn.** A thread has two credentials with two
+  lifetimes, so `nohup` from a turn's shell loses the API when the turn ends.
+- **The CLI, except as an API.** `patcher mcp-serve` is spawned by Codex rather
+  than by a sandboxed shell, and ran whatever argv the model passed — one
+  command wrote a file through a positional path with no server involved at all.
+  It now runs only the commands whose whole effect is a request to the API, and
+  answers the rest by naming the turn's own shell, where the sandbox says which
+  paths exist.
+
+### Consent
+
+- A repository's own `.patcher-env-setup.sh` asks before it runs. The answer is
+  remembered per machine, checkout and file contents, and is revocable in
+  Project Settings; allows made before this build are dropped, so the question
+  is asked once more.
+- A terminal can answer a consent prompt, so a headless host is no longer a
+  thread nobody can unblock.
+- A plugin cannot answer one — in either direction. Allowing and dismissing are
+  a person's, not something a plugin holding `threads` settles while a turn
+  waits.
+- An MCP server's tool in a Codex turn asks, instead of being refused.
+- A host nobody put on the list asks, instead of failing as a network error.
+
+### Terminals
+
+- An agent's terminal runs inside its turn's boundary, and is refused where
+  bubblewrap cannot build a namespace rather than opening unconfined.
+- The tab says `sandboxed`, the panel names what is refused, and
+  `patcher terminal list` has a `Sandbox` column.
+- A terminal you open from a thread view keeps your own credential. It used to
+  be handed the turn's, which refused you `patcher terminal restart|close|input`
+  on the terminal you were sitting in and left your own consent prompts
+  unanswerable from that shell.
+- `patcher terminal create --self` and `list --self`, so a turn does not have to
+  go find its own thread id before it can open a terminal.
+
+### Providers and the network
+
+- **Settings → General → "Confine the network of sandboxed turns"**, with an
+  allow-list of hosts. Off by default, and built on macOS and on Linux.
+- **Settings → Codex → "Take the network from sandboxed turns"**, off by
+  default.
+- ACP agents — Cursor, OpenCode, Grok and Hermes — run inside the boundary their
+  mode promises, with the state directories and hosts each one needs measured
+  rather than guessed, and a registered agent can declare its own.
+- Pi has a mode besides Full Access. Its network is not confined there, and
+  Patcher says so rather than implying otherwise: its client ignores the proxy.
+- The `patcher` CLI reaches a Codex turn as a tool, not only over the network.
+
+### The daemon
+
+- A loopback API credential of its own.
+- A config write survives a reload the running server refuses.
+- The offline reload endpoint is pinned, not just its port.
+
+### Browser tools
+
+- Nine things an agent trips over in `patcher browser`, including a scoped page
+  read, and four more a later review found: `wait --url` matches a pattern with
+  a `?` in it, so a redirect ending in a query string is waitable at all;
+  `--tab` takes a URL or title substring rather than only something shaped like
+  an id; a scoped read has a deadline of its own instead of hanging on the
+  page's; and `wait --text` searches the whole page rather than the first 20 000
+  characters of it.
+- A browser action that refuses says which check refused it, instead of
+  sometimes reporting a deadline that expired while it was asking.
+
+### Fixes and polish
+
+- A turn can fork a thread again. The scope check read `fork` as a thread id and
+  refused every turn that tried; the fork is now held to the same relationship
+  as any other thread a turn drives.
+
+### Docs
+
+- Installing on Linux says what it needs: `bubblewrap`, and the
+  unprivileged-user-namespace sysctl Ubuntu 24.04 restricts — where `bwrap` is
+  installed and still answers `Permission denied` to everything.
+- [Security](https://github.com/laruss/patcher-browser/blob/main/docs/security.md)
+  is corrected where it had drifted, and names what this build still leaves
+  open: how long a turn's credential really lives, and two ways around the
+  Linux network boundary.
+
 ## 0.1.1-alpha.2
 
 Agents now run sandboxed by default, and stepping outside the sandbox is a

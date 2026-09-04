@@ -120,7 +120,7 @@ Patcher has two halves, and right now they install differently.
 ### The desktop browser
 
 **[Download the alpha](https://github.com/laruss/patcher-browser/releases)** —
-a `.dmg` for **macOS on Apple Silicon**, currently `0.1.1-alpha.2`. Open it and
+a `.dmg` for **macOS on Apple Silicon**, currently `0.1.1-alpha.3`. Open it and
 drag Patcher to Applications. Alphas are published as prereleases, so GitHub's
 "latest release" link skips them — the releases page itself is the list.
 

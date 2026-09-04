@@ -1,6 +1,6 @@
 {
   "name": "patcher-app",
-  "version": "0.1.1-alpha.2",
+  "version": "0.1.1-alpha.3",
   "description": "Patcher app launcher for npx",
   "keywords": [
     "patcher",
