@@ -65,3 +65,31 @@
 - Manual guard: the Claude Code square needs a live session, so it stays in
   `qa/provider-permission-mode-runbook.md` ("Git-Metadata Boundary Probe"), with
   the answers recorded in `docs/security.md`.
+
+## A Person's Own Terminal, Handed a Turn's Credential
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#62), and
+  three reviewers hit it independently.
+- Invariant missed: the credential a terminal carries follows the **sandbox**,
+  not the thread. A terminal an agent asked for is confined and trades the app
+  key for the thread's; a terminal a person opened is not confined and keeps
+  what it had — including in a thread view, which is where the app opens every
+  one of its own.
+- Why the existing tests missed it: `#52`'s pair pinned `threadId` as the
+  discriminator, which is what the daemon read, so both tests agreed with the
+  bug. Nothing opened an unsandboxed terminal _with_ a thread — the shape the
+  app actually sends — so the case that regressed had no test at all. It is not
+  a hole but a downgrade, and a downgrade shows up as things quietly not
+  working: the agent route policy applied to the person (no installs, no
+  ceiling, no join codes), `patcher terminal restart|close|input` on the
+  terminal they were sitting in was refused "because a person opened it", and
+  the declared thread the trade brings with it made their own consent prompts
+  unanswerable from that shell — which is exactly the headless-host story
+  `63665b9e0` added.
+- Automated guard added: `terminal-manager.test.ts` now opens the app's shape —
+  a thread, no sandbox — and asserts the app key stays, no thread key arrives,
+  and no `PATCHER_THREAD_ID` is exported; the trade test opens a sandboxed
+  terminal instead of relying on the thread. Falsified by keying the trade back
+  on `threadId`: only the new test failed.
+- Manual guard: none needed. The daemon computes the confinement and the
+  credential in one place, off one value.

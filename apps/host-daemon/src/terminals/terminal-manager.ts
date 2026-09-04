@@ -143,6 +143,14 @@ interface ShutdownTerminalArgs {
 const APP_KEY_ENV = "PATCHER_APP_KEY";
 
 interface BuildTerminalEnvArgs {
+  /**
+   * Whether this shell runs inside the thread's boundary.
+   *
+   * Read off the resolved policy rather than off the open message, so the
+   * credential and the confinement cannot come apart: a shell that carries the
+   * narrower credential is a shell that was actually confined.
+   */
+  sandboxed: boolean;
   shellEnv: NodeJS.ProcessEnv;
   terminalId: string;
   /** The thread this terminal belongs to, when it belongs to one. */
@@ -346,16 +354,26 @@ export async function resolveDefaultTerminalShell(): Promise<string> {
  * shell removed. Measured: `PATCHER_APP_KEY` was in the environment of every
  * terminal Patcher opened.
  *
- * So a terminal that belongs to a thread carries that thread's key instead —
- * the same trade `buildThreadShellEnvironment` makes for a turn, done here with
- * the same primitives rather than through it, because a terminal is not a turn:
- * it has no project or thread-storage of its own to declare.
+ * So a terminal an agent asked for carries that thread's key instead — the same
+ * trade `buildThreadShellEnvironment` makes for a turn, done here with the same
+ * primitives rather than through it, because a terminal is not a turn: it has
+ * no project or thread-storage of its own to declare. It is also why the thread
+ * id goes in: the `patcher` CLI in a turn's terminal could not name its own
+ * thread before, so `--self` had nothing to resolve.
  *
- * A terminal that belongs to no thread keeps what it had. That is a person's
- * own shell — an agent may not drive one, and there is no narrower credential a
- * shell with no thread could carry. It is also why the thread id goes in: the
- * `patcher` CLI in a terminal could not name its own thread before, so `--self`
- * had nothing to resolve.
+ * Keyed on the sandbox, not on the thread. Every terminal opened from a thread
+ * view has a thread — the app opens its own that way — and those are a person
+ * typing on their own machine. Trading their key away cost them the app's own
+ * credential and handed them a turn's: the agent route policy applied (no
+ * installs, no permission ceiling, no join codes), thread scope applied,
+ * `patcher terminal restart|close|input` on the terminal they were sitting in
+ * was refused "because a person opened it", and the declared thread the id
+ * brings with it made their own consent prompts unanswerable from that shell.
+ * A person is not in a sandbox, so nothing about their shell is a turn's.
+ *
+ * A terminal nobody sandboxed therefore keeps what it had, thread or no thread:
+ * there is no narrower credential an unconfined shell could carry, and the
+ * headless-host story needs a shell that holds the app key.
  */
 function buildTerminalEnv(args: BuildTerminalEnvArgs): NodeJS.ProcessEnv {
   return {
@@ -375,7 +393,7 @@ function threadScopedShellEnv(
   args: BuildTerminalEnvArgs,
 ): NodeJS.ProcessEnv {
   const { threadId } = args;
-  if (threadId === undefined) {
+  if (!args.sandboxed || threadId === undefined) {
     return args.shellEnv;
   }
   const { [APP_KEY_ENV]: appApiKey, ...withoutAppKey } = args.shellEnv;
@@ -644,6 +662,7 @@ export class TerminalManager {
       const target = await this.resolveTerminalOpenTarget(message);
       const shell = await this.resolveShell();
       const env = buildTerminalEnv({
+        sandboxed: target.sandboxPolicy !== null,
         shellEnv: this.options.runtimeManager.getShellEnv(),
         terminalId: message.terminalId,
         ...(message.threadId !== undefined
