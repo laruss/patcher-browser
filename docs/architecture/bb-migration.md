@@ -92,7 +92,13 @@ Two structural gaps:
 
 Plugin manifest is the `patcher` field of a plugin's own `package.json` (name,
 description, `branding.icon`, `server` entry, `app` entry). 13 bundled plugins
-under `plugins/` serve as live examples.
+under `plugins/` served as live examples at `aefe3ea49`, and there are still 13
+— but not the same 13. `connect` went with the rename described above, and this
+fork's own `browser-tools` took its place; `BUILTIN_PLUGINS` in
+`apps/server/src/services/plugins/builtin-registry.ts` is the list, and it
+agrees with `git ls-files plugins/`. Counting the working tree with `ls` gives
+14 on a checkout that predates the removal, because `plugins/connect` survives
+there as untracked build output.
 
 `@patcher/plugin-sdk` already exposes, verified in
 `packages/plugin-sdk/src/app-contract.ts` (1412 lines) and
@@ -184,20 +190,42 @@ removed both, along with `plugins/connect`, `packages/connect-db`,
    workspace execution. If the server needs host-local data, the daemon returns
    raw data and the server assembles behaviour.
 4. **Resolution-sensitive dependency pins.** `@opentelemetry/api` is pinned to
-   exactly `1.9.1` in `apps/server` because Pi AI and Drizzle each pull it in and,
-   without the pin, _the resolver can end up with two copies_ — TypeScript then sees two
-   distinct type identities and the server typecheck fails. Pi packages are
-   pinned to `0.84.0` because the packaged bridge keeps that exact package tree
-   on disk so extensions share one runtime. Both rationales are written against a
-   specific resolver layout and must be re-verified whenever the package manager
-   or its layout changes.
-5. **Native module ABI.** `better-sqlite3` 12.10.0 appears in 7 packages, plus
-   `node-pty` 1.1.0 and `sharp`. `electron-builder.config.json` sets
-   `npmRebuild: false` and fetches the Electron prebuild in the `afterPack` hook
-   `scripts/prepare-native-modules.cjs`, because rebuilding in place flips
-   `better-sqlite3` to Electron's ABI and breaks every plain-Node consumer
-   including the server test suite. `scripts/ensure-native-modules.mjs` rebuilds
-   it for plain Node, resolving from `packages/db/package.json`.
+   exactly `1.9.1` in `apps/server`. What the pin does is not quite what the
+   original rationale said, and the difference matters to anyone tempted to drop
+   it: there are **two copies in the lockfile, and that is the steady state**.
+   `@earendil-works/pi-ai@0.84.0` requires exactly `1.9.0`, `apps/server`
+   requires exactly `1.9.1`, and bun's isolated linker keeps them apart —
+   measured, `node_modules/.bun` holds `@opentelemetry+api@1.9.0` and `@1.9.1`
+   side by side, pi-ai's own tree links to the first and
+   `apps/server/node_modules/@opentelemetry/api` to the second. Drizzle does not
+   pull it in at all; it lists the package as an optional peer.
+   So the pin names _which_ copy the server resolves rather than preventing a
+   second one. Two copies coexist for as long as no package can see both, and an
+   exact requirement is what keeps the server's own resolution from following
+   somebody else's open range — which is the failure this invariant is really
+   about, and it has been measured here under bun on a different package: `hono`
+   resolving to two versions gave the two-type-identities break described in
+   [Regenerating the lockfile is a dependency upgrade](#2-regenerating-the-lockfile-is-a-dependency-upgrade).
+   The original `@opentelemetry/api` typecheck failure was recorded under the
+   previous package manager and has not been reproduced under bun's linker, so
+   treat removing the pin as something to measure rather than as known-safe.
+   Pi packages are pinned to `0.84.0` because the packaged bridge keeps that
+   exact package tree on disk so extensions share one runtime. Both rationales
+   are written against a specific resolver layout and must be re-verified
+   whenever the package manager or its layout changes.
+5. **Native module ABI.** `better-sqlite3` 12.10.0 is pinned in 9 `package.json`
+   files — `apps/host-daemon`, `apps/server`, `packages/db`,
+   `packages/patcher-app`, `packages/plugin-sdk`, `plugins/automations`,
+   `plugins/workflows`, `examples/plugins/site-tweaks` and
+   `examples/plugins/t3sidebar` — plus `node-pty` 1.1.0 and
+   `sharp`. `apps/desktop/electron-builder.config.json` sets `npmRebuild: false`
+   and fetches the Electron prebuild in the `afterPack` hook
+   `apps/desktop/scripts/prepare-native-modules.cjs` (the config names it
+   relative to itself, as `scripts/prepare-native-modules.cjs`), because
+   rebuilding in place flips `better-sqlite3` to Electron's ABI and breaks every
+   plain-Node consumer including the server test suite.
+   `scripts/ensure-native-modules.mjs` — at the repository root — rebuilds it
+   for plain Node, resolving from `packages/db/package.json`.
 6. **Electron's main process cannot run on Bun.** Electron embeds its own Node
    build. `apps/desktop` stays on Node regardless of toolchain decisions
    elsewhere. Neither can anything that loads `better-sqlite3` or `node-pty`:

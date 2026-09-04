@@ -56,7 +56,9 @@ sandbox.
 
 macOS composes its sandbox from Seatbelt, which ships with the OS, so this is a
 Linux machine. Install bubblewrap (`apt install bubblewrap`,
-`dnf install bubblewrap`) and start the turn again.
+`dnf install bubblewrap`) and start the turn again. The Linux part of
+[Installation](installation.md#supported-platforms) says this up front, together
+with the user-namespace sysctl the next paragraph is about.
 
 A machine that has `bwrap` and still cannot sandbox — a container without user
 namespaces, most often — fails later and differently, from the Claude SDK's own
