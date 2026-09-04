@@ -69,15 +69,21 @@ const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * in this set on its own; the alternative is a hand-written list that falls
  * behind the server, which is the mistake once already made here.
  *
+ * Every group is scanned rather than `publicApiRoutes.threads` alone, because
+ * which group a route is declared in is a filing decision and this is about the
+ * path the router matches.
+ *
  * A collection route is not thereby unscoped — it is scoped by what it names in
  * its body instead, which is where a route with no `:id` names a thread. See
  * `agentForkSourceThreadDenial`.
  */
 const THREADS_COLLECTION_SEGMENTS: ReadonlySet<string> = new Set(
-  Object.values(publicApiRoutes.threads).flatMap((route) => {
-    const segment = /^\/threads\/([^/:]+)(?:\/|$)/u.exec(route.path)?.[1];
-    return segment === undefined ? [] : [segment];
-  }),
+  Object.values(publicApiRoutes)
+    .flatMap((group) => Object.values(group))
+    .flatMap((route) => {
+      const segment = /^\/threads\/([^/:]+)(?:\/|$)/u.exec(route.path)?.[1];
+      return segment === undefined ? [] : [segment];
+    }),
 );
 
 /**

@@ -144,7 +144,8 @@ describe("targetThreadIdFromPath", () => {
     // thread id, and no turn owns a thread called that. Taken off the route
     // table rather than listed here, so a collection route mounted tomorrow is
     // covered by this test on the day it is added.
-    const collectionPaths = Object.values(publicApiRoutes.threads)
+    const collectionPaths = Object.values(publicApiRoutes)
+      .flatMap((group) => Object.values(group))
       .map((route) => route.path)
       .filter((path) => /^\/threads\/[^/:]/u.test(path));
 
