@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { getThread, type DbConnection } from "@patcher/db";
+import { publicApiRoutes } from "@patcher/server-contract";
 import { MAX_THREAD_HIERARCHY_DEPTH } from "./services/threads/thread-parent.js";
 
 /**
@@ -59,17 +60,45 @@ export function getAgentThreadId(
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
+ * The segments under `/threads/` that name an operation rather than a thread.
+ *
+ * Read off the route table rather than listed here, because the cost of missing
+ * one is a route refused to every turn always: `POST /threads/fork` was, for
+ * exactly this reason — the capture below read `fork` as a thread id, and no
+ * turn owns a thread called that. Mount `/threads/import` tomorrow and it lands
+ * in this set on its own; the alternative is a hand-written list that falls
+ * behind the server, which is the mistake once already made here.
+ *
+ * A collection route is not thereby unscoped — it is scoped by what it names in
+ * its body instead, which is where a route with no `:id` names a thread. See
+ * `agentForkSourceThreadDenial`.
+ */
+const THREADS_COLLECTION_SEGMENTS: ReadonlySet<string> = new Set(
+  Object.values(publicApiRoutes.threads).flatMap((route) => {
+    const segment = /^\/threads\/([^/:]+)(?:\/|$)/u.exec(route.path)?.[1];
+    return segment === undefined ? [] : [segment];
+  }),
+);
+
+/**
  * The thread id a `/api/v1/threads/:id...` path acts on, or null.
  *
  * Anchored on the `/threads/` segment rather than searched for, so a path that
  * merely contains the word — `/environments/:id/archive-threads` — is not read
  * as a thread route. `POST /threads` itself has no `:id` and is not one either:
- * creating a thread is bounded by what the new thread may then do.
+ * creating a thread is bounded by what the new thread may then do. Nor is a
+ * collection route that names an operation in that position: see
+ * `THREADS_COLLECTION_SEGMENTS`.
  */
 export function targetThreadIdFromPath(path: string): string | null {
   const match = /^\/api\/v1\/threads\/([^/]+)(?:\/|$)/u.exec(path);
   const id = match?.[1];
-  return id === undefined || id.length === 0 ? null : decodeURIComponent(id);
+  if (id === undefined || id.length === 0) return null;
+  // The raw segment, because that is what the router matched on: `for%6b`
+  // decodes to `fork` but reaches `/threads/:id`, and skipping the check for it
+  // would be reading the encoding rather than the route.
+  if (THREADS_COLLECTION_SEGMENTS.has(id)) return null;
+  return decodeURIComponent(id);
 }
 
 /**
@@ -171,6 +200,38 @@ export function agentParentThreadDenial(
     return null;
   }
   return `Thread ${args.parentThreadId} is not this turn's to parent: a turn hangs a new thread under itself or under one it spawned, and a parent is sent a turn when its child finishes. Nothing changed. Use your own thread id — \`patcher thread spawn --parent-self\` fills it in for you.`;
+}
+
+/**
+ * Why this turn must not fork that thread, or null when it may.
+ *
+ * The third field that names a thread the caller never addressed, and the one
+ * the path check cannot see: a fork names its source in the body, because
+ * `POST /threads/fork` has no `:id` to name it in.
+ *
+ * Asked at all because a fork is not a read. Reads are deliberately unscoped
+ * above — an agent that can read another thread learns what it says — but a
+ * fork clones the source's *provider session* into a thread the caller then
+ * drives: the model's own context rather than the timeline, including the
+ * agent-only inputs the timeline never shows, and with `--workspace reuse` the
+ * source's environment as the new thread's own. Creation is bounded elsewhere
+ * (the project comes from the source thread and `agentProjectDenial` refuses
+ * another project's; the permission mode is clamped to the caller's ceiling),
+ * so this is the remaining question: whose conversation.
+ */
+export function agentForkSourceThreadDenial(
+  db: DbConnection,
+  args: { callerThreadId: string; sourceThreadId: string },
+): string | null {
+  if (
+    agentMayDriveThread(db, {
+      callerThreadId: args.callerThreadId,
+      targetThreadId: args.sourceThreadId,
+    })
+  ) {
+    return null;
+  }
+  return `Thread ${args.sourceThreadId} is not this turn's to fork: a turn forks its own thread or one it spawned, and a fork continues that thread's conversation under the new thread. Nothing changed. Fork your own thread with \`patcher thread fork "$PATCHER_THREAD_ID"\`, or ask in your reply for someone to fork that one.`;
 }
 
 /**

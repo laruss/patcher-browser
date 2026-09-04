@@ -29,6 +29,11 @@ Everything `patcher thread` and `patcher terminal` do beyond the essentials in S
   creates an idle fork by default; add `--prompt`, select `--workspace
 isolated|reuse`, or anchor with `--source-seq-end`. Permission mode inherits
   the source thread unless explicitly overridden.
+- **From inside a turn the source has to be your own thread or one you
+  spawned**, and anything else is refused with a 403 naming it. A fork is not a
+  read: it continues that thread's conversation under a thread you drive, and
+  `--workspace reuse` puts you in its workspace. `patcher thread fork
+"$PATCHER_THREAD_ID"` forks your own.
 - Pass `--visibility hidden` for background/plugin workers that should remain
   out of sidebar organization without contributing unread/pending favicon
   attention. `patcher thread list` excludes them by

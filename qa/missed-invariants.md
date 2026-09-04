@@ -93,3 +93,28 @@
   on `threadId`: only the new test failed.
 - Manual guard: none needed. The daemon computes the confinement and the
   credential in one place, off one value.
+
+## A Collection Route Read As A Thread Id
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#61).
+- Invariant missed: the thread-scope gate reads the `:id` out of the path with a
+  regex, so a route with no `:id` must not be read as naming a thread. `POST
+/threads/fork` was: the capture returned `fork`, no turn owns a thread called
+  that, and every turn was refused the route with "Thread fork is not this
+  turn's to drive" — always, from the commit that added the gate.
+- Why the existing tests missed it: the gate's own tests asked whether it reads
+  a thread route correctly and whether it is fooled by a path that merely
+  contains the word. Both were about paths shaped like `/threads/:id`. And
+  nothing forked as a turn, though `40032eeaf` had wired `requestedByThreadId`
+  into the route for agents and the agent-facing docs told them to use it — so
+  the feature shipped green and refused.
+- Automated guard added: the collection segments are taken off the route table
+  rather than listed, and `agent-thread-scope.test.ts` derives the same list
+  from `publicApiRoutes.threads` and asserts every one of them reads as "not a
+  thread route" — so a collection route mounted tomorrow is covered on the day
+  it is added. Plus the two HTTP tests that were missing: a turn forking its own
+  thread reaches the fork service, and a turn forking a stranger's is refused.
+- And the fix was not only the regex: a route with no `:id` names its thread in
+  the body, so the fork source is now held to the same relationship an `:id` is
+  (`agentForkSourceThreadDenial`). Un-refusing the route without that would have
+  turned a false 403 into an unscoped route — see `docs/security.md`.

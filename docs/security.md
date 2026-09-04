@@ -934,6 +934,20 @@ Named here rather than left to be rediscovered:
   one is refused and told which is its own — a person still names whichever they
   like, the same split as everywhere else here.
 
+  **And a third door, on a route with no `:id` at all**: `POST /threads/fork`
+  names its source thread in the body. A fork is not the read this entry leaves
+  unscoped — it clones the source's own provider session into a thread the
+  caller then drives, which is the model's context rather than the timeline,
+  including the agent-only inputs the timeline never shows, and with `workspace:
+  "reuse"` the source's environment becomes the new thread's. Creation was
+  already bounded (the project comes from the source thread, so another
+  project's is refused by the check above, and the permission mode is clamped to
+  the caller's ceiling), leaving only "whose conversation" — which is now the
+  same relationship as an `:id`. This one was hiding behind a bug rather than
+  being open: the scope middleware read `fork` as the thread id and refused the
+  route to _every_ turn, always, so nothing exercised what would happen once it
+  did not.
+
 - ~~**Asking for a more privileged turn.**~~ Closed: a requested
   `permissionMode` is now bounded by the asking turn's own mode as well as by
   the machine's ceiling, so a turn cannot arrange more privilege than it has —
