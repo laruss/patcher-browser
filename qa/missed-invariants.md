@@ -66,7 +66,7 @@
   `qa/provider-permission-mode-runbook.md` ("Git-Metadata Boundary Probe"), with
   the answers recorded in `docs/security.md`.
 
-## A Person's Own Terminal, Handed a Turn's Credential
+## A person's own terminal, handed a turn's credential
 
 - Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#62), and
   three reviewers hit it independently.
@@ -94,14 +94,14 @@
 - Manual guard: none needed. The daemon computes the confinement and the
   credential in one place, off one value.
 
-## A Collection Route Read As A Thread Id
+## A collection route read as a thread id
 
 - Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#61).
 - Invariant missed: the thread-scope gate reads the `:id` out of the path with a
-  regex, so a route with no `:id` must not be read as naming a thread. `POST
-/threads/fork` was: the capture returned `fork`, no turn owns a thread called
-  that, and every turn was refused the route with "Thread fork is not this
-  turn's to drive" — always, from the commit that added the gate.
+  regex, so a route with no `:id` must not be read as naming a thread.
+  `/threads/fork` was read as one: the capture returned `fork`, no turn owns a
+  thread called that, and every turn was refused the route with "Thread fork is
+  not this turn's to drive" — always, from the commit that added the gate.
 - Why the existing tests missed it: the gate's own tests asked whether it reads
   a thread route correctly and whether it is fooled by a path that merely
   contains the word. Both were about paths shaped like `/threads/:id`. And
@@ -118,3 +118,27 @@
   the body, so the fork source is now held to the same relationship an `:id` is
   (`agentForkSourceThreadDenial`). Un-refusing the route without that would have
   turned a false 403 into an unscoped route — see `docs/security.md`.
+
+## Two routes beside the one that was gated
+
+- Review that found it: 2026-09-02 on `desktop-v0.1.1-alpha.2..HEAD` (#60).
+- Invariant missed: a prompt that decides privilege is answered by the person,
+  and "the person" means neither the turn that raised it nor a plugin. That was
+  established for `interactions/:id/respond` in `7d325137c` and not carried to
+  its two neighbours: `/resolve`, which is where every _approval_ is answered,
+  gated the turn only; `/cancel` gated nobody, and a dismissal is recorded as
+  the person having closed the question while nothing remembers it.
+- Why the existing tests missed it: each gate was tested on the route it was
+  added to. `plugin-api-identity.test.ts` covered `/respond` and the
+  setup-script route; `agent-route-policy.test.ts` covered the turn on
+  `/resolve`. No test asked the same question of a route nobody had thought to
+  ask it about, which is the shape of this whole class: the policy is per-route
+  and the tests were written per-fix.
+- Automated guard added: plugin-identity tests for `/resolve` (allow refused,
+  `deny` left open) and `/cancel`, and a turn test for `/cancel` with the
+  person's own dismissal as the positive control. Falsified by removing each of
+  the three refusals in turn: each sabotage failed exactly its own assertion.
+- Still per-route, and worth saying: the general guard would enumerate the
+  mounted `/threads/:id/interactions/*` writes and require a decision about each
+  caller kind for every one, the way `agent-route-policy.test.ts` reads Hono's
+  own table for the settings writes. Not built here.

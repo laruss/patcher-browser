@@ -546,6 +546,88 @@ describe("a turn allowing its own permission prompt", () => {
 });
 
 /**
+ * And the neighbour of it: dismissing the prompt instead of answering it.
+ *
+ * A dismissal is not a denial. It is recorded as the person having closed the
+ * question without deciding — the setup-script transcript says so in as many
+ * words — and nobody remembers it: a dismissed reach-host prompt resolves to
+ * `unanswered`, which the egress proxy deliberately does not remember. So a
+ * turn that could dismiss its own prompt could re-raise it on every retry, and
+ * the person would never get to give the remembered "no" that is what stops
+ * retry-until-someone-gives-in.
+ */
+describe("a turn dismissing a consent prompt raised on its thread", () => {
+  async function consentPromptOnAgentThread(): Promise<{
+    interactionId: string;
+    threadId: string;
+  }> {
+    server = await startTestServer();
+    const running = server;
+    const threadId = seedThreadMidTurn(running.deps);
+    void running.deps.pendingInteractions.requestConsentInteraction({
+      threadId,
+      timeoutMs: 60_000,
+      payload: {
+        kind: "consent",
+        action: "enable",
+        subjectId: "some-plugin",
+        subjectName: "Some plugin",
+        permissions: [],
+        sites: [],
+        detail: null,
+      },
+    });
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const [interaction] =
+        running.deps.pendingInteractions.listPendingThreadInteractions(
+          threadId,
+        );
+      if (interaction) return { interactionId: interaction.id, threadId };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("No consent interaction was raised");
+  }
+
+  it("is refused, and the question still stands", async () => {
+    const { interactionId, threadId } = await consentPromptOnAgentThread();
+    const running = server;
+    if (running === null) throw new Error("Expected a running server");
+
+    const response = await fetch(
+      `${running.baseUrl}/api/v1/threads/${threadId}/interactions/${interactionId}/cancel`,
+      { method: "POST", headers: agentHeaders(threadId) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("dismissed by the user");
+    // The prompt, not just the answer: a route that cancelled and then threw
+    // the same 403 would pass on the response alone.
+    expect(
+      running.deps.pendingInteractions.listPendingThreadInteractions(threadId),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the person at the machine dismissing it", async () => {
+    const { interactionId, threadId } = await consentPromptOnAgentThread();
+    const running = server;
+    if (running === null) throw new Error("Expected a running server");
+
+    const response = await fetch(
+      `${running.baseUrl}/api/v1/threads/${threadId}/interactions/${interactionId}/cancel`,
+      {
+        method: "POST",
+        headers: { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      running.deps.pendingInteractions.listPendingThreadInteractions(threadId),
+    ).toHaveLength(0);
+  });
+});
+
+/**
  * The settings writes this server actually mounts, read off the router.
  *
  * The prefix denies them all and two are excepted by name, so what needs
