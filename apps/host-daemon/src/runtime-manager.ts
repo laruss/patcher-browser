@@ -447,8 +447,6 @@ export class RuntimeManager {
   private sandboxLoopbackRelay:
     | { argv: readonly string[]; socketDir: string }
     | undefined;
-  /** Memo for {@link sandboxEmptyFilePath}, which does file I/O to answer. */
-  private sandboxEmptyFilePathCache: string | undefined;
   private providerMaintenanceRuntime: AgentRuntime | null = null;
   private pendingProviderMaintenanceRuntime: PendingProviderMaintenanceRuntime | null =
     null;
@@ -501,9 +499,6 @@ export class RuntimeManager {
   sandboxEmptyFilePath(): string | undefined {
     const dataDir = this.options.dataDir;
     if (!dataDir) return undefined;
-    if (this.sandboxEmptyFilePathCache !== undefined) {
-      return this.sandboxEmptyFilePathCache;
-    }
     const filePath = path.join(dataDir, SANDBOX_EMPTY_FILE_NAME);
     try {
       mkdirSync(dataDir, { recursive: true });
@@ -511,17 +506,25 @@ export class RuntimeManager {
       // created, and reopening the 0444 file this wrote last time is `EACCES`
       // for the user who owns it. So the first daemon run made the file and
       // every restart after it fell into the catch below and answered
-      // `undefined` — the fallback, and the git warnings back with it. Caught
-      // by review; the file it makes is the same either way.
+      // `undefined` — the fallback, and the git warnings back with it.
+      //
+      // `recursive` on the removal because the name could be a directory, in
+      // which case a plain `rmSync` is `EISDIR` and this lands in the catch it
+      // was trying to avoid.
       const existing = statSync(filePath, { throwIfNoEntry: false });
       if (existing === undefined || !existing.isFile() || existing.size !== 0) {
-        rmSync(filePath, { force: true });
+        rmSync(filePath, { force: true, recursive: true });
         writeFileSync(filePath, "", { mode: 0o444 });
       }
     } catch {
       return undefined;
     }
-    this.sandboxEmptyFilePathCache = filePath;
+    // Asked every time rather than memoised, and that is the point: the answer
+    // is a *file on disk* that a launch is about to bind read-only, so a stale
+    // yes is a mandatory bind with no source — the launch bwrap refuses after
+    // this module has called it sandboxed — or worse, whatever content
+    // something else left in it, bound where a repository file belongs. One
+    // `stat` per launch is not a cost worth a cache.
     return filePath;
   }
 

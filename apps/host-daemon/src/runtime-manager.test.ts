@@ -2262,6 +2262,22 @@ describe("the empty file a Linux sandbox stands in with", () => {
       });
       expect(third.sandboxEmptyFilePath()).toBe(filePath);
       expect((await fs.stat(filePath)).size).toBe(0);
+
+      // A directory under that name is answered too, and it is the case the
+      // removal has to be recursive for: a plain `rm` is `EISDIR`, which lands
+      // in the catch and answers `undefined` from inside the branch that was
+      // there to avoid exactly that.
+      await fs.rm(filePath, { force: true });
+      await fs.mkdir(filePath);
+      expect(third.sandboxEmptyFilePath()).toBe(filePath);
+      expect((await fs.stat(filePath)).isFile()).toBe(true);
+
+      // And the answer is not remembered: it names a file a launch is about to
+      // bind read-only, so one deleted while the daemon runs has to come back
+      // rather than be handed on as a source bwrap will not find.
+      await fs.rm(filePath, { force: true });
+      expect(third.sandboxEmptyFilePath()).toBe(filePath);
+      expect((await fs.stat(filePath)).size).toBe(0);
     } finally {
       await fs.rm(dataDir, { recursive: true, force: true });
     }

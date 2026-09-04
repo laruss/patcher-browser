@@ -76,12 +76,14 @@ function isLoopbackTarget(host: string): boolean {
   const bare = host
     .replace(/^\[|\]$/gu, "")
     .replace(/%.*$/u, "")
-    // The absolute DNS spelling: `localhost.` resolves the way `localhost`
-    // does, and a comparison that did not strip the root dot let it past.
-    .replace(/\.$/u, "")
     .toLowerCase();
+  // The absolute DNS spelling, and only for the *name*: `localhost.` resolves
+  // the way `localhost` does, while `127.0.0.1.` is not an address at all —
+  // the trailing dot takes it out of the numeric grammar, so `getaddrinfo`
+  // resolves it as a name. Stripping the dot before the parsers made it 127/8.
+  const named = bare.replace(/\.$/u, "");
   // An empty host is not nothing: `net.connect` reads it as localhost.
-  if (bare === "" || bare === "localhost" || bare.endsWith(".localhost")) {
+  if (named === "" || named === "localhost" || named.endsWith(".localhost")) {
     return true;
   }
   const embedded = bare.includes(":")
@@ -130,14 +132,16 @@ function embeddedIpv4OfIpv6(address: string): number | undefined {
 function parseIpv6Groups(address: string): number[] | undefined {
   const halves = address.split("::");
   if (halves.length > 2) return undefined;
-  const parseSide = (side: string): number[] | undefined => {
+  const parseSide = (side: string, isTail: boolean): number[] | undefined => {
     if (side === "") return [];
     const groups: number[] = [];
     const parts = side.split(":");
     for (const [index, part] of parts.entries()) {
-      // A trailing dotted quad, which is the only place a `.` belongs.
+      // A dotted quad ends the whole literal, so it belongs to the last group
+      // of the *last* half: `0.0.0.0::` has one in the head, which the strict
+      // grammar rejects and this read as the unspecified address.
       if (part.includes(".")) {
-        if (index !== parts.length - 1) return undefined;
+        if (!isTail || index !== parts.length - 1) return undefined;
         const packed = parseDottedQuad(part);
         if (packed === undefined) return undefined;
         groups.push(packed >>> 16, packed & 0xffff);
@@ -148,8 +152,8 @@ function parseIpv6Groups(address: string): number[] | undefined {
     }
     return groups;
   };
-  const head = parseSide(halves[0] ?? "");
-  const tail = halves.length === 2 ? parseSide(halves[1] ?? "") : [];
+  const head = parseSide(halves[0] ?? "", halves.length === 1);
+  const tail = halves.length === 2 ? parseSide(halves[1] ?? "", true) : [];
   if (head === undefined || tail === undefined) return undefined;
   if (halves.length === 1) return head.length === 8 ? head : undefined;
   const filler = 8 - head.length - tail.length;
@@ -163,7 +167,10 @@ function parseDottedQuad(address: string): number | undefined {
   if (parts.length !== 4) return undefined;
   let value = 0;
   for (const part of parts) {
-    if (!/^[0-9]{1,3}$/u.test(part)) return undefined;
+    // `inet_pton` is the strict one, and it is what parses the embedded form:
+    // no leading zeros, so `::ffff:127.0.0.01` is a name rather than this
+    // machine written oddly.
+    if (!/^(?:0|[1-9][0-9]{0,2})$/u.test(part)) return undefined;
     const octet = Number.parseInt(part, 10);
     if (octet > 255) return undefined;
     value = value * 256 + octet;
@@ -208,12 +215,21 @@ function parseIpv4Address(address: string): number | undefined {
   return value >>> 0;
 }
 
-/** One part of an IPv4 address, in decimal, octal or hexadecimal. */
+/**
+ * One part of an IPv4 address, in decimal, octal or hexadecimal.
+ *
+ * A leading zero *selects* the octal grammar rather than suggesting it, so
+ * `08` is not eight — it is not a number at all, which makes the whole target
+ * a name. Falling through to the decimal branch read `127.0.0.08` as this
+ * machine and refused a hostname.
+ */
 function parseNumericPart(part: string): number | undefined {
   const value = /^0x[0-9a-f]+$/u.test(part)
     ? Number.parseInt(part.slice(2), 16)
-    : /^0[0-7]+$/u.test(part)
-      ? Number.parseInt(part.slice(1), 8)
+    : /^0[0-9]/u.test(part)
+      ? /^0[0-7]+$/u.test(part)
+        ? Number.parseInt(part.slice(1), 8)
+        : Number.NaN
       : /^[0-9]+$/u.test(part)
         ? Number.parseInt(part, 10)
         : Number.NaN;

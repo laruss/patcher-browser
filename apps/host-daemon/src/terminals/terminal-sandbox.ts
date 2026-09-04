@@ -729,10 +729,16 @@ function resolveDirectoryPath(candidatePath: string): string | undefined {
  * costs is a directory listing frozen at launch, which for a directory nothing
  * inside the sandbox is even told the path of is a cost on paper.
  *
- * Not where the parent is writable: there `--bind /dev/null <path>` works on a
- * name that does not exist yet, measured, and is narrower than replacing the
- * turn's own directory. And not where no denied path is missing — a directory
- * whose denied files all exist is already covered by binding over each of them.
+ * Not where the parent is writable, and there the answer is to do nothing at
+ * all rather than something narrower: a directory the sandbox may write is one
+ * where the turn is the only thing that can create the file, and a turn's own
+ * file is not a credential. Binding `/dev/null` over the name would work there
+ * — measured — and it leaves a mode-0444 file behind on the host, which for a
+ * `<db>-wal` beside a live database is worse than the leak. The denied-path
+ * loop says the same where it skips them.
+ *
+ * And not where no denied path is missing: a directory whose denied files all
+ * exist is already covered by binding over each of them.
  */
 function resolveHiddenDeniedParents(
   deniedPaths: readonly string[],

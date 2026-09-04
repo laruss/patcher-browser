@@ -858,9 +858,11 @@ recorded here with what closed them:
   `localhost.` and `::ffff:127.0.0.1` — which Node writes as `::ffff:7f00:1` —
   all arrive where `127.0.0.1` does. Read as an address and not as a pattern,
   which is the half that keeps it from over-refusing: `2001:db8::1` ends in
-  `:1` and belongs to somebody, `0.0.0.1` is not this machine, and a numeric
-  form out of range — `4294967296`, `127.0.0.256` — is not an address at all
-  but a name, which Linux resolves as one. It also refuses without
+  `:1` and belongs to somebody, `0.0.0.1` is not this machine, and anything
+  outside the numeric grammar is a *name* rather than an address — a part out
+  of range (`127.0.0.256`, `4294967296`), a leading zero that is not octal
+  (`127.0.0.08`), a trailing root dot (`127.0.0.1.`) — which Linux resolves as
+  one, so refusing it would be refusing somebody's hostname. It also refuses without
   asking anybody — a prompt saying "allow 127.0.0.1?" is one nobody can answer
   usefully, because the loopback the proxy could dial is not the one the caller
   means — and it refuses ahead of the list, so a host somebody typed into

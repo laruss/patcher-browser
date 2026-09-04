@@ -740,7 +740,12 @@ describe("the Linux socket boundary's argv", () => {
     // somebody's machine — it is the same overlap either way.
     const helper = createFakeSandboxHelper();
     const runtimeDir = mkdtempSync(path.join(tmpdir(), "patcher-xdg-"));
-    fakeHelperDirectories.push(runtimeDir);
+    // A directory of its own for the relay, and that is not tidiness: with the
+    // two the same, the relay's `--ro-bind` lands *after* the tmpfs and puts
+    // the whole directory back — so the argv would carry the mount this test
+    // asserts and hide nothing, and the test would pass on it.
+    const relayDir = mkdtempSync(path.join(tmpdir(), "patcher-relay-"));
+    fakeHelperDirectories.push(runtimeDir, relayDir);
 
     const launch = buildTerminalSandboxLaunch({
       command: { file: "/bin/sh", args: ["-c", "true"] },
@@ -753,7 +758,7 @@ describe("the Linux socket boundary's argv", () => {
         readOnlyPaths: [],
         deniedReadPaths: [],
         egressConfined: true,
-        loopbackRelay: { argv: ["/bin/true"], socketDir: runtimeDir },
+        loopbackRelay: { argv: ["/bin/true"], socketDir: relayDir },
       },
     });
 
@@ -773,6 +778,20 @@ describe("the Linux socket boundary's argv", () => {
     );
     expect(writableAt).toBeGreaterThan(-1);
     expect(tmpfsAt).toBeGreaterThan(writableAt);
+    // And nothing after it puts the directory back. The relay's own bind is
+    // meant to survive the tmpfs — its sockets are what the turn reaches
+    // Patcher through — so it has to name a different directory, and the
+    // assertion is that no later mount covers this one.
+    const restoredAt = args.findIndex(
+      (arg, index) =>
+        index > tmpfsAt &&
+        (arg === "--ro-bind" || arg === "--bind" || arg === "--bind-try") &&
+        args[index + 2] !== undefined &&
+        isSamePathOrInsideForTest(resolvedRuntimeDir, args[index + 2] ?? ""),
+    );
+    expect(restoredAt, args.join(" ")).toBe(-1);
+    // Named as the daemon gave it, which is how the relay's bind is built.
+    expect(args).toContain(relayDir);
   });
 });
 
@@ -794,6 +813,15 @@ describe("the Linux socket boundary's argv", () => {
  * is: prove the operation works outside the sandbox on this machine, then prove
  * it does not inside.
  */
+
+/** Whether one path is the other or sits under it, for the argv assertions. */
+function isSamePathOrInsideForTest(candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
+}
 
 /** Wait for a program `open` started, which runs after `open` has answered. */
 function waitForLaunchedProgram(): void {

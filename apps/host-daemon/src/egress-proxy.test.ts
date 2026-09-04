@@ -360,24 +360,32 @@ describe("what a grant may reach", () => {
     // the one the caller means.
     expect(askAboutHost).not.toHaveBeenCalled();
 
-    for (const target of [
+    const reachTheQuestion = [
       "[2001:db8::1]:443",
       "[1::]:443",
       "[::ffff:93.184.216.34]:443",
+      "[0.0.0.0::]:443",
+      "[::ffff:127.0.0.01]:443",
       "93.184.216.34:443",
       "128.0.0.1:443",
       "0.0.0.1:443",
       "4294967296:443",
       "127.0.0.256:443",
+      "127.0.0.08:443",
+      "127.0.0.1.:443",
       "example.com:443",
-    ]) {
+    ];
+    for (const [index, target] of reachTheQuestion.entries()) {
       const conversation = await speak({
         port,
         requests: [connectRequest(target, token)],
       });
       expect(conversation, target).not.toContain("network namespace");
+      // Each one has to have *reached* the question, not merely avoided one
+      // phrase: a request dropped on the way back answers nothing at all, and
+      // an empty conversation contains no phrase either.
+      expect(askAboutHost, target).toHaveBeenCalledTimes(index + 1);
     }
-    expect(askAboutHost).toHaveBeenCalled();
   });
 
   it("keeps what a client sends before the tunnel is open", async () => {
