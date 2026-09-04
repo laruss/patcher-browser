@@ -572,7 +572,7 @@ describe("the Linux credential boundary", () => {
         // two refusals below would have been a file that was never there —
         // which is exactly how this test first passed on a machine that skips
         // it.
-        const writer = spawn(
+        spawn(
           "/bin/sh",
           ["-c", `sleep 1; printf 'NEWEST-ROWS\\n' > ${laterPath}`],
           { stdio: "ignore" },
@@ -596,8 +596,11 @@ describe("the Linux credential boundary", () => {
         // And the daemon's own write went through: bwrap creates a mount point
         // it has to make as a mode-0444 file, so a boundary built that way
         // would have left SQLite unable to write its own WAL.
+        // The control, and the reason the writer is a process: this is the
+        // file the sandbox could not see, read from the host after the launch.
+        // Its own exit status is not asserted — `spawnSync` held the event
+        // loop, so Node has not reaped it yet and `exitCode` is still null.
         expect(readFileSync(laterPath, "utf8")).toContain("NEWEST-ROWS");
-        expect(writer.exitCode).toBe(0);
       } finally {
         rmSync(dataDir, { recursive: true, force: true });
       }
