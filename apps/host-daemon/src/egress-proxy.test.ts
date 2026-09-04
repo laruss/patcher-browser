@@ -341,6 +341,25 @@ describe("what a grant may reach", () => {
       expect(conversation, target).toContain("network namespace");
     }
     expect(askAboutHost).not.toHaveBeenCalled();
+
+    // The other direction, which is where reading "the part after the last
+    // colon" as IPv4 went wrong: `2001:db8::1` ends in `:1` and belongs to
+    // somebody. These have to reach the list and be refused for not being on
+    // it — with the person asked — rather than be refused as loopback.
+    for (const target of [
+      "[2001:db8::1]:443",
+      "[::ffff:93.184.216.34]:443",
+      "93.184.216.34:443",
+      "128.0.0.1:443",
+      "example.com:443",
+    ]) {
+      const conversation = await speak({
+        port,
+        requests: [connectRequest(target, token)],
+      });
+      expect(conversation, target).not.toContain("network namespace");
+    }
+    expect(askAboutHost).toHaveBeenCalled();
   });
 
   it("keeps what a client sends before the tunnel is open", async () => {

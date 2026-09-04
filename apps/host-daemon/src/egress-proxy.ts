@@ -77,15 +77,35 @@ function isLoopbackTarget(host: string): boolean {
     .replace(/^\[|\]$/gu, "")
     .replace(/%.*$/u, "")
     .toLowerCase();
-  if (bare === "localhost" || bare.endsWith(".localhost")) return true;
-  if (bare.includes(":")) {
-    return (
-      bare === "::1" ||
-      bare === "::" ||
-      isLoopbackIpv4(bare.split(":").at(-1) ?? "")
-    );
+  // An empty host is not nothing: `net.connect` reads it as localhost.
+  if (bare === "" || bare === "localhost" || bare.endsWith(".localhost")) {
+    return true;
   }
+  if (bare.includes(":")) return isLoopbackIpv6(bare);
   return isLoopbackIpv4(bare);
+}
+
+/**
+ * The two IPv6 addresses that are this machine, and the IPv4 ones written as
+ * IPv6.
+ *
+ * Only the `::ffff:` form carries an IPv4 address, which is the whole reason
+ * this is not "the part after the last colon": `2001:db8::1` ends in `:1` and
+ * is somebody's public address, and reading its tail as IPv4 refused it as
+ * loopback. Written out rather than parsed, because the question is whether
+ * this is one of two addresses and not what the address is.
+ */
+function isLoopbackIpv6(address: string): boolean {
+  const mapped = /^::ffff:(?:0:)?([^:]+)$/u.exec(address);
+  if (mapped?.[1] !== undefined) return isLoopbackIpv4(mapped[1]);
+  const groups = address.split(":");
+  const filled = groups.filter((group) => group !== "");
+  // `::1` and `::`, and the same two written in full.
+  return (
+    (address.includes("::") || groups.length === 8) &&
+    filled.every((group) => /^0*1?$/u.test(group)) &&
+    filled.filter((group) => /1/u.test(group)).length <= 1
+  );
 }
 
 /**
@@ -99,6 +119,7 @@ function isLoopbackTarget(host: string): boolean {
  */
 function isLoopbackIpv4(address: string): boolean {
   const parts = address.split(".");
+  if (parts.length === 0) return false;
   if (parts.length > 4 || parts.some((part) => part === "")) return false;
   const numbers: number[] = [];
   for (const part of parts) {

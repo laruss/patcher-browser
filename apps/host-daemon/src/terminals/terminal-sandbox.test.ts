@@ -324,7 +324,9 @@ describe("the Linux network boundary", () => {
         const control = await new Promise<string>((resolve) => {
           const socket = net.connect(socketPath);
           socket.on("connect", () => {
-            socket.destroy();
+            // Read what the server sends before letting go, so the reset the
+            // other side would otherwise see is not this test's doing.
+            socket.end();
             resolve("reached");
           });
           socket.on("error", () => resolve("refused"));
@@ -492,7 +494,14 @@ async function listenOnServiceSocket(): Promise<string | null> {
       directory,
       `patcher-sandbox-test-${String(process.pid)}.sock`,
     );
-    const server = net.createServer((socket) => socket.end("ok\n"));
+    // The error handler is not decoration: both probes below connect and drop
+    // the socket the moment it is up, and the server's own read then fails with
+    // ECONNRESET. Unhandled, that is an uncaught exception vitest fails the
+    // whole run on while every test passes — which is how it arrived from CI.
+    const server = net.createServer((socket) => {
+      socket.on("error", () => undefined);
+      socket.end("ok\n");
+    });
     try {
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
