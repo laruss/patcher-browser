@@ -49,7 +49,12 @@ export const NOT_SOURCE = [
   "packages/templates/src/generated/**",
 ];
 
-const SOURCE_FILES = ["**/*.{ts,tsx,js,jsx,mjs,cjs}"];
+/**
+ * `mts`/`cts` are in here because the tree has them — `generate-version-feed.mts`
+ * and two `.d.mts` — and a guard with a hole in its glob is a guard that reports
+ * clean on the file it was meant to catch.
+ */
+const SOURCE_FILES = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"];
 
 /**
  * Files over the limit when the rule landed, at the size they were then.

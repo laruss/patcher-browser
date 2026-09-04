@@ -48,18 +48,22 @@ export interface ProviderBoundaryTranslation {
   /** Where the translation lives, so a failure names the file to open. */
   where: string;
   /**
-   * What the provider is told, as its wire carries it. Compared as JSON on
-   * purpose: the three shapes differ (an array, a nested config map, a bridge
-   * parameter) and what has to hold is that every path reaches the provider,
-   * whichever shape it travels in.
+   * The protected-repository paths this translation carries, as exact entries.
+   *
+   * Exact, not a substring search over the serialised params, because these
+   * paths are prefixes of one another: `<git>/config` sits inside
+   * `<git>/config.worktree`, so a translation that dropped the first while
+   * keeping the second satisfied a `toContain` check on the whole blob.
+   * Measured on 2026-09-04 — the sabotage passed — which is why the shapes are
+   * read apart here instead.
    */
-  params: unknown;
+  carriedPaths: readonly string[];
   /**
-   * Paths this translation marks readable-but-not-writable, where its language
-   * can say that. Codex's profile can; the other two hand the whole list over
-   * and the deny is built on the far side.
+   * Paths the translation marks unreadable, where its language has that level.
+   * Only Codex's profile does; `deny` there takes the read with the write, and
+   * a `.git/config` git cannot read stops git from running at all.
    */
-  readOnlyPaths?: readonly string[];
+  deniedPaths?: readonly string[];
 }
 
 const workspaceScopedContext = {
@@ -87,6 +91,25 @@ function codexFilesystemEntries(
   return typeof filesystem === "object" && filesystem !== null
     ? (filesystem as Record<string, string>)
     : undefined;
+}
+
+/** Codex names paths at one of three levels; collect the ones at `access`. */
+function codexPathsAt(
+  entries: Record<string, string> | undefined,
+  access: string,
+): string[] {
+  return Object.entries(entries ?? {})
+    .filter(([entryPath, level]) => level === access && entryPath !== ":root")
+    .map(([entryPath]) => entryPath);
+}
+
+/** The list as Claude Code and an ACP bridge are handed it: a plain array. */
+function protectedRepositoryPathsParam(params: unknown): string[] {
+  const carried = (params as { protectedRepositoryPaths?: unknown } | undefined)
+    ?.protectedRepositoryPaths;
+  return Array.isArray(carried)
+    ? carried.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 /**
@@ -121,27 +144,24 @@ export function buildProviderBoundaryTranslations(
     profile: getAcpAgentProfile("acp-cursor"),
   }).buildCommandPlan(start);
 
-  const codexParams = codex?.params;
-  const codexEntries = codexFilesystemEntries(codexParams);
+  const codexEntries = codexFilesystemEntries(codex?.params);
 
   return [
     {
       providerId: "claude-code",
       where: "packages/agent-runtime/src/claude-code/adapter.ts",
-      params: claude?.params,
+      carriedPaths: protectedRepositoryPathsParam(claude?.params),
     },
     {
       providerId: "codex",
       where: "packages/agent-runtime/src/codex/permission-profile.ts",
-      params: codexParams,
-      readOnlyPaths: Object.entries(codexEntries ?? {})
-        .filter(([, access]) => access === "read")
-        .map(([entryPath]) => entryPath),
+      carriedPaths: codexPathsAt(codexEntries, "read"),
+      deniedPaths: codexPathsAt(codexEntries, "deny"),
     },
     {
       providerId: "acp-cursor",
       where: "packages/agent-runtime/src/acp/bridge/bridge.ts",
-      params: acp?.params,
+      carriedPaths: protectedRepositoryPathsParam(acp?.params),
     },
   ];
 }

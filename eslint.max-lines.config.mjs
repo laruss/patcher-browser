@@ -24,7 +24,7 @@ import { NOT_SOURCE, fileSizeConfigs } from "./eslint.max-lines.mjs";
 export default [
   { ignores: NOT_SOURCE },
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ["**/*.{ts,tsx,mts,cts}"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

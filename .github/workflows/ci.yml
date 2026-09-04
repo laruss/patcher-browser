@@ -67,6 +67,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    env:
+      # One place for the pin, read by the install step below and hashed into
+      # `@patcher/agent-runtime#test` (see turbo.json) so that bumping it
+      # actually re-runs the measurement instead of restoring it from cache.
+      PATCHER_CODEX_CLI_VERSION: "0.153.1"
+
     strategy:
       fail-fast: false
       matrix:
@@ -123,14 +129,16 @@ jobs:
       # which is what lets this run here at all; the Linux backend is bubblewrap,
       # so it needs the same namespace permission the step above lifts.
       #
-      # Pinned, and bumping it is the point: the profile's own doc comment
-      # records which Codex version each measurement was taken against, so a
-      # bump here is a deliberate re-measurement rather than a surprise on an
-      # unrelated pull request. Without the binary the suite skips, which is why
-      # it is installed rather than left to chance.
+      # Pinned in this job's `env` above, and bumping it is the point: the
+      # profile's own doc comment records which Codex version each measurement
+      # was taken against, so a bump is a deliberate re-measurement rather than a
+      # surprise on an unrelated pull request. The pin is hashed into that
+      # package's test task, so the bump cannot be served from the turbo cache.
+      # And the suite refuses to be skipped here — see the availability check in
+      # the test itself.
       - name: Install the Codex CLI for the provider-boundary measurement
         if: matrix.shard == 'packages'
-        run: npm i -g --no-fund --no-audit @openai/codex@0.153.1
+        run: npm i -g --no-fund --no-audit "@openai/codex@$PATCHER_CODEX_CLI_VERSION"
 
       - name: Test
         # --concurrency matches the root `test` script: the packages shard runs

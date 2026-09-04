@@ -187,6 +187,24 @@ async function measure(checkout: Checkout): Promise<string[]> {
   return stdout.trim().split("\n").filter(Boolean);
 }
 
+/**
+ * A skip is graceful locally and a hole in CI, where the pinned CLI is installed
+ * *for this suite*: an unavailable sandbox there would report the provider
+ * measurement as green having run neither assertion. So availability is itself
+ * asserted on a runner, and only there.
+ */
+const RUNNING_IN_CI =
+  process.env.CI !== undefined &&
+  process.env.CI !== "" &&
+  process.env.CI !== "false";
+
+it.runIf(RUNNING_IN_CI)(
+  "is measurable on a runner, which installs the Codex CLI for it",
+  () => {
+    expect(CODEX_SANDBOX_AVAILABLE_HERE).toBe(true);
+  },
+);
+
 describe.skipIf(!CODEX_SANDBOX_AVAILABLE_HERE)(
   "the workspace permission profile, under Codex's own sandbox",
   () => {
