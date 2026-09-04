@@ -1,5 +1,12 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import net from "node:net";
@@ -334,6 +341,131 @@ describe("the Linux network boundary", () => {
       } finally {
         await loopback.close();
       }
+    },
+  );
+});
+
+/**
+ * The IPC half of the macOS profile: a write or a launch a Mach service makes
+ * on the shell's behalf, which the file rules say nothing about.
+ *
+ * These only ever run on a developer's Mac — CI runs the suites on
+ * `ubuntu-latest` — so what CI protects here is the Linux backend and nothing
+ * else. That is the same reach the quote test below has, and the reason each of
+ * these runs the sandbox rather than reading the profile back: a profile
+ * assertion would pass on Linux while proving nothing anywhere.
+ */
+describe("the macOS profile's IPC boundary", () => {
+  it.skipIf(process.platform !== "darwin")(
+    "refuses a preference write cfprefsd would make for it",
+    () => {
+      fixture = createFixture();
+      // Unique, so a run that fails cannot be a run that read the last one's
+      // leftovers — and removed either way below, because a broken boundary is
+      // exactly the case where the domain does get written.
+      const domain = `patcher.terminal.sandbox.test.${process.pid}`;
+      const plistPath = path.join(
+        homedir(),
+        "Library",
+        "Preferences",
+        `${domain}.plist`,
+      );
+
+      try {
+        const output = runInSandbox(
+          fixture,
+          `defaults write ${domain} escaped -bool true && echo WROTE || echo write-refused`,
+        );
+
+        expect(output).toContain("write-refused");
+        expect(existsSync(plistPath)).toBe(false);
+        // The deny is on writing, not on the service: a profile that took
+        // cfprefsd away by name would leave every tool that reads a preference
+        // failing, so the read has to keep answering.
+        expect(
+          runInSandbox(fixture, `defaults read ${domain} 2>&1; echo read-ran`),
+        ).toContain("read-ran");
+      } finally {
+        rmSync(plistPath, { force: true });
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "refuses to launch a program outside the sandbox through LaunchServices",
+    () => {
+      fixture = createFixture();
+      // The escape as an agent would build it: the bundle goes in the workspace
+      // the turn may write, and `open` asks launchd to run it — so the process
+      // that appears is not a child of this one and none of the rules above
+      // reach it. Its executable only touches the fixture, so a broken boundary
+      // leaves a marker to assert on and nothing on the machine.
+      const markerPath = path.join(fixture.workspacePath, "..", "escaped");
+      const bundlePath = path.join(fixture.workspacePath, "Escape.app");
+      const executablePath = path.join(
+        bundlePath,
+        "Contents",
+        "MacOS",
+        "escape",
+      );
+      mkdirSync(path.dirname(executablePath), { recursive: true });
+      writeFileSync(
+        path.join(bundlePath, "Contents", "Info.plist"),
+        `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>escape</string>
+<key>CFBundleIdentifier</key><string>patcher.terminal.sandbox.test.escape</string>
+<key>CFBundleName</key><string>Escape</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+`,
+      );
+      writeFileSync(
+        executablePath,
+        `#!/bin/sh\n/usr/bin/touch ${JSON.stringify(markerPath)}\n`,
+      );
+      chmodSync(executablePath, 0o755);
+
+      const output = runInSandbox(
+        fixture,
+        `open -g ${JSON.stringify(bundlePath)} && echo OPENED || echo open-refused`,
+      );
+
+      // Two assertions, because either alone can be green for the wrong
+      // reason: the marker could be absent on a machine that refused the
+      // launch for its own reasons — Gatekeeper, a policy — and the refusal
+      // message alone says nothing about whether something still ran.
+      expect(output).toContain("open-refused");
+      expect(output).toContain("_LSOpenURLsWithCompletionHandler");
+      // launchd answers `open` before the program it starts has run, so the
+      // marker needs a moment to appear if the boundary is broken.
+      execFileSync("/bin/sleep", ["3"]);
+      expect(existsSync(markerPath)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "refuses an AppleEvent to an application outside the sandbox",
+    () => {
+      fixture = createFixture();
+
+      // This one states the boundary rather than pinning the rule, and that is
+      // deliberate: measured under a bare `(version 1)(allow default)`, the
+      // same event is already refused, because a sandboxed process has no
+      // apple-events entitlement. So removing `(deny appleevent-send)` leaves
+      // this green — what the rule buys is that the refusal is the profile's,
+      // which showed as a changed error (-600, the application "isn't
+      // running", instead of -10004, a privilege violation) rather than as a
+      // failing test. Kept because the statement is worth holding either way:
+      // Finder is running, and telling it anything must not work.
+      const output = runInSandbox(
+        fixture,
+        `osascript -e 'tell application "Finder" to get name of home' && echo SENT || echo event-refused`,
+      );
+
+      expect(output).toContain("event-refused");
+      expect(output).toContain("error");
     },
   );
 });
