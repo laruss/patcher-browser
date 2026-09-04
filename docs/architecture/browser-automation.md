@@ -204,7 +204,10 @@ constant function called on the node that comes back. It resolves into the
 automation world, so a scoped read is no more forgeable than an unscoped one — and
 it costs a CDP attach the unscoped read does not, which is why it can answer
 `debugger_unavailable`, `invalid_selector` or `no_match`, and why omitting the
-selector stays the cheap path. An older shell is told it cannot do this rather
+selector stays the cheap path. It answers `page_read_timeout` as well, and did
+not at first: the deadline the unscoped read has was written around the script
+it runs, and the four CDP sends this one makes instead have none of their own
+(#66). Both now share `withPageReadDeadline`. An older shell is told it cannot do this rather
 than being allowed to read the whole document and call it a success.
 
 `open --background` could not be faked either, and for a while it looked like it
