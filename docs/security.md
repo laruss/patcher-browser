@@ -691,12 +691,41 @@ through a **read-only** bind, so the directory is mounted read-only and a
 confined process cannot add a channel of its own to it.
 
 What that changes for a person: a confined Linux turn reaches the local server,
-the daemon, an ACP agent's plugin-tool bridge and the proxy — and nothing else
-on loopback. On macOS it reaches all of localhost, because seatbelt has no way
-to name ports. So a local service of your own is reachable from a confined turn
-on macOS and not on Linux; the whole chain was measured end to end under
-bubblewrap before it was written down, including that a direct connection off
-the machine is refused in 0 ms both by name and by literal IP.
+the daemon, an ACP agent's plugin-tool bridge and the proxy over TCP — and
+nothing else on loopback. On macOS it reaches all of localhost, because seatbelt
+has no way to name ports. So a local service of your own is reachable from a
+confined turn on macOS and not on Linux; the whole chain was measured end to end
+under bubblewrap before it was written down, including that a direct connection
+off the machine is refused in 0 ms both by name and by literal IP.
+
+**"Nothing else on loopback" is about TCP, and two ways around it are open
+(#64).** Both belong to the Linux backend, and both are recorded here rather
+than discovered later:
+
+- **Unix sockets are not network-namespaced.** That is what lets the relay reach
+  the daemon's sockets from inside a `--unshare-net` namespace in the first
+  place, and it applies to every other socket on the machine too. The bubblewrap
+  argv binds `/` read-only with no `tmpfs` over `/run`, `/var/run` or
+  `$XDG_RUNTIME_DIR`, so a docker socket, the D-Bus session bus and
+  `$SSH_AUTH_SOCK` stay connectable — and the session bus in particular is a
+  command run outside the sandbox, with the network. macOS is closed here:
+  `connect()` on an AF_UNIX path is `Operation not permitted` under the profile,
+  measured.
+- **The proxy itself will dial the host's loopback.** It allows `localhost`,
+  `127.0.0.1` and `::1` unconditionally — a well-behaved client never sends
+  those through a proxy, so the allowance costs nothing against one — and then
+  connects from the *host's* namespace. A client that asks explicitly
+  (`curl -x "$HTTPS_PROXY" --noproxy '' http://127.0.0.1:<port>`) reaches any
+  loopback service the relay withheld. The same seam is a functional bug from
+  the other side: an agent's own in-namespace server, routed through the proxy,
+  lands on the host's port of that number instead.
+
+So the Linux half is narrower in intent than it is in fact. Both fixes are
+known — a `tmpfs` over the runtime directories with only the relay's own socket
+directory re-bound, and refusing a loopback target in the proxy, which no
+well-behaved client sends — and until they land, read a confined Linux turn as
+reaching the host's loopback much the way a macOS one does, plus whatever unix
+sockets the machine leaves under `/run`.
 
 What the switch costs, so nobody discovers it in a turn: `git push` over an SSH
 remote stops working, because SSH has no proxy to use and the connection is
@@ -1057,6 +1086,18 @@ Named here rather than left to be rediscovered:
   says which of the two the shell holds and what ended it, which is the one
   thing a caller inside the shell cannot see for itself.
 
+  **"Loses the API" means while the thread is idle, not for good.** The turn
+  key's MAC covers the app key and the thread id and nothing else, so the same
+  string is accepted again the moment that thread has a turn running — which the
+  person's next message starts. So a `nohup`ed process regains the API on the
+  next turn rather than being locked out of it: what the lifetime removes is the
+  *idle* window an agent used to keep, which is the window nobody is watching.
+  The narrower reading — one turn, one credential — would need a turn counter
+  folded into the MAC input, and #68 is where that decision sits. Until then, an
+  agent that wants something to outlive a turn still has no reason to save a
+  string, because a terminal is both supported and visible; but a saved string
+  is not inert either, and this paragraph is what says so.
+
   One thing that made this worse than it read is also closed: **a terminal's
   environment carried the app key.** Measured — `PATCHER_APP_KEY` was in the
   environment of every terminal Patcher opened, and an agent may open and drive
@@ -1079,14 +1120,16 @@ Named here rather than left to be rediscovered:
   (above), which makes the old reason for leaving a terminal alone — a blocked
   connection has nowhere to raise a prompt — the thing to revisit rather than
   the end of it.
-- **What the egress boundary leaves open, when it is on.** Two things, both
+- **What the egress boundary leaves open, when it is on.** Three things, all
   named where the feature is described: loopback stays reachable, so a local
-  service with a network of its own is a way around the proxy — and how much of
-  loopback differs by platform, Linux being the narrower of the two; and an
-  allowed host that accepts arbitrary bytes is still a way out. A host on
-  nobody's list is now a question on the thread rather than a refusal. Pi is
-  not covered at all, for a measured reason its own bullet above gives, and a
-  turn that asked for the boundary is told so.
+  service with a network of its own is a way around the proxy; an allowed host
+  that accepts arbitrary bytes is still a way out; and the Linux backend's
+  loopback is narrower in intent than in fact — unix sockets under `/run` are
+  not network-namespaced and the proxy will dial the host's own loopback for a
+  client that asks it to, both tracked in #64. A host on nobody's list is now a
+  question on the thread rather than a refusal. Pi is not covered at all, for a
+  measured reason its own bullet above gives, and a turn that asked for the
+  boundary is told so.
 - ~~**The app does not say which terminals are confined.**~~ Closed: a confined
   terminal's tab says `sandboxed` — the same word as the `Sandbox` column in
   `patcher terminal list` — and the panel carries a line above the shell naming
