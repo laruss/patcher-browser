@@ -335,6 +335,27 @@ describe("WebSocketManager browser commands", () => {
     });
   });
 
+  it("still runs a command whose issuer is from a newer server", () => {
+    // The union is closed, and a signal this schema rejects is dropped whole by
+    // the dispatcher — so a fourth issuer kind would stop an older app from
+    // answering browser commands at all and every tool call would time out.
+    // Losing the indicator is the failure this lenient copy is for.
+    const { manager } = createConnectedManager();
+    const browserCommand = vi.fn();
+    manager.onBrowserCommand(browserCommand);
+
+    dispatchRaw({
+      type: "browser-command-request",
+      requestId: "req_3",
+      command: { type: "tabs.list" },
+      issuer: { kind: "plugin", pluginId: "something-new" },
+    });
+
+    expect(browserCommand).toHaveBeenCalledTimes(1);
+    expect(browserCommand.mock.calls[0]?.[0]?.requestId).toBe("req_3");
+    expect(browserCommand.mock.calls[0]?.[0]?.issuer).toBeUndefined();
+  });
+
   it("re-announces the browser host after a reconnect", () => {
     const { manager, socket } = createConnectedManager();
     manager.registerBrowserHost("window-a");

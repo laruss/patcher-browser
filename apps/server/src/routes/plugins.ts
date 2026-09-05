@@ -936,15 +936,24 @@ export function registerPluginRoutes(
     // Told to the command as well as charged against it, so `patcher browser
     // status` can answer "what am I allowed" without being refused something
     // first. The same scope, so the two can never disagree.
-    if (scope !== undefined) {
+    //
+    // Only for the plugin the decision is about. Any other plugin's CLI would
+    // learn this install's browser setting from a field it has no use for, and
+    // the only other thing this says — "you are not in a turn" — it can already
+    // see as a missing `threadId`.
+    if (scope !== undefined && pluginId === BROWSER_TOOLS_PLUGIN_ID) {
+      // From `grantCaller` rather than from the scope for the same reason the
+      // issuer is: the scope widens a grant's level to include `off`, which no
+      // grant has, and narrowing it back would be a runtime check for a case
+      // that cannot happen.
       ctx.caller =
-        scope.grant === undefined
+        grantCaller === undefined
           ? { kind: "outside", level: scope.level }
           : {
               kind: "grant",
-              level: scope.level,
-              grantId: scope.grant.id,
-              label: scope.grant.label,
+              level: grantCaller.level,
+              grantId: grantCaller.grantId,
+              label: grantCaller.label,
             };
     }
     // Before the run, not inside it: the one command this refuses never reaches

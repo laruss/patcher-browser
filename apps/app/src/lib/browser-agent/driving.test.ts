@@ -121,16 +121,60 @@ describe("the browser driving tracker", () => {
     expect(driving.last?.issuer).toEqual(OTHER_GRANT);
   });
 
-  it("clears when the window goes away", () => {
+  it("hands over to whoever started most recently", () => {
+    vi.useFakeTimers();
+    const driving = track();
+    const third: BrowserCommandIssuer = { kind: "outside" };
+
+    driving.tracker.started(GRANT);
+    driving.tracker.started(OTHER_GRANT);
+    driving.tracker.started(third);
+    driving.tracker.settled(third);
+
+    // Not the oldest survivor: "who moved last" is the rule the rest of this
+    // follows, and a three-way overlap is where taking the first map entry
+    // quietly stops obeying it.
+    expect(driving.last?.issuer).toEqual(OTHER_GRANT);
+  });
+
+  it("hands over rather than saying nobody is driving", () => {
     vi.useFakeTimers();
     const driving = track();
 
+    // Both are mid-command; the second one answers first. Letting the linger
+    // timer run out here would take the indicator down while the first agent is
+    // still working — the one thing this component must never do.
     driving.tracker.started(GRANT);
+    driving.tracker.started(OTHER_GRANT);
+    driving.tracker.settled(OTHER_GRANT);
+
+    expect(driving.last).toEqual({ issuer: GRANT, active: true });
+    vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 2);
+    expect(driving.last).toEqual({ issuer: GRANT, active: true });
+
+    driving.tracker.settled(GRANT);
+    vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
+    expect(driving.last).toBeNull();
+  });
+
+  it("clears when the window goes away, timer and all", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    // Settled, not just started: only a settle arms the linger timer, so a
+    // teardown after `started` alone would find nothing to clear and this would
+    // pass with `dispose` doing nothing at all.
+    driving.tracker.started(GRANT);
+    driving.tracker.settled(GRANT);
+    expect(vi.getTimerCount()).toBe(1);
+
     driving.tracker.dispose();
 
     expect(driving.last).toBeNull();
-    // The timer went with it: a fired timer after teardown would write to a
-    // store the window no longer has.
     expect(vi.getTimerCount()).toBe(0);
+    // And nothing writes to a store the window no longer has.
+    const writes = driving.states.length;
+    vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 2);
+    expect(driving.states.length).toBe(writes);
   });
 });

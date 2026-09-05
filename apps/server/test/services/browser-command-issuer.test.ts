@@ -15,6 +15,10 @@ import {
   type BrowserCommandRequestSignal,
 } from "@patcher/server-contract";
 import { builtinPluginSource } from "../../src/services/plugins/builtin-registry.js";
+import {
+  findPluginAgentTool,
+  invokePluginAgentTool,
+} from "../../src/services/plugins/plugin-agent-contributions.js";
 import { createMockHubSocket } from "../helpers/mock-hub-socket.js";
 import {
   seedEnvironment,
@@ -87,16 +91,25 @@ async function driveBrowser(
 async function waitForBrowserRequest(
   messages: readonly string[],
 ): Promise<BrowserCommandRequestSignal> {
+  return (
+    await waitForBrowserRequests(messages, 1)
+  )[0] as BrowserCommandRequestSignal;
+}
+
+async function waitForBrowserRequests(
+  messages: readonly string[],
+  count: number,
+): Promise<BrowserCommandRequestSignal[]> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
-    for (const raw of messages) {
-      const parsed = JSON.parse(raw) as { type?: string };
-      if (parsed.type === "browser-command-request") {
-        return parsed as BrowserCommandRequestSignal;
-      }
-    }
+    const seen = messages
+      .map((raw) => JSON.parse(raw) as { type?: string })
+      .filter((parsed) => parsed.type === "browser-command-request");
+    if (seen.length >= count) return seen as BrowserCommandRequestSignal[];
     await sleep(25);
   }
-  throw new Error("the window was never asked to run a browser command");
+  throw new Error(
+    `the window was asked to run fewer than ${count} browser commands`,
+  );
 }
 
 async function serveBrowser(): Promise<RunningTestServer> {
@@ -170,6 +183,95 @@ describe("the command a browser window is asked to run", () => {
     });
 
     expect(signal.issuer).toEqual({ kind: "thread", threadId: thread.id });
+  }, 60_000);
+
+  it("names the thread when a turn's own tool issued it", async () => {
+    // The other way a browser command starts: a plugin's agent tool, called by
+    // the turn's model rather than by a shell. Without the wrap in
+    // `plugin-agent-contributions.ts` this arrives unattributed, and nothing
+    // else in this suite would notice.
+    server = await serveBrowser();
+    const tool = findPluginAgentTool("browser_tabs_list");
+    expect(tool?.pluginId).toBe("browser-tools");
+    if (tool === undefined) throw new Error("browser-tools registers no tools");
+    const socket = createMockHubSocket();
+    server.hub.registerClient(socket);
+    server.hub.registerBrowserHost(socket, { browserHostId: "window-tool" });
+
+    const pending = invokePluginAgentTool(tool, {
+      input: {},
+      ctx: {
+        threadId: "thread-of-the-turn",
+        projectId: "proj_1",
+        signal: new AbortController().signal,
+      },
+    });
+    const signal = await waitForBrowserRequest(socket.messages);
+    server.hub.recordBrowserCommandResponse({
+      socket,
+      message: {
+        type: "browser-command.response",
+        requestId: signal.requestId,
+        outcome: { ok: true, value: { type: "tabs", tabs: [] } },
+      },
+    });
+    await pending;
+
+    expect(signal.issuer).toEqual({
+      kind: "thread",
+      threadId: "thread-of-the-turn",
+    });
+  }, 60_000);
+
+  it("keeps two overlapping callers apart", async () => {
+    // Every other case here finishes one request before starting the next, so a
+    // module-global holding the caller until its command answers would pass
+    // them all while attributing whichever request finished last.
+    server = await serveBrowser();
+    setAppSettings(server.deps.db, {
+      ...getAppSettings(server.deps.db),
+      browserExternalAccess: "read",
+    });
+    const grant = createBrowserAccessGrant(server.deps.db, {
+      label: "Claude Code",
+      level: "read",
+    });
+    const socket = createMockHubSocket();
+    server.hub.registerClient(socket);
+    server.hub.registerBrowserHost(socket, { browserHostId: "window-both" });
+
+    const runCli = (headers: Record<string, string>) =>
+      fetch(`${server?.baseUrl ?? ""}/api/v1/plugins/browser-tools/cli`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ argv: ["tabs"] }),
+      });
+    // Both in the air before either is answered.
+    const first = runCli({
+      [PATCHER_AGENT_KEY_HEADER]: deriveAgentAccessKey({
+        appApiKey: TEST_APP_API_KEY,
+        grantId: grant.id,
+      }),
+    });
+    const second = runCli({ [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY });
+    const signals = await waitForBrowserRequests(socket.messages, 2);
+    for (const signal of signals) {
+      server.hub.recordBrowserCommandResponse({
+        socket,
+        message: {
+          type: "browser-command.response",
+          requestId: signal.requestId,
+          outcome: { ok: true, value: { type: "tabs", tabs: [] } },
+        },
+      });
+    }
+    await Promise.all([first, second]);
+
+    expect(
+      signals
+        .map((signal) => signal.issuer?.kind)
+        .sort((a, b) => (a ?? "").localeCompare(b ?? "")),
+    ).toEqual(["grant", "outside"]);
   }, 60_000);
 
   it("takes the thread from the credential, not from the body", async () => {

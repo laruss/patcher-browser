@@ -160,6 +160,12 @@ describe("plugin CLI commands (patcher.cli.register + endpoints + skill + logs)"
     };
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
+    // Exact, and that is the point of the `caller` field's absence here: this
+    // request comes from outside a turn, so the host *has* an external caller
+    // for it — and hands it only to the plugin the browser level is charged
+    // against. Any other plugin would be learning this install's browser
+    // setting from a field it has no use for. If a `caller` appears in this
+    // object, that restriction is gone.
     expect(JSON.parse(result.stdout)).toEqual({
       argv: ["issues", "--team", "ENG"],
       ctx: {

@@ -307,8 +307,49 @@ describe("a browser access grant", () => {
 
     const { body } = await runBrowserCli(server, key, ["status"]);
 
-    expect(body).toContain("Claude Code");
-    expect(body).toContain("read pages");
+    // On stdout, not just somewhere in the response: a refusal that happened to
+    // echo the label would satisfy a match against the whole body.
+    const { stdout } = JSON.parse(body) as { stdout: string };
+    expect(stdout).toContain('through the browser access grant "Claude Code"');
+    expect(stdout).toContain("read pages");
+  }, 60_000);
+
+  it("is the only caller told that — a turn is not", async () => {
+    // The level is about agents *outside* Patcher, and a turn is not one: it
+    // would read "this install does not let agents outside Patcher drive the
+    // browser" while driving the browser perfectly well.
+    server = await startTestServer();
+    await server.pluginService.install(builtinPluginSource("browser-tools"));
+    const { host } = seedHostSession(server.deps, { id: "host-status-turn" });
+    const { project } = seedProjectWithSource(server.deps, { hostId: host.id });
+    const environment = seedEnvironment(server.deps, {
+      hostId: host.id,
+      projectId: project.id,
+    });
+    const thread = seedThread(server.deps, {
+      projectId: project.id,
+      environmentId: environment.id,
+      status: "active",
+    });
+
+    const response = await fetch(
+      `${server.baseUrl}/api/v1/plugins/browser-tools/cli`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [PATCHER_THREAD_ID_HEADER]: thread.id,
+          [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
+            appApiKey: TEST_APP_API_KEY,
+            threadId: thread.id,
+          }),
+        },
+        body: JSON.stringify({ argv: ["status"] }),
+      },
+    );
+
+    const { stdout } = (await response.json()) as { stdout: string };
+    expect(stdout).not.toContain("Your access");
   }, 60_000);
 
   it("stops while paused, says which, and works again after", async () => {

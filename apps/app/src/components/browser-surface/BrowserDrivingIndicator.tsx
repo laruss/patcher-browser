@@ -46,7 +46,10 @@ function issuerName(issuer: BrowserCommandIssuer): string {
     case "thread":
       return "An agent in Patcher";
     case "outside":
-      return "An agent outside Patcher";
+      // Not "an agent": this is also what a person running `patcher browser`
+      // in their own terminal produces, and the server cannot tell the two
+      // apart — that is what the grant beside it exists to fix.
+      return "Something outside Patcher";
   }
 }
 
@@ -81,16 +84,25 @@ export function BrowserDrivingIndicator({
           : ""}
       </p>
       {issuer.kind === "grant" ? (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={pause.isPending}
-          onClick={() => {
-            pause.mutate({ grantId: issuer.grantId, paused: true });
-          }}
-        >
-          Pause
-        </Button>
+        // Once it is paused the row is telling the truth about a moment that
+        // has passed: the last command was this grant's, and it lingers a few
+        // seconds. What must not linger is the button — an offer to do again
+        // what was just done reads as "it did not work", and the next thing to
+        // hand is Revoke.
+        pause.isSuccess && pause.variables?.grantId === issuer.grantId ? (
+          <span className="shrink-0 font-medium">Paused</span>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pause.isPending}
+            onClick={() => {
+              pause.mutate({ grantId: issuer.grantId, paused: true });
+            }}
+          >
+            Pause
+          </Button>
+        )
       ) : issuer.kind === "outside" ? (
         <Button
           variant="outline"

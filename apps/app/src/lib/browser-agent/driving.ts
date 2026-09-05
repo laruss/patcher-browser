@@ -75,7 +75,11 @@ export interface CreateBrowserDrivingTrackerArgs {
 export function createBrowserDrivingTracker(
   args: CreateBrowserDrivingTrackerArgs,
 ): BrowserDrivingTracker {
-  const inFlight = new Map<string, number>();
+  /** Per driver: how many of its commands are unanswered, and who it is. */
+  const inFlight = new Map<
+    string,
+    { count: number; issuer: BrowserCommandIssuer }
+  >();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let current: string | null = null;
 
@@ -85,11 +89,31 @@ export function createBrowserDrivingTracker(
     timer = null;
   }
 
+  /**
+   * Anybody else still mid-command, for when the shown driver finishes.
+   *
+   * The most recently *started* one, which is what `started` keeps the map in
+   * order of. Taking the first entry would hand a three-way overlap back to the
+   * oldest driver, and "who moved last" is the rule everything else here
+   * follows.
+   */
+  function stillDriving(except: string): BrowserCommandIssuer | undefined {
+    for (const [key, entry] of [...inFlight].reverse()) {
+      if (key !== except && entry.count > 0) return entry.issuer;
+    }
+    return undefined;
+  }
+
   return {
     started(issuer) {
       if (issuer === undefined) return;
       const key = browserDrivingIssuerKey(issuer);
-      inFlight.set(key, (inFlight.get(key) ?? 0) + 1);
+      const held = inFlight.get(key);
+      // Deleted before it is set, so the map stays in order of who started most
+      // recently: `Map.set` on an existing key keeps its old position, and that
+      // order is what a handover reads.
+      inFlight.delete(key);
+      inFlight.set(key, { count: (held?.count ?? 0) + 1, issuer });
       current = key;
       clearTimer();
       args.set({ issuer, active: true });
@@ -97,18 +121,30 @@ export function createBrowserDrivingTracker(
     settled(issuer) {
       if (issuer === undefined) return;
       const key = browserDrivingIssuerKey(issuer);
-      const left = Math.max((inFlight.get(key) ?? 0) - 1, 0);
+      const left = Math.max((inFlight.get(key)?.count ?? 0) - 1, 0);
       if (left === 0) inFlight.delete(key);
-      else inFlight.set(key, left);
+      else inFlight.set(key, { count: left, issuer });
       // Somebody else started driving while this command was in the air. Their
       // indicator is the current one and this answer must not replace it.
       if (current !== key) return;
       args.set({ issuer, active: left > 0 });
       if (left > 0) return;
+      // This driver has stopped, but somebody else has not. Hand the indicator
+      // over now rather than lingering on a name that is finished — and never
+      // clear it, which would say nobody is driving while somebody is. Two at
+      // once is not supported (see the atom's docstring); this is about not
+      // lying when it happens anyway.
+      const other = stillDriving(key);
+      if (other !== undefined) {
+        current = browserDrivingIssuerKey(other);
+        clearTimer();
+        args.set({ issuer: other, active: true });
+        return;
+      }
       clearTimer();
       timer = setTimeout(() => {
         timer = null;
-        if (current !== key || (inFlight.get(key) ?? 0) > 0) return;
+        if (current !== key || (inFlight.get(key)?.count ?? 0) > 0) return;
         current = null;
         args.set(null);
       }, BROWSER_DRIVING_LINGER_MS);

@@ -185,6 +185,13 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   surface they do not have open. A window-level signal — the title bar, the tab
   strip, a tray item — is the piece that would fix that, and it is a different
   surface rather than a bigger version of this one.
+- **A plugin in its own process drives the browser anonymously.** The `issuer`
+  rides an `AsyncLocalStorage`, which does not cross the plugin channel, so a
+  third-party plugin's browser command reaches the window with no caller on it
+  and the chrome says nothing — whoever asked for it. It is the same gap as the
+  access level's, one door seen from two sides, and the same fix closes both:
+  carry the caller over the channel keyed by the host's own in-flight call,
+  never by anything the plugin says about itself.
 - **The indicator says who, not what.** A grant's name and level, and nothing
   about the command: no URL, no selector, no count of what was read. The trace
   recorder (`patcher browser trace-start`) already records exactly that and is

@@ -1408,13 +1408,16 @@ network mock or a recording the holder started stays until the tab is closed.
 
 **While something is driving, the browser chrome says so** — the name you gave
 the grant, how far it reaches, and a Pause button; a caller from outside holding
-only the app key is named as that and pointed at the setting, since nothing
-narrower exists for it; a turn inside Patcher is named and left to its thread.
+only the app key is called just that and pointed at the setting, since nothing
+narrower exists for it; a turn inside Patcher is shown as "an agent in Patcher"
+and left to its own thread, which is where it is stopped.
 `patcher browser status` answers the same question from the other side, so an
-agent can be told what it may do instead of finding out by being refused. What
-that does not do: the indicator is a row of the browser chrome, so it is not on
-screen while you are reading a thread elsewhere in the app, and it says who is
-driving rather than what they are doing.
+agent can be told what it may do instead of finding out by being refused. Three
+things that does not do: the indicator is a row of the browser chrome, so it is
+not on screen while you are reading a thread elsewhere in the app; it says who is
+driving rather than what they are doing; and it stays silent for a plugin you
+installed, which runs in its own process and is charged its own permissions —
+the same gap the level has.
 
 A grant is deliberately **not** bounded by the level above, and the reverse of a
 ceiling is the point: a ceiling would mean opening the browser to every process

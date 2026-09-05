@@ -91,7 +91,11 @@ export function revokeBrowserAccessGrant(
   now: number = Date.now(),
 ): BrowserAccessGrantRow | undefined {
   db.update(browserAccessGrants)
-    .set({ revokedAt: now })
+    // The pause goes with it. A row that is both paused and revoked is a state
+    // this file argues against two functions down — "resume" is unavailable
+    // either way, and a reader who has to know which field wins is a reader the
+    // shape has failed.
+    .set({ pausedAt: null, revokedAt: now })
     .where(
       and(eq(browserAccessGrants.id, id), isNull(browserAccessGrants.revokedAt)),
     )

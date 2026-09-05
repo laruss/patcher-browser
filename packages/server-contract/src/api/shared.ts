@@ -217,11 +217,20 @@ export const pluginSignalLenientSchema = z.object({
  * and until this field existed it spent that knowledge on one question — may
  * this caller do this — and dropped it.
  *
- * **Absent means the app itself.** Its own browsing, a plugin's page script, a
- * toolbar item's handler: work the user started, in the window they are looking
- * at, which needs no indicator and must not get one. A missing field also means
- * an older server, and reads the same way, which is the right default of the
- * two.
+ * **Absent means nobody the server can name.** Usually that is the app itself —
+ * its own browsing, a plugin's page script, a toolbar item's handler: work the
+ * user started, in the window they are looking at, which needs no indicator and
+ * must not get one. A missing field also means an older server, and reads the
+ * same way, which is the right default of the two.
+ *
+ * It also means **a plugin running in its own process**, which is where this
+ * stops. The ambient scope that carries the caller covers commands issued on
+ * the caller's own async stack; the host serves an out-of-process plugin's
+ * browser call on a channel message, in a fresh async context, so a command from
+ * one arrives unattributed even when a turn or a grant set it going. That is the
+ * same boundary the access level has — see `browser-external-access.ts` in the
+ * server — and closing it means carrying the caller over the plugin channel
+ * keyed by the host's own in-flight call, never by what the plugin says it is.
  *
  * `outside` has no fields on purpose. A caller holding the app key from a
  * terminal is exactly as identified as the app key is — which is to say the
@@ -276,7 +285,13 @@ export const browserCommandRequestSignalLenientSchema = z.object({
   command: browserCommandSchema,
   // Restated here or the app would never see it: a lenient schema strips what
   // it does not name, so leaving it out is the same as not sending it.
-  issuer: browserCommandIssuerSchema.optional(),
+  //
+  // `.catch` because the union is closed and this schema's whole job is to
+  // survive a newer server: a fourth kind would otherwise fail the parse, and
+  // `ws.ts` drops a signal it cannot parse — so an *older app* would stop
+  // answering browser commands altogether and every tool call would time out.
+  // Degrading to "no indicator" is the failure this copy exists to have.
+  issuer: browserCommandIssuerSchema.optional().catch(undefined),
 });
 
 export const workspaceFileSchema = z.object({

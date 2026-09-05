@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import type * as z from "zod";
 import type { PatcherSdk } from "@patcher/sdk";
 import type {
+  BrowserAccessGrantLevel,
   BrowserExternalAccessLevel,
   ThreadResponse,
 } from "@patcher/server-contract";
@@ -258,11 +259,16 @@ export interface PluginCliCommandInfo {
 
 /** Context forwarded from the invoking CLI when known; all fields optional. */
 /**
- * Who ran this command, when it came from outside Patcher.
+ * Who ran this command, when it came from outside Patcher and the host has a
+ * decision to report about it.
  *
- * Absent for every caller inside it — a turn, the app, another plugin — which
- * is also the case where there is nothing to say: those are charged the plugin
- * toggle and the permissions the plugin declared.
+ * Absent for every caller inside Patcher — a turn, the app, another plugin —
+ * which is also the case where there is nothing to say: those are charged the
+ * plugin toggle and the permissions the plugin declared. Absent, too, for a
+ * plugin the decision is not about: the level here is the *browser* one, so the
+ * host fills this in for the plugin whose commands that level is charged
+ * against and for no other. The one other thing it would say — "you are not in
+ * a turn" — is already visible as a missing `threadId`.
  *
  * Present, it is what the host has *already* decided, not a request: the same
  * level the browser gate charges each command against. A plugin cannot widen
@@ -278,7 +284,8 @@ export type PluginCliCaller =
   | {
       /** One agent, holding a credential a person issued for the browser. */
       kind: "grant";
-      level: BrowserExternalAccessLevel;
+      /** Never `off`: a grant that admitted nothing would not be issued. */
+      level: BrowserAccessGrantLevel;
       grantId: string;
       /** What the person called it. The only name anybody gave any of this. */
       label: string;

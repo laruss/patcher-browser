@@ -56,9 +56,11 @@ credential that outlives the turn, so a turn gets a 403 there.
   the row is the lifetime.
 - A revoked grant cannot be paused or resumed. Revoking is the decision with no
   undo, and the route answers 409 rather than pretending otherwise.
-- **`grant` is refused inside a turn**, unlike `browser-access` above: a grant
-  keeps working after the turn ends, so minting one is the person's act. Reading
-  the list is not refused.
+- **`grant`, `pause`, `resume` and `revoke` are all refused inside a turn**,
+  unlike `browser-access` above: a grant keeps working after the turn ends, so
+  minting one is the person's act — and the grant being stopped or started again
+  belongs to somebody else's agent, which a turn has no way to judge. Reading the
+  list is not refused.
 
 ## Caffeinate (macOS only)
 

@@ -129,6 +129,17 @@ describe("browser access grants", () => {
     expect(getBrowserAccessGrant(db, grant.id)?.revokedAt).toBeNull();
   });
 
+  it("takes the pause with it when a paused grant is revoked", () => {
+    // Otherwise the row is both, and every reader has to know which field wins.
+    const grant = createBrowserAccessGrant(db, { label: "a", level: "read" });
+    pauseBrowserAccessGrant(db, grant.id, 1_000);
+
+    const revoked = revokeBrowserAccessGrant(db, grant.id, 2_000);
+
+    expect(revoked?.pausedAt).toBeNull();
+    expect(revoked?.revokedAt).toBe(2_000);
+  });
+
   it("will not resume a revoked grant, or pause one", () => {
     // Revoking is the decision that does not have an undo, and a paused
     // timestamp on a revoked row would make "Resume" look available for

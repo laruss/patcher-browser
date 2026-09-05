@@ -174,6 +174,23 @@ declare const browserExternalAccessLevelSchema: z$1.ZodEnum<{
     interact: "interact";
 }>;
 type BrowserExternalAccessLevel = z$1.infer<typeof browserExternalAccessLevelSchema>;
+/**
+ * The level a *grant* carries, which is the same ramp without `off`.
+ *
+ * A grant is a credential somebody issued on purpose; one that admits nothing
+ * is not a narrower grant, it is a row that should not exist. Revoking is how a
+ * grant stops working, and revoking says so — a date, in a list — where a grant
+ * quietly set to `off` would read as working.
+ *
+ * Derived from the four rather than written out again, so a level added to the
+ * ramp lands here too instead of silently staying out of grants.
+ */
+declare const browserAccessGrantLevelSchema: z$1.ZodEnum<{
+    full: "full";
+    read: "read";
+    interact: "interact";
+}>;
+type BrowserAccessGrantLevel = z$1.infer<typeof browserAccessGrantLevelSchema>;
 
 declare const changedMessageSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
     type: z$1.ZodLiteral<"changed">;
@@ -13777,11 +13794,16 @@ interface PluginCliCommandInfo {
 }
 /** Context forwarded from the invoking CLI when known; all fields optional. */
 /**
- * Who ran this command, when it came from outside Patcher.
+ * Who ran this command, when it came from outside Patcher and the host has a
+ * decision to report about it.
  *
- * Absent for every caller inside it — a turn, the app, another plugin — which
- * is also the case where there is nothing to say: those are charged the plugin
- * toggle and the permissions the plugin declared.
+ * Absent for every caller inside Patcher — a turn, the app, another plugin —
+ * which is also the case where there is nothing to say: those are charged the
+ * plugin toggle and the permissions the plugin declared. Absent, too, for a
+ * plugin the decision is not about: the level here is the *browser* one, so the
+ * host fills this in for the plugin whose commands that level is charged
+ * against and for no other. The one other thing it would say — "you are not in
+ * a turn" — is already visible as a missing `threadId`.
  *
  * Present, it is what the host has *already* decided, not a request: the same
  * level the browser gate charges each command against. A plugin cannot widen
@@ -13795,7 +13817,8 @@ type PluginCliCaller = {
 } | {
     /** One agent, holding a credential a person issued for the browser. */
     kind: "grant";
-    level: BrowserExternalAccessLevel;
+    /** Never `off`: a grant that admitted nothing would not be issued. */
+    level: BrowserAccessGrantLevel;
     grantId: string;
     /** What the person called it. The only name anybody gave any of this. */
     label: string;

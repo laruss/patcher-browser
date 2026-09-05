@@ -389,10 +389,21 @@ it is answering at the route, and the socket that carries the command is forty
 call sites away, so the caller rides the same `AsyncLocalStorage` shape the
 access scope uses (`browser-command-issuer.ts`) and the bridge attaches it to
 `browser-command-request`. Three answers — a `thread`, a `grant` with the label
-and level a person gave it, and a bare `outside` — and *absent*, which is the
-app's own browsing and must stay silent. A caller holding the app key gets
-`outside` with nothing else, because that is exactly as identified as the app key
-is; naming it would be an invention.
+and level a person gave it, and a bare `outside` — and *absent*, which is
+usually the app's own browsing and must stay silent. A caller holding the app key
+gets `outside` with nothing else, because that is exactly as identified as the
+app key is; naming it would be an invention.
+
+**It reaches exactly what the access scope reaches, and no further.** Commands
+issued on the caller's own async stack: every built-in plugin, which is all of
+`patcher browser`. A plugin running in its **own process** calls back on a
+channel message, in a fresh async context, so its browser commands arrive with
+no issuer even when a turn's tool or a person's terminal set them going — and
+the chrome stays silent for them. That is the same boundary phase 1 has, and
+closing it is the same piece of work: carry the caller over the plugin channel,
+keyed by the host's own in-flight call rather than by anything the plugin says
+about itself, since a plugin that could name its own caller could name a
+different one.
 
 That wire is the server → app one, which ships with the server, and the
 inbound schema on the app side is lenient — so this is an optional field added to
@@ -460,6 +471,11 @@ Named here rather than left to be rediscovered.
   serves the commands is mounted above the router and works everywhere; the
   indicator is not, and a window-level or tray-level signal is a separate piece
   of work.
+- **A plugin in its own process drives anonymously.** The paragraph above says
+  why: the issuer does not cross the plugin channel, so the chrome shows nothing
+  for a third-party plugin's browser command whoever asked for it. The same
+  plugin is also the one the access level does not charge, so this is one gap
+  seen from two sides rather than two.
 - **It says who, not what.** The name and the level, and nothing about the
   command — no URL, no selector, no list of what was read. A trace exists
   (`patcher browser trace-start`) and is not wired to this.

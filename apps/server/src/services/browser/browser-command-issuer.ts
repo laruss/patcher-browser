@@ -27,9 +27,21 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
  * without a runtime narrowing that could only ever be dead code.
  *
  * **What has no issuer.** The app's own browsing, a page script, a toolbar
- * item's handler, an installed plugin's background work: nothing a person did
- * not ask another agent for. That is the common case and it must stay silent —
- * an indicator that is on all the time says nothing.
+ * item's handler: nothing a person did not ask another agent for. That is the
+ * common case and it must stay silent — an indicator that is on all the time
+ * says nothing. **And a plugin running in its own process**, whatever started
+ * it: the host serves its browser call on a channel message, in a fresh async
+ * context this store does not reach. That is the same boundary the access scope
+ * has, and it is named in the wire schema's docstring so the field's absence is
+ * not read as "the app did it".
+ *
+ * **One hazard worth naming, since it is not reachable today.** Node binds a
+ * store to handles created inside `run()`. If a plugin process were ever forked
+ * from inside one of these scopes, every later message from that child would
+ * arrive under it — and under the access scope beside it, which would *charge*
+ * it. Nothing wrapped here loads a plugin: `runCliCommand` fails on one that is
+ * not already running, and installs are not wrapped. Keep it that way, or fork
+ * under a clean `AsyncResource`.
  */
 
 const storage = new AsyncLocalStorage<BrowserCommandIssuer>();

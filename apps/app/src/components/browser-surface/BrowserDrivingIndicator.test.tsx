@@ -100,6 +100,12 @@ describe("the browser driving indicator", () => {
     await waitFor(() => {
       expect(setPaused).toHaveBeenCalledWith("bag_3k9wq2mnpx", true);
     });
+    // And the offer goes away once it is done: a Pause button still sitting
+    // there reads as "it did not work".
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+    });
+    expect(screen.getByRole("status").textContent).toContain("Paused");
   });
 
   it("sends a caller outside Patcher to the only lever there is", () => {
@@ -109,7 +115,7 @@ describe("the browser driving indicator", () => {
     const { onOpenAppRoute } = renderIndicator({ kind: "outside" });
 
     expect(screen.getByRole("status").textContent).toContain(
-      "An agent outside Patcher",
+      "Something outside Patcher",
     );
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 

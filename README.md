@@ -173,9 +173,10 @@ Patcher is experimental software that runs plugins written by coding agents.
   for now or revoke it for good; the level in
   **Settings → General → Agents outside Patcher** opens it to every process on
   the machine that can read the app key. Both run from reading a page to handing
-  over its cookies. While something outside Patcher is driving, the browser's own
-  toolbar says so and offers to stop it. Neither is charged on a plugin you
-  installed, which is charged the permissions it declared.
+  over its cookies. While something outside Patcher is driving, a row under the
+  browser's toolbar says so — by the name you gave the grant, with a button that
+  pauses it. Neither is charged on a plugin you installed, which is charged the
+  permissions it declared and drives without that row.
 - **A plugin you installed runs in its own process, which is not a sandbox.** It
   has the filesystem, subprocesses and the network, and runs as you — so treat
   installing a plugin as running a local script with your account's privileges.
