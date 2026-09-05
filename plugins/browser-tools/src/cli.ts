@@ -1988,14 +1988,16 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
               };
             }
             // The generation goes to stderr so stdout stays the tree alone and
-            // can be piped, while a human still sees the number the interaction
-            // commands want back — and is told what it is for. A bare
-            // "generation 0" is a number nobody uses; the protection against
-            // stale refs is only real if the line says how to ask for it.
+            // can be piped. It is no longer something the caller has to pass —
+            // the refs carry it (`e2@6`), so a ref this page has reassigned
+            // since is refused whether or not anyone remembered a flag — and
+            // the line says so rather than asking for ceremony that is now
+            // done. It still names the number, because a caller holding bare
+            // refs from somewhere else has `--generation` and nothing else.
             return {
               exitCode: 0,
               stdout: `${result.snapshot}\n`,
-              stderr: `generation ${result.generation} — pass --generation ${result.generation} on the acting commands, and a ref this page has since reassigned is refused instead of acted on\n${
+              stderr: `generation ${result.generation} — the refs above carry it, so pass them as printed and a ref this page has since reassigned is refused instead of acted on\n${
                 result.truncated ? "(truncated)\n" : ""
               }`,
             };
