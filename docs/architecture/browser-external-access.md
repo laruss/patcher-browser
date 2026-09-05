@@ -203,18 +203,147 @@ the same reason it was removed at all: it lives outside the data directory, so
 the rename never reached it, and it tells agents to run a binary this fork does
 not ship.
 
+## The credential, which is what makes it a boundary
+
+Everything above decides what an agent outside Patcher may do. The section below
+used to open by saying the same caller could rewrite that decision, because it
+holds the app key — a `0600` file any process running as the user can read, which
+opens threads, terminals, the file RPC and the settings. So the level was a
+default rather than a boundary, and the honest way to describe it was "opening
+the browser is the user's act", not "the browser is shut".
+
+A **browser access grant** is the fourth caller identity, beside a plugin
+(`plugin-api-identity.ts`), a turn (`thread-identity.ts`) and the app
+(`app-identity.ts`).
+
+### Derived, so nothing stores it
+
+`pa1.<grantId>.<HMAC(appKey, "patcher-agent-access:v1:" + grantId)>`, the same
+construction a thread credential uses one module over (`agent-access-key.ts` in
+`@patcher/config`). The server needs no table of live keys and has none to leak:
+given the id in the credential it re-derives what the credential must be and
+compares in constant time. Losing the app key file rotates every grant at once,
+which is the correct behaviour for a key derived from it.
+
+The id rides in the clear, unlike the terminal id in `thread-api-key.ts`, which
+is base64url'd because it comes from elsewhere and has no charset anything pins.
+A grant id is minted by `createBrowserAccessGrantId` from an alphabet with no `.`
+in it, so it survives the split unencoded and stays legible — a person reading a
+config file can see which grant they are looking at and go revoke it. It is
+inside the MAC as well, so it cannot be moved onto a grant with a level somebody
+would rather have.
+
+### Its lifetime is a row, not a deadline
+
+Accepted while the grant exists and `revokedAt` is null. That is the property a
+stamped expiry could not have given: the agent keeps the *string* forever — it is
+in its MCP config — and what stops it is a person clicking Revoke, after which
+the very next request is refused. Nothing to expire, nothing to refresh, nothing
+an agent can extend for itself. It is the same shape a terminal credential's
+lifetime has, chosen for the same reason.
+
+Revoked rather than deleted, so the list can say what was taken back and when,
+and so the id is never reissued. `lastUsedAt` is written on the way through the
+request gate — including on a *refused* request, since the question it answers is
+"is anything still using this" — at a minute's resolution, because a screenshot
+loop is dozens of requests a second and none of them is a different answer.
+
+### Two routes, as an allow-list
+
+`agent-access-route-policy.ts`, and it is an allow-list where
+`agent-route-policy.ts` next door is a deny list. That module argues for its own
+shape and the argument inverts cleanly: there a forgotten entry is a 403 in front
+of a person mid-task, and the caller is a turn the user started and is watching.
+Here the caller is a program the user allowed to touch *the browser*, nothing
+else was ever part of the offer, and a forgotten entry means a grant holder is
+told to go use the app key it can already read.
+
+| Route | Why |
+| --- | --- |
+| `GET /plugins/contributions` | Without it `patcher browser` is not a command: the CLI reads the plugin CLI table before it can route the argv. |
+| `POST /plugins/browser-tools/cli` | The command. Spelled with the plugin id rather than `/plugins/:id/cli`, because that route runs plugin code — a plugin with `shell` or `files` and a command of its own would otherwise be reachable with a credential issued for the browser. |
+
+`GET /plugins` is deliberately out, though the CLI asks for it when a command is
+unknown: it answers with every installed plugin's metadata, and the case it
+serves cannot arise for a grant holder, since issuing a grant turns
+`browser-tools` on. `/ws` and `/ws/terminals/:id` are not under `/api/v1` and
+take the app key or a plugin's header pair on their own, so a grant is refused
+there where any unidentified caller is — measured, because an upgrade is a
+different code path from a request.
+
+### Its level is its own, and that is the reverse of the scope's sketch
+
+The scope proposed the install-wide setting as a **ceiling** over grants. Built
+that way it would have been worth nothing: to use a `read` grant you would first
+have to set the level to at least `read`, which opens the browser to every
+process on the machine — and then the grant closes nothing that was not already
+open.
+
+So they are independent. `browserExternalAccess` answers "how far may an outside
+caller holding no credential of its own go", and a grant carries its own level.
+The shape this is built for is the setting left `off` and one grant issued to the
+agent that needs it. `routes/plugins.ts` picks which of the two applies from the
+caller, and the refusal names whichever one the reader can actually get changed.
+
+### Nobody can mint one but a person
+
+- **A turn cannot**, and this is the one place the grant route and the level
+  route differ. The level route raises a consent prompt inside a turn, because
+  the answer is about *other* agents and costs the asking thread nothing. This
+  route answers with a credential, and a credential is not a setting: a thread
+  key stops working when the turn ends and a grant does not, so a turn that could
+  call it would have minted itself a browser credential that outlives its own.
+  `agent-route-policy.ts` refuses the mutation; reading the list stays open,
+  since a list carries labels and dates and never a credential.
+- **A grant cannot**, because the allow-list admits two routes and this is not
+  one of them. No self-widening, no second grant.
+- **A plugin cannot**: `null` in the API path map, the same classification the
+  level route has and for a stronger version of the same reason. A plugin already
+  declares the browser permissions it wants and is charged those, so a plugin
+  minting a grant would only ever be minting one for something that is not it.
+
+### Getting it to the agent
+
+`patcher agent-access grant <label> [--level] [--for]`. `--for shell` prints the
+two environment variables. `--for claude-code` and `--for codex` run **that
+agent's own** `mcp add` — never editing their config files here, because
+`~/.claude.json` is rewritten by a running Claude Code and `~/.codex/config.toml`
+is a hand-kept file with comments in it that a TOML round-trip would silently
+reformat. Both ship a command for this, so the safe path is also the short one;
+when the binary is not on PATH the command is printed for the person to run, and
+nothing is half-done because nothing was written.
+
+One thing that path costs, said rather than hidden: the credential goes to those
+commands as an argv, so it is visible in `ps` for as long as the call runs. It
+is not a new exposure — the config file it lands in, and the app key file beside
+it, are readable by the same processes — but it is a window that a `--env-file`
+would not have, and neither vendor offers one.
+
+The MCP server it points at is the CLI shim from the phase before
+(`<dataDir>/bin/patcher mcp-serve`) — a stable absolute path that survives an
+upgrade, which matters because an agent's config outlives any particular build
+directory.
+
+`patcher mcp-serve` notices the grant in its own environment and changes what it
+offers: one command, `browser`, with a description that says so. Without that it
+would advertise "Patcher's API commands" and then have the server refuse all but
+one of them with a paragraph about credentials — which is the failure mode that
+module was written against, since a model told only "no" tries the neighbour.
+
 ## What this does not close
 
 Named here rather than left to be rediscovered.
 
-- **A caller holding the app key can write this setting as easily as read it.**
-  The key is a `0600` file readable by any process running as the user. What this
-  buys is what not handing a turn the app key bought: the browser is closed by
-  default, opening it is the user's act, and going around that is a deliberate
-  act rather than the way the product works. Making it a boundary needs a
-  credential that opens the browser and nothing else, which is deliberately not
-  in this change.
-- **The level covers `patcher browser`, not every plugin.** The scope does not
+- **A caller holding the app key can write the install-wide setting as easily as
+  read it.** The key is a `0600` file readable by any process running as the
+  user, so that setting is a default rather than a boundary — which is why the
+  grant above exists and why the recommended shape leaves the setting `off`. What
+  a grant does *not* do is make the app key unreadable: an agent that goes
+  looking can still find it and be the app, the same sentence `thread-api-key.ts`
+  writes about itself. What changes is that the supported path is the narrow one,
+  so reaching past the browser is a deliberate act rather than the way the
+  product works.
+- **Neither the level nor a grant covers every plugin.** The scope does not
   reach an installed plugin running in its own process — measured,
   not reasoned about, because a claim about async context is exactly the kind
   that is wrong in a way nothing notices. The host charges an out-of-process
@@ -223,10 +352,11 @@ Named here rather than left to be rediscovered.
   The same probe that is refused in-process at level `off` reaches the hub when
   its plugin runs in its own process. Nothing hides behind that gap — the same
   caller can install a plugin — but a *user* can, and a third-party plugin with
-  browser permissions and a CLI command of its own is then a door this setting
-  does not close. Every user-facing description of the setting says so rather
-  than promising the browser is shut; `docs/TODO.md` carries the two ways to
-  close it and why neither is worth doing before the narrower credential.
+  browser permissions and a CLI command of its own is then a door neither closes.
+  Every user-facing description says so rather than promising the browser is
+  shut. `docs/TODO.md` carries the two ways to close it; with the credential now
+  built, the second of them — carrying the scope over the plugin channel — is the
+  next thing worth doing here.
 - **The server cannot tell a person's terminal from an agent's.** Both are
   "no thread", so both are charged the level. The cost is real and small: the
   diagnostic path in [agent-browser-tools.md](agent-browser-tools.md)
@@ -255,6 +385,22 @@ Named here rather than left to be rediscovered.
   when the request carries only a thread header nobody verified**, and **not
   refused at all when the plugin runs in its own process** — which is the
   boundary above, pinned so it is a measured limit rather than a sentence.
+- `packages/config/test/agent-access-key.test.ts` — a credential names one grant
+  and verifies for no other, is not the app key and does not contain it, does not
+  verify under another install's key, and — the attack the clear-text id invites —
+  does not verify when the id beside the mac is swapped for a wider grant's.
+- `packages/db/test/data/browser-access-grants.test.ts` — a revoked grant is kept
+  rather than deleted, a second revoke does not move the date, and `lastUsedAt`
+  is written at most once a minute.
+- `apps/server/test/security/agent-access.test.ts` — over a real socket with no
+  app key on it: the two routes answer, six others 403 with the offer in the
+  message, another plugin's CLI is refused, the grant cannot mint a second grant
+  or raise the level, a revoked grant is refused **naming the revocation**, a
+  grant from another install is refused, both websockets refuse the upgrade, a
+  turn cannot mint one while it can still read the list, and — the two that say
+  the level is the grant's own — a `read` grant drives the browser while the
+  install-wide setting is `off`, and a `read` grant is still refused
+  `page.credentials` while that setting is `full`.
 - `packages/config/test/cli-shim.test.ts` — executable, quotes a path with a
   space in it, unchanged on the next start, rewritten when the install moves, the
   execute bit restored, Windows skipped, failure reported rather than thrown.

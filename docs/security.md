@@ -1363,24 +1363,47 @@ runs in the server process as a plugin CLI command, so anything on the machine
 that can reach the local API can run it — Claude Code, Codex, a script, you. A
 turn inside Patcher is gated by the `browser-tools` toggle and the prompt behind
 it; a caller with no thread had no gate at all, and enabled the plugin without
-asking anyone. **Settings → General → Agents outside Patcher** is that gate:
-`off` by default, then `read` (tabs, page text, screenshots, logs), `interact`
-(navigating, clicking, typing) and `full` (cookies and site storage, JavaScript
-in the page, network mocking, recording). Ask for the lowest level that does the
-job; the browser holds your logins, and `full` hands over a session that can
-leave the machine. `patcher settings browser-access <level>` is the same switch,
-and run from inside a thread it raises a prompt instead of taking effect.
+asking anyone. **Settings → General → Agents outside Patcher** is that gate for a
+caller holding no credential of its own: `off` by default, then `read` (tabs,
+page text, screenshots, logs), `interact` (navigating, clicking, typing) and
+`full` (cookies and site storage, JavaScript in the page, network mocking,
+recording). Ask for the lowest level that does the job; the browser holds your
+logins, and `full` hands over a session that can leave the machine.
+`patcher settings browser-access <level>` is the same switch, and run from inside
+a thread it raises a prompt instead of taking effect.
+
+A **browser access grant** uses the same four words for how far it reaches, and
+is the narrower thing to reach for — two paragraphs down. Minting one is refused
+inside a turn: a thread credential stops working when the turn ends and a grant
+does not, so a turn that could mint one would have given itself a browser
+credential that outlives it.
 
 The refusal is decided before the command is sent, so it means the page was never
-touched. Two limits, both real and both worth knowing before you rely on it. It
-is **not** a boundary against a process holding the app key, which can write that
-setting as easily as read it — the same limit the section below describes. And
-the level is charged on commands Patcher itself issues, which covers
-`patcher browser` and every built-in plugin, but **not a plugin you installed**:
-those run in their own process and are charged the permissions they declared, so
-a third-party plugin with browser permissions and a command of its own is a
-second door this setting does not close. What the setting buys is that Patcher's
-own browser command is shut by default and opening it is your decision. See
+touched.
+
+**The setting is a default; a grant is the boundary.** That setting is charged to
+a caller holding the app key, and that caller can write the setting as easily as
+read it — the limit the section below describes. So the narrow answer is a
+**browser access grant**: `patcher agent-access grant "Claude Code"` mints a
+credential derived from the app key and one grant id, which reaches exactly two
+routes (the plugin CLI table, and `browser-tools`' own CLI) and nothing else in
+the API. It carries its own level, it is listed in Settings with what it last
+did, and revoking the row is what ends it — there is no expiry to wait out and
+nothing for the holder to refresh. `--for claude-code` and `--for codex` run that
+agent's own `mcp add` so the credential lands in its configuration rather than in
+a file anyone can read.
+
+A grant is deliberately **not** bounded by the level above, and the reverse of a
+ceiling is the point: a ceiling would mean opening the browser to every process
+on the machine before you could open it to one named agent. Leave the level `off`
+and issue a grant.
+
+What neither closes: both are charged on commands Patcher itself issues, which
+covers `patcher browser` and every built-in plugin, but **not a plugin you
+installed** — those run in their own process and are charged the permissions they
+declared, so a third-party plugin with browser permissions and a command of its
+own is a second door. And a process that reads the app key off your disk is the
+app, with or without either of these. See
 [browser-external-access.md](architecture/browser-external-access.md).
 
 Popups are real windows for the browser surface's tabs, which is what makes

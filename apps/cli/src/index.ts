@@ -100,11 +100,16 @@ async function tryPluginCommandProxy(): Promise<void> {
   if (result.outcome === "unauthorized") {
     // Without this the candidate falls through to commander, which answers
     // "unknown command" — and the command is not unknown, the caller is.
+    // The server's own sentence first when it has one: it is the only part
+    // that can name *why* — a revoked grant says which grant and that a person
+    // revoked it, which nothing on this side could work out.
     const credential = describeRefusedCredential();
     console.error(
-      `Patcher refused this shell at ${getUrl()} (HTTP 401), so it will not say which commands ${candidate} has.${
-        credential === null ? "" : `\n${credential}`
-      }`,
+      [
+        result.serverMessage ??
+          `Patcher refused this shell at ${getUrl()} (HTTP 401), so it will not say which commands ${candidate} has.`,
+        ...(credential === null ? [] : [credential]),
+      ].join("\n"),
     );
     process.exit(1);
   }

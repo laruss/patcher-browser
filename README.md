@@ -166,10 +166,14 @@ Patcher is experimental software that runs plugins written by coding agents.
 - **That is a consent and audit boundary, not a sandbox against malicious code.**
 - Browser access operates on your real authenticated sessions. `patcher browser`
   refuses agents outside Patcher — Claude Code, Codex, a script in a terminal —
-  until you say otherwise, in **Settings → General → Agents outside Patcher**;
-  the levels run from reading a page to handing over its cookies. That level is
-  charged on Patcher's own browser command, not on a plugin you installed, which
-  is charged the permissions it declared.
+  until you say otherwise. Two ways to say it, and the narrow one is the
+  recommended one: `patcher agent-access grant "Claude Code" --for claude-code`
+  hands **one** agent a credential that opens the browser and nothing else in
+  Patcher, listed and revocable in **Settings → General**; the level in
+  **Settings → General → Agents outside Patcher** opens it to every process on
+  the machine that can read the app key. Both run from reading a page to handing
+  over its cookies. Neither is charged on a plugin you installed, which is
+  charged the permissions it declared.
 - **A plugin you installed runs in its own process, which is not a sandbox.** It
   has the filesystem, subprocesses and the network, and runs as you — so treat
   installing a plugin as running a local script with your account's privileges.

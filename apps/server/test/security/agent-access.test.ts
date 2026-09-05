@@ -424,9 +424,11 @@ describe("a browser command charged to a grant", () => {
 
     expect(status).toBe(200);
     // No browser window is connected in a harness, so this is as far as it can
-    // get — and *which* failure is the assertion. Anything from the hub means
-    // the command was dispatched; the gate refuses before that.
-    expect(body).not.toContain("external_access_denied");
+    // get — and *which* failure is the assertion. The hub's answer is positive
+    // evidence that the command was dispatched; the gate refuses before that,
+    // and its refusal is the sentence asserted against below.
+    expect(body).toContain("No browser window is connected");
+    expect(body).not.toContain("browser access grant");
   });
 
   it("is refused above its level, and named in the refusal", async () => {

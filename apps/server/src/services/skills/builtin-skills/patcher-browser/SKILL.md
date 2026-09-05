@@ -128,9 +128,9 @@ as the web build with no desktop shell, and no retry will change that.
 
 This is the default, and it is deliberate rather than an oversight. Whoever
 drives this browser reads and acts inside the user's real, signed-in session. So
-it is closed until they open it, and there are **two different gates** depending
-on which case you are in above. Do not confuse them: opening one does not open
-the other, and telling the user to change the wrong one wastes their time.
+it is closed until they open it, and the gate is **different depending on which
+case you are in above**. Do not confuse them: opening one does not open the
+other, and telling the user to change the wrong one wastes their time.
 
 ### You are a thread inside Patcher
 
@@ -151,7 +151,7 @@ per message. If they are still missing, a new thread will have them.
 
 ### You are a terminal beside Patcher
 
-Your gate is a setting, **Agents outside Patcher**, and it has four positions:
+Four positions, whichever way the user opens it:
 
 | Level      | What it allows                                                          |
 | ---------- | ----------------------------------------------------------------------- |
@@ -162,21 +162,43 @@ Your gate is a setting, **Agents outside Patcher**, and it has four positions:
 
 Ask for the lowest one that does the job — most requests are `read`, and asking
 for `full` to read a page is asking for the user's logins to answer a question
-that did not need them. The two ways to change it:
+that did not need them.
 
-- **Settings → General → Agents outside Patcher**, or
-- `patcher settings browser-access <level>`
+**Ask for a grant, not for the setting.** There are two ways to open the browser
+to you, and they are not equivalent:
 
-**You may run that command, and from a plain terminal it takes effect
-immediately** — the server cannot tell your shell from the user's own, so
-running it is you acting as them. That makes it something to ask for rather than
-to do: say which level you need and why, and let them run it or tell you to.
-Raising it yourself, unasked, is the one outcome this must never produce.
+```bash
+patcher agent-access grant "<your name>" --level read
+```
 
-If you are a thread inside Patcher and you run it, it raises a prompt on your
-thread instead, and changes nothing unless the user allows it — the same shape
-the plugin toggle has. Do not run it to find out whether they would say yes: the
-prompt takes the thread's one interaction slot, and a refusal is an answer.
+That issues a credential for **you alone**. It opens the browser and nothing
+else in Patcher, the user sees it in Settings with what it last did, and one
+click takes it back. The alternative — `patcher settings browser-access read` —
+opens the browser to *every* process on this machine that can read Patcher's key
+file. Same four levels, very different blast radius. So name the grant, and
+mention the setting only if they ask for something simpler.
+
+If the user runs it with `--for claude-code` or `--for codex` it configures that
+agent directly and there is nothing for you to paste. Otherwise it prints two
+environment variables; you need `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` in
+your shell, and then `patcher browser` works and the rest of `patcher` does not.
+
+**Do not run either command yourself and call it done.** From a plain terminal
+both take effect immediately — the server cannot tell your shell from the user's
+own, so running one is you acting as them. Say which level you need and why, and
+let them run it or tell you to. Opening the browser to yourself, unasked, is the
+one outcome this must never produce.
+
+If you are a thread inside Patcher, `patcher settings browser-access` raises a
+prompt on your thread and changes nothing unless the user allows it — the same
+shape the plugin toggle has. `patcher agent-access grant` is refused there
+outright: a grant keeps working after your turn ends, so minting one is the
+user's act and not yours. Do not run either to find out whether they would say
+yes: the prompt takes the thread's one interaction slot, and a refusal is an
+answer.
+
+**If your grant stops working**, the refusal says so — it names the grant and
+says it was revoked. That is a person's decision. Ask, do not retry.
 
 ### Either way
 

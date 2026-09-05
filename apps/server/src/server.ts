@@ -548,10 +548,13 @@ export function createApp(
         return next();
       }
       // The fourth kind of caller: an agent that is not Patcher's, holding a
-      // grant a person issued for the browser. Checked after the thread — the
-      // two credentials are different shapes and cannot be confused, and a
-      // turn's is the narrower claim about *this* install — and before the app
-      // key, because a grant holder must never fall through to being the app.
+      // grant a person issued for the browser.
+      //
+      // After the thread and before the app key, and only the second half of
+      // that matters — a grant holder must never fall through to being the app.
+      // The first half is arbitrary: presenting both credentials at once takes
+      // the app key (a thread key is derived from it), so a caller who could
+      // reach this order is already the app and has widened nothing.
       const agentAccess = agentAccessIdentity.resolve(context.req);
       if (agentAccess.kind === "refused") {
         // A credential this install issued and will no longer accept. Said

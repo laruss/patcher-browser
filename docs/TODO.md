@@ -171,13 +171,16 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   the direction of a wrong refusal; or carrying the scope over the plugin
   channel, so the plugin process holds it for the invocation and the host reads
   it back off the frame — a wire change, and the one that is actually correct.
-  Neither is worth doing before the narrower credential
-  ([architecture/browser-external-access.md](architecture/browser-external-access.md)
-  names it), because that credential is what makes any of this a boundary
-  rather than a default.
+  The narrower credential this used to wait on now exists
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
+  so the second of those is the next thing to do here: with a grant reaching two
+  routes, an installed plugin's own CLI command is the remaining way its holder's
+  machine gets browser access nobody charged.
 - **Nothing shows that an agent outside Patcher is driving the browser.** The
-  level in [architecture/browser-external-access.md](architecture/browser-external-access.md)
-  decides whether it may; nothing says when it does. Electron draws no "this
+  level and the grant in [architecture/browser-external-access.md](architecture/browser-external-access.md)
+  decide whether it may; nothing says when it does. A grant makes this cheaper
+  than it was: the request gate resolves a label and a grant id, so the wire
+  field below has something to _name_ rather than a bare "somebody outside". Electron draws no "this
   browser is being controlled" banner — unlike Chrome — so whatever the app shows
   is the only signal there is, and today it shows nothing. The wire is where it
   is blocked rather than the UI: `browser-command-request` carries a request id
@@ -186,7 +189,9 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   wanted to. That is a nullable field on a wire that ships with the server, not a
   frozen one, so the cost is a field and a chip in the browser chrome. Worth
   doing next: a gate the user sets is a decision, and a decision nobody can see
-  being exercised is half a feature.
+  being exercised is half a feature. The Settings list of grants shows
+  `lastUsedAt` at a minute's resolution, which answers "did anything use this"
+  and not "is something using it right now".
 - **An audio indicator** — "this tab is making noise" is Chromium's observation,
   and the shell would have to report it. Muting is done; the indicator is not
   ([architecture/browser-surface.md](architecture/browser-surface.md)).

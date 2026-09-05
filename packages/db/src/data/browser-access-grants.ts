@@ -24,12 +24,13 @@ export interface CreateBrowserAccessGrantArgs {
 export function createBrowserAccessGrant(
   db: DbConnection,
   args: CreateBrowserAccessGrantArgs,
+  now: number = Date.now(),
 ): BrowserAccessGrantRow {
   const row: BrowserAccessGrantRow = {
     id: createBrowserAccessGrantId(),
     label: args.label,
     level: args.level,
-    createdAt: Date.now(),
+    createdAt: now,
     lastUsedAt: null,
     revokedAt: null,
   };
@@ -56,14 +57,21 @@ export function getBrowserAccessGrant(
     .get();
 }
 
-/** Every grant, newest first, revoked ones last. */
+/**
+ * Every grant, newest first, revoked ones last.
+ *
+ * The id breaks a tie on `createdAt`, which is a millisecond and so not a total
+ * order — two grants issued by a script in the same tick would otherwise come
+ * back in whatever order SQLite felt like, and a list that reorders itself
+ * between two reads of the same data is a list nobody can click in.
+ */
 export function listBrowserAccessGrants(
   db: DbConnection,
 ): BrowserAccessGrantRow[] {
   return db
     .select()
     .from(browserAccessGrants)
-    .orderBy(desc(browserAccessGrants.createdAt))
+    .orderBy(desc(browserAccessGrants.createdAt), desc(browserAccessGrants.id))
     .all()
     .sort((a, b) => Number(a.revokedAt !== null) - Number(b.revokedAt !== null));
 }

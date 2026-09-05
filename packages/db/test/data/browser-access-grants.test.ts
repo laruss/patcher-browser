@@ -70,10 +70,12 @@ describe("browser access grants", () => {
   });
 
   it("lists newest first, with revoked grants after live ones", () => {
-    const older = createBrowserAccessGrant(db, { label: "a", level: "read" });
-    const newer = createBrowserAccessGrant(db, { label: "b", level: "full" });
+    // Distinct timestamps, because `Date.now()` would give all three the same
+    // millisecond here and "newest first" would be asserting the tiebreak.
+    const older = createBrowserAccessGrant(db, { label: "a", level: "read" }, 1);
+    const newer = createBrowserAccessGrant(db, { label: "b", level: "full" }, 2);
     revokeBrowserAccessGrant(db, newer.id);
-    const third = createBrowserAccessGrant(db, { label: "c", level: "read" });
+    const third = createBrowserAccessGrant(db, { label: "c", level: "read" }, 3);
     expect(listBrowserAccessGrants(db).map((row) => row.id)).toEqual([
       third.id,
       older.id,
@@ -96,6 +98,16 @@ describe("browser access grants", () => {
     expect(getBrowserAccessGrant(db, grant.id)?.lastUsedAt).toBe(1_000_000);
     touchBrowserAccessGrantUse(db, grant.id, 1_061_000);
     expect(getBrowserAccessGrant(db, grant.id)?.lastUsedAt).toBe(1_061_000);
+  });
+
+  it("orders two grants from the same millisecond deterministically", () => {
+    // Not a case a person creates, and a list that reordered itself between two
+    // reads of the same data would still be a list nobody can click in.
+    const a = createBrowserAccessGrant(db, { label: "a", level: "read" }, 7);
+    const b = createBrowserAccessGrant(db, { label: "b", level: "read" }, 7);
+    const expected = [a.id, b.id].sort().reverse();
+    expect(listBrowserAccessGrants(db).map((row) => row.id)).toEqual(expected);
+    expect(listBrowserAccessGrants(db).map((row) => row.id)).toEqual(expected);
   });
 
   it("touching an id that is not a grant changes nothing", () => {
