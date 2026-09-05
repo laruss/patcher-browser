@@ -1,4 +1,4 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { Button } from "@patcher/shared-ui/button";
 import { browserIssuerName } from "@/lib/browser-agent/issuer";
 import { getBrowserUrlHost } from "@/lib/browser-url";
@@ -35,6 +35,7 @@ export function BrowserTabHandover() {
   const [ask, setAsk] = useAtom(browserTabHandoverAskAtom);
   const tabsState = useAtomValue(browserSurfaceTabsAtom);
   const setOwners = useSetAtom(browserTabOwnersAtom);
+  const store = useStore();
 
   if (ask === null) return null;
   const webTabs = getBrowserSurfaceWebTabs(tabsState);
@@ -73,8 +74,13 @@ export function BrowserTabHandover() {
         onClick={() => {
           setOwners((current) =>
             withBrowserTabOwner(current, {
+              // The strip as it is at the click, not as it was at the render:
+              // an ownership write prunes claims whose tabs are gone, and an
+              // agent may have opened one since this row was drawn.
               issuer: ask.issuer,
-              openTabIds: webTabs.map((candidate) => candidate.id),
+              openTabIds: getBrowserSurfaceWebTabs(
+                store.get(browserSurfaceTabsAtom),
+              ).map((candidate) => candidate.id),
               tabId: ask.tabId,
             }),
           );
