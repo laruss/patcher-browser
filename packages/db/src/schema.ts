@@ -217,6 +217,9 @@ export const systemExperiments = sqliteTable("system_experiments", {
 
 export const appSettings = sqliteTable("app_settings", {
   id: text("id").primaryKey(),
+  browserExternalAccess: text("browser_external_access")
+    .notNull()
+    .default("off"),
   browserSearchEngineId: text("browser_search_engine_id")
     .notNull()
     .default(DEFAULT_BROWSER_SEARCH_ENGINE_ID),

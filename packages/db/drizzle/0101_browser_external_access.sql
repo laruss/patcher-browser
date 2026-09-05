@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `browser_external_access` text DEFAULT 'off' NOT NULL;

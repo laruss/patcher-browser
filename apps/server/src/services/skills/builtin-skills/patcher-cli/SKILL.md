@@ -131,6 +131,13 @@ For review or fix pipelines, get the environment ID from
 | [references/optional-plugins.md](references/optional-plugins.md)   | `patcher memory`, `patcher tasks`, `patcher docs`, `patcher automation`, `patcher secret`, `AskUserQuestion`, or `patcher workflows`                                                                              |
 | [references/theming.md](references/theming.md)                     | `patcher theme` commands, or authoring a custom app palette                                                                                                                                                       |
 
+**Seeing or driving the user's browser?** Use the `patcher-browser` skill.
+Patcher has its own browser with the user's real logins in it, `patcher browser`
+drives it, and access is closed by default — the skill says which of the two
+gates applies to you and what to ask the user for. Do not reason about it from
+this file: a wrong guess there is either a refusal you cannot explain or an
+escalation nobody asked for.
+
 Plugins can add top-level `patcher` subcommands (e.g. `patcher linear issues`). Run them
 directly — unknown `patcher` commands are resolved against installed plugins and
 proxied to the server, and core command names always win. In agent threads the

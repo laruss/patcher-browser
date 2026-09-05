@@ -708,6 +708,13 @@
       "when": 1788294042593,
       "tag": "0100_provider_egress_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "6",
+      "when": 1788598081100,
+      "tag": "0101_browser_external_access",
+      "breakpoints": true
     }
   ]
 }

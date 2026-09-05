@@ -334,6 +334,7 @@ type ExpectedSystemKey =
   | "executionOptions"
   | "installCliSkills"
   | "reloadConfig"
+  | "setBrowserExternalAccess"
   | "transcribeVoice"
   | "updateExperiments"
   | "updateGeneralSettings"

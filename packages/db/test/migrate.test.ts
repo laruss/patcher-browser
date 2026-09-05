@@ -4,6 +4,21 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publishedMigrationWhensByTag } from "../src/migration-history.js";
 import {
+  dropBrowserExternalAccessColumn,
+  dropBrowserSearchEngineIdColumn,
+  dropCodexNetworkDisabledColumn,
+  dropHostMaxPermissionModeColumn,
+  dropNewOnboardingExperimentColumn,
+  dropOnboardingCompletedAtColumn,
+  dropProviderEgressColumns,
+  dropSideChatPluginExperimentColumn,
+  dropSteerActiveThreadOnEnterColumn,
+  dropTerminalSandboxedColumn,
+  dropToolsHubExperimentColumn,
+  restorePluginsExperimentColumn,
+  restoreSideChatPluginExperimentColumn,
+} from "./migrate-column-rewinds.js";
+import {
   createQueuedThreadMessage,
   createThread,
   createConnection,
@@ -343,6 +358,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropBrowserSearchEngineIdColumn(db);
   dropCodexNetworkDisabledColumn(db);
   dropProviderEgressColumns(db);
+  dropBrowserExternalAccessColumn(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -463,120 +479,6 @@ function closeConnection(db: DbConnection): void {
   db.$client.close();
 }
 
-// Migration 0079 adds the side_chat_plugin experiment column alongside the
-// side-chat visibility backfill. Rewind scenarios that clear its
-// __drizzle_migrations row must also rewind the schema: ALTER TABLE ADD is
-// not re-appliable against a column that already exists (the backfill UPDATE
-// itself is idempotent).
-// Inverse of dropSideChatPluginExperimentColumn: 0084 DROPs the column, so a
-// scenario that re-applies 0084 must put it back first.
-function restoreSideChatPluginExperimentColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(system_experiments)")
-    .all();
-  if (!columns.some((column) => column.name === "side_chat_plugin")) {
-    db.$client.exec(
-      "ALTER TABLE `system_experiments` ADD `side_chat_plugin` integer DEFAULT false NOT NULL",
-    );
-  }
-}
-
-function dropSideChatPluginExperimentColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(system_experiments)")
-    .all();
-  if (columns.some((column) => column.name === "side_chat_plugin")) {
-    db.$client
-      .prepare("ALTER TABLE system_experiments DROP COLUMN side_chat_plugin")
-      .run();
-  }
-}
-
-// Migration 0082 drops the `plugins` experiment column. Rewind scenarios that
-// clear its migration row must restore the column before replaying the
-// migration, since ALTER TABLE DROP COLUMN is not re-appliable.
-function restorePluginsExperimentColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(system_experiments)")
-    .all();
-  if (!columns.some((column) => column.name === "plugins")) {
-    db.$client
-      .prepare(
-        "ALTER TABLE system_experiments ADD `plugins` integer DEFAULT false NOT NULL",
-      )
-      .run();
-  }
-}
-
-// Migration 0080 adds the Tools Hub experiment column. Rewind scenarios that
-// clear its migration row must drop the column before replaying the migration.
-function dropToolsHubExperimentColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(system_experiments)")
-    .all();
-  if (columns.some((column) => column.name === "tools_hub")) {
-    db.$client
-      .prepare("ALTER TABLE system_experiments DROP COLUMN tools_hub")
-      .run();
-  }
-}
-
-// Migration 0087 adds the new onboarding experiment column. Rewind scenarios
-// that clear its migration row must drop the column before replay.
-function dropNewOnboardingExperimentColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(system_experiments)")
-    .all();
-  if (columns.some((column) => column.name === "new_onboarding")) {
-    db.$client
-      .prepare("ALTER TABLE system_experiments DROP COLUMN new_onboarding")
-      .run();
-  }
-}
-
-// Migration 0097 adds the terminal sandbox flag. Rewind scenarios that clear
-// its migration row must drop the column before replay.
-function dropTerminalSandboxedColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(terminal_sessions)")
-    .all();
-  if (columns.some((column) => column.name === "sandboxed")) {
-    db.$client
-      .prepare("ALTER TABLE terminal_sessions DROP COLUMN sandboxed")
-      .run();
-  }
-}
-
-// Migration 0083 adds the machine permission ceiling. Rewind scenarios that
-// clear its migration row must drop the column before replay.
-function dropHostMaxPermissionModeColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(hosts)")
-    .all();
-  if (columns.some((column) => column.name === "max_permission_mode")) {
-    db.$client
-      .prepare("ALTER TABLE hosts DROP COLUMN max_permission_mode")
-      .run();
-  }
-}
-
-// Migration 0081 adds the active-thread Enter behavior preference. Rewind
-// scenarios that clear its migration row must drop the column before replay.
-function dropSteerActiveThreadOnEnterColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
-    .all();
-  if (
-    columns.some((column) => column.name === "steer_active_thread_on_enter")
-  ) {
-    db.$client
-      .prepare(
-        "ALTER TABLE app_settings DROP COLUMN steer_active_thread_on_enter",
-      )
-      .run();
-  }
-}
-
 // Journal `when` for 0085, used to rewind exactly that migration.
 const onboardingMigrationWhen = 1785947206119;
 /** Migration 0095 lowers a machine still sitting at Full Access to the sandbox. */
@@ -591,65 +493,22 @@ const sandboxCeilingMigrationWhen = 1787913616310;
  * `ADD COLUMN IF NOT EXISTS`, and replaying 0094 onto a table that still has the
  * column fails with "duplicate column name".
  */
-function dropBrowserSearchEngineIdColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
-    .all();
-  if (columns.some((column) => column.name === "browser_search_engine_id")) {
-    db.$client
-      .prepare("ALTER TABLE app_settings DROP COLUMN browser_search_engine_id")
-      .run();
-  }
-}
-
 /**
  * Migration 0098 adds the Codex network preference, and it lands after every
  * checkpoint these tests replay — so a rewind has to take its column with it.
  * SQLite has no `ADD COLUMN IF NOT EXISTS`: replaying onto a table that still
  * has it fails with "duplicate column name".
  */
-function dropCodexNetworkDisabledColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
-    .all();
-  if (columns.some((column) => column.name === "codex_network_disabled")) {
-    db.$client
-      .prepare("ALTER TABLE app_settings DROP COLUMN codex_network_disabled")
-      .run();
-  }
-}
-
 /**
  * Migration 0100 adds the provider egress switch and its host list, after the
  * same checkpoints as 0098 — so the same rewind has to take both columns.
  */
-function dropProviderEgressColumns(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
-    .all();
-  for (const column of [
-    "provider_egress_confined",
-    "provider_egress_allowed_hosts",
-  ]) {
-    if (columns.some((existing) => existing.name === column)) {
-      db.$client
-        .prepare(`ALTER TABLE app_settings DROP COLUMN ${column}`)
-        .run();
-    }
-  }
-}
-
-function dropOnboardingCompletedAtColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
-    .all();
-  if (columns.some((column) => column.name === "onboarding_completed_at")) {
-    db.$client
-      .prepare("ALTER TABLE app_settings DROP COLUMN onboarding_completed_at")
-      .run();
-  }
-}
-
+/**
+ * Migration 0101 adds the level that decides how far an agent outside Patcher
+ * may drive the browser. Rewound with the same neighbours: these tests build a
+ * database at the current schema and walk it *backwards*, so every column added
+ * since the checkpoint has to come off or the replay hits "duplicate column".
+ */
 // Thread-search replay scenarios start from a full `migrate(db)` and then roll
 // the thread-search migrations back to an earlier state. Any migration that
 // lands AFTER thread-search (e.g. the automations migration) stays applied with
@@ -1444,6 +1303,7 @@ describe("migrate", () => {
     dropBrowserSearchEngineIdColumn(db);
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
+    dropBrowserExternalAccessColumn(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
     dropTerminalSandboxedColumn(db);
@@ -1545,6 +1405,7 @@ describe("migrate", () => {
     dropTerminalSandboxedColumn(db);
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
+    dropBrowserExternalAccessColumn(db);
 
     migrate(db);
 
@@ -1812,6 +1673,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
+      dropBrowserExternalAccessColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2215,6 +2077,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
+      dropBrowserExternalAccessColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2315,6 +2178,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
+      dropBrowserExternalAccessColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);

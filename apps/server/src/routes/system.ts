@@ -16,8 +16,10 @@ import {
 import {
   applyAppKeybindingOverrides,
   applyPluginAppKeybindings,
+  BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS,
   customThemeNameSchema,
   isBuiltInThemeId,
+  permissionsForBrowserExternalAccess,
   type AppKeybindingOverrides,
   type AppTheme,
 } from "@patcher/domain";
@@ -58,7 +60,37 @@ import {
   readGlobalCliSkillStatus,
 } from "../services/skills/global-skill-install.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../services/system/app-keybindings.js";
+import { declaresThread, requirePluginConsent } from "./plugin-consent.js";
 import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
+
+/**
+ * The plugin that serves `patcher browser`. Named here because the browser
+ * access route turns it on: a level that lets an outside agent drive the
+ * browser, with nothing registered to serve the command, is a setting that
+ * silently does nothing.
+ */
+const BROWSER_TOOLS_PLUGIN_ID = "browser-tools";
+
+/**
+ * Whether `patcher browser` would actually answer.
+ *
+ * The registered CLI command, not the persisted `enabled` bit. A plugin can be
+ * enabled in storage and still be `missing`, `incompatible` or `error` —
+ * `loadOne` records most load failures rather than throwing — and reporting
+ * such a plugin as enabled tells the CLI to suppress the very warning that
+ * would explain why `patcher browser` does nothing. The contribution is the
+ * thing the caller is about to use, so it is the thing to ask about.
+ */
+function isBrowserToolsServing(pluginService: PluginService): boolean {
+  return pluginService
+    .list()
+    .some(
+      (plugin) =>
+        plugin.id === BROWSER_TOOLS_PLUGIN_ID &&
+        plugin.enabled &&
+        plugin.cliCommand !== null,
+    );
+}
 
 const CUSTOM_ACP_LOGO_CONTENT_TYPES = {
   ".png": "image/png",
@@ -192,12 +224,90 @@ export function registerSystemRoutes(
   });
 
   put(routes.generalSettings, (context, payload) => {
-    setAppSettings(deps.db, payload);
+    // The browser level is not this route's to write, even though it rides in
+    // the same object. Two reasons, and the first is the one that bites: this
+    // handler persists the payload wholesale, and the settings page holds its
+    // own copy — so toggling any other option while the browser mutation was
+    // still in flight would send a stale level and silently put it back. The
+    // second is that the dedicated route does more than write (it enables the
+    // plugin) and asks more than this one (it raises a prompt inside a turn),
+    // so a write that arrives here has been through neither.
+    setAppSettings(deps.db, {
+      ...payload,
+      browserExternalAccess: getAppSettings(deps.db).browserExternalAccess,
+    });
     deps.hub.notifySystem(["config-changed"]);
     schedulePrimaryHostCaffeinateReconciliation(deps, {
       reason: "settings-updated",
     });
     return context.json(getAppSettings(deps.db));
+  });
+
+  /**
+   * How far agents outside Patcher may drive the browser.
+   *
+   * Its own route rather than a field on `PUT /settings/general`, and the
+   * reason is who may ask. Every route under `/settings` is refused to a turn
+   * (`agent-route-policy.ts`), deliberately, so the next setting is closed on
+   * arrival — and the thing an agent inside Patcher legitimately wants here is
+   * to *ask*, which needs a prompt rather than a write. So this route carries
+   * the same consent gate a plugin change carries: no thread declared is a
+   * person at their own terminal or the app's own control, and behaves as
+   * those always have; a declared thread raises a prompt naming the level and
+   * what it allows, and writes nothing unless the user says yes.
+   *
+   * **It enables `browser-tools` only when nobody is being asked**, and that
+   * asymmetry is the whole of what review found wrong with the first version.
+   * A level without the plugin is a setting that does nothing, so the person
+   * choosing a level in Settings — or at their own terminal — plainly means
+   * both, and gets both. A *turn* asking is a different question with a
+   * different beneficiary: the prompt describes what agents outside Patcher may
+   * do and says in as many words that this thread is unaffected, while enabling
+   * the plugin hands **that thread** everything the plugin declares, cookies and
+   * recording and interception included. Measured on 2026-09-05: a turn refused
+   * `cookie-list` before the prompt could run it after, having asked for
+   * "Read pages". So a turn's approval writes the level and stops; the reply
+   * says the plugin is not serving, and `patcher plugin enable browser-tools`
+   * is the honest second question, with a prompt that lists what it really
+   * grants.
+   *
+   * Turning external access off leaves the plugin alone either way, since
+   * threads inside Patcher use it too and nobody asked about those.
+   */
+  post(routes.browserExternalAccess, async (context, payload) => {
+    const { level } = payload;
+    const allowed = permissionsForBrowserExternalAccess(level);
+    const consent = await requirePluginConsent({
+      action: "browser-external-access",
+      context,
+      deps,
+      subjectId: level,
+      subjectName: BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].label,
+      permissions: allowed,
+      detail: BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].detail,
+    });
+    if (!consent.allowed) {
+      throw new ApiError(consent.status, "forbidden", consent.error);
+    }
+    // The plugin first, then the level, and the order is chosen for which
+    // half-done state is survivable rather than for atomicity — these are two
+    // stores and this route is not a transaction. Enable-then-write leaves, on
+    // a failure, a plugin that is on with the level unchanged: nothing an agent
+    // outside Patcher gained, and the plugin toggle is the gate threads already
+    // had. Write-then-enable would leave the opposite — a level with nothing
+    // serving it — which reads to a caller as a feature that is on and broken.
+    // The reply says which of the two actually happened rather than assuming.
+    let browserToolsEnabled = isBrowserToolsServing(pluginService);
+    if (level !== "off" && !browserToolsEnabled && !declaresThread(context)) {
+      await pluginService.setEnabled(BROWSER_TOOLS_PLUGIN_ID, true);
+      browserToolsEnabled = isBrowserToolsServing(pluginService);
+    }
+    setAppSettings(deps.db, {
+      ...getAppSettings(deps.db),
+      browserExternalAccess: level,
+    });
+    deps.hub.notifySystem(["config-changed"]);
+    return context.json({ level, browserToolsEnabled });
   });
 
   put(routes.keyboardSettings, (context, payload) => {

@@ -9,6 +9,7 @@ import type {
   BrowserHostSnapshot,
   NotificationHub,
 } from "../../ws/hub.js";
+import { browserExternalAccessRefusal } from "./browser-external-access.js";
 
 /**
  * Server-side half of agent browser control.
@@ -98,6 +99,16 @@ export function createBrowserBridge(
       // Parse on the way out as well as on the way in: a caller of this service
       // is trusted code, but the command it built may have come from a model.
       const parsed = browserCommandSchema.parse(command);
+
+      // Every browser command this process issues passes here, which is what
+      // makes this the place to ask whether the caller may issue it. Asked
+      // after the parse so the permission is derived from the command the
+      // browser would actually be sent, and before the send so a refusal means
+      // the page was never touched.
+      const refusal = browserExternalAccessRefusal(parsed);
+      if (refusal !== null) {
+        throw new BrowserCommandError("external_access_denied", refusal);
+      }
       const requestId = randomUUID();
 
       const responsePromise = args.hub.requestBrowserCommand({

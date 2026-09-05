@@ -73,7 +73,7 @@ const PINNED_OVER_LIMIT = {
   "packages/agent-runtime/src/claude-code/adapter.test.ts": 5795,
   "apps/desktop/src/desktop-browser-view.ts": 5531,
   "apps/server/test/public/public-thread-data.test.ts": 5128,
-  "packages/db/test/migrate.test.ts": 4679,
+  "packages/db/test/migrate.test.ts": 4543,
   "packages/db/test/data/events.test.ts": 4455,
   "packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts": 4324,
   "packages/host-daemon-contract/test/contract.test.ts": 3847,

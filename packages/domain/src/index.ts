@@ -9,6 +9,7 @@ export * from "./app-keybindings.js";
 export * from "./app-theme.js";
 export * from "./background-task.js";
 export * from "./browser-control.js";
+export * from "./browser-external-access.js";
 export * from "./browser-history.js";
 export * from "./browser-page-script.js";
 export * from "./browser-page-style.js";

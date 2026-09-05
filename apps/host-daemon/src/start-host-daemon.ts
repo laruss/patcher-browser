@@ -27,6 +27,7 @@ import type { HostDaemon } from "./daemon.js";
 import { enrollDaemonHost } from "./enroll.js";
 import { loadHostIdentity, persistHostId } from "./identity.js";
 import { acquireDaemonLock } from "./lock.js";
+import { prepareLocalAgentAccess } from "./local-agent-setup.js";
 import {
   resolveHostDaemonLocalApiConfig,
   type HostDaemonLocalApiOverrides,
@@ -156,6 +157,53 @@ export async function startHostDaemon(
       );
     }
 
+    // Everything from here to the setup call is resolved *before* enrollment,
+    // which is the first thing in this function that talks to a server: a
+    // machine that cannot enrol still gets its `patcher` shim and still loses
+    // the stale skills, which is exactly the machine whose user needs a working
+    // CLI to find out why. Measured with a bad enrol key — the shim is written,
+    // then the throw.
+    //
+    // It does *not* make enrollment failures logged. An earlier version of this
+    // comment said so and review measured otherwise: `enrollDaemonHost` takes no
+    // logger and the outer catch rethrows without one, so the failure still
+    // surfaces only as the thrown error.
+    const localApiConfig = enableLocalApi
+      ? resolveHostDaemonLocalApiConfig({
+          hostDaemonPort:
+            options.hostDaemonPort ??
+            requireHostDaemonConfig(hostDaemonConfig).PATCHER_HOST_DAEMON_PORT,
+          hostType,
+          localApi: options.localApi,
+        })
+      : null;
+    const patcherExecutablePath =
+      options.patcherExecutableDirectory !== undefined
+        ? resolvePatcherExecutablePathInDirectory(
+            options.patcherExecutableDirectory,
+          )
+        : await resolveLocalPatcherExecutablePath();
+    const patcherExecutableDirectory = dirname(patcherExecutablePath);
+    const logger =
+      options.logger ??
+      createLogger({
+        component: "host-daemon",
+        base: { serverUrl },
+        dataDir,
+        transportMode: "worker",
+      });
+    lockDiagnosticsLogger = logger;
+    await prepareLocalAgentAccess({
+      dataDir,
+      logger,
+      patcherExecutablePath,
+      target: {
+        serverUrl,
+        dataDir,
+        ...(localApiConfig === null ? {} : { hostDaemonPort: localApiConfig.port }),
+      },
+    });
+
     const hostKey =
       persistedAuth?.hostKey ??
       (
@@ -184,31 +232,6 @@ export async function startHostDaemon(
       });
     }
 
-    const localApiConfig = enableLocalApi
-      ? resolveHostDaemonLocalApiConfig({
-          hostDaemonPort:
-            options.hostDaemonPort ??
-            requireHostDaemonConfig(hostDaemonConfig).PATCHER_HOST_DAEMON_PORT,
-          hostType,
-          localApi: options.localApi,
-        })
-      : null;
-    const patcherExecutablePath =
-      options.patcherExecutableDirectory !== undefined
-        ? resolvePatcherExecutablePathInDirectory(
-            options.patcherExecutableDirectory,
-          )
-        : await resolveLocalPatcherExecutablePath();
-    const patcherExecutableDirectory = dirname(patcherExecutablePath);
-    const logger =
-      options.logger ??
-      createLogger({
-        component: "host-daemon",
-        base: { serverUrl },
-        dataDir,
-        transportMode: "worker",
-      });
-    lockDiagnosticsLogger = logger;
     let hostWatcher = options.hostWatcher;
     if (hostWatcher === undefined) {
       // Run @parcel/watcher in an isolated child process. A parcel inotify

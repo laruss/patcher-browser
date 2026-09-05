@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   appSettingsSchema,
+  browserExternalAccessLevelSchema,
   appDefaultKeybindingsSchema,
   appKeybindingOverridesSchema,
   appKeybindingsSchema,
@@ -312,6 +313,35 @@ export const systemCliSkillsStatusResponseSchema = z.object({
 });
 export type SystemCliSkillsStatusResponse = z.infer<
   typeof systemCliSkillsStatusResponseSchema
+>;
+
+/**
+ * How far agents outside Patcher may drive the browser, as a request.
+ *
+ * Its own route rather than a field written through `PUT /settings/general`,
+ * for two reasons that point the same way. A turn is refused every route under
+ * `/settings` — deliberately, so the next setting is closed on arrival — and
+ * the one thing an agent inside Patcher genuinely should be able to do here is
+ * *ask*, which needs a route that raises a consent prompt rather than one that
+ * writes. And the write is not only a write: opening the browser to an outside
+ * agent is meaningless while `browser-tools` is disabled, so the route enables
+ * it too, and a settings field could not have said so.
+ */
+export const systemBrowserExternalAccessRequestSchema = z.object({
+  level: browserExternalAccessLevelSchema,
+});
+export type SystemBrowserExternalAccessRequest = z.infer<
+  typeof systemBrowserExternalAccessRequestSchema
+>;
+
+/** What the level ended up being, and whether the plugin came on with it. */
+export const systemBrowserExternalAccessResponseSchema = z.object({
+  level: browserExternalAccessLevelSchema,
+  /** Names what a caller would otherwise have to ask a second route about. */
+  browserToolsEnabled: z.boolean(),
+});
+export type SystemBrowserExternalAccessResponse = z.infer<
+  typeof systemBrowserExternalAccessResponseSchema
 >;
 
 /** The machines to copy the built-in Patcher CLI skills onto. */

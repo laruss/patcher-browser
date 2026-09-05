@@ -1,6 +1,10 @@
 import { Command } from "commander";
 import {
   appCommandIdSchema,
+  BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS,
+  BROWSER_EXTERNAL_ACCESS_LEVELS,
+  browserExternalAccessLevelSchema,
+  permissionsForBrowserExternalAccess,
   appShortcutSchema,
   appSettingsSchema,
   experimentKeySchema,
@@ -143,6 +147,55 @@ export function registerSettingsCommands(
         );
         if (outputJson(opts, result)) return;
         console.log(`${key} updated`);
+      }),
+    );
+
+  settings
+    .command("browser-access [level]")
+    .description(
+      `How far agents outside Patcher may drive the browser: ${BROWSER_EXTERNAL_ACCESS_LEVELS.join(" | ")}. Omit the level to show the current one`,
+    )
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (level: string | undefined, opts: JsonOptions) => {
+        const sdk = createCliPatcherSdk(getUrl());
+        if (level === undefined) {
+          const config = await sdk.system.config();
+          const current = config.generalSettings.browserExternalAccess;
+          if (outputJson(opts, { level: current })) return;
+          console.log(
+            `${current} — ${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[current].detail}`,
+          );
+          return;
+        }
+        const parsed = browserExternalAccessLevelSchema.safeParse(level);
+        if (!parsed.success) {
+          // Named rather than "invalid": the levels are a ramp, and a caller
+          // that guessed "all" or "write" needs to see the four words.
+          throw new Error(
+            `Unknown level '${level}'. One of: ${BROWSER_EXTERNAL_ACCESS_LEVELS.join(", ")}.`,
+          );
+        }
+        const result = await sdk.system.setBrowserExternalAccess({
+          level: parsed.data,
+        });
+        if (outputJson(opts, result)) return;
+        console.log(
+          result.level === "off"
+            ? "Agents outside Patcher can no longer drive the browser."
+            : `Agents outside Patcher can now: ${permissionsForBrowserExternalAccess(result.level).join(", ")}.`,
+        );
+        if (!result.browserToolsEnabled && result.level !== "off") {
+          // Two decisions, and this command only made one of them. From a
+          // plain terminal the route enables the plugin as well, so reaching
+          // here means either the plugin cannot load or a turn asked — and a
+          // turn's second question is a prompt of its own, listing what the
+          // plugin really grants rather than what this level does.
+          console.log(
+            "The browser-tools plugin is not serving `patcher browser` yet, so nothing can use this level. " +
+              "Run `patcher plugin enable browser-tools` — from a thread that asks the user, and it lists everything the plugin grants, which is more than this level does.",
+          );
+        }
       }),
     );
 

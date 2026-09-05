@@ -992,3 +992,11 @@ agent never sees the bytes it moved.
 The honest framing is therefore the same as the rest of this plugin — the gate is
 the plugin toggle, and enabling it hands an agent the user's browser. It is not a
 reason to leave `upload` out, and it is not something to soften.
+
+**Since then there is a second gate, and it is the one that matters here.** The
+plugin toggle answers for Patcher's own threads; every "behind the plugin toggle"
+in this document is only half the answer for a caller that is not one of them —
+`patcher browser` runs in the server process, so anything on the machine can
+invoke it, and that caller is now charged a per-command level the user sets. Both
+`upload` and the storage group sit at the top of it. See
+[browser-external-access.md](browser-external-access.md).

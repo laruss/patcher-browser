@@ -157,6 +157,36 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 ## Core-only, structural
 
+- **The browser level does not reach a plugin running in its own process.**
+  `browserExternalAccess` is charged on commands issued on the caller's own
+  async stack — every built-in plugin, so all of `patcher browser` — and an
+  installed plugin's browser call is charged on a channel message in a fresh
+  async context, where the scope does not reach. Measured, and pinned by a test
+  in `browser-external-access-route.test.ts` so it stays a known limit. It means
+  a third-party plugin with browser permissions and a CLI command of its own is
+  a door the setting does not close, which every user-facing description of the
+  setting now says. Two ways to close it, and the second is the right one: a
+  per-plugin "an outside CLI call is in flight" flag read by
+  `chargeBrowserCommand`, which is small and gets the concurrency case wrong in
+  the direction of a wrong refusal; or carrying the scope over the plugin
+  channel, so the plugin process holds it for the invocation and the host reads
+  it back off the frame — a wire change, and the one that is actually correct.
+  Neither is worth doing before the narrower credential
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)
+  names it), because that credential is what makes any of this a boundary
+  rather than a default.
+- **Nothing shows that an agent outside Patcher is driving the browser.** The
+  level in [architecture/browser-external-access.md](architecture/browser-external-access.md)
+  decides whether it may; nothing says when it does. Electron draws no "this
+  browser is being controlled" banner — unlike Chrome — so whatever the app shows
+  is the only signal there is, and today it shows nothing. The wire is where it
+  is blocked rather than the UI: `browser-command-request` carries a request id
+  and a command and no sender, and the executor in the app signs everything with
+  one scope id, so the app could not tell the user who was driving even if it
+  wanted to. That is a nullable field on a wire that ships with the server, not a
+  frozen one, so the cost is a field and a chip in the browser chrome. Worth
+  doing next: a gate the user sets is a decision, and a decision nobody can see
+  being exercised is half a feature.
 - **An audio indicator** — "this tab is making noise" is Chromium's observation,
   and the shell would have to report it. Muting is done; the indicator is not
   ([architecture/browser-surface.md](architecture/browser-surface.md)).

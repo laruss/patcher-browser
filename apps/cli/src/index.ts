@@ -11,7 +11,8 @@ import {
 import {
   describeUnreachableServer,
   fetchPluginCliContributions,
-  findDisabledPluginForCommand,
+  describeUnknownPluginCommand,
+  listDisabledPlugins,
   findPluginCliCommand,
   pluginProxyCandidate,
   runPluginCliCommand,
@@ -110,15 +111,23 @@ async function tryPluginCommandProxy(): Promise<void> {
   if (result.outcome === "invalid") return;
   const match = findPluginCliCommand(result.contributions, candidate);
   if (match === undefined) {
-    // Disabled plugins contribute no commands; explain instead of erroring
-    // when the name matches an installed-but-disabled plugin's id.
-    const disabled = await findDisabledPluginForCommand(getUrl(), candidate);
-    if (disabled !== null) {
-      console.error(
-        `patcher ${candidate} is provided by the "${disabled.id}" plugin, which is disabled — ` +
-          `run \`patcher plugin enable ${disabled.id}\` or enable it in Plugins.`,
-      );
+    // Disabled plugins contribute no commands, so falling through to commander
+    // answers "unknown command" for a command that exists and is merely off.
+    const advice = describeUnknownPluginCommand(
+      candidate,
+      await listDisabledPlugins(getUrl()),
+    );
+    if (advice?.kind === "resolved") {
+      // The plugin is named, so this *is* the answer; commander's "unknown
+      // command" underneath would only contradict it.
+      console.error(advice.message);
       process.exit(1);
+    }
+    if (advice?.kind === "hint") {
+      // A guess, printed and then handed back: commander still owns the error
+      // and its "Did you mean …?", which is the right answer for a typo and the
+      // common case on any machine with a plugin switched off.
+      console.error(advice.message);
     }
     return;
   }

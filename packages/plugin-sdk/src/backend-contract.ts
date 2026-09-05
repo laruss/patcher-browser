@@ -2074,7 +2074,15 @@ export type PluginBrowserErrorCode =
   | "too_many_routes"
   | "already_recording"
   | "not_recording"
-  | "invalid_command";
+  | "invalid_command"
+  /**
+   * The caller is an agent outside Patcher and the user has not allowed it this
+   * far. Decided in the host before the command is sent, so it means with
+   * certainty that the page was never touched — and it is a decision rather
+   * than a fault, so the message names the setting and the command that
+   * changes it. Do not retry it; relay it.
+   */
+  | "external_access_denied";
 
 export interface PluginBrowserStatus {
   connected: boolean;

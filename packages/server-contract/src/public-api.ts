@@ -164,6 +164,8 @@ import type {
   SystemConfigResponse,
   SystemCliSkillsStatusQuery,
   SystemCliSkillsStatusResponse,
+  SystemBrowserExternalAccessRequest,
+  SystemBrowserExternalAccessResponse,
   SystemInstallCliSkillsRequest,
   SystemInstallCliSkillsResponse,
   SystemExecutionOptionsQuery,
@@ -320,6 +322,7 @@ import {
   terminalResizeRequestSchema,
   threadTimelineQuerySchema,
   systemCliSkillsStatusQuerySchema,
+  systemBrowserExternalAccessRequestSchema,
   systemInstallCliSkillsRequestSchema,
   timelineTurnSummaryDetailsQuerySchema,
   updateEnvironmentRequestSchema,
@@ -1445,6 +1448,14 @@ export const publicApiRoutes = {
         systemCliSkillsStatusQuerySchema,
       ),
       response: jsonResponse<SystemCliSkillsStatusResponse>(),
+    }),
+    browserExternalAccess: defineRoute({
+      path: "/browser/external-access",
+      method: "post",
+      request: jsonRequest<EmptyInput, SystemBrowserExternalAccessRequest>(
+        systemBrowserExternalAccessRequestSchema,
+      ),
+      response: jsonResponse<SystemBrowserExternalAccessResponse>(),
     }),
     installCliSkills: defineRoute({
       path: "/system/cli-skills/install",

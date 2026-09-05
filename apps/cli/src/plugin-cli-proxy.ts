@@ -158,57 +158,113 @@ export async function fetchPluginCliContributions(
   }
 }
 
-/**
- * Look up an installed-but-disabled plugin whose id matches the unknown
- * command name (the `patcher <id>` convention builtins follow), so `patcher <id>` with
- * that plugin disabled explains itself instead of erroring with
- * "unknown command". Best effort: any failure returns null.
- */
-export async function findDisabledPluginForCommand(
-  baseUrl: string,
-  name: string,
-  timeoutMs: number = CONTRIBUTIONS_TIMEOUT_MS,
-): Promise<{
+export interface DisabledPluginSummary {
   id: string;
   enabled: boolean;
   status: string | null;
   statusDetail: string | null;
-} | null> {
+}
+
+/**
+ * Every installed-but-disabled plugin, so an unknown command can say what might
+ * have provided it. Best effort: any failure returns an empty list.
+ *
+ * A disabled plugin's factory never ran, so it has registered no CLI command and
+ * the server does not know its name either — which is why this cannot answer
+ * "which plugin provides `patcher browser`" and instead answers "these are off".
+ * That is worth doing rather than skipping: measured on 2026-09-05, with
+ * `browser-tools` disabled `patcher browser` printed `unknown command 'browser'`
+ * and nothing else, which reads as "no such feature" to the agent most likely to
+ * be running it.
+ */
+export async function listDisabledPlugins(
+  baseUrl: string,
+  timeoutMs: number = CONTRIBUTIONS_TIMEOUT_MS,
+): Promise<DisabledPluginSummary[]> {
   try {
     const response = await cliFetch(`${baseUrl}/api/v1/plugins`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!response.ok) return null;
+    if (!response.ok) return [];
     const parsed = (await response.json()) as { plugins?: unknown } | null;
-    if (!Array.isArray(parsed?.plugins)) return null;
-    const match = parsed.plugins.find(
-      (
-        entry,
-      ): entry is {
-        id: string;
-        enabled: boolean;
+    if (!Array.isArray(parsed?.plugins)) return [];
+    return parsed.plugins.flatMap((entry): DisabledPluginSummary[] => {
+      if (typeof entry !== "object" || entry === null) return [];
+      const record = entry as {
+        id?: unknown;
+        enabled?: unknown;
         status?: unknown;
         statusDetail?: unknown;
-      } =>
-        typeof entry === "object" &&
-        entry !== null &&
-        (entry as { id?: unknown }).id === name &&
-        typeof (entry as { enabled?: unknown }).enabled === "boolean" &&
-        ((entry as { enabled?: unknown }).enabled === false ||
-          (entry as { status?: unknown }).status === "disabled"),
-    );
-    return match === undefined
-      ? null
-      : {
-          id: match.id,
-          enabled: match.enabled,
-          status: typeof match.status === "string" ? match.status : null,
+      };
+      if (typeof record.id !== "string") return [];
+      if (typeof record.enabled !== "boolean") return [];
+      if (record.enabled !== false && record.status !== "disabled") return [];
+      return [
+        {
+          id: record.id,
+          enabled: record.enabled,
+          status: typeof record.status === "string" ? record.status : null,
           statusDetail:
-            typeof match.statusDetail === "string" ? match.statusDetail : null,
-        };
+            typeof record.statusDetail === "string"
+              ? record.statusDetail
+              : null,
+        },
+      ];
+    });
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** How many disabled plugins an unknown-command message will name. */
+const NAMED_DISABLED_PLUGINS = 6;
+
+/**
+ * What to say about an unknown command, and whether it is the whole answer.
+ *
+ * `resolved` names the plugin: the command *is* a disabled plugin's id, which is
+ * the `patcher <id>` convention the builtins follow, so there is nothing left to
+ * guess and commander's "unknown command" would only contradict it.
+ *
+ * `hint` is a guess and says so. The command may belong to a disabled plugin
+ * under another name — `browser-tools` provides `patcher browser`, and a
+ * disabled plugin has registered nothing, so neither the CLI nor the server
+ * knows the name. It may equally be a typo. The two cannot be told apart here,
+ * so the hint is printed *and* commander still gets to say its piece: `patcher
+ * statsu` must keep "unknown command" and "Did you mean status?", which is the
+ * regression the first version of this shipped — with browser-tools disabled by
+ * default, every typo on every machine took the plugin branch.
+ */
+export type UnknownPluginCommandAdvice =
+  | { kind: "resolved"; message: string }
+  | { kind: "hint"; message: string };
+
+export function describeUnknownPluginCommand(
+  candidate: string,
+  disabled: readonly DisabledPluginSummary[],
+): UnknownPluginCommandAdvice | null {
+  const exact = disabled.find((entry) => entry.id === candidate);
+  if (exact !== undefined) {
+    return {
+      kind: "resolved",
+      message:
+        `patcher ${candidate} is provided by the "${exact.id}" plugin, which is disabled — ` +
+        `run \`patcher plugin enable ${exact.id}\` or enable it in Plugins.`,
+    };
+  }
+  if (disabled.length === 0) return null;
+  const named = disabled
+    .slice(0, NAMED_DISABLED_PLUGINS)
+    .map((entry) => entry.id);
+  const rest = disabled.length - named.length;
+  return {
+    kind: "hint",
+    message:
+      `Note: a plugin's command is served only while that plugin is enabled, and ` +
+      `these are off: ${named.join(", ")}${rest > 0 ? `, and ${rest} more` : ""}. ` +
+      `If \`${candidate}\` is one of theirs, \`patcher plugin info <id>\` says which, ` +
+      `and \`patcher plugin enable <id>\` turns it on.`,
+  };
 }
 
 export function findPluginCliCommand(

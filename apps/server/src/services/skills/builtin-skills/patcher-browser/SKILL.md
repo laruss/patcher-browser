@@ -1,16 +1,22 @@
 ---
 name: patcher-browser
-description: See and drive the browser inside Patcher — the page the user is looking at, their tabs, page text and selection, screenshots, clicks, typing and navigation. Use whenever you are asked whether you can see the user's page, browser, tab or site, what they are looking at, to read or screenshot a page, to click or type in one, or to open a URL for them. Also covers the default case, where the tools are not loaded and the user has to turn them on.
+description: See and drive the browser inside Patcher — the page the user is looking at, their tabs, page text and selection, screenshots, clicks, typing and navigation. Use whenever you are asked whether you can see the user's page, browser, tab or site, what they are looking at, to read or screenshot a page, to click or type in one, or to open a URL for them. Works from inside a Patcher thread and from any other terminal on the machine; also covers the default case, where access is off and the user has to turn it on.
 ---
 
 # The browser inside Patcher
 
-Patcher has its own browser. Whether you can reach it comes down to one plugin,
-and by default you cannot: **`browser-tools` ships disabled.** So "can you see my
-page" is not answered by "no" — it is answered by which of the two cases below
-you are in.
+Patcher has its own browser, with the user's real logins in it. Reaching it is
+gated, and by default you cannot: **the browser is closed until the user opens
+it.** So "can you see my page" is not answered by "no" — it is answered by which
+of the two cases below you are in.
 
 ## Which case are you in
+
+**Are you a thread inside Patcher, or a terminal beside it?** The answer decides
+everything below, and you can tell without asking: a thread inside Patcher has
+`PATCHER_THREAD_ID` set in its environment.
+
+### Inside Patcher
 
 Check whether your own tools include one that lists the browser's tabs.
 
@@ -19,10 +25,45 @@ under its bare name and Claude Code behind an `mcp__patcher-bridge__` prefix, so
 a prefixed name is the tool you are looking for, not a different one.
 
 - **You have it** — the plugin is enabled. Use it.
-- **You do not** — the plugin is off. See [The tools are not loaded](#the-tools-are-not-loaded).
+- **You do not** — the plugin is off. See [Access is off](#access-is-off).
 
 Answer from your tool list. Do not go reading Patcher's source to find out, and
 do not run `patcher plugin list`: your tool list already answers it.
+
+### Outside Patcher
+
+You have no browser tools and never will — they are served to Patcher's own
+threads. What you have is the CLI, and it reaches exactly the same browser:
+
+```bash
+patcher browser status
+```
+
+That one command answers everything at once — whether Patcher is running, whether
+a browser window is open, whether you are allowed, and which tab is in front. Run
+it first and read what it says rather than guessing from a later failure.
+
+**If `patcher` is not on your PATH**, this machine has one under its Patcher data
+directory. Which directory that is depends on how Patcher was installed, so find
+it rather than assuming:
+
+```bash
+ls "${PATCHER_DATA_DIR:-$HOME/.patcher}/bin/patcher" ~/.patcher-dev/*/bin/patcher 2>/dev/null
+```
+
+Call whichever it prints, by its full path. It knows which Patcher it belongs to
+— it carries that install's server and data directory — so you do not have to
+set anything. If it prints more than one, this machine has several installs (a
+release and one or more source checkouts); ask the user which they mean rather
+than guessing, because they are different browsers with different tabs.
+
+Two failures are worth telling apart before you conclude anything:
+
+- **`Patcher is not running at …`** — nothing is listening. Ask the user to open
+  Patcher; nothing you can run will fix it.
+- **a refusal naming a permission and a level** — Patcher is running and the user
+  has not allowed you this far. That is a decision, not a fault. See
+  [Access is off](#access-is-off).
 
 ## What you get when it is on
 
@@ -83,18 +124,19 @@ instead of retrying the same call. `desktop_unavailable` means this Patcher runs
 as the web build with no desktop shell, and no retry will change that.
 `no_active_tab` means activate one first.
 
-## The tools are not loaded
+## Access is off
 
-This is the default, and it is deliberate rather than an oversight. With the
-plugin on, an agent reads and drives the user's real, logged-in browsing session.
-Its declared permissions include `page.read`, `page.credentials`, `page.record`
-and `network.intercept`, and Patcher has no step yet where a user grants a plugin
-its permissions — so the on/off toggle is the whole gate, and flipping it is the
-user's call.
+This is the default, and it is deliberate rather than an oversight. Whoever
+drives this browser reads and acts inside the user's real, signed-in session. So
+it is closed until they open it, and there are **two different gates** depending
+on which case you are in above. Do not confuse them: opening one does not open
+the other, and telling the user to change the wrong one wastes their time.
 
-Say that much plainly, in a sentence or two, and name what it grants: the pages
-they are signed in to, and the traffic those pages make. Then give them the two
-ways to do it:
+### You are a thread inside Patcher
+
+Your gate is the `browser-tools` plugin. Say plainly what turning it on grants —
+the pages they are signed in to, and the traffic those pages make — and give them
+the two ways:
 
 - **Extensions → Plugins → Browser tools**, or
 - `patcher plugin enable browser-tools`
@@ -104,24 +146,47 @@ inside a thread it raises a prompt naming the plugin and its permissions, and th
 plugin changes only if the user allows it. So run it when they have asked for the
 browser, and say plainly that you are asking for access.
 
-That prompt is the honest path rather than a wall: it rests on the command
-declaring the thread it runs in. Do not go looking for a way around it. A plugin
-enabled with nobody asked is the one outcome this must never produce, however
-reasonable the shortcut looks from inside the turn. Use the command, from the
-thread, as itself.
-
-Do not run it to find out whether they would say yes. The prompt occupies the
-thread's one interaction slot, and a refusal is an answer rather than an
-obstacle: the command comes back saying the user declined, and retrying it asks
-the same person the same question. Everything above applies to installing,
-updating, removing, disabling and configuring a plugin too.
-
 Once it is on, the next message normally carries the tools — they are resolved
 per message. If they are still missing, a new thread will have them.
 
+### You are a terminal beside Patcher
+
+Your gate is a setting, **Agents outside Patcher**, and it has four positions:
+
+| Level      | What it allows                                                          |
+| ---------- | ----------------------------------------------------------------------- |
+| `off`      | Nothing. The default.                                                    |
+| `read`     | Tabs, page text and structure, screenshots, console and network logs.    |
+| `interact` | The above, plus opening tabs, navigating, clicking and typing.           |
+| `full`     | The above, plus cookies and site storage, page JavaScript, and recording. |
+
+Ask for the lowest one that does the job — most requests are `read`, and asking
+for `full` to read a page is asking for the user's logins to answer a question
+that did not need them. The two ways to change it:
+
+- **Settings → General → Agents outside Patcher**, or
+- `patcher settings browser-access <level>`
+
+**You may run that command, and from a plain terminal it takes effect
+immediately** — the server cannot tell your shell from the user's own, so
+running it is you acting as them. That makes it something to ask for rather than
+to do: say which level you need and why, and let them run it or tell you to.
+Raising it yourself, unasked, is the one outcome this must never produce.
+
+If you are a thread inside Patcher and you run it, it raises a prompt on your
+thread instead, and changes nothing unless the user allows it — the same shape
+the plugin toggle has. Do not run it to find out whether they would say yes: the
+prompt takes the thread's one interaction slot, and a refusal is an answer.
+
+### Either way
+
+The refusal you get carries the permission it needed, the level that would admit
+it, and the exact command that changes it. Relay that rather than retrying the
+same call — retrying asks the same person the same question, or nobody at all.
+
 ## Do not substitute something worse
 
-If the tools are off and the user does not want them on, that is an answer, not
+If access is off and the user does not want it on, that is an answer, not
 an obstacle to route around. Screen capture and accessibility-tree drivers are no
 fallback here: a browsed page is an opaque layer to them, so they hand back
 pixels where you wanted text, and they read the user's whole screen instead of
