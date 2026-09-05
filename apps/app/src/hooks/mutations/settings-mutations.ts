@@ -109,6 +109,27 @@ export function useRevokeBrowserAccessGrant() {
   });
 }
 
+/**
+ * Stop one agent's browser credential for now, or let it work again.
+ *
+ * The other half of "stop", and the one the browser chrome's own button uses
+ * while an agent is mid-command: the credential stays valid, so the agent that
+ * holds it needs no reconfiguring when the person changes their mind. Revoking
+ * is still there for a credential that should not exist.
+ */
+export function useSetBrowserAccessGrantPaused() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { errorMessage: "Failed to change the browser access grant." },
+    mutationFn: (args: { grantId: string; paused: boolean }) =>
+      sdk.system.setBrowserAccessGrantPaused(args.grantId, args.paused),
+    onSuccess: (grants) => {
+      setBrowserAccessGrants({ grants, queryClient });
+    },
+  });
+}
+
 /** Replace the sparse server-backed keyboard overrides for every app window. */
 export function useUpdateKeyboardSettings() {
   const queryClient = useQueryClient();

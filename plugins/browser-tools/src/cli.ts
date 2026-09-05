@@ -17,6 +17,7 @@ import type {
   PluginBrowserVideo,
   PluginCliResult,
 } from "@patcher/plugin-sdk";
+import { describeBrowserCliCaller } from "./cli-caller.js";
 import { delay, waitForQuiet } from "./cli-settle.js";
 import { resolveTabTarget, urlMatches } from "./cli-targets.js";
 import {
@@ -1683,14 +1684,21 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
             // answer is no it says what to do instead of leaving the caller
             // with a false and no next step.
             const status = patcher.browser.getStatus();
+            // Said on every answer, including the ones that are refusals: "can
+            // I act" has two halves — is there a browser, and am I allowed —
+            // and a caller told only the first half asks again.
+            const caller = context.caller ?? null;
+            const access = describeBrowserCliCaller(context.caller);
+            const line = (text: string) =>
+              access === null ? `${text}\n` : `${text}\n${access}\n`;
             const nextStep =
               "Open the Patcher desktop app and its Browser surface, then run this again.";
             if (!status.connected) {
               return {
                 exitCode: 1,
                 stdout: parsed.json
-                  ? `${JSON.stringify({ ...status, tabCount: 0, activeTab: null, nextStep })}\n`
-                  : `No browser window is connected. ${nextStep}\n`,
+                  ? `${JSON.stringify({ ...status, tabCount: 0, activeTab: null, caller, nextStep })}\n`
+                  : line(`No browser window is connected. ${nextStep}`),
               };
             }
             // Best effort: a window can answer `getStatus` and still fail to
@@ -1710,8 +1718,8 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
                 return {
                   exitCode: 1,
                   stdout: parsed.json
-                    ? `${JSON.stringify({ ...status, tabCount: null, activeTab: null, nextStep: denied })}\n`
-                    : `${denied}\n`,
+                    ? `${JSON.stringify({ ...status, tabCount: null, activeTab: null, caller, nextStep: denied })}\n`
+                    : line(denied),
                 };
               }
             }
@@ -1721,6 +1729,7 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
                 exitCode: 0,
                 stdout: `${JSON.stringify({
                   ...status,
+                  caller,
                   tabCount: tabs?.length ?? null,
                   activeTab:
                     active === null
@@ -1743,12 +1752,14 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
             if (active === null) {
               return {
                 exitCode: 0,
-                stdout: `${windows}\nNo active tab. \`patcher browser open <url>\` makes one.\n`,
+                stdout: line(
+                  `${windows}\nNo active tab. \`patcher browser open <url>\` makes one.`,
+                ),
               };
             }
             return {
               exitCode: 0,
-              stdout: `${windows}\nActive tab: ${tabLine(active)}\n`,
+              stdout: line(`${windows}\nActive tab: ${tabLine(active)}`),
             };
           }
 

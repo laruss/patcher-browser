@@ -2,6 +2,8 @@ export {
   createBrowserAccessGrant,
   getBrowserAccessGrant,
   listBrowserAccessGrants,
+  pauseBrowserAccessGrant,
+  resumeBrowserAccessGrant,
   revokeBrowserAccessGrant,
   touchBrowserAccessGrantUse,
 } from "./browser-access-grants.js";

@@ -2,7 +2,10 @@ import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
 import type { PatcherSdk } from "@patcher/sdk";
-import type { ThreadResponse } from "@patcher/server-contract";
+import type {
+  BrowserExternalAccessLevel,
+  ThreadResponse,
+} from "@patcher/server-contract";
 import type { JsonValue } from "./json-value.js";
 import type { PluginRpcContract, PluginRpcHandlers } from "./rpc-contract.js";
 
@@ -254,10 +257,45 @@ export interface PluginCliCommandInfo {
 }
 
 /** Context forwarded from the invoking CLI when known; all fields optional. */
+/**
+ * Who ran this command, when it came from outside Patcher.
+ *
+ * Absent for every caller inside it — a turn, the app, another plugin — which
+ * is also the case where there is nothing to say: those are charged the plugin
+ * toggle and the permissions the plugin declared.
+ *
+ * Present, it is what the host has *already* decided, not a request: the same
+ * level the browser gate charges each command against. A plugin cannot widen
+ * itself by reading this, and one that ignored it would simply be refused a
+ * command later, which is where the enforcement is.
+ */
+export type PluginCliCaller =
+  | {
+      /** A terminal or agent holding the app key. Charged the install setting. */
+      kind: "outside";
+      level: BrowserExternalAccessLevel;
+    }
+  | {
+      /** One agent, holding a credential a person issued for the browser. */
+      kind: "grant";
+      level: BrowserExternalAccessLevel;
+      grantId: string;
+      /** What the person called it. The only name anybody gave any of this. */
+      label: string;
+    };
+
 export interface PluginCliContext {
   cwd?: string;
   threadId?: string;
   projectId?: string;
+  /**
+   * The caller, when it is from outside Patcher.
+   *
+   * So a command can *say* what it is allowed before it is refused. The reader
+   * is usually a model, and "you have read access through the grant X" is worth
+   * a round trip it would otherwise spend on a refused click.
+   */
+  caller?: PluginCliCaller;
   /** Aborted when the invoking CLI HTTP request disconnects. */
   signal?: AbortSignal;
 }

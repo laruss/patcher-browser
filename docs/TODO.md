@@ -176,31 +176,31 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   so the second of those is the next thing to do here: with a grant reaching two
   routes, an installed plugin's own CLI command is the remaining way its holder's
   machine gets browser access nobody charged.
-- **Nothing shows that an agent outside Patcher is driving the browser.** The
-  level and the grant in [architecture/browser-external-access.md](architecture/browser-external-access.md)
-  decide whether it may; nothing says when it does. A grant makes this cheaper
-  than it was: the request gate resolves a label and a grant id, so the wire
-  field below has something to _name_ rather than a bare "somebody outside". Electron draws no "this
-  browser is being controlled" banner — unlike Chrome — so whatever the app shows
-  is the only signal there is, and today it shows nothing. The wire is where it
-  is blocked rather than the UI: `browser-command-request` carries a request id
-  and a command and no sender, and the executor in the app signs everything with
-  one scope id, so the app could not tell the user who was driving even if it
-  wanted to. That is a nullable field on a wire that ships with the server, not a
-  frozen one, so the cost is a field and a chip in the browser chrome. Worth
-  doing next: a gate the user sets is a decision, and a decision nobody can see
-  being exercised is half a feature. The Settings list of grants shows
-  `lastUsedAt` at a minute's resolution, which answers "did anything use this"
-  and not "is something using it right now".
-- **Revoking a browser access grant does not undo what it set up.** The
-  credential stops at the next request
+- **The "who is driving" indicator is only in the browser chrome.**
+  `browser-command-request` now carries an `issuer`
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
+  and the browser surface draws a row naming the grant, the turn, or a bare
+  "outside" while commands are arriving. What it does not cover: a person
+  reading a thread in another window sees nothing, because the row lives in a
+  surface they do not have open. A window-level signal — the title bar, the tab
+  strip, a tray item — is the piece that would fix that, and it is a different
+  surface rather than a bigger version of this one.
+- **The indicator says who, not what.** A grant's name and level, and nothing
+  about the command: no URL, no selector, no count of what was read. The trace
+  recorder (`patcher browser trace-start`) already records exactly that and is
+  not wired to it, and the scope sketch calls an automatic trace for outside
+  callers the optional half of this. Worth doing when somebody wants to answer
+  "what did it do" rather than "is something happening".
+- **Revoking or pausing a browser access grant does not undo what it set up.**
+  The credential stops at the next request
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
   and a network mock (`route`), an offline session (`network-state-set`), a
   trace or a video the holder started keep running until the tab is closed —
-  they live on the `BrowserViewEntry` in the shell, not on the caller. Two ways:
-  clear grant-installed routes and stop grant-started recordings on revoke,
-  which needs the caller on the wire (the same field the indicator above wants);
-  or say it in the copy, which is what this change does for now.
+  they live on the `BrowserViewEntry` in the shell, not on the caller. The
+  caller is now _on_ the wire, which is what the first of the two ways needed:
+  clear grant-installed routes and stop grant-started recordings when the grant
+  stops. The other way is to say it in the copy, which is what the docs do
+  today.
 - **Grants outlive the key they were derived from, in the list only.** If the
   app key file is lost the server writes a new one, every credential stops
   verifying — the refusal is correct and says the grant is not this install's —

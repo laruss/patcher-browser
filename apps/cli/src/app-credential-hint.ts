@@ -97,14 +97,15 @@ export function describeRefusedCredential(
     // An agent outside Patcher, holding a grant. Like the thread credential
     // above, "go read the key file" is advice that would undo the narrower
     // credential if followed — and unlike it, the server's own 401 already
-    // says which of the two things went wrong (revoked, or gone), so this line
-    // says what the credential *is* and leaves the diagnosis to the server.
+    // says which of the three things went wrong (paused, revoked, or gone), so
+    // this line says what the credential *is* and leaves the diagnosis to the
+    // server.
     const claim = parseAgentAccessCredential(agentKey);
     const named =
       claim === undefined
         ? `The value in ${PATCHER_AGENT_KEY_ENV} is not shaped like a grant credential, so it was not presented as one`
         : `It is grant ${claim.grantId}`;
-    return `This shell carries a browser access grant (${PATCHER_AGENT_KEY_ENV}), not the app key. It reaches \`patcher browser\` and no other Patcher API, and it lasts until the person who issued it revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` and issue a new one if this grant is gone.`;
+    return `This shell carries a browser access grant (${PATCHER_AGENT_KEY_ENV}), not the app key. It reaches \`patcher browser\` and no other Patcher API, and it lasts until the person who issued it pauses or revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` — a paused grant they can resume, a revoked one they replace.`;
   }
   const fromEnv = toOptionalString(env.PATCHER_APP_KEY);
   if (fromEnv !== undefined) {

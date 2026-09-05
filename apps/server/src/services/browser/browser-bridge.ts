@@ -10,6 +10,7 @@ import type {
   NotificationHub,
 } from "../../ws/hub.js";
 import { browserExternalAccessRefusal } from "./browser-external-access.js";
+import { currentBrowserCommandIssuer } from "./browser-command-issuer.js";
 
 /**
  * Server-side half of agent browser control.
@@ -111,8 +112,17 @@ export function createBrowserBridge(
       }
       const requestId = randomUUID();
 
+      // Read here rather than passed in, and read *after* the refusal: the
+      // window is told who is driving it only about commands it is actually
+      // going to be sent.
+      const issuer = currentBrowserCommandIssuer();
       const responsePromise = args.hub.requestBrowserCommand({
-        message: { type: "browser-command-request", requestId, command: parsed },
+        message: {
+          type: "browser-command-request",
+          requestId,
+          command: parsed,
+          ...(issuer === undefined ? {} : { issuer }),
+        },
         timeoutMs: clampTimeout(timeoutMs),
       });
 

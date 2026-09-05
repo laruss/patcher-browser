@@ -190,6 +190,38 @@ describe("patcher browser CLI", () => {
     expect(offline.stdout).toContain("No browser window is connected");
   });
 
+  it("tells a caller from outside Patcher how far it reaches", async () => {
+    // "Can I act" has two halves — is there a browser, and am I allowed — and
+    // until this, the only way to learn the second was to try something and be
+    // refused, which costs a round trip per guess.
+    const host = createHost();
+
+    const granted = await host.harness.runCli(["status"], {
+      caller: {
+        kind: "grant",
+        level: "read",
+        grantId: "bag_1",
+        label: "Claude Code",
+      },
+    });
+    expect(granted.stdout).toContain("read pages");
+    expect(granted.stdout).toContain("Claude Code");
+
+    // Said on the refusals too: a caller told only "no window" asks again.
+    host.harness.behavior.browser.setConnected(false);
+    const offline = await host.harness.runCli(["status"], {
+      caller: { kind: "outside", level: "interact" },
+    });
+    expect(offline.stdout).toContain("No browser window is connected");
+    expect(offline.stdout).toContain("read pages and act on them");
+
+    // And nothing at all for a caller inside Patcher, whose gate is the plugin
+    // toggle the person who enabled it already read.
+    host.harness.behavior.browser.setConnected(true);
+    const inside = await host.harness.runCli(["status"]);
+    expect(inside.stdout).not.toContain("Your access");
+  });
+
   it("says the user has not allowed this, rather than reporting a window", async () => {
     const host = createHost();
     // What the server sends a caller from outside Patcher whose level does not

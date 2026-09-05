@@ -235,12 +235,22 @@ would rather have.
 
 ### Its lifetime is a row, not a deadline
 
-Accepted while the grant exists and `revokedAt` is null. That is the property a
-stamped expiry could not have given: the agent keeps the *string* forever — it is
-in its MCP config — and what stops it is a person clicking Revoke, after which
-the very next request is refused. Nothing to expire, nothing to refresh, nothing
-an agent can extend for itself. It is the same shape a terminal credential's
-lifetime has, chosen for the same reason.
+Accepted while the grant exists, `revokedAt` is null and `pausedAt` is null. That
+is the property a stamped expiry could not have given: the agent keeps the
+*string* forever — it is in its MCP config — and what stops it is a person
+clicking, after which the very next request is refused. Nothing to expire,
+nothing to refresh, nothing an agent can extend for itself. It is the same shape
+a terminal credential's lifetime has, chosen for the same reason.
+
+**Two ways to stop, because they are two different decisions.** Revoking ends a
+credential somebody should not hold any more. Pausing is what a person does while
+*watching* an agent do the wrong thing: the browser comes back now, the
+credential stays valid, and resuming is one click rather than a new grant and a
+re-run of `claude mcp add` in the agent's own configuration. The refusals say
+which of the two happened, because "ask them to resume it" and "ask them for a
+new one" are different instructions and a holder told the wrong one wastes a
+person's time. A revoked grant cannot be paused or resumed — the route answers
+409 rather than pretending — because revoking is the decision with no undo.
 
 Revoked rather than deleted, so the list can say what was taken back and when,
 and so the id is never reissued. `lastUsedAt` is written on the way through the
@@ -366,6 +376,51 @@ would advertise "Patcher's API commands" and then have the server refuse all but
 one of them with a paragraph about credentials — which is the failure mode that
 module was written against, since a model told only "no" tries the neighbour.
 
+## The window says who is driving
+
+A gate that decides and then forgets leaves the person it was protecting with
+nothing on screen. Electron draws no "a program is controlling this browser"
+banner, a native `WebContentsView` cannot be decorated from the page side, and a
+`patcher browser` command is indistinguishable from the user's own click — a tab
+navigates, a form fills in, and nothing says who did it. So the fact travels.
+
+**`issuer` on the command, not a second lookup.** The server knows whose request
+it is answering at the route, and the socket that carries the command is forty
+call sites away, so the caller rides the same `AsyncLocalStorage` shape the
+access scope uses (`browser-command-issuer.ts`) and the bridge attaches it to
+`browser-command-request`. Three answers — a `thread`, a `grant` with the label
+and level a person gave it, and a bare `outside` — and *absent*, which is the
+app's own browsing and must stay silent. A caller holding the app key gets
+`outside` with nothing else, because that is exactly as identified as the app key
+is; naming it would be an invention.
+
+That wire is the server → app one, which ships with the server, and the
+inbound schema on the app side is lenient — so this is an optional field added to
+a schema that strips what it does not name, not a break. The desktop-shell IPC
+next door is the frozen one; nothing here touches it.
+
+**The indicator is a row of the chrome, not an overlay.** A native view
+composites above the DOM, so anything drawn over the page area is invisible in
+the desktop app — the same constraint the omnibox suggestions live under. It
+names the driver, says how far a grant reaches in the words the settings screen
+uses, and lingers a few seconds after the last command so a burst of short
+commands does not read as stopping once a second. Two agents at once is not
+something this product supports yet, so it shows whoever moved last rather than a
+list implying the rest is handled.
+
+**The button is the one that fits the caller.** A grant gets **Pause**, which is
+the whole reason pausing exists. A caller from outside with no grant gets a link
+to Settings, because the install-wide level is the only lever that reaches it. A
+turn gets no button: it is stopped in the thread it belongs to, and a second
+worse way to do that helps nobody.
+
+**And `patcher browser status` says it from the other side.** The route hands the
+command the same scope it charges it against (`PluginCliContext.caller`), so the
+first thing an agent runs answers both halves of "can I act" — is there a
+browser, and how far do I reach — instead of costing a refusal per guess. It is
+the host's decision said out loud; nothing is enforced there, and a plugin that
+ignored it is refused a command later exactly as before.
+
 ## What this does not close
 
 Named here rather than left to be rediscovered.
@@ -399,9 +454,19 @@ Named here rather than left to be rediscovered.
   (`bun run patcher:dev browser tabs`) needs the setting on, and
   `patcher settings browser-access` from a plain terminal takes effect with no
   prompt, because a person at their own terminal *is* the user.
-- **Nothing shows that an outside agent is driving.** Electron draws no "this
-  browser is being controlled" banner, so what the app shows is the only signal
-  there is, and today it shows nothing. That is the next thing worth building.
+- **The indicator is only visible where it is drawn.** It is a row of the
+  browser chrome, so a person reading a thread in another window, or on another
+  screen of the app, sees nothing while an agent drives a tab. The bridge that
+  serves the commands is mounted above the router and works everywhere; the
+  indicator is not, and a window-level or tray-level signal is a separate piece
+  of work.
+- **It says who, not what.** The name and the level, and nothing about the
+  command — no URL, no selector, no list of what was read. A trace exists
+  (`patcher browser trace-start`) and is not wired to this.
+- **Pausing stops new commands, not what is already installed.** A network mock
+  or a page script the holder put in place before the pause is still there; so is
+  a command already in flight. Revoking has the same shape, and for the same
+  reason: the credential is checked at the request.
 
 ## Verified
 
@@ -454,7 +519,31 @@ Named here rather than left to be rediscovered.
   the plugins that are off, says nothing when they are all running, and caps the
   list.
 - `plugins/browser-tools/src/cli.test.ts` — `status` reports the refusal instead
-  of the window count, and exits non-zero.
+  of the window count, exits non-zero, and tells a caller from outside how far it
+  reaches — while saying nothing at all to a caller inside Patcher.
+- `apps/server/test/services/browser-command-issuer.test.ts` — read off a
+  stand-in browser host's socket rather than off the bridge, because the field
+  has to survive the route, the ambient scope, the bridge and the hub, and the
+  schema makes omitting it valid at every step: a grant's command names the
+  grant, a turn's names the thread, an app-key caller's says only `outside`, and
+  a `threadId` in the request *body* does not change the answer.
+- `apps/server/test/services/browser/browser-bridge.test.ts` — the app's own
+  browsing carries no issuer at all, and the field is absent rather than null.
+- `apps/app/src/lib/browser-agent/driving.test.ts` — the indicator stays up
+  between one agent's commands, stays up while a slow one is still in the air,
+  counts overlapping commands rather than the last to answer, and shows whoever
+  is driving now rather than whoever answered last.
+- `apps/app/src/components/browser-surface/BrowserDrivingIndicator.test.tsx` —
+  the label a person typed rather than the grant id, the level in the settings
+  screen's words, **Pause** rather than revoke, Settings for a caller with no
+  grant, and no button at all for a turn.
+- `apps/app/src/lib/ws.test.ts` — the issuer survives the app's lenient parse,
+  which is the one place dropping it would look exactly like a server that never
+  sent it.
+- `apps/app/src/views/SettingsView.browserAccessGrants.test.tsx` — three states
+  that are not interchangeable: a pending read is not "no grants", a live grant
+  offers both ways to stop it, a paused one says so and offers Resume, and a
+  revoked one offers nothing.
 
 Run by hand against a dev instance from a shell with no `PATCHER_*` set, since
 nothing above exercises the daemon → shim → CLI → server path end to end:
@@ -467,6 +556,18 @@ patcher browser open https://example.com # refused, naming "tabs.modify" and `in
 patcher browser cookie-list              # refused, naming "page.credentials" and `full`
 patcher settings browser-access full
 patcher browser cookie-list              # reaches the browser
+```
+
+And, with a grant and a browser window open, the half no test can reach — that
+the indicator appears in the chrome with the label a person typed, that Pause
+stops the next command with the paused reason, and that Resume puts it back:
+
+```bash
+patcher agent-access grant "Claude Code" --level read
+PATCHER_AGENT_KEY=<the key> patcher browser status   # names the grant and "read pages"
+PATCHER_AGENT_KEY=<the key> patcher browser text     # indicator appears; then click Pause
+PATCHER_AGENT_KEY=<the key> patcher browser text     # 401, "is paused", not "was revoked"
+patcher agent-access resume <id>
 ```
 
 That pass is also what found the two defects the tests could not: a refusal

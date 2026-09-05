@@ -8,6 +8,7 @@ import {
   BrowserCommandAbortedError,
   createBrowserBridge,
 } from "../../../src/services/browser/browser-bridge.js";
+import { runAsBrowserCommandIssuer } from "../../../src/services/browser/browser-command-issuer.js";
 import type { BrowserCommandRequestSignal } from "@patcher/server-contract";
 
 /**
@@ -181,6 +182,52 @@ describe("createBrowserBridge", () => {
       }),
     ).rejects.toThrow();
     expect(stub.requests).toHaveLength(0);
+  });
+
+  it("sends no issuer for the app's own browsing", async () => {
+    // The common case, and the one that has to stay silent: a person clicking
+    // in their own browser, a page script, a plugin's toolbar handler. An
+    // indicator that is on all the time says nothing.
+    const { hub, stub } = createHub();
+    const bridge = createBrowserBridge({ hub });
+
+    const pending = bridge.call({ command: { type: "tabs.list" } });
+    stub.settle(
+      respond(stub.requests[0]?.message.requestId ?? "", {
+        ok: true,
+        value: TABS_VALUE,
+      }),
+    );
+    await pending;
+
+    expect(stub.requests[0]?.message.issuer).toBeUndefined();
+    // Absent rather than present-and-null: the outgoing schema is strict, and
+    // an older app parses this leniently by naming the fields it knows.
+    expect(Object.keys(stub.requests[0]?.message ?? {})).not.toContain(
+      "issuer",
+    );
+  });
+
+  it("attributes a command to the caller it is running for", async () => {
+    const { hub, stub } = createHub();
+    const bridge = createBrowserBridge({ hub });
+
+    const pending = runAsBrowserCommandIssuer(
+      { kind: "thread", threadId: "thread-7" },
+      () => bridge.call({ command: { type: "tabs.list" } }),
+    );
+    stub.settle(
+      respond(stub.requests[0]?.message.requestId ?? "", {
+        ok: true,
+        value: TABS_VALUE,
+      }),
+    );
+    await pending;
+
+    expect(stub.requests[0]?.message.issuer).toEqual({
+      kind: "thread",
+      threadId: "thread-7",
+    });
   });
 
   it("reports host status straight through", () => {

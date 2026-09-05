@@ -101,6 +101,7 @@ const EXPECTED_BACKEND_ROOT_TYPE_EXPORTS = [
   "PluginBrowserTraceStep",
   "PluginBrowserVideo",
   "PluginCli",
+  "PluginCliCaller",
   "PluginCliCommandInfo",
   "PluginCliContext",
   "PluginCliExecutionResult",

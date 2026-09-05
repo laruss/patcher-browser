@@ -11,6 +11,11 @@ export { typedRoutes } from "@patcher/hono-typed-routes";
 // Selected re-exports from @patcher/domain so contract consumers don't need a
 // direct @patcher/domain dependency. Keep these explicit: starring another
 // package's barrel would absorb its entire surface.
+// The four values a `patcher browser` caller from outside Patcher can be
+// allowed. Re-exported for the plugin SDK, which types a CLI caller with it and
+// deliberately depends on no other Patcher package.
+export type { BrowserExternalAccessLevel } from "@patcher/domain";
+
 export {
   TERMINAL_COLS_MAX,
   TERMINAL_DATA_MAX_BASE64_LENGTH,

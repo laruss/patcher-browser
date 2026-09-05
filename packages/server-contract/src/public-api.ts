@@ -165,6 +165,7 @@ import type {
   SystemCliSkillsStatusQuery,
   SystemCliSkillsStatusResponse,
   SystemBrowserAccessGrantCreateRequest,
+  SystemBrowserAccessGrantPauseRequest,
   SystemBrowserAccessGrantCreateResponse,
   SystemBrowserAccessGrantListResponse,
   SystemBrowserExternalAccessRequest,
@@ -326,6 +327,7 @@ import {
   threadTimelineQuerySchema,
   systemCliSkillsStatusQuerySchema,
   systemBrowserAccessGrantCreateRequestSchema,
+  systemBrowserAccessGrantPauseRequestSchema,
   systemBrowserExternalAccessRequestSchema,
   systemInstallCliSkillsRequestSchema,
   timelineTurnSummaryDetailsQuerySchema,
@@ -1474,6 +1476,14 @@ export const publicApiRoutes = {
         systemBrowserAccessGrantCreateRequestSchema,
       ),
       response: jsonResponse<SystemBrowserAccessGrantCreateResponse>(),
+    }),
+    setBrowserAccessGrantPaused: defineRoute({
+      path: "/browser/access-grants/:id",
+      method: "put",
+      request: jsonRequest<PathId, SystemBrowserAccessGrantPauseRequest>(
+        systemBrowserAccessGrantPauseRequestSchema,
+      ),
+      response: jsonResponse<SystemBrowserAccessGrantListResponse>(),
     }),
     revokeBrowserAccessGrant: defineRoute({
       path: "/browser/access-grants/:id",

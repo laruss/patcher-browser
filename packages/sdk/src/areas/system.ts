@@ -147,6 +147,18 @@ export interface SystemArea {
   createBrowserAccessGrant(
     args: SystemCreateBrowserAccessGrantArgs,
   ): Promise<SystemCreateBrowserAccessGrantResult>;
+  /**
+   * Stop a grant for now, or let it work again.
+   *
+   * The other half of "stop", beside revoking: a paused grant refuses every
+   * request and stays a valid credential, so the agent holding it needs no
+   * reconfiguring when the person changes their mind. Revoked grants cannot be
+   * paused or resumed — that decision has no undo.
+   */
+  setBrowserAccessGrantPaused(
+    grantId: string,
+    paused: boolean,
+  ): Promise<SystemBrowserAccessGrantsResult>;
   /** Take a grant back. The next request presenting it is refused. */
   revokeBrowserAccessGrant(
     grantId: string,
@@ -270,6 +282,14 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async createBrowserAccessGrant(input) {
       return transport.readJson(
         transport.api.v1.browser["access-grants"].$post({ json: input }),
+      );
+    },
+    async setBrowserAccessGrantPaused(grantId, paused) {
+      return transport.readJson(
+        transport.api.v1.browser["access-grants"][":id"].$put({
+          param: { id: grantId },
+          json: { paused },
+        }),
       );
     },
     async revokeBrowserAccessGrant(grantId) {

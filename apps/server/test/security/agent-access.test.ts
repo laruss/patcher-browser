@@ -297,6 +297,153 @@ describe("a browser access grant", () => {
     expect(body.message).toContain(grant.id);
   });
 
+  it("is told how far it reaches without having to be refused first", async () => {
+    // The route hands the command the same scope it charges it against, so
+    // `status` can answer "what am I allowed" in one call. Checked end to end
+    // because the plugin-side test cannot see whether the route fills it in.
+    server = await startTestServer();
+    await server.pluginService.install(builtinPluginSource("browser-tools"));
+    const { key } = issueGrant(server, "read", "Claude Code");
+
+    const { body } = await runBrowserCli(server, key, ["status"]);
+
+    expect(body).toContain("Claude Code");
+    expect(body).toContain("read pages");
+  }, 60_000);
+
+  it("stops while paused, says which, and works again after", async () => {
+    // The button in the browser chrome, from the holder's side. Paused has to
+    // read differently from revoked: "ask them to resume it" and "ask them for
+    // a new one" are different instructions, and a holder told the wrong one
+    // wastes a person's time.
+    server = await startTestServer();
+    const { grant, key } = issueGrant(server);
+
+    const paused = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-grants/${grant.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY,
+        },
+        body: JSON.stringify({ paused: true }),
+      },
+    );
+    expect(paused.status).toBe(200);
+
+    const refused = await grantFetch(
+      server,
+      "/api/v1/plugins/contributions",
+      key,
+    );
+    expect(refused.status).toBe(401);
+    const body = (await refused.json()) as { message?: string };
+    expect(body.message).toContain("paused");
+    expect(body.message).not.toContain("was revoked");
+
+    const resumed = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-grants/${grant.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY,
+        },
+        body: JSON.stringify({ paused: false }),
+      },
+    );
+    expect(resumed.status).toBe(200);
+    // The same credential, unchanged: the whole reason pausing exists is that
+    // the agent holding it needs no reconfiguring afterwards.
+    expect(
+      (await grantFetch(server, "/api/v1/plugins/contributions", key)).status,
+    ).toBe(200);
+  });
+
+  it("cannot be resumed once it is revoked", async () => {
+    server = await startTestServer();
+    const { grant } = issueGrant(server);
+    revokeBrowserAccessGrant(server.deps.db, grant.id);
+
+    const response = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-grants/${grant.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY,
+        },
+        body: JSON.stringify({ paused: false }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(getBrowserAccessGrant(server.deps.db, grant.id)?.revokedAt).not.toBe(
+      null,
+    );
+  });
+
+  it("is not pausable from inside a turn", async () => {
+    // Whose agent is stopped is the person's call, the same argument that keeps
+    // a turn from minting or revoking one. The deny is a prefix, so this is
+    // what checks the prefix still covers a route added under it.
+    server = await startTestServer();
+    const { grant } = issueGrant(server);
+    const { host } = seedHostSession(server.deps, { id: "host-pause-turn" });
+    const { project } = seedProjectWithSource(server.deps, { hostId: host.id });
+    const environment = seedEnvironment(server.deps, {
+      hostId: host.id,
+      projectId: project.id,
+    });
+    const thread = seedThread(server.deps, {
+      projectId: project.id,
+      environmentId: environment.id,
+      status: "active",
+    });
+
+    const response = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-grants/${grant.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          [PATCHER_THREAD_ID_HEADER]: thread.id,
+          [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
+            appApiKey: TEST_APP_API_KEY,
+            threadId: thread.id,
+          }),
+        },
+        body: JSON.stringify({ paused: true }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(
+      getBrowserAccessGrant(server.deps.db, grant.id)?.pausedAt,
+    ).toBeNull();
+  });
+
+  it("cannot pause or resume itself", async () => {
+    // A grant reaches two routes, and neither of them is this one — otherwise
+    // the button in the chrome would be a suggestion.
+    server = await startTestServer();
+    const { grant, key } = issueGrant(server);
+
+    const response = await grantFetch(
+      server,
+      `/api/v1/browser/access-grants/${grant.id}`,
+      key,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paused: false }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+  });
+
   it("is refused when its grant is gone rather than revoked", async () => {
     server = await startTestServer();
     // A credential naming a row that never existed: the MAC verifies, because
