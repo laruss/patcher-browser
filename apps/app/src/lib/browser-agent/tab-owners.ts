@@ -7,6 +7,10 @@ import {
 } from "@patcher/server-contract";
 import type { BrowserTabOwner } from "@patcher/domain";
 import { createLocalStorageSyncStorage } from "../browser-storage";
+import {
+  browserSurfaceTabsAtom,
+  getBrowserSurfaceWebTabs,
+} from "../browser-surface-tabs";
 import { getDesktopWindowKey } from "../patcher-desktop";
 import { browserIssuerKey } from "./issuer";
 
@@ -206,20 +210,30 @@ export const browserTabHandoverAskAtom = atom<BrowserTabHandoverAsk | null>(
 );
 
 /**
- * Raises an ask, unless one is already waiting for an answer.
+ * Raises an ask, unless one the person can still answer is waiting.
  *
- * **The one waiting is not replaced**, and that is a rule about a click rather
+ * **A waiting ask is not replaced**, and that is a rule about a click rather
  * than about freshness. An agent chooses which tab it names and can name a new
  * one per command, so a row that swapped under the pointer would let it show a
  * harmless page, wait for the person to commit to pressing, and swap in the tab
  * it actually wants. Whoever asked first stays until the person answers or
  * dismisses it; the agent's own refusal already tells it to ask them again.
- * Found by review on 2026-09-05.
+ *
+ * **Unless its tab is gone**, which is the other half of the same rule and was
+ * missed the first time: the row draws nothing for a closed tab, so a waiting
+ * ask nobody can answer would have wedged every later one out of the window
+ * until a reload. Both halves found by review on 2026-09-05.
  */
 export const requestBrowserTabHandoverAtom = atom(
   null,
   (get, set, ask: BrowserTabHandoverAsk) => {
-    if (get(browserTabHandoverAskAtom) !== null) return;
+    const waiting = get(browserTabHandoverAskAtom);
+    const answerable =
+      waiting !== null &&
+      getBrowserSurfaceWebTabs(get(browserSurfaceTabsAtom)).some(
+        (tab) => tab.id === waiting.tabId,
+      );
+    if (answerable) return;
     set(browserTabHandoverAskAtom, ask);
   },
 );

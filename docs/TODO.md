@@ -205,6 +205,16 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   `tracing-stop` takes it. What cannot be partitioned this way is worth saying
   in the same change: cookies, web storage and a saved session state belong to
   the session or the origin, not to a tab.
+- **A tab an agent opens by clicking a link is the person's.** A
+  `target=_blank` link, or any link the shell places, arrives on the same
+  renderer channel as the person's own "Open link in new tab" from the page
+  menu (`openInNewTab` in `desktop-browser-view.ts`), and the payload does not
+  say which it was. So the surface inherits ownership only for a real
+  `window.open` popup, where the page is the only possible opener, and an agent
+  that clicked a link is refused the tab that opened until the person hands it
+  over. Closing it properly means the shell saying where the open came from —
+  an optional field on that channel, feature-detected the way placement itself
+  was.
 - **A tab an agent holds looks like any other in the strip.** Ownership is
   visible in its context menu ("Take back from …") and nowhere else, so a person
   scanning the strip cannot tell which of these tabs something else is working

@@ -243,13 +243,13 @@ export function BrowserSurfaceView({
   );
 
   /**
-   * A tab a page opened belongs to whoever owned the page.
+   * A popup a page opened belongs to whoever owned the page.
    *
-   * A link with `target=_blank`, or `window.open`, does not come through the
-   * executor at all — the shell reports it and the surface places it. Without
-   * this, an agent that clicked a link in its own tab would be refused the tab
-   * that opened, and the person would be asked to hand over a page they never
-   * opened.
+   * `window.open` does not come through the executor at all — the shell reports
+   * it and the surface adopts it — so without this, an agent driving a login
+   * flow would be refused the popup its own page opened. Only popups: the
+   * channel that carries `target=_blank` links carries the person's own "Open
+   * link in new tab" too, and cannot tell them apart.
    */
   const inheritTabOwner = useCallback(
     ({ fromTabId, toTabId }: { fromTabId: string; toTabId: string }) => {
@@ -375,19 +375,24 @@ export function BrowserSurfaceView({
     }
     // Newest channel first, and only one: the shell sends all three, so a
     // second subscription here would open the same link twice.
+    // No ownership is inherited here, deliberately. The shell sends this same
+    // channel for the person's own "Open link in new tab" as for a link the
+    // page opened (`openInNewTab` in `desktop-browser-view.ts`), and nothing in
+    // the payload tells them apart — so inheriting would hand an agent a tab
+    // the person opened for themselves, and make it that agent's default
+    // target. A tab an agent opens by clicking a `target=_blank` link is
+    // therefore the person's until they hand it over; docs/TODO.md.
     if (browserApi.onPlacedOpenTab) {
       return browserApi.onPlacedOpenTab(({ background, tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
-          const opened = openSurfaceTab(url, { background });
-          inheritTabOwner({ fromTabId: tabId, toTabId: opened.id });
+          openSurfaceTab(url, { background });
         }
       });
     }
     if (browserApi.onScopedOpenTab) {
       return browserApi.onScopedOpenTab(({ tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
-          const opened = openSurfaceTab(url);
-          inheritTabOwner({ fromTabId: tabId, toTabId: opened.id });
+          openSurfaceTab(url);
         }
       });
     }
@@ -397,7 +402,7 @@ export function BrowserSurfaceView({
       }
       openSurfaceTab(url);
     });
-  }, [inheritTabOwner, openSurfaceTab, surfaceTabIds]);
+  }, [openSurfaceTab, surfaceTabIds]);
 
   // The current `openSurfaceTab`, for the drain below: it runs for the life of
   // the surface, and this identity changes every time the route does.
@@ -524,6 +529,15 @@ export function BrowserSurfaceView({
         // The page closed its own popup, which is how every OAuth flow ends.
         closeTab(popup.tabId);
         dropFavicon(popup.tabId);
+        // And the claim goes with it, as on every other close: the id comes
+        // back if the person reopens the tab, and it should come back theirs.
+        setTabOwners((current) =>
+          withBrowserTabOwner(current, {
+            issuer: null,
+            openTabIds: openWebTabIds(),
+            tabId: popup.tabId,
+          }),
+        );
         return;
       }
       if (surfaceTabIds.has(popup.openerTabId)) {
@@ -534,7 +548,15 @@ export function BrowserSurfaceView({
         });
       }
     });
-  }, [adoptTab, closeTab, dropFavicon, inheritTabOwner, surfaceTabIds]);
+  }, [
+    adoptTab,
+    closeTab,
+    dropFavicon,
+    inheritTabOwner,
+    openWebTabIds,
+    setTabOwners,
+    surfaceTabIds,
+  ]);
 
   // "Search for <selection>" from a page's context menu. The shell sends the
   // query rather than a URL, because the search engine is the omnibox's and

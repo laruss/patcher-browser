@@ -75,9 +75,12 @@ The other direction is on the tab's own context menu, where the tab is the thing
 being pointed at: **Take back from Claude Code** on a tab an agent holds.
 
 The agent chooses which tab it names, so it also chooses what the ask is *about*
-— which is why the row names the tab it would be given rather than saying "this
-tab". A repeated ask replaces the one before it instead of queueing: there is
-one question here, about the browser in front of the person now.
+— which is why the row names the tab it would be given, with its address, rather
+than saying "this tab". And a later ask does **not** replace the one waiting:
+otherwise an agent could show a harmless page, wait for the person to commit to
+pressing, and swap in the tab it actually wanted. The waiting one stands until
+they answer or dismiss it — or until its tab is closed, which leaves nothing to
+answer.
 
 ## Where it lives
 

@@ -1,4 +1,6 @@
 import { createStore } from "jotai";
+import { browserSurfaceTabsAtom } from "@/lib/browser-surface-tabs";
+import { createBrowserFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import { describe, expect, it } from "vitest";
 import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
@@ -133,12 +135,24 @@ describe("browser tab owners", () => {
 });
 
 describe("the handover ask", () => {
+  function storeWithTabs(ids: readonly string[]) {
+    const store = createStore();
+    store.set(browserSurfaceTabsAtom, {
+      activeTabId: ids[0] ?? null,
+      tabs: ids.map((id) => ({
+        ...createBrowserFixedPanelTab({ environmentId: null, url: "" }),
+        id,
+      })),
+    });
+    return store;
+  }
+
   it("keeps the ask that is waiting rather than swapping it", () => {
     // The attack it is against: an agent names a harmless tab, the person moves
     // to press "Hand it over", and the agent names the tab it actually wants
     // before the click lands. It can ask once per command, so the row would
     // change as often as it liked.
-    const store = createStore();
+    const store = storeWithTabs(["a", "b"]);
     store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
     store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "b" });
 
@@ -149,9 +163,24 @@ describe("the handover ask", () => {
   });
 
   it("asks again once the person has answered the last one", () => {
-    const store = createStore();
+    const store = storeWithTabs(["a", "b"]);
     store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
     store.set(browserTabHandoverAskAtom, null);
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "b" });
+
+    expect(store.get(browserTabHandoverAskAtom)).toEqual({
+      issuer: GRANT,
+      tabId: "b",
+    });
+  });
+
+  it("does not wedge on an ask whose tab has been closed", () => {
+    // The row draws nothing for a tab that is gone, so a waiting ask nobody can
+    // answer would have blocked every later one — handover gone from that
+    // window until a reload.
+    const store = storeWithTabs(["a"]);
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
+    store.set(browserSurfaceTabsAtom, { activeTabId: null, tabs: [] });
     store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "b" });
 
     expect(store.get(browserTabHandoverAskAtom)).toEqual({
