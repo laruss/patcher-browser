@@ -20,7 +20,8 @@ import {
   withBrowserTabOwner,
 } from "./tab-owners";
 import { executeBrowserCommand } from "./execute";
-import { BrowserTraceRecorder } from "./trace";
+import { createBrowserTabQueue } from "./tab-queue";
+import { createBrowserTraceRegistry } from "./traces";
 import {
   getBrowserLiveState,
   subscribeBrowserLiveState,
@@ -65,10 +66,13 @@ export function useBrowserAgentBridge(): void {
   useEffect(() => {
     const browserHostId = createBrowserHostId();
     const desktopBrowser = getDesktopBrowserApi();
-    // One trace per window, living as long as the bridge does. A reload ends
-    // it, which is the honest behaviour: the log is held in memory here, and a
-    // window that went away recorded nothing anyone can still read.
-    const trace = new BrowserTraceRecorder();
+    // One trace per *caller*, living as long as the bridge does. A reload ends
+    // them, which is the honest behaviour: the log is held in memory here, and
+    // a window that went away recorded nothing anyone can still read.
+    const traces = createBrowserTraceRegistry();
+    // And one queue for the window, so two callers on one tab take turns
+    // instead of interleaving (`tab-queue.ts`).
+    const queue = createBrowserTabQueue();
 
     // One subscription for the whole window. This is what makes the tools work
     // off-route: the shell pushes navigation state for every view, while
@@ -144,7 +148,8 @@ export function useBrowserAgentBridge(): void {
           );
         },
         resolvePdfText: resolvePluginBrowserPdfText,
-        trace,
+        runOnTab: queue.run,
+        trace: traces.for(signal.issuer),
       })
         .then((outcome) => {
           driving.settled(signal.issuer);
@@ -179,6 +184,8 @@ export function useBrowserAgentBridge(): void {
       unsubscribeCommands();
       unsubscribeLiveState();
       driving.dispose();
+      queue.dispose();
+      traces.dispose();
     };
   }, [store]);
 }

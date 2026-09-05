@@ -24,6 +24,7 @@ import {
   withBrowserTabOwner,
   type BrowserTabOwners,
 } from "@/lib/browser-agent/tab-owners";
+import type { BrowserTabQueue } from "@/lib/browser-agent/tab-queue";
 import type { BrowserTraceRecorder } from "@/lib/browser-agent/trace";
 
 /**
@@ -66,6 +67,14 @@ export interface HarnessArgs {
   live?: Record<string, PatcherDesktopBrowserState>;
   readPage?: PatcherDesktopBrowserPageReadResult;
   omitReadPage?: boolean;
+  /**
+   * Held open until this resolves, so a test can have one command in flight
+   * while it issues another — the only way to see whether they interleave. A
+   * function is given the tab, for a test that needs two reads held apart.
+   */
+  readPageGate?:
+    | Promise<unknown>
+    | ((tabId: string) => Promise<unknown> | undefined);
   readPageIn?: PatcherDesktopBrowserPageReadResult;
   omitReadPageIn?: boolean;
   omitAttachBackgroundView?: boolean;
@@ -95,6 +104,11 @@ export interface HarnessArgs {
   noDesktop?: boolean;
   /** Who the command is for; absent is the app's own work. */
   issuer?: BrowserCommandIssuer;
+  /**
+   * The window's command queue, when a test is about ordering. Absent means
+   * what the executor does without a bridge: run everything at once.
+   */
+  queue?: BrowserTabQueue;
   /** Tabs already claimed, as the window would hold them. */
   owners?: BrowserTabOwners;
 }
@@ -124,6 +138,7 @@ export function createHarness(args: HarnessArgs = {}) {
     readPageIn: [] as unknown[],
     backgroundViews: [] as Array<{ tabId: string; url: string }>,
     handoverAsks: [] as Array<{ issuer: BrowserCommandIssuer; tabId: string }>,
+    dialogs: [] as unknown[],
   };
   let nextTabId = 0;
 
@@ -157,6 +172,12 @@ export function createHarness(args: HarnessArgs = {}) {
       calls.reload.push(tabId);
     },
     stop: vi.fn(),
+    // The one command that exists to rescue a tab nothing is answering on, so
+    // a test about queueing needs it to be answerable.
+    respondToDialog: (request: unknown) => {
+      calls.dialogs.push(request);
+      return Promise.resolve(true);
+    },
     setBounds: vi.fn(),
     setVisible: vi.fn(),
     onState: () => () => undefined,
@@ -311,8 +332,10 @@ export function createHarness(args: HarnessArgs = {}) {
     ...(args.omitReadPage === true
       ? {}
       : {
-          readPage: () =>
-            Promise.resolve(
+          readPage: async (tabId: string) => {
+            const gate = args.readPageGate;
+            await (typeof gate === "function" ? gate(tabId) : gate);
+            return (
               args.readPage ?? {
                 ok: true as const,
                 tabId: "t",
@@ -324,8 +347,9 @@ export function createHarness(args: HarnessArgs = {}) {
                 textTruncated: false,
                 selection: "selected",
                 selectionTruncated: false,
-              },
-            ),
+              }
+            );
+          },
         }),
   } as unknown as PatcherDesktopBrowserApi;
 
@@ -364,6 +388,7 @@ export function createHarness(args: HarnessArgs = {}) {
       calls.mutedRecords.push(request);
     },
     ...(args.issuer === undefined ? {} : { issuer: args.issuer }),
+    ...(args.queue === undefined ? {} : { runOnTab: args.queue.run }),
     getTabOwners: () => owners,
     // The bridge's own wiring, on purpose: pruning happens on write, so a test
     // that kept its own map would not be exercising the rule that drops the

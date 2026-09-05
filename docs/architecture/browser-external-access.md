@@ -486,7 +486,10 @@ Named here rather than left to be rediscovered.
   (`patcher browser trace-start`) and is not wired to this.
 - **Pausing stops new commands, not what is already installed.** A network mock
   or a page script the holder put in place before the pause is still there; so is
-  a command already in flight. Revoking has the same shape, and for the same
+  a command already in flight — and since commands now take turns on a tab
+  ([browser-tab-ownership.md](browser-tab-ownership.md)), "in flight" includes
+  one waiting its turn, which can run well after the pause and after its own
+  caller was told it timed out. Revoking has the same shape, and for the same
   reason: the credential is checked at the request.
 
 ## Verified

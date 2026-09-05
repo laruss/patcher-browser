@@ -720,6 +720,20 @@ What the trace does not record, stated because a reader will assume otherwise:
 anything the _user_ does in the same browser while it runs, and any navigation a
 _page_ starts by itself. It records the commands Patcher was asked to run.
 
+**One trace per caller, not per window.** `tracing-start` is a caller asking for
+a record of what _it_ did, and a single recorder could not give it one: a second
+agent was refused `already_recording` for a trace it could not see, its steps
+were written into the first agent's log, and whichever of them stopped first
+walked away with the other's. The recorders live in a registry keyed the way
+everything else about a caller is (`traces.ts`), so two agents Patcher can tell
+apart — two grants, two threads — trace at once. Two shells holding the app key
+are one caller by construction and still share a recorder, as they share
+everything else. A step's screenshot is skipped when the tab in front of the
+person is not one that caller may act on
+([browser-tab-ownership.md](browser-tab-ownership.md)) — which for a turn
+includes the person's own tab, so a turn tracing in its background tab still
+photographs what is on screen.
+
 Done when: a session an agent drove can be reviewed after the fact. ✅ (against
 fakes, as with A through E)
 
