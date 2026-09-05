@@ -144,6 +144,18 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
       "whether a repository's setup script may run on the machine, outside this turn's sandbox, is the owner's to answer",
   },
   {
+    // A credential, not a setting, and that is the whole distinction. The
+    // browser *level* one route over is a question a turn may raise, because
+    // the answer is about other agents and the prompt says so. This answers
+    // with a grant credential, which is accepted until a person revokes it —
+    // so a turn that could call it would have minted itself a browser key that
+    // outlives the turn its own key dies with. A GET stays open: a list of
+    // grants carries labels and dates, never a credential.
+    path: "/browser/access-grants",
+    reason:
+      "it answers with a credential that keeps working after this turn ends, and handing one out is the person's act — they can run `patcher agent-access grant` themselves, or you can ask for the install-wide level with `patcher settings browser-access`, which raises a prompt in this thread",
+  },
+  {
     // The prefix, not `/settings/general`: the route that carries the egress
     // switch, its host list and `codexNetworkDisabled` is the boundary the next
     // turn is built from, and naming only that route is how it stayed open. A

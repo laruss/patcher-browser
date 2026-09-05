@@ -69,6 +69,15 @@ describe("the CLI a turn reaches through the MCP tool", () => {
         .filter((path) => mcpToolArgvRefusal(path.split(" ")) !== null)
         .sort(),
     ).toEqual([
+      // Minting, listing and revoking a credential for an agent outside
+      // Patcher. The server refuses a turn the mutation already — a grant
+      // outlives the turn a thread key dies with — and the whole group is off
+      // the tool rather than only the two mutations: a turn that can read the
+      // list has learnt nothing it can use, and the person's own terminal is
+      // where this belongs.
+      "agent-access grant",
+      "agent-access list",
+      "agent-access revoke",
       // Serving the tool from inside the tool.
       "mcp-serve",
       // Authoring and building a plugin is work on this machine: `plugin types`
@@ -115,6 +124,10 @@ describe("the CLI a turn reaches through the MCP tool", () => {
 
     expect(files.length).toBeGreaterThan(20);
     expect(touching.flat().sort()).toEqual([
+      // Runs the *agent's* own `mcp add`, so it never edits their config file
+      // itself, and looks for the CLI shim to point that config at. Refused
+      // through the tool, like every other module here.
+      "commands/agent-access.ts",
       // The tool's own transport: it spawns the CLI, and this is where the argv
       // is refused before it does.
       "commands/mcp-serve.ts",

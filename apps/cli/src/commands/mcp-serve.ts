@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
 import { Command } from "commander";
 
 /**
@@ -44,6 +45,23 @@ const TOOL_DESCRIPTION = [
 ].join(" ");
 
 /**
+ * The same tool, when this server was started with a browser access grant.
+ *
+ * A grant reaches two routes and neither of them is `thread` or `project`, so
+ * every command in the list below would come back as a 403 with a paragraph
+ * about credentials. Describing the tool as "Patcher's API commands" and then
+ * refusing all but one of them is the failure mode this whole module was
+ * written against: a model told only "no" tries again.
+ */
+const GRANT_TOOL_DESCRIPTION = [
+  "Drive Patcher's browser and return the output.",
+  "Pass argv as an array, without the leading `patcher`; every call starts with `browser`.",
+  'Examples: ["browser","tabs"], ["browser","open","https://example.com","--background"], ["browser","text","--tab","t1"].',
+  'Run `["browser","--help"]` for the command list, and `["browser","<command>","--help"]` for one command.',
+  "This credential opens the browser and nothing else in Patcher — the rest of the CLI is refused here.",
+].join(" ");
+
+/**
  * What this tool will run, and why it is a list of what it *will* rather than
  * of what it will not.
  *
@@ -74,6 +92,25 @@ const TOOL_DESCRIPTION = [
  * decides otherwise, and `mcp-tool-surface.test.ts` is where that decision is
  * recorded.
  */
+/**
+ * What the tool will run when it holds a browser access grant instead of a
+ * thread key: the browser, which is the whole of what such a grant opens.
+ */
+const MCP_TOOL_GRANT_COMMANDS: readonly string[] = ["browser"];
+
+/**
+ * Whether this server speaks for a grant rather than for a thread.
+ *
+ * Read from the environment the parent put the server in, not from a flag: the
+ * same `patcher mcp-serve` command is written into Claude Code's or Codex's
+ * config either way, and what differs is the credential beside it.
+ */
+function servingBrowserAccessGrant(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return (env[PATCHER_AGENT_KEY_ENV] ?? "").trim().length > 0;
+}
+
 const MCP_TOOL_COMMANDS: readonly string[] = [
   "environment",
   "file",
@@ -141,10 +178,23 @@ function argvStartsWithCommand(args: readonly string[], path: string): boolean {
  * The refusal is a tool error rather than a protocol error, and it names the
  * shell as the way to do it: a model that is told only "no" tries again.
  */
-export function mcpToolArgvRefusal(args: readonly string[]): string | null {
+export function mcpToolArgvRefusal(
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
   const command = args[0];
   if (command === undefined || MCP_TOOL_BARE_ARGS.includes(command)) {
     return null;
+  }
+  if (servingBrowserAccessGrant(env)) {
+    // Refused here as well as by the server, and both are wanted: the server
+    // is the boundary, and this is the sentence that tells a model to stop —
+    // a 403 about credentials reads like something to work around.
+    return MCP_TOOL_GRANT_COMMANDS.some((allowed) =>
+      argvStartsWithCommand(args, allowed),
+    )
+      ? null
+      : `This tool was started with a browser access grant, which opens Patcher's browser and nothing else, so \`patcher ${command}\` is not available through it. Available here: ${MCP_TOOL_GRANT_COMMANDS.join(", ")}. Ask the person at this machine if you need more than the browser.`;
   }
   const refused = MCP_TOOL_REFUSED_COMMANDS.find((entry) =>
     argvStartsWithCommand(args, entry.path),
@@ -273,7 +323,9 @@ export function serveMcpOverStdio(io: McpServeIo): void {
           tools: [
             {
               name: TOOL_NAME,
-              description: TOOL_DESCRIPTION,
+              description: servingBrowserAccessGrant()
+                ? GRANT_TOOL_DESCRIPTION
+                : TOOL_DESCRIPTION,
               inputSchema: {
                 type: "object",
                 properties: {

@@ -1,20 +1,20 @@
 import type { DbConnection } from "../src/index.js";
 
 /**
- * Walking one column back off a table, so a migration that adds it can replay.
+ * Walking one thing back off the schema, so a migration that adds it can replay.
  *
  * `migrate.test.ts` builds a database at the *current* schema and then rewinds
- * it to a checkpoint — which means every column added since that checkpoint has
- * to come off first, or the replay hits "duplicate column". One helper per
- * column, each idempotent, because a rewind names the ones its scenario needs
+ * it to a checkpoint — which means everything added since that checkpoint has to
+ * come off first, or the replay hits "duplicate column" or "table already
+ * exists". One helper per column, and one per table where a migration added a
+ * whole one, each idempotent, because a rewind names the ones its scenario needs
  * rather than all of them.
  *
  * They live here rather than beside their callers for a reason with a number on
  * it: `eslint.max-lines.mjs` pins that file, so it can shrink and cannot grow,
  * and the next migration will want a helper of its own. This is the cohesive
- * unit that moves — every member takes only a `DbConnection`, reads
- * `PRAGMA table_info`, drops or restores exactly one column, and knows nothing
- * about the scenarios that call it.
+ * unit that moves — every member takes only a `DbConnection`, rewinds exactly
+ * one column or one table, and knows nothing about the scenarios that call it.
  */
 
 interface TableInfoRow {
@@ -194,4 +194,18 @@ export function dropOnboardingCompletedAtColumn(db: DbConnection): void {
       .prepare("ALTER TABLE app_settings DROP COLUMN onboarding_completed_at")
       .run();
   }
+}
+
+export function dropProjectGitRemoteUrlColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(projects)")
+    .all();
+  if (columns.some((column) => column.name === "git_remote_url")) {
+    db.$client.prepare("ALTER TABLE projects DROP COLUMN git_remote_url").run();
+  }
+}
+
+/** Migration 0102 creates it; a replay of 0102 needs it gone. */
+export function dropBrowserAccessGrantsTable(db: DbConnection): void {
+  db.$client.prepare("DROP TABLE IF EXISTS browser_access_grants").run();
 }

@@ -303,6 +303,11 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // nobody would be asked. A plugin that wants the browser declares the browser
   // permissions and is charged those; this is the setting *about* other people's
   // agents, which is not a plugin's business at any price.
+  // The same `null`, and a stronger version of the same argument: this route
+  // answers with a *credential* for the browser. A plugin already declares the
+  // browser permissions it wants and is charged those, so a plugin minting a
+  // grant would only ever be minting one for something that is not it.
+  ["/browser/access-grants", null],
   ["/browser/external-access", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],

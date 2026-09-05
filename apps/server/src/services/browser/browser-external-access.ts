@@ -33,10 +33,30 @@ import { permissionForBrowserCommand } from "@patcher/domain/plugin-permissions"
  * host charges those on a channel message, in a fresh async context, so the
  * scope does not reach them and they are charged what they declared, as before.
  * Nothing hides behind that gap — an external caller holding the app key can
- * install a plugin, and could equally rewrite this setting — and closing it is
- * the business of the narrower credential this deliberately does not build. See
+ * install a plugin, and could equally rewrite the install-wide setting. See
  * `browser-external-access.ts` in `@patcher/domain` for that argument in full.
+ *
+ * **Two callers now, and two levels.** The setting is what an outside caller
+ * holding the *app key* is allowed, and that caller can write it, so it is a
+ * default rather than a boundary. A caller holding a **browser access grant**
+ * is charged that grant's own level instead: a credential that reaches two
+ * routes and cannot write this or anything else — see `agent-access-identity.ts`
+ * and `agent-access-route-policy.ts`. Which of the two a request is comes from
+ * the route, not from here; this module is handed the level and the grant that
+ * decided it.
  */
+
+/**
+ * The plugin that serves `patcher browser`.
+ *
+ * Here rather than beside either of its two callers, because both of them are
+ * about the same thing and neither owns it: `routes/system.ts` turns it on when
+ * a person opens the browser to outside agents, and
+ * `agent-access-route-policy.ts` names the one plugin CLI route a grant may
+ * post to. A grant is for the browser, so the route it reaches is spelled with
+ * this id in it rather than as `/plugins/:id/cli`.
+ */
+export const BROWSER_TOOLS_PLUGIN_ID = "browser-tools";
 
 export interface BrowserExternalCallerScope {
   /** How far this install lets an agent outside Patcher go. */
@@ -53,6 +73,17 @@ export interface BrowserExternalCallerScope {
    * does not exist and the obvious thing for a reader to try next.
    */
   pluginId: string;
+  /**
+   * The grant this caller presented, when it presented one.
+   *
+   * Absent for a caller that holds the app key and no grant, which is the
+   * install-wide `browserExternalAccess` setting's case and the one that came
+   * first. Present, the level above is *this grant's* rather than the setting's,
+   * and the refusal is a different sentence: what the reader has to change is a
+   * grant somebody issued for them, not a global preference, and pointing them
+   * at the wrong one costs a round trip through a person.
+   */
+  grant?: { id: string; label: string };
 }
 
 const scopeStorage = new AsyncLocalStorage<BrowserExternalCallerScope>();
@@ -100,6 +131,15 @@ export function browserExternalAccessRefusal(
   const permission = permissionForBrowserCommand(command);
   if (browserExternalAccessAllows(scope.level, permission)) return null;
   const needed = lowestBrowserExternalAccessLevelFor(permission);
+  if (scope.grant !== undefined) {
+    return (
+      `The browser access grant "${scope.grant.label}" (${scope.grant.id}) allows "${scope.level}", ` +
+      `and this command needs "${permission}". Nothing happened. The person at this machine can ` +
+      `issue a wider grant with \`patcher agent-access grant --level ${needed}\`, and revoke this one ` +
+      `in Patcher's Settings → General → Agents outside Patcher. Ask them rather than retrying: this ` +
+      `is a decision, not a transient failure.`
+    );
+  }
   const current =
     scope.level === "off"
       ? "this install does not let agents outside Patcher drive the browser at all"
@@ -109,6 +149,8 @@ export function browserExternalAccessRefusal(
     `browser command needing "${permission}", and ${current}. ` +
     `Nothing happened. The person at this machine can allow it in Patcher's ` +
     `Settings → General → Agents outside Patcher, or by running \`patcher settings browser-access ${needed}\` ` +
-    `in their own terminal. Ask them rather than retrying: this is a decision, not a transient failure.`
+    `in their own terminal. A narrower answer than the setting is \`patcher agent-access grant\`, which ` +
+    `hands one agent a credential for the browser alone. Ask them rather than retrying: this is a ` +
+    `decision, not a transient failure.`
   );
 }

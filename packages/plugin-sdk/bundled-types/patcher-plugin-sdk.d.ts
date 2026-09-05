@@ -7565,6 +7565,64 @@ declare const systemBrowserExternalAccessResponseSchema: z$1.ZodObject<{
     browserToolsEnabled: z$1.ZodBoolean;
 }, z$1.core.$strip>;
 type SystemBrowserExternalAccessResponse = z$1.infer<typeof systemBrowserExternalAccessResponseSchema>;
+/**
+ * A credential for one agent outside Patcher, as a request to mint one.
+ *
+ * The label is the whole of what makes a list of these answerable a month
+ * later: two grants are told apart by what the person called them, because
+ * everything else about them is identical. Required rather than defaulted for
+ * that reason — an unnamed grant is a row nobody can decide about.
+ */
+declare const systemBrowserAccessGrantCreateRequestSchema: z$1.ZodObject<{
+    label: z$1.ZodString;
+    level: z$1.ZodEnum<{
+        read: "read";
+        full: "full";
+        interact: "interact";
+    }>;
+}, z$1.core.$strip>;
+type SystemBrowserAccessGrantCreateRequest = z$1.infer<typeof systemBrowserAccessGrantCreateRequestSchema>;
+/**
+ * A new grant, with its credential — the only response that ever carries one.
+ *
+ * Carried here rather than fetched later because it does not have to be stored
+ * to be re-derived, and re-deriving it on demand would make "show me the key
+ * again" a route, which is a route that answers with a credential. The list
+ * below deliberately has no such field: a person who lost the string revokes
+ * the grant and issues another, which is also what they would want to do.
+ */
+declare const systemBrowserAccessGrantCreateResponseSchema: z$1.ZodObject<{
+    grant: z$1.ZodObject<{
+        id: z$1.ZodString;
+        label: z$1.ZodString;
+        level: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            interact: "interact";
+        }>;
+        createdAt: z$1.ZodNumber;
+        lastUsedAt: z$1.ZodNullable<z$1.ZodNumber>;
+        revokedAt: z$1.ZodNullable<z$1.ZodNumber>;
+    }, z$1.core.$strip>;
+    key: z$1.ZodString;
+    browserToolsEnabled: z$1.ZodBoolean;
+}, z$1.core.$strip>;
+type SystemBrowserAccessGrantCreateResponse = z$1.infer<typeof systemBrowserAccessGrantCreateResponseSchema>;
+declare const systemBrowserAccessGrantListResponseSchema: z$1.ZodObject<{
+    grants: z$1.ZodArray<z$1.ZodObject<{
+        id: z$1.ZodString;
+        label: z$1.ZodString;
+        level: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            interact: "interact";
+        }>;
+        createdAt: z$1.ZodNumber;
+        lastUsedAt: z$1.ZodNullable<z$1.ZodNumber>;
+        revokedAt: z$1.ZodNullable<z$1.ZodNumber>;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemBrowserAccessGrantListResponse = z$1.infer<typeof systemBrowserAccessGrantListResponseSchema>;
 /** The machines to copy the built-in Patcher CLI skills onto. */
 declare const systemInstallCliSkillsRequestSchema: z$1.ZodObject<{
     hostIds: z$1.ZodArray<z$1.ZodString>;
@@ -12995,6 +13053,9 @@ type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 type SystemUpdateExperimentsResult = Experiments;
 type SystemUpdateGeneralSettingsResult = AppSettings;
+type SystemBrowserAccessGrantsResult = SystemBrowserAccessGrantListResponse;
+type SystemCreateBrowserAccessGrantArgs = SystemBrowserAccessGrantCreateRequest;
+type SystemCreateBrowserAccessGrantResult = SystemBrowserAccessGrantCreateResponse;
 type SystemBrowserExternalAccessArgs = SystemBrowserExternalAccessRequest;
 type SystemBrowserExternalAccessResult = SystemBrowserExternalAccessResponse;
 type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
@@ -13033,6 +13094,19 @@ interface SystemArea {
      * thread and changes nothing unless the user allows it.
      */
     setBrowserExternalAccess(args: SystemBrowserExternalAccessArgs): Promise<SystemBrowserExternalAccessResult>;
+    /** Every browser access grant, live and revoked. Never their credentials. */
+    browserAccessGrants(): Promise<SystemBrowserAccessGrantsResult>;
+    /**
+     * Mint a credential that opens the browser for one agent outside Patcher, and
+     * nothing else.
+     *
+     * The one call that answers with a credential, which is why it is refused
+     * inside a turn: a grant outlives the turn a thread key dies with. See
+     * `agent-route-policy.ts` in the server.
+     */
+    createBrowserAccessGrant(args: SystemCreateBrowserAccessGrantArgs): Promise<SystemCreateBrowserAccessGrantResult>;
+    /** Take a grant back. The next request presenting it is refused. */
+    revokeBrowserAccessGrant(grantId: string): Promise<SystemBrowserAccessGrantsResult>;
     updateKeyboardSettings(args: AppKeybindingOverrides): Promise<SystemUpdateKeyboardSettingsResult>;
     /** Report one onboarding funnel event to anonymous telemetry. */
     onboardingEvent(args: OnboardingTelemetryEvent): Promise<{

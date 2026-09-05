@@ -17,6 +17,7 @@ import {
 import { threadVisibilityValues } from "@patcher/domain/thread-visibility";
 import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "@patcher/domain/browser-search-engine";
 import type {
+  BrowserAccessGrantLevel,
   EnvironmentStatus,
   EnvSetupScriptConsentStatus,
   FaviconColorPreference,
@@ -285,6 +286,47 @@ export const appSettings = sqliteTable("app_settings", {
 // Installed plugins registered by `patcher plugin install`. Rows hold durable
 // registration facts only; live status (running/error/…) is plugin-loader
 // memory served via GET /api/v1/plugins.
+/**
+ * Credentials handed to agents that are not Patcher's, one row each.
+ *
+ * The row *is* the lifetime. A grant's key is derived from the app key and this
+ * id (`agent-access-key.ts` in @patcher/config), so nothing stores the string
+ * and nothing has to expire it: a request presenting one is accepted while this
+ * row exists and `revoked_at` is null, and revoking is a person taking it back
+ * rather than a clock running out. That is the same shape a terminal
+ * credential's lifetime has, chosen for the same reason — an agent keeps the
+ * string it was given, so the thing that ends it must be something the person
+ * can see and end.
+ *
+ * Revoked rather than deleted, so a list can say what was taken back and when.
+ * A revoked row's id is never reissued, so the credential that named it stays
+ * dead.
+ *
+ * `last_used_at` is the one field here that is not a decision — it is what makes
+ * a list of grants answerable ("is anything still using this?"). Written at most
+ * once a minute per grant rather than per request, because a screenshot loop is
+ * a lot of requests and none of them is a different answer.
+ */
+export const browserAccessGrants = sqliteTable(
+  "browser_access_grants",
+  {
+    id: text("id").primaryKey(),
+    /** What the person called it, so a list is answerable a month later. */
+    label: text("label").notNull(),
+    /** How far this grant reaches; never `off` — see the domain schema. */
+    level: text("level").$type<BrowserAccessGrantLevel>().notNull(),
+    createdAt: integer("created_at").notNull(),
+    lastUsedAt: integer("last_used_at"),
+    revokedAt: integer("revoked_at"),
+  },
+  (table) => [
+    index("browser_access_grants_revoked_created_idx").on(
+      table.revokedAt,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const installedPlugins = sqliteTable("plugins", {
   id: text("id").primaryKey(),
   /** Legacy display/diagnostic spec. Normalized columns below are authoritative. */

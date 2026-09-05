@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 
 import type { ContextSnapshot } from "./context-env.js";
+import { registerAgentAccessCommands } from "./commands/agent-access.js";
 import { registerEnvironmentCommands } from "./commands/environment.js";
 import { registerFileCommands } from "./commands/file.js";
 import { registerGuideCommand } from "./commands/guide.js";
@@ -39,6 +40,7 @@ export function registerPatcherCommands(
   const { getUrl, getContext } = dependencies;
   registerStatusCommand(program, getUrl, getContext);
   registerSettingsCommands(program, getUrl);
+  registerAgentAccessCommands(program, getUrl);
   registerProjectCommands(program, getUrl);
   registerProviderCommands(program, getUrl);
   registerManagerCommands(program, getUrl);

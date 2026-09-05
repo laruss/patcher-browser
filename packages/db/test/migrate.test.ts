@@ -4,7 +4,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publishedMigrationWhensByTag } from "../src/migration-history.js";
 import {
+  dropBrowserAccessGrantsTable,
   dropBrowserExternalAccessColumn,
+  dropProjectGitRemoteUrlColumn,
   dropBrowserSearchEngineIdColumn,
   dropCodexNetworkDisabledColumn,
   dropHostMaxPermissionModeColumn,
@@ -17,7 +19,7 @@ import {
   dropToolsHubExperimentColumn,
   restorePluginsExperimentColumn,
   restoreSideChatPluginExperimentColumn,
-} from "./migrate-column-rewinds.js";
+} from "./migrate-rewinds.js";
 import {
   createQueuedThreadMessage,
   createThread,
@@ -359,6 +361,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropCodexNetworkDisabledColumn(db);
   dropProviderEgressColumns(db);
   dropBrowserExternalAccessColumn(db);
+  dropBrowserAccessGrantsTable(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -626,15 +629,6 @@ function dropPost0023Tables(db: DbConnection): void {
   }
 
   dropThreadSectionSchema(db);
-}
-
-function dropProjectGitRemoteUrlColumn(db: DbConnection): void {
-  const columns = db.$client
-    .prepare<[], TableInfoRow>("PRAGMA table_info(projects)")
-    .all();
-  if (columns.some((column) => column.name === "git_remote_url")) {
-    db.$client.prepare("ALTER TABLE projects DROP COLUMN git_remote_url").run();
-  }
 }
 
 /**
@@ -1304,6 +1298,7 @@ describe("migrate", () => {
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
     dropBrowserExternalAccessColumn(db);
+    dropBrowserAccessGrantsTable(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
     dropTerminalSandboxedColumn(db);
@@ -1406,6 +1401,7 @@ describe("migrate", () => {
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
     dropBrowserExternalAccessColumn(db);
+    dropBrowserAccessGrantsTable(db);
 
     migrate(db);
 
@@ -1674,6 +1670,7 @@ describe("migrate", () => {
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
       dropBrowserExternalAccessColumn(db);
+      dropBrowserAccessGrantsTable(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2078,6 +2075,7 @@ describe("migrate", () => {
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
       dropBrowserExternalAccessColumn(db);
+      dropBrowserAccessGrantsTable(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2179,6 +2177,7 @@ describe("migrate", () => {
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
       dropBrowserExternalAccessColumn(db);
+      dropBrowserAccessGrantsTable(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);

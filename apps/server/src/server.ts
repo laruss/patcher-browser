@@ -23,6 +23,9 @@ import {
 } from "@patcher/config/local-app-origins";
 import type { AppDeps, ServerAppDeps } from "./types.js";
 import { agentRoutePolicyDenial } from "./agent-route-policy.js";
+import { setAgentAccessCaller } from "./agent-access-context.js";
+import { createAgentAccessIdentity } from "./agent-access-identity.js";
+import { agentAccessRoutePolicyDenial } from "./agent-access-route-policy.js";
 import { createAppApiIdentity } from "./app-identity.js";
 import { setPluginApiId } from "./plugin-api-identity-context.js";
 import { createThreadApiIdentity } from "./thread-identity.js";
@@ -312,6 +315,13 @@ export function createApp(
     appApiKey: deps.appApiKey,
     db: deps.db,
   });
+  // The fourth caller, and the db comes along for the same reason: a grant's
+  // credential is accepted while its row exists and has not been revoked. See
+  // agent-access-identity.ts.
+  const agentAccessIdentity = createAgentAccessIdentity({
+    appApiKey: deps.appApiKey,
+    db: deps.db,
+  });
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });
@@ -535,6 +545,42 @@ export function createApp(
           throw new ApiError(403, "forbidden", terminalDenial.message);
         }
         setAgentThreadId(context, threadId);
+        return next();
+      }
+      // The fourth kind of caller: an agent that is not Patcher's, holding a
+      // grant a person issued for the browser. Checked after the thread — the
+      // two credentials are different shapes and cannot be confused, and a
+      // turn's is the narrower claim about *this* install — and before the app
+      // key, because a grant holder must never fall through to being the app.
+      const agentAccess = agentAccessIdentity.resolve(context.req);
+      if (agentAccess.kind === "refused") {
+        // A credential this install issued and will no longer accept. Said
+        // rather than collapsed into the app key's bare 401, because the one
+        // thing worth reporting is the one thing the caller cannot see: the
+        // grant was revoked, or is gone.
+        deps.logger.warn(
+          { path: context.req.path },
+          "Refused a browser access grant",
+        );
+        throw new ApiError(401, "unauthorized", agentAccess.reason, false);
+      }
+      if (agentAccess.kind === "accepted") {
+        const grantDenial = agentAccessRoutePolicyDenial({
+          method: context.req.method,
+          path: context.req.path,
+        });
+        if (grantDenial !== null) {
+          deps.logger.warn(
+            {
+              grantId: agentAccess.caller.grantId,
+              method: context.req.method,
+              path: context.req.path,
+            },
+            "Refused a browser access grant outside its two routes",
+          );
+          throw new ApiError(403, "forbidden", grantDenial);
+        }
+        setAgentAccessCaller(context, agentAccess.caller);
         return next();
       }
       // Two exceptions, and they have to be: a plugin's own HTTP routes are

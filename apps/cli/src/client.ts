@@ -4,6 +4,7 @@ import {
 } from "@patcher/config/app-key";
 import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { toOptionalString } from "@patcher/config/strings";
+import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import {
   createNodePatcherSdk,
@@ -11,6 +12,7 @@ import {
   type PatcherSdkContext,
 } from "@patcher/sdk/node";
 import {
+  PATCHER_AGENT_KEY_HEADER,
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
 } from "@patcher/server-contract";
@@ -50,6 +52,24 @@ function cachedThreadApiKey(): string | undefined {
 }
 
 /**
+ * The key that says this is an agent outside Patcher, holding a browser grant.
+ *
+ * Present only where a person put it: an MCP server's `env`, a shell that
+ * exported it, a shim written by `patcher agent-access grant`. Like the thread
+ * key it *replaces* the app key rather than joining it — a process that has
+ * been handed a credential for the browser must not go and read the master one
+ * off disk, or the narrower credential would have bought nothing.
+ *
+ * A caller that sets both this and a thread key is inside a turn and is
+ * something else's agent at the same time, which is not a case Patcher creates.
+ * The thread key wins below, because it is the identity this install issued for
+ * work it is watching.
+ */
+function cachedAgentAccessKey(): string | undefined {
+  return toOptionalString(process.env[PATCHER_AGENT_KEY_ENV]);
+}
+
+/**
  * The app key for the two sockets, or nothing when this CLI is an agent's.
  *
  * `/ws` and `/ws/terminals/:id` both take the app key, and an agent is not the
@@ -60,7 +80,10 @@ function cachedThreadApiKey(): string | undefined {
  * gives an agent too.
  */
 function cliSocketAppKey(): string | undefined {
-  return cachedThreadApiKey() === undefined ? cachedAppApiKey() : undefined;
+  return cachedThreadApiKey() === undefined &&
+    cachedAgentAccessKey() === undefined
+    ? cachedAppApiKey()
+    : undefined;
 }
 
 /**
@@ -92,8 +115,14 @@ export function cliFetch(
 ): Promise<Response> {
   const threadId = declaredThreadId();
   const threadKey = cachedThreadApiKey();
+  const agentKey = threadKey === undefined ? cachedAgentAccessKey() : undefined;
   const key = cliSocketAppKey();
-  if (threadId === undefined && threadKey === undefined && key === undefined) {
+  if (
+    threadId === undefined &&
+    threadKey === undefined &&
+    agentKey === undefined &&
+    key === undefined
+  ) {
     return fetch(input, init);
   }
   // Seeded from the `Request` when the caller built one and named no init
@@ -108,6 +137,9 @@ export function cliFetch(
   }
   if (threadKey !== undefined && !headers.has(PATCHER_THREAD_KEY_HEADER)) {
     headers.set(PATCHER_THREAD_KEY_HEADER, threadKey);
+  }
+  if (agentKey !== undefined && !headers.has(PATCHER_AGENT_KEY_HEADER)) {
+    headers.set(PATCHER_AGENT_KEY_HEADER, agentKey);
   }
   if (key !== undefined && !headers.has(PATCHER_APP_KEY_HEADER)) {
     headers.set(PATCHER_APP_KEY_HEADER, key);

@@ -16,6 +16,7 @@ import type {
   WorkspaceOpenTarget,
   WorkspaceOpenTargetId,
 } from "@patcher/host-daemon-contract";
+import type { SystemBrowserAccessGrant } from "@patcher/server-contract";
 import { Button } from "@patcher/shared-ui/button";
 import { Icon } from "@patcher/shared-ui/icon";
 import { Input } from "@patcher/shared-ui/input";
@@ -56,12 +57,16 @@ import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsS
 import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedThreadsSettingsSection";
 import { CliSkillsSettingsSection } from "@/components/settings/CliSkillsSettingsSection";
 import {
+  useRevokeBrowserAccessGrant,
   useSetBrowserExternalAccess,
   useUpdateGeneralSettings,
   useUpdateAppearance,
   useUpdateExperiments,
 } from "@/hooks/mutations/settings-mutations";
-import { useSystemConfig } from "@/hooks/queries/system-queries";
+import {
+  useBrowserAccessGrants,
+  useSystemConfig,
+} from "@/hooks/queries/system-queries";
 import { useWorkspaceOpenTargets } from "@/hooks/useWorkspaceOpenTargets";
 import { isDesktopBrowserAvailable } from "@/lib/patcher-desktop";
 import { useBrowserSearchEngineOptions } from "@/lib/browser-search-engine";
@@ -183,6 +188,9 @@ export interface GeneralSettingsSectionProps {
   browserExternalAccess: BrowserExternalAccessLevel;
   browserExternalAccessDisabled: boolean;
   onBrowserExternalAccessChange: (level: BrowserExternalAccessLevel) => void;
+  browserAccessGrants: readonly SystemBrowserAccessGrant[];
+  revokingBrowserAccessGrantId: string | null;
+  onRevokeBrowserAccessGrant: (grantId: string) => void;
   browserSearchEngineId: string;
   onBrowserSearchEngineChange: (engineId: string) => void;
   caffeinateAvailable: boolean;
@@ -982,7 +990,7 @@ export function BrowserExternalAccessSettingsControl({
     <div className="space-y-2.5">
       <SettingsWithControl
         label="Agents outside Patcher"
-        description="Whether agents and terminals outside Patcher can drive this browser with `patcher browser`. Threads inside Patcher are gated by the Browser tools plugin instead."
+        description="How far agents and terminals outside Patcher can drive this browser with `patcher browser` when they hold no grant of their own. Threads inside Patcher are gated by the Browser tools plugin instead."
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1032,10 +1040,101 @@ export function BrowserExternalAccessSettingsControl({
   );
 }
 
+export interface BrowserAccessGrantsSettingsControlProps {
+  grants: readonly SystemBrowserAccessGrant[];
+  revokingGrantId: string | null;
+  onRevoke: (grantId: string) => void;
+}
+
+/** Never, or the day it last happened. Nobody reads a browser grant to the second. */
+function formatGrantDay(at: number | null): string {
+  return at === null
+    ? "never used"
+    : `last used ${new Date(at).toLocaleDateString()}`;
+}
+
+/**
+ * The credentials this install has handed to agents that are not Patcher's.
+ *
+ * Read and revoke, and deliberately not issue. Issuing answers with a string
+ * that has to reach an agent's configuration, and `patcher agent-access grant
+ * --for claude-code` puts it there in one command — a panel that printed the
+ * string instead would be a worse way to do the same thing, and would put a
+ * live credential on screen for no one's benefit. Revoking is the half that
+ * belongs here, because it is the half somebody does in a hurry and the whole
+ * reason a grant is a row rather than a token with an expiry.
+ *
+ * Revoked grants stay listed, greyed. What was taken back and when is the
+ * question somebody comes to this list with.
+ */
+export function BrowserAccessGrantsSettingsControl({
+  grants,
+  revokingGrantId,
+  onRevoke,
+}: BrowserAccessGrantsSettingsControlProps) {
+  return (
+    <div className="space-y-2.5">
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Browser access grants</p>
+        <p className="text-xs text-subtle-foreground">
+          Credentials that open this browser for one agent outside Patcher and
+          nothing else in Patcher. They work whatever the setting above says,
+          and they last until you revoke them. Issue one with{" "}
+          <code className="text-[0.95em]">patcher agent-access grant</code>.
+        </p>
+      </div>
+      {grants.length === 0 ? (
+        <p className="text-xs text-subtle-foreground">
+          No grants have been issued.
+        </p>
+      ) : (
+        <ul className="divide-y divide-border rounded-md border border-border">
+          {grants.map((grant) => (
+            <li
+              key={grant.id}
+              className="flex items-center gap-3 px-3 py-2 text-xs"
+            >
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    "truncate font-medium",
+                    grant.revokedAt !== null && "text-muted-foreground",
+                  )}
+                >
+                  {grant.label}
+                </p>
+                <p className="truncate text-subtle-foreground">
+                  {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[grant.level].label} ·{" "}
+                  {grant.revokedAt === null
+                    ? formatGrantDay(grant.lastUsedAt)
+                    : `revoked ${new Date(grant.revokedAt).toLocaleDateString()}`}
+                </p>
+              </div>
+              {grant.revokedAt === null ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={revokingGrantId === grant.id}
+                  onClick={() => onRevoke(grant.id)}
+                >
+                  Revoke
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function GeneralSettingsSection({
   browserExternalAccess,
   browserExternalAccessDisabled,
   onBrowserExternalAccessChange,
+  browserAccessGrants,
+  revokingBrowserAccessGrantId,
+  onRevokeBrowserAccessGrant,
   browserSearchEngineId,
   onBrowserSearchEngineChange,
   caffeinateAvailable,
@@ -1111,6 +1210,14 @@ export function GeneralSettingsSection({
             disabled={browserExternalAccessDisabled}
             level={browserExternalAccess}
             onLevelChange={onBrowserExternalAccessChange}
+          />
+        ) : null}
+
+        {desktopBrowserAvailable ? (
+          <BrowserAccessGrantsSettingsControl
+            grants={browserAccessGrants}
+            revokingGrantId={revokingBrowserAccessGrantId}
+            onRevoke={onRevokeBrowserAccessGrant}
           />
         ) : null}
 
@@ -1370,6 +1477,12 @@ export function SettingsView() {
     systemConfigQuery.data?.generalSettings ?? defaultAppSettings;
   const updateGeneralSettingsMutation = useUpdateGeneralSettings();
   const setBrowserExternalAccessMutation = useSetBrowserExternalAccess();
+  // Only where the browser exists: on web the whole browser block is hidden, and
+  // asking for grants there would be a request nothing renders.
+  const browserAccessGrantsQuery = useBrowserAccessGrants({
+    enabled: desktopBrowserAvailable,
+  });
+  const revokeBrowserAccessGrantMutation = useRevokeBrowserAccessGrant();
   const appearance = systemConfigQuery.data?.appearance ?? defaultAppTheme;
   const updateAppearanceMutation = useUpdateAppearance();
   const { activePluginId, activeProviderId, activeSection, hasUnknownSection } =
@@ -1551,6 +1664,15 @@ export function SettingsView() {
           }
           onBrowserExternalAccessChange={(level) =>
             setBrowserExternalAccessMutation.mutate({ level })
+          }
+          browserAccessGrants={browserAccessGrantsQuery.data?.grants ?? []}
+          revokingBrowserAccessGrantId={
+            revokeBrowserAccessGrantMutation.isPending
+              ? (revokeBrowserAccessGrantMutation.variables ?? null)
+              : null
+          }
+          onRevokeBrowserAccessGrant={(grantId) =>
+            revokeBrowserAccessGrantMutation.mutate(grantId)
           }
           browserSearchEngineId={generalSettings.browserSearchEngineId}
           providerEgressConfined={generalSettings.providerEgressConfined}

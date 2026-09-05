@@ -13,6 +13,9 @@ import type {
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
+  SystemBrowserAccessGrantCreateRequest,
+  SystemBrowserAccessGrantCreateResponse,
+  SystemBrowserAccessGrantListResponse,
   SystemBrowserExternalAccessRequest,
   SystemBrowserExternalAccessResponse,
   SystemCliSkillsStatusResponse,
@@ -72,6 +75,12 @@ export type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 export type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 export type SystemUpdateExperimentsResult = Experiments;
 export type SystemUpdateGeneralSettingsResult = AppSettings;
+export type SystemBrowserAccessGrantsResult =
+  SystemBrowserAccessGrantListResponse;
+export type SystemCreateBrowserAccessGrantArgs =
+  SystemBrowserAccessGrantCreateRequest;
+export type SystemCreateBrowserAccessGrantResult =
+  SystemBrowserAccessGrantCreateResponse;
 export type SystemBrowserExternalAccessArgs =
   SystemBrowserExternalAccessRequest;
 export type SystemBrowserExternalAccessResult =
@@ -125,6 +134,23 @@ export interface SystemArea {
   setBrowserExternalAccess(
     args: SystemBrowserExternalAccessArgs,
   ): Promise<SystemBrowserExternalAccessResult>;
+  /** Every browser access grant, live and revoked. Never their credentials. */
+  browserAccessGrants(): Promise<SystemBrowserAccessGrantsResult>;
+  /**
+   * Mint a credential that opens the browser for one agent outside Patcher, and
+   * nothing else.
+   *
+   * The one call that answers with a credential, which is why it is refused
+   * inside a turn: a grant outlives the turn a thread key dies with. See
+   * `agent-route-policy.ts` in the server.
+   */
+  createBrowserAccessGrant(
+    args: SystemCreateBrowserAccessGrantArgs,
+  ): Promise<SystemCreateBrowserAccessGrantResult>;
+  /** Take a grant back. The next request presenting it is refused. */
+  revokeBrowserAccessGrant(
+    grantId: string,
+  ): Promise<SystemBrowserAccessGrantsResult>;
   updateKeyboardSettings(
     args: AppKeybindingOverrides,
   ): Promise<SystemUpdateKeyboardSettingsResult>;
@@ -234,6 +260,23 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async setBrowserExternalAccess(input) {
       return transport.readJson(
         transport.api.v1.browser["external-access"].$post({ json: input }),
+      );
+    },
+    async browserAccessGrants() {
+      return transport.readJson(
+        transport.api.v1.browser["access-grants"].$get(),
+      );
+    },
+    async createBrowserAccessGrant(input) {
+      return transport.readJson(
+        transport.api.v1.browser["access-grants"].$post({ json: input }),
+      );
+    },
+    async revokeBrowserAccessGrant(grantId) {
+      return transport.readJson(
+        transport.api.v1.browser["access-grants"][":id"].$delete({
+          param: { id: grantId },
+        }),
       );
     },
     async updateKeyboardSettings(input) {

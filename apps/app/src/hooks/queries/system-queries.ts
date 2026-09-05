@@ -5,6 +5,7 @@ import {
 } from "@patcher/agent-providers";
 import { toRecord } from "@patcher/core-ui";
 import type {
+  SystemBrowserAccessGrantListResponse,
   SystemCliSkillsStatusResponse,
   SystemConfigResponse,
   SystemExecutionOptionsResponse,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/claude-model-catalog-cache";
 import { useSystemRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import {
+  browserAccessGrantsQueryKey,
   hostProviderCliStatusQueryKey,
   systemCliSkillsQueryKey,
   onboardingAgentsQueryKey,
@@ -182,6 +184,22 @@ export function useCliSkillsStatus(options?: QueryOptions) {
   return useQuery<SystemCliSkillsStatusResponse>({
     queryKey: systemCliSkillsQueryKey(),
     queryFn: ({ signal }) => sdk.system.cliSkillsStatus({ signal }),
+    enabled: options?.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Every browser access grant, live and revoked.
+ *
+ * Fetched on demand rather than kept warm: it is read on one settings section
+ * and nowhere else, and the answer changes only when somebody here issues or
+ * revokes one.
+ */
+export function useBrowserAccessGrants(options?: QueryOptions) {
+  return useQuery<SystemBrowserAccessGrantListResponse>({
+    queryKey: browserAccessGrantsQueryKey(),
+    queryFn: () => sdk.system.browserAccessGrants(),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
   });
