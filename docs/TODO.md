@@ -157,6 +157,18 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 ## Core-only, structural
 
+- **Nothing shows that an agent outside Patcher is driving the browser.** The
+  level in [architecture/browser-external-access.md](architecture/browser-external-access.md)
+  decides whether it may; nothing says when it does. Electron draws no "this
+  browser is being controlled" banner — unlike Chrome — so whatever the app shows
+  is the only signal there is, and today it shows nothing. The wire is where it
+  is blocked rather than the UI: `browser-command-request` carries a request id
+  and a command and no sender, and the executor in the app signs everything with
+  one scope id, so the app could not tell the user who was driving even if it
+  wanted to. That is a nullable field on a wire that ships with the server, not a
+  frozen one, so the cost is a field and a chip in the browser chrome. Worth
+  doing next: a gate the user sets is a decision, and a decision nobody can see
+  being exercised is half a feature.
 - **An audio indicator** — "this tab is making noise" is Chromium's observation,
   and the shell would have to report it. Muting is done; the indicator is not
   ([architecture/browser-surface.md](architecture/browser-surface.md)).

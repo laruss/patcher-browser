@@ -343,6 +343,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropBrowserSearchEngineIdColumn(db);
   dropCodexNetworkDisabledColumn(db);
   dropProviderEgressColumns(db);
+  dropBrowserExternalAccessColumn(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -636,6 +637,23 @@ function dropProviderEgressColumns(db: DbConnection): void {
         .prepare(`ALTER TABLE app_settings DROP COLUMN ${column}`)
         .run();
     }
+  }
+}
+
+/**
+ * Migration 0101 adds the level that decides how far an agent outside Patcher
+ * may drive the browser. Rewound with the same neighbours: these tests build a
+ * database at the current schema and walk it *backwards*, so every column added
+ * since the checkpoint has to come off or the replay hits "duplicate column".
+ */
+function dropBrowserExternalAccessColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
+    .all();
+  if (columns.some((column) => column.name === "browser_external_access")) {
+    db.$client
+      .prepare("ALTER TABLE app_settings DROP COLUMN browser_external_access")
+      .run();
   }
 }
 
@@ -1444,6 +1462,7 @@ describe("migrate", () => {
     dropBrowserSearchEngineIdColumn(db);
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
+    dropBrowserExternalAccessColumn(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
     dropTerminalSandboxedColumn(db);
@@ -1545,6 +1564,7 @@ describe("migrate", () => {
     dropTerminalSandboxedColumn(db);
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
+    dropBrowserExternalAccessColumn(db);
 
     migrate(db);
 
@@ -1812,6 +1832,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
+      dropBrowserExternalAccessColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2215,6 +2236,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
+      dropBrowserExternalAccessColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2315,6 +2337,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
+      dropBrowserExternalAccessColumn(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);

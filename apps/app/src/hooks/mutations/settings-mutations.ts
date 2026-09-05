@@ -10,7 +10,7 @@ import type {
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
-import { allPluginListQueryKeyPrefix } from "../queries/plugin-settings-queries";
+import { invalidatePluginList } from "../cache-owners/plugin-cache-owner";
 import {
   invalidateGeneralSettingsDependencies,
   invalidateSystemConfig,
@@ -80,9 +80,7 @@ export function useSetBrowserExternalAccess() {
       sdk.system.setBrowserExternalAccess(args),
     onSuccess: () => {
       invalidateGeneralSettingsDependencies({ queryClient });
-      void queryClient.invalidateQueries({
-        queryKey: allPluginListQueryKeyPrefix(),
-      });
+      void invalidatePluginList({ queryClient });
     },
   });
 }

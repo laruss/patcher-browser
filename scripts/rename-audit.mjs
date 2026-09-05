@@ -197,7 +197,7 @@ const ALLOW = [
     // token elsewhere still fails.
     why: "the pre-rename artifact, skill and storage names, used to reach installations that still carry them",
     word: /^(?:bb|bb-app|bb-era|bb-cli|bb-plugin-authoring)$/u,
-    path: /^(?:apps\/server\/src\/(?:server\.ts|internal\/session\.ts)|apps\/server\/test\/(?:app\/skeleton|public\/public-host-management)\.test\.ts|apps\/host-daemon\/src\/command-handlers\/install-global-skills(?:\.test)?\.ts|apps\/app\/src\/lib\/(?:legacy-storage-adoption(?:\.test)?|host-update-status\.test)\.ts|apps\/app\/src\/components\/sidebar\/sidebarCollapsedAtoms\.ts|packages\/host-daemon-contract\/src\/commands\.ts)$/u,
+    path: /^(?:apps\/server\/src\/(?:server\.ts|internal\/session\.ts)|apps\/server\/test\/(?:app\/skeleton|public\/public-host-management)\.test\.ts|apps\/host-daemon\/src\/(?:local-agent-setup\.ts|command-handlers\/install-global-skills(?:\.test)?\.ts)|apps\/app\/src\/lib\/(?:legacy-storage-adoption(?:\.test)?|host-update-status\.test)\.ts|apps\/app\/src\/components\/sidebar\/sidebarCollapsedAtoms\.ts|packages\/host-daemon-contract\/src\/commands\.ts|docs\/architecture\/browser-external-access\.md)$/u,
   },
 
   // --- History: things that happened under the old name --------------------

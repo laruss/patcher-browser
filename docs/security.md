@@ -1358,6 +1358,26 @@ site while you are signed in to it. That is what makes plugins useful and it is
 also the whole risk: read the site list on the consent prompt, not just the
 permission list.
 
+**Agents outside Patcher are closed out of it by default.** `patcher browser`
+runs in the server process as a plugin CLI command, so anything on the machine
+that can reach the local API can run it — Claude Code, Codex, a script, you. A
+turn inside Patcher is gated by the `browser-tools` toggle and the prompt behind
+it; a caller with no thread had no gate at all, and enabled the plugin without
+asking anyone. **Settings → General → Agents outside Patcher** is that gate:
+`off` by default, then `read` (tabs, page text, screenshots, logs), `interact`
+(navigating, clicking, typing) and `full` (cookies and site storage, JavaScript
+in the page, network mocking, recording). Ask for the lowest level that does the
+job; the browser holds your logins, and `full` hands over a session that can
+leave the machine. `patcher settings browser-access <level>` is the same switch,
+and run from inside a thread it raises a prompt instead of taking effect.
+
+The refusal is decided before the command is sent, so it means the page was never
+touched. It is **not** a boundary against a process holding the app key, which
+can write that setting as easily as read it — the same limit the section below
+describes. What it buys is that the browser is shut by default and opening it is
+your decision. See
+[browser-external-access.md](architecture/browser-external-access.md).
+
 Popups are real windows for the browser surface's tabs, which is what makes
 "Sign in with…" flows work — see
 [browser-surface.md](architecture/browser-surface.md) for the popup policy and

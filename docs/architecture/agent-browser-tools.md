@@ -68,6 +68,14 @@ the user allows it — see
 The builtin `patcher-browser` skill is what tells an agent all of this before it
 goes looking.
 
+**The toggle is the whole gate for a thread, and it is no longer the whole gate
+for anything else.** It answers a question about *Patcher's own* agents, while
+`patcher browser` below can be run by anything on the machine — and "run from
+inside a thread" is exactly the condition that raises the prompt above, so a
+caller with no thread had nothing standing in front of it at all. A second gate
+decides that case now, per browser command, from a setting the user owns:
+[browser-external-access.md](browser-external-access.md).
+
 ## The constraint everything else bends around
 
 **A tab only has a native view once it has been the active tab while the browser
@@ -185,7 +193,11 @@ tools' handlers execute — so this drives the whole chain (server → hub →
 WebSocket → app → executor → Electron) and leaves only the `registerTool`
 wrapper untested, which is what the plugin's unit tests cover. `status` exits
 non-zero when nothing is connected, so a script can gate on it, and failures
-print the same sentences the agent is given.
+print the same sentences the agent is given. It exits non-zero when the caller is
+not *allowed* to drive the browser too — "a window is up" and "I may use it"
+stopped being the same question once
+[browser-external-access.md](browser-external-access.md)'s level existed, and
+`getStatus` cannot see the difference because it never leaves the process.
 
 That makes the first diagnostic question answerable in one command: if
 `patcher browser tabs` works and a tool does not, the bridge is fine.
