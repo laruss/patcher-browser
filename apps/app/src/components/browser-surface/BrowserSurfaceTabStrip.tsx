@@ -375,6 +375,10 @@ function BrowserSurfaceTabStripTab({
   tabActions,
 }: BrowserSurfaceTabStripTabProps) {
   const label = browserSurfaceTabLabel(tab);
+  const pinnedLabel =
+    owner === null
+      ? label
+      : `${label} — ${browserIssuerName(owner)} is working in this tab`;
   const isApp = isAppSurfaceTab(tab);
   const isPinned = isPinnedSurfaceTab(tab);
   const { isDragging, listeners, setNodeRef, transform, transition } =
@@ -431,8 +435,13 @@ function BrowserSurfaceTabStripTab({
             role="tab"
             aria-selected={isActive}
             // The name a pinned tab does not show still has to be reachable —
-            // by a screen reader, and by hovering.
-            {...(isPinned ? { "aria-label": label, title: label } : {})}
+            // by a screen reader, and by hovering. An explicit label *replaces*
+            // what the marks inside would have contributed, so whose tab it is
+            // has to be said here too; an unpinned tab has no label of its own
+            // and composes them. Found by review.
+            {...(isPinned
+              ? { "aria-label": pinnedLabel, title: pinnedLabel }
+              : {})}
             onClick={() => {
               onActivate(tab.id);
             }}

@@ -488,6 +488,36 @@ describe("browser surface tab menu", () => {
     );
   });
 
+  it("says whose a pinned tab is, which shows no title to hang a mark on", () => {
+    // A pinned tab labels itself explicitly, and an explicit label replaces
+    // what the marks inside would have contributed — so a screen reader heard
+    // the page title and nothing about the agent working in it.
+    renderStrip(
+      [{ ...browserTab("tab-1", "A"), pinned: true }],
+      {},
+      new Set(),
+      {
+        tabOwners: new Map([
+          [
+            "tab-1",
+            {
+              kind: "grant" as const,
+              grantId: "grant_1",
+              label: "Claude Code",
+              level: "read" as const,
+            },
+          ],
+        ]),
+      },
+    );
+
+    expect(
+      screen.getByRole("tab", {
+        name: "A — Claude Code is working in this tab",
+      }),
+    ).not.toBeNull();
+  });
+
   it("offers a tab back from the agent holding it, by name", () => {
     const held = renderStrip([browserTab("tab-1", "A")], {}, new Set(), {
       tabOwners: new Map([
