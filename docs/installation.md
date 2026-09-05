@@ -114,19 +114,24 @@ the launcher, the CLI, the Node SDK, provider credentials, and configuration.
 
 ### Getting `patcher` onto your PATH
 
-Whichever way you installed, the host daemon writes a shim at
-`~/.patcher/bin/patcher` when it starts — the same path for the desktop app, an
-`npx patcher-app` install and a source checkout, which is what makes it something
-to write down. (A source checkout's data directory is under `~/.patcher-dev/`,
-and `PATCHER_DATA_DIR` moves it.) Nothing edits your shell profile, so add it
-yourself if you want the bare command:
+Whichever way you installed, the host daemon writes a shim under its data
+directory when it starts — `~/.patcher/bin/patcher` for the desktop app and an
+`npx patcher-app` install, and `~/.patcher-dev/<checkout>/bin/patcher` for a
+source checkout (`PATCHER_DATA_DIR` moves it). Nothing edits your shell profile,
+so add it yourself if you want the bare command:
 
 ```bash
 export PATH="$HOME/.patcher/bin:$PATH"
 ```
 
-An agent running outside Patcher does not need that — it can call the absolute
-path — but it does need to be told the path exists, which is what the
+The shim carries that install's server URL and data directory, deferring to
+anything you have already exported — so a checkout's shim reaches the checkout's
+server rather than the default port, and you can still point a shell at another
+install. It does not carry the app key: the CLI reads that out of the data
+directory as it always has.
+
+An agent running outside Patcher does not need the PATH entry — it can call the
+absolute path — but it does need to be told the path exists, which is what the
 `patcher-browser` and `patcher-cli` skills do. Install them from
 **Settings → Skills**.
 

@@ -71,10 +71,25 @@ import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
  */
 const BROWSER_TOOLS_PLUGIN_ID = "browser-tools";
 
-function isBrowserToolsEnabled(pluginService: PluginService): boolean {
+/**
+ * Whether `patcher browser` would actually answer.
+ *
+ * The registered CLI command, not the persisted `enabled` bit. A plugin can be
+ * enabled in storage and still be `missing`, `incompatible` or `error` —
+ * `loadOne` records most load failures rather than throwing — and reporting
+ * such a plugin as enabled tells the CLI to suppress the very warning that
+ * would explain why `patcher browser` does nothing. The contribution is the
+ * thing the caller is about to use, so it is the thing to ask about.
+ */
+function isBrowserToolsServing(pluginService: PluginService): boolean {
   return pluginService
     .list()
-    .some((plugin) => plugin.id === BROWSER_TOOLS_PLUGIN_ID && plugin.enabled);
+    .some(
+      (plugin) =>
+        plugin.id === BROWSER_TOOLS_PLUGIN_ID &&
+        plugin.enabled &&
+        plugin.cliCommand !== null,
+    );
 }
 
 const CUSTOM_ACP_LOGO_CONTENT_TYPES = {
@@ -209,7 +224,18 @@ export function registerSystemRoutes(
   });
 
   put(routes.generalSettings, (context, payload) => {
-    setAppSettings(deps.db, payload);
+    // The browser level is not this route's to write, even though it rides in
+    // the same object. Two reasons, and the first is the one that bites: this
+    // handler persists the payload wholesale, and the settings page holds its
+    // own copy — so toggling any other option while the browser mutation was
+    // still in flight would send a stale level and silently put it back. The
+    // second is that the dedicated route does more than write (it enables the
+    // plugin) and asks more than this one (it raises a prompt inside a turn),
+    // so a write that arrives here has been through neither.
+    setAppSettings(deps.db, {
+      ...payload,
+      browserExternalAccess: getAppSettings(deps.db).browserExternalAccess,
+    });
     deps.hub.notifySystem(["config-changed"]);
     schedulePrimaryHostCaffeinateReconciliation(deps, {
       reason: "settings-updated",
@@ -251,12 +277,18 @@ export function registerSystemRoutes(
     if (!consent.allowed) {
       throw new ApiError(consent.status, "forbidden", consent.error);
     }
-    // Before the setting, not after: if enabling the plugin fails, the honest
-    // outcome is that nothing changed rather than a level nothing serves.
-    let browserToolsEnabled = isBrowserToolsEnabled(pluginService);
+    // The plugin first, then the level, and the order is chosen for which
+    // half-done state is survivable rather than for atomicity — these are two
+    // stores and this route is not a transaction. Enable-then-write leaves, on
+    // a failure, a plugin that is on with the level unchanged: nothing an agent
+    // outside Patcher gained, and the plugin toggle is the gate threads already
+    // had. Write-then-enable would leave the opposite — a level with nothing
+    // serving it — which reads to a caller as a feature that is on and broken.
+    // The reply says which of the two actually happened rather than assuming.
+    let browserToolsEnabled = isBrowserToolsServing(pluginService);
     if (level !== "off" && !browserToolsEnabled) {
       await pluginService.setEnabled(BROWSER_TOOLS_PLUGIN_ID, true);
-      browserToolsEnabled = isBrowserToolsEnabled(pluginService);
+      browserToolsEnabled = isBrowserToolsServing(pluginService);
     }
     setAppSettings(deps.db, {
       ...getAppSettings(deps.db),

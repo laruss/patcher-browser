@@ -135,13 +135,31 @@ with no `PATCHER_*` in its environment, there were four steps and help on none:
 | Get past the 401      | already good — names both env vars and the file | unchanged                                                          |
 | `patcher browser`     | `unknown command 'browser'`                    | names the plugins that are off, and how to look at one            |
 
-The shim is a two-line `sh` script that `exec`s the real binary. Not a copy,
-which goes stale on the next upgrade; not a symlink, because `import.meta.url` is
+The shim is a short `sh` script that `exec`s the real binary. Not a copy, which
+goes stale on the next upgrade; not a symlink, because `import.meta.url` is
 symlink-resolved and `argv[1]` is not, and this repository has already lost a
 release script to exactly that disagreement. It is **not** a PATH entry: writing
 into somebody's shell rc file is not this program's business, so the line is
 shown rather than written — and an agent handed the absolute path needs no PATH
 at all, which is the case it exists for.
+
+**It also carries the install it belongs to, and the first version did not.** A
+shim that only `exec`s hands the CLI whatever environment the caller had, which
+for an outside agent is nothing — so the CLI falls back to `127.0.0.1:38986` and
+`~/.patcher`. On a source checkout, whose port is derived from the checkout path,
+that is a different install, and the command reports "Patcher is not running"
+while Patcher is running. Review found it on 2026-09-05; it had been invisible
+because every by-hand check of this feature exported `PATCHER_SERVER_URL` and
+`PATCHER_DATA_DIR` itself, so the tests and the measurements were both blind to
+the case they existed for. The shim now exports the server URL, the data
+directory and the daemon port — each deferring to a value the caller already set,
+so pointing a shell at another install still works — and deliberately **not** the
+app key, which stays a `0600` file the CLI reads for itself.
+
+Which also settles what the skill can say. `~/.patcher/bin/patcher` is not a
+universal path: it moves with `PATCHER_DATA_DIR` and it is `~/.patcher-dev/…` in
+a checkout. So the skill carries a one-line `ls` over both, and says that more
+than one answer means more than one install rather than picking.
 
 `unknown command 'browser'` deserves its own note, because the fix is smaller
 than the obvious one. `browser-tools` provides `patcher browser`, and the CLI's

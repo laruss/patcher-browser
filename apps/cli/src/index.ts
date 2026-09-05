@@ -113,13 +113,21 @@ async function tryPluginCommandProxy(): Promise<void> {
   if (match === undefined) {
     // Disabled plugins contribute no commands, so falling through to commander
     // answers "unknown command" for a command that exists and is merely off.
-    const explanation = describeUnknownPluginCommand(
+    const advice = describeUnknownPluginCommand(
       candidate,
       await listDisabledPlugins(getUrl()),
     );
-    if (explanation !== null) {
-      console.error(explanation);
+    if (advice?.kind === "resolved") {
+      // The plugin is named, so this *is* the answer; commander's "unknown
+      // command" underneath would only contradict it.
+      console.error(advice.message);
       process.exit(1);
+    }
+    if (advice?.kind === "hint") {
+      // A guess, printed and then handed back: commander still owns the error
+      // and its "Did you mean …?", which is the right answer for a typo and the
+      // common case on any machine with a plugin switched off.
+      console.error(advice.message);
     }
     return;
   }

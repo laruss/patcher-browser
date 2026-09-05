@@ -269,8 +269,7 @@ describe("an unknown `patcher <command>`", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(
-        async () =>
-          new Response(JSON.stringify({ plugins }), { status: 200 }),
+        async () => new Response(JSON.stringify({ plugins }), { status: 200 }),
       ),
     );
   }
@@ -314,25 +313,41 @@ describe("an unknown `patcher <command>`", () => {
     await expect(listDisabledPlugins("http://localhost")).resolves.toEqual([]);
   });
 
-  it("names the plugin when the command is its id", () => {
-    const message = describeUnknownPluginCommand("connect", [
+  it("names the plugin, and owns the answer, when the command is its id", () => {
+    const advice = describeUnknownPluginCommand("connect", [
       { id: "connect", enabled: false, status: null, statusDetail: null },
     ]);
-    expect(message).toContain("patcher plugin enable connect");
+    // `resolved`: nothing is being guessed, so commander's "unknown command"
+    // must not follow it and contradict it.
+    expect(advice?.kind).toBe("resolved");
+    expect(advice?.message).toContain("patcher plugin enable connect");
   });
 
-  it("still explains when the command is not the plugin's id", () => {
+  it("hints, without taking the error over, when the command is not an id", () => {
     // The case this exists for, measured on 2026-09-05: `browser-tools`
     // provides `patcher browser`, so matching on the id alone left the most
     // likely first command an outside agent runs answering "unknown command",
     // which reads as "no such feature" rather than "it is switched off".
-    const message = describeUnknownPluginCommand("browser", [
+    const advice = describeUnknownPluginCommand("browser", [
       { id: "browser-tools", enabled: false, status: null, statusDetail: null },
     ]);
-    expect(message).not.toBeNull();
-    expect(message).toContain("browser-tools");
-    expect(message).toContain("only while that plugin is enabled");
-    expect(message).toContain("patcher plugin enable <id>");
+    expect(advice?.kind).toBe("hint");
+    expect(advice?.message).toContain("browser-tools");
+    expect(advice?.message).toContain("patcher plugin enable <id>");
+  });
+
+  it("leaves a typo to commander even while a plugin is off", () => {
+    // The regression the first version shipped: `browser-tools` is disabled by
+    // default, so *every* mistyped command on *every* machine took the plugin
+    // branch and lost commander's "unknown command 'statsu'. Did you mean
+    // status?". A hint is additive; only a named plugin replaces the error.
+    const advice = describeUnknownPluginCommand("statsu", [
+      { id: "browser-tools", enabled: false, status: null, statusDetail: null },
+    ]);
+    expect(advice?.kind).toBe("hint");
+    // Phrased as a possibility rather than a verdict, since it is one.
+    expect(advice?.message).toContain("If `statsu` is one of theirs");
+    expect(advice?.message).not.toContain("is provided by");
   });
 
   it("says nothing when every plugin is running", () => {
@@ -349,10 +364,10 @@ describe("an unknown `patcher <command>`", () => {
       status: null,
       statusDetail: null,
     }));
-    const message = describeUnknownPluginCommand("browser", disabled);
-    expect(message).toContain("plugin-5");
-    expect(message).not.toContain("plugin-6");
-    expect(message).toContain("and 6 more");
+    const advice = describeUnknownPluginCommand("browser", disabled);
+    expect(advice?.message).toContain("plugin-5");
+    expect(advice?.message).not.toContain("plugin-6");
+    expect(advice?.message).toContain("and 6 more");
   });
 });
 

@@ -220,37 +220,51 @@ export async function listDisabledPlugins(
 const NAMED_DISABLED_PLUGINS = 6;
 
 /**
- * What to print instead of commander's "unknown command", or null when there is
- * nothing better to say.
+ * What to say about an unknown command, and whether it is the whole answer.
  *
- * Two cases, and they deserve different sentences. A disabled plugin whose *id*
- * is the command follows the `patcher <id>` convention the builtins use, and can
- * be named exactly. Otherwise the command may still belong to a disabled plugin
- * under a different name — `browser-tools` provides `patcher browser` — and the
- * honest answer is the list plus how to look.
+ * `resolved` names the plugin: the command *is* a disabled plugin's id, which is
+ * the `patcher <id>` convention the builtins follow, so there is nothing left to
+ * guess and commander's "unknown command" would only contradict it.
+ *
+ * `hint` is a guess and says so. The command may belong to a disabled plugin
+ * under another name — `browser-tools` provides `patcher browser`, and a
+ * disabled plugin has registered nothing, so neither the CLI nor the server
+ * knows the name. It may equally be a typo. The two cannot be told apart here,
+ * so the hint is printed *and* commander still gets to say its piece: `patcher
+ * statsu` must keep "unknown command" and "Did you mean status?", which is the
+ * regression the first version of this shipped — with browser-tools disabled by
+ * default, every typo on every machine took the plugin branch.
  */
+export type UnknownPluginCommandAdvice =
+  | { kind: "resolved"; message: string }
+  | { kind: "hint"; message: string };
+
 export function describeUnknownPluginCommand(
   candidate: string,
   disabled: readonly DisabledPluginSummary[],
-): string | null {
+): UnknownPluginCommandAdvice | null {
   const exact = disabled.find((entry) => entry.id === candidate);
   if (exact !== undefined) {
-    return (
-      `patcher ${candidate} is provided by the "${exact.id}" plugin, which is disabled — ` +
-      `run \`patcher plugin enable ${exact.id}\` or enable it in Plugins.`
-    );
+    return {
+      kind: "resolved",
+      message:
+        `patcher ${candidate} is provided by the "${exact.id}" plugin, which is disabled — ` +
+        `run \`patcher plugin enable ${exact.id}\` or enable it in Plugins.`,
+    };
   }
   if (disabled.length === 0) return null;
   const named = disabled
     .slice(0, NAMED_DISABLED_PLUGINS)
     .map((entry) => entry.id);
   const rest = disabled.length - named.length;
-  return (
-    `patcher ${candidate} is not a core command, and no running plugin provides it. ` +
-    `A plugin's command is served only while that plugin is enabled, and these are off: ` +
-    `${named.join(", ")}${rest > 0 ? `, and ${rest} more` : ""}. ` +
-    `\`patcher plugin info <id>\` says what one provides, and \`patcher plugin enable <id>\` turns it on.`
-  );
+  return {
+    kind: "hint",
+    message:
+      `Note: a plugin's command is served only while that plugin is enabled, and ` +
+      `these are off: ${named.join(", ")}${rest > 0 ? `, and ${rest} more` : ""}. ` +
+      `If \`${candidate}\` is one of theirs, \`patcher plugin info <id>\` says which, ` +
+      `and \`patcher plugin enable <id>\` turns it on.`,
+  };
 }
 
 export function findPluginCliCommand(

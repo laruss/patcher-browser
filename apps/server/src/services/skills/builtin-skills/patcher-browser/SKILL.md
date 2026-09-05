@@ -43,11 +43,19 @@ That one command answers everything at once — whether Patcher is running, whet
 a browser window is open, whether you are allowed, and which tab is in front. Run
 it first and read what it says rather than guessing from a later failure.
 
-**If `patcher` is not on your PATH**, this install keeps one at
-`~/.patcher/bin/patcher`, which is the same path on every machine. Use it
-directly, or put that directory on PATH. A different data directory moves it:
-`PATCHER_DATA_DIR` names one, and a source checkout uses `~/.patcher-dev/`
-instead.
+**If `patcher` is not on your PATH**, this machine has one under its Patcher data
+directory. Which directory that is depends on how Patcher was installed, so find
+it rather than assuming:
+
+```bash
+ls "${PATCHER_DATA_DIR:-$HOME/.patcher}/bin/patcher" ~/.patcher-dev/*/bin/patcher 2>/dev/null
+```
+
+Call whichever it prints, by its full path. It knows which Patcher it belongs to
+— it carries that install's server and data directory — so you do not have to
+set anything. If it prints more than one, this machine has several installs (a
+release and one or more source checkouts); ask the user which they mean rather
+than guessing, because they are different browsers with different tabs.
 
 Two failures are worth telling apart before you conclude anything:
 

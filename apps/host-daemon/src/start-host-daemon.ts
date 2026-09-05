@@ -157,6 +157,49 @@ export async function startHostDaemon(
       );
     }
 
+    // Everything from here to the setup call is resolved *before* enrollment,
+    // which is the first thing in this function that talks to a server. Two
+    // things follow from that ordering, and both were bugs before it: the
+    // logger exists while enrollment runs, so an enrollment failure is logged
+    // rather than thrown into the void; and a machine that cannot enrol still
+    // gets its `patcher` shim and still loses the stale skills, which is
+    // exactly the machine whose user needs a working CLI to find out why.
+    const localApiConfig = enableLocalApi
+      ? resolveHostDaemonLocalApiConfig({
+          hostDaemonPort:
+            options.hostDaemonPort ??
+            requireHostDaemonConfig(hostDaemonConfig).PATCHER_HOST_DAEMON_PORT,
+          hostType,
+          localApi: options.localApi,
+        })
+      : null;
+    const patcherExecutablePath =
+      options.patcherExecutableDirectory !== undefined
+        ? resolvePatcherExecutablePathInDirectory(
+            options.patcherExecutableDirectory,
+          )
+        : await resolveLocalPatcherExecutablePath();
+    const patcherExecutableDirectory = dirname(patcherExecutablePath);
+    const logger =
+      options.logger ??
+      createLogger({
+        component: "host-daemon",
+        base: { serverUrl },
+        dataDir,
+        transportMode: "worker",
+      });
+    lockDiagnosticsLogger = logger;
+    await prepareLocalAgentAccess({
+      dataDir,
+      logger,
+      patcherExecutablePath,
+      target: {
+        serverUrl,
+        dataDir,
+        ...(localApiConfig === null ? {} : { hostDaemonPort: localApiConfig.port }),
+      },
+    });
+
     const hostKey =
       persistedAuth?.hostKey ??
       (
@@ -185,39 +228,6 @@ export async function startHostDaemon(
       });
     }
 
-    const localApiConfig = enableLocalApi
-      ? resolveHostDaemonLocalApiConfig({
-          hostDaemonPort:
-            options.hostDaemonPort ??
-            requireHostDaemonConfig(hostDaemonConfig).PATCHER_HOST_DAEMON_PORT,
-          hostType,
-          localApi: options.localApi,
-        })
-      : null;
-    const patcherExecutablePath =
-      options.patcherExecutableDirectory !== undefined
-        ? resolvePatcherExecutablePathInDirectory(
-            options.patcherExecutableDirectory,
-          )
-        : await resolveLocalPatcherExecutablePath();
-    const patcherExecutableDirectory = dirname(patcherExecutablePath);
-    const logger =
-      options.logger ??
-      createLogger({
-        component: "host-daemon",
-        base: { serverUrl },
-        dataDir,
-        transportMode: "worker",
-      });
-    lockDiagnosticsLogger = logger;
-    // Before anything that can block: what this does is make the machine usable
-    // by agents that are not Patcher's own turns, and neither half of it depends
-    // on the server being reachable.
-    await prepareLocalAgentAccess({
-      dataDir,
-      logger,
-      patcherExecutablePath,
-    });
     let hostWatcher = options.hostWatcher;
     if (hostWatcher === undefined) {
       // Run @parcel/watcher in an isolated child process. A parcel inotify

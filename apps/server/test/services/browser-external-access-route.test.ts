@@ -76,11 +76,20 @@ async function waitForConsentInteraction(
   throw new Error("No consent interaction was raised");
 }
 
-function isEnabled(harness: TestAppHarness, pluginId: string): boolean {
-  return (
-    harness.pluginService.list().find((entry) => entry.id === pluginId)
-      ?.enabled ?? false
-  );
+/**
+ * Whether the plugin is actually serving its CLI command.
+ *
+ * The registered contribution rather than the persisted `enabled` bit, which is
+ * what the route reports and is the only version of the question worth
+ * asserting: a plugin can be enabled in storage and have failed to load, and a
+ * helper that repeated the `enabled` check would agree with the route by
+ * construction instead of testing it.
+ */
+function isServing(harness: TestAppHarness, pluginId: string): boolean {
+  const entry = harness.pluginService
+    .list()
+    .find((plugin) => plugin.id === pluginId);
+  return entry?.enabled === true && entry.cliCommand !== null;
 }
 
 describe("the level for agents outside Patcher", () => {
@@ -115,7 +124,7 @@ describe("the level for agents outside Patcher", () => {
     await withTestHarness(async (harness) => {
       await harness.pluginService.install(builtinPluginSource("browser-tools"));
       await harness.pluginService.setEnabled("browser-tools", false);
-      expect(isEnabled(harness, "browser-tools")).toBe(false);
+      expect(isServing(harness, "browser-tools")).toBe(false);
 
       const response = await setLevel(harness, "interact");
 
@@ -126,7 +135,7 @@ describe("the level for agents outside Patcher", () => {
         level: "interact",
         browserToolsEnabled: true,
       });
-      expect(isEnabled(harness, "browser-tools")).toBe(true);
+      expect(isServing(harness, "browser-tools")).toBe(true);
     });
   });
 
@@ -134,13 +143,13 @@ describe("the level for agents outside Patcher", () => {
     await withTestHarness(async (harness) => {
       await harness.pluginService.install(builtinPluginSource("browser-tools"));
       await setLevel(harness, "read");
-      expect(isEnabled(harness, "browser-tools")).toBe(true);
+      expect(isServing(harness, "browser-tools")).toBe(true);
 
       await setLevel(harness, "off");
 
       // Threads inside Patcher use the same plugin, and nobody asked about
       // those: closing the outside door must not close theirs.
-      expect(isEnabled(harness, "browser-tools")).toBe(true);
+      expect(isServing(harness, "browser-tools")).toBe(true);
       expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe("off");
     });
   });

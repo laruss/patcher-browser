@@ -1,5 +1,5 @@
 import os from "node:os";
-import { writeCliShim } from "@patcher/config/cli-shim";
+import { writeCliShim, type CliShimTarget } from "@patcher/config/cli-shim";
 import { pruneRenamedGlobalSkills } from "./command-handlers/install-global-skills.js";
 import type { HostDaemonLogger } from "./logger.js";
 
@@ -21,6 +21,14 @@ export interface PrepareLocalAgentAccessArgs {
   dataDir: string;
   /** Absolute path to this install's CLI, already checked by the caller. */
   patcherExecutablePath: string;
+  /**
+   * Which install a bare `patcher` should reach.
+   *
+   * The same values the daemon puts in a turn's shell environment, minus the
+   * app key: without them the CLI falls back to the production defaults, which
+   * on a source checkout or a non-default server is a different install.
+   */
+  target: CliShimTarget;
   logger: HostDaemonLogger;
   /** Defaults to this host's home directory; injected by tests. */
   homeDir?: string;
@@ -30,11 +38,13 @@ export interface PrepareLocalAgentAccessArgs {
 /**
  * Put `patcher` somewhere findable, and take the old name's skills away.
  *
- * **The shim.** A turn's shell is handed the CLI on its PATH; nothing does that
- * for Claude Code, Codex, or a person's own terminal, and the binary lives
- * somewhere unguessable — inside a `.app` bundle, or an npm cache. So the daemon
- * writes `<dataDir>/bin/patcher`, which is the same path on every install and
- * therefore something a document can name.
+ * **The shim.** A turn's shell is handed the CLI on its PATH *and* told which
+ * server to reach; nothing does either for Claude Code, Codex, or a person's own
+ * terminal, and the binary lives somewhere unguessable — inside a `.app` bundle,
+ * or an npm cache. So the daemon writes `<dataDir>/bin/patcher`, which is the
+ * same path on every install and therefore something a document can name, and
+ * which carries this install's server and data directory so the command reaches
+ * the Patcher that wrote it rather than the production defaults.
  *
  * **The prune.** `bb-cli` was this product's CLI skill under its old name, and it
  * lives in the user's *global* skill roots — outside the data directory, so the
@@ -49,11 +59,16 @@ export async function prepareLocalAgentAccess(
   const shim = await writeCliShim({
     dataDir: args.dataDir,
     executablePath: args.patcherExecutablePath,
+    target: args.target,
     ...(args.platform === undefined ? {} : { platform: args.platform }),
   });
   if (shim.outcome === "written") {
     args.logger.info(
-      { path: shim.path, target: args.patcherExecutablePath },
+      {
+        path: shim.path,
+        executable: args.patcherExecutablePath,
+        serverUrl: args.target.serverUrl,
+      },
       "Wrote the patcher CLI shim",
     );
   } else if (shim.outcome === "failed") {
