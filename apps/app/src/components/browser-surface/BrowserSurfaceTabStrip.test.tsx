@@ -458,6 +458,66 @@ describe("browser surface tab menu", () => {
     expect(screen.getByText("Close tab")).not.toBeNull();
   });
 
+  it("marks the tab an agent is working in, by name", () => {
+    renderStrip(
+      [browserTab("tab-1", "A"), browserTab("tab-2", "B")],
+      {},
+      new Set(),
+      {
+        tabOwners: new Map([
+          [
+            "tab-1",
+            {
+              kind: "grant" as const,
+              grantId: "grant_1",
+              label: "Claude Code",
+              level: "read" as const,
+            },
+          ],
+        ]),
+      },
+    );
+
+    // The person can see the strip and the driving indicator; without this they
+    // could not tell which of these tabs the indicator meant.
+    expect(
+      screen.getByLabelText("Claude Code is working in this tab"),
+    ).not.toBeNull();
+    expect(screen.queryAllByLabelText(/is working in this tab/)).toHaveLength(
+      1,
+    );
+  });
+
+  it("says whose a pinned tab is, which shows no title to hang a mark on", () => {
+    // A pinned tab labels itself explicitly, and an explicit label replaces
+    // what the marks inside would have contributed — so a screen reader heard
+    // the page title and nothing about the agent working in it.
+    renderStrip(
+      [{ ...browserTab("tab-1", "A"), pinned: true }],
+      {},
+      new Set(),
+      {
+        tabOwners: new Map([
+          [
+            "tab-1",
+            {
+              kind: "grant" as const,
+              grantId: "grant_1",
+              label: "Claude Code",
+              level: "read" as const,
+            },
+          ],
+        ]),
+      },
+    );
+
+    expect(
+      screen.getByRole("tab", {
+        name: "A — Claude Code is working in this tab",
+      }),
+    ).not.toBeNull();
+  });
+
   it("offers a tab back from the agent holding it, by name", () => {
     const held = renderStrip([browserTab("tab-1", "A")], {}, new Set(), {
       tabOwners: new Map([

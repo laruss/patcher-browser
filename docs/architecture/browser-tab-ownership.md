@@ -128,6 +128,9 @@ which is the backstop for any path that forgets.
   the person takes them back from the tab menu. The alternative — returning them
   to the person on revoke — would quietly make a page an agent had been working
   in the default target of the next caller's unqualified command.
-- **Not visible in the strip.** A tab an agent holds looks like any other until
-  its menu is opened. The signal that something is driving at all is the
-  indicator row ([browser-external-access.md](browser-external-access.md)).
+- **Not a window-level signal.** A tab an agent holds carries a mark in the
+  strip, named after the agent, and its menu offers the tab back. Both live in
+  the browser surface, so a person reading a thread in another window still
+  sees nothing — the same gap the driving indicator has
+  ([browser-external-access.md](browser-external-access.md)), and the same fix:
+  a signal on the window rather than inside it.

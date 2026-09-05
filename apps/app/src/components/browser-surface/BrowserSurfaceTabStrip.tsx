@@ -272,16 +272,34 @@ const restrictTabDragToHorizontalAxis: Modifier = ({ transform }) => ({
 
 const TAB_DRAG_MODIFIERS: Modifier[] = [restrictTabDragToHorizontalAxis];
 
-/** Marks after the title: what the user did to the tab, then what a plugin said. */
+/**
+ * Marks after the title: whose tab it is, what the user did to it, then what a
+ * plugin said.
+ *
+ * The owner comes first because it is the one a person cannot find out any
+ * other way. An agent's tab looked exactly like theirs — same strip, same
+ * favicon — so the only sign that something else was working in one was the
+ * indicator saying *somebody* is driving, with no way to tell which of eight
+ * tabs they meant.
+ */
 function BrowserSurfaceTabMarks({
   isMuted,
+  owner,
   pluginStatus,
 }: {
   isMuted: boolean;
+  owner: BrowserCommandIssuer | null;
   pluginStatus: PluginBrowserTabStatus | null;
 }) {
   return (
     <>
+      {owner === null ? null : (
+        <Icon
+          name="Terminal"
+          className="size-3.5 shrink-0 opacity-70"
+          aria-label={`${browserIssuerName(owner)} is working in this tab`}
+        />
+      )}
       {isMuted ? (
         <Icon
           name="VolumeOff"
@@ -357,6 +375,10 @@ function BrowserSurfaceTabStripTab({
   tabActions,
 }: BrowserSurfaceTabStripTabProps) {
   const label = browserSurfaceTabLabel(tab);
+  const pinnedLabel =
+    owner === null
+      ? label
+      : `${label} — ${browserIssuerName(owner)} is working in this tab`;
   const isApp = isAppSurfaceTab(tab);
   const isPinned = isPinnedSurfaceTab(tab);
   const { isDragging, listeners, setNodeRef, transform, transition } =
@@ -413,8 +435,13 @@ function BrowserSurfaceTabStripTab({
             role="tab"
             aria-selected={isActive}
             // The name a pinned tab does not show still has to be reachable —
-            // by a screen reader, and by hovering.
-            {...(isPinned ? { "aria-label": label, title: label } : {})}
+            // by a screen reader, and by hovering. An explicit label *replaces*
+            // what the marks inside would have contributed, so whose tab it is
+            // has to be said here too; an unpinned tab has no label of its own
+            // and composes them. Found by review.
+            {...(isPinned
+              ? { "aria-label": pinnedLabel, title: pinnedLabel }
+              : {})}
             onClick={() => {
               onActivate(tab.id);
             }}
@@ -433,6 +460,7 @@ function BrowserSurfaceTabStripTab({
             )}
             <BrowserSurfaceTabMarks
               isMuted={isMuted}
+              owner={owner}
               pluginStatus={pluginStatus}
             />
           </button>
