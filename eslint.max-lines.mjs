@@ -79,7 +79,7 @@ const PINNED_OVER_LIMIT = {
   "packages/host-daemon-contract/test/contract.test.ts": 3847,
   "packages/plugin-sdk/src/testing/fake-plugin-host.ts": 3568,
   "packages/patcher-app/src/launcher.ts": 3499,
-  "apps/server/src/services/plugins/plugin-service.ts": 3472,
+  "apps/server/src/services/plugins/plugin-service.ts": 3466,
   "apps/app/src/views/RootComposeView.tsx": 3457,
   "packages/db/src/data/events.ts": 3418,
   "apps/server/src/services/plugins/plugin-api.ts": 3413,

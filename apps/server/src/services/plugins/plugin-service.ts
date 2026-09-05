@@ -108,6 +108,7 @@ import {
 } from "./managed-plugin-artifacts.js";
 import { createPluginRegistration } from "./plugin-registration.js";
 import { createPluginRuntime, forgetMutableRoot } from "./plugin-runtime.js";
+import { pluginCliPayloadContext } from "./plugin-cli-payload.js";
 import type { PluginApiIdentities } from "./plugin-api-identity.js";
 import { createPluginUpdates } from "./plugin-updates.js";
 
@@ -2370,18 +2371,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           kind: "cli",
           target: registration.name,
           // Same split as agentTool: everything but the signal is data.
-          payload: {
-            argv,
-            ctx: {
-              cwd: ctx.cwd,
-              threadId: ctx.threadId,
-              projectId: ctx.projectId,
-              // Plain data, like the rest: it crosses to an out-of-process
-              // plugin the same way, and it is the host's answer rather than
-              // anything the plugin can act on except by saying it.
-              caller: ctx.caller,
-            },
-          },
+          payload: { argv, ctx: pluginCliPayloadContext(ctx) },
         },
         async (payload, signal) => {
           const result = await registration.run(payload.argv, {
