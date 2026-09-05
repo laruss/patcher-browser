@@ -65,7 +65,8 @@ const OPTION_HELP = {
   "--background":
     "Open in a new tab without switching to it; the tab still loads",
   "--max": "Characters of page text, tree depth, or log entries",
-  "--generation": "Refuse refs unless they came from this snapshot",
+  "--generation":
+    "Which snapshot the refs came from; a ref like e2@6 says it itself",
   "--selector": "Narrow to what this CSS selector matches",
   "--button": "left (default), middle, right",
   "--double": "Double click",
@@ -156,8 +157,8 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
       "patcher browser snapshot [--tab <tab-id>] [--max <depth>] [--selector <css>] [--json]",
     options: ["--tab", "--max", "--selector", "--json"],
     details: [
-      "Refs ([ref=eN]) are how every acting command names an element, and they belong to the snapshot that produced them.",
-      "The generation is printed on stderr; pass it back as --generation so a ref the page has since reassigned is refused instead of acted on.",
+      "Refs are how every acting command names an element, and they belong to the snapshot that produced them: `[ref=e2@6]` is element e2 of snapshot 6.",
+      "Pass the ref as it is printed, suffix and all, and a ref the page has since reassigned is refused instead of acted on. A bare `e2` still works and is not checked; --generation is the older way of saying the same thing.",
       "Attaches the browser debugger to that tab, which fails while the user has DevTools open on it.",
     ],
   },
@@ -1458,7 +1459,7 @@ arguments, its own options, and what it costs.
 Reading
   status                     Can I act, and where am I — plus the active tab
   snapshot [--max <depth>] [--selector <css>]
-                             Accessibility tree with [ref=eN] on interactive elements;
+                             Accessibility tree with [ref=eN@G] on interactive elements;
                              --selector snapshots one region of a large page
   tabs                       List open tabs, numbered for --tab
   url | title                Read a tab's address or title
@@ -1987,14 +1988,16 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
               };
             }
             // The generation goes to stderr so stdout stays the tree alone and
-            // can be piped, while a human still sees the number the interaction
-            // commands want back — and is told what it is for. A bare
-            // "generation 0" is a number nobody uses; the protection against
-            // stale refs is only real if the line says how to ask for it.
+            // can be piped. It is no longer something the caller has to pass —
+            // the refs carry it (`e2@6`), so a ref this page has reassigned
+            // since is refused whether or not anyone remembered a flag — and
+            // the line says so rather than asking for ceremony that is now
+            // done. It still names the number, because a caller holding bare
+            // refs from somewhere else has `--generation` and nothing else.
             return {
               exitCode: 0,
               stdout: `${result.snapshot}\n`,
-              stderr: `generation ${result.generation} — pass --generation ${result.generation} on the acting commands, and a ref this page has since reassigned is refused instead of acted on\n${
+              stderr: `generation ${result.generation} — the refs above carry it, so pass them as printed and a ref this page has since reassigned is refused instead of acted on\n${
                 result.truncated ? "(truncated)\n" : ""
               }`,
             };

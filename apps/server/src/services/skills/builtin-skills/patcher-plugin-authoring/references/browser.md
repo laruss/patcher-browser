@@ -678,14 +678,17 @@ const { text: selected } = await patcher.browser.page.getSelection();
 
 // Acting on a page: snapshot for refs, then name one.
 const page = await patcher.browser.page.snapshot();
-// page.snapshot is Playwright's compact tree with [ref=eN] on every
-// interactive element; page.generation identifies the refs it handed out.
+// page.snapshot is Playwright's compact tree with [ref=eN@G] on every
+// interactive element — the element and the snapshot it came from. Pass a ref
+// back as it appears and one a newer snapshot reassigned is refused.
 await patcher.browser.page.act({
-  action: { action: "fill", ref: "e2", text: "hello" },
-  generation: page.generation, // optional; refuses a ref a newer snapshot reassigned
+  action: { action: "fill", ref: "e2@6", text: "hello" },
 });
+// A bare ref still works, and is unchecked unless you pass the generation
+// yourself — page.generation is the same number on its own.
 const ended = await patcher.browser.page.act({
   action: { action: "click", ref: "e1" },
+  generation: page.generation,
 });
 // ended: { tabId, url, title } — where the tab landed, since clicks navigate.
 

@@ -1501,11 +1501,12 @@ export interface PluginBrowserTabs {
 /**
  * An accessibility snapshot: what the page is, in a form an agent can act on.
  *
- * `snapshot` is Playwright's compact tree, with a `[ref=eN]` on every
- * interactive element. `generation` identifies the snapshot those refs came
- * from — a navigation invalidates them, and interaction commands pass it back so
- * a stale ref is refused rather than resolved against whatever holds that node
- * id now.
+ * `snapshot` is Playwright's compact tree, with a `[ref=eN@G]` on every
+ * interactive element: the element, and the snapshot it came from. Pass a ref
+ * back as it appears and a stale one is refused rather than resolved against
+ * whatever holds that node id now — a navigation invalidates them all anyway.
+ * `generation` is that same number on its own, for a caller that would rather
+ * pass it separately; a ref stripped back to `eN` is accepted and unchecked.
  */
 export interface PluginBrowserPageSnapshot {
   tabId: string;
@@ -1520,7 +1521,8 @@ export interface PluginBrowserPageSnapshot {
 export type PluginBrowserKeyModifier = "Alt" | "Control" | "Meta" | "Shift";
 
 /**
- * One thing to do to a page, naming its target by a `[ref=eN]` from a snapshot.
+ * One thing to do to a page, naming its target by a `[ref=eN@G]` from a
+ * snapshot — copied as it appears, so the snapshot it came from travels with it.
  *
  * `check` and `select` state the end result rather than the gesture, because
  * the gesture cannot express it: "click the checkbox" is a toggle, and a native
@@ -1649,9 +1651,11 @@ export interface PluginBrowserPage {
    * before calling this. Failure to become actionable is `not_actionable`, with
    * the reason in the message.
    *
-   * `generation` is the snapshot the refs came from. Passing it refuses a ref
-   * that a newer snapshot has since reassigned; omitting it accepts that race.
-   * Navigation invalidates every ref either way (`unknown_ref`).
+   * `generation` is the snapshot the refs came from, and a ref that carries it
+   * — `e2@6`, which is how a snapshot prints them — says it without this field.
+   * Either way a ref a newer snapshot has reassigned is refused; a bare `e2`
+   * with no `generation` accepts that race, which is what a ref typed by hand
+   * gets. Navigation invalidates every ref regardless (`unknown_ref`).
    *
    * Resolves with where the tab ended up, since the common actions navigate.
    */

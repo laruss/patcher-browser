@@ -361,19 +361,25 @@ model the CLI exists, since a tool it cannot see is a tool it will not use.
 Done when: an agent can fill and submit a real form. ✅ (against fakes; see the
 live-verification note at the end)
 
-#### Ref lifetime, and the check that is deliberately optional
+#### Ref lifetime, and the check that stopped being optional
 
 Interactions carry the `generation` of the snapshot their refs came from, and the
-shell refuses a mismatch. It is **optional**, and the reasoning is worth keeping:
-navigation already drops every ref, so acting on an element that no longer exists
-fails either way (`unknown-ref`). What the generation adds is protection against
-a _newer_ snapshot having reassigned `e5` to a different element between the
-caller reading it and acting on it — narrow, but silent when it bites.
+shell refuses a mismatch. Navigation already drops every ref, so acting on an
+element that no longer exists fails either way (`unknown-ref`); what the
+generation adds is protection against a _newer_ snapshot having reassigned `e5`
+to a different element between the caller reading it and acting on it — narrow,
+but silent when it bites.
 
-So it is offered everywhere (the snapshot prints it, the tools take it, the CLI
-has `--generation`) and required nowhere. Threading a value through every call
-for a narrow race is ceremony a model pays for on every action; refusing to offer
-it at all would be pretending the race does not exist.
+It used to be offered everywhere and required nowhere, on the argument that
+threading a value through every call is ceremony a model pays for on every
+action. Two agents made the race less narrow than that argued — the newer
+snapshot is now somebody else's, taken while the first agent was reading — so
+the ceremony moved into the ref instead: **a snapshot hands out `e2@6`**, the
+app splits the suffix off before the shell's frozen wire sees it, and a caller
+that pastes back what it was given is checked without passing anything. A bare
+`e2` still works and is still unchecked, which keeps refs an agent already holds
+valid; `--generation` still works and now says the same thing twice, so a ref
+and a flag that disagree are refused rather than reconciled. See `refs.ts`.
 
 ### Stage C — observation
 
@@ -789,7 +795,11 @@ backend node id the snapshot recorded; a stale generation and an unknown ref bot
 refusing **before** anything is dispatched; the actionability wait giving up with
 its reason; each action's CDP call sequence; and the interaction union parsing
 identically on both wires, which is the only mechanical guard on the "must not
-drift" claim those two schemas make about each other.
+drift" claim those two schemas make about each other. The one place the two
+deliberately differ is the ref: the agent-facing side takes `eN@G`, the shell's
+frozen side takes `eN`, and `refs.ts` is what translates — so that difference is
+guarded by the tests around it rather than by the drift test, which would
+otherwise have to be taught to expect a difference and stop guarding the rest.
 
 Stage C adds: the ring buffer's eviction and its dropped count (including the
 case that matters — a limit hiding entries the ring never evicted); the console

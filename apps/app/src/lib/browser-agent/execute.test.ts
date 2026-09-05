@@ -790,9 +790,10 @@ describe("executeBrowserCommand — snapshot", () => {
         tabId: "a",
         url: "https://example.com/",
         title: "Example",
-        snapshot: '- button "Save" [ref=e1]',
-        // Carried through so interaction commands can be refused when the page
-        // has navigated since the refs were handed out.
+        // The refs carry the generation they belong to, so acting on one is
+        // checked without the caller passing anything (`refs.ts`).
+        snapshot: '- button "Save" [ref=e1@3]',
+        // And it stays its own field, for the caller that reads it there.
         generation: 3,
         refCount: 1,
         truncated: false,

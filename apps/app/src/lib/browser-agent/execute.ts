@@ -1,4 +1,5 @@
 import {
+  BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH,
   browserCommandSchema,
   type BrowserRecordOperation,
   type BrowserCommand,
@@ -34,6 +35,13 @@ import {
   newestBrowserTabOwnedBy,
   type BrowserTabOwners,
 } from "./tab-owners";
+import {
+  annotateSnapshotRefs,
+  browserInteractionRefs,
+  browserRefGeneration,
+  splitBrowserRef,
+  withBareBrowserRefs,
+} from "./refs";
 import {
   BROWSER_SURFACE_NEW_TAB_URL,
   activateBrowserSurfaceTab,
@@ -1239,15 +1247,24 @@ async function runBrowserCommand(
       if (!result.ok) {
         return snapshotFailure(result, tab.id);
       }
+      // The refs carry the snapshot they came from, so acting on one is checked
+      // without the caller having to pass anything (`refs.ts`) — and the result
+      // is re-bounded, because adding to every marker can push a page that
+      // already filled the budget past what this wire carries.
+      const annotated = annotateSnapshotRefs(
+        result.snapshot,
+        result.generation,
+        BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH,
+      );
       return success({
         type: "snapshot",
         tabId: result.tabId,
         url: result.url,
         title: result.title,
-        snapshot: result.snapshot,
+        snapshot: annotated.snapshot,
         generation: result.generation,
         refCount: result.refCount,
-        truncated: result.truncated,
+        truncated: result.truncated || annotated.truncated,
       });
     }
 
@@ -1263,12 +1280,20 @@ async function runBrowserCommand(
           "This version of the Patcher desktop app cannot act on pages.",
         );
       }
+      const generation = browserRefGeneration({
+        declared: command.generation,
+        refs: browserInteractionRefs(command.interaction),
+      });
+      if (!generation.ok) {
+        return failure("invalid_command", generation.message);
+      }
       const result = await desktopBrowser.interact({
         tabId: tab.id,
-        ...(command.generation === null
+        ...(generation.generation === null
           ? {}
-          : { generation: command.generation }),
-        interaction: command.interaction,
+          : { generation: generation.generation }),
+        // Bare, because the shell's wire is frozen and knows only `eN`.
+        interaction: withBareBrowserRefs(command.interaction),
       });
       if (!result.ok) {
         return interactFailure(result, tab.id);
@@ -1463,12 +1488,26 @@ async function runBrowserCommand(
           "This version of the Patcher desktop app cannot evaluate scripts, mock requests or act by coordinate.",
         );
       }
+      // The one control operation that takes a ref is a scoped `evaluate`, and
+      // it carries its snapshot the same way an interaction's does.
+      const scoped =
+        command.operation.kind === "evaluate" ? command.operation.ref : null;
+      const controlGeneration = browserRefGeneration({
+        declared: command.generation,
+        refs: [scoped],
+      });
+      if (!controlGeneration.ok) {
+        return failure("invalid_command", controlGeneration.message);
+      }
       const result = await desktopBrowser.control({
         tabId: tab.id,
-        ...(command.generation === null
+        ...(controlGeneration.generation === null
           ? {}
-          : { generation: command.generation }),
-        operation: command.operation,
+          : { generation: controlGeneration.generation }),
+        operation:
+          command.operation.kind === "evaluate" && scoped !== null
+            ? { ...command.operation, ref: splitBrowserRef(scoped).ref }
+            : command.operation,
       });
       if (!result.ok) {
         return controlFailure(result, tab.id);
