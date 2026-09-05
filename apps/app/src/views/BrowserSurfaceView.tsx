@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useAtom } from "jotai";
+import { useAtom, useStore } from "jotai";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BrowserTabDeck } from "@/components/secondary-panel/BrowserTabDeck";
 import type {
@@ -58,13 +58,19 @@ import {
 import { useBrowserTabCycling } from "@/lib/browser-tab-mru";
 import {
   BROWSER_SURFACE_SCOPE_ID,
+  browserSurfaceTabsAtom,
   closeBrowserSurfaceTab,
   getActiveBrowserSurfaceTab,
+  getBrowserSurfaceWebTabs,
   isPinnedSurfaceTab,
   isWebSurfaceTab,
   useBrowserSurfaceTabs,
   type BrowserSurfaceTab,
 } from "@/lib/browser-surface-tabs";
+import {
+  browserTabOwnersAtom,
+  withBrowserTabOwner,
+} from "@/lib/browser-agent/tab-owners";
 import {
   PATCHER_APP_TAB_DESTINATIONS,
   resolveSurfaceTabRoute,
@@ -208,6 +214,58 @@ export function BrowserSurfaceView({
   // Which tabs the user silenced — window session state, for the reasons in
   // `browser-tab-mute.ts`.
   const [mutedTabIds, setMutedTabIds] = useAtom(browserMutedTabsAtom);
+  // Which tabs belong to an agent (`tab-owners.ts`). Read here for the one
+  // thing the strip does with it: offering the person their tab back.
+  const [tabOwners, setTabOwners] = useAtom(browserTabOwnersAtom);
+  const store = useStore();
+  // Read at the moment of the write rather than from this render: an ownership
+  // write prunes claims whose tabs are gone, and a render-time list is one an
+  // agent may already have added a tab to — which the prune would then drop.
+  const openWebTabIds = useCallback(
+    () =>
+      getBrowserSurfaceWebTabs(store.get(browserSurfaceTabsAtom)).map(
+        (tab) => tab.id,
+      ),
+    [store],
+  );
+
+  const takeBackTab = useCallback(
+    (tabId: string) => {
+      setTabOwners((current) =>
+        withBrowserTabOwner(current, {
+          issuer: null,
+          openTabIds: openWebTabIds(),
+          tabId,
+        }),
+      );
+    },
+    [openWebTabIds, setTabOwners],
+  );
+
+  /**
+   * A popup a page opened belongs to whoever owned the page.
+   *
+   * `window.open` does not come through the executor at all — the shell reports
+   * it and the surface adopts it — so without this, an agent driving a login
+   * flow would be refused the popup its own page opened. Only popups: the
+   * channel that carries `target=_blank` links carries the person's own "Open
+   * link in new tab" too, and cannot tell them apart.
+   */
+  const inheritTabOwner = useCallback(
+    ({ fromTabId, toTabId }: { fromTabId: string; toTabId: string }) => {
+      setTabOwners((current) => {
+        const owner = current.get(fromTabId);
+        return owner === undefined
+          ? current
+          : withBrowserTabOwner(current, {
+              issuer: owner,
+              openTabIds: openWebTabIds(),
+              tabId: toTabId,
+            });
+      });
+    },
+    [openWebTabIds, setTabOwners],
+  );
 
   const dropFavicon = useCallback(
     (tabId: string) => {
@@ -238,10 +296,27 @@ export function BrowserSurfaceView({
       setMutedTabIds((current) =>
         withBrowserTabMuted(current, { muted: false, tabId }),
       );
+      // And its owner, so that reopening it (Cmd+Shift+T brings the id back)
+      // does not hand an agent a tab the person deliberately closed.
+      setTabOwners((current) =>
+        withBrowserTabOwner(current, {
+          issuer: null,
+          openTabIds: openWebTabIds(),
+          tabId,
+        }),
+      );
       forgetPluginBrowserTabStatuses(tabId);
       goToTabRoute(getActiveBrowserSurfaceTab(remaining));
     },
-    [closeTab, dropFavicon, goToTabRoute, setMutedTabIds, state],
+    [
+      closeTab,
+      dropFavicon,
+      goToTabRoute,
+      openWebTabIds,
+      setMutedTabIds,
+      setTabOwners,
+      state,
+    ],
   );
 
   // Duplicating focuses the copy, so the window has to follow it — same rule as
@@ -300,6 +375,13 @@ export function BrowserSurfaceView({
     }
     // Newest channel first, and only one: the shell sends all three, so a
     // second subscription here would open the same link twice.
+    // No ownership is inherited here, deliberately. The shell sends this same
+    // channel for the person's own "Open link in new tab" as for a link the
+    // page opened (`openInNewTab` in `desktop-browser-view.ts`), and nothing in
+    // the payload tells them apart — so inheriting would hand an agent a tab
+    // the person opened for themselves, and make it that agent's default
+    // target. A tab an agent opens by clicking a `target=_blank` link is
+    // therefore the person's until they hand it over; docs/TODO.md.
     if (browserApi.onPlacedOpenTab) {
       return browserApi.onPlacedOpenTab(({ background, tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
@@ -447,13 +529,34 @@ export function BrowserSurfaceView({
         // The page closed its own popup, which is how every OAuth flow ends.
         closeTab(popup.tabId);
         dropFavicon(popup.tabId);
+        // And the claim goes with it, as on every other close: the id comes
+        // back if the person reopens the tab, and it should come back theirs.
+        setTabOwners((current) =>
+          withBrowserTabOwner(current, {
+            issuer: null,
+            openTabIds: openWebTabIds(),
+            tabId: popup.tabId,
+          }),
+        );
         return;
       }
       if (surfaceTabIds.has(popup.openerTabId)) {
         adoptTab({ tabId: popup.tabId, url: popup.url });
+        inheritTabOwner({
+          fromTabId: popup.openerTabId,
+          toTabId: popup.tabId,
+        });
       }
     });
-  }, [adoptTab, closeTab, dropFavicon, surfaceTabIds]);
+  }, [
+    adoptTab,
+    closeTab,
+    dropFavicon,
+    inheritTabOwner,
+    openWebTabIds,
+    setTabOwners,
+    surfaceTabIds,
+  ]);
 
   // "Search for <selection>" from a page's context menu. The shell sends the
   // query rather than a URL, because the search engine is the omnibox's and
@@ -951,8 +1054,10 @@ export function BrowserSurfaceView({
         onRunTabAction={runTabAction}
         onSetMuted={setSurfaceTabMuted}
         onSetPinned={setTabPinned}
+        onTakeBack={takeBackTab}
         pluginStatuses={pluginTabStatuses}
         tabActions={contributedTabActions}
+        tabOwners={tabOwners}
         tabs={state.tabs}
       />
       {/* No address bar over an app screen: Patcher's own screens are not pages to

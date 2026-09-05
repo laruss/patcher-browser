@@ -19,6 +19,10 @@ import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { getBrowserSurfaceTabsStorageKey } from "@/lib/browser-surface-tabs";
 import { getBrowserFaviconsStorageKey } from "@/lib/browser-favicons";
 import { getBrowserMutedTabsStorageKey } from "@/lib/browser-tab-mute";
+import {
+  browserTabOwnersAtom,
+  withBrowserTabOwner,
+} from "@/lib/browser-agent/tab-owners";
 import { BrowserSurfaceView } from "./BrowserSurfaceView";
 
 const desktopInfo = {
@@ -29,6 +33,14 @@ const desktopInfo = {
   updateAvailable: false,
   updateDownloaded: false,
   version: "0.0.0-test",
+};
+
+/** A grant, as the server would name one on a command. */
+const OWNER = {
+  kind: "grant" as const,
+  grantId: "grant_1",
+  label: "Claude Code",
+  level: "interact" as const,
 };
 
 function renderSurface(
@@ -47,7 +59,7 @@ function renderSurface(
   // A fresh jotai store per test (the tab atom is module-scoped, so without one
   // the previous test's tabs leak into the next) plus a query client, which the
   // surface needs to read its plugin omnibox contributions.
-  const { wrapper: Wrapper } = createQueryClientTestHarness();
+  const { store, wrapper: Wrapper } = createQueryClientTestHarness();
   // A router because tab selection navigates: picking Patcher's own screen sends the
   // window to it, and picking a page sends it back to the browser.
   const result = render(
@@ -59,6 +71,7 @@ function renderSurface(
   );
   return {
     ...result,
+    store,
     /**
      * Give the surface an app screen, or take it away, without remounting —
      * the way AppLayout does when the window navigates to Settings and back.
@@ -578,6 +591,61 @@ describe("BrowserSurfaceView", () => {
     emit({ kind: "closed", tabId: "browser-popup:1" });
 
     expect(tabButtons()).toHaveLength(1);
+  });
+
+  // A popup belongs to whoever owned the page that opened it — the agent
+  // driving a login flow, not the person, who never saw it open.
+  it("hands a popup the owner of the page that opened it, and takes it back on close", () => {
+    const attach = vi.fn();
+    const popupListeners: Array<
+      (
+        popup:
+          | { kind: "opened"; openerTabId: string; tabId: string; url: string }
+          | { kind: "closed"; tabId: string },
+      ) => void
+    > = [];
+    const surface = renderSurface({
+      ...createNoopDesktopBrowserApi(),
+      attach,
+      setPopupTabs: vi.fn(),
+      onPopup(listener) {
+        popupListeners.push(listener);
+        return () => {};
+      },
+    });
+    const openerTabId = attach.mock.calls[0]?.[0].tabId as string;
+    act(() => {
+      surface.store.set(browserTabOwnersAtom, (current) =>
+        withBrowserTabOwner(current, {
+          issuer: OWNER,
+          openTabIds: [openerTabId],
+          tabId: openerTabId,
+        }),
+      );
+    });
+
+    act(() => {
+      popupListeners.at(-1)?.({
+        kind: "opened",
+        openerTabId,
+        tabId: "browser-popup:2",
+        url: "https://accounts.example.com/oauth",
+      });
+    });
+
+    expect(
+      surface.store.get(browserTabOwnersAtom).get("browser-popup:2"),
+    ).toEqual(OWNER);
+
+    act(() => {
+      popupListeners.at(-1)?.({ kind: "closed", tabId: "browser-popup:2" });
+    });
+
+    // Reopening a closed tab brings its id back, so a claim left behind would
+    // hand the agent a tab the person reopened for themselves.
+    expect(surface.store.get(browserTabOwnersAtom).has("browser-popup:2")).toBe(
+      false,
+    );
   });
 
   // Links macOS handed the shell because Patcher is the user's default browser. The

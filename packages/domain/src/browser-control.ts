@@ -38,6 +38,19 @@ export const BROWSER_COMMAND_MAX_SELECTOR_LENGTH = 1024;
  * one. When `live` is false the navigation flags are false because they are
  * unknown, not because the answer is no.
  */
+/**
+ * Whose tab this is, from the point of view of the caller being answered.
+ *
+ * Relative on purpose. The alternative is naming the owner — and then a grant
+ * learns the label of every other grant, and a turn's thread id travels to a
+ * shell outside Patcher, for a question every caller asks about itself. What a
+ * caller needs is which tabs it may act on, and that is three answers:
+ * `"you"` is its own, `"person"` is the one the human is working in, and
+ * `"agent"` is somebody else's, which nothing but the person can hand over.
+ */
+export const browserTabOwnerSchema = z.enum(["you", "person", "agent"]);
+export type BrowserTabOwner = z.infer<typeof browserTabOwnerSchema>;
+
 export const browserTabSnapshotSchema = z.object({
   tabId: z.string().min(1),
   url: z.string().max(BROWSER_COMMAND_MAX_URL_LENGTH),
@@ -47,12 +60,19 @@ export const browserTabSnapshotSchema = z.object({
   loading: z.boolean(),
   canGoBack: z.boolean(),
   canGoForward: z.boolean(),
+  /**
+   * Optional because an older app answers without it, and because a command
+   * with no issuer — the app's own work — has no "you" to be relative to.
+   */
+  owner: browserTabOwnerSchema.optional(),
 });
 export type BrowserTabSnapshot = z.infer<typeof browserTabSnapshotSchema>;
 
 /**
- * A null `tabId` means "the active tab" everywhere it appears, so an agent that
- * has not tracked tab ids can still work the browser it is looking at.
+ * A null `tabId` means "the caller's own newest tab" everywhere it appears —
+ * and, for a caller that has none and is entitled to it, the tab the person is
+ * looking at. Which of the two, and why they differ, is decided in the app:
+ * docs/architecture/browser-tab-ownership.md.
  */
 const optionalTabIdSchema = z.string().min(1).nullable();
 
@@ -924,6 +944,13 @@ export const browserCommandErrorCodeSchema = z.enum([
    * means with certainty that nothing happened.
    */
   "external_access_denied",
+  /**
+   * The tab is open, and it is not this caller's to act on: the person's, or
+   * another agent's. Distinct from `unknown_tab` because the answer is
+   * different — the id is right, and the way forward is a tab of one's own or
+   * the person handing this one over, not a fresh `tabs.list`.
+   */
+  "tab_not_yours",
 ]);
 export type BrowserCommandErrorCode = z.infer<
   typeof browserCommandErrorCodeSchema

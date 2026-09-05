@@ -21,6 +21,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Icon, type IconName } from "@patcher/shared-ui/icon";
+import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -35,6 +36,11 @@ import { pluginIconName } from "@/components/plugin/PluginIcon";
 import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
 import { useIsCompactViewport } from "@patcher/shared-ui/hooks/use-compact-viewport";
 import { useOptionalIsSidebarShowing } from "@/components/ui/sidebar.js";
+import { browserIssuerName } from "@/lib/browser-agent/issuer";
+import {
+  EMPTY_BROWSER_TAB_OWNERS,
+  type BrowserTabOwners,
+} from "@/lib/browser-agent/tab-owners";
 import {
   CHROME_ROW_HEIGHT_CLASS,
   getPatcherDesktopInfo,
@@ -78,6 +84,14 @@ export interface BrowserSurfaceTabStripProps {
   pluginStatuses?: ReadonlyMap<string, PluginBrowserTabStatus>;
   /** Plugin entries appended to every tab's menu, in plugin id order. */
   tabActions?: readonly BrowserSurfaceTabAction[];
+  /**
+   * Tabs an agent opened or was handed, by tab id (`tab-owners.ts`). The strip
+   * spends this on one thing: the menu entry that takes a tab back, which is
+   * the person's half of handing one over.
+   */
+  tabOwners?: BrowserTabOwners;
+  /** Take a tab back from the agent that owns it. */
+  onTakeBack?: (tabId: string) => void;
   onActivate: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onDuplicate: (tabId: string) => void;
@@ -311,6 +325,10 @@ interface BrowserSurfaceTabStripTabProps {
   }) => void;
   onSetMuted: (args: { muted: boolean; tabId: string }) => void;
   onSetPinned: (args: { pinned: boolean; tabId: string }) => void;
+  /** The agent this tab belongs to, or null while it is the person's. */
+  owner: BrowserCommandIssuer | null;
+  /** Null when the surface passed no handler, which is what a test does. */
+  onTakeBack: ((tabId: string) => void) | null;
   pluginStatus: PluginBrowserTabStatus | null;
   showsDivider: boolean;
   tab: BrowserSurfaceTab;
@@ -331,6 +349,8 @@ function BrowserSurfaceTabStripTab({
   onRunTabAction,
   onSetMuted,
   onSetPinned,
+  onTakeBack,
+  owner,
   pluginStatus,
   showsDivider,
   tab,
@@ -471,6 +491,19 @@ function BrowserSurfaceTabStripTab({
             {isMuted ? "Unmute tab" : "Mute tab"}
           </ContextMenuItem>
         ) : null}
+        {owner === null || onTakeBack === null ? null : (
+          // Only on a tab an agent holds, and named after the agent: "take
+          // back" on the person's own tab would be an offer to undo something
+          // nobody did.
+          <ContextMenuItem
+            onSelect={() => {
+              onTakeBack(tab.id);
+            }}
+          >
+            <Icon name="ArrowTurnBackward" aria-hidden />
+            Take back from {browserIssuerName(owner)}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() => {
@@ -519,6 +552,8 @@ export function BrowserSurfaceTabStrip({
   onRunTabAction,
   onSetMuted,
   onSetPinned,
+  onTakeBack,
+  tabOwners = EMPTY_BROWSER_TAB_OWNERS,
   tabs,
 }: BrowserSurfaceTabStripProps) {
   const [desktopInfo] = useState(getPatcherDesktopInfo);
@@ -664,6 +699,8 @@ export function BrowserSurfaceTabStrip({
                 onRunTabAction={onRunTabAction}
                 onSetMuted={onSetMuted}
                 onSetPinned={onSetPinned}
+                onTakeBack={onTakeBack ?? null}
+                owner={tabOwners.get(tab.id) ?? null}
                 pluginStatus={pluginStatuses.get(tab.id) ?? null}
                 // Chromium's separator rule: a hairline on the edge two plain tabs
                 // share, and none touching the selected tab, which is already

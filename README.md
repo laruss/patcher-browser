@@ -175,7 +175,9 @@ Patcher is experimental software that runs plugins written by coding agents.
   the machine that can read the app key. Both run from reading a page to handing
   over its cookies. While something outside Patcher is driving, a row under the
   browser's toolbar says so — by the name you gave the grant, with a button that
-  pauses it. Neither is charged on a plugin you installed, which is charged the
+  pauses it. It also works in tabs of its own: the tab you are reading is not
+  something it can act on until you hand it over, which the same row offers when
+  it asks. Neither is charged on a plugin you installed, which is charged the
   permissions it declared and drives without that row.
 - **A plugin you installed runs in its own process, which is not a sandbox.** It
   has the filesystem, subprocesses and the network, and runs as you — so treat

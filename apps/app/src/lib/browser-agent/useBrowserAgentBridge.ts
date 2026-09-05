@@ -5,6 +5,7 @@ import { getDesktopBrowserApi } from "../patcher-desktop";
 import {
   BROWSER_SURFACE_SCOPE_ID,
   browserSurfaceTabsAtom,
+  getBrowserSurfaceWebTabs,
 } from "../browser-surface-tabs";
 import { browserMutedTabsAtom, withBrowserTabMuted } from "../browser-tab-mute";
 import {
@@ -13,6 +14,11 @@ import {
 } from "@/components/secondary-panel/browserViewVisibilityCoordinator";
 import { wsManager } from "../ws";
 import { browserDrivingAtom, createBrowserDrivingTracker } from "./driving";
+import {
+  browserTabOwnersAtom,
+  requestBrowserTabHandoverAtom,
+  withBrowserTabOwner,
+} from "./tab-owners";
 import { executeBrowserCommand } from "./execute";
 import { BrowserTraceRecorder } from "./trace";
 import {
@@ -82,6 +88,27 @@ export function useBrowserAgentBridge(): void {
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {
       driving.started(signal.issuer);
       void executeBrowserCommand(signal.command, {
+        // Who this is for, which decides which tab an unqualified command lands
+        // on and whether a named one is theirs to touch (`tab-owners.ts`).
+        issuer: signal.issuer,
+        getTabOwners: () => store.get(browserTabOwnersAtom),
+        setTabOwner: ({ issuer, tabId }) => {
+          store.set(browserTabOwnersAtom, (current) =>
+            withBrowserTabOwner(current, {
+              issuer,
+              // Read here rather than passed in: the claim is recorded after the
+              // tab is in the strip, and this is the write that also drops
+              // entries for tabs that are gone.
+              openTabIds: getBrowserSurfaceWebTabs(
+                store.get(browserSurfaceTabsAtom),
+              ).map((tab) => tab.id),
+              tabId,
+            }),
+          );
+        },
+        requestTabHandover: (ask) => {
+          store.set(requestBrowserTabHandoverAtom, ask);
+        },
         getState: () => store.get(browserSurfaceTabsAtom),
         applyState: (update) => {
           store.set(browserSurfaceTabsAtom, update);

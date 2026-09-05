@@ -1396,6 +1396,17 @@ export interface PluginBrowserTab {
   loading: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+  /**
+   * Whose tab this is, relative to the caller being answered: `"you"` is one
+   * this caller opened or was handed, `"person"` is one the human opened, and
+   * `"agent"` is another caller's. Only the first is unconditionally yours to
+   * act on — the rules, and why a turn inside Patcher may also use the person's,
+   * are in docs/architecture/browser-tab-ownership.md.
+   *
+   * Absent when the host had nobody to be relative to, and from an older host
+   * that did not answer with it at all.
+   */
+  owner?: "you" | "person" | "agent";
 }
 
 export interface PluginBrowserCallOptions {
@@ -1475,7 +1486,9 @@ export interface PluginBrowserTabs {
 }
 
 /**
- * Reading the page. `tabId` defaults to the active tab throughout.
+ * Reading the page. `tabId` defaults to the caller's own newest tab throughout,
+ * falling back to the tab the person is looking at for a caller entitled to it
+ * (see {@link PluginBrowserTab.owner}).
  *
  * `getUrl`/`getTitle` answer from the browser's own tab state and work for any
  * tab. `getText`/`getSelection` have to ask the page itself, so they need a live
@@ -1838,7 +1851,7 @@ export interface PluginBrowserStorageWrite {
  *
  * Everything is scoped to one tab — cookies to the URL that tab is on, web
  * storage to its origin — so reading state for a site means opening it in a tab
- * first. `tabId` defaults to the active tab, as everywhere else.
+ * first. `tabId` defaults to the caller's own newest tab, as everywhere else.
  *
  * **This is credential access, not page content.** In a browser holding the
  * user's real logins, what `cookies()` returns for a signed-in site *is* that
@@ -2127,7 +2140,13 @@ export type PluginBrowserErrorCode =
    * than a fault, so the message names the setting and the command that
    * changes it. Do not retry it; relay it.
    */
-  | "external_access_denied";
+  | "external_access_denied"
+  /**
+   * The tab is open and it is not this caller's: the person's, or another
+   * agent's. The way forward is a tab of your own, or the person handing this
+   * one over from the browser window — never a retry of the same call.
+   */
+  | "tab_not_yours";
 
 export interface PluginBrowserStatus {
   connected: boolean;

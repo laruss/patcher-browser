@@ -1,4 +1,4 @@
-import { Provider as JotaiProvider } from "jotai";
+import { Provider as JotaiProvider, createStore } from "jotai";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { JSX, ReactNode } from "react";
 import { createAppQueryClient } from "@/lib/query-client";
@@ -14,6 +14,12 @@ type QueryClientTestWrapper = (
 export interface QueryClientTestHarness {
   queryClient: QueryClient;
   wrapper: QueryClientTestWrapper;
+  /**
+   * The store the wrapper provides, so a test can seed an atom before mounting
+   * or read one after acting. Explicit rather than implicit: a `Provider` with
+   * no store makes one nothing outside the tree can reach.
+   */
+  store: ReturnType<typeof createStore>;
 }
 
 export function createQueryClientTestHarness(): QueryClientTestHarness {
@@ -29,14 +35,17 @@ export function createQueryClientTestHarness(): QueryClientTestHarness {
     },
   });
 
+  const store = createStore();
+
   const wrapper: QueryClientTestWrapper = ({ children }) => (
-    <JotaiProvider>
+    <JotaiProvider store={store}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </JotaiProvider>
   );
 
   return {
     queryClient,
+    store,
     wrapper,
   };
 }

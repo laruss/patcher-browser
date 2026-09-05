@@ -46,13 +46,21 @@ const MINTED_TAB_ID = /^browser:[A-Za-z0-9_-]{21}:[^:]*$/u;
  * or nothing. So four spellings are accepted, and only the first costs nothing:
  *
  * - a real tab id
- * - `active` — the tab the user is looking at, which is also the default
+ * - `active` — the tab the person is looking at
  * - an index from the `tabs` listing, counting from 1
  * - a substring of the URL or title, when exactly one tab matches
  *
  * The last three need the tab list, which is one extra call. An id in the shape
  * this browser mints skips it, so the precise form stays the cheap one; anything
  * else is matched against the list, an exact id first.
+ *
+ * **`active` is resolved rather than passed through as "the default".** It used
+ * to be the same thing, because a missing `--tab` meant the active tab too.
+ * With tab ownership it does not: the default is now the caller's own newest
+ * tab, and a caller that typed `active` asked for the person's. Resolving it
+ * gives them that tab — and, when it is not theirs to use, the refusal that
+ * puts the handover question on the person's screen rather than a silent
+ * answer about a different page.
  */
 export async function resolveTabTarget(
   patcher: PatcherPluginApi,
@@ -60,12 +68,15 @@ export async function resolveTabTarget(
   options: PluginBrowserCallOptions,
 ): Promise<{ tabId: string | undefined } | { error: string }> {
   if (target === undefined) return { tabId: undefined };
-  // Undefined rather than the active tab's id: every call already defaults to
-  // the active tab, and resolving it here would cost a list for nothing.
-  if (target === "active") return { tabId: undefined };
   if (MINTED_TAB_ID.test(target)) return { tabId: target };
 
   const tabs = await patcher.browser.tabs.list(options);
+  if (target === "active") {
+    const active = tabs.find((tab) => tab.active);
+    return active === undefined
+      ? { error: "No tab is active in that browser window.\n" }
+      : { tabId: active.tabId };
+  }
   // An exact id wins over every other reading, so a tab whose id happens to
   // look like a number or to appear in another tab's URL is still addressable
   // by the id the browser gave it.

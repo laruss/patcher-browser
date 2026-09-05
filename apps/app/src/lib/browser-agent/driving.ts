@@ -1,5 +1,6 @@
 import { atom } from "jotai";
 import type { BrowserCommandIssuer } from "@patcher/server-contract";
+import { browserIssuerKey } from "./issuer";
 
 /**
  * Whether something other than the person is driving this window's browser.
@@ -32,23 +33,6 @@ export const browserDrivingAtom = atom<BrowserDrivingState | null>(null);
 
 /** How long the indicator stays after the last command settles. */
 export const BROWSER_DRIVING_LINGER_MS = 4_000;
-
-/**
- * What makes two commands "the same driver".
- *
- * The kind and its id, never the label: a grant renamed mid-session is the same
- * agent, and two grants that a person gave the same name are not.
- */
-export function browserDrivingIssuerKey(issuer: BrowserCommandIssuer): string {
-  switch (issuer.kind) {
-    case "thread":
-      return `thread:${issuer.threadId}`;
-    case "grant":
-      return `grant:${issuer.grantId}`;
-    case "outside":
-      return "outside";
-  }
-}
 
 export interface BrowserDrivingTracker {
   /** A command has arrived. Undefined issuers — the app's own work — do nothing. */
@@ -107,7 +91,7 @@ export function createBrowserDrivingTracker(
   return {
     started(issuer) {
       if (issuer === undefined) return;
-      const key = browserDrivingIssuerKey(issuer);
+      const key = browserIssuerKey(issuer);
       const held = inFlight.get(key);
       // Deleted before it is set, so the map stays in order of who started most
       // recently: `Map.set` on an existing key keeps its old position, and that
@@ -120,7 +104,7 @@ export function createBrowserDrivingTracker(
     },
     settled(issuer) {
       if (issuer === undefined) return;
-      const key = browserDrivingIssuerKey(issuer);
+      const key = browserIssuerKey(issuer);
       const left = Math.max((inFlight.get(key)?.count ?? 0) - 1, 0);
       if (left === 0) inFlight.delete(key);
       else inFlight.set(key, { count: left, issuer });
@@ -136,7 +120,7 @@ export function createBrowserDrivingTracker(
       // lying when it happens anyway.
       const other = stillDriving(key);
       if (other !== undefined) {
-        current = browserDrivingIssuerKey(other);
+        current = browserIssuerKey(other);
         clearTimer();
         args.set({ issuer: other, active: true });
         return;

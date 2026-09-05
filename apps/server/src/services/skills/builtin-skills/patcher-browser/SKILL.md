@@ -78,6 +78,29 @@ nor notice the read, and what comes back is size-capped with a two-second
 timeout. Prefer reading text over taking a screenshot when you want to know what
 a page says: it is cheaper, and it is the thing you can quote back.
 
+## The tabs are not all yours
+
+A tab you opened is yours. Every other tab is the person's, and if you are
+running outside Patcher — a shell, Claude Code, Codex — theirs are closed to you
+*to act in*: naming one answers `tab_not_yours`, and a command with no `--tab`
+works in **your own newest tab** rather than the page they happen to be reading.
+You can still *see* their tabs in the listing, with their addresses and titles —
+that is what listing tabs has always meant, and it is how you find the one to
+ask for. (Inside a Patcher thread you may still work in their tab; you still
+cannot touch another agent's.)
+
+So the first thing to do is get a tab of your own:
+
+```bash
+patcher browser open https://example.com --background   # yours, and it does not steal their window
+patcher browser tabs                                    # `owner:you`, `owner:person`, `owner:agent`
+```
+
+If you truly need the page they are in — they asked you about *this* page —
+attempt it once and then ask them. The refusal puts a row in their browser
+window offering to hand that tab over; once they do, retry. Do not retry
+before that: nothing about the situation changes on its own.
+
 ## One constraint, worth knowing before you promise anything
 
 A tab answers page-level calls only once it has had a live view: it must have
@@ -122,7 +145,9 @@ guessing.
 Every refusal carries a code and a sentence saying what to do next; read it
 instead of retrying the same call. `desktop_unavailable` means this Patcher runs
 as the web build with no desktop shell, and no retry will change that.
-`no_active_tab` means activate one first.
+`no_active_tab` means you have no tab to act in — open one with
+`patcher browser open <url> --background`, which is also the answer when the
+browser has tabs but none of them is yours.
 
 ## Access is off
 
