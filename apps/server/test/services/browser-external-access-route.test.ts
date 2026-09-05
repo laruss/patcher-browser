@@ -317,6 +317,32 @@ describe("a `patcher <plugin>` command from outside a turn", () => {
     });
   });
 
+  it("does not reach a plugin running in its own process", async () => {
+    // Measured rather than asserted, because the architecture document makes
+    // this exact claim and a claim about async context is the kind that is
+    // wrong in a way nothing notices. The scope is established on the request
+    // and the host charges an out-of-process plugin's browser call on a
+    // *channel message*, which is a fresh async context — so the level does not
+    // reach it and it is charged what it declared, as before.
+    //
+    // The tell is the failure it gets instead: `BrowserHostUnavailableError`
+    // from the hub means the command was dispatched, which is exactly what the
+    // in-process probe above is refused before doing.
+    await withTestHarness(
+      { runPluginOutOfProcess: () => true },
+      async (harness) => {
+        await installBrowserProbe(harness);
+        expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe(
+          "off",
+        );
+
+        expect(await runProbe(harness)).toMatchObject({
+          name: "BrowserHostUnavailableError",
+        });
+      },
+    );
+  });
+
   it("is charged per command, not per invocation", async () => {
     await withTestHarness(async (harness) => {
       await installBrowserProbe(harness);

@@ -181,11 +181,14 @@ Named here rather than left to be rediscovered.
   act rather than the way the product works. Making it a boundary needs a
   credential that opens the browser and nothing else, which is deliberately not
   in this change.
-- **The scope does not reach an installed plugin in its own process.** The host
-  charges those on a channel message, in a fresh async context, so a plugin
-  driven by an outside caller is charged what it declared, as before. Nothing
-  hides behind that gap — the same caller can install a plugin — and it closes
-  with the same credential.
+- **The scope does not reach an installed plugin in its own process** — measured,
+  not reasoned about, because a claim about async context is exactly the kind
+  that is wrong in a way nothing notices. The host charges an out-of-process
+  plugin's browser call on a *channel message*, which is a fresh async context,
+  so the level does not reach it and it is charged what it declared, as before.
+  The same probe that is refused in-process at level `off` reaches the hub when
+  its plugin runs in its own process. Nothing hides behind that gap — the same
+  caller can install a plugin — and it closes with the same credential.
 - **The server cannot tell a person's terminal from an agent's.** Both are
   "no thread", so both are charged the level. The cost is real and small: the
   diagnostic path in [agent-browser-tools.md](agent-browser-tools.md)
@@ -210,8 +213,10 @@ Named here rather than left to be rediscovered.
   writes without asking when no thread is declared, raises a prompt naming the
   level and its permissions when one is, changes nothing on a decline, enables
   `browser-tools` and does not disable it; and, through the real plugin CLI
-  route, a browser command refused while off, allowed at `read`, and **still
-  refused when the request carries only a thread header nobody verified**.
+  route, a browser command refused while off, allowed at `read`, **still refused
+  when the request carries only a thread header nobody verified**, and **not
+  refused at all when the plugin runs in its own process** — which is the
+  boundary above, pinned so it is a measured limit rather than a sentence.
 - `packages/config/test/cli-shim.test.ts` — executable, quotes a path with a
   space in it, unchanged on the next start, rewritten when the install moves, the
   execute bit restored, Windows skipped, failure reported rather than thrown.

@@ -1710,7 +1710,7 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
                 return {
                   exitCode: 1,
                   stdout: parsed.json
-                    ? `${JSON.stringify({ ...status, allowed: false, tabCount: null, activeTab: null, nextStep: denied })}\n`
+                    ? `${JSON.stringify({ ...status, tabCount: null, activeTab: null, nextStep: denied })}\n`
                     : `${denied}\n`,
                 };
               }
