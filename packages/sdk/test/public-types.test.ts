@@ -329,11 +329,14 @@ type ExpectedStatusKey = "get";
 
 type ExpectedSystemKey =
   | "attention"
+  | "browserAccessGrants"
   | "cliSkillsStatus"
   | "config"
+  | "createBrowserAccessGrant"
   | "executionOptions"
   | "installCliSkills"
   | "reloadConfig"
+  | "revokeBrowserAccessGrant"
   | "setBrowserExternalAccess"
   | "transcribeVoice"
   | "updateExperiments"

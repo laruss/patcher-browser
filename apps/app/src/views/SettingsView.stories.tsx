@@ -13,6 +13,7 @@ import type {
   WorkspaceOpenTarget,
   WorkspaceOpenTargetId,
 } from "@patcher/host-daemon-contract";
+import type { SystemBrowserAccessGrant } from "@patcher/server-contract";
 import { UsageLimitsSettingsSectionContent } from "@/components/settings/UsageLimitsSettingsSection";
 import { VoiceInputSettingsSectionContent } from "@/components/settings/VoiceInputSettingsSection";
 import { PageShell } from "@/components/ui/page-shell";
@@ -204,6 +205,28 @@ function useSettingsStoryState() {
     useState<StoredTargetId>("default-app");
   const [experiments, setExperiments] =
     useState<Experiments>(defaultExperiments);
+  // One live and one revoked, because the two rows render differently and the
+  // story is the only place either shape is looked at.
+  const [browserAccessGrants, setBrowserAccessGrants] = useState<
+    SystemBrowserAccessGrant[]
+  >([
+    {
+      id: "bag_3k9wq2mnpx",
+      label: "Claude Code",
+      level: "read",
+      createdAt: Date.parse("2026-09-01T10:00:00Z"),
+      lastUsedAt: Date.parse("2026-09-05T08:30:00Z"),
+      revokedAt: null,
+    },
+    {
+      id: "bag_7ytr4hbvcd",
+      label: "Codex",
+      level: "full",
+      createdAt: Date.parse("2026-08-20T10:00:00Z"),
+      lastUsedAt: null,
+      revokedAt: Date.parse("2026-08-28T12:00:00Z"),
+    },
+  ]);
   const [providerEgressConfined, setProviderEgressConfined] = useState(false);
   const [providerEgressAllowedHosts, setProviderEgressAllowedHosts] = useState<
     string[]
@@ -215,6 +238,13 @@ function useSettingsStoryState() {
     providerEgressAllowedHosts,
     setProviderEgressAllowedHosts,
     appearance,
+    browserAccessGrants,
+    revokeBrowserAccessGrant: (grantId: string) =>
+      setBrowserAccessGrants((grants) =>
+        grants.map((grant) =>
+          grant.id === grantId ? { ...grant, revokedAt: Date.now() } : grant,
+        ),
+      ),
     browserExternalAccess,
     setBrowserExternalAccess,
     browserSearchEngineId,
@@ -278,6 +308,9 @@ function GeneralSettingsStory({
         browserExternalAccess={state.browserExternalAccess}
         browserExternalAccessDisabled={false}
         onBrowserExternalAccessChange={state.setBrowserExternalAccess}
+        browserAccessGrants={state.browserAccessGrants}
+        revokingBrowserAccessGrantId={null}
+        onRevokeBrowserAccessGrant={state.revokeBrowserAccessGrant}
         browserSearchEngineId={state.browserSearchEngineId}
         onBrowserSearchEngineChange={state.setBrowserSearchEngineId}
         providerEgressConfined={state.providerEgressConfined}

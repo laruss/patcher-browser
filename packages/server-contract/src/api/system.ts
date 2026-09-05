@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   appSettingsSchema,
+  browserAccessGrantLevelSchema,
   browserExternalAccessLevelSchema,
   appDefaultKeybindingsSchema,
   appKeybindingOverridesSchema,
@@ -342,6 +343,69 @@ export const systemBrowserExternalAccessResponseSchema = z.object({
 });
 export type SystemBrowserExternalAccessResponse = z.infer<
   typeof systemBrowserExternalAccessResponseSchema
+>;
+
+/**
+ * A credential for one agent outside Patcher, as a request to mint one.
+ *
+ * The label is the whole of what makes a list of these answerable a month
+ * later: two grants are told apart by what the person called them, because
+ * everything else about them is identical. Required rather than defaulted for
+ * that reason — an unnamed grant is a row nobody can decide about.
+ */
+export const systemBrowserAccessGrantCreateRequestSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  level: browserAccessGrantLevelSchema,
+});
+export type SystemBrowserAccessGrantCreateRequest = z.infer<
+  typeof systemBrowserAccessGrantCreateRequestSchema
+>;
+
+/** One grant as a list shows it — never its credential. */
+export const systemBrowserAccessGrantSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  level: browserAccessGrantLevelSchema,
+  createdAt: z.number(),
+  /**
+   * When a request last presented this grant, or null if none ever has.
+   *
+   * Recorded at a minute's resolution: it is written on the way through the
+   * request gate, and a browser command loop is a lot of requests that are all
+   * the same answer to "is anything still using this".
+   */
+  lastUsedAt: z.number().nullable(),
+  revokedAt: z.number().nullable(),
+});
+export type SystemBrowserAccessGrant = z.infer<
+  typeof systemBrowserAccessGrantSchema
+>;
+
+/**
+ * A new grant, with its credential — the only response that ever carries one.
+ *
+ * Carried here rather than fetched later because it does not have to be stored
+ * to be re-derived, and re-deriving it on demand would make "show me the key
+ * again" a route, which is a route that answers with a credential. The list
+ * below deliberately has no such field: a person who lost the string revokes
+ * the grant and issues another, which is also what they would want to do.
+ */
+export const systemBrowserAccessGrantCreateResponseSchema = z.object({
+  grant: systemBrowserAccessGrantSchema,
+  /** The value of `PATCHER_AGENT_KEY` for the agent this was issued to. */
+  key: z.string(),
+  /** Whether `patcher browser` is actually being served — see the level route. */
+  browserToolsEnabled: z.boolean(),
+});
+export type SystemBrowserAccessGrantCreateResponse = z.infer<
+  typeof systemBrowserAccessGrantCreateResponseSchema
+>;
+
+export const systemBrowserAccessGrantListResponseSchema = z.object({
+  grants: z.array(systemBrowserAccessGrantSchema),
+});
+export type SystemBrowserAccessGrantListResponse = z.infer<
+  typeof systemBrowserAccessGrantListResponseSchema
 >;
 
 /** The machines to copy the built-in Patcher CLI skills onto. */

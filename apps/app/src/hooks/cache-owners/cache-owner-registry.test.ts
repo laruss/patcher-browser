@@ -161,6 +161,7 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
     "allThreadStoragePathsQueryKeyPrefix",
     "allThreadQueryKeyPrefix",
     "allTerminalsQueryKeyPrefix",
+    "browserAccessGrantsQueryKey",
     "browserHistoryQueryKeyPrefix",
     "environmentDiffFilesQueryKeyPrefix",
     "environmentFilePreviewQueryKeyPrefix",
@@ -220,6 +221,9 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
     "hostProviderCliStatusQueryKey",
   ],
   "hooks/cache-owners/system-config-cache-owner.ts": ["systemConfigQueryKey"],
+  "hooks/cache-owners/browser-access-grant-cache-owner.ts": [
+    "browserAccessGrantsQueryKey",
+  ],
   "hooks/cache-owners/system-version-cache-owner.ts": ["systemVersionQueryKey"],
   "hooks/cache-owners/terminal-cache-owner.ts": [
     "allTerminalsQueryKeyPrefix",

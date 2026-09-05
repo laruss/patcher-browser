@@ -22,15 +22,20 @@ import {
  * same argument `patcher.sites` makes about *where* a plugin reaches, applied
  * to *how far*.
  *
- * **What this is not.** It is not a boundary against a caller holding the app
- * key, because that caller can write this setting as easily as read it: the key
- * is a 0600 file that any process running as the user can read, which is the
- * position `docs/security.md` already states about every local gate. What it
- * buys is the same thing not handing a turn the app key bought — the browser is
- * closed by default, opening it is the user's act, and going around that is a
- * deliberate act rather than the way the product works. A credential that only
- * opens the browser is what would make it a boundary, and that is deliberately
- * not in this change.
+ * **Which caller, exactly.** This level is charged to an outside caller holding
+ * the *app key* — the master credential, a 0600 file any process running as the
+ * user can read — so it is not a boundary against that caller: it can write this
+ * setting as easily as read it, which is the position `docs/security.md` states
+ * about every local gate. What it buys is that the browser is closed by default
+ * and opening it is the user's act.
+ *
+ * The boundary is the other credential. A **browser access grant** carries its
+ * own level, reaches two routes, and cannot write this setting or mint another
+ * grant — see `agent-access-key.ts` in @patcher/config. It is deliberately *not*
+ * bounded by this level, and the reverse of a ceiling is the point: making the
+ * setting a ceiling would mean opening the browser to every process on the
+ * machine before you could open it to one named agent. The shape this is built
+ * for is the setting left `off` and one grant issued to the agent that needs it.
  *
  * **And it covers `patcher browser`, not every plugin.** The level is charged on
  * commands issued on the caller's own async stack, which is every built-in
@@ -53,6 +58,25 @@ export const browserExternalAccessLevelSchema = z.enum(
 export type BrowserExternalAccessLevel = z.infer<
   typeof browserExternalAccessLevelSchema
 >;
+
+/**
+ * The level a *grant* carries, which is the same ramp without `off`.
+ *
+ * A grant is a credential somebody issued on purpose; one that admits nothing
+ * is not a narrower grant, it is a row that should not exist. Revoking is how a
+ * grant stops working, and revoking says so — a date, in a list — where a grant
+ * quietly set to `off` would read as working.
+ *
+ * Derived from the four rather than written out again, so a level added to the
+ * ramp lands here too instead of silently staying out of grants.
+ */
+export const browserAccessGrantLevelSchema =
+  browserExternalAccessLevelSchema.exclude(["off"]);
+export type BrowserAccessGrantLevel = z.infer<
+  typeof browserAccessGrantLevelSchema
+>;
+export const BROWSER_ACCESS_GRANT_LEVELS =
+  browserAccessGrantLevelSchema.options;
 
 /**
  * The lowest level that admits each browser command permission.
@@ -144,7 +168,7 @@ export const BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS: Record<
   off: {
     label: "Off",
     detail:
-      "`patcher browser` refuses agents and terminals outside Patcher. Patcher's own threads are unaffected, and so is a third-party plugin you installed, which is charged the permissions it declared.",
+      "`patcher browser` refuses agents and terminals outside Patcher that hold no grant. Three things are unaffected: a browser access grant you issued, which carries its own level; Patcher's own threads; and a third-party plugin you installed, which is charged the permissions it declared.",
   },
   read: {
     label: "Read pages",

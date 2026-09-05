@@ -2,17 +2,21 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { formatCustomAcpAgentProviderId } from "@patcher/config/patcher-app-managed-config";
 import {
+  createBrowserAccessGrant,
   getAppSettings,
   getAppKeybindingOverrides,
   getExperiments,
   getStoredFaviconColor,
   getStoredThemeId,
   hasActiveThreadAttention,
+  listBrowserAccessGrants,
+  revokeBrowserAccessGrant,
   setAppSettings,
   setAppKeybindingOverrides,
   setExperiments,
   setStoredAppearance,
 } from "@patcher/db";
+import { deriveAgentAccessKey } from "@patcher/config/agent-access-key";
 import {
   applyAppKeybindingOverrides,
   applyPluginAppKeybindings,
@@ -62,14 +66,12 @@ import {
 import { DEFAULT_APP_KEYBINDINGS } from "../services/system/app-keybindings.js";
 import { declaresThread, requirePluginConsent } from "./plugin-consent.js";
 import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
-
-/**
- * The plugin that serves `patcher browser`. Named here because the browser
- * access route turns it on: a level that lets an outside agent drive the
- * browser, with nothing registered to serve the command, is a setting that
- * silently does nothing.
- */
-const BROWSER_TOOLS_PLUGIN_ID = "browser-tools";
+// The plugin that serves `patcher browser`. Turned on by the browser access
+// route, because a level that lets an outside agent drive the browser with
+// nothing registered to serve the command is a setting that silently does
+// nothing. Defined beside the gate rather than here — the route policy for a
+// grant names the same plugin.
+import { BROWSER_TOOLS_PLUGIN_ID } from "../services/browser/browser-external-access.js";
 
 /**
  * Whether `patcher browser` would actually answer.
@@ -146,7 +148,7 @@ export function registerSystemRoutes(
   deps: ServerAppDeps,
   pluginService: PluginService,
 ): void {
-  const { get, post, put } = typedRoutes<PublicApiSchema>(app, {
+  const { del, get, post, put } = typedRoutes<PublicApiSchema>(app, {
     onValidationError: (msg) => new ApiError(400, "invalid_request", msg),
   });
   const routes = publicApiRoutes.system;
@@ -308,6 +310,71 @@ export function registerSystemRoutes(
     });
     deps.hub.notifySystem(["config-changed"]);
     return context.json({ level, browserToolsEnabled });
+  });
+
+  /**
+   * The grants that are open to an agent outside Patcher, and the credential
+   * for a new one.
+   *
+   * **Why this route is closed to a turn, when the level route beside it is
+   * not.** The level route answers "may agents outside Patcher drive the
+   * browser", and a turn asking that raises a prompt because the answer is
+   * about *other* agents and costs the asking thread nothing. This route
+   * answers with a credential, and a credential is not a setting: a thread key
+   * stops working when the turn ends, and a grant does not stop until a person
+   * revokes it. So a turn that could call this would have minted itself a
+   * browser credential that outlives its own — the escalation dressed as a
+   * question. `agent-route-policy.ts` refuses the mutation for that reason;
+   * reading the list stays open, since a list carries no credentials.
+   *
+   * And a grant holder cannot reach it either, which is the other half:
+   * `agent-access-route-policy.ts` admits two routes and this is not one, so a
+   * grant cannot widen itself or mint a second one.
+   *
+   * It enables `browser-tools` for the same reason the level route does when
+   * nobody is being asked — a credential for a command nothing serves is a
+   * credential that silently does nothing — and there is no asked case here,
+   * because the only callers are the app and a person's own terminal.
+   */
+  get(routes.browserAccessGrants, (context) =>
+    context.json({ grants: listBrowserAccessGrants(deps.db) }),
+  );
+
+  post(routes.createBrowserAccessGrant, async (context, payload) => {
+    if (!isBrowserToolsServing(pluginService)) {
+      await pluginService.setEnabled(BROWSER_TOOLS_PLUGIN_ID, true);
+    }
+    const grant = createBrowserAccessGrant(deps.db, {
+      label: payload.label,
+      level: payload.level,
+    });
+    deps.hub.notifySystem(["config-changed"]);
+    return context.json({
+      grant,
+      // Derived, never stored: the row is the grant and this is a function of
+      // it. See `agent-access-key.ts`.
+      key: deriveAgentAccessKey({
+        appApiKey: deps.appApiKey,
+        grantId: grant.id,
+      }),
+      browserToolsEnabled: isBrowserToolsServing(pluginService),
+    });
+  });
+
+  del(routes.revokeBrowserAccessGrant, (context) => {
+    const id = context.req.param("id");
+    if (revokeBrowserAccessGrant(deps.db, id) === undefined) {
+      throw new ApiError(
+        404,
+        "not_found",
+        `No browser access grant '${id}'. Nothing was revoked — check \`patcher agent-access list\`.`,
+      );
+    }
+    deps.hub.notifySystem(["config-changed"]);
+    // The whole list back, because the one thing a caller does after revoking
+    // is look at what is left, and a revoke that answered `{ ok: true }` would
+    // make that a second request in every client.
+    return context.json({ grants: listBrowserAccessGrants(deps.db) });
   });
 
   put(routes.keyboardSettings, (context, payload) => {

@@ -17,6 +17,8 @@ palette are the person's look, not the turn's boundary.
 route of its own with a consent prompt on it, so an agent inside a turn running
 it raises a question on its thread rather than getting a 403. See
 [Agents outside Patcher](#agents-outside-patcher) below.
+`patcher agent-access grant` is _not_ an exception — it answers with a
+credential that outlives the turn, so a turn gets a 403 there.
 
 ## Agents outside Patcher
 
@@ -35,6 +37,23 @@ it raises a question on its thread rather than getting a 403. See
 - A command past the level is refused before it reaches the browser, so nothing
   happened; the refusal names the permission, the level that would admit it, and
   this command.
+
+## Browser access grants
+
+- `patcher agent-access` is the narrow alternative to the setting above, and the
+  one to suggest. `grant <label> --level <level>` mints a credential for **one**
+  agent, which reaches `patcher browser` and no other part of this API; the
+  setting above opens the browser to every process that can read the app key.
+  Its levels are `read`, `interact` and `full` — `off` belongs to the setting.
+- `--for claude-code` and `--for codex` run that agent's own `mcp add`, so the
+  credential lands in its configuration instead of a file. `--for shell` (the
+  default) prints `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` to export.
+- `list` shows every grant, live and revoked, with when each was last used.
+  `revoke <id>` ends one — the next request presenting it is refused, naming the
+  revocation. There is no expiry; the row is the lifetime.
+- **`grant` is refused inside a turn**, unlike `browser-access` above: a grant
+  keeps working after the turn ends, so minting one is the person's act. Reading
+  the list is not refused.
 
 ## Caffeinate (macOS only)
 

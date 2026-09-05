@@ -10,6 +10,7 @@ import type {
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
+import { setBrowserAccessGrants } from "../cache-owners/browser-access-grant-cache-owner";
 import { invalidatePluginList } from "../cache-owners/plugin-cache-owner";
 import {
   invalidateGeneralSettingsDependencies,
@@ -85,6 +86,29 @@ export function useSetBrowserExternalAccess() {
   });
 }
 
+/**
+ * Take back one agent's browser credential.
+ *
+ * Revoking only. Issuing a grant answers with a credential that has to be
+ * pasted into an agent's configuration, and `patcher agent-access grant --for
+ * claude-code` writes that configuration in one command — a panel that showed
+ * the string instead would be a worse version of the same act. Taking one back
+ * is the half that belongs here, because it is the half somebody does in a
+ * hurry.
+ */
+export function useRevokeBrowserAccessGrant() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { errorMessage: "Failed to revoke the browser access grant." },
+    mutationFn: (grantId: string) =>
+      sdk.system.revokeBrowserAccessGrant(grantId),
+    onSuccess: (grants) => {
+      setBrowserAccessGrants({ grants, queryClient });
+    },
+  });
+}
+
 /** Replace the sparse server-backed keyboard overrides for every app window. */
 export function useUpdateKeyboardSettings() {
   const queryClient = useQueryClient();
@@ -136,8 +160,7 @@ export function useUpdateAppearance() {
     meta: {
       errorMessage: "Failed to update appearance.",
     },
-    mutationFn: (selection: AppThemeSelection) =>
-      sdk.theme.set(selection),
+    mutationFn: (selection: AppThemeSelection) => sdk.theme.set(selection),
     onSuccess: () => {
       invalidateSystemConfig({ queryClient });
     },

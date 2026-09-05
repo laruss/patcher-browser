@@ -1,4 +1,15 @@
 export {
+  createBrowserAccessGrant,
+  getBrowserAccessGrant,
+  listBrowserAccessGrants,
+  revokeBrowserAccessGrant,
+  touchBrowserAccessGrantUse,
+} from "./browser-access-grants.js";
+export type {
+  BrowserAccessGrantRow,
+  CreateBrowserAccessGrantArgs,
+} from "./browser-access-grants.js";
+export {
   allowEnvSetupScriptConsent,
   deleteEnvSetupScriptConsent,
   forgetEnvSetupScriptQuestion,

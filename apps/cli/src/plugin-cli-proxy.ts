@@ -31,7 +31,7 @@ const CONTRIBUTIONS_TIMEOUT_MS = 2000;
 export type PluginCliContributionsResult =
   | { outcome: "ok"; contributions: PluginCliContributionEntry[] }
   | { outcome: "unreachable"; cause: unknown }
-  | { outcome: "unauthorized" }
+  | { outcome: "unauthorized"; serverMessage?: string }
   | { outcome: "invalid" };
 
 /**
@@ -118,6 +118,26 @@ export function describeUnreachableServer(
   }`;
 }
 
+/**
+ * The `message` an ApiError body carries, when the response has one.
+ *
+ * Best effort by design: a 401 from something that is not this server — a proxy,
+ * a captive portal — has no such body, and the caller's own explanation is
+ * better than a stray line of HTML.
+ */
+async function readServerMessage(
+  response: Response,
+): Promise<{ serverMessage?: string }> {
+  try {
+    const body = (await response.json()) as { message?: unknown } | null;
+    return typeof body?.message === "string" && body.message.length > 0
+      ? { serverMessage: body.message }
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 /** Fetch plugin CLI contributions with a short timeout. */
 export async function fetchPluginCliContributions(
   baseUrl: string,
@@ -136,7 +156,19 @@ export async function fetchPluginCliContributions(
     // through to commander, which then reports `patcher browser` as an unknown
     // command — advice about a command that exists, for a problem that is a
     // missing credential.
-    if (response.status === 401) return { outcome: "unauthorized" };
+    //
+    // The server's own sentence comes along when there is one, because for one
+    // caller it is the whole answer: a revoked browser access grant is refused
+    // with the grant named and the revocation stated, and that is something the
+    // holder cannot work out from its own environment. Measured on 2026-09-05 —
+    // the first version dropped the body and printed only "Patcher refused this
+    // shell", which reads as a broken setup rather than as a decision.
+    if (response.status === 401) {
+      return {
+        outcome: "unauthorized",
+        ...(await readServerMessage(response)),
+      };
+    }
     if (!response.ok) return { outcome: "invalid" };
     const parsed = (await response.json()) as {
       cliCommands?: unknown;

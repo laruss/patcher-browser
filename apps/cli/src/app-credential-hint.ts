@@ -7,6 +7,10 @@ import {
 } from "@patcher/config/runtime";
 import { toOptionalString } from "@patcher/config/strings";
 import {
+  parseAgentAccessCredential,
+  PATCHER_AGENT_KEY_ENV,
+} from "@patcher/config/agent-access-key";
+import {
   parseThreadCredential,
   PATCHER_THREAD_KEY_ENV,
 } from "@patcher/config/thread-api-key";
@@ -87,6 +91,20 @@ export function describeRefusedCredential(
         ? "It is this terminal's credential: accepted while the terminal is open, so a refusal means the terminal has closed."
         : "It is this turn's credential: accepted while the turn is running, so a refusal most likely means the turn has ended.";
     return `This shell carries a thread credential (${PATCHER_THREAD_KEY_ENV}), not the app key. It proves this thread and is charged this thread's limits, and it does not open routes that are the app's alone. ${lifetime} Nothing to fix here from inside the turn.`;
+  }
+  const agentKey = toOptionalString(env[PATCHER_AGENT_KEY_ENV]);
+  if (agentKey !== undefined) {
+    // An agent outside Patcher, holding a grant. Like the thread credential
+    // above, "go read the key file" is advice that would undo the narrower
+    // credential if followed — and unlike it, the server's own 401 already
+    // says which of the two things went wrong (revoked, or gone), so this line
+    // says what the credential *is* and leaves the diagnosis to the server.
+    const claim = parseAgentAccessCredential(agentKey);
+    const named =
+      claim === undefined
+        ? `The value in ${PATCHER_AGENT_KEY_ENV} is not shaped like a grant credential, so it was not presented as one`
+        : `It is grant ${claim.grantId}`;
+    return `This shell carries a browser access grant (${PATCHER_AGENT_KEY_ENV}), not the app key. It reaches \`patcher browser\` and no other Patcher API, and it lasts until the person who issued it revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` and issue a new one if this grant is gone.`;
   }
   const fromEnv = toOptionalString(env.PATCHER_APP_KEY);
   if (fromEnv !== undefined) {

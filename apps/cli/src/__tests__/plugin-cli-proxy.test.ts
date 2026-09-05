@@ -411,6 +411,47 @@ describe("fetchPluginCliContributions", () => {
     // that exists an unknown command — advice about the wrong problem.
     expect(result.outcome).toBe("unauthorized");
   });
+
+  it("keeps the server's own reason for the refusal", async () => {
+    // Measured on 2026-09-05: a revoked browser access grant is refused with
+    // the grant named and the revocation stated, and dropping the body left the
+    // holder with "Patcher refused this shell" — which reads as a broken setup
+    // rather than as somebody's decision. It is the one part of the answer this
+    // side cannot work out for itself.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: "unauthorized",
+              message: 'Browser access grant bag_x ("Claude Code") was revoked',
+            }),
+            { status: 401, headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+
+    const result = await fetchPluginCliContributions("http://localhost");
+
+    expect(result).toEqual({
+      outcome: "unauthorized",
+      serverMessage: 'Browser access grant bag_x ("Claude Code") was revoked',
+    });
+  });
+
+  it("carries no message when the 401 came from something else", async () => {
+    // A proxy or a captive portal answers 401 with HTML. The caller's own
+    // explanation is better than a stray line of it.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>nope</html>", { status: 401 })),
+    );
+
+    expect(await fetchPluginCliContributions("http://localhost")).toEqual({
+      outcome: "unauthorized",
+    });
+  });
 });
 
 describe("runPluginCliCommand", () => {

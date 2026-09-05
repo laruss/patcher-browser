@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
+import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import {
+  PATCHER_AGENT_KEY_HEADER,
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
 } from "@patcher/server-contract";
@@ -148,5 +150,43 @@ describe("cliFetch", () => {
 
     expect(headers.get(PATCHER_APP_KEY_HEADER)).toBe("the-app-key");
     expect(headers.has(PATCHER_THREAD_KEY_HEADER)).toBe(false);
+  });
+
+  it("presents a browser access grant when it holds one", async () => {
+    vi.stubEnv("PATCHER_THREAD_ID", "");
+    vi.stubEnv(PATCHER_THREAD_KEY_ENV, "");
+    vi.stubEnv(PATCHER_AGENT_KEY_ENV, "pa1.bag_x.mac");
+
+    const headers = await captureHeadersWithFreshModule();
+
+    expect(headers.get(PATCHER_AGENT_KEY_HEADER)).toBe("pa1.bag_x.mac");
+  });
+
+  it("does not present an app key alongside a grant", async () => {
+    // The whole point of the narrower credential: a process handed one for the
+    // browser must not go and read the master key off disk, or the credential
+    // would have bought nothing. Set deliberately, so the absence is a
+    // decision rather than an accident of the environment.
+    vi.stubEnv("PATCHER_THREAD_ID", "");
+    vi.stubEnv(PATCHER_THREAD_KEY_ENV, "");
+    vi.stubEnv(PATCHER_AGENT_KEY_ENV, "pa1.bag_x.mac");
+    vi.stubEnv("PATCHER_APP_KEY", "the-app-key");
+
+    const headers = await captureHeadersWithFreshModule();
+
+    expect(headers.has(PATCHER_APP_KEY_HEADER)).toBe(false);
+  });
+
+  it("lets a thread credential win over a grant in the same shell", async () => {
+    // Not a case Patcher creates. The order matters anyway, and it points at
+    // the identity this install issued for work it is watching.
+    vi.stubEnv("PATCHER_THREAD_ID", "thr_abc123");
+    vi.stubEnv(PATCHER_THREAD_KEY_ENV, "derived-thread-key");
+    vi.stubEnv(PATCHER_AGENT_KEY_ENV, "pa1.bag_x.mac");
+
+    const headers = await captureHeadersWithFreshModule();
+
+    expect(headers.get(PATCHER_THREAD_KEY_HEADER)).toBe("derived-thread-key");
+    expect(headers.has(PATCHER_AGENT_KEY_HEADER)).toBe(false);
   });
 });

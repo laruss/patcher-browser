@@ -58,6 +58,11 @@
       "types": "./src/cli-shim.ts",
       "default": "./src/cli-shim.ts"
     },
+    "./agent-access-key": {
+      "source": "./src/agent-access-key.ts",
+      "types": "./src/agent-access-key.ts",
+      "default": "./src/agent-access-key.ts"
+    },
     "./thread-api-key": {
       "source": "./src/thread-api-key.ts",
       "types": "./src/thread-api-key.ts",

@@ -79,3 +79,15 @@ export function createTerminalSessionId(): string {
 export function createEnvSetupScriptConsentId(): string {
   return createId("escon");
 }
+
+/**
+ * A browser access grant's id, which is also the public half of its credential.
+ *
+ * `PRETTY_ID_ALPHABET` has no `.` in it and `deriveAgentAccessKey` parses on
+ * one, which is what lets the id ride in the credential unencoded. That
+ * function refuses an id with a `.` rather than trusting this alphabet to stay
+ * as it is.
+ */
+export function createBrowserAccessGrantId(): string {
+  return createId("bag");
+}

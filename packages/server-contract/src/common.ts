@@ -28,6 +28,25 @@ export const PATCHER_THREAD_ID_HEADER = "x-patcher-thread-id";
  */
 export const PATCHER_THREAD_KEY_HEADER = "x-patcher-thread-key";
 
+/**
+ * Proves the request holds a browser access grant, and says which one.
+ *
+ * The fourth caller, beside a plugin, a turn and the app. A turn's credential
+ * names a thread this install started and can watch; this one names a *grant* —
+ * a row a person created deliberately for an agent that is not Patcher's, with
+ * a level and a label they chose and can revoke. Derived from the app key and
+ * the grant id, so it is not the app key and cannot be turned back into it, and
+ * so nothing has to store it: see `agent-access-key.ts` in @patcher/config for
+ * the construction, and `agent-access-route-policy.ts` in the server for the
+ * two routes it reaches.
+ *
+ * No id header beside it, unlike the thread pair. A thread id is something the
+ * caller already has and states for its own reasons; a grant id exists only to
+ * address the grant, so it rides inside the credential where a caller cannot
+ * move it onto another grant without breaking the MAC.
+ */
+export const PATCHER_AGENT_KEY_HEADER = "x-patcher-agent-key";
+
 export type PathId = { param: { id: string } };
 export type PathProjectId = { param: { id: string } };
 export type PathThreadAndQueuedMessage = {

@@ -8,7 +8,13 @@ import { getAppSettings } from "@patcher/db";
 import type { ServerRuntimeConfig } from "../types.js";
 import { getAgentThreadId } from "../agent-thread-scope.js";
 import { getPluginApiId } from "../plugin-api-identity-context.js";
-import { runAsExternalBrowserCaller } from "../services/browser/browser-external-access.js";
+import { getAgentAccessCaller } from "../agent-access-context.js";
+import {
+  browserToolsArgvRefusal,
+  BROWSER_TOOLS_PLUGIN_ID,
+  runAsExternalBrowserCaller,
+  type BrowserExternalCallerScope,
+} from "../services/browser/browser-external-access.js";
 import {
   declaresThread,
   requirePluginConsent,
@@ -884,15 +890,38 @@ export function registerPluginRoutes(
     const isOutsideCaller =
       getAgentThreadId(context) === undefined &&
       getPluginApiId(context) === undefined;
-    const result = await (isOutsideCaller
-      ? runAsExternalBrowserCaller(
-          {
-            level: getAppSettings(deps.db).browserExternalAccess,
+    // Two kinds of outside caller, and the difference is which level applies.
+    // A grant holder is charged *its grant's* level: that is a credential a
+    // person issued for one agent, which reaches these two routes and cannot
+    // write the install-wide setting or anything else. A caller with no grant
+    // is holding the app key, so the setting is what it gets — and the setting
+    // is a default rather than a boundary, because that caller can rewrite it.
+    const grantCaller = getAgentAccessCaller(context);
+    const scope: BrowserExternalCallerScope | undefined =
+      grantCaller !== undefined
+        ? {
+            level: grantCaller.level,
             pluginId,
-          },
-          run,
-        )
-      : run());
+            grant: { id: grantCaller.grantId, label: grantCaller.label },
+          }
+        : isOutsideCaller
+          ? {
+              level: getAppSettings(deps.db).browserExternalAccess,
+              pluginId,
+            }
+          : undefined;
+    // Before the run, not inside it: the one command this refuses never reaches
+    // the browser bridge, so a gate that only charged browser commands never
+    // saw it. See `browserToolsArgvRefusal`.
+    if (pluginId === BROWSER_TOOLS_PLUGIN_ID) {
+      const argvRefusal = browserToolsArgvRefusal(scope, argv);
+      if (argvRefusal !== null) {
+        return context.json({ exitCode: 1, stdout: "", stderr: argvRefusal });
+      }
+    }
+    const result = await (scope === undefined
+      ? run()
+      : runAsExternalBrowserCaller(scope, run));
     return context.json(result);
   });
 
