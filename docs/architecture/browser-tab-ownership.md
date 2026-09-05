@@ -110,11 +110,11 @@ which is the backstop for any path that forgets.
   (`tab-queue.ts`) and each caller has its own trace (`traces.ts`), so two
   *callers* no longer split each other's reads or share a log. Three things
   that is not: the person's own clicking and a page's own navigation reach the
-  page by their own paths and are sequenced against nothing; two shells holding
-  the app key are one caller here, so they still share a trace, as they share
-  everything else; and a ref is still a version rather than an owner, so a
-  caller can act on an element another caller's snapshot has moved. The last is
-  the next item in [../TODO.md](../TODO.md).
+  page by their own paths and are sequenced against nothing; and two shells
+  holding the app key are one caller here, so they still share a trace, as they
+  share everything else. A ref, which was the third of these, now carries the
+  snapshot that minted it (`refs.ts`), so acting on an element another caller's
+  snapshot moved is refused without anybody having to ask for the check.
 - **Not a per-process identity.** Everything holding the app key is one
   `outside` caller, so two shells share one set of tabs and can read each
   other's — and a tab handed to `outside` is handed to all of them. That is what

@@ -65,7 +65,8 @@ const OPTION_HELP = {
   "--background":
     "Open in a new tab without switching to it; the tab still loads",
   "--max": "Characters of page text, tree depth, or log entries",
-  "--generation": "Refuse refs unless they came from this snapshot",
+  "--generation":
+    "Which snapshot the refs came from; a ref like e2@6 says it itself",
   "--selector": "Narrow to what this CSS selector matches",
   "--button": "left (default), middle, right",
   "--double": "Double click",
@@ -156,8 +157,8 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
       "patcher browser snapshot [--tab <tab-id>] [--max <depth>] [--selector <css>] [--json]",
     options: ["--tab", "--max", "--selector", "--json"],
     details: [
-      "Refs ([ref=eN]) are how every acting command names an element, and they belong to the snapshot that produced them.",
-      "The generation is printed on stderr; pass it back as --generation so a ref the page has since reassigned is refused instead of acted on.",
+      "Refs are how every acting command names an element, and they belong to the snapshot that produced them: `[ref=e2@6]` is element e2 of snapshot 6.",
+      "Pass the ref as it is printed, suffix and all, and a ref the page has since reassigned is refused instead of acted on. A bare `e2` still works and is not checked; --generation is the older way of saying the same thing.",
       "Attaches the browser debugger to that tab, which fails while the user has DevTools open on it.",
     ],
   },

@@ -212,18 +212,15 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   the window knowing what the server knows about a credential, which is a
   channel that does not exist; the alternative is a deadline on the wait, which
   trades a late command for an out-of-order one.
-- **A ref can still be acted on after somebody else's snapshot moved it.** Two
-  of the three ordering pieces are done — commands take turns on a tab
-  (`tab-queue.ts`) and each caller keeps its own trace (`traces.ts`) — and this
-  is the third. A snapshot's `generation` is a version rather than an owner, and
-  carrying it back is optional (`--generation`, null by default), so `click e2`
-  from a caller whose snapshot is two generations old resolves against whatever
-  holds that node now. The fix is a ref that is hard to use without its
-  generation — `e2@6` as the ref the snapshot hands out, split back into ref and
-  generation before the shell's frozen wire sees it, with a bare `e2` still
-  accepted and still unchecked. What cannot be partitioned this way is worth
-  saying in the same change: cookies, web storage and a saved session state
-  belong to the session or the origin, not to a tab.
+- **What two callers still share, after ordering.** The three ordering pieces
+  are done — commands take turns on a tab (`tab-queue.ts`), each caller keeps
+  its own trace (`traces.ts`), and a ref carries the snapshot that minted it
+  (`refs.ts`). What cannot be partitioned this way, and is worth saying rather
+  than discovering: cookies, web storage, a saved session state and the page
+  zoom belong to the session or the origin, not to a tab, so two callers in two
+  tabs of the same site are working in one set of them. A caller that saves a
+  session state saves the person's, and one that clears cookies clears
+  everybody's.
 - **A tab an agent opens by clicking a link is the person's.** A
   `target=_blank` link, or any link the shell places, arrives on the same
   renderer channel as the person's own "Open link in new tab" from the page

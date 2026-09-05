@@ -88,7 +88,16 @@ export const BROWSER_COMMAND_MAX_UPLOAD_FILES = 10;
 export const BROWSER_COMMAND_MAX_SELECT_VALUES = 20;
 export const BROWSER_COMMAND_MAX_VIEWPORT_SIZE = 10_000;
 
-const browserRefSchema = z.string().regex(/^e[1-9][0-9]{0,5}$/u);
+/**
+ * `e12`, or `e12@6` — the ref with the snapshot that minted it.
+ *
+ * The suffix is what a snapshot now hands out, so the staleness check is on by
+ * default instead of waiting for a caller to pass `generation` separately. The
+ * bare form stays valid and stays unchecked: refs an agent is already holding,
+ * and refs typed by hand, keep working. The app splits the two apart before the
+ * shell's own wire — which is frozen, and knows only the bare form — sees them.
+ */
+const browserRefSchema = z.string().regex(/^e[1-9][0-9]{0,5}(@[0-9]{1,9})?$/u);
 const browserKeyModifierSchema = z.enum(["Alt", "Control", "Meta", "Shift"]);
 
 /**
