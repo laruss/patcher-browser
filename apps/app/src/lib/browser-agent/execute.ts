@@ -1,4 +1,5 @@
 import {
+  BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH,
   browserCommandSchema,
   type BrowserRecordOperation,
   type BrowserCommand,
@@ -1246,17 +1247,24 @@ async function runBrowserCommand(
       if (!result.ok) {
         return snapshotFailure(result, tab.id);
       }
+      // The refs carry the snapshot they came from, so acting on one is checked
+      // without the caller having to pass anything (`refs.ts`) — and the result
+      // is re-bounded, because adding to every marker can push a page that
+      // already filled the budget past what this wire carries.
+      const annotated = annotateSnapshotRefs(
+        result.snapshot,
+        result.generation,
+        BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH,
+      );
       return success({
         type: "snapshot",
         tabId: result.tabId,
         url: result.url,
         title: result.title,
-        // The refs carry the snapshot they came from, so acting on one is
-        // checked without the caller having to pass anything (`refs.ts`).
-        snapshot: annotateSnapshotRefs(result.snapshot, result.generation),
+        snapshot: annotated.snapshot,
         generation: result.generation,
         refCount: result.refCount,
-        truncated: result.truncated,
+        truncated: result.truncated || annotated.truncated,
       });
     }
 

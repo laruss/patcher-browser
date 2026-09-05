@@ -212,6 +212,15 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   the window knowing what the server knows about a credential, which is a
   channel that does not exist; the alternative is a deadline on the wait, which
   trades a late command for an out-of-order one.
+- **The SDK's fake host still speaks bare refs.** A snapshot from the real host
+  hands out `[ref=e2@6]` and accepts it back; `fake-plugin-host.ts` returns the
+  fixture text unchanged and matches `[ref=e2]` exactly, so a plugin test that
+  passes a production-shaped ref is refused `unknown_ref`, and the staleness
+  check this turns on cannot be exercised against the fake at all. The fix is
+  two small changes in that file — annotate on the way out, split on the way in
+  — and the reason they are not here is that the file sits exactly on its
+  `eslint.max-lines` pin, so the browser half of the fake wants extracting
+  first. Found by two reviews on 2026-09-06.
 - **What two callers still share, after ordering.** The three ordering pieces
   are done — commands take turns on a tab (`tab-queue.ts`), each caller keeps
   its own trace (`traces.ts`), and a ref carries the snapshot that minted it

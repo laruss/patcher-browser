@@ -101,7 +101,7 @@ const browserRefSchema = z.string().regex(/^e[1-9][0-9]{0,5}(@[0-9]{1,9})?$/u);
 const browserKeyModifierSchema = z.enum(["Alt", "Control", "Meta", "Shift"]);
 
 /**
- * What to do to a page, addressed through the `[ref=eN]` markers a snapshot
+ * What to do to a page, addressed through the `[ref=eN@G]` markers a snapshot
  * handed out.
  *
  * Structurally identical to the desktop contract's interaction union so the app

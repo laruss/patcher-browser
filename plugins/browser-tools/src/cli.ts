@@ -1459,7 +1459,7 @@ arguments, its own options, and what it costs.
 Reading
   status                     Can I act, and where am I — plus the active tab
   snapshot [--max <depth>] [--selector <css>]
-                             Accessibility tree with [ref=eN] on interactive elements;
+                             Accessibility tree with [ref=eN@G] on interactive elements;
                              --selector snapshots one region of a large page
   tabs                       List open tabs, numbered for --tab
   url | title                Read a tab's address or title

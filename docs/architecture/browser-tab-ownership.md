@@ -114,7 +114,9 @@ which is the backstop for any path that forgets.
   holding the app key are one caller here, so they still share a trace, as they
   share everything else. A ref, which was the third of these, now carries the
   snapshot that minted it (`refs.ts`), so acting on an element another caller's
-  snapshot moved is refused without anybody having to ask for the check.
+  snapshot moved is refused without anybody having to ask for the check — as
+  long as the ref is passed back as it was printed. A bare `eN`, stripped or
+  typed by hand, is still accepted and still unchecked.
 - **Not a per-process identity.** Everything holding the app key is one
   `outside` caller, so two shells share one set of tabs and can read each
   other's — and a tab handed to `outside` is handed to all of them. That is what

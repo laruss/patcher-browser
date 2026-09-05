@@ -109,20 +109,86 @@ export function withBareBrowserRefs(
   return interaction;
 }
 
+const MARKER = /\[ref=(e[1-9][0-9]{0,5})\]/gu;
+
 /**
  * Annotates a snapshot's `[ref=eN]` markers with the generation they belong to.
  *
  * On the text rather than in the shell, for the reason in the module docstring:
  * the shell's wire is frozen and its ref pattern would refuse `e2@6` on the way
- * back. The marker is the whole match — `[ref=` up to `]` — so nothing else in
- * a page's own text can be mistaken for one.
+ * back.
+ *
+ * **Only markers, never a page's own words.** The serializer writes accessible
+ * names and values through `JSON.stringify`, so everything a page controls
+ * arrives inside quotes and everything structural is outside them — which makes
+ * "outside a string" exactly "a marker the serializer wrote". A page that puts
+ * the text `[ref=e1]` in a heading would otherwise come back with a ref that
+ * resolves to a real and unrelated element, and a `refCount` that disagrees
+ * with what is on the page. Found by review.
+ *
+ * **And it can make the snapshot longer than the wire allows.** The shell
+ * truncates at 64 KiB and this adds characters to every marker, so a page that
+ * filled the budget would come back over it — and the server refuses an
+ * oversized response at the socket rather than passing it on, which turns a big
+ * page from "truncated" into "the browser stopped answering". So the result is
+ * re-bounded here, and says so.
  */
 export function annotateSnapshotRefs(
   snapshot: string,
   generation: number,
-): string {
-  return snapshot.replace(
-    /\[ref=(e[1-9][0-9]{0,5})\]/gu,
-    `[ref=$1@${generation}]`,
-  );
+  maxLength: number,
+): { snapshot: string; truncated: boolean } {
+  let annotated = "";
+  for (const line of snapshot.split("\n")) {
+    annotated += `${annotated.length === 0 ? "" : "\n"}${annotateLine(line, generation)}`;
+  }
+  if (annotated.length <= maxLength) {
+    return { snapshot: annotated, truncated: false };
+  }
+  // On a line boundary where there is one: half a line of tree is readable,
+  // half a `[ref=` is a ref an agent will try to use.
+  const cut = annotated.lastIndexOf("\n", maxLength);
+  return {
+    snapshot: annotated.slice(0, cut > 0 ? cut : maxLength),
+    truncated: true,
+  };
+}
+
+/** The structural part of a line is what is outside its JSON strings. */
+function annotateLine(line: string, generation: number): string {
+  let annotated = "";
+  let index = 0;
+  let quoted = false;
+  while (index < line.length) {
+    const character = line[index] ?? "";
+    if (quoted) {
+      annotated += character;
+      // A backslash escapes the next character, including a quote — so a name
+      // ending in `\"` does not close the string one character early.
+      if (character === "\\" && index + 1 < line.length) {
+        annotated += line[index + 1] ?? "";
+        index += 2;
+        continue;
+      }
+      if (character === '"') quoted = false;
+      index += 1;
+      continue;
+    }
+    if (character === '"') {
+      quoted = true;
+      annotated += character;
+      index += 1;
+      continue;
+    }
+    MARKER.lastIndex = index;
+    const matched = MARKER.exec(line);
+    if (matched !== null && matched.index === index) {
+      annotated += `[ref=${matched[1] ?? ""}@${generation}]`;
+      index += matched[0].length;
+      continue;
+    }
+    annotated += character;
+    index += 1;
+  }
+  return annotated;
 }

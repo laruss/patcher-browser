@@ -27,9 +27,9 @@ describe("splitting a ref", () => {
   });
 
   it("does not invent a generation from something that is not one", () => {
-    // Whatever this is, it is not a ref this browser minted — so it goes to the
-    // shell as it came, and is refused there by name rather than silently
-    // becoming `e12`.
+    // Whatever this is, it is not a ref this browser minted, and it is not
+    // silently turned into `e12` here. It never reaches the shell either: the
+    // agent-facing schema refuses it first, at the server and again in the app.
     expect(splitBrowserRef("e12@")).toEqual({ ref: "e12@", generation: null });
     expect(splitBrowserRef("e12@x")).toEqual({
       ref: "e12@x",
@@ -109,6 +109,8 @@ describe("what reaches the shell", () => {
   });
 });
 
+const NO_LIMIT = 1_000_000;
+
 describe("annotating a snapshot", () => {
   it("marks every ref with the snapshot it came from", () => {
     const snapshot = [
@@ -116,22 +118,48 @@ describe("annotating a snapshot", () => {
       '  - textbox "Email" [ref=e2] [focused]',
     ].join("\n");
 
-    expect(annotateSnapshotRefs(snapshot, 6)).toBe(
-      [
+    expect(annotateSnapshotRefs(snapshot, 6, NO_LIMIT)).toEqual({
+      snapshot: [
         '- button "Sign in" [ref=e1@6]',
         '  - textbox "Email" [ref=e2@6] [focused]',
+      ].join("\n"),
+      truncated: false,
+    });
+  });
+
+  it("leaves a page's own words alone, however they are spelled", () => {
+    // The serializer puts everything a page controls inside quotes, so a page
+    // that writes `[ref=e1]` in a heading must not come back with a ref that
+    // resolves to a real and unrelated element. Found by review; the first
+    // version of this rewrote the text.
+    const snapshot = [
+      '- heading "see [ref=e1] in the docs" [ref=e4]',
+      '- textbox "quote \\" then [ref=e2]" [ref=e5]',
+    ].join("\n");
+
+    expect(annotateSnapshotRefs(snapshot, 6, NO_LIMIT).snapshot).toBe(
+      [
+        '- heading "see [ref=e1] in the docs" [ref=e4@6]',
+        '- textbox "quote \\" then [ref=e2]" [ref=e5@6]',
       ].join("\n"),
     );
   });
 
-  it("leaves the page's own text alone", () => {
-    // The whole marker is matched, so a page that talks about refs — a docs
-    // site, this repository's own snapshot examples — is not rewritten.
-    const snapshot = '- text "see [ref=e1] in the docs, or e2"';
+  it("stays inside the wire's budget, and says when it had to", () => {
+    // The shell truncates at the same cap this wire carries, so a page that
+    // filled it comes back over the cap once every marker grows — and the
+    // server refuses an oversized response at the socket rather than passing
+    // it on, which is a big page failing rather than being cut.
+    const line = '- button "Sign in" [ref=e1]';
+    const snapshot = Array.from({ length: 20 }, () => line).join("\n");
 
-    expect(annotateSnapshotRefs(snapshot, 6)).toBe(
-      '- text "see [ref=e1@6] in the docs, or e2"',
-    );
+    const bounded = annotateSnapshotRefs(snapshot, 6, snapshot.length);
+
+    expect(bounded.truncated).toBe(true);
+    expect(bounded.snapshot.length).toBeLessThanOrEqual(snapshot.length);
+    // Cut on a line boundary: half a line of tree is readable, half a `[ref=`
+    // is a ref an agent will try to use.
+    expect(bounded.snapshot.endsWith("[ref=e1@6]")).toBe(true);
   });
 });
 

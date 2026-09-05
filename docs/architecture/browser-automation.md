@@ -795,7 +795,11 @@ backend node id the snapshot recorded; a stale generation and an unknown ref bot
 refusing **before** anything is dispatched; the actionability wait giving up with
 its reason; each action's CDP call sequence; and the interaction union parsing
 identically on both wires, which is the only mechanical guard on the "must not
-drift" claim those two schemas make about each other.
+drift" claim those two schemas make about each other. The one place the two
+deliberately differ is the ref: the agent-facing side takes `eN@G`, the shell's
+frozen side takes `eN`, and `refs.ts` is what translates — so that difference is
+guarded by the tests around it rather than by the drift test, which would
+otherwise have to be taught to expect a difference and stop guarding the rest.
 
 Stage C adds: the ring buffer's eviction and its dropped count (including the
 case that matters — a limit hiding entries the ring never evicted); the console
