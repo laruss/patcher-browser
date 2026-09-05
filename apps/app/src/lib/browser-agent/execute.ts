@@ -831,7 +831,30 @@ export async function executeBrowserCommand(
   const runOnTab = deps.runOnTab;
   return runOnTab === undefined
     ? run()
-    : runOnTab(queuedTabId(command, deps), run);
+    : runQueued(command, deps, runOnTab, run);
+}
+
+/**
+ * Runs the command in the queue of the tab it is about to act on.
+ *
+ * Resolved before the wait and checked again after it, because the answer can
+ * move while a command sits in line: another caller closing the tab this
+ * resolved to changes what "my newest tab" means, and running anyway would act
+ * on one tab while holding another's place. One re-queue on the new answer, and
+ * then it runs regardless — a caller whose tabs are closing faster than its own
+ * commands is not a caller a third attempt would help.
+ */
+async function runQueued(
+  command: BrowserCommand,
+  deps: BrowserCommandDeps,
+  runOnTab: NonNullable<BrowserCommandDeps["runOnTab"]>,
+  run: () => Promise<BrowserCommandOutcome>,
+): Promise<BrowserCommandOutcome> {
+  const target = queuedTabId(command, deps);
+  const first = await runOnTab(target, async () =>
+    queuedTabId(command, deps) === target ? await run() : null,
+  );
+  return first ?? runOnTab(queuedTabId(command, deps), run);
 }
 
 /**
@@ -852,11 +875,51 @@ function queuedTabId(
   command: BrowserCommand,
   deps: BrowserCommandDeps,
 ): string | null {
-  if (!("tabId" in command)) {
+  if (!("tabId" in command) || !actsOnItsTab(command)) {
     return null;
   }
   const resolution = resolveTab(command.tabId, deps);
   return resolution.ok ? resolution.resolved.tab.id : null;
+}
+
+/**
+ * Whether this command should wait its turn on the tab it names.
+ *
+ * Four do not, for two different reasons.
+ *
+ * **Two do not touch that tab at all.** `navigation.open` with `newTab` makes
+ * its own and leaves this one alone, and a trace spans tabs — the schema says
+ * so. Queuing them would be waiting on work they have nothing to do with, and
+ * they would then arrive late: past the caller's deadline, a tab opens or a
+ * trace starts that the caller was already told had timed out. It would also
+ * resolve a tab for them, which is how a trace command ended up raising a
+ * "may I have this tab" question about a tab it never uses.
+ *
+ * **Two are the way out of a tab that has stopped answering**, and a rescue
+ * queued behind the thing it rescues is not one. A page that opens a
+ * `confirm()` from a click holds the click's own acknowledgement, so the click
+ * never settles — and the documented next step is `page.handle_dialog`, which
+ * would have queued behind it forever. `tabs.close` is the other: throwing the
+ * page away is what is left when nothing on it answers. Both can therefore
+ * overlap a command in flight on that tab, which is exactly what a rescue is.
+ * Found by review; the deeper fix — a deadline on the shell paths that have
+ * none — is in docs/TODO.md.
+ */
+function actsOnItsTab(command: BrowserCommand): boolean {
+  switch (command.type) {
+    case "navigation.open":
+      return !command.newTab;
+    case "page.record":
+      return (
+        command.operation.kind !== "trace-start" &&
+        command.operation.kind !== "trace-stop"
+      );
+    case "page.handle_dialog":
+    case "tabs.close":
+      return false;
+    default:
+      return true;
+  }
 }
 
 async function runBrowserCommand(

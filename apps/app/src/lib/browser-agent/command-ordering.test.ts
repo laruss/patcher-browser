@@ -3,7 +3,7 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import { createHarness, liveState, tab } from "@/test/browser-command-harness";
 import { executeBrowserCommand } from "./execute";
 import { createBrowserTabQueue } from "./tab-queue";
-import { withBrowserTabOwner, type BrowserTabOwners } from "./tab-owners";
+import type { BrowserTabOwners } from "./tab-owners";
 
 /**
  * Two commands, one browser.
@@ -113,6 +113,105 @@ describe("two commands on one browser", () => {
     expect(harness.calls.navigate).toHaveLength(1);
     gate.resolve();
     await read;
+  });
+
+  it("takes the new tab's place in line when its target moves while it waits", async () => {
+    // A caller's unqualified command resolves to its newest tab before it
+    // waits. If it opens another tab in the meantime — which does not queue,
+    // having no tab to act on — that answer moves, and running anyway would act
+    // on the new tab while holding the old one's place, overlapping whatever is
+    // already going on there.
+    const first = deferred();
+    const second = deferred();
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://first.example/")] },
+      live: { a: liveState("a"), "new-1": liveState("new-1") },
+      queue: createBrowserTabQueue(),
+      readPageGate: (tabId) => (tabId === "a" ? first.promise : second.promise),
+      owners: ownedBy([["a", GRANT]]),
+      issuer: GRANT,
+    });
+
+    const slowOnFirst = executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+    const moved = executeBrowserCommand(
+      {
+        type: "navigation.open",
+        tabId: null,
+        url: "https://moved.example/",
+        newTab: false,
+      },
+      harness.deps,
+    );
+    // The caller's newest tab is now the one it just opened, and something is
+    // already running on it.
+    await executeBrowserCommand(
+      { type: "tabs.open", url: "https://second.example/", activate: false },
+      harness.deps,
+    );
+    const slowOnSecond = executeBrowserCommand(
+      {
+        type: "page.get_text",
+        tabId: "new-1",
+        maxLength: 1000,
+        selector: null,
+      },
+      harness.deps,
+    );
+
+    first.resolve();
+    await slowOnFirst;
+    await Promise.resolve();
+    await Promise.resolve();
+    // Still waiting — behind the read on the tab it now resolves to, not
+    // released by the chain it originally joined.
+    expect(harness.calls.navigate).toEqual([]);
+
+    second.resolve();
+    await Promise.all([moved, slowOnSecond]);
+    expect(harness.calls.navigate).toEqual([
+      { tabId: "new-1", url: "https://moved.example/" },
+    ]);
+  });
+
+  it("answers a dialog on a tab whose command has stopped answering", async () => {
+    // The flow this is against, and it is a documented one: a click on a button
+    // whose handler opens `confirm()` never gets its acknowledgement, because
+    // the page is waiting for the dialog — and the next step the docs give,
+    // answering that dialog, would have queued behind the click forever.
+    const stuck = deferred();
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://example.com/")] },
+      live: { a: liveState("a") },
+      queue: createBrowserTabQueue(),
+      readPageGate: stuck.promise,
+    });
+
+    const wedged = executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+    const answered = await executeBrowserCommand(
+      {
+        type: "page.handle_dialog",
+        tabId: "a",
+        accept: true,
+        promptText: null,
+      },
+      harness.deps,
+    );
+
+    expect(answered).toMatchObject({ ok: true });
+    // And the other way out of a tab nothing answers on.
+    const closed = await executeBrowserCommand(
+      { type: "tabs.close", tabId: "a" },
+      harness.deps,
+    );
+    expect(closed).toMatchObject({ ok: true });
+    stuck.resolve();
+    await wedged;
   });
 
   it("does not make a refusal wait for the tab it was refused", async () => {

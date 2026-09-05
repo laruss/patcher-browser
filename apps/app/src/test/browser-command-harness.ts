@@ -69,9 +69,12 @@ export interface HarnessArgs {
   omitReadPage?: boolean;
   /**
    * Held open until this resolves, so a test can have one command in flight
-   * while it issues another — the only way to see whether they interleave.
+   * while it issues another — the only way to see whether they interleave. A
+   * function is given the tab, for a test that needs two reads held apart.
    */
-  readPageGate?: Promise<unknown>;
+  readPageGate?:
+    | Promise<unknown>
+    | ((tabId: string) => Promise<unknown> | undefined);
   readPageIn?: PatcherDesktopBrowserPageReadResult;
   omitReadPageIn?: boolean;
   omitAttachBackgroundView?: boolean;
@@ -135,6 +138,7 @@ export function createHarness(args: HarnessArgs = {}) {
     readPageIn: [] as unknown[],
     backgroundViews: [] as Array<{ tabId: string; url: string }>,
     handoverAsks: [] as Array<{ issuer: BrowserCommandIssuer; tabId: string }>,
+    dialogs: [] as unknown[],
   };
   let nextTabId = 0;
 
@@ -168,6 +172,12 @@ export function createHarness(args: HarnessArgs = {}) {
       calls.reload.push(tabId);
     },
     stop: vi.fn(),
+    // The one command that exists to rescue a tab nothing is answering on, so
+    // a test about queueing needs it to be answerable.
+    respondToDialog: (request: unknown) => {
+      calls.dialogs.push(request);
+      return Promise.resolve(true);
+    },
     setBounds: vi.fn(),
     setVisible: vi.fn(),
     onState: () => () => undefined,
@@ -322,8 +332,9 @@ export function createHarness(args: HarnessArgs = {}) {
     ...(args.omitReadPage === true
       ? {}
       : {
-          readPage: async () => {
-            await (args.readPageGate ?? Promise.resolve());
+          readPage: async (tabId: string) => {
+            const gate = args.readPageGate;
+            await (typeof gate === "function" ? gate(tabId) : gate);
             return (
               args.readPage ?? {
                 ok: true as const,

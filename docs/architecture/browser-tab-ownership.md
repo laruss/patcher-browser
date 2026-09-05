@@ -106,14 +106,15 @@ which is the backstop for any path that forgets.
   tab's, and cannot be partitioned this way. What ownership buys is that two
   callers stop landing on one page by accident, and that the page the person is
   reading is not the default target of an agent nobody in the room announced.
-- **Not the whole of ordering.** Commands now take turns on a tab
-  (`tab-queue.ts`) and each caller has its own trace (`traces.ts`), so the two
-  ways two callers used to corrupt each other's work — a read split by
-  somebody else's navigation, and a log that mixed them — are closed. What is
-  left is the ref: a snapshot's generation is a version rather than an owner,
-  and passing it is optional, so a caller can still act on a ref another
-  caller's snapshot has moved. That is the next item in
-  [../TODO.md](../TODO.md).
+- **Not the whole of ordering.** Browser commands now take turns on a tab
+  (`tab-queue.ts`) and each caller has its own trace (`traces.ts`), so two
+  *callers* no longer split each other's reads or share a log. Three things
+  that is not: the person's own clicking and a page's own navigation reach the
+  page by their own paths and are sequenced against nothing; two shells holding
+  the app key are one caller here, so they still share a trace, as they share
+  everything else; and a ref is still a version rather than an owner, so a
+  caller can act on an element another caller's snapshot has moved. The last is
+  the next item in [../TODO.md](../TODO.md).
 - **Not a per-process identity.** Everything holding the app key is one
   `outside` caller, so two shells share one set of tabs and can read each
   other's — and a tab handed to `outside` is handed to all of them. That is what

@@ -109,18 +109,31 @@ describe("the browser tab queue", () => {
 
   it("forgets a tab once nothing is queued for it", async () => {
     const queue = createBrowserTabQueue();
-    // Nothing observable from outside, so this is asserted the only way it can
-    // be: a tab that ran and settled must not hold anything that would make a
-    // later command wait.
     await queue.run("tab-1", () => Promise.resolve());
-    let started = false;
-    const next = queue.run("tab-1", async () => {
-      started = true;
-    });
-
-    // Synchronously started, because there was no tail to wait on.
+    // Flushed, because the cleanup runs a microtask behind the command it
+    // follows — and asserting before it has run would pass either way, which is
+    // the shape of a test that pins nothing.
     await Promise.resolve();
-    expect(started).toBe(true);
-    await next;
+    await Promise.resolve();
+
+    // A queue that kept every tab it had ever seen would still run everything
+    // in order; only this says so.
+    expect(queue.size).toBe(0);
+  });
+
+  it("keeps the chain while a command is still queued behind one", async () => {
+    const queue = createBrowserTabQueue();
+    const held = deferred();
+
+    const first = queue.run("tab-1", () => held.promise);
+    const second = queue.run("tab-1", () => Promise.resolve());
+    await Promise.resolve();
+
+    expect(queue.size).toBe(1);
+    held.resolve();
+    await Promise.all([first, second]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(queue.size).toBe(0);
   });
 });

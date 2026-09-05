@@ -39,14 +39,35 @@ describe("the browser trace registry", () => {
   it("keeps callers apart, so one can trace while another does", () => {
     const traces = createBrowserTraceRegistry();
     const mine = traces.for(GRANT);
+    mine.start(0, false);
 
     expect(traces.for(OTHER)).not.toBe(mine);
     expect(traces.for(TURN)).not.toBe(mine);
-
-    // And the refusal that used to follow is gone: starting one trace no longer
+    // The refusal that used to follow is gone: starting one trace no longer
     // uses up the window's only recorder.
-    expect(mine.start(0, false)).toBe(true);
     expect(traces.for(OTHER).start(0, false)).toBe(true);
+    // And the caller that is recording still gets its own log back, with two
+    // other callers' commands having gone through the registry in between.
+    expect(traces.for(GRANT)).toBe(mine);
+  });
+
+  it("keeps a running trace and forgets a finished one", () => {
+    const traces = createBrowserTraceRegistry();
+    const recording = traces.for(GRANT);
+    recording.start(0, false);
+    traces.for(OTHER);
+    traces.for(TURN);
+
+    // Every command that arrives sweeps: a window that served a hundred threads
+    // would otherwise hold a slot for each, most of them for a caller it will
+    // never see again. The one still recording is the one that stays.
+    expect(traces.size).toBe(2);
+    expect(traces.for(GRANT)).toBe(recording);
+
+    recording.stop(1);
+    traces.for(OTHER);
+
+    expect(traces.size).toBe(1);
   });
 
   it("treats commands nobody is named on as one caller", () => {

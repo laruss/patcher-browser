@@ -195,6 +195,23 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   such a command is outside tab ownership too
   ([architecture/browser-tab-ownership.md](architecture/browser-tab-ownership.md)),
   so it lands on the person's active tab the way everything did before.
+- **Three shell paths can leave a command unanswered forever.** A snapshot
+  (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
+  `awaitPromise`) and the input dispatch inside a click are sent to the page
+  with no deadline of their own — `desktop-browser-page-read.ts` says as much
+  about CDP sends in general — so a page that opens a `confirm()` from a click,
+  or an expression that never resolves, leaves the command open until the tab
+  goes. It cost one call before; now it holds that tab's queue
+  (`tab-queue.ts`), which is why answering a dialog and closing a tab are the
+  two commands that never queue. The fix is the deadline the interaction path
+  already has (`InteractionDeadline`), applied to the other three.
+- **A queued command outlives a pause.** The credential is checked when the
+  request arrives, so a command that then waits its turn on a tab can run after
+  the person has paused or revoked the grant that sent it — and after the server
+  told its caller it had timed out. Re-checking at the moment of execution means
+  the window knowing what the server knows about a credential, which is a
+  channel that does not exist; the alternative is a deadline on the wait, which
+  trades a late command for an out-of-order one.
 - **A ref can still be acted on after somebody else's snapshot moved it.** Two
   of the three ordering pieces are done — commands take turns on a tab
   (`tab-queue.ts`) and each caller keeps its own trace (`traces.ts`) — and this
