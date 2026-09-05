@@ -13,6 +13,29 @@ list — are the boundary the turn itself is running inside. So an agent running
 the keyboard commands and `patcher theme` keep working — a shortcut and a
 palette are the person's look, not the turn's boundary.
 
+`patcher settings browser-access` is the exception, and deliberately: it has a
+route of its own with a consent prompt on it, so an agent inside a turn running
+it raises a question on its thread rather than getting a 403. See
+[Agents outside Patcher](#agents-outside-patcher) below.
+
+## Agents outside Patcher
+
+- `browserExternalAccess` decides how far an agent or terminal **outside**
+  Patcher may drive the browser with `patcher browser`: `off` (the default),
+  `read`, `interact`, or `full`. Threads inside Patcher are not affected — their
+  gate is the `browser-tools` plugin.
+- `patcher settings browser-access` prints the current level; with a level it
+  sets one, and turns the `browser-tools` plugin on if it is off. Going back to
+  `off` leaves the plugin alone, because threads use it too.
+- The levels are a ramp over the permissions browser commands already cost:
+  `read` is tabs, page text and structure, screenshots and logs; `interact` adds
+  navigating, clicking and typing; `full` adds cookies and site storage, running
+  JavaScript in a page, mocking its network, and recording. Ask for the lowest
+  one that does the job.
+- A command past the level is refused before it reaches the browser, so nothing
+  happened; the refusal names the permission, the level that would admit it, and
+  this command.
+
 ## Caffeinate (macOS only)
 
 - Keeps the Mac awake while Patcher is running: when enabled, the server asks the

@@ -11,7 +11,8 @@ import {
 import {
   describeUnreachableServer,
   fetchPluginCliContributions,
-  findDisabledPluginForCommand,
+  describeUnknownPluginCommand,
+  listDisabledPlugins,
   findPluginCliCommand,
   pluginProxyCandidate,
   runPluginCliCommand,
@@ -110,14 +111,14 @@ async function tryPluginCommandProxy(): Promise<void> {
   if (result.outcome === "invalid") return;
   const match = findPluginCliCommand(result.contributions, candidate);
   if (match === undefined) {
-    // Disabled plugins contribute no commands; explain instead of erroring
-    // when the name matches an installed-but-disabled plugin's id.
-    const disabled = await findDisabledPluginForCommand(getUrl(), candidate);
-    if (disabled !== null) {
-      console.error(
-        `patcher ${candidate} is provided by the "${disabled.id}" plugin, which is disabled — ` +
-          `run \`patcher plugin enable ${disabled.id}\` or enable it in Plugins.`,
-      );
+    // Disabled plugins contribute no commands, so falling through to commander
+    // answers "unknown command" for a command that exists and is merely off.
+    const explanation = describeUnknownPluginCommand(
+      candidate,
+      await listDisabledPlugins(getUrl()),
+    );
+    if (explanation !== null) {
+      console.error(explanation);
       process.exit(1);
     }
     return;

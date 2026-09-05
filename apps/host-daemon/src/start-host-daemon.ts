@@ -27,6 +27,7 @@ import type { HostDaemon } from "./daemon.js";
 import { enrollDaemonHost } from "./enroll.js";
 import { loadHostIdentity, persistHostId } from "./identity.js";
 import { acquireDaemonLock } from "./lock.js";
+import { prepareLocalAgentAccess } from "./local-agent-setup.js";
 import {
   resolveHostDaemonLocalApiConfig,
   type HostDaemonLocalApiOverrides,
@@ -209,6 +210,14 @@ export async function startHostDaemon(
         transportMode: "worker",
       });
     lockDiagnosticsLogger = logger;
+    // Before anything that can block: what this does is make the machine usable
+    // by agents that are not Patcher's own turns, and neither half of it depends
+    // on the server being reachable.
+    await prepareLocalAgentAccess({
+      dataDir,
+      logger,
+      patcherExecutablePath,
+    });
     let hostWatcher = options.hostWatcher;
     if (hostWatcher === undefined) {
       // Run @parcel/watcher in an isolated child process. A parcel inotify

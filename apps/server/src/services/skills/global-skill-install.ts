@@ -17,8 +17,18 @@ import { resolveServerOwnedSkillCatalogEntries } from "./injected-skills.js";
 /**
  * The built-in skills published to a machine's global agent skill roots so
  * agents running outside Patcher can drive Patcher through its CLI.
+ *
+ * `patcher-browser` is here because the browser is the one capability an agent
+ * outside Patcher cannot discover for itself: it is not a tool in its list, the
+ * command lives behind a plugin, and the gate on it is a setting whose name
+ * nothing else mentions. Without the skill the first attempt is a search of the
+ * filesystem for a binary, and the second is a wrong conclusion about why a
+ * refusal happened.
  */
-export const GLOBAL_CLI_SKILL_NAMES: readonly string[] = ["patcher-cli"];
+export const GLOBAL_CLI_SKILL_NAMES: readonly string[] = [
+  "patcher-cli",
+  "patcher-browser",
+];
 
 /**
  * Status reads are a page-load nicety, so they give up well before the install

@@ -14,8 +14,9 @@ import { registerThreadCommands } from "../commands/thread/index.js";
 import {
   describeUnreachableServer,
   fetchPluginCliContributions,
-  findDisabledPluginForCommand,
+  describeUnknownPluginCommand,
   findPluginCliCommand,
+  listDisabledPlugins,
   pluginProxyCandidate,
   runPluginCliCommand,
   type PluginCliContributionEntry,
@@ -259,84 +260,99 @@ describe("describeUnreachableServer", () => {
   });
 });
 
-describe("findDisabledPluginForCommand", () => {
+describe("an unknown `patcher <command>`", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("matches an installed-but-disabled plugin by id", async () => {
+  function stubPlugins(plugins: unknown[]): void {
     vi.stubGlobal(
       "fetch",
       vi.fn(
         async () =>
-          new Response(
-            JSON.stringify({
-              plugins: [
-                { id: "automations", enabled: true },
-                { id: "connect", enabled: false },
-              ],
-            }),
-            { status: 200 },
-          ),
+          new Response(JSON.stringify({ plugins }), { status: 200 }),
       ),
     );
-    await expect(
-      findDisabledPluginForCommand("http://localhost", "connect"),
-    ).resolves.toEqual({
-      id: "connect",
-      enabled: false,
-      status: null,
-      statusDetail: null,
-    });
-    // Enabled plugins and unknown names never match.
-    await expect(
-      findDisabledPluginForCommand("http://localhost", "automations"),
-    ).resolves.toBeNull();
-    await expect(
-      findDisabledPluginForCommand("http://localhost", "linear"),
-    ).resolves.toBeNull();
+  }
+
+  it("lists the plugins that are off", async () => {
+    stubPlugins([
+      { id: "automations", enabled: true },
+      { id: "connect", enabled: false },
+    ]);
+    await expect(listDisabledPlugins("http://localhost")).resolves.toEqual([
+      { id: "connect", enabled: false, status: null, statusDetail: null },
+    ]);
   });
 
-  it("matches a disabled plugin by runtime status", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              plugins: [
-                {
-                  id: "automations",
-                  enabled: true,
-                  status: "disabled",
-                  statusDetail: "plugin failed to load",
-                },
-              ],
-            }),
-            { status: 200 },
-          ),
-      ),
-    );
-    await expect(
-      findDisabledPluginForCommand("http://localhost", "automations"),
-    ).resolves.toEqual({
-      id: "automations",
-      enabled: true,
-      status: "disabled",
-      statusDetail: "plugin failed to load",
-    });
+  it("counts one that failed to load as off", async () => {
+    stubPlugins([
+      {
+        id: "automations",
+        enabled: true,
+        status: "disabled",
+        statusDetail: "plugin failed to load",
+      },
+    ]);
+    await expect(listDisabledPlugins("http://localhost")).resolves.toEqual([
+      {
+        id: "automations",
+        enabled: true,
+        status: "disabled",
+        statusDetail: "plugin failed to load",
+      },
+    ]);
   });
 
-  it("returns null on any fetch failure", async () => {
+  it("answers with an empty list on any fetch failure", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
         throw new Error("ECONNREFUSED");
       }),
     );
-    await expect(
-      findDisabledPluginForCommand("http://localhost", "connect"),
-    ).resolves.toBeNull();
+    await expect(listDisabledPlugins("http://localhost")).resolves.toEqual([]);
+  });
+
+  it("names the plugin when the command is its id", () => {
+    const message = describeUnknownPluginCommand("connect", [
+      { id: "connect", enabled: false, status: null, statusDetail: null },
+    ]);
+    expect(message).toContain("patcher plugin enable connect");
+  });
+
+  it("still explains when the command is not the plugin's id", () => {
+    // The case this exists for, measured on 2026-09-05: `browser-tools`
+    // provides `patcher browser`, so matching on the id alone left the most
+    // likely first command an outside agent runs answering "unknown command",
+    // which reads as "no such feature" rather than "it is switched off".
+    const message = describeUnknownPluginCommand("browser", [
+      { id: "browser-tools", enabled: false, status: null, statusDetail: null },
+    ]);
+    expect(message).not.toBeNull();
+    expect(message).toContain("browser-tools");
+    expect(message).toContain("only while that plugin is enabled");
+    expect(message).toContain("patcher plugin enable <id>");
+  });
+
+  it("says nothing when every plugin is running", () => {
+    // Then it really is an unknown command, and commander's own message is the
+    // right one — inventing a plugin explanation would send the reader looking
+    // for something that does not exist.
+    expect(describeUnknownPluginCommand("levitate", [])).toBeNull();
+  });
+
+  it("does not list every plugin on a machine that has many off", () => {
+    const disabled = Array.from({ length: 12 }, (_, index) => ({
+      id: `plugin-${index}`,
+      enabled: false,
+      status: null,
+      statusDetail: null,
+    }));
+    const message = describeUnknownPluginCommand("browser", disabled);
+    expect(message).toContain("plugin-5");
+    expect(message).not.toContain("plugin-6");
+    expect(message).toContain("and 6 more");
   });
 });
 

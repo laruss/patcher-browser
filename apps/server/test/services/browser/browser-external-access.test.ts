@@ -77,7 +77,7 @@ describe("browser access for callers outside Patcher", () => {
 
   it("refuses everything while the level is off", () => {
     runAsExternalBrowserCaller(
-      { level: "off", invocation: "`patcher browser`" },
+      { level: "off", pluginId: "browser-tools" },
       () => {
         for (const command of [LIST_TABS, CLICK, READ_COOKIES]) {
           expect(browserExternalAccessRefusal(command)).not.toBeNull();
@@ -88,20 +88,20 @@ describe("browser access for callers outside Patcher", () => {
 
   it("names the level, the command that changes it and that nothing happened", () => {
     const refusal = runAsExternalBrowserCaller(
-      { level: "read", invocation: "`patcher browser`" },
+      { level: "read", pluginId: "browser-tools" },
       () => browserExternalAccessRefusal(CLICK),
     );
     expect(refusal).toContain("page.interact");
     // The exact command a person can run, not a gesture at the settings: the
     // reader is usually a model relaying this to somebody else.
     expect(refusal).toContain("patcher settings browser-access interact");
-    expect(refusal).toContain("Settings → Browser");
+    expect(refusal).toContain("Settings → General → Agents outside Patcher");
     expect(refusal).toContain("Nothing happened");
   });
 
   it("admits reading but not acting at the reading level", () => {
     runAsExternalBrowserCaller(
-      { level: "read", invocation: "`patcher browser`" },
+      { level: "read", pluginId: "browser-tools" },
       () => {
         expect(browserExternalAccessRefusal(LIST_TABS)).toBeNull();
         expect(browserExternalAccessRefusal(CLICK)).not.toBeNull();
@@ -112,7 +112,7 @@ describe("browser access for callers outside Patcher", () => {
 
   it("admits acting but not the user's logins at the acting level", () => {
     runAsExternalBrowserCaller(
-      { level: "interact", invocation: "`patcher browser`" },
+      { level: "interact", pluginId: "browser-tools" },
       () => {
         expect(browserExternalAccessRefusal(CLICK)).toBeNull();
         expect(browserExternalAccessRefusal(READ_COOKIES)).not.toBeNull();
@@ -122,7 +122,7 @@ describe("browser access for callers outside Patcher", () => {
 
   it("admits everything at the top level", () => {
     runAsExternalBrowserCaller(
-      { level: "full", invocation: "`patcher browser`" },
+      { level: "full", pluginId: "browser-tools" },
       () => {
         for (const command of [LIST_TABS, CLICK, READ_COOKIES]) {
           expect(browserExternalAccessRefusal(command)).toBeNull();
@@ -135,7 +135,7 @@ describe("browser access for callers outside Patcher", () => {
     // The whole design rests on this: the route establishes the scope and the
     // browser call happens many awaits later, inside plugin code.
     const seen = await runAsExternalBrowserCaller(
-      { level: "read", invocation: "`patcher browser`" },
+      { level: "read", pluginId: "browser-tools" },
       async () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 1));
@@ -152,7 +152,7 @@ describe("browser access for callers outside Patcher", () => {
       const bridge = createBrowserBridge({ hub });
       await expect(
         runAsExternalBrowserCaller(
-          { level: "read", invocation: "`patcher browser`" },
+          { level: "read", pluginId: "browser-tools" },
           () => bridge.call({ command: CLICK }),
         ),
       ).rejects.toMatchObject({
@@ -168,7 +168,7 @@ describe("browser access for callers outside Patcher", () => {
       const { hub, sent } = createCountingHub();
       const bridge = createBrowserBridge({ hub });
       const value = await runAsExternalBrowserCaller(
-        { level: "read", invocation: "`patcher browser`" },
+        { level: "read", pluginId: "browser-tools" },
         () => bridge.call({ command: LIST_TABS }),
       );
       expect(value).toEqual(TABS_VALUE);

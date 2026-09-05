@@ -296,6 +296,14 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // a decision. An agent mid-turn is refused it too, by name, in the server's
   // `agent-route-policy.ts`.
   ["/host-daemon-keys", null],
+  // How far agents *outside* Patcher may drive the browser. `null` rather than
+  // a price, because there is no permission a plugin could hold that should let
+  // it widen this: the gate exists to make opening the browser the user's act,
+  // and a plugin's call carries no thread, so it would raise no prompt and
+  // nobody would be asked. A plugin that wants the browser declares the browser
+  // permissions and is charged those; this is the setting *about* other people's
+  // agents, which is not a plugin's business at any price.
+  ["/browser/external-access", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],
   ["/skills-registry", ["workspace"]],

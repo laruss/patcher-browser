@@ -372,7 +372,7 @@ export function explainBrowserError(error: unknown): string {
       // the truth is that nobody has said yes yet.
       return error instanceof Error
         ? error.message
-        : "Agents outside Patcher are not allowed to drive this browser. The person at this machine can allow it in Settings → Browser.";
+        : "Agents outside Patcher are not allowed to drive this browser. The person at this machine can allow it in Settings → General → Agents outside Patcher.";
     default:
       return error instanceof Error
         ? `The browser could not do that: ${error.message}`

@@ -53,6 +53,11 @@
       "types": "./src/app-key.ts",
       "default": "./src/app-key.ts"
     },
+    "./cli-shim": {
+      "source": "./src/cli-shim.ts",
+      "types": "./src/cli-shim.ts",
+      "default": "./src/cli-shim.ts"
+    },
     "./thread-api-key": {
       "source": "./src/thread-api-key.ts",
       "types": "./src/thread-api-key.ts",

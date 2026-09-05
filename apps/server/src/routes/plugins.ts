@@ -878,7 +878,7 @@ export function registerPluginRoutes(
       ? runAsExternalBrowserCaller(
           {
             level: getAppSettings(deps.db).browserExternalAccess,
-            invocation: `\`patcher ${pluginId}\``,
+            pluginId,
           },
           run,
         )

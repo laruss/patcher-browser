@@ -42,11 +42,17 @@ export interface BrowserExternalCallerScope {
   /** How far this install lets an agent outside Patcher go. */
   level: BrowserExternalAccessLevel;
   /**
-   * The command line the caller ran, for the refusal to quote back. `patcher
-   * browser` for the plugin whose CLI this is, so the sentence names something
-   * the reader typed rather than a route.
+   * The plugin whose CLI is running, for the refusal to name.
+   *
+   * The plugin rather than the command the caller typed, because the server
+   * does not know that: `patcher browser` is proxied as the `browser-tools`
+   * plugin's id, and the command name stays on the caller's side. So the
+   * sentence says "the X plugin" rather than quoting it back as something to
+   * re-run — measured on 2026-09-05, an earlier wording read
+   * "`patcher browser-tools` ran a browser command", which is a command that
+   * does not exist and the obvious thing for a reader to try next.
    */
-  invocation: string;
+  pluginId: string;
 }
 
 const scopeStorage = new AsyncLocalStorage<BrowserExternalCallerScope>();
@@ -99,9 +105,10 @@ export function browserExternalAccessRefusal(
       ? "this install does not let agents outside Patcher drive the browser at all"
       : `this install allows them "${scope.level}"`;
   return (
-    `${scope.invocation} ran a browser command needing "${permission}", and ${current}. ` +
+    `The "${scope.pluginId}" plugin, driven from a terminal outside Patcher, ran a ` +
+    `browser command needing "${permission}", and ${current}. ` +
     `Nothing happened. The person at this machine can allow it in Patcher's ` +
-    `Settings → Browser, or by running \`patcher settings browser-access ${needed}\` ` +
+    `Settings → General → Agents outside Patcher, or by running \`patcher settings browser-access ${needed}\` ` +
     `in their own terminal. Ask them rather than retrying: this is a decision, not a transient failure.`
   );
 }
