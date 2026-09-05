@@ -154,6 +154,13 @@ export interface BrowserCommandDeps {
     tabId: string;
   }) => void;
   /**
+   * Run this command after whatever else is already running on its tab
+   * (`tab-queue.ts`). Absent means what every build did before: everything at
+   * once, which is what let one caller's snapshot and the click that followed
+   * it be split by another caller's navigation.
+   */
+  runOnTab?: <T>(tabId: string | null, task: () => Promise<T>) => Promise<T>;
+  /**
    * Where the session's trace is kept, when the bridge holds one. Absent here
    * means tracing is simply unavailable rather than idle.
    */
@@ -814,11 +821,42 @@ export async function executeBrowserCommand(
     );
   }
   const command: BrowserCommand = parsed.data;
-  const outcome = await runBrowserCommand(command, deps);
-  // After, not around: a trace records what happened, and the picture worth
-  // keeping is of the page the command left behind.
-  await recordTraceStep(command, outcome, deps);
-  return outcome;
+  const run = async (): Promise<BrowserCommandOutcome> => {
+    const outcome = await runBrowserCommand(command, deps);
+    // After, not around: a trace records what happened, and the picture worth
+    // keeping is of the page the command left behind.
+    await recordTraceStep(command, outcome, deps);
+    return outcome;
+  };
+  const runOnTab = deps.runOnTab;
+  return runOnTab === undefined
+    ? run()
+    : runOnTab(queuedTabId(command, deps), run);
+}
+
+/**
+ * Which tab's queue this command belongs in, resolved before it waits.
+ *
+ * Null for anything with no tab to act on, and for a command that is going to
+ * be refused anyway: a refusal touches no page, so making it queue behind
+ * somebody else's navigation would only make it slower to arrive.
+ *
+ * Resolved twice, once here and once inside the command, and the two can
+ * disagree in one case: another caller closing this tab while this command
+ * waits. Then the command runs on whatever it resolves to next, holding the
+ * wrong tab's place in line — the behaviour every build had before this file,
+ * for a window in which somebody just closed the tab out from under a queued
+ * command.
+ */
+function queuedTabId(
+  command: BrowserCommand,
+  deps: BrowserCommandDeps,
+): string | null {
+  if (!("tabId" in command)) {
+    return null;
+  }
+  const resolution = resolveTab(command.tabId, deps);
+  return resolution.ok ? resolution.resolved.tab.id : null;
 }
 
 async function runBrowserCommand(

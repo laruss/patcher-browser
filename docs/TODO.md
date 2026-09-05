@@ -195,16 +195,18 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   such a command is outside tab ownership too
   ([architecture/browser-tab-ownership.md](architecture/browser-tab-ownership.md)),
   so it lands on the person's active tab the way everything did before.
-- **Two agents in two tabs still interleave.** Ownership stops them landing on
-  one tab by accident; nothing sequences what follows. Three pieces, in the
-  order they are worth doing: a promise chain per tab, so one caller's action
-  and the read after it are not split by another's; a snapshot generation that
-  is hard to omit (a ref like `e2@6`, rather than an optional `--generation`
-  that defaults to unchecked); and a trace per issuer, because the recorder is
-  one per window today — B's commands land in A's trace, and B's
-  `tracing-stop` takes it. What cannot be partitioned this way is worth saying
-  in the same change: cookies, web storage and a saved session state belong to
-  the session or the origin, not to a tab.
+- **A ref can still be acted on after somebody else's snapshot moved it.** Two
+  of the three ordering pieces are done — commands take turns on a tab
+  (`tab-queue.ts`) and each caller keeps its own trace (`traces.ts`) — and this
+  is the third. A snapshot's `generation` is a version rather than an owner, and
+  carrying it back is optional (`--generation`, null by default), so `click e2`
+  from a caller whose snapshot is two generations old resolves against whatever
+  holds that node now. The fix is a ref that is hard to use without its
+  generation — `e2@6` as the ref the snapshot hands out, split back into ref and
+  generation before the shell's frozen wire sees it, with a bare `e2` still
+  accepted and still unchecked. What cannot be partitioned this way is worth
+  saying in the same change: cookies, web storage and a saved session state
+  belong to the session or the origin, not to a tab.
 - **A tab an agent opens by clicking a link is the person's.** A
   `target=_blank` link, or any link the shell places, arrives on the same
   renderer channel as the person's own "Open link in new tab" from the page

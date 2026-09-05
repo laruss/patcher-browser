@@ -106,9 +106,13 @@ which is the backstop for any path that forgets.
   tab's, and cannot be partitioned this way. What ownership buys is that two
   callers stop landing on one page by accident, and that the page the person is
   reading is not the default target of an agent nobody in the room announced.
-- **Not ordering.** Two agents in two tabs still interleave freely: there is no
-  per-tab serialization, a snapshot's generation is a version rather than an
-  owner, and the trace recorder is one per window. Those are the next items in
+- **Not the whole of ordering.** Commands now take turns on a tab
+  (`tab-queue.ts`) and each caller has its own trace (`traces.ts`), so the two
+  ways two callers used to corrupt each other's work — a read split by
+  somebody else's navigation, and a log that mixed them — are closed. What is
+  left is the ref: a snapshot's generation is a version rather than an owner,
+  and passing it is optional, so a caller can still act on a ref another
+  caller's snapshot has moved. That is the next item in
   [../TODO.md](../TODO.md).
 - **Not a per-process identity.** Everything holding the app key is one
   `outside` caller, so two shells share one set of tabs and can read each
