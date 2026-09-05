@@ -240,11 +240,6 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   over. Closing it properly means the shell saying where the open came from —
   an optional field on that channel, feature-detected the way placement itself
   was.
-- **A tab an agent holds looks like any other in the strip.** Ownership is
-  visible in its context menu ("Take back from …") and nowhere else, so a person
-  scanning the strip cannot tell which of these tabs something else is working
-  in. A mark on the tab is the fix, and it is the same surface question as the
-  window-level driving signal above.
 - **The indicator says who, not what.** A grant's name and level, and nothing
   about the command: no URL, no selector, no count of what was read. The trace
   recorder (`patcher browser trace-start`) already records exactly that and is
