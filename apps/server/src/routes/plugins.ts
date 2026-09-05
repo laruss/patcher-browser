@@ -10,6 +10,8 @@ import { getAgentThreadId } from "../agent-thread-scope.js";
 import { getPluginApiId } from "../plugin-api-identity-context.js";
 import { getAgentAccessCaller } from "../agent-access-context.js";
 import {
+  browserToolsArgvRefusal,
+  BROWSER_TOOLS_PLUGIN_ID,
   runAsExternalBrowserCaller,
   type BrowserExternalCallerScope,
 } from "../services/browser/browser-external-access.js";
@@ -908,6 +910,15 @@ export function registerPluginRoutes(
               pluginId,
             }
           : undefined;
+    // Before the run, not inside it: the one command this refuses never reaches
+    // the browser bridge, so a gate that only charged browser commands never
+    // saw it. See `browserToolsArgvRefusal`.
+    if (pluginId === BROWSER_TOOLS_PLUGIN_ID) {
+      const argvRefusal = browserToolsArgvRefusal(scope, argv);
+      if (argvRefusal !== null) {
+        return context.json({ exitCode: 1, stdout: "", stderr: argvRefusal });
+      }
+    }
     const result = await (scope === undefined
       ? run()
       : runAsExternalBrowserCaller(scope, run));

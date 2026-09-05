@@ -306,26 +306,22 @@ export const appSettings = sqliteTable("app_settings", {
  * a list of grants answerable ("is anything still using this?"). Written at most
  * once a minute per grant rather than per request, because a screenshot loop is
  * a lot of requests and none of them is a different answer.
+ *
+ * No index but the primary key. Every read on the request path is a lookup by
+ * id, and the only other read is a whole-table list a person is looking at,
+ * which will never be long enough to plan differently. An index on
+ * `revoked_at` was here and served nothing; it cost a write on every touch.
  */
-export const browserAccessGrants = sqliteTable(
-  "browser_access_grants",
-  {
-    id: text("id").primaryKey(),
-    /** What the person called it, so a list is answerable a month later. */
-    label: text("label").notNull(),
-    /** How far this grant reaches; never `off` — see the domain schema. */
-    level: text("level").$type<BrowserAccessGrantLevel>().notNull(),
-    createdAt: integer("created_at").notNull(),
-    lastUsedAt: integer("last_used_at"),
-    revokedAt: integer("revoked_at"),
-  },
-  (table) => [
-    index("browser_access_grants_revoked_created_idx").on(
-      table.revokedAt,
-      table.createdAt,
-    ),
-  ],
-);
+export const browserAccessGrants = sqliteTable("browser_access_grants", {
+  id: text("id").primaryKey(),
+  /** What the person called it, so a list is answerable a month later. */
+  label: text("label").notNull(),
+  /** How far this grant reaches; never `off` — see the domain schema. */
+  level: text("level").$type<BrowserAccessGrantLevel>().notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+  revokedAt: integer("revoked_at"),
+});
 
 export const installedPlugins = sqliteTable("plugins", {
   id: text("id").primaryKey(),

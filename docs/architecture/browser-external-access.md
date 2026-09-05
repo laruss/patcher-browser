@@ -285,7 +285,7 @@ The shape this is built for is the setting left `off` and one grant issued to th
 agent that needs it. `routes/plugins.ts` picks which of the two applies from the
 caller, and the refusal names whichever one the reader can actually get changed.
 
-### Nobody can mint one but a person
+### Only the app and a person's own terminal can mint one
 
 - **A turn cannot**, and this is the one place the grant route and the level
   route differ. The level route raises a consent prompt inside a turn, because
@@ -301,6 +301,42 @@ caller, and the refusal names whichever one the reader can actually get changed.
   level route has and for a stronger version of the same reason. A plugin already
   declares the browser permissions it wants and is charged those, so a plugin
   minting a grant would only ever be minting one for something that is not it.
+
+That heading is exact rather than absolute, and the difference is the app key:
+anything holding it can mint a grant with no prompt, the same way it can write
+the setting. Which is the sentence under "What this does not close", said here
+so the list above is not read as a boundary it is not.
+
+### What a grant reaches that is not an API route
+
+The allow-list is about `/api/v1`. Two things sit inside the one route it
+admits, and both are `patcher browser`'s own doing:
+
+- **Files, at paths the caller names, on the machine the *server* runs on.**
+  `screenshot <path>`, `pdf`, `state-save`, `state-load`, `upload`. For an agent
+  in a shell on the same machine that is nothing new — it has its own
+  filesystem — but it is not "the browser", and on a remote server it is that
+  machine's filesystem rather than the caller's. Review found `state-load`
+  reading the file *before* the first charged command, which made it an unpriced
+  existence-and-parse oracle for a caller allowed only `read`; it now charges
+  first, so the refusal still means nothing happened.
+- **State that belongs to the session or the origin, not to a tab.** Cookies,
+  site storage and zoom, so a command naming one tab changes what another shows.
+  Revocation is the same shape: it stops new commands, and a network mock or a
+  recording the holder started stays until the tab is closed.
+
+And one thing that used to sit inside it and no longer does. `install-ffmpeg`
+runs Homebrew on the server's machine and sends no browser command, so the gate —
+which charges browser commands — never saw it: measured on 2026-09-05, a `read`
+grant ran it to completion with the install-wide level at `off`, a line away from
+a `tabs` that was refused. It is now refused to every caller from outside
+Patcher, at any level, because no point on a ramp about the user's *browsing
+session* should admit installing software. A thread inside Patcher still has it,
+gated by the plugin toggle as before, and a person at their own terminal installs
+ffmpeg the way they install anything else — which the refusal says.
+`browser-tools-surface.test.ts` runs every command in the plugin's own table and
+fails if a new one runs to completion, so the next such command is caught rather
+than discovered.
 
 ### Getting it to the agent
 
@@ -392,6 +428,16 @@ Named here rather than left to be rediscovered.
 - `packages/db/test/data/browser-access-grants.test.ts` — a revoked grant is kept
   rather than deleted, a second revoke does not move the date, and `lastUsedAt`
   is written at most once a minute.
+- `apps/server/test/security/browser-tools-surface.test.ts` — every command in
+  the plugin's own registration, run under a `read` grant with the setting at
+  `off`: none runs to completion, and the one that used to is named in its own
+  case. The list comes from the registration rather than from a copy, so a
+  command added tomorrow is in the test the day it exists.
+- `apps/cli/src/__tests__/client.test.ts`, `app-credential-hint.test.ts`,
+  `mcp-tool-surface.test.ts` — the CLI half: a grant is presented, the app key is
+  not presented beside it, a thread credential wins over one, the 401 hint names
+  the grant, and `mcp-serve` in grant mode refuses every command the program has
+  and admits `browser`.
 - `apps/server/test/security/agent-access.test.ts` — over a real socket with no
   app key on it: the two routes answer, six others 403 with the offer in the
   message, another plugin's CLI is refused, the grant cannot mint a second grant

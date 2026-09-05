@@ -151,11 +151,13 @@ per message. If they are still missing, a new thread will have them.
 
 ### You are a terminal beside Patcher
 
-Four positions, whichever way the user opens it:
+Four positions for the install-wide setting; a grant takes the last three of
+them, because a grant that admits nothing is a grant to revoke rather than to
+issue:
 
 | Level      | What it allows                                                          |
 | ---------- | ----------------------------------------------------------------------- |
-| `off`      | Nothing. The default.                                                    |
+| `off`      | Nothing. The default, and the setting's only — not a grant level.        |
 | `read`     | Tabs, page text and structure, screenshots, console and network logs.    |
 | `interact` | The above, plus opening tabs, navigating, clicking and typing.           |
 | `full`     | The above, plus cookies and site storage, page JavaScript, and recording. |
@@ -171,9 +173,9 @@ to you, and they are not equivalent:
 patcher agent-access grant "<your name>" --level read
 ```
 
-That issues a credential for **you alone**. It opens the browser and nothing
-else in Patcher, the user sees it in Settings with what it last did, and one
-click takes it back. The alternative — `patcher settings browser-access read` —
+That issues a credential for **you alone**. It runs `patcher browser` and
+reaches no other part of Patcher's API, the user sees it in Settings with when it
+was last used, and one click takes it back. The alternative — `patcher settings browser-access read` —
 opens the browser to *every* process on this machine that can read Patcher's key
 file. Same four levels, very different blast radius. So name the grant, and
 mention the setting only if they ask for something simpler.
@@ -181,7 +183,8 @@ mention the setting only if they ask for something simpler.
 If the user runs it with `--for claude-code` or `--for codex` it configures that
 agent directly and there is nothing for you to paste. Otherwise it prints two
 environment variables; you need `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` in
-your shell, and then `patcher browser` works and the rest of `patcher` does not.
+your shell, and then `patcher browser` works and every other Patcher API this
+CLI calls is refused.
 
 **Do not run either command yourself and call it done.** From a plain terminal
 both take effect immediately — the server cannot tell your shell from the user's

@@ -104,7 +104,7 @@ export function describeRefusedCredential(
       claim === undefined
         ? `The value in ${PATCHER_AGENT_KEY_ENV} is not shaped like a grant credential, so it was not presented as one`
         : `It is grant ${claim.grantId}`;
-    return `This shell carries a browser access grant (${PATCHER_AGENT_KEY_ENV}), not the app key. It opens \`patcher browser\` and nothing else in Patcher, and it lasts until the person who issued it revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` and issue a new one if this grant is gone.`;
+    return `This shell carries a browser access grant (${PATCHER_AGENT_KEY_ENV}), not the app key. It reaches \`patcher browser\` and no other Patcher API, and it lasts until the person who issued it revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` and issue a new one if this grant is gone.`;
   }
   const fromEnv = toOptionalString(env.PATCHER_APP_KEY);
   if (fromEnv !== undefined) {

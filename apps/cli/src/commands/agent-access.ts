@@ -176,30 +176,49 @@ function printShellDelivery(serverUrl: string, key: string): void {
   console.log(`  export PATCHER_SERVER_URL='${serverUrl}'`);
   console.log(`  export ${PATCHER_AGENT_KEY_ENV}='${key}'`);
   console.log(
-    "In a shell with those, `patcher browser` works and the rest of `patcher` is refused.",
+    "In a shell with those, `patcher browser` works and every other Patcher API this CLI calls is refused.",
   );
 }
 
-async function runMcpInstall(plan: McpInstallPlan): Promise<void> {
-  const printed = quoteArgv(plan.agentBinary, plan.argv);
+interface McpInstallOutcome {
+  configured: boolean;
+  /** Why not, when it did not happen. */
+  error?: string;
+}
+
+async function runMcpInstall(plan: McpInstallPlan): Promise<McpInstallOutcome> {
   try {
     await execFileAsync(plan.agentBinary, plan.argv);
+    return { configured: true };
   } catch (error) {
-    // Its binary is not on this PATH, or it refused. Either way the command is
-    // the useful thing to hand back: this never edits their config itself, so
-    // there is nothing half-done to undo.
-    console.log("");
-    console.log(
-      `Could not run \`${plan.agentBinary} mcp add\` (${error instanceof Error ? error.message.split("\n")[0] : String(error)}).`,
-    );
-    console.log("Run this yourself, in a shell where that binary is on PATH:");
+    // Its binary is not on this PATH, or it refused. Either way there is
+    // nothing half-done to undo: this never edits their config itself, it runs
+    // their own command. The caller prints what to run instead.
+    return {
+      configured: false,
+      error:
+        error instanceof Error ? error.message.split("\n")[0] : String(error),
+    };
+  }
+}
+
+function printMcpInstallOutcome(
+  plan: McpInstallPlan,
+  outcome: McpInstallOutcome | null,
+): void {
+  const printed = quoteArgv(plan.agentBinary, plan.argv);
+  console.log("");
+  if (outcome?.configured === true) {
+    console.log(`Added the \`${MCP_SERVER_NAME}\` MCP server:`);
     console.log(`  ${printed}`);
+    console.log(`Undo it with \`${plan.undo}\`.`);
     return;
   }
-  console.log("");
-  console.log(`Added the \`${MCP_SERVER_NAME}\` MCP server:`);
+  console.log(
+    `Could not run \`${plan.agentBinary} mcp add\`${outcome?.error === undefined ? "" : ` (${outcome.error})`}.`,
+  );
+  console.log("Run this yourself, in a shell where that binary is on PATH:");
   console.log(`  ${printed}`);
-  console.log(`Undo it with \`${plan.undo}\`.`);
 }
 
 function printGrantTable(grants: readonly SystemBrowserAccessGrant[]): void {
@@ -263,33 +282,44 @@ export function registerAgentAccessCommands(
         const level = parseLevel(opts.level);
         const target = parseTarget(opts.for);
         const sdk = createCliPatcherSdk(getUrl());
+        // Before minting, not after. The credential is printed once and cannot
+        // be asked for again, so a failure here after the row existed would
+        // leave a live grant nobody holds — and `config` is only ever a read.
+        const config = await sdk.system.config();
+        const server = await resolveMcpServerCommand(config.dataDir);
         const result = await sdk.system.createBrowserAccessGrant({
           label,
           level,
         });
-        if (outputJson(opts, result)) return;
+        // `--for` is an act on this machine, not a way of printing the answer,
+        // so `--json` does not skip it: a caller that asked for JSON *and* for
+        // Codex to be configured asked for both.
+        const delivery =
+          target === "shell"
+            ? null
+            : buildMcpInstallPlan(target, server, {
+                serverUrl: config.serverUrl,
+                key: result.key,
+              });
+        const installed =
+          delivery === null ? null : await runMcpInstall(delivery);
+        if (outputJson(opts, { ...result, ...(installed ?? {}) })) return;
         console.log(
           `Issued "${result.grant.label}" (${result.grant.id}) at level ${level}: ${permissionsForBrowserExternalAccess(level).join(", ")}.`,
         );
-        if (!result.browserToolsEnabled) {
-          // The route turns the plugin on, so reaching here means it could not
-          // load — and a credential for a command nothing serves would
-          // otherwise look like a broken grant rather than a broken plugin.
-          console.log(
-            "The browser-tools plugin is not serving `patcher browser`, so nothing can use this grant yet. Check `patcher plugin list`.",
-          );
-        }
-        const config = await sdk.system.config();
-        if (target === "shell") {
+        // Enabling the plugin is a side effect on everybody else's behalf: it
+        // hands every thread inside Patcher what `browser-tools` declares,
+        // which is more than this grant does. Said either way rather than only
+        // when it failed.
+        console.log(
+          result.browserToolsEnabled
+            ? "The browser-tools plugin is on, so `patcher browser` is served — for threads inside Patcher too, with everything the plugin declares."
+            : "The browser-tools plugin is not serving `patcher browser`, so nothing can use this grant yet. Check `patcher plugin list`.",
+        );
+        if (delivery === null) {
           printShellDelivery(config.serverUrl, result.key);
         } else {
-          await runMcpInstall(
-            buildMcpInstallPlan(
-              target,
-              await resolveMcpServerCommand(config.dataDir),
-              { serverUrl: config.serverUrl, key: result.key },
-            ),
-          );
+          printMcpInstallOutcome(delivery, installed);
         }
         console.log("");
         console.log(

@@ -101,7 +101,7 @@ export function agentAccessRoutePolicyDenial(
     (route) => `${route.method} ${route.path} (${route.purpose})`,
   ).join(", ");
   return (
-    `A browser access grant cannot call ${method} ${path}. It opens Patcher's browser and nothing else: ${offer}. ` +
+    `A browser access grant cannot call ${method} ${path}. It reaches ${offer} — and no other part of this API. ` +
     `The rest of this API is the app's, and a grant is deliberately not the app. If you need it, ask the person at this machine rather than going looking for another credential.`
   );
 }

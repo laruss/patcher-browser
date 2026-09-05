@@ -161,6 +161,7 @@ const CACHE_OWNER_QUERY_KEY_IMPORTS: CacheOwnerQueryKeyImportRegistry = {
     "allThreadStoragePathsQueryKeyPrefix",
     "allThreadQueryKeyPrefix",
     "allTerminalsQueryKeyPrefix",
+    "browserAccessGrantsQueryKey",
     "browserHistoryQueryKeyPrefix",
     "environmentDiffFilesQueryKeyPrefix",
     "environmentFilePreviewQueryKeyPrefix",

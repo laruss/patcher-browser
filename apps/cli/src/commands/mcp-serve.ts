@@ -58,7 +58,7 @@ const GRANT_TOOL_DESCRIPTION = [
   "Pass argv as an array, without the leading `patcher`; every call starts with `browser`.",
   'Examples: ["browser","tabs"], ["browser","open","https://example.com","--background"], ["browser","text","--tab","t1"].',
   'Run `["browser","--help"]` for the command list, and `["browser","<command>","--help"]` for one command.',
-  "This credential opens the browser and nothing else in Patcher — the rest of the CLI is refused here.",
+  "This credential reaches `patcher browser` and no other Patcher API — the rest of the CLI is refused here.",
 ].join(" ");
 
 /**
@@ -194,7 +194,7 @@ export function mcpToolArgvRefusal(
       argvStartsWithCommand(args, allowed),
     )
       ? null
-      : `This tool was started with a browser access grant, which opens Patcher's browser and nothing else, so \`patcher ${command}\` is not available through it. Available here: ${MCP_TOOL_GRANT_COMMANDS.join(", ")}. Ask the person at this machine if you need more than the browser.`;
+      : `This tool was started with a browser access grant, which reaches \`patcher browser\` and no other Patcher API, so \`patcher ${command}\` is not available through it. Available here: ${MCP_TOOL_GRANT_COMMANDS.join(", ")}. Ask the person at this machine if you need more than the browser.`;
   }
   const refused = MCP_TOOL_REFUSED_COMMANDS.find((entry) =>
     argvStartsWithCommand(args, entry.path),

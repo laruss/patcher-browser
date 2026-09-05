@@ -87,9 +87,10 @@ export function listBrowserAccessGrants(
 export function revokeBrowserAccessGrant(
   db: DbConnection,
   id: string,
+  now: number = Date.now(),
 ): BrowserAccessGrantRow | undefined {
   db.update(browserAccessGrants)
-    .set({ revokedAt: Date.now() })
+    .set({ revokedAt: now })
     .where(
       and(eq(browserAccessGrants.id, id), isNull(browserAccessGrants.revokedAt)),
     )

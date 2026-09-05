@@ -2519,6 +2519,18 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
             const path = isAbsolute(target)
               ? target
               : resolve(context.cwd ?? process.cwd(), target);
+            // Charged before the file is opened, and that ordering is the point.
+            // Everything else here refuses before it acts — "nothing happened"
+            // is the sentence the gate's refusal ends on — and reading the path
+            // first made this one command an unpriced file-existence oracle
+            // running in the server process: a caller allowed only `read` could
+            // learn whether any path parses as a storage state file. An empty
+            // set costs `page.credentials`, which is this command's own price,
+            // and changes nothing in the session.
+            await patcher.browser.storage.setCookies(
+              { cookies: [], tabId: tabId },
+              options,
+            );
             const state = parseStorageStateFile(await readFile(path, "utf8"));
             if (state === null) {
               return {

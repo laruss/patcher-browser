@@ -1386,12 +1386,21 @@ a caller holding the app key, and that caller can write the setting as easily as
 read it — the limit the section below describes. So the narrow answer is a
 **browser access grant**: `patcher agent-access grant "Claude Code"` mints a
 credential derived from the app key and one grant id, which reaches exactly two
-routes (the plugin CLI table, and `browser-tools`' own CLI) and nothing else in
-the API. It carries its own level, it is listed in Settings with what it last
-did, and revoking the row is what ends it — there is no expiry to wait out and
+routes (the plugin CLI table, and `browser-tools`' own CLI) and no other part of
+the API. It carries its own level, it is listed in Settings with when it was last
+used, and revoking the row is what ends it — there is no expiry to wait out and
 nothing for the holder to refresh. `--for claude-code` and `--for codex` run that
-agent's own `mcp add` so the credential lands in its configuration rather than in
-a file anyone can read.
+agent's own `mcp add`, so Patcher never parses or rewrites their configuration —
+though the credential does end up in it, and in `ps` while that command runs,
+which is the same readability the app key file already has.
+
+Two things a grant does not fence, and both are `patcher browser`'s own doing
+rather than the credential's. Its commands read and write files where you point
+them, on the machine the **server** runs on: `screenshot <path>`, `pdf`,
+`state-save`, `state-load`, `upload`. And cookies, site storage and zoom belong
+to the browsing session or the origin, not to one tab, so a command naming one
+tab can change what another shows. Revoking stops new commands; a network mock
+or a recording the holder started stays until the tab is closed.
 
 A grant is deliberately **not** bounded by the level above, and the reverse of a
 ceiling is the point: a ceiling would mean opening the browser to every process

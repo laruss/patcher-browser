@@ -393,6 +393,12 @@ describe("a browser access grant", () => {
     // neither. The "I am the browser" role on that hub, and a terminal's live
     // stream, are not a grant's to claim. Measured rather than argued — an
     // upgrade is a different code path from a request.
+    //
+    // What this pins is that the upgrade stays closed to an unidentified
+    // caller, which it was before this branch too: a grant header changes
+    // nothing there and is sent only so the case is the real one. It would not
+    // fail if the grant were somehow admitted *as the app*; the thing that
+    // makes that impossible is that a grant is never the app key.
     server = await startTestServer();
     const { key } = issueGrant(server, "full");
     const headers = { [AGENT_KEY_HEADER]: key };

@@ -192,6 +192,21 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   being exercised is half a feature. The Settings list of grants shows
   `lastUsedAt` at a minute's resolution, which answers "did anything use this"
   and not "is something using it right now".
+- **Revoking a browser access grant does not undo what it set up.** The
+  credential stops at the next request
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
+  and a network mock (`route`), an offline session (`network-state-set`), a
+  trace or a video the holder started keep running until the tab is closed —
+  they live on the `BrowserViewEntry` in the shell, not on the caller. Two ways:
+  clear grant-installed routes and stop grant-started recordings on revoke,
+  which needs the caller on the wire (the same field the indicator above wants);
+  or say it in the copy, which is what this change does for now.
+- **Grants outlive the key they were derived from, in the list only.** If the
+  app key file is lost the server writes a new one, every credential stops
+  verifying — the refusal is correct and says the grant is not this install's —
+  but the list still shows the rows un-revoked and Settings still says they last
+  until you revoke them. A key fingerprint on the row would let the list mark
+  them; nobody has hit this outside a deliberate test.
 - **An audio indicator** — "this tab is making noise" is Chromium's observation,
   and the shell would have to report it. Muting is done; the indicator is not
   ([architecture/browser-surface.md](architecture/browser-surface.md)).

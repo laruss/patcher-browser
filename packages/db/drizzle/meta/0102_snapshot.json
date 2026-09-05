@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "335b2db6-42a0-41d4-af82-265073d9421f",
+  "id": "19353780-0e53-4a4f-8f04-481816c4fd3d",
   "prevId": "ffc191cf-01fe-40a6-8185-927bb7f481d7",
   "tables": {
     "app_settings": {
@@ -507,16 +507,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "browser_access_grants_revoked_created_idx": {
-          "name": "browser_access_grants_revoked_created_idx",
-          "columns": [
-            "revoked_at",
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

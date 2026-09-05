@@ -188,7 +188,7 @@ export interface GeneralSettingsSectionProps {
   browserExternalAccess: BrowserExternalAccessLevel;
   browserExternalAccessDisabled: boolean;
   onBrowserExternalAccessChange: (level: BrowserExternalAccessLevel) => void;
-  browserAccessGrants: readonly SystemBrowserAccessGrant[];
+  browserAccessGrants: readonly SystemBrowserAccessGrant[] | undefined;
   revokingBrowserAccessGrantId: string | null;
   onRevokeBrowserAccessGrant: (grantId: string) => void;
   browserSearchEngineId: string;
@@ -1041,7 +1041,8 @@ export function BrowserExternalAccessSettingsControl({
 }
 
 export interface BrowserAccessGrantsSettingsControlProps {
-  grants: readonly SystemBrowserAccessGrant[];
+  /** Undefined while the list has not been answered — not the same as none. */
+  grants: readonly SystemBrowserAccessGrant[] | undefined;
   revokingGrantId: string | null;
   onRevoke: (grantId: string) => void;
 }
@@ -1077,13 +1078,18 @@ export function BrowserAccessGrantsSettingsControl({
       <div className="space-y-1">
         <p className="text-sm font-medium">Browser access grants</p>
         <p className="text-xs text-subtle-foreground">
-          Credentials that open this browser for one agent outside Patcher and
-          nothing else in Patcher. They work whatever the setting above says,
-          and they last until you revoke them. Issue one with{" "}
+          Credentials that let one agent outside Patcher run{" "}
+          <code className="text-[0.95em]">patcher browser</code> and reach no
+          other part of Patcher&rsquo;s API. They work whatever the setting
+          above says, and they last until you revoke them. Issue one with{" "}
           <code className="text-[0.95em]">patcher agent-access grant</code>.
         </p>
       </div>
-      {grants.length === 0 ? (
+      {grants === undefined ? (
+        // Not "none": a pending or failed read that rendered as an empty list
+        // would tell somebody nothing is open when something may be.
+        <p className="text-xs text-subtle-foreground">Loading grants…</p>
+      ) : grants.length === 0 ? (
         <p className="text-xs text-subtle-foreground">
           No grants have been issued.
         </p>
@@ -1665,7 +1671,7 @@ export function SettingsView() {
           onBrowserExternalAccessChange={(level) =>
             setBrowserExternalAccessMutation.mutate({ level })
           }
-          browserAccessGrants={browserAccessGrantsQuery.data?.grants ?? []}
+          browserAccessGrants={browserAccessGrantsQuery.data?.grants}
           revokingBrowserAccessGrantId={
             revokeBrowserAccessGrantMutation.isPending
               ? (revokeBrowserAccessGrantMutation.variables ?? null)

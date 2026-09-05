@@ -6,5 +6,3 @@ CREATE TABLE `browser_access_grants` (
 	`last_used_at` integer,
 	`revoked_at` integer
 );
---> statement-breakpoint
-CREATE INDEX `browser_access_grants_revoked_created_idx` ON `browser_access_grants` (`revoked_at`,`created_at`);

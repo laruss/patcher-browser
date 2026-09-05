@@ -86,6 +86,35 @@ export interface BrowserExternalCallerScope {
   grant?: { id: string; label: string };
 }
 
+/**
+ * `patcher browser` commands that do not drive the browser at all.
+ *
+ * The gate below charges *browser commands* — the messages that cross the wire
+ * to the window — and that is the right unit for everything the plugin does
+ * except this. `install-ffmpeg` runs Homebrew on the machine the **server** is
+ * on, with the network and fifteen minutes, and never sends a browser command,
+ * so nothing charged it and no level refused it. Measured on 2026-09-05: a
+ * `read` grant, and an app-key caller with the level at `off`, both ran it to
+ * completion while `tabs` was refused a line away.
+ *
+ * Refused to every caller from outside Patcher rather than priced into the
+ * ramp, because no level should admit it: the ramp is about how far into the
+ * user's *browsing session* an agent may reach, and installing software on the
+ * host is not a point on it. Inside Patcher it is unaffected — a thread's gate
+ * is the plugin toggle, which is a question about running plugin code at all.
+ *
+ * A list, because there is exactly one and a list of one is honest about that.
+ * `browser-tools-surface.test.ts` is what keeps it complete: it runs every
+ * command in the plugin's own table and fails if a new one runs to completion
+ * without either reaching the browser or refusing on its arguments.
+ */
+const COMMANDS_THAT_ARE_NOT_THE_BROWSER: ReadonlyMap<string, string> = new Map([
+  [
+    "install-ffmpeg",
+    "it installs software on the machine this server runs on, which is not something driving the browser can be allowed to do",
+  ],
+]);
+
 const scopeStorage = new AsyncLocalStorage<BrowserExternalCallerScope>();
 
 /**
@@ -152,5 +181,32 @@ export function browserExternalAccessRefusal(
     `in their own terminal. A narrower answer than the setting is \`patcher agent-access grant\`, which ` +
     `hands one agent a credential for the browser alone. Ask them rather than retrying: this is a ` +
     `decision, not a transient failure.`
+  );
+}
+
+/**
+ * Why this `patcher browser` argv is refused outright, or null.
+ *
+ * Charged at the route rather than at the bridge, because the whole point of
+ * the commands it names is that they never reach the bridge. Takes the scope
+ * explicitly rather than reading the ambient one: the route establishes the
+ * scope around the *run*, and this decision has to be made before the run
+ * starts.
+ */
+export function browserToolsArgvRefusal(
+  scope: BrowserExternalCallerScope | undefined,
+  argv: readonly string[],
+): string | null {
+  if (scope === undefined) return null;
+  const reason = COMMANDS_THAT_ARE_NOT_THE_BROWSER.get(argv[0] ?? "");
+  if (reason === undefined) return null;
+  const who =
+    scope.grant === undefined
+      ? "an agent or terminal outside Patcher"
+      : `the browser access grant "${scope.grant.label}"`;
+  return (
+    `\`patcher browser ${argv[0]}\` is refused to ${who}: ${reason}. Nothing happened, and no ` +
+    `access level admits it — this is not a browser command. The person at this machine can run it ` +
+    `in their own Patcher, or install it however this machine installs things.`
   );
 }

@@ -168,8 +168,8 @@ Patcher is experimental software that runs plugins written by coding agents.
   refuses agents outside Patcher — Claude Code, Codex, a script in a terminal —
   until you say otherwise. Two ways to say it, and the narrow one is the
   recommended one: `patcher agent-access grant "Claude Code" --for claude-code`
-  hands **one** agent a credential that opens the browser and nothing else in
-  Patcher, listed and revocable in **Settings → General**; the level in
+  hands **one** agent a credential that reaches `patcher browser` and no other
+  part of Patcher's API, listed and revocable in **Settings → General**; the level in
   **Settings → General → Agents outside Patcher** opens it to every process on
   the machine that can read the app key. Both run from reading a page to handing
   over its cookies. Neither is charged on a plugin you installed, which is

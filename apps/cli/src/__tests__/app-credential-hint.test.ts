@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
+import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import { describeRefusedCredential } from "../app-credential-hint.js";
 
@@ -61,6 +62,48 @@ describe("describeRefusedCredential", () => {
     // And it does not claim a boundary nothing enforces: the key carries no
     // deadline, so it is not refused when the turn ends.
     expect(hint).not.toContain("turn that issued it has ended");
+  });
+
+  it("names the grant, and does not send it after the app key", () => {
+    const hint = describeRefusedCredential({
+      env: {
+        [PATCHER_AGENT_KEY_ENV]: "pa1.bag_3k9wq2mnpx.mac",
+        NODE_ENV: "production",
+      },
+      homeDir: "/Users/someone",
+    });
+
+    // Same argument as the thread credential above: a shell handed a narrow
+    // credential must not be told to go and find the wide one.
+    expect(hint).toContain("bag_3k9wq2mnpx");
+    expect(hint).not.toContain(PATCHER_APP_KEY_FILE_NAME);
+  });
+
+  it("says so when the grant credential is not shaped like one", () => {
+    const hint = describeRefusedCredential({
+      env: { [PATCHER_AGENT_KEY_ENV]: "nonsense", NODE_ENV: "production" },
+      homeDir: "/Users/someone",
+    });
+
+    // A caller that pasted the wrong string gets told that, rather than being
+    // sent to look at a grant list for a grant it never had.
+    expect(hint).toContain("not shaped like a grant credential");
+  });
+
+  it("prefers the thread credential when a shell somehow has both", () => {
+    const hint = describeRefusedCredential({
+      env: {
+        [PATCHER_THREAD_KEY_ENV]: "thread-key",
+        [PATCHER_AGENT_KEY_ENV]: "pa1.bag_x.mac",
+        NODE_ENV: "production",
+      },
+      homeDir: "/Users/someone",
+    });
+
+    // `client.ts` presents the thread key in that case, so the hint has to be
+    // about the credential that was actually refused.
+    expect(hint).toContain(PATCHER_THREAD_KEY_ENV);
+    expect(hint).not.toContain("bag_x");
   });
 
   it("says the key was presented and refused when one is set", () => {

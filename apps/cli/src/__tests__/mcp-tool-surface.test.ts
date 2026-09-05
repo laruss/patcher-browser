@@ -58,6 +58,9 @@ async function sourceFiles(directory: string): Promise<string[]> {
   return files.flat();
 }
 
+/** A shell holding a browser access grant instead of a thread credential. */
+const GRANT_ENV = { PATCHER_AGENT_KEY: "pa1.bag_x.mac" };
+
 describe("the CLI a turn reaches through the MCP tool", () => {
   it("refuses the commands that act on this machine rather than on the API", () => {
     const leaves = leafCommandPaths(patcherProgram());
@@ -66,7 +69,12 @@ describe("the CLI a turn reaches through the MCP tool", () => {
     expect(leaves.length).toBeGreaterThan(100);
     expect(
       leaves
-        .filter((path) => mcpToolArgvRefusal(path.split(" ")) !== null)
+        // An explicit environment, because the default is `process.env` and a
+        // shell that exported `PATCHER_AGENT_KEY` — which this feature tells
+        // people to do — would put the tool in grant mode and refuse nearly
+        // everything, so the assertion below would be about the shell rather
+        // than about the code.
+        .filter((path) => mcpToolArgvRefusal(path.split(" "), {}) !== null)
         .sort(),
     ).toEqual([
       // Minting, listing and revoking a credential for an agent outside
@@ -109,6 +117,27 @@ describe("the CLI a turn reaches through the MCP tool", () => {
       // The audio file, likewise.
       "voice transcribe",
     ]);
+  });
+
+  it("offers only the browser when it holds a browser access grant", async () => {
+    // The other transport this command serves. A grant reaches two routes, so
+    // every command in the turn-mode list would come back a 403 with a
+    // paragraph about credentials — and a model told only "no" tries the
+    // neighbour. The whole surface is asserted, not a sample.
+    const leaves = leafCommandPaths(patcherProgram());
+    expect(leaves.length).toBeGreaterThan(100);
+
+    const allowed = leaves.filter(
+      (path) => mcpToolArgvRefusal(path.split(" "), GRANT_ENV) === null,
+    );
+
+    expect(allowed).toEqual([]);
+    // `browser` is a plugin contribution, so it is not a leaf of this program
+    // at all — which is the point: it is admitted by name.
+    expect(mcpToolArgvRefusal(["browser", "tabs"], GRANT_ENV)).toBeNull();
+    expect(mcpToolArgvRefusal(["thread", "list"], GRANT_ENV)).toContain(
+      "browser access grant",
+    );
   });
 
   it("is served by the modules that can touch this machine, and no others", async () => {

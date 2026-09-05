@@ -76,6 +76,7 @@ import {
   environmentWorkStatusQueryKeyPrefix,
   hostsQueryKey,
   sidebarNavigationQueryKey,
+  browserAccessGrantsQueryKey,
   systemConfigQueryKey,
   allSystemProvidersQueryKeyPrefix,
   threadDefaultExecutionOptionsQueryKey,
@@ -481,6 +482,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
   "config-changed": {
     dirty: [
       dirtySystemConfigQueries, // Experiments gate UI surfaces; other windows re-read after a settings write.
+      dirtyBrowserAccessGrantQueries,
       dirtyAllThreadTimelineQueries, // General settings can change whether diagnostic provider rows are projected.
       dirtySystemProviderQueries,
       dirtySystemExecutionOptionQueries,
@@ -961,6 +963,18 @@ function dirtyHostAvailabilityQueries(): QueryKey[] {
 
 function dirtySystemConfigQueries(): QueryKey[] {
   return [systemConfigQueryKey()];
+}
+
+/**
+ * The browser access grants, which change from outside this window.
+ *
+ * Both grant routes broadcast `config-changed`, and the list is what an open
+ * Settings page is looking at while somebody issues or revokes one from a
+ * terminal — a credential shown as live after it was taken back is the one
+ * staleness here that matters.
+ */
+function dirtyBrowserAccessGrantQueries(): QueryKey[] {
+  return [browserAccessGrantsQueryKey()];
 }
 
 function dirtyAllThreadTimelineQueries(): QueryKey[] {

@@ -60,9 +60,14 @@ describe("browser access grants", () => {
   it("keeps the first revocation's time on a second revoke", () => {
     // When it stopped working is a fact about the past. A second call is not a
     // new revocation, and moving the date would make a list say otherwise.
+    //
+    // The clock is injected, because both calls otherwise land in the same
+    // millisecond and an implementation that overwrites on every call would
+    // pass — the test would be asserting the clock's resolution rather than the
+    // behaviour.
     const grant = createBrowserAccessGrant(db, { label: "a", level: "read" });
-    const first = revokeBrowserAccessGrant(db, grant.id)?.revokedAt;
-    expect(revokeBrowserAccessGrant(db, grant.id)?.revokedAt).toBe(first);
+    expect(revokeBrowserAccessGrant(db, grant.id, 1_000)?.revokedAt).toBe(1_000);
+    expect(revokeBrowserAccessGrant(db, grant.id, 9_000)?.revokedAt).toBe(1_000);
   });
 
   it("reports nothing when there is no such grant to revoke", () => {
