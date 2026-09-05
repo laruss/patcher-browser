@@ -33,6 +33,11 @@
       "types": "./src/browser-history.ts",
       "default": "./src/browser-history.ts"
     },
+    "./browser-external-access": {
+      "source": "./src/browser-external-access.ts",
+      "types": "./src/browser-external-access.ts",
+      "default": "./src/browser-external-access.ts"
+    },
     "./browser-search-engine": {
       "source": "./src/browser-search-engine.ts",
       "types": "./src/browser-search-engine.ts",

@@ -401,10 +401,38 @@ export function permissionForRealtimeTarget(kind: string): PluginPermission {
   return permissionForRealtimeEntity(kind.split("-")[0] ?? "");
 }
 
+/**
+ * The permissions a browser *command* can cost, as opposed to the ones a
+ * browser *contribution* costs (`omnibox.register` and its neighbours, which
+ * are paid to register a callback rather than to drive a page).
+ *
+ * Named as its own tuple because a second question is asked of exactly this set
+ * and must stay exhaustive over it: `browser-external-access.ts` files each one
+ * under the level an agent outside Patcher needs before it may issue that
+ * command. Deriving that map from `PluginPermission` would make it cover
+ * `newTab.register` too, and deriving it from nothing would let a browser
+ * permission added later default to whatever the lookup does with a miss.
+ */
+export const BROWSER_COMMAND_PERMISSIONS = [
+  "tabs.read",
+  "page.read",
+  "network.observe",
+  "tabs.modify",
+  "page.interact",
+  "page.inject",
+  "network.intercept",
+  "page.credentials",
+  "page.record",
+] as const satisfies readonly PluginPermission[];
+
+/** One of {@link BROWSER_COMMAND_PERMISSIONS}. */
+export type BrowserCommandPermission =
+  (typeof BROWSER_COMMAND_PERMISSIONS)[number];
+
 /** Reading a tab: everything but the network log is what the page rendered. */
 function permissionForObservation(
   kind: BrowserObservation["kind"],
-): PluginPermission {
+): BrowserCommandPermission {
   switch (kind) {
     case "network":
       return "network.observe";
@@ -422,7 +450,7 @@ function permissionForObservation(
  */
 function permissionForControlOperation(
   kind: BrowserControlOperation["kind"],
-): PluginPermission {
+): BrowserCommandPermission {
   switch (kind) {
     case "evaluate":
       return "page.inject";
@@ -448,7 +476,7 @@ function permissionForControlOperation(
  */
 export function permissionForBrowserCommand(
   command: BrowserCommand,
-): PluginPermission {
+): BrowserCommandPermission {
   switch (command.type) {
     case "tabs.list":
     case "page.get_url":

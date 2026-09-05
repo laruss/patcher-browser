@@ -4,6 +4,7 @@ import {
   defaultAppTheme,
   defaultExperiments,
   type AppTheme,
+  type BrowserExternalAccessLevel,
   type Experiments,
   type Host,
 } from "@patcher/domain";
@@ -191,6 +192,8 @@ function useSettingsStoryState() {
   const [browserSearchEngineId, setBrowserSearchEngineId] = useState(
     DEFAULT_BROWSER_SEARCH_ENGINE_ID,
   );
+  const [browserExternalAccess, setBrowserExternalAccess] =
+    useState<BrowserExternalAccessLevel>("off");
   const [showUnhandledProviderEvents, setShowUnhandledProviderEvents] =
     useState(false);
   const [preferredAudioInputDeviceId, setPreferredAudioInputDeviceId] =
@@ -212,6 +215,8 @@ function useSettingsStoryState() {
     providerEgressAllowedHosts,
     setProviderEgressAllowedHosts,
     appearance,
+    browserExternalAccess,
+    setBrowserExternalAccess,
     browserSearchEngineId,
     setBrowserSearchEngineId,
     caffeinate,
@@ -270,6 +275,9 @@ function GeneralSettingsStory({
   return (
     <>
       <GeneralSettingsSection
+        browserExternalAccess={state.browserExternalAccess}
+        browserExternalAccessDisabled={false}
+        onBrowserExternalAccessChange={state.setBrowserExternalAccess}
         browserSearchEngineId={state.browserSearchEngineId}
         onBrowserSearchEngineChange={state.setBrowserSearchEngineId}
         providerEgressConfined={state.providerEgressConfined}

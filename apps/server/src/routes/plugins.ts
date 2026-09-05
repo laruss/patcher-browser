@@ -4,7 +4,10 @@ import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
+import { getAppSettings } from "@patcher/db";
 import type { ServerRuntimeConfig } from "../types.js";
+import { getAgentThreadId } from "../agent-thread-scope.js";
+import { runAsExternalBrowserCaller } from "../services/browser/browser-external-access.js";
 import {
   declaresThread,
   requirePluginConsent,
@@ -862,11 +865,24 @@ export function registerPluginRoutes(
     if (typeof body?.threadId === "string") ctx.threadId = body.threadId;
     if (typeof body?.projectId === "string") ctx.projectId = body.projectId;
     ctx.signal = context.req.raw.signal;
-    const result = await plugins.runCliCommand(
-      context.req.param("id"),
-      argv,
-      ctx,
-    );
+    const pluginId = context.req.param("id");
+    const run = () => plugins.runCliCommand(pluginId, argv, ctx);
+    // A `patcher <plugin>` command run from a shell that is not a turn's is the
+    // one caller the browser gate is about, and this is the only route it
+    // arrives on: the app invokes plugin rpc and http routes but never a CLI
+    // command, so nothing the user is looking at is scoped by accident. The
+    // *verified* thread id rather than `declaresThread`, because the header
+    // beside it is something any holder of the app key can write, and taking it
+    // at its word would make the exemption the thing to forge.
+    const result = await (getAgentThreadId(context) === undefined
+      ? runAsExternalBrowserCaller(
+          {
+            level: getAppSettings(deps.db).browserExternalAccess,
+            invocation: `\`patcher ${pluginId}\``,
+          },
+          run,
+        )
+      : run());
     return context.json(result);
   });
 

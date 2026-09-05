@@ -42,6 +42,12 @@ export function formatPendingInteractionConsentSummary(
       return `Move this thread to ${payload.subjectName}`;
     case "reach-host":
       return `Let this turn reach ${payload.subjectName}`;
+    case "browser-external-access":
+      // Named for who gains it rather than for the setting, because the setting
+      // is the mechanism and "agents outside Patcher" is the decision.
+      return payload.subjectId === "off"
+        ? "Stop letting agents outside Patcher use the browser"
+        : `Let agents outside Patcher use the browser: ${payload.subjectName}`;
     default:
       return assertNever(payload.action);
   }
@@ -82,6 +88,21 @@ export function formatPendingInteractionConsentDetailLines(
       ...(payload.detail === null ? [] : [payload.detail]),
       "Everything else this turn sends off the machine still goes through Patcher, checked against its list.",
       "Either answer is remembered for this workspace's turns until Patcher restarts. Add the host in Settings to keep it for good.",
+    ];
+  }
+  // The one consent whose beneficiary is not the agent asking. Every other
+  // action here changes what *this* turn's Patcher does; this one opens the
+  // browser to Claude Code, Codex or a script running in a terminal, and a
+  // prompt that did not say so would read as the agent asking for itself.
+  if (payload.action === "browser-external-access") {
+    return [
+      ...(payload.detail === null ? [] : [payload.detail]),
+      ...(payload.permissions.length > 0
+        ? [`Allows: ${payload.permissions.join(", ")}`]
+        : []),
+      "Applies to agents and terminals outside Patcher, not to this thread. Threads here are gated by the browser-tools plugin, as before.",
+      "Change it any time in Settings → Browser.",
+      "Asked for by an agent in this thread.",
     ];
   }
   // On enable, install, update and configure the list is what saying yes hands

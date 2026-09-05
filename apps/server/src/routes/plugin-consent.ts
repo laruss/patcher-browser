@@ -1,4 +1,3 @@
-import type { Context } from "hono";
 import { PATCHER_THREAD_ID_HEADER } from "@patcher/server-contract";
 import type { PendingInteractionConsentAction } from "@patcher/domain";
 import type { AppDeps } from "../types.js";
@@ -28,7 +27,18 @@ export interface PluginConsentDeps {
 
 export interface RequirePluginConsentArgs {
   action: PendingInteractionConsentAction;
-  context: Context;
+  /**
+   * Structural rather than Hono's `Context`, for the reason `declaresThread`
+   * below states: a typed route hands its handler a narrower context, and a
+   * gate every mutating route should be able to use must not be the reason a
+   * route cannot be typed. Only these two members are read.
+   */
+  context: {
+    req: {
+      header(name: string): string | undefined;
+      raw: { signal: AbortSignal };
+    };
+  };
   deps: PluginConsentDeps;
   detail?: string | null;
   /** Declared permissions the change puts in play; empty when none are known. */

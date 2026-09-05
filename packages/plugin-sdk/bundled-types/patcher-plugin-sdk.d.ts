@@ -31,6 +31,12 @@ declare const appSettingsSchema: z$1.ZodObject<{
     providerEgressAllowedHosts: z$1.ZodPipe<z$1.ZodArray<z$1.ZodString>, z$1.ZodTransform<string[], string[]>>;
     onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
     browserSearchEngineId: z$1.ZodString;
+    browserExternalAccess: z$1.ZodEnum<{
+        full: "full";
+        off: "off";
+        read: "read";
+        interact: "interact";
+    }>;
 }, z$1.core.$strict>;
 type AppSettings = z$1.infer<typeof appSettingsSchema>;
 
@@ -540,6 +546,7 @@ declare const consentPendingInteractionSchema: z$1.ZodObject<{
             "run-setup-script": "run-setup-script";
             "move-workspace": "move-workspace";
             "reach-host": "reach-host";
+            "browser-external-access": "browser-external-access";
         }>;
         subjectId: z$1.ZodString;
         subjectName: z$1.ZodString;
@@ -7096,6 +7103,12 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         providerEgressAllowedHosts: z$1.ZodPipe<z$1.ZodArray<z$1.ZodString>, z$1.ZodTransform<string[], string[]>>;
         onboardingCompletedAt: z$1.ZodNullable<z$1.ZodString>;
         browserSearchEngineId: z$1.ZodString;
+        browserExternalAccess: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            off: "off";
+            interact: "interact";
+        }>;
     }, z$1.core.$strict>;
     keybindings: z$1.ZodArray<z$1.ZodObject<{
         command: z$1.ZodEnum<{
@@ -7520,6 +7533,38 @@ declare const systemCliSkillsStatusResponseSchema: z$1.ZodObject<{
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
 type SystemCliSkillsStatusResponse = z$1.infer<typeof systemCliSkillsStatusResponseSchema>;
+/**
+ * How far agents outside Patcher may drive the browser, as a request.
+ *
+ * Its own route rather than a field written through `PUT /settings/general`,
+ * for two reasons that point the same way. A turn is refused every route under
+ * `/settings` — deliberately, so the next setting is closed on arrival — and
+ * the one thing an agent inside Patcher genuinely should be able to do here is
+ * *ask*, which needs a route that raises a consent prompt rather than one that
+ * writes. And the write is not only a write: opening the browser to an outside
+ * agent is meaningless while `browser-tools` is disabled, so the route enables
+ * it too, and a settings field could not have said so.
+ */
+declare const systemBrowserExternalAccessRequestSchema: z$1.ZodObject<{
+    level: z$1.ZodEnum<{
+        read: "read";
+        full: "full";
+        off: "off";
+        interact: "interact";
+    }>;
+}, z$1.core.$strip>;
+type SystemBrowserExternalAccessRequest = z$1.infer<typeof systemBrowserExternalAccessRequestSchema>;
+/** What the level ended up being, and whether the plugin came on with it. */
+declare const systemBrowserExternalAccessResponseSchema: z$1.ZodObject<{
+    level: z$1.ZodEnum<{
+        read: "read";
+        full: "full";
+        off: "off";
+        interact: "interact";
+    }>;
+    browserToolsEnabled: z$1.ZodBoolean;
+}, z$1.core.$strip>;
+type SystemBrowserExternalAccessResponse = z$1.infer<typeof systemBrowserExternalAccessResponseSchema>;
 /** The machines to copy the built-in Patcher CLI skills onto. */
 declare const systemInstallCliSkillsRequestSchema: z$1.ZodObject<{
     hostIds: z$1.ZodArray<z$1.ZodString>;
@@ -10000,6 +10045,7 @@ declare const threadPendingInteractionsResponseSchema: z$1.ZodArray<z$1.ZodUnion
             "run-setup-script": "run-setup-script";
             "move-workspace": "move-workspace";
             "reach-host": "reach-host";
+            "browser-external-access": "browser-external-access";
         }>;
         subjectId: z$1.ZodString;
         subjectName: z$1.ZodString;
@@ -12949,6 +12995,8 @@ type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 type SystemUpdateExperimentsResult = Experiments;
 type SystemUpdateGeneralSettingsResult = AppSettings;
+type SystemBrowserExternalAccessArgs = SystemBrowserExternalAccessRequest;
+type SystemBrowserExternalAccessResult = SystemBrowserExternalAccessResponse;
 type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
 type SystemUsageLimitsResult = ProviderUsageResponse;
 interface SystemOnboardingArgs extends SystemProvidersQuery {
@@ -12976,6 +13024,15 @@ interface SystemArea {
     transcribeVoice(args: SystemVoiceTranscriptionArgs): Promise<SystemVoiceTranscriptionResult>;
     updateExperiments(args: Experiments): Promise<SystemUpdateExperimentsResult>;
     updateGeneralSettings(args: AppSettings): Promise<SystemUpdateGeneralSettingsResult>;
+    /**
+     * Set how far agents outside Patcher may drive the browser, enabling the
+     * plugin that serves them if it is off.
+     *
+     * Its own call rather than a field on `updateGeneralSettings`, because the
+     * route is its own: called from inside a turn it raises a prompt on that
+     * thread and changes nothing unless the user allows it.
+     */
+    setBrowserExternalAccess(args: SystemBrowserExternalAccessArgs): Promise<SystemBrowserExternalAccessResult>;
     updateKeyboardSettings(args: AppKeybindingOverrides): Promise<SystemUpdateKeyboardSettingsResult>;
     /** Report one onboarding funnel event to anonymous telemetry. */
     onboardingEvent(args: OnboardingTelemetryEvent): Promise<{
@@ -15294,7 +15351,15 @@ interface PluginBrowserNavigation {
  * window is connected at all), `"BrowserCommandTimeoutError"`, and
  * `"BrowserCommandAbortedError"`.
  */
-type PluginBrowserErrorCode = "no_active_tab" | "unknown_tab" | "tab_not_live" | "desktop_unavailable" | "unsupported_command" | "blocked_url" | "page_read_timeout" | "page_read_failed" | "debugger_unavailable" | "stale_refs" | "unknown_ref" | "invalid_selector" | "no_match" | "not_actionable" | "unsupported_key" | "result_too_large" | "evaluation_failed" | "too_many_routes" | "already_recording" | "not_recording" | "invalid_command";
+type PluginBrowserErrorCode = "no_active_tab" | "unknown_tab" | "tab_not_live" | "desktop_unavailable" | "unsupported_command" | "blocked_url" | "page_read_timeout" | "page_read_failed" | "debugger_unavailable" | "stale_refs" | "unknown_ref" | "invalid_selector" | "no_match" | "not_actionable" | "unsupported_key" | "result_too_large" | "evaluation_failed" | "too_many_routes" | "already_recording" | "not_recording" | "invalid_command"
+/**
+ * The caller is an agent outside Patcher and the user has not allowed it this
+ * far. Decided in the host before the command is sent, so it means with
+ * certainty that the page was never touched — and it is a decision rather
+ * than a fault, so the message names the setting and the command that
+ * changes it. Do not retry it; relay it.
+ */
+ | "external_access_denied";
 interface PluginBrowserStatus {
     connected: boolean;
     /** How many app windows could serve a browser call right now. */

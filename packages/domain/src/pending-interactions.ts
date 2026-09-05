@@ -387,6 +387,13 @@ export const pendingInteractionConsentActionValues = [
   // the connection while this is on screen — `subjectId` and `subjectName` are
   // the hostname, because the hostname is the whole of what is being allowed.
   "reach-host",
+  // Nor a plugin action, though it reads like one: how far an agent running
+  // *outside* Patcher may drive the browser. `subjectId` and `subjectName` are
+  // the level being asked for, and `permissions` is what that level admits —
+  // which is why this shares the prompt rather than growing its own. The agent
+  // raising it is asking on behalf of a different agent than itself, and the
+  // detail line is where that is said.
+  "browser-external-access",
 ] as const;
 export const pendingInteractionConsentActionSchema = z.enum(
   pendingInteractionConsentActionValues,

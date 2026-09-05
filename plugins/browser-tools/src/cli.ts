@@ -19,7 +19,11 @@ import type {
 } from "@patcher/plugin-sdk";
 import { delay, waitForQuiet } from "./cli-settle.js";
 import { resolveTabTarget, urlMatches } from "./cli-targets.js";
-import { DEFAULT_PAGE_TEXT_MAX_LENGTH, explainBrowserError } from "./tools.js";
+import {
+  DEFAULT_PAGE_TEXT_MAX_LENGTH,
+  explainBrowserError,
+  isBrowserExternalAccessRefusal,
+} from "./tools.js";
 import {
   NO_FFMPEG_MESSAGE,
   encodeBrowserVideo,
@@ -1691,10 +1695,26 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
             }
             // Best effort: a window can answer `getStatus` and still fail to
             // list tabs, and a status command that dies on that is worse than
-            // one that reports what it knows.
-            const tabs = await patcher.browser.tabs
-              .list(options)
-              .catch(() => null);
+            // one that reports what it knows. One failure is not best-effort
+            // though — being refused for want of the user's permission is the
+            // answer to "can I act", so it is reported instead of the window
+            // count, and it keeps the same non-zero exit an unusable browser
+            // gets. `getStatus` cannot see it: it reads a local snapshot and
+            // never leaves the process, so the cheapest real command is asked.
+            let tabs: PluginBrowserTab[] | null = null;
+            try {
+              tabs = await patcher.browser.tabs.list(options);
+            } catch (error) {
+              if (isBrowserExternalAccessRefusal(error)) {
+                const denied = explainBrowserError(error);
+                return {
+                  exitCode: 1,
+                  stdout: parsed.json
+                    ? `${JSON.stringify({ ...status, allowed: false, tabCount: null, activeTab: null, nextStep: denied })}\n`
+                    : `${denied}\n`,
+                };
+              }
+            }
             const active = tabs?.find((tab) => tab.active) ?? null;
             if (parsed.json) {
               return {

@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 import {
   appKeybindingOverridesSchema,
+  browserExternalAccessLevelSchema,
   defaultAppSettings,
   providerEgressAllowedHostsSchema,
   type AppKeybindingOverrides,
   type AppSettings,
+  type BrowserExternalAccessLevel,
 } from "@patcher/domain";
 import type { DbConnection } from "../connection.js";
 import { appSettings } from "../schema.js";
@@ -28,6 +30,7 @@ export function getAppSettings(db: DbConnection): AppSettings {
       providerEgressAllowedHosts: appSettings.providerEgressAllowedHosts,
       onboardingCompletedAt: appSettings.onboardingCompletedAt,
       browserSearchEngineId: appSettings.browserSearchEngineId,
+      browserExternalAccess: appSettings.browserExternalAccess,
     })
     .from(appSettings)
     .where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
@@ -41,7 +44,24 @@ export function getAppSettings(db: DbConnection): AppSettings {
     providerEgressAllowedHosts: parseEgressAllowedHosts(
       row.providerEgressAllowedHosts,
     ),
+    browserExternalAccess: parseBrowserExternalAccess(row.browserExternalAccess),
   };
+}
+
+/**
+ * The stored level, or the closed one.
+ *
+ * Same reasoning as the host list below — the column is text, so a row written
+ * by a future version or by hand must not take the settings endpoint down. The
+ * fallback is deliberately `off` rather than `defaultAppSettings`\'s value read
+ * back: they are the same today, and if the default ever moves, a value nobody
+ * can parse should still resolve to the browser being closed.
+ */
+function parseBrowserExternalAccess(
+  stored: string,
+): BrowserExternalAccessLevel {
+  const parsed = browserExternalAccessLevelSchema.safeParse(stored);
+  return parsed.success ? parsed.data : "off";
 }
 
 /**
@@ -83,6 +103,7 @@ export function setAppSettings(
       ),
       onboardingCompletedAt: settings.onboardingCompletedAt,
       browserSearchEngineId: settings.browserSearchEngineId,
+      browserExternalAccess: settings.browserExternalAccess,
       updatedAt,
     })
     .onConflictDoUpdate({
@@ -104,6 +125,7 @@ export function setAppSettings(
         ),
         onboardingCompletedAt: settings.onboardingCompletedAt,
         browserSearchEngineId: settings.browserSearchEngineId,
+        browserExternalAccess: settings.browserExternalAccess,
         updatedAt,
       },
     })

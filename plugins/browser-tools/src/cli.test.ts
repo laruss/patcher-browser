@@ -190,6 +190,28 @@ describe("patcher browser CLI", () => {
     expect(offline.stdout).toContain("No browser window is connected");
   });
 
+  it("says the user has not allowed this, rather than reporting a window", async () => {
+    const host = createHost();
+    // What the server sends a caller from outside Patcher whose level does not
+    // reach the command. The window really is connected — which is exactly why
+    // `status` cannot answer from `getStatus` alone: "a window is up" and "I may
+    // use it" stopped being the same question.
+    host.harness.behavior.browser.failNextCall(
+      "external_access_denied",
+      "`patcher browser` ran a browser command needing \"tabs.read\", and this install does not let agents outside Patcher drive the browser at all. Nothing happened.",
+    );
+
+    const denied = await host.harness.runCli(["status"]);
+
+    // Non-zero for the same reason a disconnected browser is: a script or an
+    // agent gating on `status` must not read this as "go ahead".
+    expect(denied.exitCode).toBe(1);
+    expect(denied.stdout).toContain("does not let agents outside Patcher");
+    expect(denied.stdout).toContain("Nothing happened");
+    // Not the window count, which would be true and beside the point.
+    expect(denied.stdout).not.toContain("Connected (");
+  });
+
   it("explains a failure the same way the agent tools do", async () => {
     const host = createHost();
 

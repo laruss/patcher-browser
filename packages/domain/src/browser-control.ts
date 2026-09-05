@@ -917,6 +917,13 @@ export const browserCommandErrorCodeSchema = z.enum([
   "not_recording",
   /** The command or its parameters did not parse. */
   "invalid_command",
+  /**
+   * The caller is an agent outside Patcher and the user has not allowed it this
+   * far. The one code here the browser never produces: it is decided in the
+   * server, before a command is sent, so the refusal costs the page nothing and
+   * means with certainty that nothing happened.
+   */
+  "external_access_denied",
 ]);
 export type BrowserCommandErrorCode = z.infer<
   typeof browserCommandErrorCodeSchema

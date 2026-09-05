@@ -1,11 +1,14 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import {
+  BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS,
+  BROWSER_EXTERNAL_ACCESS_LEVELS,
   builtInThemes,
   defaultAppSettings,
   defaultAppTheme,
   defaultExperiments,
   type AppTheme,
+  type BrowserExternalAccessLevel,
   type FaviconColorPreference,
   type PluginThemeMeta,
 } from "@patcher/domain";
@@ -53,6 +56,7 @@ import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsS
 import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedThreadsSettingsSection";
 import { CliSkillsSettingsSection } from "@/components/settings/CliSkillsSettingsSection";
 import {
+  useSetBrowserExternalAccess,
   useUpdateGeneralSettings,
   useUpdateAppearance,
   useUpdateExperiments,
@@ -176,6 +180,9 @@ export interface AppearanceSettingsSectionProps {
 
 export interface GeneralSettingsSectionProps {
   /** The stored engine id, Patcher's own or a plugin's. */
+  browserExternalAccess: BrowserExternalAccessLevel;
+  browserExternalAccessDisabled: boolean;
+  onBrowserExternalAccessChange: (level: BrowserExternalAccessLevel) => void;
   browserSearchEngineId: string;
   onBrowserSearchEngineChange: (engineId: string) => void;
   caffeinateAvailable: boolean;
@@ -946,7 +953,89 @@ function parseAllowedHosts(value: string): string[] {
     .filter((host) => host !== "");
 }
 
+export interface BrowserExternalAccessSettingsControlProps {
+  disabled: boolean;
+  level: BrowserExternalAccessLevel;
+  onLevelChange: (level: BrowserExternalAccessLevel) => void;
+}
+
+/**
+ * How far an agent running outside Patcher — Claude Code, Codex, a script — may
+ * drive this browser.
+ *
+ * A ramp rather than a switch, because the browser holds the user's logins and
+ * "read the page I am on" is not "read my cookies for it". The detail line under
+ * the control is the selected level's own, so the consequence of the choice is
+ * on screen rather than one hop away in a document; the same sentences appear in
+ * the consent prompt an agent inside Patcher raises when it asks for this.
+ *
+ * Beside the other browser rows rather than in a section of its own: everything
+ * here is "what the desktop browser does", and a security setting hidden behind
+ * its own nav entry is one nobody finds.
+ */
+export function BrowserExternalAccessSettingsControl({
+  disabled,
+  level,
+  onLevelChange,
+}: BrowserExternalAccessSettingsControlProps) {
+  return (
+    <div className="space-y-2.5">
+      <SettingsWithControl
+        label="Agents outside Patcher"
+        description="Whether agents and terminals outside Patcher can drive this browser with `patcher browser`. Threads inside Patcher are gated by the Browser tools plugin instead."
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={SETTINGS_DROPDOWN_TRIGGER_CLASS}
+              aria-label="Browser access for agents outside Patcher"
+              disabled={disabled}
+            >
+              <span className="min-w-0 truncate">
+                {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].label}
+              </span>
+              <Icon
+                name="ChevronDown"
+                className="size-3.5 text-muted-foreground"
+              />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className={SETTINGS_DROPDOWN_CONTENT_CLASS}
+          >
+            {BROWSER_EXTERNAL_ACCESS_LEVELS.map((option) => (
+              <DropdownMenuItem
+                key={option}
+                onSelect={() => onLevelChange(option)}
+              >
+                {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[option].label}
+                <Icon
+                  name="Check"
+                  className={cn(
+                    "ml-auto",
+                    level !== option && "opacity-0",
+                    COARSE_POINTER_ICON_SIZE_CLASS,
+                  )}
+                />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SettingsWithControl>
+      <p className="text-xs text-subtle-foreground">
+        {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].detail}
+      </p>
+    </div>
+  );
+}
+
 export function GeneralSettingsSection({
+  browserExternalAccess,
+  browserExternalAccessDisabled,
+  onBrowserExternalAccessChange,
   browserSearchEngineId,
   onBrowserSearchEngineChange,
   caffeinateAvailable,
@@ -1014,6 +1103,14 @@ export function GeneralSettingsSection({
           <BrowserSearchEngineSettingsControl
             engineId={browserSearchEngineId}
             onEngineChange={onBrowserSearchEngineChange}
+          />
+        ) : null}
+
+        {desktopBrowserAvailable ? (
+          <BrowserExternalAccessSettingsControl
+            disabled={browserExternalAccessDisabled}
+            level={browserExternalAccess}
+            onLevelChange={onBrowserExternalAccessChange}
           />
         ) : null}
 
@@ -1272,6 +1369,7 @@ export function SettingsView() {
   const generalSettings =
     systemConfigQuery.data?.generalSettings ?? defaultAppSettings;
   const updateGeneralSettingsMutation = useUpdateGeneralSettings();
+  const setBrowserExternalAccessMutation = useSetBrowserExternalAccess();
   const appearance = systemConfigQuery.data?.appearance ?? defaultAppTheme;
   const updateAppearanceMutation = useUpdateAppearance();
   const { activePluginId, activeProviderId, activeSection, hasUnknownSection } =
@@ -1446,6 +1544,14 @@ export function SettingsView() {
             updateGeneralSettingsMutation.isPending
           }
           caffeinateEnabled={generalSettings.caffeinate}
+          browserExternalAccess={generalSettings.browserExternalAccess}
+          browserExternalAccessDisabled={
+            systemConfigQuery.data === undefined ||
+            setBrowserExternalAccessMutation.isPending
+          }
+          onBrowserExternalAccessChange={(level) =>
+            setBrowserExternalAccessMutation.mutate({ level })
+          }
           browserSearchEngineId={generalSettings.browserSearchEngineId}
           providerEgressConfined={generalSettings.providerEgressConfined}
           providerEgressAllowedHosts={

@@ -5,8 +5,12 @@ import {
   type AppThemeSelection,
   type Experiments,
 } from "@patcher/domain";
-import type { SystemInstallCliSkillsRequest } from "@patcher/server-contract";
+import type {
+  SystemBrowserExternalAccessRequest,
+  SystemInstallCliSkillsRequest,
+} from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
+import { allPluginListQueryKeyPrefix } from "../queries/plugin-settings-queries";
 import {
   invalidateGeneralSettingsDependencies,
   invalidateSystemConfig,
@@ -52,6 +56,33 @@ export function useUpdateGeneralSettings() {
       sdk.system.updateGeneralSettings(settings),
     onSuccess: () => {
       invalidateGeneralSettingsDependencies({ queryClient });
+    },
+  });
+}
+
+/**
+ * Set how far agents outside Patcher may drive the browser.
+ *
+ * Its own route rather than a field on the general settings, so it goes through
+ * its own mutation: the server also turns the `browser-tools` plugin on when
+ * the level is not `off`, and the plugin list has to be invalidated for the
+ * plugins page to show that. Everything else about the settings page reads the
+ * system config, which the route's `config-changed` broadcast refreshes.
+ */
+export function useSetBrowserExternalAccess() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to change browser access for outside agents.",
+    },
+    mutationFn: (args: SystemBrowserExternalAccessRequest) =>
+      sdk.system.setBrowserExternalAccess(args),
+    onSuccess: () => {
+      invalidateGeneralSettingsDependencies({ queryClient });
+      void queryClient.invalidateQueries({
+        queryKey: allPluginListQueryKeyPrefix(),
+      });
     },
   });
 }

@@ -290,6 +290,23 @@ export function formatTabs(tabs: readonly PluginBrowserTab[]): string {
  * Errors are matched by `name`, the SDK's convention — no runtime error class
  * ships to plugins, so `instanceof` would silently never match.
  */
+/**
+ * Whether this failure is the user not having allowed it, rather than the
+ * browser being unable.
+ *
+ * Worth telling apart in exactly one place — `status`, which answers "can I
+ * act, and where am I" and would otherwise report a connected window to a
+ * caller that may not touch it. Everywhere else the sentence carries itself.
+ */
+export function isBrowserExternalAccessRefusal(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "external_access_denied"
+  );
+}
+
 export function explainBrowserError(error: unknown): string {
   const name = error instanceof Error ? error.name : "";
   const code =
@@ -347,6 +364,15 @@ export function explainBrowserError(error: unknown): string {
       } Nothing partial was returned.`;
     case "unsupported_key":
       return 'That key name is not one the browser can press. Use a name like "Enter", "Escape", "Tab", "ArrowDown", a single character, or a chord like "Control+a".';
+    case "external_access_denied":
+      // Passed through rather than rephrased: the server wrote this one, and it
+      // is the only refusal here that names a setting, a level and the command
+      // that changes it. The default branch below would bury all three under
+      // "The browser could not do that", which also reads as a malfunction when
+      // the truth is that nobody has said yes yet.
+      return error instanceof Error
+        ? error.message
+        : "Agents outside Patcher are not allowed to drive this browser. The person at this machine can allow it in Settings → Browser.";
     default:
       return error instanceof Error
         ? `The browser could not do that: ${error.message}`

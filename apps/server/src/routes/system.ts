@@ -16,8 +16,10 @@ import {
 import {
   applyAppKeybindingOverrides,
   applyPluginAppKeybindings,
+  BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS,
   customThemeNameSchema,
   isBuiltInThemeId,
+  permissionsForBrowserExternalAccess,
   type AppKeybindingOverrides,
   type AppTheme,
 } from "@patcher/domain";
@@ -58,7 +60,22 @@ import {
   readGlobalCliSkillStatus,
 } from "../services/skills/global-skill-install.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../services/system/app-keybindings.js";
+import { requirePluginConsent } from "./plugin-consent.js";
 import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
+
+/**
+ * The plugin that serves `patcher browser`. Named here because the browser
+ * access route turns it on: a level that lets an outside agent drive the
+ * browser, with nothing registered to serve the command, is a setting that
+ * silently does nothing.
+ */
+const BROWSER_TOOLS_PLUGIN_ID = "browser-tools";
+
+function isBrowserToolsEnabled(pluginService: PluginService): boolean {
+  return pluginService
+    .list()
+    .some((plugin) => plugin.id === BROWSER_TOOLS_PLUGIN_ID && plugin.enabled);
+}
 
 const CUSTOM_ACP_LOGO_CONTENT_TYPES = {
   ".png": "image/png",
@@ -198,6 +215,55 @@ export function registerSystemRoutes(
       reason: "settings-updated",
     });
     return context.json(getAppSettings(deps.db));
+  });
+
+  /**
+   * How far agents outside Patcher may drive the browser.
+   *
+   * Its own route rather than a field on `PUT /settings/general`, and the
+   * reason is who may ask. Every route under `/settings` is refused to a turn
+   * (`agent-route-policy.ts`), deliberately, so the next setting is closed on
+   * arrival — and the thing an agent inside Patcher legitimately wants here is
+   * to *ask*, which needs a prompt rather than a write. So this route carries
+   * the same consent gate a plugin change carries: no thread declared is a
+   * person at their own terminal or the app's own control, and behaves as
+   * those always have; a declared thread raises a prompt naming the level and
+   * what it allows, and writes nothing unless the user says yes.
+   *
+   * It also enables `browser-tools`, because a level without the plugin is a
+   * setting that does nothing: the plugin is what serves `patcher browser` at
+   * all. The reverse is not true and must not be — turning external access off
+   * leaves the plugin alone, since threads inside Patcher use it too and
+   * nobody asked about those.
+   */
+  post(routes.browserExternalAccess, async (context, payload) => {
+    const { level } = payload;
+    const allowed = permissionsForBrowserExternalAccess(level);
+    const consent = await requirePluginConsent({
+      action: "browser-external-access",
+      context,
+      deps,
+      subjectId: level,
+      subjectName: BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].label,
+      permissions: allowed,
+      detail: BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].detail,
+    });
+    if (!consent.allowed) {
+      throw new ApiError(consent.status, "forbidden", consent.error);
+    }
+    // Before the setting, not after: if enabling the plugin fails, the honest
+    // outcome is that nothing changed rather than a level nothing serves.
+    let browserToolsEnabled = isBrowserToolsEnabled(pluginService);
+    if (level !== "off" && !browserToolsEnabled) {
+      await pluginService.setEnabled(BROWSER_TOOLS_PLUGIN_ID, true);
+      browserToolsEnabled = isBrowserToolsEnabled(pluginService);
+    }
+    setAppSettings(deps.db, {
+      ...getAppSettings(deps.db),
+      browserExternalAccess: level,
+    });
+    deps.hub.notifySystem(["config-changed"]);
+    return context.json({ level, browserToolsEnabled });
   });
 
   put(routes.keyboardSettings, (context, payload) => {

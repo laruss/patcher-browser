@@ -13,6 +13,8 @@ import type {
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
+  SystemBrowserExternalAccessRequest,
+  SystemBrowserExternalAccessResponse,
   SystemCliSkillsStatusResponse,
   SystemInstallCliSkillsRequest,
   SystemInstallCliSkillsResponse,
@@ -70,6 +72,10 @@ export type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 export type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 export type SystemUpdateExperimentsResult = Experiments;
 export type SystemUpdateGeneralSettingsResult = AppSettings;
+export type SystemBrowserExternalAccessArgs =
+  SystemBrowserExternalAccessRequest;
+export type SystemBrowserExternalAccessResult =
+  SystemBrowserExternalAccessResponse;
 export type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
 export type SystemUsageLimitsResult = ProviderUsageResponse;
 export interface SystemOnboardingArgs extends SystemProvidersQuery {
@@ -108,6 +114,17 @@ export interface SystemArea {
   updateGeneralSettings(
     args: AppSettings,
   ): Promise<SystemUpdateGeneralSettingsResult>;
+  /**
+   * Set how far agents outside Patcher may drive the browser, enabling the
+   * plugin that serves them if it is off.
+   *
+   * Its own call rather than a field on `updateGeneralSettings`, because the
+   * route is its own: called from inside a turn it raises a prompt on that
+   * thread and changes nothing unless the user allows it.
+   */
+  setBrowserExternalAccess(
+    args: SystemBrowserExternalAccessArgs,
+  ): Promise<SystemBrowserExternalAccessResult>;
   updateKeyboardSettings(
     args: AppKeybindingOverrides,
   ): Promise<SystemUpdateKeyboardSettingsResult>;
@@ -212,6 +229,11 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async updateGeneralSettings(input) {
       return transport.readJson(
         transport.api.v1.settings.general.$put({ json: input }),
+      );
+    },
+    async setBrowserExternalAccess(input) {
+      return transport.readJson(
+        transport.api.v1.browser["external-access"].$post({ json: input }),
       );
     },
     async updateKeyboardSettings(input) {

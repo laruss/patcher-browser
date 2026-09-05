@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { browserExternalAccessLevelSchema } from "./browser-external-access.js";
 import { DEFAULT_BROWSER_SEARCH_ENGINE_ID } from "./browser-search-engine.js";
 
 /**
@@ -128,6 +129,19 @@ export const appSettingsSchema = z
      * a URL nothing can serve. See `browser-search-engine.ts`.
      */
     browserSearchEngineId: z.string(),
+    /**
+     * How far an agent running outside Patcher may drive the browser — see
+     * `browser-external-access.ts` for what each level admits and for what this
+     * does and does not close.
+     *
+     * `off` by default, and the default is the decision: until this existed,
+     * `patcher browser` from any shell on the machine reached the user's real
+     * logged-in session as soon as the plugin was enabled, and the server had
+     * no way to tell an agent's terminal from the user's own. Nothing inside
+     * Patcher is affected — a turn's `patcher browser` is gated by the plugin
+     * toggle and the consent prompt behind it, as before.
+     */
+    browserExternalAccess: browserExternalAccessLevelSchema,
   })
   .strict();
 export type AppSettings = z.infer<typeof appSettingsSchema>;
@@ -148,4 +162,6 @@ export const defaultAppSettings: AppSettings = {
   providerEgressAllowedHosts: [],
   onboardingCompletedAt: null,
   browserSearchEngineId: DEFAULT_BROWSER_SEARCH_ENGINE_ID,
+  // Closed until the user opens it: see the schema for why that is the decision.
+  browserExternalAccess: "off",
 };
