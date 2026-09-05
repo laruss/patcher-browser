@@ -32,7 +32,9 @@ the tab.
 the same window, and "read the page I am looking at" is the case the in-app
 tools were built for ([agent-browser-tools.md](agent-browser-tools.md)). A
 caller outside Patcher has no thread to be visible in and nothing on screen
-announced it; it gets tabs, not the window. The third row is the honest
+announced it; the tabs it gets are its own, and none of its defaults take the
+window — though `tabs.activate`, and an explicit `--new-tab`, still bring its
+own tab to the front, which is how an agent shows the person something. The third row is the honest
 consequence of the `issuer` not reaching a plugin in its own process — the same
 gap the access level has, listed in [../TODO.md](../TODO.md) — and it keeps the
 behaviour that predates ownership rather than guessing.
@@ -43,6 +45,10 @@ last" depends on history it cannot see.
 
 ## What a caller is told
 
+- **A listing still lists everything.** Ownership is about acting, not about
+  seeing: `tabs.list` answers with every tab's address and title as it always
+  has — that is the `tabs.read` permission, and it is how a caller finds the tab
+  to ask for. What it cannot do is read *into* a page that is not its own.
 - Every tab in a listing carries `owner`, relative to whoever asked: `you`,
   `person`, `agent`. Relative rather than named, so a grant does not learn the
   label of every other grant, and a turn's thread id does not travel to a shell.
@@ -68,6 +74,11 @@ install so the person could pick the one they were already talking to.
 The other direction is on the tab's own context menu, where the tab is the thing
 being pointed at: **Take back from Claude Code** on a tab an agent holds.
 
+The agent chooses which tab it names, so it also chooses what the ask is *about*
+— which is why the row names the tab it would be given rather than saying "this
+tab". A repeated ask replaces the one before it instead of queueing: there is
+one question here, about the browser in front of the person now.
+
 ## Where it lives
 
 `apps/app/src/lib/browser-agent/tab-owners.ts`, as a map from tab id to the
@@ -79,9 +90,10 @@ command passes through, which is what makes one rule enough.
 It is persisted in local storage beside the tabs, because the strip survives a
 reload and a restart: session-scoped ownership would quietly return every
 agent's tab to the person on a Cmd+R and then refuse the agent its own next
-command. A claim is dropped when its tab closes, and every write prunes claims
-whose tabs are gone — including the ones the person closed from the strip, which
-nothing else here hears about.
+command. A claim is dropped when its tab closes — by the agent, and by the
+person from the strip, because a closed tab can be reopened with the same id and
+should come back theirs. Every write prunes claims whose tabs are gone anyway,
+which is the backstop for any path that forgets.
 
 ## What this is not
 
@@ -95,6 +107,17 @@ nothing else here hears about.
   per-tab serialization, a snapshot's generation is a version rather than an
   owner, and the trace recorder is one per window. Those are the next items in
   [../TODO.md](../TODO.md).
+- **Not a per-process identity.** Everything holding the app key is one
+  `outside` caller, so two shells share one set of tabs and can read each
+  other's — and a tab handed to `outside` is handed to all of them. That is what
+  the identity means, not a leak in this rule — a grant is the narrower answer,
+  and it is per agent
+  ([browser-external-access.md](browser-external-access.md)).
+- **Not undone by revoking.** A revoked or paused grant keeps its claims: it can
+  do nothing with them, and the tabs stay out of every *other* agent's way until
+  the person takes them back from the tab menu. The alternative — returning them
+  to the person on revoke — would quietly make a page an agent had been working
+  in the default target of the next caller's unqualified command.
 - **Not visible in the strip.** A tab an agent holds looks like any other until
   its menu is opened. The signal that something is driving at all is the
   indicator row ([browser-external-access.md](browser-external-access.md)).

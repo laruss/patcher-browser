@@ -15,8 +15,8 @@ import {
 import { wsManager } from "../ws";
 import { browserDrivingAtom, createBrowserDrivingTracker } from "./driving";
 import {
-  browserTabHandoverAskAtom,
   browserTabOwnersAtom,
+  requestBrowserTabHandoverAtom,
   withBrowserTabOwner,
 } from "./tab-owners";
 import { executeBrowserCommand } from "./execute";
@@ -107,7 +107,7 @@ export function useBrowserAgentBridge(): void {
           );
         },
         requestTabHandover: (ask) => {
-          store.set(browserTabHandoverAskAtom, ask);
+          store.set(requestBrowserTabHandoverAtom, ask);
         },
         getState: () => store.get(browserSurfaceTabsAtom),
         applyState: (update) => {

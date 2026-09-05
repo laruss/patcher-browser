@@ -234,12 +234,20 @@ type Resolution =
   | { ok: true; resolved: ResolvedTab }
   | { ok: false; outcome: BrowserCommandOutcome };
 
-/** How a refusal names the caller a tab belongs to. */
+/**
+ * How a refusal names the caller a tab belongs to.
+ *
+ * A kind, never a name. The grant's label is the person's note to themselves,
+ * and a refusal is read by *another* caller — so naming it here would hand one
+ * agent the labels of every other, which is exactly what the caller-relative
+ * `owner` field on a tab snapshot exists to avoid. The label belongs on the
+ * person's own surfaces: the driving indicator, and the tab's menu.
+ */
 function describeTabOwner(owner: BrowserCommandIssuer | undefined): string {
   if (owner === undefined) return "the person at this machine";
   switch (owner.kind) {
     case "grant":
-      return `another agent, ${JSON.stringify(owner.label)}`;
+      return "another agent";
     case "thread":
       return "an agent working in a Patcher thread";
     case "outside":
@@ -258,6 +266,16 @@ function fallsBackToActiveTab(
   issuer: BrowserCommandIssuer | undefined,
 ): boolean {
   return issuer === undefined || issuer.kind === "thread";
+}
+
+/** Whether this caller may act on a tab it did not name — see `resolveTab`. */
+function mayUseTab(tabId: string, deps: BrowserCommandDeps): boolean {
+  const issuer = deps.issuer;
+  if (issuer === undefined) return true;
+  return mayActOnBrowserTab({
+    issuer,
+    owner: browserTabOwnerFor({ issuer, owner: tabOwners(deps).get(tabId) }),
+  });
 }
 
 /**
@@ -284,19 +302,26 @@ function resolveTab(
             owners: tabOwners(deps),
           });
     const own = webTabs.find((candidate) => candidate.id === ownId) ?? null;
+    // The fallback is checked like any named tab, because "the active tab" is
+    // not the same thing as "the person's tab": an agent can activate its own,
+    // and the person can click onto it. Without this, a turn with no tab of its
+    // own would inherit another agent's page simply because it was in front.
+    const active = fallsBackToActiveTab(issuer)
+      ? getActiveBrowserSurfaceWebTab(state)
+      : null;
     const tab =
-      own ??
-      (fallsBackToActiveTab(issuer)
-        ? getActiveBrowserSurfaceWebTab(state)
-        : null);
+      own ?? (active !== null && mayUseTab(active.id, deps) ? active : null);
     if (tab === null) {
       return {
         ok: false,
         outcome: failure(
           "no_active_tab",
-          fallsBackToActiveTab(issuer)
-            ? "No browser tab is open. Open one with browser_tabs_open first."
-            : "You have no browser tab of your own open, and the person's tabs are not yours to work in. Open one with browser_tabs_open — it does not take their window — or ask them to hand you the tab they are in.",
+          // Neither sentence names a tool or a command: this message is read
+          // by an agent holding the tools and by one holding the CLI, and the
+          // layer that explains it to each of them passes it through.
+          webTabs.length === 0
+            ? "No browser tab is open. Open one first."
+            : "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Open one of your own — opening a tab does not take the person's window — or ask them to hand you the tab they are in.",
         ),
       };
     }
@@ -677,6 +702,12 @@ function runTraceOperation(
  * command addressed would come back empty anyway. A capture that fails leaves
  * the step without an image rather than failing the step — the command already
  * happened.
+ *
+ * **And only when the active tab is one this caller could have acted on.**
+ * Otherwise a caller working in its own background tab would collect a picture
+ * of the person's screen with every step — a page it is refused by name, and
+ * refused a screenshot of, arriving through the trace instead. Found by review
+ * on 2026-09-05; the trace predates tab ownership and quietly outflanked it.
  */
 async function captureTraceImage(
   deps: BrowserCommandDeps,
@@ -684,6 +715,9 @@ async function captureTraceImage(
   const observe = deps.desktopBrowser?.observe;
   const active = getActiveBrowserSurfaceWebTab(deps.getState());
   if (observe === undefined || active === null) {
+    return null;
+  }
+  if (!mayUseTab(active.id, deps)) {
     return null;
   }
   const result = await observe({

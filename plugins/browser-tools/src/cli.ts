@@ -1543,10 +1543,11 @@ Navigating
 
 Naming a tab
   --tab takes a tab id, an index from \`tabs\` (--tab 3), a substring of the URL
-  or title (--tab x.com), or "active". Omit it for the active tab.
+  or title (--tab x.com), or "active" for the one the person is looking at.
+  Omit it for your own newest tab, which is where an unnamed command goes.
 
 Options:
-  --tab <t>            Act on this tab instead of the active one
+  --tab <t>            Act on this tab instead of your own newest one
   --generation <n>     Refuse refs unless they came from this snapshot
   --max <n>            Characters of page text, tree depth, or log entries
   --selector <css>     Narrow to what this CSS selector matches

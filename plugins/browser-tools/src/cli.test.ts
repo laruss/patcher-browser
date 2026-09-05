@@ -269,6 +269,23 @@ describe("patcher browser CLI", () => {
     expect(refused.stderr).toContain("hand this one over");
   });
 
+  it("keeps the window's own 'no tab' sentence rather than a fixed one", async () => {
+    const host = createHost();
+    // Two different answers share this code — "nothing is open" and "nothing of
+    // yours is open" — so a fixed sentence here told a caller the browser had
+    // no active tab while the person was reading one. Measured against a real
+    // window on 2026-09-05; the fixed sentence is what it printed.
+    host.harness.behavior.browser.failNextCall(
+      "no_active_tab",
+      "You have no browser tab of your own open, and the person's tabs are not yours to work in.",
+    );
+
+    const refused = await host.harness.runCli(["text"]);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain("of your own open");
+  });
+
   it("explains a failure the same way the agent tools do", async () => {
     const host = createHost();
 
@@ -1496,15 +1513,19 @@ describe("patcher browser CLI tab names", () => {
     expect(result.stdout).toBe("https://docs.test/browser:foo:bar\n");
   });
 
-  it('reads "active" as the default, without listing tabs to find it', async () => {
+  it('resolves "active" to the tab the person is in, at the cost of a listing', async () => {
     const host = createHost();
 
     const result = await host.harness.runCli(["url", "--tab", "active"]);
 
     expect(result.stdout).toBe("https://example.com/\n");
+    // It used to skip the listing and pass "no tab named" through, because the
+    // default *was* the active tab. Tab ownership moved the default to the
+    // caller's own newest tab, so the shortcut would now quietly answer about a
+    // different page than the caller asked about.
     expect(
       host.harness.inspection.browserCalls.map((call) => call.type),
-    ).toEqual(["page.get_url"]);
+    ).toEqual(["tabs.list", "page.get_url"]);
   });
 
   it("refuses a substring that matches two tabs rather than guessing", async () => {

@@ -48,7 +48,9 @@ const tabIdParam = z
   .string()
   .min(1)
   .optional()
-  .describe("Tab to act on. Defaults to the active tab.");
+  .describe(
+    "Tab to act on. Defaults to your own newest tab, and to the tab the user is looking at while you have none of your own.",
+  );
 
 const refParam = z
   .string()
@@ -236,7 +238,7 @@ export const BROWSER_TOOLS_INSTRUCTIONS = `The browser tools drive the Patcher d
 - The remaining browser commands live in the \`patcher browser\` CLI, which drives exactly the same browser: \`wait\`, \`scroll\`, hover, drag, type, select, check, uncheck, upload, resize, and the observation commands \`console\`, \`network\`, \`screenshot\` (to a file) and \`pdf\`. Run \`patcher browser help\` for the list, and \`patcher browser <command> --help\` for one command's exact arguments — that is where the argument forms are, not in the summary lines.
 - \`patcher browser wait --text "…"\` / \`--selector <css>\` / \`--url <pattern>\` / \`--network-idle\` is how you wait for something to appear. It exits 124 when the condition never came, which is a different thing from the page failing.
 - \`patcher browser scroll\` moves down one viewport, or takes \`--top\`, \`--bottom\`, \`--by <px>\`, or a ref to bring into view. It reports the offset, the document height and the viewport, so on an endless feed you can tell "there is more" from "this is the end" instead of scrolling blind.
-- \`--tab\` takes an index from \`patcher browser tabs\`, a substring of a URL or title, or "active" — not only the full tab id.
+- \`--tab\` takes an index from \`patcher browser tabs\`, a substring of a URL or title, or "active" for the tab the user is looking at — not only the full tab id.
 - \`patcher browser status\` is the cheapest first call: whether a browser is reachable, and the active tab with its URL.
 - Cookies and web storage are \`patcher browser cookie-list\`/\`cookie-set\`/\`cookie-delete\`/\`cookie-clear\`, the matching \`localstorage-*\` and \`sessionstorage-*\` commands, and \`patcher browser state-save\`/\`state-load\` for a whole signed-in session. **These are the user's real logins, not settings.** What they return for a signed-in site is that session, and a saved state file is a copy of it: do not print cookie values or state files back to the user, do not save one anywhere the user did not ask for, and say plainly when you are about to write one.
 - \`patcher browser eval "() => …"\` runs your JavaScript in the page; \`mousemove\`/\`mousedown\`/\`mouseup\`/\`mousewheel\` act at raw screenshot coordinates; \`route\`/\`unroute\`/\`network-state-set\` change what the page gets from the network. These skip what makes the rest safe — no ref, no actionability check, live logins in the page — so use them where a snapshot has nothing (canvas, maps) or mocking is the point, and say what you are doing.
@@ -255,6 +257,11 @@ function describeTab(tab: PluginBrowserTab): Record<string, unknown> {
     loading: tab.loading,
     canGoBack: tab.canGoBack,
     canGoForward: tab.canGoForward,
+    // Left out when the host did not say, which is what an older one does.
+    // Named `owner` rather than folded into a boolean because the three answers
+    // call for three different next moves: work in it, ask the person for it,
+    // or leave it alone.
+    ...(tab.owner === undefined ? {} : { owner: tab.owner }),
   };
 }
 
@@ -326,7 +333,14 @@ export function explainBrowserError(error: unknown): string {
 
   switch (code) {
     case "no_active_tab":
-      return "The browser has no active tab. Open one first.";
+      // Passed through, because there are two of these and they are not the
+      // same answer: "nothing is open" and "nothing of *yours* is open, and the
+      // person's tabs are not yours to work in". Measured 2026-09-05 against a
+      // real window, where the fixed sentence told a caller the browser had no
+      // active tab while the person was reading one.
+      return error instanceof Error
+        ? error.message
+        : "The browser has no active tab. Open one first.";
     case "unknown_tab":
       return "That tab is not open. List the tabs to see which ids exist.";
     case "tab_not_live":

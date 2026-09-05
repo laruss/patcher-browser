@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { urlMatches } from "./cli-targets.js";
+import type { PatcherPluginApi, PluginBrowserTab } from "@patcher/plugin-sdk";
+import { resolveTabTarget, urlMatches } from "./cli-targets.js";
+
+function browserWithTabs(tabs: Partial<PluginBrowserTab>[]): PatcherPluginApi {
+  return {
+    browser: { tabs: { list: () => Promise.resolve(tabs) } },
+  } as unknown as PatcherPluginApi;
+}
+
+describe("--tab active", () => {
+  it("names the tab the person is looking at, rather than falling through", async () => {
+    // It used to resolve to "no tab named", which meant the same thing while
+    // an unnamed command went to the active tab. Ownership moved that default
+    // to the caller's own newest tab, so passing it through would now answer
+    // about a different page than the caller asked about — silently.
+    const resolved = await resolveTabTarget(
+      browserWithTabs([
+        { tabId: "tab-1", active: false },
+        { tabId: "tab-2", active: true },
+      ]),
+      "active",
+      {},
+    );
+
+    expect(resolved).toEqual({ tabId: "tab-2" });
+  });
+
+  it("says so when the window has no active tab", async () => {
+    const resolved = await resolveTabTarget(browserWithTabs([]), "active", {});
+
+    expect(resolved).toEqual({
+      error: "No tab is active in that browser window.\n",
+    });
+  });
+});
 
 describe("urlMatches", () => {
   it("matches a query string, which is a common thing to wait for", () => {

@@ -1,6 +1,7 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Button } from "@patcher/shared-ui/button";
 import { browserIssuerName } from "@/lib/browser-agent/issuer";
+import { getBrowserUrlHost } from "@/lib/browser-url";
 import {
   browserTabHandoverAskAtom,
   browserTabOwnersAtom,
@@ -41,6 +42,7 @@ export function BrowserTabHandover() {
   // The tab was closed between the ask and now: the question no longer has a
   // subject, and answering it would hand over something that is gone.
   if (tab === undefined) return null;
+  const host = getBrowserUrlHost(tab.url);
 
   return (
     <div
@@ -50,6 +52,12 @@ export function BrowserTabHandover() {
       <p className="min-w-0 flex-1 truncate">
         <span className="font-medium">{browserIssuerName(ask.issuer)}</span> is
         asking to work in {browserSurfaceTabLabel(tab)}
+        {/* The address too, when the title is not it: two tabs a site titles
+            the same way — "Inbox", "Dashboard" — are otherwise one name, and
+            the tab being given away is the thing to be sure of. */}
+        {host.length > 0 && host !== browserSurfaceTabLabel(tab)
+          ? ` (${host})`
+          : ""}
       </p>
       <Button
         variant="outline"

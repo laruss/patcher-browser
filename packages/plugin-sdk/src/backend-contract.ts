@@ -1486,7 +1486,9 @@ export interface PluginBrowserTabs {
 }
 
 /**
- * Reading the page. `tabId` defaults to the active tab throughout.
+ * Reading the page. `tabId` defaults to the caller's own newest tab throughout,
+ * falling back to the tab the person is looking at for a caller entitled to it
+ * (see {@link PluginBrowserTab.owner}).
  *
  * `getUrl`/`getTitle` answer from the browser's own tab state and work for any
  * tab. `getText`/`getSelection` have to ask the page itself, so they need a live
@@ -1849,7 +1851,7 @@ export interface PluginBrowserStorageWrite {
  *
  * Everything is scoped to one tab — cookies to the URL that tab is on, web
  * storage to its origin — so reading state for a site means opening it in a tab
- * first. `tabId` defaults to the active tab, as everywhere else.
+ * first. `tabId` defaults to the caller's own newest tab, as everywhere else.
  *
  * **This is credential access, not page content.** In a browser holding the
  * user's real logins, what `cookies()` returns for a signed-in site *is* that

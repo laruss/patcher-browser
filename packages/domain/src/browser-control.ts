@@ -69,8 +69,10 @@ export const browserTabSnapshotSchema = z.object({
 export type BrowserTabSnapshot = z.infer<typeof browserTabSnapshotSchema>;
 
 /**
- * A null `tabId` means "the active tab" everywhere it appears, so an agent that
- * has not tracked tab ids can still work the browser it is looking at.
+ * A null `tabId` means "the caller's own newest tab" everywhere it appears —
+ * and, for a caller that has none and is entitled to it, the tab the person is
+ * looking at. Which of the two, and why they differ, is decided in the app:
+ * docs/architecture/browser-tab-ownership.md.
  */
 const optionalTabIdSchema = z.string().min(1).nullable();
 

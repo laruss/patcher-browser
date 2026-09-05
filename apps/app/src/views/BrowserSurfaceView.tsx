@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useAtom } from "jotai";
+import { useAtom, useStore } from "jotai";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BrowserTabDeck } from "@/components/secondary-panel/BrowserTabDeck";
 import type {
@@ -58,6 +58,7 @@ import {
 import { useBrowserTabCycling } from "@/lib/browser-tab-mru";
 import {
   BROWSER_SURFACE_SCOPE_ID,
+  browserSurfaceTabsAtom,
   closeBrowserSurfaceTab,
   getActiveBrowserSurfaceTab,
   getBrowserSurfaceWebTabs,
@@ -216,18 +217,54 @@ export function BrowserSurfaceView({
   // Which tabs belong to an agent (`tab-owners.ts`). Read here for the one
   // thing the strip does with it: offering the person their tab back.
   const [tabOwners, setTabOwners] = useAtom(browserTabOwnersAtom);
+  const store = useStore();
+  // Read at the moment of the write rather than from this render: an ownership
+  // write prunes claims whose tabs are gone, and a render-time list is one an
+  // agent may already have added a tab to — which the prune would then drop.
+  const openWebTabIds = useCallback(
+    () =>
+      getBrowserSurfaceWebTabs(store.get(browserSurfaceTabsAtom)).map(
+        (tab) => tab.id,
+      ),
+    [store],
+  );
 
   const takeBackTab = useCallback(
     (tabId: string) => {
       setTabOwners((current) =>
         withBrowserTabOwner(current, {
           issuer: null,
-          openTabIds: getBrowserSurfaceWebTabs(state).map((tab) => tab.id),
+          openTabIds: openWebTabIds(),
           tabId,
         }),
       );
     },
-    [setTabOwners, state],
+    [openWebTabIds, setTabOwners],
+  );
+
+  /**
+   * A tab a page opened belongs to whoever owned the page.
+   *
+   * A link with `target=_blank`, or `window.open`, does not come through the
+   * executor at all — the shell reports it and the surface places it. Without
+   * this, an agent that clicked a link in its own tab would be refused the tab
+   * that opened, and the person would be asked to hand over a page they never
+   * opened.
+   */
+  const inheritTabOwner = useCallback(
+    ({ fromTabId, toTabId }: { fromTabId: string; toTabId: string }) => {
+      setTabOwners((current) => {
+        const owner = current.get(fromTabId);
+        return owner === undefined
+          ? current
+          : withBrowserTabOwner(current, {
+              issuer: owner,
+              openTabIds: openWebTabIds(),
+              tabId: toTabId,
+            });
+      });
+    },
+    [openWebTabIds, setTabOwners],
   );
 
   const dropFavicon = useCallback(
@@ -259,10 +296,27 @@ export function BrowserSurfaceView({
       setMutedTabIds((current) =>
         withBrowserTabMuted(current, { muted: false, tabId }),
       );
+      // And its owner, so that reopening it (Cmd+Shift+T brings the id back)
+      // does not hand an agent a tab the person deliberately closed.
+      setTabOwners((current) =>
+        withBrowserTabOwner(current, {
+          issuer: null,
+          openTabIds: openWebTabIds(),
+          tabId,
+        }),
+      );
       forgetPluginBrowserTabStatuses(tabId);
       goToTabRoute(getActiveBrowserSurfaceTab(remaining));
     },
-    [closeTab, dropFavicon, goToTabRoute, setMutedTabIds, state],
+    [
+      closeTab,
+      dropFavicon,
+      goToTabRoute,
+      openWebTabIds,
+      setMutedTabIds,
+      setTabOwners,
+      state,
+    ],
   );
 
   // Duplicating focuses the copy, so the window has to follow it — same rule as
@@ -324,14 +378,16 @@ export function BrowserSurfaceView({
     if (browserApi.onPlacedOpenTab) {
       return browserApi.onPlacedOpenTab(({ background, tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
-          openSurfaceTab(url, { background });
+          const opened = openSurfaceTab(url, { background });
+          inheritTabOwner({ fromTabId: tabId, toTabId: opened.id });
         }
       });
     }
     if (browserApi.onScopedOpenTab) {
       return browserApi.onScopedOpenTab(({ tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
-          openSurfaceTab(url);
+          const opened = openSurfaceTab(url);
+          inheritTabOwner({ fromTabId: tabId, toTabId: opened.id });
         }
       });
     }
@@ -341,7 +397,7 @@ export function BrowserSurfaceView({
       }
       openSurfaceTab(url);
     });
-  }, [openSurfaceTab, surfaceTabIds]);
+  }, [inheritTabOwner, openSurfaceTab, surfaceTabIds]);
 
   // The current `openSurfaceTab`, for the drain below: it runs for the life of
   // the surface, and this identity changes every time the route does.
@@ -472,9 +528,13 @@ export function BrowserSurfaceView({
       }
       if (surfaceTabIds.has(popup.openerTabId)) {
         adoptTab({ tabId: popup.tabId, url: popup.url });
+        inheritTabOwner({
+          fromTabId: popup.openerTabId,
+          toTabId: popup.tabId,
+        });
       }
     });
-  }, [adoptTab, closeTab, dropFavicon, surfaceTabIds]);
+  }, [adoptTab, closeTab, dropFavicon, inheritTabOwner, surfaceTabIds]);
 
   // "Search for <selection>" from a page's context menu. The shell sends the
   // query rather than a URL, because the search engine is the omnibox's and

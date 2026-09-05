@@ -1,11 +1,14 @@
+import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
 import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
   EMPTY_BROWSER_TAB_OWNERS,
+  browserTabHandoverAskAtom,
   browserTabOwnerFor,
   mayActOnBrowserTab,
   newestBrowserTabOwnedBy,
   parseBrowserTabOwners,
+  requestBrowserTabHandoverAtom,
   withBrowserTabOwner,
   type BrowserTabOwners,
 } from "./tab-owners";
@@ -126,5 +129,34 @@ describe("browser tab owners", () => {
     expect(
       parseBrowserTabOwners("not json at all", EMPTY_BROWSER_TAB_OWNERS).size,
     ).toBe(0);
+  });
+});
+
+describe("the handover ask", () => {
+  it("keeps the ask that is waiting rather than swapping it", () => {
+    // The attack it is against: an agent names a harmless tab, the person moves
+    // to press "Hand it over", and the agent names the tab it actually wants
+    // before the click lands. It can ask once per command, so the row would
+    // change as often as it liked.
+    const store = createStore();
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "b" });
+
+    expect(store.get(browserTabHandoverAskAtom)).toEqual({
+      issuer: GRANT,
+      tabId: "a",
+    });
+  });
+
+  it("asks again once the person has answered the last one", () => {
+    const store = createStore();
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
+    store.set(browserTabHandoverAskAtom, null);
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "b" });
+
+    expect(store.get(browserTabHandoverAskAtom)).toEqual({
+      issuer: GRANT,
+      tabId: "b",
+    });
   });
 });

@@ -81,11 +81,13 @@ a page says: it is cheaper, and it is the thing you can quote back.
 ## The tabs are not all yours
 
 A tab you opened is yours. Every other tab is the person's, and if you are
-running outside Patcher — a shell, Claude Code, Codex — theirs are closed to you:
-naming one answers `tab_not_yours`, and a command with no `--tab` works in **your
-own newest tab** rather than the page they happen to be reading. (Inside a
-Patcher thread you may still use their tab; you still cannot touch another
-agent's.)
+running outside Patcher — a shell, Claude Code, Codex — theirs are closed to you
+*to act in*: naming one answers `tab_not_yours`, and a command with no `--tab`
+works in **your own newest tab** rather than the page they happen to be reading.
+You can still *see* their tabs in the listing, with their addresses and titles —
+that is what listing tabs has always meant, and it is how you find the one to
+ask for. (Inside a Patcher thread you may still work in their tab; you still
+cannot touch another agent's.)
 
 So the first thing to do is get a tab of your own:
 

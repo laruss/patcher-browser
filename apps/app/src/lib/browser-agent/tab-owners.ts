@@ -7,6 +7,7 @@ import {
 } from "@patcher/server-contract";
 import type { BrowserTabOwner } from "@patcher/domain";
 import { createLocalStorageSyncStorage } from "../browser-storage";
+import { getDesktopWindowKey } from "../patcher-desktop";
 import { browserIssuerKey } from "./issuer";
 
 /**
@@ -37,17 +38,25 @@ import { browserIssuerKey } from "./issuer";
  * agent's tab to the person and refuse the agent its own next command.
  */
 
-const BROWSER_TAB_OWNERS_STORAGE_KEY = "patcher.browserSurface.tabOwners-1";
+/**
+ * Per window, like the tabs themselves.
+ *
+ * Each window keeps its own strip (`getBrowserSurfaceTabsStorageKey`), so a
+ * shared owners map would be a map about tabs most of its readers do not have —
+ * and every write prunes claims whose tabs are not open *here*, which would
+ * quietly hand one window's agent tabs back to the person the moment another
+ * window recorded a claim.
+ */
+export function browserTabOwnersStorageKey(): string {
+  const windowKey = getDesktopWindowKey();
+  const base = "patcher.browserSurface.tabOwners-1";
+  return windowKey === null ? base : `${base}-${windowKey}`;
+}
 
 /** Tab id → the caller it belongs to. Insertion order is oldest-tab-first. */
 export type BrowserTabOwners = ReadonlyMap<string, BrowserCommandIssuer>;
 
 export const EMPTY_BROWSER_TAB_OWNERS: BrowserTabOwners = new Map();
-
-/** Exported so a test can clear what a previous one left in local storage. */
-export function getBrowserTabOwnersStorageKey(): string {
-  return BROWSER_TAB_OWNERS_STORAGE_KEY;
-}
 
 const browserTabOwnersSchema = z.array(
   z.tuple([z.string().min(1), browserCommandIssuerSchema]),
@@ -68,14 +77,15 @@ export function parseBrowserTabOwners(
   }
 }
 
-export const browserTabOwnersStorage =
-  createLocalStorageSyncStorage<BrowserTabOwners>({
+const browserTabOwnersStorage = createLocalStorageSyncStorage<BrowserTabOwners>(
+  {
     parse: parseBrowserTabOwners,
     serialize: (value) => JSON.stringify([...value]),
-  });
+  },
+);
 
 export const browserTabOwnersAtom = atomWithStorage<BrowserTabOwners>(
-  BROWSER_TAB_OWNERS_STORAGE_KEY,
+  browserTabOwnersStorageKey(),
   EMPTY_BROWSER_TAB_OWNERS,
   browserTabOwnersStorage,
   { getOnInit: true },
@@ -181,9 +191,7 @@ export function mayActOnBrowserTab({
  *
  * Kept so the browser window can offer the person the one-click answer, because
  * the refusal alone leaves them with an agent saying "ask them to hand it over"
- * and nothing to press. One at a time: a second ask replaces the first, since
- * this is a question about the tab in front of the person right now, and a queue
- * of stale asks is not something anyone would work through.
+ * and nothing to press.
  *
  * Not persisted. A window that reloaded is no longer showing the moment the ask
  * belonged to, and the agent — which is still refused — will ask again.
@@ -195,4 +203,23 @@ export interface BrowserTabHandoverAsk {
 
 export const browserTabHandoverAskAtom = atom<BrowserTabHandoverAsk | null>(
   null,
+);
+
+/**
+ * Raises an ask, unless one is already waiting for an answer.
+ *
+ * **The one waiting is not replaced**, and that is a rule about a click rather
+ * than about freshness. An agent chooses which tab it names and can name a new
+ * one per command, so a row that swapped under the pointer would let it show a
+ * harmless page, wait for the person to commit to pressing, and swap in the tab
+ * it actually wants. Whoever asked first stays until the person answers or
+ * dismisses it; the agent's own refusal already tells it to ask them again.
+ * Found by review on 2026-09-05.
+ */
+export const requestBrowserTabHandoverAtom = atom(
+  null,
+  (get, set, ask: BrowserTabHandoverAsk) => {
+    if (get(browserTabHandoverAskAtom) !== null) return;
+    set(browserTabHandoverAskAtom, ask);
+  },
 );
