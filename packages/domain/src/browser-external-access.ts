@@ -31,6 +31,13 @@ import {
  * deliberate act rather than the way the product works. A credential that only
  * opens the browser is what would make it a boundary, and that is deliberately
  * not in this change.
+ *
+ * **And it covers `patcher browser`, not every plugin.** The level is charged on
+ * commands issued on the caller's own async stack, which is every built-in
+ * plugin; an installed plugin runs in its own process and is charged what it
+ * declared, as before. So a third-party plugin with browser permissions and a
+ * CLI command of its own is a second door, and the copy that describes this to a
+ * user has to say so rather than promising the browser is shut.
  */
 export const BROWSER_EXTERNAL_ACCESS_LEVELS = [
   "off",
@@ -137,7 +144,7 @@ export const BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS: Record<
   off: {
     label: "Off",
     detail:
-      "Agents outside Patcher cannot drive the browser. Patcher's own threads are unaffected.",
+      "`patcher browser` refuses agents and terminals outside Patcher. Patcher's own threads are unaffected, and so is a third-party plugin you installed, which is charged the permissions it declared.",
   },
   read: {
     label: "Read pages",

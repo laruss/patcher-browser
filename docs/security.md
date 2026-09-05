@@ -1372,10 +1372,15 @@ leave the machine. `patcher settings browser-access <level>` is the same switch,
 and run from inside a thread it raises a prompt instead of taking effect.
 
 The refusal is decided before the command is sent, so it means the page was never
-touched. It is **not** a boundary against a process holding the app key, which
-can write that setting as easily as read it — the same limit the section below
-describes. What it buys is that the browser is shut by default and opening it is
-your decision. See
+touched. Two limits, both real and both worth knowing before you rely on it. It
+is **not** a boundary against a process holding the app key, which can write that
+setting as easily as read it — the same limit the section below describes. And
+the level is charged on commands Patcher itself issues, which covers
+`patcher browser` and every built-in plugin, but **not a plugin you installed**:
+those run in their own process and are charged the permissions they declared, so
+a third-party plugin with browser permissions and a command of its own is a
+second door this setting does not close. What the setting buys is that Patcher's
+own browser command is shut by default and opening it is your decision. See
 [browser-external-access.md](architecture/browser-external-access.md).
 
 Popups are real windows for the browser surface's tabs, which is what makes

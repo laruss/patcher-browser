@@ -186,8 +186,14 @@ export function registerSettingsCommands(
             : `Agents outside Patcher can now: ${permissionsForBrowserExternalAccess(result.level).join(", ")}.`,
         );
         if (!result.browserToolsEnabled && result.level !== "off") {
+          // Two decisions, and this command only made one of them. From a
+          // plain terminal the route enables the plugin as well, so reaching
+          // here means either the plugin cannot load or a turn asked — and a
+          // turn's second question is a prompt of its own, listing what the
+          // plugin really grants rather than what this level does.
           console.log(
-            "The browser-tools plugin is not running, so `patcher browser` will not answer yet. Check `patcher plugin list`.",
+            "The browser-tools plugin is not serving `patcher browser` yet, so nothing can use this level. " +
+              "Run `patcher plugin enable browser-tools` — from a thread that asks the user, and it lists everything the plugin grants, which is more than this level does.",
           );
         }
       }),

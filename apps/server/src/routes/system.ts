@@ -60,7 +60,7 @@ import {
   readGlobalCliSkillStatus,
 } from "../services/skills/global-skill-install.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../services/system/app-keybindings.js";
-import { requirePluginConsent } from "./plugin-consent.js";
+import { declaresThread, requirePluginConsent } from "./plugin-consent.js";
 import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
 
 /**
@@ -256,11 +256,23 @@ export function registerSystemRoutes(
    * those always have; a declared thread raises a prompt naming the level and
    * what it allows, and writes nothing unless the user says yes.
    *
-   * It also enables `browser-tools`, because a level without the plugin is a
-   * setting that does nothing: the plugin is what serves `patcher browser` at
-   * all. The reverse is not true and must not be — turning external access off
-   * leaves the plugin alone, since threads inside Patcher use it too and
-   * nobody asked about those.
+   * **It enables `browser-tools` only when nobody is being asked**, and that
+   * asymmetry is the whole of what review found wrong with the first version.
+   * A level without the plugin is a setting that does nothing, so the person
+   * choosing a level in Settings — or at their own terminal — plainly means
+   * both, and gets both. A *turn* asking is a different question with a
+   * different beneficiary: the prompt describes what agents outside Patcher may
+   * do and says in as many words that this thread is unaffected, while enabling
+   * the plugin hands **that thread** everything the plugin declares, cookies and
+   * recording and interception included. Measured on 2026-09-05: a turn refused
+   * `cookie-list` before the prompt could run it after, having asked for
+   * "Read pages". So a turn's approval writes the level and stops; the reply
+   * says the plugin is not serving, and `patcher plugin enable browser-tools`
+   * is the honest second question, with a prompt that lists what it really
+   * grants.
+   *
+   * Turning external access off leaves the plugin alone either way, since
+   * threads inside Patcher use it too and nobody asked about those.
    */
   post(routes.browserExternalAccess, async (context, payload) => {
     const { level } = payload;
@@ -286,7 +298,7 @@ export function registerSystemRoutes(
     // serving it — which reads to a caller as a feature that is on and broken.
     // The reply says which of the two actually happened rather than assuming.
     let browserToolsEnabled = isBrowserToolsServing(pluginService);
-    if (level !== "off" && !browserToolsEnabled) {
+    if (level !== "off" && !browserToolsEnabled && !declaresThread(context)) {
       await pluginService.setEnabled(BROWSER_TOOLS_PLUGIN_ID, true);
       browserToolsEnabled = isBrowserToolsServing(pluginService);
     }

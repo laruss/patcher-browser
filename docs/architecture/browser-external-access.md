@@ -114,10 +114,25 @@ question on it, not a hole in that rule: no thread declared behaves as it always
 has, a declared thread raises a prompt naming the level and what it allows, and
 nothing is written unless the user says yes.
 
-It also enables `browser-tools`, because a level with nothing serving it is a
-setting that silently does nothing. The reverse is deliberately not true: turning
-the level back to `off` leaves the plugin alone, since threads inside Patcher use
-it too and nobody asked about those.
+It also enables `browser-tools` — **but only when nobody is being asked**, and
+that asymmetry is the thing review caught. A person choosing a level in Settings,
+or at their own terminal, plainly means both, because a level with nothing
+serving it is a setting that silently does nothing. A *turn* asking is a
+different question with a different beneficiary: the prompt describes what agents
+outside Patcher may do and says in as many words that this thread is unaffected,
+while enabling the plugin hands **that thread** everything the plugin declares —
+cookies, recording, interception. Measured on 2026-09-05: a turn refused
+`cookie-list` before the prompt ran it afterwards, having asked for "Read pages".
+A user who would decline the plugin's own prompt can plausibly accept that one.
+
+So a turn's approval writes the level and stops, and the reply says the plugin is
+not serving. `patcher plugin enable browser-tools` is the honest second question,
+and it already exists with a prompt that lists what it really grants. Two grants,
+two questions.
+
+The reverse is deliberately not true either way: turning the level back to `off`
+leaves the plugin alone, since threads inside Patcher use it too and nobody asked
+about those.
 
 In the plugin permission map the route is `null` — classified, and refused to
 every plugin at any price. A plugin's call carries no thread, so it would raise
@@ -199,14 +214,19 @@ Named here rather than left to be rediscovered.
   act rather than the way the product works. Making it a boundary needs a
   credential that opens the browser and nothing else, which is deliberately not
   in this change.
-- **The scope does not reach an installed plugin in its own process** — measured,
+- **The level covers `patcher browser`, not every plugin.** The scope does not
+  reach an installed plugin running in its own process — measured,
   not reasoned about, because a claim about async context is exactly the kind
   that is wrong in a way nothing notices. The host charges an out-of-process
   plugin's browser call on a *channel message*, which is a fresh async context,
   so the level does not reach it and it is charged what it declared, as before.
   The same probe that is refused in-process at level `off` reaches the hub when
   its plugin runs in its own process. Nothing hides behind that gap — the same
-  caller can install a plugin — and it closes with the same credential.
+  caller can install a plugin — but a *user* can, and a third-party plugin with
+  browser permissions and a CLI command of its own is then a door this setting
+  does not close. Every user-facing description of the setting says so rather
+  than promising the browser is shut; `docs/TODO.md` carries the two ways to
+  close it and why neither is worth doing before the narrower credential.
 - **The server cannot tell a person's terminal from an agent's.** Both are
   "no thread", so both are charged the level. The cost is real and small: the
   diagnostic path in [agent-browser-tools.md](agent-browser-tools.md)

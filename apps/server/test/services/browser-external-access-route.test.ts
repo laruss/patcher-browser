@@ -7,7 +7,11 @@ import {
   isConsentPendingInteraction,
   type ConsentPendingInteraction,
 } from "@patcher/domain";
-import { PATCHER_THREAD_ID_HEADER } from "@patcher/server-contract";
+import { deriveThreadTurnApiKey } from "@patcher/config/thread-api-key";
+import {
+  PATCHER_THREAD_ID_HEADER,
+  PATCHER_THREAD_KEY_HEADER,
+} from "@patcher/server-contract";
 import { builtinPluginSource } from "../../src/services/plugins/builtin-registry.js";
 import type { AppDeps } from "../../src/types.js";
 import {
@@ -16,7 +20,11 @@ import {
   seedProjectWithSource,
   seedThread,
 } from "../helpers/seed.js";
-import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
+import {
+  TEST_APP_API_KEY,
+  withTestHarness,
+  type TestAppHarness,
+} from "../helpers/test-app.js";
 
 /**
  * The two halves of letting an agent outside Patcher drive the browser: the
@@ -33,7 +41,11 @@ import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
 
 const BASE = "http://127.0.0.1:3334";
 
-function seedConsentThread(deps: AppDeps, suffix: string) {
+function seedConsentThread(
+  deps: AppDeps,
+  suffix: string,
+  status?: "idle" | "active",
+) {
   const { host } = seedHostSession(deps, { id: `host-browser-${suffix}` });
   const { project } = seedProjectWithSource(deps, { hostId: host.id });
   const environment = seedEnvironment(deps, {
@@ -43,6 +55,7 @@ function seedConsentThread(deps: AppDeps, suffix: string) {
   return seedThread(deps, {
     projectId: project.id,
     environmentId: environment.id,
+    ...(status === undefined ? {} : { status }),
   });
 }
 
@@ -154,6 +167,40 @@ describe("the level for agents outside Patcher", () => {
     });
   });
 
+  it("is not writable through the general settings route", async () => {
+    // `PUT /settings/general` persists its payload wholesale, and the settings
+    // page holds its own copy of it — so a stale copy sent while the browser
+    // mutation was still in flight would silently put the level back. It is
+    // also the route with none of this one's conditions on it.
+    await withTestHarness(async (harness) => {
+      await setLevel(harness, "interact");
+      const current = getAppSettings(harness.deps.db);
+
+      const response = await harness.app.request(
+        `${BASE}/api/v1/settings/general`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            ...current,
+            // A stale copy, plus an unrelated edit of the kind that carries it.
+            browserExternalAccess: "off",
+            showKeyboardHints: !current.showKeyboardHints,
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe(
+        "interact",
+      );
+      // The rest of the payload is still this route's to write.
+      expect(getAppSettings(harness.deps.db).showKeyboardHints).toBe(
+        !current.showKeyboardHints,
+      );
+    });
+  });
+
   it("asks the thread's user, naming the level and what it allows", async () => {
     await withTestHarness(async (harness) => {
       const thread = seedConsentThread(harness.deps, "allowed");
@@ -183,6 +230,40 @@ describe("the level for agents outside Patcher", () => {
       expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe(
         "full",
       );
+    });
+  });
+
+  it("does not hand the asking thread the plugin", async () => {
+    // The defect review measured on 2026-09-05. The prompt a turn raises for
+    // `read` lists three read permissions and says in as many words that this
+    // thread is unaffected — while enabling `browser-tools` would hand *that
+    // thread* everything the plugin declares, cookies and recording included.
+    // A user who would decline the plugin's own prompt can plausibly accept
+    // "Read pages", so approval here must not be a way to get the other grant.
+    await withTestHarness(async (harness) => {
+      await harness.pluginService.install(builtinPluginSource("browser-tools"));
+      await harness.pluginService.setEnabled("browser-tools", false);
+      const thread = seedConsentThread(harness.deps, "not-mine", "active");
+
+      const pending = setLevel(harness, "read", thread.id);
+      const interaction = await waitForConsentInteraction(harness, thread.id);
+      harness.deps.pendingInteractions.decideConsentInteraction({
+        threadId: thread.id,
+        interactionId: interaction.id,
+        approved: true,
+      });
+
+      const response = await pending;
+      expect(response.status).toBe(200);
+      // The level is written — that is what was asked and allowed.
+      expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe(
+        "read",
+      );
+      // The plugin is not, and the reply says so rather than implying it is.
+      expect(isServing(harness, "browser-tools")).toBe(false);
+      expect(await response.json()).toMatchObject({
+        browserToolsEnabled: false,
+      });
     });
   });
 
@@ -264,18 +345,30 @@ async function installBrowserProbe(harness: TestAppHarness): Promise<void> {
   expect(entry.status).toBe("running");
 }
 
+/**
+ * What a real turn's request carries: the thread id *and* a credential derived
+ * for it. The header alone is a declaration; this pair is what the middleware
+ * verifies and turns into the id the gate reads.
+ */
+function turnHeaders(threadId: string): Record<string, string> {
+  return {
+    [PATCHER_THREAD_ID_HEADER]: threadId,
+    [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
+      appApiKey: TEST_APP_API_KEY,
+      threadId,
+    }),
+  };
+}
+
 async function runProbe(
   harness: TestAppHarness,
-  threadId?: string,
+  headers: Record<string, string> = {},
 ): Promise<{ name?: string; code?: string }> {
   const response = await harness.app.request(
     `${BASE}/api/v1/plugins/probe/cli`,
     {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(threadId ? { [PATCHER_THREAD_ID_HEADER]: threadId } : {}),
-      },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify({ argv: [] }),
     },
   );
@@ -319,9 +412,35 @@ describe("a `patcher <plugin>` command from outside a turn", () => {
       // beside it is something any holder of the app key can write, so a gate
       // keyed on the header would make the exemption the thing to forge. Here
       // the header is present and no credential is: still gated.
-      expect(await runProbe(harness, "thr_not_really_mine")).toEqual({
+      expect(
+        await runProbe(harness, {
+          [PATCHER_THREAD_ID_HEADER]: "thr_not_really_mine",
+        }),
+      ).toEqual({
         name: "BrowserCommandError",
         code: "external_access_denied",
+      });
+    });
+  });
+
+  it("leaves a verified turn alone", async () => {
+    // The case with no test at all until review pointed it out, and the one
+    // whose absence mattered most: a gate that ignored the resolved thread and
+    // scoped *everything* would pass every other case in this file, and would
+    // refuse `patcher browser` inside every thread in the product. A turn's
+    // gate is the plugin toggle and the prompt behind it, not this level.
+    await withTestHarness(async (harness) => {
+      await installBrowserProbe(harness);
+      // `active`, because a turn credential is accepted only while its thread
+      // has a turn running — that is the lifetime, and a thread sitting idle
+      // genuinely is not one of Patcher's agents mid-turn.
+      const thread = seedConsentThread(harness.deps, "exempt", "active");
+      // The level is `off`, so anything scoped would be refused here.
+      expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe("off");
+
+      // Reaching the hub rather than the gate is the whole assertion.
+      expect(await runProbe(harness, turnHeaders(thread.id))).toMatchObject({
+        name: "BrowserHostUnavailableError",
       });
     });
   });
@@ -357,9 +476,13 @@ describe("a `patcher <plugin>` command from outside a turn", () => {
       await installBrowserProbe(harness);
       // `tabs.list` costs `tabs.read`, which reading admits. Were the gate
       // coarser — refusing a plugin that merely *declares* more than the level
-      // allows — this would be refused too.
+      // allows — this would be refused too. Asserted on the failure it *does*
+      // get rather than on the absence of a code, which an empty object would
+      // also satisfy.
       await setLevel(harness, "read");
-      expect((await runProbe(harness)).code).toBeUndefined();
+      expect(await runProbe(harness)).toMatchObject({
+        name: "BrowserHostUnavailableError",
+      });
     });
   });
 });

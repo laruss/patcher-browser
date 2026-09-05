@@ -100,7 +100,7 @@ export function formatPendingInteractionConsentDetailLines(
       ...(payload.permissions.length > 0
         ? [`Allows: ${payload.permissions.join(", ")}`]
         : []),
-      "Applies to agents and terminals outside Patcher, not to this thread. Threads here are gated by the browser-tools plugin, as before.",
+      "Applies to agents and terminals outside Patcher, not to this thread. Threads here are gated by the browser-tools plugin, and this answer does not turn that plugin on.",
       "Change it any time in Settings → General → Agents outside Patcher.",
       "Asked for by an agent in this thread.",
     ];

@@ -1,4 +1,11 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 /**
@@ -176,10 +183,23 @@ export async function writeCliShim(
       return { outcome: "unchanged", path };
     }
     await mkdir(resolveCliShimDir(args.dataDir), { recursive: true });
-    await writeFile(path, contents, { mode: 0o755 });
-    // `writeFile`'s `mode` applies only when it creates the file, so an
-    // overwrite of an existing shim would keep whatever mode that one had.
-    await chmod(path, 0o755);
+    // Staged and renamed rather than written in place, which is what the skill
+    // installer beside it does and for a sharper reason here: this file is an
+    // executable somebody may be running. Truncating and rewriting it leaves a
+    // window in which `patcher` reads half a script — on an upgrade, which is
+    // exactly when a daemon rewrites it. `rename` within one directory is
+    // atomic, so a caller sees the old shim or the new one.
+    const staging = `${path}.${process.pid}.tmp`;
+    try {
+      await writeFile(staging, contents, { mode: 0o755 });
+      // `writeFile`'s `mode` applies only when it creates the file; the staging
+      // path is fresh each time, but the chmod is kept so a stale one left by a
+      // killed daemon cannot hand over a file without the bit.
+      await chmod(staging, 0o755);
+      await rename(staging, path);
+    } finally {
+      await rm(staging, { force: true });
+    }
     return { outcome: "written", path };
   } catch (error) {
     return { outcome: "failed", error };

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getAppSettings } from "@patcher/db";
 import type { ServerRuntimeConfig } from "../types.js";
 import { getAgentThreadId } from "../agent-thread-scope.js";
+import { getPluginApiId } from "../plugin-api-identity-context.js";
 import { runAsExternalBrowserCaller } from "../services/browser/browser-external-access.js";
 import {
   declaresThread,
@@ -870,11 +871,20 @@ export function registerPluginRoutes(
     // A `patcher <plugin>` command run from a shell that is not a turn's is the
     // one caller the browser gate is about, and this is the only route it
     // arrives on: the app invokes plugin rpc and http routes but never a CLI
-    // command, so nothing the user is looking at is scoped by accident. The
-    // *verified* thread id rather than `declaresThread`, because the header
-    // beside it is something any holder of the app key can write, and taking it
-    // at its word would make the exemption the thing to forge.
-    const result = await (getAgentThreadId(context) === undefined
+    // command, so nothing the user is looking at is scoped by accident.
+    //
+    // Two identities are checked, and both have to be absent. The *verified*
+    // thread id rather than `declaresThread`, because the header beside it is
+    // something any holder of the app key can write, and taking it at its word
+    // would make the exemption the thing to forge. And a plugin, because
+    // `/plugins` costs the `plugins` permission and a plugin holding it may
+    // POST this route — a plugin is charged what it declared and is not "a
+    // terminal outside Patcher", so scoping it would refuse it in the name of
+    // something it is not. Found by review before any plugin did it.
+    const isOutsideCaller =
+      getAgentThreadId(context) === undefined &&
+      getPluginApiId(context) === undefined;
+    const result = await (isOutsideCaller
       ? runAsExternalBrowserCaller(
           {
             level: getAppSettings(deps.db).browserExternalAccess,

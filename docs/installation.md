@@ -128,7 +128,11 @@ The shim carries that install's server URL and data directory, deferring to
 anything you have already exported — so a checkout's shim reaches the checkout's
 server rather than the default port, and you can still point a shell at another
 install. It does not carry the app key: the CLI reads that out of the data
-directory as it always has.
+directory as it always has. Which is also its one limit — on a machine you
+*enrolled* into a Patcher running elsewhere, the data directory holds that
+machine's own credentials but no app key, so the shim reaches the server and is
+refused with a 401. Export `PATCHER_APP_KEY` from the machine running the server
+to use it there.
 
 An agent running outside Patcher does not need the PATH entry — it can call the
 absolute path — but it does need to be told the path exists, which is what the

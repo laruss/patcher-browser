@@ -158,12 +158,16 @@ export async function startHostDaemon(
     }
 
     // Everything from here to the setup call is resolved *before* enrollment,
-    // which is the first thing in this function that talks to a server. Two
-    // things follow from that ordering, and both were bugs before it: the
-    // logger exists while enrollment runs, so an enrollment failure is logged
-    // rather than thrown into the void; and a machine that cannot enrol still
-    // gets its `patcher` shim and still loses the stale skills, which is
-    // exactly the machine whose user needs a working CLI to find out why.
+    // which is the first thing in this function that talks to a server: a
+    // machine that cannot enrol still gets its `patcher` shim and still loses
+    // the stale skills, which is exactly the machine whose user needs a working
+    // CLI to find out why. Measured with a bad enrol key — the shim is written,
+    // then the throw.
+    //
+    // It does *not* make enrollment failures logged. An earlier version of this
+    // comment said so and review measured otherwise: `enrollDaemonHost` takes no
+    // logger and the outer catch rethrows without one, so the failure still
+    // surfaces only as the thrown error.
     const localApiConfig = enableLocalApi
       ? resolveHostDaemonLocalApiConfig({
           hostDaemonPort:
