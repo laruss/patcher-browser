@@ -59,7 +59,7 @@ import {
  * holding the whole page.
  */
 const OPTION_HELP = {
-  "--tab": "Act on this tab instead of the active one",
+  "--tab": "Act on this tab instead of your own newest one",
   "--json": "Machine-readable output",
   "--new-tab": "Open in a new tab and switch to it",
   "--background":
@@ -312,6 +312,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     details: [
       "The leading number is what --tab takes: `--tab 3` is the third tab listed.",
       '"cold" marks a tab with no live page — it cannot be read or stepped through history until it has been shown.',
+      "\"owner:\" says whose a tab is when the browser can tell: `you` is yours to act on, `person` is the one the human is working in, and `agent` is another agent's. Open your own with `open --background <url>`; the person can hand you theirs from the tab's menu in the browser window.",
     ],
   },
   {
@@ -1060,6 +1061,10 @@ function tabLine(tab: PluginBrowserTab, index?: number): string {
     tab.active ? "*" : " ",
     tab.live ? "live" : "cold",
     tab.loading ? "loading" : "",
+    // Only for a caller the host could name — an in-app turn's own listing has
+    // no "you" to be relative to, and a column of blanks would read as a
+    // missing answer rather than an inapplicable question.
+    tab.owner === undefined ? "" : `owner:${tab.owner}`,
   ]
     .filter((mark) => mark.length > 0)
     .join(" ");

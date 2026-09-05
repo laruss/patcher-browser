@@ -7,6 +7,7 @@ import {
   type BrowserCommandValue,
   type BrowserTabSnapshot,
 } from "@patcher/domain";
+import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import type {
   PatcherDesktopBrowserApi,
   PatcherDesktopBrowserCaptureFullPageResult,
@@ -26,6 +27,13 @@ import {
   browserCommandChangesPage,
   type BrowserTraceRecorder,
 } from "./trace";
+import {
+  browserTabOwnerFor,
+  EMPTY_BROWSER_TAB_OWNERS,
+  mayActOnBrowserTab,
+  newestBrowserTabOwnedBy,
+  type BrowserTabOwners,
+} from "./tab-owners";
 import {
   BROWSER_SURFACE_NEW_TAB_URL,
   activateBrowserSurfaceTab,
@@ -114,6 +122,38 @@ export interface BrowserCommandDeps {
     title: string | null;
   }) => Promise<string | null>;
   /**
+   * Who asked for this command, when the server could say — the same value the
+   * chrome's indicator draws. Absent for the app's own work, and for a plugin
+   * running in its own process, which is a known gap rather than a decision
+   * (docs/TODO.md).
+   *
+   * What it decides here is which tab an unqualified command lands on and
+   * whether a named tab is this caller's to touch; the rules are in
+   * `tab-owners.ts`. Absent means the behaviour that predates ownership: the
+   * active tab, and no refusals.
+   */
+  issuer?: BrowserCommandIssuer;
+  /** Tab ownership as the window holds it. Absent means nobody owns anything. */
+  getTabOwners?: () => BrowserTabOwners;
+  /**
+   * Claim a tab for a caller, or hand it back to the person with a null issuer,
+   * which is also how a closed tab's entry is dropped. A seam like
+   * {@link BrowserCommandDeps.destroyView}.
+   */
+  setTabOwner?: (args: {
+    issuer: BrowserCommandIssuer | null;
+    tabId: string;
+  }) => void;
+  /**
+   * A caller outside Patcher was refused the person's tab, so the window can
+   * offer them the one-click answer. Without it the refusal is an agent telling
+   * a person to hand over a tab with nothing on screen to press.
+   */
+  requestTabHandover?: (args: {
+    issuer: BrowserCommandIssuer;
+    tabId: string;
+  }) => void;
+  /**
    * Where the session's trace is kept, when the bridge holds one. Absent here
    * means tracing is simply unavailable rather than idle.
    */
@@ -137,11 +177,17 @@ function success(value: BrowserCommandValue): BrowserCommandOutcome {
   return { ok: true, value };
 }
 
+function tabOwners(deps: BrowserCommandDeps): BrowserTabOwners {
+  return deps.getTabOwners?.() ?? EMPTY_BROWSER_TAB_OWNERS;
+}
+
 function toSnapshot(
   tab: BrowserFixedPanelTab,
   state: BrowserSurfaceTabsState,
-  live: PatcherDesktopBrowserState | null,
+  deps: BrowserCommandDeps,
 ): BrowserTabSnapshot {
+  const live = deps.getLiveState(tab.id);
+  const issuer = deps.issuer;
   return {
     tabId: tab.id,
     // Live state is the truth while it exists — the persisted tab lags a
@@ -153,6 +199,16 @@ function toSnapshot(
     loading: live?.isLoading ?? false,
     canGoBack: live?.canGoBack ?? false,
     canGoForward: live?.canGoForward ?? false,
+    // Left out rather than guessed when nothing named the caller: the field is
+    // relative to "you", and there is no "you" in the app's own work.
+    ...(issuer === undefined
+      ? {}
+      : {
+          owner: browserTabOwnerFor({
+            issuer,
+            owner: tabOwners(deps).get(tab.id),
+          }),
+        }),
   };
 }
 
@@ -165,7 +221,7 @@ function snapshotAll(
   // an agent to read, navigate or screenshot — listing them would be offering
   // tools that cannot work on them.
   return getBrowserSurfaceWebTabs(state).map((tab) =>
-    toSnapshot(tab, state, deps.getLiveState(tab.id)),
+    toSnapshot(tab, state, deps),
   );
 }
 
@@ -178,28 +234,75 @@ type Resolution =
   | { ok: true; resolved: ResolvedTab }
   | { ok: false; outcome: BrowserCommandOutcome };
 
-/** A null tabId means the active tab, everywhere it appears. */
+/** How a refusal names the caller a tab belongs to. */
+function describeTabOwner(owner: BrowserCommandIssuer | undefined): string {
+  if (owner === undefined) return "the person at this machine";
+  switch (owner.kind) {
+    case "grant":
+      return `another agent, ${JSON.stringify(owner.label)}`;
+    case "thread":
+      return "an agent working in a Patcher thread";
+    case "outside":
+      return "something else outside Patcher";
+  }
+}
+
+/**
+ * Whether a caller with no tab of its own may fall back to the person's.
+ *
+ * A turn does: it is talking to the person in the same window, and "read the
+ * page I am looking at" is the case the in-app tools exist for. A caller
+ * outside Patcher does not — see `tab-owners.ts`.
+ */
+function fallsBackToActiveTab(
+  issuer: BrowserCommandIssuer | undefined,
+): boolean {
+  return issuer === undefined || issuer.kind === "thread";
+}
+
+/**
+ * Which tab a command acts on, and whether this caller may act on it.
+ *
+ * A null tabId means "mine" — the caller's own newest tab — and only falls back
+ * to the tab the person is looking at for the callers above. Every tab-targeted
+ * command comes through here, which is what makes one rule enough.
+ */
 function resolveTab(
   tabId: string | null,
   deps: BrowserCommandDeps,
 ): Resolution {
   const state = deps.getState();
+  const webTabs = getBrowserSurfaceWebTabs(state);
+  const issuer = deps.issuer;
   if (tabId === null) {
-    const active = getActiveBrowserSurfaceWebTab(state);
-    if (active === null) {
+    const ownId =
+      issuer === undefined
+        ? null
+        : newestBrowserTabOwnedBy({
+            issuer,
+            openTabIds: webTabs.map((tab) => tab.id),
+            owners: tabOwners(deps),
+          });
+    const own = webTabs.find((candidate) => candidate.id === ownId) ?? null;
+    const tab =
+      own ??
+      (fallsBackToActiveTab(issuer)
+        ? getActiveBrowserSurfaceWebTab(state)
+        : null);
+    if (tab === null) {
       return {
         ok: false,
         outcome: failure(
           "no_active_tab",
-          "No browser tab is open. Open one with browser_tabs_open first.",
+          fallsBackToActiveTab(issuer)
+            ? "No browser tab is open. Open one with browser_tabs_open first."
+            : "You have no browser tab of your own open, and the person's tabs are not yours to work in. Open one with browser_tabs_open — it does not take their window — or ask them to hand you the tab they are in.",
         ),
       };
     }
-    return { ok: true, resolved: { tab: active, state } };
+    return { ok: true, resolved: { tab, state } };
   }
-  const tab = getBrowserSurfaceWebTabs(state).find(
-    (candidate) => candidate.id === tabId,
-  );
+  const tab = webTabs.find((candidate) => candidate.id === tabId);
   if (tab === undefined) {
     return {
       ok: false,
@@ -208,6 +311,24 @@ function resolveTab(
         `No browser tab with id ${JSON.stringify(tabId)} is open. Call browser_tabs_list to see the open tabs.`,
       ),
     };
+  }
+  if (issuer !== undefined) {
+    const held = tabOwners(deps).get(tab.id);
+    const owner = browserTabOwnerFor({ issuer, owner: held });
+    if (!mayActOnBrowserTab({ issuer, owner })) {
+      if (owner === "person") {
+        // The person is the only one who can answer this, so put the question
+        // where they are. The refusal below stands either way: nothing waits.
+        deps.requestTabHandover?.({ issuer, tabId: tab.id });
+      }
+      return {
+        ok: false,
+        outcome: failure(
+          "tab_not_yours",
+          `Browser tab ${tab.id} belongs to ${describeTabOwner(held)}.`,
+        ),
+      };
+    }
   }
   return { ok: true, resolved: { tab, state } };
 }
@@ -733,6 +854,11 @@ async function runBrowserCommand(
           ? opened
           : { ...opened, activeTabId: current.activeTabId ?? tab.id };
       });
+      // After the tab is in the strip, not before: a claim on a tab the window
+      // does not hold is pruned as stale by the same call that would record it.
+      if (deps.issuer !== undefined) {
+        deps.setTabOwner?.({ issuer: deps.issuer, tabId: tab.id });
+      }
       // A background tab gets its page here rather than when someone looks at
       // it. Without this the answer is a tab with a stored URL and no live
       // view, so the very next read fails `tab_not_live` — which makes "open
@@ -748,7 +874,7 @@ async function runBrowserCommand(
       const state = deps.getState();
       return success({
         type: "tab",
-        tab: toSnapshot(tab, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(tab, state, deps),
       });
     }
 
@@ -763,6 +889,10 @@ async function runBrowserCommand(
       // it is mounted — and an agent can close a tab from any route.
       deps.destroyView?.({ desktopBrowser, tabId: tab.id });
       deps.applyState((current) => closeBrowserSurfaceTab(current, tab.id));
+      // The claim goes with the tab, and the write prunes every other entry
+      // whose tab is gone — including the ones the person closed themselves,
+      // which nothing else here would ever hear about.
+      deps.setTabOwner?.({ issuer: null, tabId: tab.id });
       const state = deps.getState();
       return success({
         type: "closed",
@@ -781,7 +911,7 @@ async function runBrowserCommand(
       const state = deps.getState();
       return success({
         type: "tab",
-        tab: toSnapshot(tab, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(tab, state, deps),
       });
     }
 
@@ -800,7 +930,7 @@ async function runBrowserCommand(
       const state = deps.getState();
       return success({
         type: "tab",
-        tab: toSnapshot(tab, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(tab, state, deps),
       });
     }
 
@@ -822,7 +952,7 @@ async function runBrowserCommand(
       const state = deps.getState();
       return success({
         type: "tab",
-        tab: toSnapshot(tab, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(tab, state, deps),
       });
     }
 
@@ -839,10 +969,16 @@ async function runBrowserCommand(
           tab: duplicate,
         }),
       );
+      // The copy belongs to whoever asked for it, even when the original was
+      // the person's: a duplicate is a new tab, and the one it came from is
+      // untouched.
+      if (deps.issuer !== undefined) {
+        deps.setTabOwner?.({ issuer: deps.issuer, tabId: duplicate.id });
+      }
       const state = deps.getState();
       return success({
         type: "tab",
-        tab: toSnapshot(duplicate, state, deps.getLiveState(duplicate.id)),
+        tab: toSnapshot(duplicate, state, deps),
       });
     }
 
@@ -861,7 +997,7 @@ async function runBrowserCommand(
       const state = deps.getState();
       return success({
         type: "tab",
-        tab: toSnapshot(tab, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(tab, state, deps),
       });
     }
 
@@ -1334,7 +1470,7 @@ async function runBrowserCommand(
         ) ?? tab;
       return success({
         type: "tab",
-        tab: toSnapshot(updated, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(updated, state, deps),
       });
     }
 
@@ -1382,7 +1518,7 @@ async function runBrowserCommand(
         ) ?? tab;
       return success({
         type: "tab",
-        tab: toSnapshot(updated, state, deps.getLiveState(tab.id)),
+        tab: toSnapshot(updated, state, deps),
       });
     }
 

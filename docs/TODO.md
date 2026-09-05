@@ -191,7 +191,25 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   and the chrome says nothing — whoever asked for it. It is the same gap as the
   access level's, one door seen from two sides, and the same fix closes both:
   carry the caller over the channel keyed by the host's own in-flight call,
-  never by anything the plugin says about itself.
+  never by anything the plugin says about itself. It now costs a third thing:
+  such a command is outside tab ownership too
+  ([architecture/browser-tab-ownership.md](architecture/browser-tab-ownership.md)),
+  so it lands on the person's active tab the way everything did before.
+- **Two agents in two tabs still interleave.** Ownership stops them landing on
+  one tab by accident; nothing sequences what follows. Three pieces, in the
+  order they are worth doing: a promise chain per tab, so one caller's action
+  and the read after it are not split by another's; a snapshot generation that
+  is hard to omit (a ref like `e2@6`, rather than an optional `--generation`
+  that defaults to unchecked); and a trace per issuer, because the recorder is
+  one per window today — B's commands land in A's trace, and B's
+  `tracing-stop` takes it. What cannot be partitioned this way is worth saying
+  in the same change: cookies, web storage and a saved session state belong to
+  the session or the origin, not to a tab.
+- **A tab an agent holds looks like any other in the strip.** Ownership is
+  visible in its context menu ("Take back from …") and nowhere else, so a person
+  scanning the strip cannot tell which of these tabs something else is working
+  in. A mark on the tab is the fix, and it is the same surface question as the
+  window-level driving signal above.
 - **The indicator says who, not what.** A grant's name and level, and nothing
   about the command: no URL, no selector, no count of what was read. The trace
   recorder (`patcher browser trace-start`) already records exactly that and is

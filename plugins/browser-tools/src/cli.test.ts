@@ -244,6 +244,31 @@ describe("patcher browser CLI", () => {
     expect(denied.stdout).not.toContain("Connected (");
   });
 
+  it("keeps a refused tab's own sentence, and adds the two ways out", async () => {
+    const host = createHost();
+    // What the window answers a caller outside Patcher that named a tab the
+    // person is working in. The sentence naming the tab is the part only the
+    // window could write, so it has to survive being explained.
+    host.harness.behavior.browser.failNextCall(
+      "tab_not_yours",
+      "Browser tab browser:abcdefghijklmnopqrstu:none belongs to the person at this machine.",
+    );
+
+    // A minted id rather than an index: anything else costs a `tabs` call
+    // first, and the injected failure would land on that instead.
+    const refused = await host.harness.runCli([
+      "text",
+      "--tab",
+      "browser:abcdefghijklmnopqrstu:none",
+    ]);
+
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain("belongs to the person at this machine");
+    // And what to do instead, or the agent retries the identical call.
+    expect(refused.stderr).toContain("a tab of your own");
+    expect(refused.stderr).toContain("hand this one over");
+  });
+
   it("explains a failure the same way the agent tools do", async () => {
     const host = createHost();
 

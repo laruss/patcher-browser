@@ -1657,8 +1657,8 @@ declare const threadEventSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodUnion<readon
     }>;
     initiator: z$1.ZodEnum<{
         user: "user";
-        system: "system";
         agent: "agent";
+        system: "system";
     }>;
     request: z$1.ZodObject<{
         method: z$1.ZodEnum<{
@@ -1679,8 +1679,8 @@ declare const threadEventSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodUnion<readon
     }>;
     initiator: z$1.ZodEnum<{
         user: "user";
-        system: "system";
         agent: "agent";
+        system: "system";
     }>;
     senderThreadId: z$1.ZodNullable<z$1.ZodString>;
     systemMessageKind: z$1.ZodOptional<z$1.ZodEnum<{
@@ -1921,8 +1921,8 @@ declare const threadEventSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodUnion<readon
     }>;
     initiator: z$1.ZodEnum<{
         user: "user";
-        system: "system";
         agent: "agent";
+        system: "system";
     }>;
     request: z$1.ZodObject<{
         method: z$1.ZodEnum<{
@@ -14797,6 +14797,17 @@ interface PluginBrowserTab {
     loading: boolean;
     canGoBack: boolean;
     canGoForward: boolean;
+    /**
+     * Whose tab this is, relative to the caller being answered: `"you"` is one
+     * this caller opened or was handed, `"person"` is one the human opened, and
+     * `"agent"` is another caller's. Only the first is unconditionally yours to
+     * act on — the rules, and why a turn inside Patcher may also use the person's,
+     * are in docs/architecture/browser-tab-ownership.md.
+     *
+     * Absent when the host had nobody to be relative to, and from an older host
+     * that did not answer with it at all.
+     */
+    owner?: "you" | "person" | "agent";
 }
 interface PluginBrowserCallOptions {
     /**
@@ -15507,7 +15518,13 @@ type PluginBrowserErrorCode = "no_active_tab" | "unknown_tab" | "tab_not_live" |
  * than a fault, so the message names the setting and the command that
  * changes it. Do not retry it; relay it.
  */
- | "external_access_denied";
+ | "external_access_denied"
+/**
+ * The tab is open and it is not this caller's: the person's, or another
+ * agent's. The way forward is a tab of your own, or the person handing this
+ * one over from the browser window — never a retry of the same call.
+ */
+ | "tab_not_yours";
 interface PluginBrowserStatus {
     connected: boolean;
     /** How many app windows could serve a browser call right now. */

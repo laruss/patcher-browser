@@ -43,6 +43,7 @@ import {
   BrowserDownloadsPanel,
 } from "./BrowserDownloads";
 import { BrowserDrivingIndicator } from "./BrowserDrivingIndicator";
+import { BrowserTabHandover } from "./BrowserTabHandover";
 import { BrowserOmniboxSuggestions } from "./BrowserOmniboxSuggestions";
 import { BrowserPluginToolbar } from "./BrowserPluginToolbar";
 import { BrowserSiteInfo } from "./BrowserSiteInfo";
@@ -605,6 +606,10 @@ export function BrowserSurfaceChrome({
           than over the page: a native view composites above the DOM, so an
           overlay would be invisible in the desktop app. */}
       <BrowserDrivingIndicator onOpenAppRoute={onOpenAppRoute} />
+      {/* Below the indicator that says who is driving, because it is the same
+          agent asking for something — and it outlives the indicator, which
+          fades a few seconds after the last command. */}
+      <BrowserTabHandover />
       {isDownloadsOpen ? (
         <BrowserDownloadsPanel
           entries={downloads.entries}

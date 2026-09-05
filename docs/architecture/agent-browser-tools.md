@@ -76,6 +76,13 @@ caller with no thread had nothing standing in front of it at all. A second gate
 decides that case now, per browser command, from a setting the user owns:
 [browser-external-access.md](browser-external-access.md).
 
+**Which tab a command lands on is a third question, and it has its own answer
+now.** A null `tabId` used to mean "the active tab" for everybody, so two agents
+and the person all worked in one tab. It now means "my newest tab", and a tab
+another agent holds is refused — while a turn may still use the tab the person
+is looking at, which is the case this whole surface exists for:
+[browser-tab-ownership.md](browser-tab-ownership.md).
+
 ## The constraint everything else bends around
 
 **A tab only has a native view once it has been the active tab while the browser

@@ -1,10 +1,10 @@
 import { useAtomValue } from "jotai";
 import { BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS } from "@patcher/domain";
-import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import { cn } from "@patcher/shared-ui/lib/utils";
 import { Button } from "@patcher/shared-ui/button";
 import { useSetBrowserAccessGrantPaused } from "@/hooks/mutations/settings-mutations";
 import { browserDrivingAtom } from "@/lib/browser-agent/driving";
+import { browserIssuerName } from "@/lib/browser-agent/issuer";
 
 /**
  * "Something other than you is driving this browser", in the browser's own
@@ -39,20 +39,6 @@ export interface BrowserDrivingIndicatorProps {
   onOpenAppRoute: (path: string) => void;
 }
 
-function issuerName(issuer: BrowserCommandIssuer): string {
-  switch (issuer.kind) {
-    case "grant":
-      return issuer.label;
-    case "thread":
-      return "An agent in Patcher";
-    case "outside":
-      // Not "an agent": this is also what a person running `patcher browser`
-      // in their own terminal produces, and the server cannot tell the two
-      // apart — that is what the grant beside it exists to fix.
-      return "Something outside Patcher";
-  }
-}
-
 export function BrowserDrivingIndicator({
   onOpenAppRoute,
 }: BrowserDrivingIndicatorProps) {
@@ -77,7 +63,7 @@ export function BrowserDrivingIndicator({
         )}
       />
       <p className="min-w-0 flex-1 truncate">
-        <span className="font-medium">{issuerName(issuer)}</span> is driving
+        <span className="font-medium">{browserIssuerName(issuer)}</span> is driving
         this browser
         {issuer.kind === "grant"
           ? ` · ${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[issuer.level].label.toLowerCase()}`

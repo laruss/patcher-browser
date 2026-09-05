@@ -60,11 +60,16 @@ import {
   BROWSER_SURFACE_SCOPE_ID,
   closeBrowserSurfaceTab,
   getActiveBrowserSurfaceTab,
+  getBrowserSurfaceWebTabs,
   isPinnedSurfaceTab,
   isWebSurfaceTab,
   useBrowserSurfaceTabs,
   type BrowserSurfaceTab,
 } from "@/lib/browser-surface-tabs";
+import {
+  browserTabOwnersAtom,
+  withBrowserTabOwner,
+} from "@/lib/browser-agent/tab-owners";
 import {
   PATCHER_APP_TAB_DESTINATIONS,
   resolveSurfaceTabRoute,
@@ -208,6 +213,22 @@ export function BrowserSurfaceView({
   // Which tabs the user silenced — window session state, for the reasons in
   // `browser-tab-mute.ts`.
   const [mutedTabIds, setMutedTabIds] = useAtom(browserMutedTabsAtom);
+  // Which tabs belong to an agent (`tab-owners.ts`). Read here for the one
+  // thing the strip does with it: offering the person their tab back.
+  const [tabOwners, setTabOwners] = useAtom(browserTabOwnersAtom);
+
+  const takeBackTab = useCallback(
+    (tabId: string) => {
+      setTabOwners((current) =>
+        withBrowserTabOwner(current, {
+          issuer: null,
+          openTabIds: getBrowserSurfaceWebTabs(state).map((tab) => tab.id),
+          tabId,
+        }),
+      );
+    },
+    [setTabOwners, state],
+  );
 
   const dropFavicon = useCallback(
     (tabId: string) => {
@@ -951,8 +972,10 @@ export function BrowserSurfaceView({
         onRunTabAction={runTabAction}
         onSetMuted={setSurfaceTabMuted}
         onSetPinned={setTabPinned}
+        onTakeBack={takeBackTab}
         pluginStatuses={pluginTabStatuses}
         tabActions={contributedTabActions}
+        tabOwners={tabOwners}
         tabs={state.tabs}
       />
       {/* No address bar over an app screen: Patcher's own screens are not pages to

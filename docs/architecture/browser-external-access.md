@@ -378,6 +378,11 @@ module was written against, since a model told only "no" tries the neighbour.
 
 ## The window says who is driving
 
+> The same `issuer` decides which tabs a caller may work in, which is what keeps
+> an agent outside Patcher off the page the person is reading:
+> [browser-tab-ownership.md](browser-tab-ownership.md).
+
+
 A gate that decides and then forgets leaves the person it was protecting with
 nothing on screen. Electron draws no "a program is controlling this browser"
 banner, a native `WebContentsView` cannot be decorated from the page side, and a

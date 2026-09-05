@@ -1396,6 +1396,17 @@ export interface PluginBrowserTab {
   loading: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+  /**
+   * Whose tab this is, relative to the caller being answered: `"you"` is one
+   * this caller opened or was handed, `"person"` is one the human opened, and
+   * `"agent"` is another caller's. Only the first is unconditionally yours to
+   * act on — the rules, and why a turn inside Patcher may also use the person's,
+   * are in docs/architecture/browser-tab-ownership.md.
+   *
+   * Absent when the host had nobody to be relative to, and from an older host
+   * that did not answer with it at all.
+   */
+  owner?: "you" | "person" | "agent";
 }
 
 export interface PluginBrowserCallOptions {
@@ -2127,7 +2138,13 @@ export type PluginBrowserErrorCode =
    * than a fault, so the message names the setting and the command that
    * changes it. Do not retry it; relay it.
    */
-  | "external_access_denied";
+  | "external_access_denied"
+  /**
+   * The tab is open and it is not this caller's: the person's, or another
+   * agent's. The way forward is a tab of your own, or the person handing this
+   * one over from the browser window — never a retry of the same call.
+   */
+  | "tab_not_yours";
 
 export interface PluginBrowserStatus {
   connected: boolean;

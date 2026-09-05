@@ -12,6 +12,7 @@ import {
 } from "@/lib/patcher-desktop";
 import type { BrowserSurfaceTab } from "@/lib/browser-surface-tabs";
 import type { PluginBrowserTabStatus } from "@patcher/plugin-sdk";
+import type { BrowserTabOwners } from "@/lib/browser-agent/tab-owners";
 import {
   BrowserSurfaceTabStrip,
   resolveTabStripChromeReserveClassName,
@@ -34,6 +35,7 @@ function renderStrip(
     mutedTabIds?: ReadonlySet<string>;
     pluginStatuses?: ReadonlyMap<string, PluginBrowserTabStatus>;
     tabActions?: readonly BrowserSurfaceTabAction[];
+    tabOwners?: BrowserTabOwners;
   } = {},
 ) {
   const onActivate = vi.fn();
@@ -43,6 +45,7 @@ function renderStrip(
   const onRunTabAction = vi.fn();
   const onSetMuted = vi.fn();
   const onSetPinned = vi.fn();
+  const onTakeBack = vi.fn();
   render(
     <BrowserSurfaceTabStrip
       activeTabId={tabs[0]?.id ?? null}
@@ -57,8 +60,10 @@ function renderStrip(
       onRunTabAction={onRunTabAction}
       onSetMuted={onSetMuted}
       onSetPinned={onSetPinned}
+      onTakeBack={onTakeBack}
       pluginStatuses={extra.pluginStatuses}
       tabActions={extra.tabActions}
+      tabOwners={extra.tabOwners}
       tabs={tabs}
     />,
   );
@@ -70,6 +75,7 @@ function renderStrip(
     onRunTabAction,
     onSetMuted,
     onSetPinned,
+    onTakeBack,
   };
 }
 
@@ -450,6 +456,37 @@ describe("browser surface tab menu", () => {
     expect(screen.queryByText("Mute tab")).toBeNull();
     expect(screen.getByText("Pin tab")).not.toBeNull();
     expect(screen.getByText("Close tab")).not.toBeNull();
+  });
+
+  it("offers a tab back from the agent holding it, by name", () => {
+    const held = renderStrip([browserTab("tab-1", "A")], {}, new Set(), {
+      tabOwners: new Map([
+        [
+          "tab-1",
+          {
+            kind: "grant" as const,
+            grantId: "grant_1",
+            label: "Claude Code",
+            level: "read" as const,
+          },
+        ],
+      ]),
+    });
+
+    fireEvent.contextMenu(tabBox(/A/));
+    // Named, because a person with two agents running has to know which one is
+    // being taken from.
+    fireEvent.click(screen.getByText("Take back from Claude Code"));
+
+    expect(held.onTakeBack).toHaveBeenCalledWith("tab-1");
+  });
+
+  it("offers nothing to take back on the person's own tab", () => {
+    renderStrip([browserTab("tab-1", "A")]);
+
+    fireEvent.contextMenu(tabBox(/A/));
+
+    expect(screen.queryByText(/Take back/)).toBeNull();
   });
 
   it("leaves mute off a tab with no page yet", () => {
