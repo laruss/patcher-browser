@@ -1,0 +1,1 @@
+ALTER TABLE `browser_access_grants` ADD `paused_at` integer;

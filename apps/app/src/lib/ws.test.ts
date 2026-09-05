@@ -307,6 +307,55 @@ describe("WebSocketManager browser commands", () => {
     expect(pluginSignal).not.toHaveBeenCalled();
   });
 
+  it("keeps the issuer the server named on a browser command", () => {
+    // The lenient parse strips what it does not name, so leaving `issuer` out
+    // of that schema is indistinguishable from a server that never sent it —
+    // and the indicator in the browser chrome would simply never appear.
+    const { manager } = createConnectedManager();
+    const browserCommand = vi.fn();
+    manager.onBrowserCommand(browserCommand);
+
+    dispatchRaw({
+      type: "browser-command-request",
+      requestId: "req_2",
+      command: { type: "tabs.list" },
+      issuer: {
+        kind: "grant",
+        grantId: "bag_1",
+        label: "Claude Code",
+        level: "read",
+      },
+    });
+
+    expect(browserCommand.mock.calls[0]?.[0]?.issuer).toEqual({
+      kind: "grant",
+      grantId: "bag_1",
+      label: "Claude Code",
+      level: "read",
+    });
+  });
+
+  it("still runs a command whose issuer is from a newer server", () => {
+    // The union is closed, and a signal this schema rejects is dropped whole by
+    // the dispatcher — so a fourth issuer kind would stop an older app from
+    // answering browser commands at all and every tool call would time out.
+    // Losing the indicator is the failure this lenient copy is for.
+    const { manager } = createConnectedManager();
+    const browserCommand = vi.fn();
+    manager.onBrowserCommand(browserCommand);
+
+    dispatchRaw({
+      type: "browser-command-request",
+      requestId: "req_3",
+      command: { type: "tabs.list" },
+      issuer: { kind: "plugin", pluginId: "something-new" },
+    });
+
+    expect(browserCommand).toHaveBeenCalledTimes(1);
+    expect(browserCommand.mock.calls[0]?.[0]?.requestId).toBe("req_3");
+    expect(browserCommand.mock.calls[0]?.[0]?.issuer).toBeUndefined();
+  });
+
   it("re-announces the browser host after a reconnect", () => {
     const { manager, socket } = createConnectedManager();
     manager.registerBrowserHost("window-a");

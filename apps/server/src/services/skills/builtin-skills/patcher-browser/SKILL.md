@@ -200,8 +200,20 @@ user's act and not yours. Do not run either to find out whether they would say
 yes: the prompt takes the thread's one interaction slot, and a refusal is an
 answer.
 
-**If your grant stops working**, the refusal says so — it names the grant and
-says it was revoked. That is a person's decision. Ask, do not retry.
+**If your grant stops working**, the refusal says so, and says which of two
+things happened. **Paused** means somebody stopped you just now, most likely
+while watching what you were doing — the credential is still good and they can
+resume it in one click, so ask them, and do not retry into it. **Revoked** means
+it is over; ask for a new one. Either way it is a person's decision rather than a
+fault.
+
+**They can see you, when they are looking.** While you are running commands, the
+browser surface — if it is the screen they have open — shows your grant's name
+and how far it reaches, with a Pause button beside it. Assume they can see every
+command; do not assume they are watching.
+`patcher browser status` tells you the same thing from your side — run it first
+and it answers both halves of "can I act": whether a window is open, and what
+your level allows. That is cheaper than finding out by being refused.
 
 ### Either way
 

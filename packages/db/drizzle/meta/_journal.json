@@ -722,6 +722,13 @@
       "when": 1788614623334,
       "tag": "0102_browser_access_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "6",
+      "when": 1788619750854,
+      "tag": "0103_browser_access_grant_pause",
+      "breakpoints": true
     }
   ]
 }

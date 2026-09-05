@@ -58,6 +58,7 @@ import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedTh
 import { CliSkillsSettingsSection } from "@/components/settings/CliSkillsSettingsSection";
 import {
   useRevokeBrowserAccessGrant,
+  useSetBrowserAccessGrantPaused,
   useSetBrowserExternalAccess,
   useUpdateGeneralSettings,
   useUpdateAppearance,
@@ -191,6 +192,8 @@ export interface GeneralSettingsSectionProps {
   browserAccessGrants: readonly SystemBrowserAccessGrant[] | undefined;
   revokingBrowserAccessGrantId: string | null;
   onRevokeBrowserAccessGrant: (grantId: string) => void;
+  pausingBrowserAccessGrantId: string | null;
+  onSetBrowserAccessGrantPaused: (grantId: string, paused: boolean) => void;
   browserSearchEngineId: string;
   onBrowserSearchEngineChange: (engineId: string) => void;
   caffeinateAvailable: boolean;
@@ -1045,6 +1048,8 @@ export interface BrowserAccessGrantsSettingsControlProps {
   grants: readonly SystemBrowserAccessGrant[] | undefined;
   revokingGrantId: string | null;
   onRevoke: (grantId: string) => void;
+  pausingGrantId: string | null;
+  onSetPaused: (grantId: string, paused: boolean) => void;
 }
 
 /** Never, or the day it last happened. Nobody reads a browser grant to the second. */
@@ -1052,6 +1057,23 @@ function formatGrantDay(at: number | null): string {
   return at === null
     ? "never used"
     : `last used ${new Date(at).toLocaleDateString()}`;
+}
+
+/**
+ * The one line under the label: what state this grant is in, and since when.
+ *
+ * Paused is said before the last use, because it is the answer to the question
+ * somebody opens this list with — why has it stopped working — and a row that
+ * led with a date would make them work it out.
+ */
+function describeGrantState(grant: SystemBrowserAccessGrant): string {
+  if (grant.revokedAt !== null) {
+    return `revoked ${new Date(grant.revokedAt).toLocaleDateString()}`;
+  }
+  if (grant.pausedAt !== null) {
+    return `paused · ${formatGrantDay(grant.lastUsedAt)}`;
+  }
+  return formatGrantDay(grant.lastUsedAt);
 }
 
 /**
@@ -1072,6 +1094,8 @@ export function BrowserAccessGrantsSettingsControl({
   grants,
   revokingGrantId,
   onRevoke,
+  pausingGrantId,
+  onSetPaused,
 }: BrowserAccessGrantsSettingsControlProps) {
   return (
     <div className="space-y-2.5">
@@ -1081,8 +1105,9 @@ export function BrowserAccessGrantsSettingsControl({
           Credentials that let one agent outside Patcher run{" "}
           <code className="text-[0.95em]">patcher browser</code> and reach no
           other part of Patcher&rsquo;s API. They work whatever the setting
-          above says, and they last until you revoke them. Issue one with{" "}
-          <code className="text-[0.95em]">patcher agent-access grant</code>.
+          above says, and they last until you pause or revoke them. Issue one
+          with <code className="text-[0.95em]">patcher agent-access grant</code>
+          .
         </p>
       </div>
       {grants === undefined ? (
@@ -1111,20 +1136,30 @@ export function BrowserAccessGrantsSettingsControl({
                 </p>
                 <p className="truncate text-subtle-foreground">
                   {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[grant.level].label} ·{" "}
-                  {grant.revokedAt === null
-                    ? formatGrantDay(grant.lastUsedAt)
-                    : `revoked ${new Date(grant.revokedAt).toLocaleDateString()}`}
+                  {describeGrantState(grant)}
                 </p>
               </div>
               {grant.revokedAt === null ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={revokingGrantId === grant.id}
-                  onClick={() => onRevoke(grant.id)}
-                >
-                  Revoke
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pausingGrantId === grant.id}
+                    onClick={() =>
+                      onSetPaused(grant.id, grant.pausedAt === null)
+                    }
+                  >
+                    {grant.pausedAt === null ? "Pause" : "Resume"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={revokingGrantId === grant.id}
+                    onClick={() => onRevoke(grant.id)}
+                  >
+                    Revoke
+                  </Button>
+                </>
               ) : null}
             </li>
           ))}
@@ -1141,6 +1176,8 @@ export function GeneralSettingsSection({
   browserAccessGrants,
   revokingBrowserAccessGrantId,
   onRevokeBrowserAccessGrant,
+  pausingBrowserAccessGrantId,
+  onSetBrowserAccessGrantPaused,
   browserSearchEngineId,
   onBrowserSearchEngineChange,
   caffeinateAvailable,
@@ -1224,6 +1261,8 @@ export function GeneralSettingsSection({
             grants={browserAccessGrants}
             revokingGrantId={revokingBrowserAccessGrantId}
             onRevoke={onRevokeBrowserAccessGrant}
+            pausingGrantId={pausingBrowserAccessGrantId}
+            onSetPaused={onSetBrowserAccessGrantPaused}
           />
         ) : null}
 
@@ -1489,6 +1528,7 @@ export function SettingsView() {
     enabled: desktopBrowserAvailable,
   });
   const revokeBrowserAccessGrantMutation = useRevokeBrowserAccessGrant();
+  const setBrowserAccessGrantPausedMutation = useSetBrowserAccessGrantPaused();
   const appearance = systemConfigQuery.data?.appearance ?? defaultAppTheme;
   const updateAppearanceMutation = useUpdateAppearance();
   const { activePluginId, activeProviderId, activeSection, hasUnknownSection } =
@@ -1679,6 +1719,14 @@ export function SettingsView() {
           }
           onRevokeBrowserAccessGrant={(grantId) =>
             revokeBrowserAccessGrantMutation.mutate(grantId)
+          }
+          pausingBrowserAccessGrantId={
+            setBrowserAccessGrantPausedMutation.isPending
+              ? (setBrowserAccessGrantPausedMutation.variables?.grantId ?? null)
+              : null
+          }
+          onSetBrowserAccessGrantPaused={(grantId, paused) =>
+            setBrowserAccessGrantPausedMutation.mutate({ grantId, paused })
           }
           browserSearchEngineId={generalSettings.browserSearchEngineId}
           providerEgressConfined={generalSettings.providerEgressConfined}

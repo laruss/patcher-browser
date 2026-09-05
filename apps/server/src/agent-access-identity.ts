@@ -31,9 +31,15 @@ import { PATCHER_AGENT_KEY_HEADER } from "@patcher/server-contract";
  *
  * **Genuine is not the same as accepted**, the same distinction the thread
  * identity draws. A credential's lifetime is the row it names: present while
- * the grant exists and `revokedAt` is null. That is deliberately a state a
- * person can see and end — the string itself lives in somebody's MCP config
- * forever, and revoking is what stops it.
+ * the grant exists, is not revoked, and is not paused. That is deliberately a
+ * state a person can see and end — the string itself lives in somebody's MCP
+ * config forever, and the row is what stops it.
+ *
+ * Two ways to stop, because a person watching an agent do the wrong thing wants
+ * a different thing from a person tidying up: **paused** takes the browser back
+ * now and gives it back with one click, and **revoked** ends the credential.
+ * Both refuse here, and the two refusals say which, because "ask them to resume
+ * it" and "ask them for a new one" are different instructions.
  *
  * **Why a result rather than a nullable caller.** A refused grant would
  * otherwise fall through to the app-key check and come back as a bare 401,
@@ -113,6 +119,12 @@ export function createAgentAccessIdentity(
         return {
           kind: "refused",
           reason: `Browser access grant ${claim.grantId} ("${grant.label}") was revoked, so it no longer opens the browser. That was a person's decision rather than a fault — ask them rather than retrying.`,
+        };
+      }
+      if (grant.pausedAt !== null) {
+        return {
+          kind: "refused",
+          reason: `Browser access grant ${claim.grantId} ("${grant.label}") is paused: somebody at this machine stopped it, most likely while watching what it was doing. It is not revoked, and they can let it work again from Patcher's browser toolbar or Settings → General → Agents outside Patcher — ask them. Retrying will not resume it.`,
         };
       }
       // Written here rather than in the browser route, because the question the

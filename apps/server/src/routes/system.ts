@@ -10,6 +10,8 @@ import {
   getStoredThemeId,
   hasActiveThreadAttention,
   listBrowserAccessGrants,
+  pauseBrowserAccessGrant,
+  resumeBrowserAccessGrant,
   revokeBrowserAccessGrant,
   setAppSettings,
   setAppKeybindingOverrides,
@@ -359,6 +361,31 @@ export function registerSystemRoutes(
       }),
       browserToolsEnabled: isBrowserToolsServing(pluginService),
     });
+  });
+
+  put(routes.setBrowserAccessGrantPaused, (context, payload) => {
+    const id = context.req.param("id");
+    const grant = payload.paused
+      ? pauseBrowserAccessGrant(deps.db, id)
+      : resumeBrowserAccessGrant(deps.db, id);
+    if (grant === undefined) {
+      throw new ApiError(
+        404,
+        "not_found",
+        `No browser access grant '${id}'. Nothing changed — check \`patcher agent-access list\`.`,
+      );
+    }
+    // A revoked grant cannot be paused or resumed, and answering 200 with a row
+    // that ignored the request would be the kind of success nobody can act on.
+    if (grant.revokedAt !== null) {
+      throw new ApiError(
+        409,
+        "conflict",
+        `Browser access grant '${id}' was revoked, and revoking has no undo. Issue a new one with \`patcher agent-access grant\`.`,
+      );
+    }
+    deps.hub.notifySystem(["config-changed"]);
+    return context.json({ grants: listBrowserAccessGrants(deps.db) });
   });
 
   del(routes.revokeBrowserAccessGrant, (context) => {

@@ -337,6 +337,7 @@ type ExpectedSystemKey =
   | "installCliSkills"
   | "reloadConfig"
   | "revokeBrowserAccessGrant"
+  | "setBrowserAccessGrantPaused"
   | "setBrowserExternalAccess"
   | "transcribeVoice"
   | "updateExperiments"

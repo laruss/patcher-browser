@@ -4,6 +4,7 @@ import type {
   PluginAgentToolContext,
   PluginAgentToolRecord,
 } from "./plugin-api.js";
+import { runAsBrowserCommandIssuer } from "../browser/browser-command-issuer.js";
 import type {
   PluginAgentToolContribution,
   PluginMentionResolveResult,
@@ -115,10 +116,26 @@ export async function invokePluginAgentTool(
       ],
     };
   }
-  return active.invokeAgentTool({
-    pluginId: tool.pluginId,
-    record: tool.record,
-    input: args.input,
-    ctx: args.ctx,
-  });
+  // A turn's own tools are the other way a browser command gets issued, and the
+  // thread id here is the one the tool-call route resolved, not one a body
+  // claimed. Wrapped around the whole call rather than around the browser
+  // surface, because this module cannot tell which tools drive the browser and
+  // should not have to.
+  //
+  // What this reaches is a tool running **in this process** — every built-in
+  // plugin, which is all of `patcher browser`. A plugin running in its own
+  // process comes back to the host on a channel message, in a fresh async
+  // context, so its browser commands arrive unattributed however they were
+  // started. Same boundary as the access scope next door, and named in
+  // `browserCommandIssuerSchema`'s docstring rather than left to be found.
+  return runAsBrowserCommandIssuer(
+    { kind: "thread", threadId: args.ctx.threadId },
+    () =>
+      active.invokeAgentTool({
+        pluginId: tool.pluginId,
+        record: tool.record,
+        input: args.input,
+        ctx: args.ctx,
+      }),
+  );
 }

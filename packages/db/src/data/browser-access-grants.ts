@@ -7,8 +7,8 @@ import { browserAccessGrants } from "../schema.js";
 export type BrowserAccessGrantRow = typeof browserAccessGrants.$inferSelect;
 
 /**
- * The grants an agent outside Patcher can be holding, and the four questions
- * asked of them.
+ * The grants an agent outside Patcher can be holding, and the questions asked
+ * of them.
  *
  * Reads happen on every request such an agent makes, so `getBrowserAccessGrant`
  * is a primary-key lookup and nothing more: it is the whole of what decides
@@ -32,6 +32,7 @@ export function createBrowserAccessGrant(
     level: args.level,
     createdAt: now,
     lastUsedAt: null,
+    pausedAt: null,
     revokedAt: null,
   };
   db.insert(browserAccessGrants).values(row).run();
@@ -90,9 +91,65 @@ export function revokeBrowserAccessGrant(
   now: number = Date.now(),
 ): BrowserAccessGrantRow | undefined {
   db.update(browserAccessGrants)
-    .set({ revokedAt: now })
+    // The pause goes with it. A row that is both paused and revoked is a state
+    // this file argues against two functions down — "resume" is unavailable
+    // either way, and a reader who has to know which field wins is a reader the
+    // shape has failed.
+    .set({ pausedAt: null, revokedAt: now })
     .where(
       and(eq(browserAccessGrants.id, id), isNull(browserAccessGrants.revokedAt)),
+    )
+    .run();
+  return getBrowserAccessGrant(db, id);
+}
+
+/**
+ * Stop a grant for now, without ending it. Idempotent, keeping the first
+ * pause's timestamp for the same reason a revocation keeps its own.
+ *
+ * The half of "stop" that a person reaches for while watching an agent do
+ * something they did not want: the credential stays valid and the agent's
+ * configuration stays correct, so resuming is one click rather than a new grant
+ * and a re-run of `claude mcp add`. Revoking is still there for the other case
+ * — a credential that should not exist any more.
+ *
+ * A revoked grant is not paused on top of that: it has already stopped, and
+ * writing a second timestamp onto it would make "resume" look available for
+ * something that can never work again.
+ */
+export function pauseBrowserAccessGrant(
+  db: DbConnection,
+  id: string,
+  now: number = Date.now(),
+): BrowserAccessGrantRow | undefined {
+  db.update(browserAccessGrants)
+    .set({ pausedAt: now })
+    .where(
+      and(
+        eq(browserAccessGrants.id, id),
+        isNull(browserAccessGrants.pausedAt),
+        isNull(browserAccessGrants.revokedAt),
+      ),
+    )
+    .run();
+  return getBrowserAccessGrant(db, id);
+}
+
+/**
+ * Let a paused grant work again. Idempotent, and deliberately unable to bring a
+ * revoked one back: revoking is the decision that does not have an undo.
+ */
+export function resumeBrowserAccessGrant(
+  db: DbConnection,
+  id: string,
+): BrowserAccessGrantRow | undefined {
+  db.update(browserAccessGrants)
+    .set({ pausedAt: null })
+    .where(
+      and(
+        eq(browserAccessGrants.id, id),
+        isNull(browserAccessGrants.revokedAt),
+      ),
     )
     .run();
   return getBrowserAccessGrant(db, id);

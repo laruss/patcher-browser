@@ -85,6 +85,8 @@ describe("the CLI a turn reaches through the MCP tool", () => {
       // where this belongs.
       "agent-access grant",
       "agent-access list",
+      "agent-access pause",
+      "agent-access resume",
       "agent-access revoke",
       // Serving the tool from inside the tool.
       "mcp-serve",

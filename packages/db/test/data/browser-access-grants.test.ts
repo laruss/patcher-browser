@@ -5,6 +5,8 @@ import {
   getBrowserAccessGrant,
   listBrowserAccessGrants,
   migrate,
+  pauseBrowserAccessGrant,
+  resumeBrowserAccessGrant,
   revokeBrowserAccessGrant,
   touchBrowserAccessGrantUse,
   type DbConnection,
@@ -12,8 +14,8 @@ import {
 
 /**
  * These rows *are* the lifetime of a credential, so what is tested here is what
- * the identity check on the server will ask them: does this grant exist, was it
- * taken back, and when did anything last use it.
+ * the identity check on the server will ask them: does this grant exist, is it
+ * stopped — for now or for good — and when did anything last use it.
  */
 
 describe("browser access grants", () => {
@@ -113,6 +115,45 @@ describe("browser access grants", () => {
     const expected = [a.id, b.id].sort().reverse();
     expect(listBrowserAccessGrants(db).map((row) => row.id)).toEqual(expected);
     expect(listBrowserAccessGrants(db).map((row) => row.id)).toEqual(expected);
+  });
+
+  it("pauses and resumes without ending the grant", () => {
+    const grant = createBrowserAccessGrant(db, { label: "a", level: "read" });
+    expect(pauseBrowserAccessGrant(db, grant.id, 1_000)?.pausedAt).toBe(1_000);
+    // Idempotent, and keeping the first pause's timestamp: a second click on
+    // "Pause" is not a new decision.
+    expect(pauseBrowserAccessGrant(db, grant.id, 9_000)?.pausedAt).toBe(1_000);
+    expect(resumeBrowserAccessGrant(db, grant.id)?.pausedAt).toBeNull();
+    // Still the same credential — the whole reason pausing exists is that the
+    // agent holding it needs no reconfiguring afterwards.
+    expect(getBrowserAccessGrant(db, grant.id)?.revokedAt).toBeNull();
+  });
+
+  it("takes the pause with it when a paused grant is revoked", () => {
+    // Otherwise the row is both, and every reader has to know which field wins.
+    const grant = createBrowserAccessGrant(db, { label: "a", level: "read" });
+    pauseBrowserAccessGrant(db, grant.id, 1_000);
+
+    const revoked = revokeBrowserAccessGrant(db, grant.id, 2_000);
+
+    expect(revoked?.pausedAt).toBeNull();
+    expect(revoked?.revokedAt).toBe(2_000);
+  });
+
+  it("will not resume a revoked grant, or pause one", () => {
+    // Revoking is the decision that does not have an undo, and a paused
+    // timestamp on a revoked row would make "Resume" look available for
+    // something that can never work again.
+    const grant = createBrowserAccessGrant(db, { label: "a", level: "read" });
+    revokeBrowserAccessGrant(db, grant.id, 1_000);
+
+    expect(pauseBrowserAccessGrant(db, grant.id, 2_000)?.pausedAt).toBeNull();
+    expect(resumeBrowserAccessGrant(db, grant.id)?.revokedAt).toBe(1_000);
+  });
+
+  it("reports nothing when there is no such grant to pause or resume", () => {
+    expect(pauseBrowserAccessGrant(db, "bag_missing")).toBeUndefined();
+    expect(resumeBrowserAccessGrant(db, "bag_missing")).toBeUndefined();
   });
 
   it("touching an id that is not a grant changes nothing", () => {

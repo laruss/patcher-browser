@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BRANCH_LIST_QUERY_MAX_LENGTH,
+  browserAccessGrantLevelSchema,
   browserCommandSchema,
   changedMessageLenientSchema,
   changedMessageSchema,
@@ -206,6 +207,50 @@ export const pluginSignalLenientSchema = z.object({
 });
 
 /**
+ * Who asked for a browser command, when the server can say.
+ *
+ * The app is the only place a person can be told that something other than
+ * them is driving their browser — Electron draws no "a program is controlling
+ * this browser" banner, and a `WebContentsView` cannot be decorated from the
+ * page side. So the fact has to travel: the server knows whose request it is
+ * answering, forty call sites away from the socket that carries the command,
+ * and until this field existed it spent that knowledge on one question — may
+ * this caller do this — and dropped it.
+ *
+ * **Absent means nobody the server can name.** Usually that is the app itself —
+ * its own browsing, a plugin's page script, a toolbar item's handler: work the
+ * user started, in the window they are looking at, which needs no indicator and
+ * must not get one. A missing field also means an older server, and reads the
+ * same way, which is the right default of the two.
+ *
+ * It also means **a plugin running in its own process**, which is where this
+ * stops. The ambient scope that carries the caller covers commands issued on
+ * the caller's own async stack; the host serves an out-of-process plugin's
+ * browser call on a channel message, in a fresh async context, so a command from
+ * one arrives unattributed even when a turn or a grant set it going. That is the
+ * same boundary the access level has — see `browser-external-access.ts` in the
+ * server — and closing it means carrying the caller over the plugin channel
+ * keyed by the host's own in-flight call, never by what the plugin says it is.
+ *
+ * `outside` has no fields on purpose. A caller holding the app key from a
+ * terminal is exactly as identified as the app key is — which is to say the
+ * install knows *that* something outside Patcher is driving and cannot know
+ * *what*. Naming it anything more specific would be an invention. A grant is
+ * the answer to that, and carries the name a person gave it.
+ */
+export const browserCommandIssuerSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("thread"), threadId: z.string().min(1) }),
+  z.object({
+    kind: z.literal("grant"),
+    grantId: z.string().min(1),
+    label: z.string().min(1),
+    level: browserAccessGrantLevelSchema,
+  }),
+  z.object({ kind: z.literal("outside") }),
+]);
+export type BrowserCommandIssuer = z.infer<typeof browserCommandIssuerSchema>;
+
+/**
  * Ephemeral server→client request asking the app to perform one browser command
  * on behalf of an agent, and to answer with a `browser-command.response` client
  * message carrying the same `requestId`.
@@ -220,6 +265,8 @@ export const browserCommandRequestSignalSchema = z
     type: z.literal("browser-command-request"),
     requestId: z.string().min(1).max(128),
     command: browserCommandSchema,
+    /** Who this is for, when the server can say. See the schema. */
+    issuer: browserCommandIssuerSchema.optional(),
   })
   .strict();
 export type BrowserCommandRequestSignal = z.infer<
@@ -236,6 +283,15 @@ export const browserCommandRequestSignalLenientSchema = z.object({
   type: z.literal("browser-command-request"),
   requestId: z.string().min(1).max(128),
   command: browserCommandSchema,
+  // Restated here or the app would never see it: a lenient schema strips what
+  // it does not name, so leaving it out is the same as not sending it.
+  //
+  // `.catch` because the union is closed and this schema's whole job is to
+  // survive a newer server: a fourth kind would otherwise fail the parse, and
+  // `ws.ts` drops a signal it cannot parse — so an *older app* would stop
+  // answering browser commands altogether and every tool call would time out.
+  // Degrading to "no indicator" is the failure this copy exists to have.
+  issuer: browserCommandIssuerSchema.optional().catch(undefined),
 });
 
 export const workspaceFileSchema = z.object({

@@ -48,12 +48,19 @@ credential that outlives the turn, so a turn gets a 403 there.
 - `--for claude-code` and `--for codex` run that agent's own `mcp add`, so the
   credential lands in its configuration instead of a file. `--for shell` (the
   default) prints `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` to export.
-- `list` shows every grant, live and revoked, with when each was last used.
-  `revoke <id>` ends one — the next request presenting it is refused, naming the
-  revocation. There is no expiry; the row is the lifetime.
-- **`grant` is refused inside a turn**, unlike `browser-access` above: a grant
-  keeps working after the turn ends, so minting one is the person's act. Reading
-  the list is not refused.
+- `list` shows every grant — live, paused and revoked — with when each was last
+  used. `revoke <id>` ends one, and `pause <id>` / `resume <id>` stop and restart
+  one without ending it: a paused grant refuses every request and stays a valid
+  credential, so the agent holding it needs no reconfiguring. Either way the next
+  request presenting it is refused, naming which happened. There is no expiry;
+  the row is the lifetime.
+- A revoked grant cannot be paused or resumed. Revoking is the decision with no
+  undo, and the route answers 409 rather than pretending otherwise.
+- **`grant`, `pause`, `resume` and `revoke` are all refused inside a turn**,
+  unlike `browser-access` above: a grant keeps working after the turn ends, so
+  minting one is the person's act — and the grant being stopped or started again
+  belongs to somebody else's agent, which a turn has no way to judge. Reading the
+  list is not refused.
 
 ## Caffeinate (macOS only)
 

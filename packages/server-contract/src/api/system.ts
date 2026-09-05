@@ -375,6 +375,15 @@ export const systemBrowserAccessGrantSchema = z.object({
    * the same answer to "is anything still using this".
    */
   lastUsedAt: z.number().nullable(),
+  /**
+   * When the person stopped this grant for now, or null while it works.
+   *
+   * Separate from `revokedAt` because the two are different decisions: a
+   * revoked grant is a credential that should not exist, while a paused one is
+   * an agent that should stop *this minute* and whose configuration stays
+   * correct — so resuming it is a click rather than a re-issue.
+   */
+  pausedAt: z.number().nullable(),
   revokedAt: z.number().nullable(),
 });
 export type SystemBrowserAccessGrant = z.infer<
@@ -399,6 +408,21 @@ export const systemBrowserAccessGrantCreateResponseSchema = z.object({
 });
 export type SystemBrowserAccessGrantCreateResponse = z.infer<
   typeof systemBrowserAccessGrantCreateResponseSchema
+>;
+
+/**
+ * Stop a grant for now, or let it work again.
+ *
+ * One route with a boolean rather than a `pause` and a `resume`, because it is
+ * one switch and the caller always knows which way it wants it — including the
+ * browser chrome's own button, which is pressed while an agent is mid-command
+ * and must not have to read the grant's state first.
+ */
+export const systemBrowserAccessGrantPauseRequestSchema = z.object({
+  paused: z.boolean(),
+});
+export type SystemBrowserAccessGrantPauseRequest = z.infer<
+  typeof systemBrowserAccessGrantPauseRequestSchema
 >;
 
 export const systemBrowserAccessGrantListResponseSchema = z.object({

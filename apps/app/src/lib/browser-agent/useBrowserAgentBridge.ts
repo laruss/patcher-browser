@@ -12,6 +12,7 @@ import {
   registerBrowserView,
 } from "@/components/secondary-panel/browserViewVisibilityCoordinator";
 import { wsManager } from "../ws";
+import { browserDrivingAtom, createBrowserDrivingTracker } from "./driving";
 import { executeBrowserCommand } from "./execute";
 import { BrowserTraceRecorder } from "./trace";
 import {
@@ -68,7 +69,18 @@ export function useBrowserAgentBridge(): void {
     // BrowserTabContent only listens for the tab it is mounted for.
     const unsubscribeLiveState = subscribeBrowserLiveState(desktopBrowser);
 
+    // What the chrome draws when something other than the person is driving.
+    // Fed here rather than inside `executeBrowserCommand`, because it is about
+    // the request rather than about the command: the issuer arrives on the
+    // signal and the executor never sees it.
+    const driving = createBrowserDrivingTracker({
+      set: (state) => {
+        store.set(browserDrivingAtom, state);
+      },
+    });
+
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {
+      driving.started(signal.issuer);
       void executeBrowserCommand(signal.command, {
         getState: () => store.get(browserSurfaceTabsAtom),
         applyState: (update) => {
@@ -108,6 +120,7 @@ export function useBrowserAgentBridge(): void {
         trace,
       })
         .then((outcome) => {
+          driving.settled(signal.issuer);
           wsManager.sendBrowserCommandResponse({
             type: "browser-command.response",
             requestId: signal.requestId,
@@ -115,6 +128,7 @@ export function useBrowserAgentBridge(): void {
           });
         })
         .catch((error: unknown) => {
+          driving.settled(signal.issuer);
           // Never leave the server's waiter to time out on a bug in here: an
           // answer, even a bad one, is what unblocks the agent's tool call.
           wsManager.sendBrowserCommandResponse({
@@ -137,6 +151,7 @@ export function useBrowserAgentBridge(): void {
       wsManager.unregisterBrowserHost(browserHostId);
       unsubscribeCommands();
       unsubscribeLiveState();
+      driving.dispose();
     };
   }, [store]);
 }

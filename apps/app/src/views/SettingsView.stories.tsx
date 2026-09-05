@@ -205,8 +205,8 @@ function useSettingsStoryState() {
     useState<StoredTargetId>("default-app");
   const [experiments, setExperiments] =
     useState<Experiments>(defaultExperiments);
-  // One live and one revoked, because the two rows render differently and the
-  // story is the only place either shape is looked at.
+  // One live, one paused and one revoked, because the three rows render
+  // differently and the story is the only place any of the shapes is looked at.
   const [browserAccessGrants, setBrowserAccessGrants] = useState<
     SystemBrowserAccessGrant[]
   >([
@@ -216,6 +216,16 @@ function useSettingsStoryState() {
       level: "read",
       createdAt: Date.parse("2026-09-01T10:00:00Z"),
       lastUsedAt: Date.parse("2026-09-05T08:30:00Z"),
+      pausedAt: null,
+      revokedAt: null,
+    },
+    {
+      id: "bag_5mn8qwerty",
+      label: "A script",
+      level: "interact",
+      createdAt: Date.parse("2026-08-30T10:00:00Z"),
+      lastUsedAt: Date.parse("2026-09-04T17:05:00Z"),
+      pausedAt: Date.parse("2026-09-04T17:06:00Z"),
       revokedAt: null,
     },
     {
@@ -224,6 +234,7 @@ function useSettingsStoryState() {
       level: "full",
       createdAt: Date.parse("2026-08-20T10:00:00Z"),
       lastUsedAt: null,
+      pausedAt: null,
       revokedAt: Date.parse("2026-08-28T12:00:00Z"),
     },
   ]);
@@ -243,6 +254,14 @@ function useSettingsStoryState() {
       setBrowserAccessGrants((grants) =>
         grants.map((grant) =>
           grant.id === grantId ? { ...grant, revokedAt: Date.now() } : grant,
+        ),
+      ),
+    setBrowserAccessGrantPaused: (grantId: string, paused: boolean) =>
+      setBrowserAccessGrants((grants) =>
+        grants.map((grant) =>
+          grant.id === grantId
+            ? { ...grant, pausedAt: paused ? Date.now() : null }
+            : grant,
         ),
       ),
     browserExternalAccess,
@@ -311,6 +330,8 @@ function GeneralSettingsStory({
         browserAccessGrants={state.browserAccessGrants}
         revokingBrowserAccessGrantId={null}
         onRevokeBrowserAccessGrant={state.revokeBrowserAccessGrant}
+        pausingBrowserAccessGrantId={null}
+        onSetBrowserAccessGrantPaused={state.setBrowserAccessGrantPaused}
         browserSearchEngineId={state.browserSearchEngineId}
         onBrowserSearchEngineChange={state.setBrowserSearchEngineId}
         providerEgressConfined={state.providerEgressConfined}

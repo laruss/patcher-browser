@@ -42,6 +42,7 @@ import {
   BrowserDownloadsButton,
   BrowserDownloadsPanel,
 } from "./BrowserDownloads";
+import { BrowserDrivingIndicator } from "./BrowserDrivingIndicator";
 import { BrowserOmniboxSuggestions } from "./BrowserOmniboxSuggestions";
 import { BrowserPluginToolbar } from "./BrowserPluginToolbar";
 import { BrowserSiteInfo } from "./BrowserSiteInfo";
@@ -600,6 +601,10 @@ export function BrowserSurfaceChrome({
           />
         )}
       </div>
+      {/* Under the toolbar and above the downloads panel, in the layout rather
+          than over the page: a native view composites above the DOM, so an
+          overlay would be invisible in the desktop app. */}
+      <BrowserDrivingIndicator onOpenAppRoute={onOpenAppRoute} />
       {isDownloadsOpen ? (
         <BrowserDownloadsPanel
           entries={downloads.entries}

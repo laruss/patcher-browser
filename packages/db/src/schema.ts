@@ -320,6 +320,15 @@ export const browserAccessGrants = sqliteTable("browser_access_grants", {
   level: text("level").$type<BrowserAccessGrantLevel>().notNull(),
   createdAt: integer("created_at").notNull(),
   lastUsedAt: integer("last_used_at"),
+  /**
+   * Stopped for now, and resumable — the state behind the browser chrome's
+   * "Pause" while an agent is driving. Separate from `revokedAt` because the
+   * two answer different questions: revoking ends a credential a person no
+   * longer wants to exist, while pausing takes the browser back from an agent
+   * that is misbehaving *this minute* without costing them the reconfiguration
+   * of the agent that issued it.
+   */
+  pausedAt: integer("paused_at"),
   revokedAt: integer("revoked_at"),
 });
 

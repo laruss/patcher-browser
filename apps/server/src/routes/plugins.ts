@@ -3,12 +3,14 @@ import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import type { Context, Hono } from "hono";
+import type { PluginCliCaller } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import { getAppSettings } from "@patcher/db";
 import type { ServerRuntimeConfig } from "../types.js";
 import { getAgentThreadId } from "../agent-thread-scope.js";
 import { getPluginApiId } from "../plugin-api-identity-context.js";
 import { getAgentAccessCaller } from "../agent-access-context.js";
+import { runAsBrowserCommandIssuer } from "../services/browser/browser-command-issuer.js";
 import {
   browserToolsArgvRefusal,
   BROWSER_TOOLS_PLUGIN_ID,
@@ -200,6 +202,7 @@ import {
   pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
   pluginUpdateCheckRequestSchema,
+  type BrowserCommandIssuer,
 } from "@patcher/server-contract";
 
 /** The slice of server deps the "local" auth checks need (origin allowlist). */
@@ -866,6 +869,7 @@ export function registerPluginRoutes(
       cwd?: string;
       threadId?: string;
       projectId?: string;
+      caller?: PluginCliCaller;
       signal?: AbortSignal;
     } = {};
     if (typeof body?.cwd === "string") ctx.cwd = body.cwd;
@@ -897,6 +901,25 @@ export function registerPluginRoutes(
     // is holding the app key, so the setting is what it gets — and the setting
     // is a default rather than a boundary, because that caller can rewrite it.
     const grantCaller = getAgentAccessCaller(context);
+    // The same three answers, said to the window instead of to the gate: what
+    // the app draws in the browser chrome is the only way a person finds out
+    // that something other than them is driving. Built here, where a grant's
+    // level is still typed as a grant's, and from the *verified* thread id for
+    // the same reason the exemption above uses it.
+    const verifiedThreadId = getAgentThreadId(context);
+    const issuer: BrowserCommandIssuer | undefined =
+      grantCaller !== undefined
+        ? {
+            kind: "grant",
+            grantId: grantCaller.grantId,
+            label: grantCaller.label,
+            level: grantCaller.level,
+          }
+        : isOutsideCaller
+          ? { kind: "outside" }
+          : verifiedThreadId !== undefined
+            ? { kind: "thread", threadId: verifiedThreadId }
+            : undefined;
     const scope: BrowserExternalCallerScope | undefined =
       grantCaller !== undefined
         ? {
@@ -910,6 +933,29 @@ export function registerPluginRoutes(
               pluginId,
             }
           : undefined;
+    // Told to the command as well as charged against it, so `patcher browser
+    // status` can answer "what am I allowed" without being refused something
+    // first. The same scope, so the two can never disagree.
+    //
+    // Only for the plugin the decision is about. Any other plugin's CLI would
+    // learn this install's browser setting from a field it has no use for, and
+    // the only other thing this says — "you are not in a turn" — it can already
+    // see as a missing `threadId`.
+    if (scope !== undefined && pluginId === BROWSER_TOOLS_PLUGIN_ID) {
+      // From `grantCaller` rather than from the scope for the same reason the
+      // issuer is: the scope widens a grant's level to include `off`, which no
+      // grant has, and narrowing it back would be a runtime check for a case
+      // that cannot happen.
+      ctx.caller =
+        grantCaller === undefined
+          ? { kind: "outside", level: scope.level }
+          : {
+              kind: "grant",
+              level: grantCaller.level,
+              grantId: grantCaller.grantId,
+              label: grantCaller.label,
+            };
+    }
     // Before the run, not inside it: the one command this refuses never reaches
     // the browser bridge, so a gate that only charged browser commands never
     // saw it. See `browserToolsArgvRefusal`.
@@ -919,9 +965,15 @@ export function registerPluginRoutes(
         return context.json({ exitCode: 1, stdout: "", stderr: argvRefusal });
       }
     }
+    // Two ambient scopes, nested, because they answer different questions and
+    // cover different callers: the access scope decides what an outside caller
+    // may do and exists only for one, while the issuer names any of the three
+    // and decides nothing.
+    const runAttributed =
+      issuer === undefined ? run : () => runAsBrowserCommandIssuer(issuer, run);
     const result = await (scope === undefined
-      ? run()
-      : runAsExternalBrowserCaller(scope, run));
+      ? runAttributed()
+      : runAsExternalBrowserCaller(scope, runAttributed));
     return context.json(result);
   });
 

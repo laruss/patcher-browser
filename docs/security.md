@@ -1388,8 +1388,12 @@ read it — the limit the section below describes. So the narrow answer is a
 credential derived from the app key and one grant id, which reaches exactly two
 routes (the plugin CLI table, and `browser-tools`' own CLI) and no other part of
 the API. It carries its own level, it is listed in Settings with when it was last
-used, and revoking the row is what ends it — there is no expiry to wait out and
-nothing for the holder to refresh. `--for claude-code` and `--for codex` run that
+used, and the row is what ends it — there is no expiry to wait out and nothing
+for the holder to refresh. Two ways to end it, for two different moments:
+**Revoke** for a credential nobody should hold any more, and **Pause** for an
+agent that should stop right now — the credential stays valid, so resuming is a
+click rather than a re-issue and a re-run of the agent's `mcp add`. The refusal
+the holder reads says which of the two happened. `--for claude-code` and `--for codex` run that
 agent's own `mcp add`, so Patcher never parses or rewrites their configuration —
 though the credential does end up in it, and in `ps` while that command runs,
 which is the same readability the app key file already has.
@@ -1399,8 +1403,21 @@ rather than the credential's. Its commands read and write files where you point
 them, on the machine the **server** runs on: `screenshot <path>`, `pdf`,
 `state-save`, `state-load`, `upload`. And cookies, site storage and zoom belong
 to the browsing session or the origin, not to one tab, so a command naming one
-tab can change what another shows. Revoking stops new commands; a network mock
-or a recording the holder started stays until the tab is closed.
+tab can change what another shows. Revoking or pausing stops new commands; a
+network mock or a recording the holder started stays until the tab is closed.
+
+**While something is driving, the browser chrome says so** — the name you gave
+the grant, how far it reaches, and a Pause button; a caller from outside holding
+only the app key is called just that and pointed at the setting, since nothing
+narrower exists for it; a turn inside Patcher is shown as "an agent in Patcher"
+and left to its own thread, which is where it is stopped.
+`patcher browser status` answers the same question from the other side, so an
+agent can be told what it may do instead of finding out by being refused. Three
+things that does not do: the indicator is a row of the browser chrome, so it is
+not on screen while you are reading a thread elsewhere in the app; it says who is
+driving rather than what they are doing; and it stays silent for a plugin you
+installed, which runs in its own process and is charged its own permissions —
+the same gap the level has.
 
 A grant is deliberately **not** bounded by the level above, and the reverse of a
 ceiling is the point: a ceiling would mean opening the browser to every process

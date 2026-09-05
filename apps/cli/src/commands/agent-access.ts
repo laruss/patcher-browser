@@ -230,9 +230,13 @@ function printGrantTable(grants: readonly SystemBrowserAccessGrant[]): void {
   }
   for (const grant of grants) {
     const state =
-      grant.revokedAt === null
-        ? `last used ${formatWhen(grant.lastUsedAt)}`
-        : `revoked ${formatWhen(grant.revokedAt)}`;
+      grant.revokedAt !== null
+        ? `revoked ${formatWhen(grant.revokedAt)}`
+        : grant.pausedAt !== null
+          ? // Said before the last use, because it is the answer to the question
+            // somebody runs this command with: why is it not working.
+            `paused ${formatWhen(grant.pausedAt)}, last used ${formatWhen(grant.lastUsedAt)}`
+          : `last used ${formatWhen(grant.lastUsedAt)}`;
     console.log(`${grant.id}  ${grant.level.padEnd(8)} ${grant.label}`);
     console.log(`  issued ${formatWhen(grant.createdAt)}, ${state}`);
   }
@@ -325,6 +329,36 @@ export function registerAgentAccessCommands(
         console.log(
           `Take it back with \`patcher agent-access revoke ${result.grant.id}\`, or in Settings → General → Agents outside Patcher.`,
         );
+      }),
+    );
+
+  agentAccess
+    .command("pause <id>")
+    .description("Stop a grant for now. It keeps working after `resume`")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, opts: { json?: boolean }) => {
+        const sdk = createCliPatcherSdk(getUrl());
+        const result = await sdk.system.setBrowserAccessGrantPaused(id, true);
+        if (outputJson(opts, result)) return;
+        console.log(
+          `Paused ${id}. Its next request is refused and told it is paused; \`patcher agent-access resume ${id}\` puts it back.`,
+        );
+        printGrantTable(result.grants);
+      }),
+    );
+
+  agentAccess
+    .command("resume <id>")
+    .description("Let a paused grant work again")
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, opts: { json?: boolean }) => {
+        const sdk = createCliPatcherSdk(getUrl());
+        const result = await sdk.system.setBrowserAccessGrantPaused(id, false);
+        if (outputJson(opts, result)) return;
+        console.log(`Resumed ${id}.`);
+        printGrantTable(result.grants);
       }),
     );
 
