@@ -326,6 +326,21 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   told had failed can never land afterwards and overwrite what they did instead.
   It is deliberately not checked between the input events of one action — half a
   `type` in the field is worse than finishing late.
+- **Past that point a second clock takes over, and it promises less.**
+  `desktop-browser-cdp-deadline.ts` wraps the session the action's own sends go
+  out on, because a CDP send has no deadline of its own and the renderer is what
+  answers most of them: measured on a real window, `Input.dispatchMouseEvent`
+  into a tab Chromium is producing no frames for is _never_ acknowledged, so
+  before this every click into an agent's own background tab hung until the tab
+  went — holding that tab's queue with it. The refusal it makes is the only one
+  on this path that cannot say nothing happened, so it says the opposite: look
+  at the page. Its budget is **per send**, not per action, so the `type` rule
+  above still holds — a slow page finishes late rather than halfway. The reads
+  get the same wrapper with one budget for the whole command instead (15s for a
+  snapshot, 30s for an evaluation, whose `awaitPromise` is waiting on the
+  caller's own code), and `page_stalled` is their code: `failed` would have the
+  app replace the sentence naming the dialog with "the page could not be
+  inspected".
 - **One `interact` channel**, not one per verb. Every action shares the same
   preamble (resolve the ref, check the generation, wait for actionability), and a
   channel per verb would freeze nine copies of it across a wire-frozen boundary.
