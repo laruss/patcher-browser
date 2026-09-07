@@ -53,11 +53,18 @@ import {
  * **And it still only covers the caller's own async stack — on both sides.**
  * That qualifier was always true of the scopes in this process; it is now
  * equally true inside the plugin's, because the id is stamped from an
- * `AsyncLocalStorage` entered around the handler. A plugin whose browser work
- * is done by a queue or a worker built in its factory, or posted after its
- * command returned, is *not* on that stack: it carries no origin, and is
- * uncharged and anonymous exactly as it was before. No malice needed, and not
- * fixable from this side — see `docs/TODO.md`.
+ * `AsyncLocalStorage` entered around the handler.
+ *
+ * Which is wider than "while the handler runs", and the second review round
+ * corrected an earlier version of this paragraph that said otherwise: Node
+ * binds the store to async work *created inside* the handler, so a promise or
+ * a microtask the handler started keeps it after the handler has returned, and
+ * such a frame is attributed for as long as the host still has that call in
+ * flight. What carries no origin is work whose async chain began somewhere
+ * else — a queue or a worker the plugin built in its factory, a timer started
+ * at bootstrap — and any frame that arrives after its call settled. Uncharged
+ * and anonymous exactly as before, with no malice needed and no way to decide
+ * it from this side; `docs/TODO.md` carries it.
  *
  * **An unknown origin means no scope, which is what it meant before.** A frame
  * from an older plugin host, a background service's own work, a schedule's

@@ -178,20 +178,24 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   and the loopback base URL, so it has a shorter path) and not closable from
   this side: a correlation both ends can see is what makes the crossing work at
   all. Named here so nobody reads it as more than it is.
-- **A plugin's browser work off the served call's stack is not charged, and not
-  named.** The id is stamped from an `AsyncLocalStorage` entered around the
-  plugin's handler, so a plugin whose browser call runs on a queue or a worker
-  it built in its factory, or is posted after its command returned, carries no
-  origin — uncharged by the install-wide level and anonymous in the chrome,
-  exactly as every out-of-process plugin was before the crossing existed. **No
-  malice and no unusual code are required**, which is what makes this worth
-  writing down rather than filing under the item above. Two half-answers, both
-  worse than the gap: a per-plugin "an outside call is in flight" fallback for
-  frames with no origin would attribute a plugin's *background* work to a
-  caller, which is a wrong refusal and a wrong tab owner; and refusing browser
-  calls that carry no origin at all would break every plugin schedule and
-  background service that uses the browser today. Found by the security review
-  on 2026-09-07.
+- **A plugin's browser work whose async chain began outside the served call is
+  not charged, and not named.** The id is stamped from an `AsyncLocalStorage`
+  entered around the plugin's handler. That reaches further than the handler
+  itself — Node binds the store to async work created inside it, so a promise
+  the command started still carries the id after the command returned — but it
+  does not reach a chain that began somewhere else: a queue or a worker the
+  plugin built in its factory, a timer started at bootstrap. A browser call
+  from one of those carries no origin, so it is uncharged by the install-wide
+  level and anonymous in the chrome, exactly as every out-of-process plugin was
+  before the crossing existed. **No malice and no unusual code are required**,
+  which is what makes this worth writing down rather than filing under the item
+  above. Two half-answers, both worse than the gap: a per-plugin "an outside
+  call is in flight" fallback for frames with no origin would attribute a
+  plugin's *background* work to a caller, which is a wrong refusal and a wrong
+  tab owner; and refusing browser calls that carry no origin at all would break
+  every plugin schedule and background service that uses the browser today.
+  Found by the security review on 2026-09-07, and narrowed by the second review
+  round, which pointed out that work the command *starts* does keep the id.
 - **Three shell paths can leave a command unanswered forever.** A snapshot
   (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
   `awaitPromise`) and the input dispatch inside a click are sent to the page

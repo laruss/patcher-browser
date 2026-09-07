@@ -17,6 +17,8 @@ import {
   parseMessage,
   rebuildError,
   reduceError,
+  type PluginMessage,
+  type PluginRequestMessage,
 } from "../../../src/services/plugins/plugin-protocol.js";
 
 /**
@@ -790,7 +792,7 @@ describe("plugin channel: which call a frame came out of", () => {
       return "answered";
     });
     // Never answered, so the id stays in flight on the channel that minted it.
-    void mine.host.request({ method: "cli", payload: null });
+    const stays = mine.host.request({ method: "cli", payload: null });
     const live = mine.outbound[0] ?? "";
 
     other.farPort.send({
@@ -803,8 +805,61 @@ describe("plugin channel: which call a frame came out of", () => {
     await tick();
 
     expect(seen).toEqual([undefined]);
+    // Held rather than dropped: closing rejects it, and a rejection nobody
+    // observes is an unhandled error Vitest counts against the whole file —
+    // which is what the second review round found here.
     mine.host.close("done");
+    await expect(stays).rejects.toBeInstanceOf(PluginChannelClosedError);
     other.host.close("done");
+  });
+
+  it("keeps the id on work the handler started before returning", async () => {
+    // How far the stamp reaches, which the second review round corrected the
+    // docs about: Node binds the store to async work created *inside* `run`, so
+    // a promise the command started still names the call after the command has
+    // returned. Read off the raw frame rather than through the host, because
+    // whether the host still has that call in flight by then is a race and the
+    // stamp is not.
+    const [pluginPort, hostPort] = createLinkedPorts();
+    const sent: PluginMessage[] = [];
+    const record = pluginPort.send.bind(pluginPort);
+    pluginPort.send = (message) => {
+      sent.push(message);
+      record(message);
+    };
+    const plugin: PluginChannel = createPluginChannel({
+      port: pluginPort,
+      name: "plugin:probe",
+      onRequest: () => {
+        queueMicrotask(() => {
+          void plugin
+            .request({ method: "browser.<command>", payload: null })
+            .catch(() => undefined);
+        });
+        return "served";
+      },
+    });
+    createPluginChannel({
+      port: hostPort,
+      name: "server",
+      onRequest: () => "answered",
+    });
+
+    hostPort.send({
+      kind: "request",
+      callId: "server:epoch:1",
+      method: "cli",
+      payload: null,
+    });
+    await tick();
+
+    const deferred = sent.find(
+      (message) =>
+        message.kind === "request" && message.method === "browser.<command>",
+    ) as PluginRequestMessage | undefined;
+    expect(deferred).toBeDefined();
+    expect(deferred?.origin).toBe("server:epoch:1");
+    plugin.close("done");
   });
 
   it("refuses a frame whose origin is not a string", () => {

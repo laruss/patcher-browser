@@ -458,11 +458,15 @@ that needed no malice at all — an honest plugin, driven from a terminal, reach
 the browser because the scope could not follow it.
 
 **And "the caller's own async stack" still means that, on both sides.** The id is
-stamped from an `AsyncLocalStorage` entered around the plugin's handler, so a
-plugin whose browser work is done by a queue or a worker it built in its factory,
-or posted after its command returned, is not on that stack: it carries no origin
-and is uncharged and anonymous exactly as before. No malice needed, and not
-decidable from the host's side — [../TODO.md](../TODO.md) carries it.
+stamped from an `AsyncLocalStorage` entered around the plugin's handler — which
+reaches further than the handler's own lifetime, because Node binds the store to
+async work created inside it: a promise the command started keeps the id after
+the command returned, and is attributed while the host still has that call in
+flight. What carries no origin is work whose chain began elsewhere — a queue or a
+worker the plugin built in its factory, a timer started at bootstrap — and any
+frame arriving after its call settled. Uncharged and anonymous exactly as before,
+no malice needed, and not decidable from the host's side —
+[../TODO.md](../TODO.md) carries it.
 
 **A consequence worth expecting.** A plugin's browser commands now land in
 whoever's tabs the caller owns ([browser-tab-ownership.md](browser-tab-ownership.md)),
