@@ -37,12 +37,17 @@ import {
  * machine before you could open it to one named agent. The shape this is built
  * for is the setting left `off` and one grant issued to the agent that needs it.
  *
- * **And it covers `patcher browser`, not every plugin.** The level is charged on
- * commands issued on the caller's own async stack, which is every built-in
- * plugin; an installed plugin runs in its own process and is charged what it
- * declared, as before. So a third-party plugin with browser permissions and a
- * CLI command of its own is a second door, and the copy that describes this to a
- * user has to say so rather than promising the browser is shut.
+ * **And it covers every plugin's CLI, not only `patcher browser`.** The level is
+ * charged on commands issued on the caller's own async stack — every built-in
+ * plugin — and on an installed plugin's, which runs in its own process and gets
+ * the caller back off the channel frame (`browser-caller-handoff.ts` in the
+ * server). So a third-party plugin with browser permissions and a CLI command of
+ * its own is not a second door round this.
+ *
+ * What the level is not charged on is a plugin's *own* work — a schedule, a
+ * background service, an HTTP route the app called — because none of those is a
+ * caller from outside Patcher. Those are charged the permissions the plugin
+ * declared, which is what installing it agreed to.
  */
 export const BROWSER_EXTERNAL_ACCESS_LEVELS = [
   "off",
@@ -168,7 +173,7 @@ export const BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS: Record<
   off: {
     label: "Off",
     detail:
-      "`patcher browser` refuses agents and terminals outside Patcher that hold no grant. Three things are unaffected: a browser access grant you issued, which carries its own level; Patcher's own threads; and a third-party plugin you installed, which is charged the permissions it declared.",
+      "`patcher browser` refuses agents and terminals outside Patcher that hold no grant, including one reaching the browser through a plugin's own command. Three things are unaffected: a browser access grant you issued, which carries its own level; Patcher's own threads; and the work a plugin does by itself, which is charged the permissions it declared.",
   },
   read: {
     label: "Read pages",

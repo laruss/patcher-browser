@@ -157,25 +157,6 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 ## Core-only, structural
 
-- **The browser level does not reach a plugin running in its own process.**
-  `browserExternalAccess` is charged on commands issued on the caller's own
-  async stack — every built-in plugin, so all of `patcher browser` — and an
-  installed plugin's browser call is charged on a channel message in a fresh
-  async context, where the scope does not reach. Measured, and pinned by a test
-  in `browser-external-access-route.test.ts` so it stays a known limit. It means
-  a third-party plugin with browser permissions and a CLI command of its own is
-  a door the setting does not close, which every user-facing description of the
-  setting now says. Two ways to close it, and the second is the right one: a
-  per-plugin "an outside CLI call is in flight" flag read by
-  `chargeBrowserCommand`, which is small and gets the concurrency case wrong in
-  the direction of a wrong refusal; or carrying the scope over the plugin
-  channel, so the plugin process holds it for the invocation and the host reads
-  it back off the frame — a wire change, and the one that is actually correct.
-  The narrower credential this used to wait on now exists
-  ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
-  so the second of those is the next thing to do here: with a grant reaching two
-  routes, an installed plugin's own CLI command is the remaining way its holder's
-  machine gets browser access nobody charged.
 - **The "who is driving" indicator is only in the browser chrome.**
   `browser-command-request` now carries an `issuer`
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
@@ -185,16 +166,56 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   surface they do not have open. A window-level signal — the title bar, the tab
   strip, a tray item — is the piece that would fix that, and it is a different
   surface rather than a bigger version of this one.
-- **A plugin in its own process drives the browser anonymously.** The `issuer`
-  rides an `AsyncLocalStorage`, which does not cross the plugin channel, so a
-  third-party plugin's browser command reaches the window with no caller on it
-  and the chrome says nothing — whoever asked for it. It is the same gap as the
-  access level's, one door seen from two sides, and the same fix closes both:
-  carry the caller over the channel keyed by the host's own in-flight call,
-  never by anything the plugin says about itself. It now costs a third thing:
-  such a command is outside tab ownership too
-  ([architecture/browser-tab-ownership.md](architecture/browser-tab-ownership.md)),
-  so it lands on the person's active tab the way everything did before.
+- **A plugin can name any of its own in-flight calls, and can keep one open.**
+  The caller now crosses the plugin channel as an id the host minted, and the
+  channel refuses one it does not have in flight, so no outsider can forge one,
+  and no plugin can reach another's *while each has its own process* — two
+  sharing one can write frames on each other's channel keys and are one trust
+  domain for that and several other reasons, which is why the default is one
+  process each
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
+  What a plugin does see is every id the host has open for *it* — from any of
+  its work, not only from another served call — and it decides when to answer,
+  so it can hold a turn's agent-tool call open and act as that thread after the
+  turn moved on. Not a way in (a plugin is a Node module with `child_process`
+  and the loopback base URL, so it has a shorter path) and not closable from
+  this side: a correlation both ends can see is what makes the crossing work at
+  all. Named here so nobody reads it as more than it is.
+- **A plugin's browser work whose async chain began outside the served call is
+  not charged, and not named.** The id is stamped from an `AsyncLocalStorage`
+  entered around the plugin's handler. That reaches further than the handler
+  itself — Node binds the store to async work created inside it, so a promise
+  the command started still carries the id after the command returned — but it
+  does not reach work whose *invoking* resource was created somewhere else: a
+  `setInterval` started in the factory, a queue pump ticking on its own. Where
+  the code was written decides nothing — a job the handler schedules is on the
+  stack however its queue was built — and a browser call from something outside
+  that chain carries no origin, so it is uncharged by the install-wide
+  level and anonymous in the chrome, exactly as every out-of-process plugin was
+  before the crossing existed. **No malice and no unusual code are required**,
+  which is what makes this worth writing down rather than filing under the item
+  above.
+
+  Two ways to answer it, and the second is the real decision. A per-plugin "an
+  outside call is in flight" fallback for frames with no origin is the worse one
+  twice over: it attributes a plugin's *background* work to a caller — a wrong
+  refusal and a wrong tab owner — and it still misses the common shape, a worker
+  that runs when no call is in flight at all. **Refusing a browser call that
+  carries no valid origin** does close it, fail-closed, and the first version of
+  this entry dismissed it on a premise the code contradicts: an out-of-process
+  schedule tick and a background service each run *inside* their own served
+  request (`schedule`, `backgroundService`), so their browser calls do carry an
+  in-flight origin and would not be refused. What it would refuse is exactly the
+  gap — a timer or a pump running on its own, and fire-and-forget continuations
+  the host has already answered — and what that costs is a plugin whose browser
+  work legitimately runs on one of those, which stops working with no deprecation path and a refusal its author
+  has to reverse-engineer. That is a decision about breaking installed
+  third-party plugins, not a technical obstacle, and it is why this is written
+  down rather than done.
+
+  Found by the security review on 2026-09-07; narrowed once by the second review
+  round (work the command *starts* does keep the id) and again when that round
+  found the false premise above.
 - **Three shell paths can leave a command unanswered forever.** A snapshot
   (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
   `awaitPromise`) and the input dispatch inside a click are sent to the page

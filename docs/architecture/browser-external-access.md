@@ -399,21 +399,92 @@ usually the app's own browsing and must stay silent. A caller holding the app ke
 gets `outside` with nothing else, because that is exactly as identified as the
 app key is; naming it would be an invention.
 
-**It reaches exactly what the access scope reaches, and no further.** Commands
-issued on the caller's own async stack: every built-in plugin, which is all of
-`patcher browser`. A plugin running in its **own process** calls back on a
-channel message, in a fresh async context, so its browser commands arrive with
-no issuer even when a turn's tool or a person's terminal set them going — and
-the chrome stays silent for them. That is the same boundary phase 1 has, and
-closing it is the same piece of work: carry the caller over the plugin channel,
-keyed by the host's own in-flight call rather than by anything the plugin says
-about itself, since a plugin that could name its own caller could name a
-different one.
+**It reaches exactly what the access scope reaches** — which, since the caller
+crosses the plugin channel, is both kinds of plugin. Commands issued on the
+caller's own async stack cover every built-in plugin, so all of
+`patcher browser`; an installed plugin running in its **own process** calls back
+on a channel message, in a fresh async context, and gets the caller put back
+there. See "Across the plugin boundary" below for how, and for the one thing it
+still does not settle.
 
 That wire is the server → app one, which ships with the server, and the
 inbound schema on the app side is lenient — so this is an optional field added to
 a schema that strips what it does not name, not a break. The desktop-shell IPC
 next door is the frozen one; nothing here touches it.
+
+## Across the plugin boundary
+
+Both halves of "who is this" — the level a caller is charged and the name the
+window is shown — ride an `AsyncLocalStorage`, and neither survives a pipe. An
+installed plugin runs in its own process: the host sends it a `cli` request, the
+plugin's code calls `patcher.browser`, and that arrives back at the host as a
+*channel message*, in an async context with nothing of the request that started
+it. So for as long as that was where it stopped, a third-party plugin with
+browser permissions and a CLI command of its own was a door the setting did not
+close, and its commands reached the window anonymous.
+
+**The correlation is the host's own call id.** `plugin-channel.ts` already mints
+one per outbound request, and it already sends that request on the caller's async
+stack — inside both scopes, when there are any. So:
+
+1. the host records the pair under that id before the frame goes out
+   (`onOutboundRequest` → `rememberBrowserCaller`);
+2. the plugin's channel stamps the id it is currently serving onto anything it
+   sends back, as `origin` — the same stamping on both ends, because the envelope
+   is symmetric;
+3. the host looks the id up and runs the whole dispatch under both scopes again
+   (`runAsRememberedBrowserCaller`), then drops the record when its request
+   settles — including when the plugin process dies under it.
+
+Nothing about the caller travels. What travels is an opaque id the host issued,
+and the channel passes an `origin` on **only if it names a request that channel
+still has in flight** — so a settled call, an id from another channel and an
+invented string are the same thing from here, and all three read as
+unattributed, which is exactly the behaviour that predates this. "Another
+channel" is what that check separates, and separate *plugins* only because they
+are separate processes; the qualifier is under "What this does not close".
+
+**What it deliberately does not settle.** Every id the host mints for a plugin is
+visible inside that plugin's process, so *any* of its work — not only another of
+its served calls, but a background service, an HTTP route, a timer — can quote
+any id the host has in flight for it and be charged and named as that caller. The
+in-flight check bounds which ids those are; what it cannot bound is how long a
+call stays in flight, because that is the plugin answering. So a plugin can hold
+a turn's agent-tool call open and act as that thread long after the turn moved
+on. That is a plugin lying about its own invocations, not an outsider forging
+anything, and it is not a way in: plugin code is a Node module with `node:fs`,
+`child_process` and the loopback base URL
+([plugin-permissions.md](plugin-permissions.md)), so a plugin that wanted the
+browser uncharged has a shorter path than this one. What this closes is the case
+that needed no malice at all — an honest plugin, driven from a terminal, reaching
+the browser because the scope could not follow it.
+
+**And "the caller's own async stack" still means that, on both sides.** The id is
+stamped from an `AsyncLocalStorage` entered around the plugin's handler — which
+reaches further than the handler's own lifetime, because Node binds the store to
+async work created inside it: a promise the command started keeps the id after
+the command returned, and is attributed while the host still has that call in
+flight. What carries no origin is work whose *invoking* async resource was created
+outside the served call — a `setInterval` started in the factory, a queue pump
+ticking on its own — and any frame arriving after its call settled. The line sits
+where Node draws it rather than where the code was written: a queue built in the
+factory whose job the handler schedules runs under the handler and is attributed.
+Uncharged and anonymous exactly as before, no malice needed, and not decidable
+from the host's side — [../TODO.md](../TODO.md) carries it.
+
+**A consequence worth expecting.** A plugin's browser commands now land in
+whoever's tabs the caller owns ([browser-tab-ownership.md](browser-tab-ownership.md)),
+and the two callers differ:
+
+- one a **turn** invokes now acts as that thread. It may still use the person's
+  tab and still falls back to the one in front — that is the turn row of the
+  ownership table, unchanged — but it prefers a tab of its own and can no longer
+  touch *another agent's*, which it previously reached both by inheriting
+  whatever was active and by naming that tab's id, neither of which was checked
+  while it had no issuer;
+- one invoked from **outside** gets its own tabs only, and is refused the
+  person's until they hand one over. That is the change with teeth: before this,
+  such a plugin acted on the tab the person was looking at.
 
 **The indicator is a row of the chrome, not an overlay.** A native view
 composites above the DOM, so anything drawn over the page area is invisible in
@@ -450,20 +521,33 @@ Named here rather than left to be rediscovered.
   writes about itself. What changes is that the supported path is the narrow one,
   so reaching past the browser is a deliberate act rather than the way the
   product works.
-- **Neither the level nor a grant covers every plugin.** The scope does not
-  reach an installed plugin running in its own process — measured,
-  not reasoned about, because a claim about async context is exactly the kind
-  that is wrong in a way nothing notices. The host charges an out-of-process
-  plugin's browser call on a *channel message*, which is a fresh async context,
-  so the level does not reach it and it is charged what it declared, as before.
-  The same probe that is refused in-process at level `off` reaches the hub when
-  its plugin runs in its own process. Nothing hides behind that gap — the same
-  caller can install a plugin — but a *user* can, and a third-party plugin with
-  browser permissions and a CLI command of its own is then a door neither closes.
-  Every user-facing description says so rather than promising the browser is
-  shut. `docs/TODO.md` carries the two ways to close it; with the credential now
-  built, the second of them — carrying the scope over the plugin channel — is the
-  next thing worth doing here.
+- **A plugin can still name any of its own in-flight calls, and can keep one
+  open.** The caller crosses as an id the host minted and the channel refuses one
+  it does not have in flight, so nothing an outsider holds can forge one — but a
+  plugin sees every id the host has open for *it*, and decides when to answer.
+  "Across the plugin boundary" above says why that is not a way in. One plugin
+  cannot reach another's *because the channels are separate processes*: two
+  plugins sharing one (`SHARED_PLACEMENT`) can write frames on each other's
+  channel keys, and are one trust domain for that reason and several others
+  ([`plugin-supervisor.ts`](../../apps/server/src/services/plugins/plugin-supervisor.ts)
+  says which) — which is why one process per plugin is the default rather than a
+  preference.
+- **A plugin's browser work off the served call's stack is still uncharged.**
+  Same paragraph: the id is stamped from an ambient scope, so work invoked from
+  a resource created outside that call — a `setInterval` from the factory, a
+  pump ticking on its own — carries none. Where the code was *written* decides
+  nothing; a job the handler schedules is on the stack wherever its queue came
+  from. What is closed is the case that
+  needed no malice and no unusual code: a plugin's CLI command awaiting its own
+  browser call, run from a terminal, is charged the level like anything else —
+  measured through a real forked plugin process rather than reasoned about,
+  because a claim about async context is exactly the kind that is wrong in a way
+  nothing notices.
+- **A plugin's own work is charged what it declared, not the level.** A
+  schedule, a background service, an HTTP route the app called: none of those is
+  a caller from outside Patcher, and installing the plugin is what agreed to
+  them. Every user-facing description says this rather than promising the
+  browser is shut to everything.
 - **The server cannot tell a person's terminal from an agent's.** Both are
   "no thread", so both are charged the level. The cost is real and small: the
   diagnostic path in [agent-browser-tools.md](agent-browser-tools.md)
@@ -476,11 +560,6 @@ Named here rather than left to be rediscovered.
   serves the commands is mounted above the router and works everywhere; the
   indicator is not, and a window-level or tray-level signal is a separate piece
   of work.
-- **A plugin in its own process drives anonymously.** The paragraph above says
-  why: the issuer does not cross the plugin channel, so the chrome shows nothing
-  for a third-party plugin's browser command whoever asked for it. The same
-  plugin is also the one the access level does not charge, so this is one gap
-  seen from two sides rather than two.
 - **It says who, not what.** The name and the level, and nothing about the
   command — no URL, no selector, no list of what was read. A trace exists
   (`patcher browser trace-start`) and is not wired to this.
@@ -507,9 +586,20 @@ Named here rather than left to be rediscovered.
   level and its permissions when one is, changes nothing on a decline, enables
   `browser-tools` and does not disable it; and, through the real plugin CLI
   route, a browser command refused while off, allowed at `read`, **still refused
-  when the request carries only a thread header nobody verified**, and **not
-  refused at all when the plugin runs in its own process** — which is the
-  boundary above, pinned so it is a measured limit rather than a sentence.
+  when the request carries only a thread header nobody verified**, and — through
+  a plugin in a **real forked process** — refused there too, with the window
+  told `outside` for a terminal's call and the thread id for a turn's.
+- `apps/server/test/services/browser/browser-caller-handoff.test.ts` — both
+  scopes come back together or not at all, an id the host never minted finds
+  nothing, two callers of one plugin stay apart, and a settled call is forgotten.
+- `apps/server/test/services/plugins/plugin-channel.test.ts` — a frame sent while
+  serving names the *exact* call it came out of and two concurrent calls each
+  get their own id (not merely different ones — review caught that a swap would
+  have passed); a frame sent outside any call names none; an origin whose call
+  has settled, and one another channel minted, are both dropped; the record
+  exists before the frame leaves, observed from inside the port's `send`
+  because both ports defer delivery; and it is released on success, on failure,
+  and when the channel dies under it.
 - `packages/config/test/agent-access-key.test.ts` — a credential names one grant
   and verifies for no other, is not the app key and does not contain it, does not
   verify under another install's key, and — the attack the clear-text id invites —

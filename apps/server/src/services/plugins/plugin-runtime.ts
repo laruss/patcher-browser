@@ -28,6 +28,7 @@ import {
 import { linkCancellation } from "./plugin-cancellation.js";
 import { readPluginSettingsValues } from "./plugin-settings.js";
 import { pluginExternalsAlias } from "./plugin-externals-alias.js";
+import { rememberBrowserCaller } from "../browser/browser-caller-handoff.js";
 import { createPluginHostCallServer } from "./plugin-host-call-server.js";
 import { PluginRegistrationRefusedError } from "./plugin-registration-guard.js";
 import { createRemotePluginApiHandle } from "./plugin-remote-handle.js";
@@ -1815,6 +1816,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           if (capabilities === undefined) return;
           createPluginHostCallServer(capabilities).onNotify(notification);
         },
+        // The other half of the handoff: this runs on the caller's own async
+        // stack, where the two browser scopes still are, and the host call
+        // server above runs on a channel message, where they are not.
+        onOutboundRequest: rememberBrowserCaller,
       },
       onGaveUp: (plugins, problem) => {
         for (const plugin of plugins) {

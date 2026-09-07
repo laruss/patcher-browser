@@ -17,6 +17,8 @@ import {
   parseMessage,
   rebuildError,
   reduceError,
+  type PluginMessage,
+  type PluginRequestMessage,
 } from "../../../src/services/plugins/plugin-protocol.js";
 
 /**
@@ -46,6 +48,7 @@ function linkedPair(options: {
   onHostRequest?: PluginRequestHandler;
   onPluginRequest?: PluginRequestHandler;
   onHostNotify?: (n: { method: string; payload: unknown }) => void;
+  onHostOutbound?: (callId: string) => () => void;
 }): Pair {
   const [hostPort, pluginPort] = createLinkedPorts();
   const problems: string[] = [];
@@ -54,6 +57,9 @@ function linkedPair(options: {
     name: "server",
     ...(options.onHostRequest ? { onRequest: options.onHostRequest } : {}),
     ...(options.onHostNotify ? { onNotify: options.onHostNotify } : {}),
+    ...(options.onHostOutbound
+      ? { onOutboundRequest: options.onHostOutbound }
+      : {}),
     onProtocolError: (problem) => problems.push(problem),
   });
   const plugin = createPluginChannel({
@@ -541,5 +547,335 @@ describe("plugin channel: hygiene", () => {
     }
 
     expect(spy).toHaveBeenCalledTimes(5);
+  });
+});
+
+/**
+ * Which call a frame came out of.
+ *
+ * The one thing that crosses the boundary about *who* asked for something, and
+ * the reason it is the host's own call id rather than anything the plugin says
+ * about itself: the host records the caller under the id it minted, so a frame
+ * quoting one can only ever find what the host put there. See
+ * `browser-caller-handoff.ts`, which is the only reader of any of this.
+ */
+describe("plugin channel: which call a frame came out of", () => {
+  it("names the exact call the far side was serving", async () => {
+    // The pairing this whole mechanism is: the id the host minted for its own
+    // outbound call is the id that comes back on the frame the plugin sends
+    // while serving it. Anything looser — "some call", "the latest call" —
+    // would attribute a command to the wrong caller the first time a plugin
+    // served two at once.
+    const outbound: string[] = [];
+    const seen: (string | undefined)[] = [];
+    const pair = linkedPair({
+      onPluginRequest: async () => {
+        await pluginEnd.request({ method: "browser.<command>", payload: null });
+        return "served";
+      },
+      onHostRequest: ({ origin }) => {
+        seen.push(origin);
+        return "answered";
+      },
+      onHostOutbound: (callId) => {
+        outbound.push(callId);
+        return () => {};
+      },
+    });
+    const pluginEnd = pair.plugin;
+
+    await pair.host.request({ method: "cli", payload: null });
+
+    expect(outbound).toHaveLength(1);
+    expect(seen).toEqual([outbound[0]]);
+  });
+
+  it("keeps two calls apart", async () => {
+    // The case a "one call is in flight" flag gets wrong, and the reason this
+    // is on the wire at all: one plugin, two callers, at the same time.
+    //
+    // Each origin is checked against the id of *its own* call, not merely
+    // against the other one. Review caught the weaker version: asserting the
+    // two differ passes just as well when they are swapped, and a swap is the
+    // failure that charges one caller for the other's command.
+    const gate = deferred<void>();
+    const outbound: string[] = [];
+    const seen = new Map<string, string | undefined>();
+    const pair = linkedPair({
+      onPluginRequest: async ({ payload }) => {
+        if (payload === "first") await gate.promise;
+        await pluginEnd.request({ method: "browser.<command>", payload });
+        return "served";
+      },
+      onHostRequest: ({ origin, payload }) => {
+        seen.set(String(payload), origin);
+        return "answered";
+      },
+      // The hook runs synchronously inside `request`, so these arrive in the
+      // order the two calls below were made.
+      onHostOutbound: (callId) => {
+        outbound.push(callId);
+        return () => {};
+      },
+    });
+    const pluginEnd = pair.plugin;
+
+    const first = pair.host.request({ method: "cli", payload: "first" });
+    const second = pair.host.request({ method: "cli", payload: "second" });
+    await second;
+    gate.resolve();
+    await first;
+
+    expect(outbound).toHaveLength(2);
+    expect(seen.get("first")).toBe(outbound[0]);
+    expect(seen.get("second")).toBe(outbound[1]);
+  });
+
+  it("says nothing for a call that is nobody's", async () => {
+    // A background service, a schedule, a plugin's own start-up work: the
+    // plugin end is serving nothing, so there is no call to name and inventing
+    // one would attribute it to whatever ran last.
+    const seen: (string | undefined)[] = [];
+    const pair = linkedPair({
+      onHostRequest: ({ origin }) => {
+        seen.push(origin);
+        return "answered";
+      },
+    });
+
+    await pair.plugin.request({ method: "browser.<command>", payload: null });
+
+    expect(seen).toEqual([undefined]);
+  });
+
+  it("hands the sender the id, and takes it back when the call settles", async () => {
+    const held = new Set<string>();
+    const pair = linkedPair({
+      onPluginRequest: () => "served",
+      onHostOutbound: (callId) => {
+        held.add(callId);
+        return () => held.delete(callId);
+      },
+    });
+
+    const pending = pair.host.request({ method: "cli", payload: null });
+    expect(held.size).toBe(1);
+    await pending;
+
+    expect(held.size).toBe(0);
+  });
+
+  it("has the record before the frame leaves", async () => {
+    // Observed from inside `send`, which is the only place the ordering is
+    // visible: both ports in tree defer delivery, so asserting after the call
+    // returns passes whether the record was written before the frame or after
+    // it. Review caught exactly that. Nothing in the port contract promises
+    // the deferral, and this is what makes the code not rely on it.
+    const [hostPort, pluginPort] = createLinkedPorts();
+    const held = new Set<string>();
+    let heldWhenSent: number | null = null;
+    const send = hostPort.send.bind(hostPort);
+    hostPort.send = (message) => {
+      heldWhenSent ??= held.size;
+      send(message);
+    };
+    const host = createPluginChannel({
+      port: hostPort,
+      name: "server",
+      onOutboundRequest: (callId) => {
+        held.add(callId);
+        return () => held.delete(callId);
+      },
+    });
+    createPluginChannel({
+      port: pluginPort,
+      name: "plugin:probe",
+      onRequest: () => "served",
+    });
+
+    await host.request({ method: "cli", payload: null });
+
+    expect(heldWhenSent).toBe(1);
+  });
+
+  it("takes it back when the call fails, and when the channel goes", async () => {
+    const held = new Set<string>();
+    const remember = (callId: string) => {
+      held.add(callId);
+      return () => held.delete(callId);
+    };
+    const failing = linkedPair({
+      onPluginRequest: () => {
+        throw new Error("no");
+      },
+      onHostOutbound: remember,
+    });
+
+    await expect(
+      failing.host.request({ method: "cli", payload: null }),
+    ).rejects.toThrow("no");
+    expect(held.size).toBe(0);
+
+    const dying = linkedPair({
+      onPluginRequest: () => new Promise(() => {}),
+      onHostOutbound: remember,
+    });
+    const stranded = dying.host.request({ method: "cli", payload: null });
+    expect(held.size).toBe(1);
+    dying.plugin.close("the plugin process died");
+
+    await expect(stranded).rejects.toBeInstanceOf(PluginChannelClosedError);
+    // A plugin process that dies mid-call must not leave the host holding a
+    // record of who its caller was, forever.
+    expect(held.size).toBe(0);
+  });
+
+  /**
+   * A channel whose far side is driven by hand, so a frame can name whatever
+   * an adversarial plugin would name.
+   */
+  function handDriven(onHostRequest: PluginRequestHandler) {
+    const [hostPort, farPort] = createLinkedPorts();
+    const outbound: string[] = [];
+    const host = createPluginChannel({
+      port: hostPort,
+      name: "server",
+      onRequest: onHostRequest,
+      onOutboundRequest: (callId) => {
+        outbound.push(callId);
+        return () => {};
+      },
+    });
+    return { host, farPort, outbound };
+  }
+
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("drops an origin whose call has already settled", async () => {
+    // The far side chose the value, so it is held to something: only a call
+    // this channel has open right now is passed on. Otherwise a plugin could
+    // keep quoting a caller long after that caller's command was answered —
+    // and the plugin decides when to answer.
+    const seen: (string | undefined)[] = [];
+    const one = handDriven(({ origin }) => {
+      seen.push(origin);
+      return "answered";
+    });
+    const call = one.host.request({ method: "cli", payload: null });
+    const settled = one.outbound[0] ?? "";
+    one.farPort.send({ kind: "result", callId: settled, value: "served" });
+    await call;
+
+    one.farPort.send({
+      kind: "request",
+      callId: "far:1",
+      method: "browser.<command>",
+      origin: settled,
+      payload: null,
+    });
+    await tick();
+
+    expect(seen).toEqual([undefined]);
+    one.host.close("done");
+  });
+
+  it("drops an origin another channel minted", async () => {
+    // What the security review asked about: the registry the host looks these
+    // up in is one map shared by every plugin, so the thing that keeps one
+    // plugin out of another's record has to be here.
+    //
+    // What this closes is *cross-channel* matching, and that is the whole
+    // claim — the second round caught a wider one. Two plugins in one process
+    // (`SHARED_PLACEMENT`) can write frames on each other's channel keys, so a
+    // check on the receiving channel cannot separate them; `plugin-supervisor.ts`
+    // says why in as many words, which is why one process per plugin is the
+    // default rather than a preference.
+    const seen: (string | undefined)[] = [];
+    const mine = handDriven(() => "answered");
+    const other = handDriven(({ origin }) => {
+      seen.push(origin);
+      return "answered";
+    });
+    // Never answered, so the id stays in flight on the channel that minted it.
+    const stays = mine.host.request({ method: "cli", payload: null });
+    const live = mine.outbound[0] ?? "";
+
+    other.farPort.send({
+      kind: "request",
+      callId: "far:1",
+      method: "browser.<command>",
+      origin: live,
+      payload: null,
+    });
+    await tick();
+
+    expect(seen).toEqual([undefined]);
+    // Held rather than dropped: closing rejects it, and a rejection nobody
+    // observes is an unhandled error Vitest counts against the whole file —
+    // which is what the second review round found here.
+    mine.host.close("done");
+    await expect(stays).rejects.toBeInstanceOf(PluginChannelClosedError);
+    other.host.close("done");
+  });
+
+  it("keeps the id on work the handler started before returning", async () => {
+    // How far the stamp reaches, which the second review round corrected the
+    // docs about: Node binds the store to async work created *inside* `run`, so
+    // a promise the command started still names the call after the command has
+    // returned. Read off the raw frame rather than through the host, because
+    // whether the host still has that call in flight by then is a race and the
+    // stamp is not.
+    const [pluginPort, hostPort] = createLinkedPorts();
+    const sent: PluginMessage[] = [];
+    const record = pluginPort.send.bind(pluginPort);
+    pluginPort.send = (message) => {
+      sent.push(message);
+      record(message);
+    };
+    const plugin: PluginChannel = createPluginChannel({
+      port: pluginPort,
+      name: "plugin:probe",
+      onRequest: () => {
+        queueMicrotask(() => {
+          void plugin
+            .request({ method: "browser.<command>", payload: null })
+            .catch(() => undefined);
+        });
+        return "served";
+      },
+    });
+    createPluginChannel({
+      port: hostPort,
+      name: "server",
+      onRequest: () => "answered",
+    });
+
+    hostPort.send({
+      kind: "request",
+      callId: "server:epoch:1",
+      method: "cli",
+      payload: null,
+    });
+    await tick();
+
+    const deferred = sent.find(
+      (message) =>
+        message.kind === "request" && message.method === "browser.<command>",
+    ) as PluginRequestMessage | undefined;
+    expect(deferred).toBeDefined();
+    expect(deferred?.origin).toBe("server:epoch:1");
+    plugin.close("done");
+  });
+
+  it("refuses a frame whose origin is not a string", () => {
+    expect(
+      parseMessage({
+        kind: "request",
+        callId: "c1",
+        method: "browser.<command>",
+        origin: 7,
+        payload: null,
+      }),
+    ).toBeNull();
   });
 });

@@ -122,12 +122,11 @@ export async function invokePluginAgentTool(
   // surface, because this module cannot tell which tools drive the browser and
   // should not have to.
   //
-  // What this reaches is a tool running **in this process** — every built-in
-  // plugin, which is all of `patcher browser`. A plugin running in its own
-  // process comes back to the host on a channel message, in a fresh async
-  // context, so its browser commands arrive unattributed however they were
-  // started. Same boundary as the access scope next door, and named in
-  // `browserCommandIssuerSchema`'s docstring rather than left to be found.
+  // A tool running in this process is wrapped directly; one running in the
+  // plugin's own process comes back to the host on a channel message, in a
+  // fresh async context — and is attributed there instead, by the id the host
+  // minted for this very call (`browser-caller-handoff.ts`). Either way the
+  // thread's name reaches the window.
   return runAsBrowserCommandIssuer(
     { kind: "thread", threadId: args.ctx.threadId },
     () =>

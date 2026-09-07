@@ -37,6 +37,7 @@ import {
   normalizePluginInteractionRequest,
   type createPluginApi,
 } from "./plugin-api.js";
+import { runAsRememberedBrowserCaller } from "../browser/browser-caller-handoff.js";
 import type { PluginHostCallPath } from "./plugin-host-calls.js";
 import { createPluginPermissionGate } from "./plugin-permission-gate.js";
 
@@ -178,11 +179,13 @@ export function createPluginHostCallServer(
     }
   };
 
-  const onRequest: PluginRequestHandler = async ({
+  const serveRequest = async ({
     method,
     payload,
     signal,
-  }) => {
+  }: Omit<Parameters<PluginRequestHandler>[0], "origin">): Promise<
+    JsonValue | undefined
+  > => {
     const path = method as PluginHostCallPath;
     const args = body(payload);
     if (ONE_WAY.has(path)) {
@@ -253,6 +256,18 @@ export function createPluginHostCallServer(
         throw new Error(`unknown plugin host call "${String(path)}"`);
     }
   };
+
+  /**
+   * Everything a plugin asks of the host, as whoever set the plugin going.
+   *
+   * Around the whole dispatch rather than around the browser command alone,
+   * because the fact being restored is not "this is a browser call" — it is
+   * "this work is part of that request", which is true of every path here and
+   * will stay true of the next one. `origin` came off a frame and is only ever
+   * a lookup key; see `browser-caller-handoff.ts`.
+   */
+  const onRequest: PluginRequestHandler = ({ origin, ...request }) =>
+    runAsRememberedBrowserCaller(origin, () => serveRequest(request));
 
   return { onRequest, onNotify };
 }

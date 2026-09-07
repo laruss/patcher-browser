@@ -27,13 +27,15 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
  * without a runtime narrowing that could only ever be dead code.
  *
  * **What has no issuer.** The app's own browsing, a page script, a toolbar
- * item's handler: nothing a person did not ask another agent for. That is the
- * common case and it must stay silent — an indicator that is on all the time
- * says nothing. **And a plugin running in its own process**, whatever started
- * it: the host serves its browser call on a channel message, in a fresh async
- * context this store does not reach. That is the same boundary the access scope
- * has, and it is named in the wire schema's docstring so the field's absence is
- * not read as "the app did it".
+ * item's handler, a plugin's own schedule or background service: nothing a
+ * person did not ask another agent for. That is the common case and it must
+ * stay silent — an indicator that is on all the time says nothing.
+ *
+ * A plugin running in its **own process** used to be on that list, and is not:
+ * the host serves its browser call on a channel message, in a fresh async
+ * context this store does not reach, and `browser-caller-handoff.ts` carries
+ * the caller across by the id the host minted for its own outbound call. Same
+ * boundary the access scope has, same crossing.
  *
  * **One hazard worth naming, since it is not reachable today.** Node binds a
  * store to handles created inside `run()`. If a plugin process were ever forked

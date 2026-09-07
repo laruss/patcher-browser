@@ -73,8 +73,8 @@ describe("the browser trace registry", () => {
   it("treats commands nobody is named on as one caller", () => {
     const traces = createBrowserTraceRegistry();
 
-    // The app's own work and a plugin in its own process arrive the same way,
-    // which is the same "they are one caller" said elsewhere about them.
+    // The app's own work and a plugin's own background work arrive the same
+    // way, which is the same "they are one caller" said elsewhere about them.
     expect(traces.for(undefined)).toBe(traces.for(undefined));
     expect(traces.for(undefined)).not.toBe(traces.for(GRANT));
   });

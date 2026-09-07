@@ -10,6 +10,29 @@ import {
   PLUGIN_HOST_CALLS,
   type PluginHostCallPath,
 } from "../../../src/services/plugins/plugin-host-calls.js";
+import type { BrowserCommandIssuer } from "@patcher/server-contract";
+import { rememberBrowserCaller } from "../../../src/services/browser/browser-caller-handoff.js";
+import {
+  currentBrowserCommandIssuer,
+  runAsBrowserCommandIssuer,
+} from "../../../src/services/browser/browser-command-issuer.js";
+import {
+  currentExternalBrowserCaller,
+  runAsExternalBrowserCaller,
+  type BrowserExternalCallerScope,
+} from "../../../src/services/browser/browser-external-access.js";
+
+const GRANT: BrowserCommandIssuer = {
+  kind: "grant",
+  grantId: "grant_1",
+  label: "Claude Code",
+  level: "read",
+};
+const SCOPE: BrowserExternalCallerScope = {
+  level: "read",
+  pluginId: "probe",
+  grant: { id: "grant_1", label: "Claude Code" },
+};
 
 /**
  * The host end of what a plugin asks for. Its job is to be indistinguishable
@@ -330,5 +353,96 @@ describe("the declared permission set is enforced on this side", () => {
     ).rejects.toThrow(/timeoutMs must be between 1 and 3600000/);
 
     expect(spies.requestInteraction).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Whose call this is, on the far side of the pipe.
+ *
+ * The host serves a plugin's browser command on a channel message, in an async
+ * context that has nothing of the request that set the plugin going. These are
+ * about that context being put back — and about the one thing that keeps it
+ * honest, which is that `origin` can only ever name a call the host itself
+ * recorded.
+ */
+describe("the caller a plugin's call belongs to", () => {
+  /** What the two ambient scopes say at the moment the command is sent. */
+  function watchingCaller() {
+    const seen: {
+      scope?: BrowserExternalCallerScope | undefined;
+      issuer?: BrowserCommandIssuer | undefined;
+    } = {};
+    const built = capabilities();
+    built.spies.requestBrowserCommand.mockImplementation(async () => {
+      seen.scope = currentExternalBrowserCaller();
+      seen.issuer = currentBrowserCommandIssuer();
+      return { tabs: [] };
+    });
+    return { ...built, seen };
+  }
+
+  const listTabs = { command: { type: "tabs.list" } };
+
+  it("charges and names it as the call the host made", async () => {
+    const { server, seen } = watchingCaller();
+    const release = runAsExternalBrowserCaller(SCOPE, () =>
+      runAsBrowserCommandIssuer(GRANT, () =>
+        rememberBrowserCaller("host-call-1"),
+      ),
+    );
+
+    await server.onRequest({
+      method: "browser.<command>",
+      origin: "host-call-1",
+      payload: listTabs,
+      signal: NO_SIGNAL,
+    });
+
+    expect(seen).toEqual({ scope: SCOPE, issuer: GRANT });
+    release();
+  });
+
+  it("leaves it unattributed when nothing minted that id", async () => {
+    // Which is exactly what an out-of-process plugin got before any of this,
+    // so an older plugin host, a frame with no origin, and a plugin quoting
+    // something it made up all degrade to the same known behaviour.
+    const { server, seen } = watchingCaller();
+    const release = runAsExternalBrowserCaller(SCOPE, () =>
+      rememberBrowserCaller("host-call-2"),
+    );
+
+    await server.onRequest({
+      method: "browser.<command>",
+      origin: "not-a-call-the-host-made",
+      payload: listTabs,
+      signal: NO_SIGNAL,
+    });
+
+    expect(seen).toEqual({ scope: undefined, issuer: undefined });
+    release();
+  });
+
+  it("does not leak the caller into the next call on the same server", async () => {
+    const { server, seen } = watchingCaller();
+    const release = runAsExternalBrowserCaller(SCOPE, () =>
+      rememberBrowserCaller("host-call-3"),
+    );
+    await server.onRequest({
+      method: "browser.<command>",
+      origin: "host-call-3",
+      payload: listTabs,
+      signal: NO_SIGNAL,
+    });
+    expect(seen.scope).toEqual(SCOPE);
+
+    // The plugin's own background work, arriving next on the same channel.
+    await server.onRequest({
+      method: "browser.<command>",
+      payload: listTabs,
+      signal: NO_SIGNAL,
+    });
+
+    expect(seen.scope).toBeUndefined();
+    release();
   });
 });

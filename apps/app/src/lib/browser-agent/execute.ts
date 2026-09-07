@@ -131,9 +131,9 @@ export interface BrowserCommandDeps {
   }) => Promise<string | null>;
   /**
    * Who asked for this command, when the server could say — the same value the
-   * chrome's indicator draws. Absent for the app's own work, and for a plugin
-   * running in its own process, which is a known gap rather than a decision
-   * (docs/TODO.md).
+   * chrome's indicator draws. Absent for the app's own work, and for the work a
+   * plugin does by itself — a schedule, a background service, a page script —
+   * which is nobody asking rather than a gap.
    *
    * What it decides here is which tab an unqualified command lands on and
    * whether a named tab is this caller's to touch; the rules are in

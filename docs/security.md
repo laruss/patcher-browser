@@ -1412,24 +1412,30 @@ only the app key is called just that and pointed at the setting, since nothing
 narrower exists for it; a turn inside Patcher is shown as "an agent in Patcher"
 and left to its own thread, which is where it is stopped.
 `patcher browser status` answers the same question from the other side, so an
-agent can be told what it may do instead of finding out by being refused. Three
+agent can be told what it may do instead of finding out by being refused. Two
 things that does not do: the indicator is a row of the browser chrome, so it is
-not on screen while you are reading a thread elsewhere in the app; it says who is
-driving rather than what they are doing; and it stays silent for a plugin you
-installed, which runs in its own process and is charged its own permissions —
-the same gap the level has.
+not on screen while you are reading a thread elsewhere in the app; and it says
+who is driving rather than what they are doing.
 
 A grant is deliberately **not** bounded by the level above, and the reverse of a
 ceiling is the point: a ceiling would mean opening the browser to every process
 on the machine before you could open it to one named agent. Leave the level `off`
 and issue a grant.
 
-What neither closes: both are charged on commands Patcher itself issues, which
-covers `patcher browser` and every built-in plugin, but **not a plugin you
-installed** — those run in their own process and are charged the permissions they
-declared, so a third-party plugin with browser permissions and a command of its
-own is a second door. And a process that reads the app key off your disk is the
-app, with or without either of these. See
+Both are charged on commands issued on the caller's own stack — `patcher browser`
+and every built-in plugin — **and on an installed plugin's, which runs in its own
+process and gets the caller back off the channel frame**, so a third-party plugin
+with browser permissions and a command of its own is not a way round either. What
+they are not charged on is the work a plugin does by itself: a schedule, a
+background service, an HTTP route the app called, all charged the permissions the
+plugin declared — and, for the same reason, a plugin's browser call made from
+something ticking on its own, a timer or a queue pump it started outside the
+command it was asked to run.
+What neither closes: a process that reads the app key off your disk is the app,
+with or without either of these; and a plugin can quote any of the correlation
+ids the server currently has open for it, and decides when to answer — which is
+a plugin lying about its own invocations, from a process that already has
+`child_process`. See
 [browser-external-access.md](architecture/browser-external-access.md).
 
 Popups are real windows for the browser surface's tabs, which is what makes

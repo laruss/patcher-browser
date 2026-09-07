@@ -25,6 +25,8 @@ import {
   withTestHarness,
   type TestAppHarness,
 } from "../helpers/test-app.js";
+import { createMockHubSocket } from "../helpers/mock-hub-socket.js";
+import type { BrowserCommandRequestSignal } from "@patcher/server-contract";
 
 /**
  * The two halves of letting an agent outside Patcher drive the browser: the
@@ -307,7 +309,7 @@ const BROWSER_CALLER_SOURCE = `
       async run() {
         try {
           await patcher.browser.tabs.list();
-          return { exitCode: 0, stdout: "listed" };
+          return { exitCode: 0, stdout: JSON.stringify({ listed: true }) };
         } catch (error: any) {
           return {
             exitCode: 1,
@@ -360,10 +362,47 @@ function turnHeaders(threadId: string): Record<string, string> {
   };
 }
 
+/**
+ * A window that answers, so a command can be followed past the gate.
+ *
+ * Every other case here stops at `BrowserHostUnavailableError`, which is the
+ * right assertion for "did it get dispatched" and no use at all for "what was
+ * it dispatched *as*". The issuer is the second half of what crosses the plugin
+ * boundary and it only exists on the message the window is sent.
+ */
+function answeringBrowserWindow(
+  harness: TestAppHarness,
+): BrowserCommandRequestSignal[] {
+  const requests: BrowserCommandRequestSignal[] = [];
+  const socket = createMockHubSocket();
+  const record = socket.send.bind(socket);
+  socket.send = (data: string) => {
+    record(data);
+    const message = JSON.parse(data) as BrowserCommandRequestSignal;
+    if (message.type !== "browser-command-request") return;
+    requests.push(message);
+    // On a later tick: the hub is inside its own send, and answering from
+    // under it would settle a request it has not finished registering.
+    setTimeout(() => {
+      harness.hub.recordBrowserCommandResponse({
+        socket,
+        message: {
+          type: "browser-command.response",
+          requestId: message.requestId,
+          outcome: { ok: true, value: { type: "tabs", tabs: [] } },
+        },
+      });
+    }, 0);
+  };
+  harness.hub.registerClient(socket);
+  harness.hub.registerBrowserHost(socket, { browserHostId: "window-test" });
+  return requests;
+}
+
 async function runProbe(
   harness: TestAppHarness,
   headers: Record<string, string> = {},
-): Promise<{ name?: string; code?: string }> {
+): Promise<{ name?: string; code?: string; listed?: boolean }> {
   const response = await harness.app.request(
     `${BASE}/api/v1/plugins/probe/cli`,
     {
@@ -374,7 +413,11 @@ async function runProbe(
   );
   expect(response.status).toBe(200);
   const result = (await response.json()) as { stdout: string };
-  return JSON.parse(result.stdout) as { name?: string; code?: string };
+  return JSON.parse(result.stdout) as {
+    name?: string;
+    code?: string;
+    listed?: boolean;
+  };
 }
 
 describe("a `patcher <plugin>` command from outside a turn", () => {
@@ -445,17 +488,19 @@ describe("a `patcher <plugin>` command from outside a turn", () => {
     });
   });
 
-  it("does not reach a plugin running in its own process", async () => {
-    // Measured rather than asserted, because the architecture document makes
-    // this exact claim and a claim about async context is the kind that is
-    // wrong in a way nothing notices. The scope is established on the request
-    // and the host charges an out-of-process plugin's browser call on a
-    // *channel message*, which is a fresh async context — so the level does not
-    // reach it and it is charged what it declared, as before.
+  it("reaches a plugin running in its own process", async () => {
+    // Measured rather than asserted, because a claim about async context is
+    // the kind that is wrong in a way nothing notices — and because until the
+    // caller crossed the channel this test asserted the opposite. The scope is
+    // established on the request; the host serves this plugin's browser call
+    // on a channel message, in a fresh async context, and out of a *real
+    // forked process* (the harness overrides no spawn). What puts the caller
+    // back is the id the host minted for its own outbound call, quoted back on
+    // the frame — see `browser-caller-handoff.ts`.
     //
-    // The tell is the failure it gets instead: `BrowserHostUnavailableError`
-    // from the hub means the command was dispatched, which is exactly what the
-    // in-process probe above is refused before doing.
+    // A third-party plugin with browser permissions and a CLI command of its
+    // own was the last way a terminal outside Patcher reached the browser
+    // uncharged. This is that door.
     await withTestHarness(
       { runPluginOutOfProcess: () => true },
       async (harness) => {
@@ -464,8 +509,57 @@ describe("a `patcher <plugin>` command from outside a turn", () => {
           "off",
         );
 
-        expect(await runProbe(harness)).toMatchObject({
-          name: "BrowserHostUnavailableError",
+        expect(await runProbe(harness)).toEqual({
+          name: "BrowserCommandError",
+          code: "external_access_denied",
+        });
+      },
+    );
+  });
+
+  it("tells the window who such a plugin is driving it for", async () => {
+    // The other half, and the half with no refusal in it: a command that is
+    // allowed still has to arrive somewhere a person can see it. Before this,
+    // an out-of-process plugin's command reached the window with no issuer at
+    // all — which the app reads as "the person did it themselves", the one
+    // reading that must never be wrong.
+    await withTestHarness(
+      { runPluginOutOfProcess: () => true },
+      async (harness) => {
+        await installBrowserProbe(harness);
+        await setLevel(harness, "read");
+        const requests = answeringBrowserWindow(harness);
+
+        expect(await runProbe(harness)).toEqual({ listed: true });
+
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.issuer).toEqual({ kind: "outside" });
+      },
+    );
+  });
+
+  it("names a turn's own call into one, and charges it nothing", async () => {
+    // Both facts in one case because they are one fact seen twice: the caller
+    // that crossed carries a name *and* a level, and a turn has the first and
+    // not the second. The level here is `off`, so anything charged would be
+    // refused — and the window is still told which thread is driving.
+    await withTestHarness(
+      { runPluginOutOfProcess: () => true },
+      async (harness) => {
+        await installBrowserProbe(harness);
+        const thread = seedConsentThread(harness.deps, "remote-turn", "active");
+        const requests = answeringBrowserWindow(harness);
+        expect(getAppSettings(harness.deps.db).browserExternalAccess).toBe(
+          "off",
+        );
+
+        expect(await runProbe(harness, turnHeaders(thread.id))).toEqual({
+          listed: true,
+        });
+
+        expect(requests[0]?.issuer).toEqual({
+          kind: "thread",
+          threadId: thread.id,
         });
       },
     );
