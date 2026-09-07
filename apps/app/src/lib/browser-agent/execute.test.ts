@@ -2320,3 +2320,107 @@ describe("executeBrowserCommand opening a background tab", () => {
     ).toContain("https://example.com");
   });
 });
+
+/**
+ * The shell's stall refusal, all the way to the outcome.
+ *
+ * `page-stalled` exists because the sentence is the whole answer: it names what
+ * the tab stopped answering and, when the shell can see one, the dialog holding
+ * the page — which is the one thing a caller can act on. Mapped to `failed`, as
+ * it was before this code existed, every one of those words is replaced by "the
+ * page could not be inspected". So the assertion here is the message, not the
+ * code: a mapping that kept the code and dropped the message would be the same
+ * bug wearing the fix's name.
+ */
+describe("executeBrowserCommand — a tab that stopped answering", () => {
+  const STALL =
+    "The browser tab stopped answering `Input.dispatchMouseEvent`, so Patcher " +
+    "stopped waiting for it. A JavaScript dialog is open on that tab and blocks " +
+    "the page until it is answered — answer or dismiss it, then look at the page.";
+
+  const CLICK = {
+    action: "click" as const,
+    ref: "e1",
+    button: "left" as const,
+    clickCount: 1 as const,
+    modifiers: [],
+  };
+
+  it("carries the shell's own sentence out of an interaction", async () => {
+    const harness = createHarness({
+      state: { tabs: [tab("t")], activeTabId: "t" },
+      live: { t: liveState("t") },
+      interact: { ok: false, reason: "page-stalled", message: STALL },
+    });
+
+    await expect(
+      executeBrowserCommand(
+        {
+          type: "page.interact",
+          tabId: null,
+          generation: null,
+          interaction: CLICK,
+        },
+        harness.deps,
+      ),
+    ).resolves.toEqual({ ok: false, code: "page_stalled", message: STALL });
+  });
+
+  it("carries it out of a snapshot", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a")] },
+      snapshot: { ok: false, reason: "page-stalled", message: STALL },
+    });
+
+    await expect(
+      executeBrowserCommand(
+        { type: "page.snapshot", tabId: null, maxDepth: null, selector: null },
+        harness.deps,
+      ),
+    ).resolves.toEqual({ ok: false, code: "page_stalled", message: STALL });
+  });
+
+  it("carries it out of an evaluation", async () => {
+    const harness = createHarness({
+      state: { tabs: [tab("t")], activeTabId: "t" },
+      live: { t: liveState("t") },
+      control: { ok: false, reason: "page-stalled", message: STALL },
+    });
+
+    await expect(
+      executeBrowserCommand(
+        {
+          type: "page.control",
+          tabId: null,
+          generation: null,
+          operation: { kind: "evaluate", expression: "() => 1", ref: null },
+        },
+        harness.deps,
+      ),
+    ).resolves.toEqual({ ok: false, code: "page_stalled", message: STALL });
+  });
+
+  it("still has something to say when the shell sent no message", async () => {
+    // An older shell cannot produce this reason at all, but a newer one with a
+    // message it could not fit is not impossible, and a refusal whose message
+    // is `undefined` reads as a malfunction.
+    const harness = createHarness({
+      state: { tabs: [tab("t")], activeTabId: "t" },
+      live: { t: liveState("t") },
+      interact: { ok: false, reason: "page-stalled" },
+    });
+
+    const outcome = await executeBrowserCommand(
+      {
+        type: "page.interact",
+        tabId: null,
+        generation: null,
+        interaction: CLICK,
+      },
+      harness.deps,
+    );
+
+    expect(outcome).toMatchObject({ ok: false, code: "page_stalled" });
+    expect(outcome.ok ? "" : outcome.message).toContain("stopped answering");
+  });
+});

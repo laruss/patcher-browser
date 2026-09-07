@@ -2123,6 +2123,18 @@ export type PluginBrowserErrorCode =
   | "unsupported_command"
   | "blocked_url"
   | "page_read_timeout"
+  /**
+   * The tab stopped answering the browser debugger and the shell stopped
+   * waiting for it.
+   *
+   * The one code here that promises nothing about whether the command took
+   * effect: it can arrive after an input event has already gone into the page.
+   * So look at the page rather than retrying. The usual cause is a JavaScript
+   * dialog nobody has answered — it blocks the renderer — and the message says
+   * so when the shell can see one, in which case `patcher browser dialog` is
+   * the way out.
+   */
+  | "page_stalled"
   | "page_read_failed"
   | "debugger_unavailable"
   | "stale_refs"

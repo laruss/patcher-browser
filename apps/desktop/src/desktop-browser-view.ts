@@ -128,6 +128,14 @@ import {
 } from "./desktop-browser-download.js";
 import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
 import {
+  cdpBudget,
+  cdpSessionWithDeadline,
+  CdpStalledError,
+  PATCHER_DESKTOP_BROWSER_EVAL_TIMEOUT_MS,
+  PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+  PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS,
+} from "./desktop-browser-cdp-deadline.js";
+import {
   dispatchMouse,
   performInteraction,
   MOUSE_BUTTON_MASK,
@@ -1165,21 +1173,41 @@ function lookupSnapshotNode(
   return backendNodeId;
 }
 
-/** Resolve a ref into an object the interaction scripts can be called on. */
+/**
+ * Resolve a ref into an object the interaction scripts can be called on.
+ *
+ * Both round trips are raced against the interaction's own clock rather than
+ * left to the page: creating the isolated world and resolving the node are
+ * renderer work, so a tab already blocked on a `confirm()` answers neither, and
+ * before this the action simply waited. Both are side-effect free, which is
+ * what makes the deadline's own refusal — nothing was sent to the page — the
+ * true one here.
+ */
 async function resolveInteractionTarget(
   session: CdpSession,
   entry: BrowserViewEntry,
   ref: string,
   generation: number | undefined,
+  deadline: InteractionDeadline,
 ): Promise<InteractionTarget> {
   const backendNodeId = lookupSnapshotNode(entry, ref, generation);
-  const worldId = await ensureAutomationWorld(session, entry);
-  const resolved = await session
-    .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
-      backendNodeId,
-      executionContextId: worldId,
-    })
-    .catch(() => null);
+  const worldId = await deadline.race(
+    ensureAutomationWorld(session, entry),
+    "while preparing the page for the action",
+  );
+  // The `catch` is inside the race, not around it: a send that fails means the
+  // node is gone and `unknown-ref` below is the answer, while a race that
+  // expires has to come out as the deadline's own refusal rather than as a
+  // claim about the element.
+  const resolved = await deadline.race(
+    session
+      .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
+        backendNodeId,
+        executionContextId: worldId,
+      })
+      .catch(() => null),
+    "while looking the element up",
+  );
   const objectId = resolved?.object?.objectId;
   if (typeof objectId !== "string") {
     throw new InteractionRefusal(
@@ -1325,12 +1353,21 @@ function entryRoutes(
  * cannot be reached through the way we sent it.
  */
 async function evaluateInPage(
-  session: CdpSession,
+  rawSession: CdpSession,
   entry: BrowserViewEntry,
   expression: string,
   ref: string | null,
   generation: number | undefined,
 ): Promise<{ value: string; truncated: boolean }> {
+  // Its own clock, and the most generous of them, because the call below is
+  // sent with `awaitPromise`: the thing being waited for is the caller's own
+  // code, so an expression that awaits a `fetch` is legitimately slow. What
+  // this ends is the expression that never settles at all, which used to hold
+  // the tab's queue for as long as the tab lived.
+  const session = cdpSessionWithDeadline(rawSession, {
+    remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_EVAL_TIMEOUT_MS),
+    dialogOpen: () => entry.pendingDialog !== null,
+  });
   let objectId: string;
   let callArguments: { objectId: string }[] = [];
   if (ref === null) {
@@ -1403,11 +1440,21 @@ async function evaluateInPage(
  * anything is.
  */
 async function performControl(
-  session: CdpSession,
+  rawSession: CdpSession,
   entry: BrowserViewEntry,
   tabId: string,
   request: PatcherDesktopBrowserControlRequest,
 ): Promise<PatcherDesktopBrowserControlResult> {
+  // Vision mode's mouse events are the same sends the interaction path makes,
+  // and hang for the same reason: a click at a coordinate that opens a
+  // `confirm()` is never acknowledged. Per send rather than one budget for the
+  // command, because `control` is a single operation and a caller pipelining
+  // them gets each bounded on its own. The evaluation is the exception below —
+  // it takes the unbounded session and puts its own, far longer, clock on it.
+  const session = cdpSessionWithDeadline(rawSession, {
+    remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+    dialogOpen: () => entry.pendingDialog !== null,
+  });
   const operation = request.operation;
   const acted = (): PatcherDesktopBrowserControlResult => ({
     ok: true,
@@ -1455,7 +1502,7 @@ async function performControl(
         await session.enableDomain("DOM");
       }
       const evaluated = await evaluateInPage(
-        session,
+        rawSession,
         entry,
         operation.expression,
         operation.ref,
@@ -4174,6 +4221,18 @@ export function createDesktopBrowserViewManager(
       };
     }
 
+    // From here on the session has a clock: everything below is a renderer
+    // round trip, and a tab that has stopped answering — blocked on a dialog an
+    // earlier command left open, a busy-looping main thread — would otherwise
+    // leave this command pending until the tab went, holding that tab's queue
+    // with it. One budget for the whole snapshot rather than one per send,
+    // because it is one answer the caller waits on once and nothing is left
+    // behind by abandoning it.
+    session = cdpSessionWithDeadline(session, {
+      remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS),
+      dialogOpen: () => entry.pendingDialog !== null,
+    });
+
     try {
       // Any automation on this tab means the shell owns its dialogs from now
       // on — otherwise the first `confirm()` would block the page with nothing
@@ -4236,6 +4295,13 @@ export function createDesktopBrowserViewManager(
     } catch (error) {
       if (error instanceof SnapshotRefusal) {
         return { ok: false, reason: error.reason, message: error.message };
+      }
+      // Its own reason rather than `failed`, because `failed` is where a
+      // message goes to die: the app turns it into "the page could not be
+      // inspected" and the sentence saying a dialog is holding the tab — the
+      // one thing the caller can act on — never reaches them.
+      if (error instanceof CdpStalledError) {
+        return { ok: false, reason: "page-stalled", message: error.message };
       }
       return {
         ok: false,
@@ -4839,23 +4905,42 @@ export function createDesktopBrowserViewManager(
         // Same reason as in `snapshot`: from the moment we drive this tab, its
         // dialogs are ours to answer. A click that opens a `confirm()` would
         // otherwise block the page with nothing able to respond.
-        await ensureDialogInterception(
-          hostWindow,
-          request.tabId,
-          entry,
-          session,
+        //
+        // Raced, like the two round trips in `resolveInteractionTarget`:
+        // enabling a domain is a send like any other, and a tab already
+        // blocked on a dialog from an earlier command answers neither of
+        // these. Nothing here touches the page, so running out of time means
+        // nothing was sent — which is what the deadline's refusal says.
+        await deadline.race(
+          ensureDialogInterception(hostWindow, request.tabId, entry, session),
+          "while taking over the tab's dialogs",
         );
-        await session.enableDomain("DOM");
-        await performInteraction(
+        await deadline.race(
+          session.enableDomain("DOM"),
+          "while preparing to inspect the page",
+        );
+        await performInteraction({
           session,
-          (ref) =>
-            resolveInteractionTarget(session, entry, ref, request.generation),
+          resolveTarget: (ref) =>
+            resolveInteractionTarget(
+              session,
+              entry,
+              ref,
+              request.generation,
+              deadline,
+            ),
           request,
           deadline,
-        );
+          dialogOpen: () => entry.pendingDialog !== null,
+        });
       } catch (error) {
         if (error instanceof InteractionRefusal) {
           return { ok: false, reason: error.reason, message: error.message };
+        }
+        // Kept apart from every refusal above it: those all mean nothing was
+        // sent to the page, and this one cannot promise that.
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
         }
         return {
           ok: false,
@@ -4988,6 +5073,9 @@ export function createDesktopBrowserViewManager(
       } catch (error) {
         if (error instanceof ControlRefusal) {
           return { ok: false, reason: error.reason, message: error.message };
+        }
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
         }
         if (error instanceof InteractionRefusal) {
           return {

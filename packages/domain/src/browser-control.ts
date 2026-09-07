@@ -915,6 +915,18 @@ export const browserCommandErrorCodeSchema = z.enum([
   "blocked_url",
   /** The page did not answer in time. */
   "page_read_timeout",
+  /**
+   * The tab stopped answering the browser debugger, and the shell gave up
+   * waiting rather than holding the command open.
+   *
+   * Distinct from `page_read_timeout` in what it does *not* promise: a read
+   * that timed out changed nothing, while this can arrive after an input event
+   * has already gone into the page — so the message says to look at the page
+   * rather than to retry. The usual cause is a JavaScript dialog the page
+   * opened and nobody has answered, which blocks the renderer, and when the
+   * shell can see one the message names it.
+   */
+  "page_stalled",
   /** The page answered with something unusable. */
   "page_read_failed",
   /** The browser debugger could not be attached — DevTools holds the tab. */
