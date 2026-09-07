@@ -186,9 +186,11 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   entered around the plugin's handler. That reaches further than the handler
   itself — Node binds the store to async work created inside it, so a promise
   the command started still carries the id after the command returned — but it
-  does not reach a chain that began somewhere else: a queue or a worker the
-  plugin built in its factory, a timer started at bootstrap. A browser call
-  from one of those carries no origin, so it is uncharged by the install-wide
+  does not reach work whose *invoking* resource was created somewhere else: a
+  `setInterval` started in the factory, a queue pump ticking on its own. Where
+  the code was written decides nothing — a job the handler schedules is on the
+  stack however its queue was built — and a browser call from something outside
+  that chain carries no origin, so it is uncharged by the install-wide
   level and anonymous in the chrome, exactly as every out-of-process plugin was
   before the crossing existed. **No malice and no unusual code are required**,
   which is what makes this worth writing down rather than filing under the item
@@ -204,9 +206,9 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   schedule tick and a background service each run *inside* their own served
   request (`schedule`, `backgroundService`), so their browser calls do carry an
   in-flight origin and would not be refused. What it would refuse is exactly the
-  gap — factory-built timers and queues, and fire-and-forget continuations — and
-  what that costs is a plugin whose browser work legitimately runs on one of
-  those, which stops working with no deprecation path and a refusal its author
+  gap — a timer or a pump running on its own, and fire-and-forget continuations
+  the host has already answered — and what that costs is a plugin whose browser
+  work legitimately runs on one of those, which stops working with no deprecation path and a refusal its author
   has to reverse-engineer. That is a decision about breaking installed
   third-party plugins, not a technical obstacle, and it is why this is written
   down rather than done.

@@ -41,10 +41,13 @@ caller to own a tab on behalf of, and the behaviour that predates ownership is
 the right one.
 
 A plugin running in its own process used to land in that "nothing named it" row
-too, and does not: the caller crosses the plugin channel
-([browser-external-access.md](browser-external-access.md)), so such a plugin now
-takes the row of whoever set it going. Which row that is matters, and two
-review rounds each caught a version of this paragraph getting it wrong:
+for everything it did, and now lands there only for the work nobody asked for:
+the caller crosses the plugin channel
+([browser-external-access.md](browser-external-access.md)), so a command that
+plugin runs *for* somebody takes that somebody's row, while its own timers and
+pumps stay in the last row exactly as before — the crossing carries a caller,
+not a plugin. Which row a served command takes matters, and two review rounds
+each caught a version of this paragraph getting it wrong:
 
 - a plugin a **turn** invokes takes the *turn* row. It may still use the
   person's tab and still falls back to the one in front; what it loses is

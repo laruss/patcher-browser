@@ -533,8 +533,11 @@ Named here rather than left to be rediscovered.
   says which) — which is why one process per plugin is the default rather than a
   preference.
 - **A plugin's browser work off the served call's stack is still uncharged.**
-  Same paragraph: the id is stamped from an ambient scope, so a queue or a worker
-  built in the plugin's factory carries none. What is closed is the case that
+  Same paragraph: the id is stamped from an ambient scope, so work invoked from
+  a resource created outside that call — a `setInterval` from the factory, a
+  pump ticking on its own — carries none. Where the code was *written* decides
+  nothing; a job the handler schedules is on the stack wherever its queue came
+  from. What is closed is the case that
   needed no malice and no unusual code: a plugin's CLI command awaiting its own
   browser call, run from a terminal, is charged the level like anything else —
   measured through a real forked plugin process rather than reasoned about,
