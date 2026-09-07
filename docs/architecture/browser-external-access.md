@@ -438,9 +438,11 @@ stack — inside both scopes, when there are any. So:
 
 Nothing about the caller travels. What travels is an opaque id the host issued,
 and the channel passes an `origin` on **only if it names a request that channel
-still has in flight** — so a settled call, another plugin's call and an invented
-string are the same thing from here, and all three read as unattributed, which
-is exactly the behaviour that predates this.
+still has in flight** — so a settled call, an id from another channel and an
+invented string are the same thing from here, and all three read as
+unattributed, which is exactly the behaviour that predates this. "Another
+channel" is what that check separates, and separate *plugins* only because they
+are separate processes; the qualifier is under "What this does not close".
 
 **What it deliberately does not settle.** Every id the host mints for a plugin is
 visible inside that plugin's process, so *any* of its work — not only another of
@@ -462,11 +464,13 @@ stamped from an `AsyncLocalStorage` entered around the plugin's handler — whic
 reaches further than the handler's own lifetime, because Node binds the store to
 async work created inside it: a promise the command started keeps the id after
 the command returned, and is attributed while the host still has that call in
-flight. What carries no origin is work whose chain began elsewhere — a queue or a
-worker the plugin built in its factory, a timer started at bootstrap — and any
-frame arriving after its call settled. Uncharged and anonymous exactly as before,
-no malice needed, and not decidable from the host's side —
-[../TODO.md](../TODO.md) carries it.
+flight. What carries no origin is work whose *invoking* async resource was created
+outside the served call — a `setInterval` started in the factory, a queue pump
+ticking on its own — and any frame arriving after its call settled. The line sits
+where Node draws it rather than where the code was written: a queue built in the
+factory whose job the handler schedules runs under the handler and is attributed.
+Uncharged and anonymous exactly as before, no malice needed, and not decidable
+from the host's side — [../TODO.md](../TODO.md) carries it.
 
 **A consequence worth expecting.** A plugin's browser commands now land in
 whoever's tabs the caller owns ([browser-tab-ownership.md](browser-tab-ownership.md)),

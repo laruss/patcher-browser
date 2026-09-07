@@ -42,10 +42,15 @@ import { permissionForBrowserCommand } from "@patcher/domain/plugin-permissions"
  * service, its HTTP route — because none of those is a caller from outside
  * Patcher; they are charged the permissions the plugin declared, as they always
  * were. And "the caller's own async stack" keeps its full force on the plugin's
- * side as well: work the command *started* stays on that stack even after it
- * returns, but a queue or a worker the plugin built in its factory never was on
- * it, so a browser call from one is not charged. Nothing dishonest is required
- * for that, and it cannot be decided from here — see `docs/TODO.md`.
+ * side as well, with the boundary drawn where Node draws it — at the async
+ * resource that *invokes* the work, not at where the code was written. Work the
+ * command started stays on the stack after the command returns; work invoked
+ * from a resource created outside the served call — a `setInterval` from the
+ * factory, a queue pump ticking on its own — never was on it, and a browser
+ * call from one is not charged. A queue merely *built* in the factory is not
+ * automatically outside: if the handler is what schedules the job, the job runs
+ * under the handler. Nothing dishonest is required either way, and it cannot be
+ * decided from here — see `docs/TODO.md`.
  *
  * **Two callers now, and two levels.** The setting is what an outside caller
  * holding the *app key* is allowed, and that caller can write it, so it is a

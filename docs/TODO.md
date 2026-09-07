@@ -168,8 +168,11 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   surface rather than a bigger version of this one.
 - **A plugin can name any of its own in-flight calls, and can keep one open.**
   The caller now crosses the plugin channel as an id the host minted, and the
-  channel refuses one it does not have in flight, so no outsider can forge one
-  and no plugin can reach another's
+  channel refuses one it does not have in flight, so no outsider can forge one,
+  and no plugin can reach another's *while each has its own process* — two
+  sharing one can write frames on each other's channel keys and are one trust
+  domain for that and several other reasons, which is why the default is one
+  process each
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
   What a plugin does see is every id the host has open for *it* — from any of
   its work, not only from another served call — and it decides when to answer,

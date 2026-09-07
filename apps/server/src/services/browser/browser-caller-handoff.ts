@@ -64,11 +64,14 @@ import {
  * binds the store to async work *created inside* the handler, so a promise or
  * a microtask the handler started keeps it after the handler has returned, and
  * such a frame is attributed for as long as the host still has that call in
- * flight. What carries no origin is work whose async chain began somewhere
- * else — a queue or a worker the plugin built in its factory, a timer started
- * at bootstrap — and any frame that arrives after its call settled. Uncharged
- * and anonymous exactly as before, with no malice needed and no way to decide
- * it from this side; `docs/TODO.md` carries it.
+ * flight. What carries no origin is work whose *invoking* async resource was
+ * created outside the served call — a `setInterval` started in the factory, a
+ * queue pump ticking on its own — and any frame that arrives after its call
+ * settled. The line is where Node draws it rather than where the code was
+ * written: a queue built in the factory whose job the handler schedules runs
+ * under the handler and is attributed. Uncharged and anonymous exactly as
+ * before, with no malice needed and no way to decide it from this side;
+ * `docs/TODO.md` carries it.
  *
  * **An unknown origin means no scope, which is what it meant before.** A frame
  * from an older plugin host, a background service's own work, a schedule's
