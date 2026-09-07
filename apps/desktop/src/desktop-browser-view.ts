@@ -75,7 +75,6 @@ import {
   type PatcherDesktopBrowserSnapshotInRequest,
   type PatcherDesktopBrowserRecordResult,
   type PatcherDesktopBrowserRouteState,
-  type PatcherDesktopBrowserInteraction,
   type PatcherDesktopBrowserInteractRequest,
   type PatcherDesktopBrowserInteractResult,
   type PatcherDesktopBrowserNetworkEntry,
@@ -129,11 +128,15 @@ import {
 } from "./desktop-browser-download.js";
 import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
 import {
+  dispatchMouse,
+  performInteraction,
+  MOUSE_BUTTON_MASK,
+  type MousePoint,
+} from "./desktop-browser-interact.js";
+import {
   InteractionDeadline,
   InteractionRefusal,
   callOnElement,
-  delay,
-  waitForActionable,
   type InteractionTarget,
 } from "./desktop-browser-actionability.js";
 import {
@@ -142,23 +145,9 @@ import {
   type AxNode,
 } from "./desktop-browser-snapshot.js";
 import {
-  PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS,
   PATCHER_BROWSER_ACTION_TIMEOUT_MS,
   PATCHER_BROWSER_AUTOMATION_WORLD_NAME,
-  PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
-  PATCHER_BROWSER_READ_CHECKED_SCRIPT,
-  PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
-  parseBrowserScriptOutcome,
 } from "./desktop-browser-actions.js";
-import {
-  CDP_MODIFIER_ALT,
-  CDP_MODIFIER_CONTROL,
-  CDP_MODIFIER_META,
-  CDP_MODIFIER_SHIFT,
-  characterKeyEvent,
-  parseBrowserKeyChord,
-  type BrowserKeyEvent,
-} from "./desktop-browser-keyboard.js";
 import {
   PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
   parseBrowserCaptureRegion,
@@ -1199,378 +1188,6 @@ async function resolveInteractionTarget(
     );
   }
   return { backendNodeId, objectId };
-}
-
-const MOUSE_BUTTON_MASK: Record<string, number> = {
-  left: 1,
-  right: 2,
-  middle: 4,
-};
-
-function modifierMask(modifiers: readonly string[]): number {
-  let mask = 0;
-  for (const modifier of modifiers) {
-    if (modifier === "Alt") mask |= CDP_MODIFIER_ALT;
-    if (modifier === "Control") mask |= CDP_MODIFIER_CONTROL;
-    if (modifier === "Meta") mask |= CDP_MODIFIER_META;
-    if (modifier === "Shift") mask |= CDP_MODIFIER_SHIFT;
-  }
-  return mask;
-}
-
-interface MousePoint {
-  x: number;
-  y: number;
-}
-
-async function dispatchMouse(
-  session: CdpSession,
-  type: string,
-  point: MousePoint,
-  params: Record<string, unknown> = {},
-): Promise<void> {
-  await session.send("Input.dispatchMouseEvent", { type, ...point, ...params });
-}
-
-/**
- * Press and release a key.
- *
- * Modifiers ride the event's bitmask rather than being pressed as their own
- * events. Pages read `event.ctrlKey`, which the mask provides; the separate
- * keydown for the modifier itself only matters to a page watching for the
- * modifier alone, which no form does.
- */
-async function dispatchKey(
-  session: CdpSession,
-  event: BrowserKeyEvent,
-): Promise<void> {
-  const base = {
-    modifiers: event.modifiers,
-    key: event.key,
-    code: event.code,
-    windowsVirtualKeyCode: event.windowsVirtualKeyCode,
-    nativeVirtualKeyCode: event.windowsVirtualKeyCode,
-  };
-  await session.send("Input.dispatchKeyEvent", {
-    // `keyDown` carries text and inserts it; `rawKeyDown` is the right event for
-    // a key that inserts nothing, and Chromium treats the two differently.
-    type: event.text.length > 0 ? "keyDown" : "rawKeyDown",
-    ...base,
-    ...(event.text.length > 0
-      ? { text: event.text, unmodifiedText: event.text }
-      : {}),
-  });
-  await session.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
-}
-
-async function readCheckedState(
-  session: CdpSession,
-  objectId: string,
-): Promise<boolean> {
-  const outcome = parseBrowserScriptOutcome(
-    await callOnElement(session, objectId, PATCHER_BROWSER_READ_CHECKED_SCRIPT),
-  );
-  if (outcome === null || !outcome.ok || outcome.checked === null) {
-    throw new InteractionRefusal(
-      "failed",
-      "That element is not a checkbox, a radio button, or anything with a checked state.",
-    );
-  }
-  return outcome.checked;
-}
-
-/** How long to keep re-reading a control's state after clicking it. */
-const CHECKED_SETTLE_TIMEOUT_MS = 500;
-
-async function performInteraction(
-  session: CdpSession,
-  entry: BrowserViewEntry,
-  request: PatcherDesktopBrowserInteractRequest,
-  deadline: InteractionDeadline,
-): Promise<void> {
-  const interaction: PatcherDesktopBrowserInteraction = request.interaction;
-
-  if (interaction.action === "resize") {
-    // Device metrics rather than the view's bounds: the panel's size belongs to
-    // the renderer's layout, and fighting it would leave the page and the panel
-    // permanently out of step.
-    if (interaction.width === 0 && interaction.height === 0) {
-      await session.send("Emulation.clearDeviceMetricsOverride");
-      return;
-    }
-    await session.send("Emulation.setDeviceMetricsOverride", {
-      width: interaction.width,
-      height: interaction.height,
-      deviceScaleFactor: 0,
-      mobile: false,
-    });
-    return;
-  }
-
-  if (interaction.action === "press" && interaction.ref === null) {
-    const event = parseBrowserKeyChord(interaction.key);
-    if (event === null) {
-      throw new InteractionRefusal(
-        "unsupported-key",
-        `${JSON.stringify(interaction.key)} is not a key the browser can press.`,
-      );
-    }
-    deadline.assertTimeToAct("pressing the key");
-    await dispatchKey(session, event);
-    return;
-  }
-
-  // Every remaining action names an element; only `press` allows a null ref,
-  // and that case returned above.
-  const ref = interaction.ref;
-  if (ref === null) {
-    throw new InteractionRefusal("unknown-ref", "No element was named.");
-  }
-  const target = await resolveInteractionTarget(
-    session,
-    entry,
-    ref,
-    request.generation,
-  );
-
-  switch (interaction.action) {
-    case "upload": {
-      // No actionability wait: a styled upload control almost always hides the
-      // real <input type=file>, so requiring it to be visible would refuse the
-      // common case. CDP rejects a node that is not a file input.
-      deadline.assertTimeToAct("handing the files over");
-      await session
-        .send("DOM.setFileInputFiles", {
-          files: [...interaction.paths],
-          backendNodeId: target.backendNodeId,
-        })
-        .catch((error: unknown) => {
-          throw new InteractionRefusal(
-            "failed",
-            `That element would not take files: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        });
-      return;
-    }
-
-    case "select": {
-      await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("choosing the options");
-      const outcome = parseBrowserScriptOutcome(
-        await callOnElement(
-          session,
-          target.objectId,
-          PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
-          [{ value: [...interaction.values] }],
-        ),
-      );
-      if (outcome === null || !outcome.ok) {
-        throw new InteractionRefusal(
-          "failed",
-          outcome?.reason === "not_select"
-            ? "That element is not a dropdown."
-            : "None of those values match an option in that dropdown.",
-        );
-      }
-      return;
-    }
-
-    case "fill": {
-      await waitForActionable(session, target, deadline);
-      // The last point at which this action can still be called off: what
-      // follows selects the old value and replaces it, and a caller already told
-      // this timed out must not have it land on top of their next write.
-      deadline.assertTimeToAct("filling the field");
-      const outcome = parseBrowserScriptOutcome(
-        await callOnElement(
-          session,
-          target.objectId,
-          PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
-        ),
-      );
-      if (outcome === null || !outcome.ok) {
-        throw new InteractionRefusal(
-          "failed",
-          "That element is not a text field.",
-        );
-      }
-      if (interaction.text.length === 0) {
-        // insertText("") inserts nothing rather than clearing the selection, so
-        // an empty fill has to be a deletion.
-        await dispatchKey(session, {
-          key: "Delete",
-          code: "Delete",
-          windowsVirtualKeyCode: 46,
-          text: "",
-          modifiers: 0,
-        });
-        return;
-      }
-      await session.send("Input.insertText", { text: interaction.text });
-      return;
-    }
-
-    case "type": {
-      await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("typing the text");
-      await session.send("DOM.focus", { backendNodeId: target.backendNodeId });
-      // One event per character, because that is the whole difference from
-      // fill: autocompletes and input masks react to keystrokes, not to a value
-      // appearing.
-      for (const character of Array.from(interaction.text)) {
-        await dispatchKey(session, characterKeyEvent(character));
-      }
-      return;
-    }
-
-    case "press": {
-      const event = parseBrowserKeyChord(interaction.key);
-      if (event === null) {
-        throw new InteractionRefusal(
-          "unsupported-key",
-          `${JSON.stringify(interaction.key)} is not a key the browser can press.`,
-        );
-      }
-      await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("pressing the key");
-      await session.send("DOM.focus", { backendNodeId: target.backendNodeId });
-      await dispatchKey(session, event);
-      return;
-    }
-
-    case "hover": {
-      const point = await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("moving the pointer");
-      await dispatchMouse(session, "mouseMoved", point, { button: "none" });
-      return;
-    }
-
-    case "drag": {
-      // One budget for both waits: two five-second waits back to back would
-      // outlast the bridge that is waiting on this command.
-      const from = await waitForActionable(session, target, deadline);
-      const to = await waitForActionable(
-        session,
-        await resolveInteractionTarget(
-          session,
-          entry,
-          interaction.targetRef,
-          request.generation,
-        ),
-        deadline,
-      );
-      deadline.assertTimeToAct("starting the drag");
-      await dispatchMouse(session, "mouseMoved", from, { button: "none" });
-      await dispatchMouse(session, "mousePressed", from, {
-        button: "left",
-        buttons: 1,
-        clickCount: 1,
-      });
-      // An intermediate move, because a drag that teleports never fires the
-      // `dragover`/`pointermove` a drop target listens for.
-      await dispatchMouse(
-        session,
-        "mouseMoved",
-        { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
-        { button: "left", buttons: 1 },
-      );
-      await dispatchMouse(session, "mouseMoved", to, {
-        button: "left",
-        buttons: 1,
-      });
-      await dispatchMouse(session, "mouseReleased", to, {
-        button: "left",
-        buttons: 0,
-        clickCount: 1,
-      });
-      return;
-    }
-
-    case "check": {
-      const point = await waitForActionable(session, target, deadline);
-      if (
-        (await deadline.race(
-          readCheckedState(session, target.objectId),
-          "while reading whether the control was already set",
-        )) === interaction.checked
-      ) {
-        return;
-      }
-      deadline.assertTimeToAct("clicking the control");
-      await dispatchMouse(session, "mouseMoved", point, { button: "none" });
-      await dispatchMouse(session, "mousePressed", point, {
-        button: "left",
-        buttons: 1,
-        clickCount: 1,
-      });
-      await dispatchMouse(session, "mouseReleased", point, {
-        button: "left",
-        buttons: 0,
-        clickCount: 1,
-      });
-      // Confirm rather than assume: a controlled component can refuse the
-      // change, and reporting success on a checkbox that did not move would be
-      // the worst kind of lie to an agent.
-      // Its own budget, and its own clock: the interaction deadline is spent by
-      // now, and this runs *after* the click, so it can no longer refuse on the
-      // grounds that nothing was sent.
-      const settleBy = Date.now() + CHECKED_SETTLE_TIMEOUT_MS;
-      for (;;) {
-        if (
-          (await readCheckedState(session, target.objectId)) ===
-          interaction.checked
-        ) {
-          return;
-        }
-        if (Date.now() >= settleBy) {
-          throw new InteractionRefusal(
-            "failed",
-            `The control did not become ${interaction.checked ? "checked" : "unchecked"}.`,
-          );
-        }
-        await delay(PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS);
-      }
-    }
-
-    case "click": {
-      const point = await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("clicking");
-      const modifiers = modifierMask(interaction.modifiers);
-      const buttons = MOUSE_BUTTON_MASK[interaction.button] ?? 1;
-      await dispatchMouse(session, "mouseMoved", point, {
-        button: "none",
-        modifiers,
-      });
-      // Chromium wants the running count on each event, so a double click is
-      // press/release at 1 followed by press/release at 2 — not one event
-      // claiming to be two clicks.
-      for (let count = 1; count <= interaction.clickCount; count += 1) {
-        await dispatchMouse(session, "mousePressed", point, {
-          button: interaction.button,
-          buttons,
-          clickCount: count,
-          modifiers,
-        });
-        await dispatchMouse(session, "mouseReleased", point, {
-          button: interaction.button,
-          buttons: 0,
-          clickCount: count,
-          modifiers,
-        });
-      }
-      return;
-    }
-
-    default: {
-      const exhaustive: never = interaction;
-      throw new InteractionRefusal(
-        "failed",
-        `Unhandled interaction ${JSON.stringify(exhaustive)}`,
-      );
-    }
-  }
 }
 
 type ControlRefusalReason = Extract<
@@ -5229,7 +4846,13 @@ export function createDesktopBrowserViewManager(
           session,
         );
         await session.enableDomain("DOM");
-        await performInteraction(session, entry, request, deadline);
+        await performInteraction(
+          session,
+          (ref) =>
+            resolveInteractionTarget(session, entry, ref, request.generation),
+          request,
+          deadline,
+        );
       } catch (error) {
         if (error instanceof InteractionRefusal) {
           return { ok: false, reason: error.reason, message: error.message };
