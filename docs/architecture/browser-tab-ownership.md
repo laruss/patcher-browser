@@ -40,16 +40,19 @@ handler and the work a plugin does by itself — nobody asked, so there is no
 caller to own a tab on behalf of, and the behaviour that predates ownership is
 the right one.
 
-A plugin running in its own process used to land in that last row too, and does
-not: the caller crosses the plugin channel
+A plugin running in its own process used to land in that "nothing named it" row
+too, and does not: the caller crosses the plugin channel
 ([browser-external-access.md](browser-external-access.md)), so such a plugin now
-takes the row of whoever set it going. Which row that is matters, and an earlier
-version of this paragraph got it wrong: a plugin a **turn** invokes lands on the
-turn row — it may still use the person's tab and still falls back to the one in
-front — and what it loses is the ability to touch *another agent's* tab, which
-inheriting the active tab used to give it. A plugin invoked from **outside**
-lands on the third row, and that one is refused the person's tabs until they
-hand one over.
+takes the row of whoever set it going. Which row that is matters, and two
+review rounds each caught a version of this paragraph getting it wrong:
+
+- a plugin a **turn** invokes takes the *turn* row. It may still use the
+  person's tab and still falls back to the one in front; what it loses is
+  another **agent's** tab — which it previously reached two ways, by inheriting
+  whatever was active and by naming that tab's id, since with no issuer neither
+  path was checked at all;
+- a plugin invoked from **outside** takes the *grant / anything outside* row,
+  and that is the one refused the person's tabs until they hand one over.
 
 "Its newest tab" is the one it most recently opened or was handed, not the one
 it last touched: a rule an agent can hold in its head, where "whichever you used

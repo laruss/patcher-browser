@@ -782,9 +782,14 @@ describe("plugin channel: which call a frame came out of", () => {
   it("drops an origin another channel minted", async () => {
     // What the security review asked about: the registry the host looks these
     // up in is one map shared by every plugin, so the thing that keeps one
-    // plugin out of another's record has to be here. Two plugins share a
-    // process only under `SHARED_PLACEMENT`, which nothing asks for today —
-    // this is what makes that not matter.
+    // plugin out of another's record has to be here.
+    //
+    // What this closes is *cross-channel* matching, and that is the whole
+    // claim — the second round caught a wider one. Two plugins in one process
+    // (`SHARED_PLACEMENT`) can write frames on each other's channel keys, so a
+    // check on the receiving channel cannot separate them; `plugin-supervisor.ts`
+    // says why in as many words, which is why one process per plugin is the
+    // default rather than a preference.
     const seen: (string | undefined)[] = [];
     const mine = handDriven(() => "answered");
     const other = handDriven(({ origin }) => {

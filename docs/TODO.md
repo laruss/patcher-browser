@@ -189,13 +189,28 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   level and anonymous in the chrome, exactly as every out-of-process plugin was
   before the crossing existed. **No malice and no unusual code are required**,
   which is what makes this worth writing down rather than filing under the item
-  above. Two half-answers, both worse than the gap: a per-plugin "an outside
-  call is in flight" fallback for frames with no origin would attribute a
-  plugin's *background* work to a caller, which is a wrong refusal and a wrong
-  tab owner; and refusing browser calls that carry no origin at all would break
-  every plugin schedule and background service that uses the browser today.
-  Found by the security review on 2026-09-07, and narrowed by the second review
-  round, which pointed out that work the command *starts* does keep the id.
+  above.
+
+  Two ways to answer it, and the second is the real decision. A per-plugin "an
+  outside call is in flight" fallback for frames with no origin is the worse one
+  twice over: it attributes a plugin's *background* work to a caller — a wrong
+  refusal and a wrong tab owner — and it still misses the common shape, a worker
+  that runs when no call is in flight at all. **Refusing a browser call that
+  carries no valid origin** does close it, fail-closed, and the first version of
+  this entry dismissed it on a premise the code contradicts: an out-of-process
+  schedule tick and a background service each run *inside* their own served
+  request (`schedule`, `backgroundService`), so their browser calls do carry an
+  in-flight origin and would not be refused. What it would refuse is exactly the
+  gap — factory-built timers and queues, and fire-and-forget continuations — and
+  what that costs is a plugin whose browser work legitimately runs on one of
+  those, which stops working with no deprecation path and a refusal its author
+  has to reverse-engineer. That is a decision about breaking installed
+  third-party plugins, not a technical obstacle, and it is why this is written
+  down rather than done.
+
+  Found by the security review on 2026-09-07; narrowed once by the second review
+  round (work the command *starts* does keep the id) and again when that round
+  found the false premise above.
 - **Three shell paths can leave a command unanswered forever.** A snapshot
   (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
   `awaitPromise`) and the input dispatch inside a click are sent to the page

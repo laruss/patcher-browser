@@ -475,8 +475,9 @@ and the two callers differ:
 - one a **turn** invokes now acts as that thread. It may still use the person's
   tab and still falls back to the one in front — that is the turn row of the
   ownership table, unchanged — but it prefers a tab of its own and can no longer
-  touch *another agent's*, which it previously could by inheriting whatever was
-  active;
+  touch *another agent's*, which it previously reached both by inheriting
+  whatever was active and by naming that tab's id, neither of which was checked
+  while it had no issuer;
 - one invoked from **outside** gets its own tabs only, and is refused the
   person's until they hand one over. That is the change with teeth: before this,
   such a plugin acted on the tab the person was looking at.
@@ -518,10 +519,15 @@ Named here rather than left to be rediscovered.
   product works.
 - **A plugin can still name any of its own in-flight calls, and can keep one
   open.** The caller crosses as an id the host minted and the channel refuses one
-  it does not have in flight, so nothing an outsider holds can forge one and no
-  plugin can reach another's — but a plugin sees every id the host has open for
-  *it*, and decides when to answer. "Across the plugin boundary" above says why
-  that is not a way in.
+  it does not have in flight, so nothing an outsider holds can forge one — but a
+  plugin sees every id the host has open for *it*, and decides when to answer.
+  "Across the plugin boundary" above says why that is not a way in. One plugin
+  cannot reach another's *because the channels are separate processes*: two
+  plugins sharing one (`SHARED_PLACEMENT`) can write frames on each other's
+  channel keys, and are one trust domain for that reason and several others
+  ([`plugin-supervisor.ts`](../../apps/server/src/services/plugins/plugin-supervisor.ts)
+  says which) — which is why one process per plugin is the default rather than a
+  preference.
 - **A plugin's browser work off the served call's stack is still uncharged.**
   Same paragraph: the id is stamped from an ambient scope, so a queue or a worker
   built in the plugin's factory carries none. What is closed is the case that

@@ -36,11 +36,15 @@ import {
  * its work — not only another of its served calls, but a background service,
  * an HTTP route, a timer — can quote *any* of the ids the host currently has
  * in flight for it, and be charged and named as that caller. The channel
- * bounds this to **in flight**: a settled call and another channel's call are
- * dropped before they reach here (`plugin-channel.ts`). What it cannot bound
- * is how long a call stays in flight, because that is the plugin answering —
- * so a plugin can hold a turn's agent-tool call open and act as that thread
- * long after the turn moved on.
+ * bounds this to **in flight, on that channel**: a settled call and another
+ * channel's call are dropped before they reach here (`plugin-channel.ts`).
+ * Two things it does not bound, and both are worth saying rather than
+ * discovering — how long a call stays in flight, because that is the plugin
+ * answering, so a plugin can hold a turn's agent-tool call open and act as
+ * that thread long after the turn moved on; and two plugins sharing one
+ * process, who can write frames on each other's channel keys and are one trust
+ * domain for that reason and several others (`plugin-supervisor.ts`), which is
+ * why one process per plugin is the default rather than a preference.
  *
  * That is a plugin lying about its own invocations, not an outsider forging
  * anything, and it is not a way in: plugin code is a Node module with
