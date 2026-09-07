@@ -690,6 +690,12 @@ function recordFailure(
       );
     case "not-recording":
       return failure("not_recording", `That tab is not being filmed.${detail}`);
+    case "page-stalled":
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering while the recording was starting.`,
+      );
     default:
       return failure(
         "page_read_failed",

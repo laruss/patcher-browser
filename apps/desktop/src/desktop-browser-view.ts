@@ -3942,7 +3942,16 @@ export function createDesktopBrowserViewManager(
       clearPendingDialog(hostWindow, tabId, entry);
     });
 
-    await session.enableDomain("Page");
+    // Bounded here rather than at each of the five commands that call this,
+    // because this is the one send the function makes and every caller wants it
+    // bounded for the same reason: enabling a domain is renderer work, so a tab
+    // already blocked on an earlier command's dialog answers it no faster than
+    // anything else, and before this that left `control` and `record` waiting
+    // with nothing to end it.
+    await cdpSessionWithDeadline(session, {
+      remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+      dialogOpen: () => entry.pendingDialog !== null,
+    }).enableDomain("Page");
   }
 
   function captureDialogPlaceholder(
@@ -4906,15 +4915,19 @@ export function createDesktopBrowserViewManager(
         // dialogs are ours to answer. A click that opens a `confirm()` would
         // otherwise block the page with nothing able to respond.
         //
-        // Raced, like the two round trips in `resolveInteractionTarget`:
-        // enabling a domain is a send like any other, and a tab already
-        // blocked on a dialog from an earlier command answers neither of
-        // these. Nothing here touches the page, so running out of time means
-        // nothing was sent — which is what the deadline's refusal says.
-        await deadline.race(
-          ensureDialogInterception(hostWindow, request.tabId, entry, session),
-          "while taking over the tab's dialogs",
+        await ensureDialogInterception(
+          hostWindow,
+          request.tabId,
+          entry,
+          session,
         );
+        // Raced, like the two round trips in `resolveInteractionTarget`:
+        // enabling a domain is a send like any other, and a tab already blocked
+        // on a dialog from an earlier command answers neither. Nothing here
+        // touches the page, so running out of time means nothing was sent —
+        // which is what the deadline's own refusal says. `Page.enable` is
+        // bounded inside `ensureDialogInterception` instead, so that one send
+        // is not racing two clocks at once.
         await deadline.race(
           session.enableDomain("DOM"),
           "while preparing to inspect the page",
@@ -5127,13 +5140,24 @@ export function createDesktopBrowserViewManager(
           entry,
           session,
         );
+        // Starting and stopping a screencast are renderer sends like any
+        // other, so filming could hold a tab's queue exactly the way the three
+        // paths above did. Per send, at the input budget, because none of these
+        // is legitimately slow. Stopping is unaffected either way: its send
+        // already has a `catch` that keeps the frames already taken.
         return await performRecord(
-          session,
+          cdpSessionWithDeadline(session, {
+            remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+            dialogOpen: () => entry.pendingDialog !== null,
+          }),
           entry,
           request.tabId,
           request.operation,
         );
       } catch (error) {
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
+        }
         return {
           ok: false,
           reason: "failed",

@@ -1997,6 +1997,9 @@ export const patcherDesktopBrowserRecordResultSchema = z.union([
      * `no-view` / `no-page` / `debugger-unavailable` as elsewhere.
      * `already-recording` — one film per tab; stop it before starting another.
      * `not-recording` — nothing to stop, or to mark a chapter in.
+     * `page-stalled` — the tab stopped answering the debugger while the
+     * recording was being started; stopping one never reports it, because a
+     * film already taken is a better answer than a refusal.
      */
     reason: z
       .enum([
@@ -2005,6 +2008,7 @@ export const patcherDesktopBrowserRecordResultSchema = z.union([
         "debugger-unavailable",
         "already-recording",
         "not-recording",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
