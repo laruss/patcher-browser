@@ -41,7 +41,11 @@ import { permissionForBrowserCommand } from "@patcher/domain/plugin-permissions"
  * What is still not charged is a plugin's own work — a schedule, a background
  * service, its HTTP route — because none of those is a caller from outside
  * Patcher; they are charged the permissions the plugin declared, as they always
- * were.
+ * were. And "the caller's own async stack" keeps its full force on the plugin's
+ * side as well: a plugin whose browser work runs on a queue or a worker it
+ * built in its factory, rather than inside the command it was asked to run, is
+ * not on that stack and is not charged. Nothing dishonest is required for that,
+ * and it cannot be decided from here — see `docs/TODO.md`.
  *
  * **Two callers now, and two levels.** The setting is what an outside caller
  * holding the *app key* is allowed, and that caller can write it, so it is a

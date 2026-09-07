@@ -19,8 +19,10 @@
  *   settles hangs the turn;
  * - **a request sent while serving one says which one** (`origin`), so a side
  *   that recorded something under the call it made can find it again when the
- *   answer comes back as a call of its own. That is the whole of how "who
- *   asked for this" crosses the boundary — see `browser-caller-handoff.ts`.
+ *   answer comes back as a call of its own — and a quoted call that is not one
+ *   this end has in flight is dropped, since the far side chose the value.
+ *   That is the whole of how "who asked for this" crosses the boundary — see
+ *   `browser-caller-handoff.ts`.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -64,9 +66,10 @@ export type PluginRequestHandler = (request: {
   payload: JsonValue;
   /**
    * The call *this* end made that the far side was serving when it sent this,
-   * when there was one. See `origin` on {@link PluginRequestMessage}; the only
-   * thing it is good for is looking up something this end recorded under that
-   * id, because the far side chose what to put here.
+   * when there was one — and checked before it gets here: present only if it
+   * names a request this channel still has in flight. The far side chose the
+   * value, so a settled call, another channel's call and an invented string
+   * all arrive as absent. See `origin` on {@link PluginRequestMessage}.
    */
   origin?: string;
   /** Aborts when the far side cancels. */
@@ -105,9 +108,13 @@ export interface PluginChannelOptions {
    * Here rather than at the three call sites that make requests, because the
    * thing it exists for (`browser-caller-handoff.ts`) has to cover *every*
    * host→plugin call and a chokepoint the next one has to opt into is a
-   * chokepoint with a hole in it. Called before the frame is posted: a linked
-   * pair of ports delivers synchronously in tests, so a hook that ran after
-   * the send would be recording provenance the answer had already overtaken.
+   * chokepoint with a hole in it.
+   *
+   * Called before the frame is posted, because nothing in the port contract
+   * says when delivery happens: both ports in tree happen to defer it (a
+   * microtask for a linked pair, the pipe for a child process), and a hook
+   * that ran after the send would be relying on that. Recording first costs
+   * nothing and does not.
    */
   onOutboundRequest?: (callId: string) => () => void;
 }
@@ -243,11 +250,20 @@ export function createPluginChannel<
     const receiver = receiveCancellation(message.callId);
     serving.set(message.callId, receiver.cancel);
     try {
+      // An `origin` is only passed on when it names a request *this* channel
+      // has in flight right now. The far side chose the value, so this is the
+      // one place it can be held to something: a call that has already
+      // settled, one this end never made, and one another channel minted are
+      // all indistinguishable from a plugin's invention, and all three are
+      // dropped rather than handed to a reader that would look them up.
+      const claimed = message.origin;
+      const origin =
+        claimed !== undefined && pending.has(claimed) ? claimed : undefined;
       const value = await servingCall.run(message.callId, () =>
         handler({
           method: message.method,
           ...(message.target === undefined ? {} : { target: message.target }),
-          ...(message.origin === undefined ? {} : { origin: message.origin }),
+          ...(origin === undefined ? {} : { origin }),
           payload: message.payload,
           signal: receiver.signal,
         }),

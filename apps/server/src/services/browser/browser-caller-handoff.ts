@@ -31,17 +31,33 @@ import {
  * the caller travels on the wire; what travels is an opaque id the host issued
  * and can only match against its own record.
  *
- * **What a plugin could still do with it, said plainly.** Both ends of a
- * `callId` are visible inside the plugin's process, so a plugin serving two
- * calls at once — a turn's agent tool and an outside terminal's CLI command —
- * could quote the wrong one and be charged the wrong caller's level. That is a
- * plugin lying about its own two invocations, not an outsider forging
+ * **What a plugin could still do with it, said plainly.** Every `callId` the
+ * host mints for a plugin is visible inside that plugin's process, so *any* of
+ * its work — not only another of its served calls, but a background service,
+ * an HTTP route, a timer — can quote *any* of the ids the host currently has
+ * in flight for it, and be charged and named as that caller. The channel
+ * bounds this to **in flight**: a settled call and another channel's call are
+ * dropped before they reach here (`plugin-channel.ts`). What it cannot bound
+ * is how long a call stays in flight, because that is the plugin answering —
+ * so a plugin can hold a turn's agent-tool call open and act as that thread
+ * long after the turn moved on.
+ *
+ * That is a plugin lying about its own invocations, not an outsider forging
  * anything, and it is not a way in: plugin code is a Node module with
  * `node:fs`, `child_process` and the loopback base URL
  * (`architecture/plugin-permissions.md`), so a plugin that wanted the browser
  * without being charged has a shorter path than this one. What this closes is
  * the case that needed no malice at all — an honest plugin, driven from a
  * terminal, reaching the browser because the scope could not follow it.
+ *
+ * **And it still only covers the caller's own async stack — on both sides.**
+ * That qualifier was always true of the scopes in this process; it is now
+ * equally true inside the plugin's, because the id is stamped from an
+ * `AsyncLocalStorage` entered around the handler. A plugin whose browser work
+ * is done by a queue or a worker built in its factory, or posted after its
+ * command returned, is *not* on that stack: it carries no origin, and is
+ * uncharged and anonymous exactly as it was before. No malice needed, and not
+ * fixable from this side — see `docs/TODO.md`.
  *
  * **An unknown origin means no scope, which is what it meant before.** A frame
  * from an older plugin host, a background service's own work, a schedule's

@@ -166,16 +166,32 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   surface they do not have open. A window-level signal — the title bar, the tab
   strip, a tray item — is the piece that would fix that, and it is a different
   surface rather than a bigger version of this one.
-- **A plugin can name which of its own calls a browser command belongs to.**
-  The caller now crosses the plugin channel as an id the host minted, so the
-  level and the `issuer` reach an out-of-process plugin
+- **A plugin can name any of its own in-flight calls, and can keep one open.**
+  The caller now crosses the plugin channel as an id the host minted, and the
+  channel refuses one it does not have in flight, so no outsider can forge one
+  and no plugin can reach another's
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
-  What a plugin serving two calls at once still sees is both ids, so it could
-  quote the wrong one and be charged the wrong caller's level. Not a way in — a
-  plugin is a Node module with `child_process` and the loopback base URL, so it
-  has a shorter path — and not closable from this side either: both ends of a
-  correlation are visible in the process that holds both. Named here so nobody
-  reads the crossing as more than it is.
+  What a plugin does see is every id the host has open for *it* — from any of
+  its work, not only from another served call — and it decides when to answer,
+  so it can hold a turn's agent-tool call open and act as that thread after the
+  turn moved on. Not a way in (a plugin is a Node module with `child_process`
+  and the loopback base URL, so it has a shorter path) and not closable from
+  this side: a correlation both ends can see is what makes the crossing work at
+  all. Named here so nobody reads it as more than it is.
+- **A plugin's browser work off the served call's stack is not charged, and not
+  named.** The id is stamped from an `AsyncLocalStorage` entered around the
+  plugin's handler, so a plugin whose browser call runs on a queue or a worker
+  it built in its factory, or is posted after its command returned, carries no
+  origin — uncharged by the install-wide level and anonymous in the chrome,
+  exactly as every out-of-process plugin was before the crossing existed. **No
+  malice and no unusual code are required**, which is what makes this worth
+  writing down rather than filing under the item above. Two half-answers, both
+  worse than the gap: a per-plugin "an outside call is in flight" fallback for
+  frames with no origin would attribute a plugin's *background* work to a
+  caller, which is a wrong refusal and a wrong tab owner; and refusing browser
+  calls that carry no origin at all would break every plugin schedule and
+  background service that uses the browser today. Found by the security review
+  on 2026-09-07.
 - **Three shell paths can leave a command unanswered forever.** A snapshot
   (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
   `awaitPromise`) and the input dispatch inside a click are sent to the page

@@ -1428,10 +1428,12 @@ process and gets the caller back off the channel frame**, so a third-party plugi
 with browser permissions and a command of its own is not a way round either. What
 they are not charged on is the work a plugin does by itself: a schedule, a
 background service, an HTTP route the app called, all charged the permissions the
-plugin declared. What neither closes: a process that reads the app key off your
-disk is the app, with or without either of these; and a plugin serving two calls
-at once sees both correlation ids and could quote the wrong one — which is a
-plugin lying about its own invocations, from a process that already has
+plugin declared — and, for the same reason, a plugin's browser call made off the
+stack of the command it was asked to run, on a queue or a worker it built itself.
+What neither closes: a process that reads the app key off your disk is the app,
+with or without either of these; and a plugin can quote any of the correlation
+ids the server currently has open for it, and decides when to answer — which is
+a plugin lying about its own invocations, from a process that already has
 `child_process`. See
 [browser-external-access.md](architecture/browser-external-access.md).
 
