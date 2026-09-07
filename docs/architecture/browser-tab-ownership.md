@@ -34,10 +34,15 @@ tools were built for ([agent-browser-tools.md](agent-browser-tools.md)). A
 caller outside Patcher has no thread to be visible in and nothing on screen
 announced it; the tabs it gets are its own, and none of its defaults take the
 window — though `tabs.activate`, and an explicit `--new-tab`, still bring its
-own tab to the front, which is how an agent shows the person something. The third row is the honest
-consequence of the `issuer` not reaching a plugin in its own process — the same
-gap the access level has, listed in [../TODO.md](../TODO.md) — and it keeps the
-behaviour that predates ownership rather than guessing.
+own tab to the front, which is how an agent shows the person something. The last
+row is not a gap: it is the app's own browsing, a page script, a toolbar item's
+handler and the work a plugin does by itself — nobody asked, so there is no
+caller to own a tab on behalf of, and the behaviour that predates ownership is
+the right one. A plugin running in its own process used to land there too, and
+does not: the caller crosses the plugin channel
+([browser-external-access.md](browser-external-access.md)), so such a plugin now
+acts as whoever set it going — and an out-of-process plugin a turn invokes is
+refused the person's tabs, where before it took the active one.
 
 "Its newest tab" is the one it most recently opened or was handed, not the one
 it last touched: a rule an agent can hold in its head, where "whichever you used

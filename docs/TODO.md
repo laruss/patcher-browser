@@ -157,25 +157,6 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 ## Core-only, structural
 
-- **The browser level does not reach a plugin running in its own process.**
-  `browserExternalAccess` is charged on commands issued on the caller's own
-  async stack — every built-in plugin, so all of `patcher browser` — and an
-  installed plugin's browser call is charged on a channel message in a fresh
-  async context, where the scope does not reach. Measured, and pinned by a test
-  in `browser-external-access-route.test.ts` so it stays a known limit. It means
-  a third-party plugin with browser permissions and a CLI command of its own is
-  a door the setting does not close, which every user-facing description of the
-  setting now says. Two ways to close it, and the second is the right one: a
-  per-plugin "an outside CLI call is in flight" flag read by
-  `chargeBrowserCommand`, which is small and gets the concurrency case wrong in
-  the direction of a wrong refusal; or carrying the scope over the plugin
-  channel, so the plugin process holds it for the invocation and the host reads
-  it back off the frame — a wire change, and the one that is actually correct.
-  The narrower credential this used to wait on now exists
-  ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
-  so the second of those is the next thing to do here: with a grant reaching two
-  routes, an installed plugin's own CLI command is the remaining way its holder's
-  machine gets browser access nobody charged.
 - **The "who is driving" indicator is only in the browser chrome.**
   `browser-command-request` now carries an `issuer`
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
@@ -185,16 +166,16 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   surface they do not have open. A window-level signal — the title bar, the tab
   strip, a tray item — is the piece that would fix that, and it is a different
   surface rather than a bigger version of this one.
-- **A plugin in its own process drives the browser anonymously.** The `issuer`
-  rides an `AsyncLocalStorage`, which does not cross the plugin channel, so a
-  third-party plugin's browser command reaches the window with no caller on it
-  and the chrome says nothing — whoever asked for it. It is the same gap as the
-  access level's, one door seen from two sides, and the same fix closes both:
-  carry the caller over the channel keyed by the host's own in-flight call,
-  never by anything the plugin says about itself. It now costs a third thing:
-  such a command is outside tab ownership too
-  ([architecture/browser-tab-ownership.md](architecture/browser-tab-ownership.md)),
-  so it lands on the person's active tab the way everything did before.
+- **A plugin can name which of its own calls a browser command belongs to.**
+  The caller now crosses the plugin channel as an id the host minted, so the
+  level and the `issuer` reach an out-of-process plugin
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
+  What a plugin serving two calls at once still sees is both ids, so it could
+  quote the wrong one and be charged the wrong caller's level. Not a way in — a
+  plugin is a Node module with `child_process` and the loopback base URL, so it
+  has a shorter path — and not closable from this side either: both ends of a
+  correlation are visible in the process that holds both. Named here so nobody
+  reads the crossing as more than it is.
 - **Three shell paths can leave a command unanswered forever.** A snapshot
   (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
   `awaitPromise`) and the input dispatch inside a click are sent to the page

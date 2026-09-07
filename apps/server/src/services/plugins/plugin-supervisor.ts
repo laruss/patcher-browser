@@ -113,6 +113,15 @@ export interface SupervisorHostHandlers {
    */
   onRequest: (plugin: SupervisedPlugin) => PluginRequestHandler;
   onNotify: (plugin: SupervisedPlugin) => PluginNotifyHandler;
+  /**
+   * Every request the host sends a plugin, before it goes.
+   *
+   * Not handed the instance, because what it records is about the *caller* on
+   * whose stack the send is happening rather than about the plugin — and the
+   * call id it is given is unique across every plugin and every restart. See
+   * `browser-caller-handoff.ts`, which is what the server passes here.
+   */
+  onOutboundRequest?: (callId: string) => () => void;
 }
 
 export interface PluginProcessSpawner {
@@ -371,6 +380,9 @@ export function createPluginSupervisor(
         name: `plugin:${plugin.instanceId}`,
         onRequest: options.handlers.onRequest(plugin),
         onNotify: options.handlers.onNotify(plugin),
+        ...(options.handlers.onOutboundRequest === undefined
+          ? {}
+          : { onOutboundRequest: options.handlers.onOutboundRequest }),
         onProtocolError: (problem) =>
           logger.warn(`plugin ${plugin.instanceId}: ${problem}`),
       },

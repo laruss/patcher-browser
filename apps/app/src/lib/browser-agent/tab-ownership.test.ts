@@ -330,9 +330,9 @@ describe("tab ownership", () => {
       harness.deps,
     );
 
-    // The app's own work, and a plugin in its own process, arrive with no
-    // issuer. Binding them would refuse commands nobody can attribute — the
-    // gap named in docs/TODO.md, not something to guess at here.
+    // The app's own work, and the work a plugin does by itself, arrive with no
+    // issuer. Binding them would refuse commands nobody asked for — there is no
+    // caller to own a tab on behalf of.
     expect(outcome).toEqual({
       ok: true,
       value: { type: "url", url: "https://person.example/" },

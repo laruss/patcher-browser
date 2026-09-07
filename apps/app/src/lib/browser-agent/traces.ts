@@ -14,8 +14,8 @@ import { BrowserTraceRecorder } from "./trace";
  * (`docs/architecture/browser-tab-ownership.md`), so the record has to be too.
  *
  * Keyed the way everything else about a caller is: the kind and its id, never
- * the label. Commands with no issuer — the app's own work, and a plugin running
- * in its own process — share one recorder, which is the same "they are one
+ * the label. Commands with no issuer — the app's own work, and the work a
+ * plugin does by itself — share one recorder, which is the same "they are one
  * caller" this install already says about them everywhere else.
  *
  * A recorder is kept while its trace runs and dropped once it is idle, so the

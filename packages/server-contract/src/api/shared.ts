@@ -223,14 +223,13 @@ export const pluginSignalLenientSchema = z.object({
  * must not get one. A missing field also means an older server, and reads the
  * same way, which is the right default of the two.
  *
- * It also means **a plugin running in its own process**, which is where this
- * stops. The ambient scope that carries the caller covers commands issued on
- * the caller's own async stack; the host serves an out-of-process plugin's
- * browser call on a channel message, in a fresh async context, so a command from
- * one arrives unattributed even when a turn or a grant set it going. That is the
- * same boundary the access level has — see `browser-external-access.ts` in the
- * server — and closing it means carrying the caller over the plugin channel
- * keyed by the host's own in-flight call, never by what the plugin says it is.
+ * A plugin running in its **own process** used to be in that "nobody" set and
+ * is not: the host serves its browser call on a channel message, in a fresh
+ * async context the ambient scope cannot reach, and the caller is carried over
+ * the plugin channel instead — keyed by the id the host minted for its own
+ * outbound call, never by what the plugin says it is. See
+ * `browser-caller-handoff.ts` in the server. What is still nobody's is the work
+ * a plugin does by itself: a schedule, a background service, a page script.
  *
  * `outside` has no fields on purpose. A caller holding the app key from a
  * terminal is exactly as identified as the app key is — which is to say the

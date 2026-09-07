@@ -16,9 +16,14 @@
  * - **when the channel closes, every in-flight request rejects.** A plugin
  *   process can die at any moment, and the failure mode that is worse than a
  *   crash is a crash nobody is told about: an agent tool call that never
- *   settles hangs the turn.
+ *   settles hangs the turn;
+ * - **a request sent while serving one says which one** (`origin`), so a side
+ *   that recorded something under the call it made can find it again when the
+ *   answer comes back as a call of its own. That is the whole of how "who
+ *   asked for this" crosses the boundary — see `browser-caller-handoff.ts`.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import type { JsonValue } from "@patcher/domain";
 import {
@@ -57,6 +62,13 @@ export type PluginRequestHandler = (request: {
   method: string;
   target?: string;
   payload: JsonValue;
+  /**
+   * The call *this* end made that the far side was serving when it sent this,
+   * when there was one. See `origin` on {@link PluginRequestMessage}; the only
+   * thing it is good for is looking up something this end recorded under that
+   * id, because the far side chose what to put here.
+   */
+  origin?: string;
   /** Aborts when the far side cancels. */
   signal: AbortSignal;
 }) => JsonValue | undefined | Promise<JsonValue | undefined>;
@@ -84,6 +96,20 @@ export interface PluginChannelOptions {
    * anyone needs is a plugin whose calls vanish.
    */
   onProtocolError?: (problem: string) => void;
+  /**
+   * This end is about to send a request, with the id the far side will quote
+   * back as `origin` on anything it sends while serving it. Returns a function
+   * run once that request settles, however it settles — including the channel
+   * closing under it.
+   *
+   * Here rather than at the three call sites that make requests, because the
+   * thing it exists for (`browser-caller-handoff.ts`) has to cover *every*
+   * host→plugin call and a chokepoint the next one has to opt into is a
+   * chokepoint with a hole in it. Called before the frame is posted: a linked
+   * pair of ports delivers synchronously in tests, so a hook that ran after
+   * the send would be recording provenance the answer had already overtaken.
+   */
+  onOutboundRequest?: (callId: string) => () => void;
 }
 
 export interface PluginChannel<
@@ -117,6 +143,8 @@ interface PendingRequest {
   resolve: (value: JsonValue) => void;
   reject: (error: Error) => void;
   detachCancellation: () => void;
+  /** What {@link PluginChannelOptions.onOutboundRequest} handed back. */
+  releaseOrigin: () => void;
 }
 
 export function createPluginChannel<
@@ -133,6 +161,18 @@ export function createPluginChannel<
   const pending = new Map<string, PendingRequest>();
   /** Cancellers for requests *this* end is currently serving. */
   const serving = new Map<string, (message: PluginCancelMessage) => void>();
+  /**
+   * The request this end is serving right now, so anything it sends back can
+   * say which call it is part of.
+   *
+   * Per channel rather than per process: two channels in one process are two
+   * unrelated conversations, and stamping one's frame with the other's call id
+   * would name a call the reader has no record of. An `AsyncLocalStorage`
+   * because the handler is arbitrary async code with a whole plugin API
+   * between it and here — the same reason the two scopes this feeds are
+   * ambient (`browser-external-access.ts`).
+   */
+  const servingCall = new AsyncLocalStorage<string>();
   let closed = false;
   let sequence = 0;
 
@@ -165,6 +205,7 @@ export function createPluginChannel<
     pending.clear();
     for (const request of inFlight) {
       request.detachCancellation();
+      request.releaseOrigin();
       request.reject(failure);
     }
     // Work this end is serving is abandoned, and telling it so is the only way
@@ -185,6 +226,7 @@ export function createPluginChannel<
     callId: string;
     method: string;
     target?: string;
+    origin?: string;
     payload: JsonValue;
   }): Promise<void> {
     const handler = options.onRequest;
@@ -201,12 +243,15 @@ export function createPluginChannel<
     const receiver = receiveCancellation(message.callId);
     serving.set(message.callId, receiver.cancel);
     try {
-      const value = await handler({
-        method: message.method,
-        ...(message.target === undefined ? {} : { target: message.target }),
-        payload: message.payload,
-        signal: receiver.signal,
-      });
+      const value = await servingCall.run(message.callId, () =>
+        handler({
+          method: message.method,
+          ...(message.target === undefined ? {} : { target: message.target }),
+          ...(message.origin === undefined ? {} : { origin: message.origin }),
+          payload: message.payload,
+          signal: receiver.signal,
+        }),
+      );
       // `undefined` is not JSON. Normalising to null matches what
       // `patcher.realtime.publish` already does with an absent payload.
       post({ kind: "result", callId: message.callId, value: value ?? null });
@@ -235,6 +280,7 @@ export function createPluginChannel<
     }
     pending.delete(callId);
     request.detachCancellation();
+    request.releaseOrigin();
     settleOne(request);
   }
 
@@ -295,11 +341,14 @@ export function createPluginChannel<
         return Promise.reject(new PluginChannelClosedError(name, "closed"));
       }
       const callId = nextCallId();
+      // What the far side will be serving when it sends this on, if it does.
+      const origin = servingCall.getStore();
       return new Promise<JsonValue>((resolve, reject) => {
         const request: PendingRequest = {
           resolve,
           reject,
           detachCancellation: () => {},
+          releaseOrigin: options.onOutboundRequest?.(callId) ?? (() => {}),
         };
         pending.set(callId, request);
         post({
@@ -307,6 +356,7 @@ export function createPluginChannel<
           callId,
           method,
           ...(target === undefined ? {} : { target }),
+          ...(origin === undefined ? {} : { origin }),
           payload,
         });
         // Watched *after* the request is on the wire, because an already

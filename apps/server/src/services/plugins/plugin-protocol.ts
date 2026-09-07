@@ -27,6 +27,25 @@ export interface PluginRequestMessage {
    * Absent for methods a plugin can only have one of.
    */
   target?: string;
+  /**
+   * The `callId` of the request this end is currently *serving*, when it is
+   * serving one.
+   *
+   * What it is for: a plugin's browser command has to be charged and named
+   * against whoever set the plugin going, and the ambient scopes that carry
+   * that on the server (`browser-external-access.ts`,
+   * `browser-command-issuer.ts`) do not survive a trip through a pipe. So the
+   * correlation travels instead — and the id it travels as is one the *host*
+   * minted for its own outbound call, never anything the plugin says about
+   * itself. See `browser-caller-handoff.ts`, which is the only reader.
+   *
+   * Stamped by ./plugin-channel.ts on both ends, because the envelope is
+   * symmetric and a second implementation of correlation is how the two ends
+   * drift. Optional because an older peer sends none, and because a request
+   * made outside any served call — a background service's, a schedule's, the
+   * host's own bootstrap — genuinely has no origin.
+   */
+  origin?: string;
   payload: JsonValue;
 }
 
@@ -184,6 +203,7 @@ export function parseMessage(value: unknown): PluginMessage | null {
       return typeof message.callId === "string" &&
         typeof message.method === "string" &&
         stringOrUndefined(message.target) &&
+        stringOrUndefined(message.origin) &&
         isJsonValue(message.payload)
         ? (message as unknown as PluginRequestMessage)
         : null;

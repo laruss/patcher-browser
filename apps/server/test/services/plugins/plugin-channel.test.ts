@@ -46,6 +46,7 @@ function linkedPair(options: {
   onHostRequest?: PluginRequestHandler;
   onPluginRequest?: PluginRequestHandler;
   onHostNotify?: (n: { method: string; payload: unknown }) => void;
+  onHostOutbound?: (callId: string) => () => void;
 }): Pair {
   const [hostPort, pluginPort] = createLinkedPorts();
   const problems: string[] = [];
@@ -54,6 +55,9 @@ function linkedPair(options: {
     name: "server",
     ...(options.onHostRequest ? { onRequest: options.onHostRequest } : {}),
     ...(options.onHostNotify ? { onNotify: options.onHostNotify } : {}),
+    ...(options.onHostOutbound
+      ? { onOutboundRequest: options.onHostOutbound }
+      : {}),
     onProtocolError: (problem) => problems.push(problem),
   });
   const plugin = createPluginChannel({
@@ -541,5 +545,155 @@ describe("plugin channel: hygiene", () => {
     }
 
     expect(spy).toHaveBeenCalledTimes(5);
+  });
+});
+
+/**
+ * Which call a frame came out of.
+ *
+ * The one thing that crosses the boundary about *who* asked for something, and
+ * the reason it is the host's own call id rather than anything the plugin says
+ * about itself: the host records the caller under the id it minted, so a frame
+ * quoting one can only ever find what the host put there. See
+ * `browser-caller-handoff.ts`, which is the only reader of any of this.
+ */
+describe("plugin channel: which call a frame came out of", () => {
+  it("names the exact call the far side was serving", async () => {
+    // The pairing this whole mechanism is: the id the host minted for its own
+    // outbound call is the id that comes back on the frame the plugin sends
+    // while serving it. Anything looser — "some call", "the latest call" —
+    // would attribute a command to the wrong caller the first time a plugin
+    // served two at once.
+    const outbound: string[] = [];
+    const seen: (string | undefined)[] = [];
+    const pair = linkedPair({
+      onPluginRequest: async () => {
+        await pluginEnd.request({ method: "browser.<command>", payload: null });
+        return "served";
+      },
+      onHostRequest: ({ origin }) => {
+        seen.push(origin);
+        return "answered";
+      },
+      onHostOutbound: (callId) => {
+        outbound.push(callId);
+        return () => {};
+      },
+    });
+    const pluginEnd = pair.plugin;
+
+    await pair.host.request({ method: "cli", payload: null });
+
+    expect(outbound).toHaveLength(1);
+    expect(seen).toEqual([outbound[0]]);
+  });
+
+  it("keeps two calls apart", async () => {
+    // The case a "one call is in flight" flag gets wrong, and the reason this
+    // is on the wire at all: one plugin, two callers, at the same time.
+    const gate = deferred<void>();
+    const seen = new Map<string, string | undefined>();
+    const pair = linkedPair({
+      onPluginRequest: async ({ payload }) => {
+        if (payload === "first") await gate.promise;
+        await pluginEnd.request({ method: "browser.<command>", payload });
+        return "served";
+      },
+      onHostRequest: ({ origin, payload }) => {
+        seen.set(String(payload), origin);
+        return "answered";
+      },
+    });
+    const pluginEnd = pair.plugin;
+
+    const first = pair.host.request({ method: "cli", payload: "first" });
+    const second = pair.host.request({ method: "cli", payload: "second" });
+    await second;
+    gate.resolve();
+    await first;
+
+    expect(seen.size).toBe(2);
+    expect(seen.get("first")).toBeDefined();
+    expect(seen.get("first")).not.toBe(seen.get("second"));
+  });
+
+  it("says nothing for a call that is nobody's", async () => {
+    // A background service, a schedule, a plugin's own start-up work: the
+    // plugin end is serving nothing, so there is no call to name and inventing
+    // one would attribute it to whatever ran last.
+    const seen: (string | undefined)[] = [];
+    const pair = linkedPair({
+      onHostRequest: ({ origin }) => {
+        seen.push(origin);
+        return "answered";
+      },
+    });
+
+    await pair.plugin.request({ method: "browser.<command>", payload: null });
+
+    expect(seen).toEqual([undefined]);
+  });
+
+  it("hands the sender the id, and takes it back when the call settles", async () => {
+    const held = new Set<string>();
+    const pair = linkedPair({
+      onPluginRequest: () => "served",
+      onHostOutbound: (callId) => {
+        held.add(callId);
+        return () => held.delete(callId);
+      },
+    });
+
+    const pending = pair.host.request({ method: "cli", payload: null });
+    // Recorded before the frame goes out, or a linked pair — which delivers
+    // synchronously — would answer a call nothing had a record of yet.
+    expect(held.size).toBe(1);
+    await pending;
+
+    expect(held.size).toBe(0);
+  });
+
+  it("takes it back when the call fails, and when the channel goes", async () => {
+    const held = new Set<string>();
+    const remember = (callId: string) => {
+      held.add(callId);
+      return () => held.delete(callId);
+    };
+    const failing = linkedPair({
+      onPluginRequest: () => {
+        throw new Error("no");
+      },
+      onHostOutbound: remember,
+    });
+
+    await expect(
+      failing.host.request({ method: "cli", payload: null }),
+    ).rejects.toThrow("no");
+    expect(held.size).toBe(0);
+
+    const dying = linkedPair({
+      onPluginRequest: () => new Promise(() => {}),
+      onHostOutbound: remember,
+    });
+    const stranded = dying.host.request({ method: "cli", payload: null });
+    expect(held.size).toBe(1);
+    dying.plugin.close("the plugin process died");
+
+    await expect(stranded).rejects.toBeInstanceOf(PluginChannelClosedError);
+    // A plugin process that dies mid-call must not leave the host holding a
+    // record of who its caller was, forever.
+    expect(held.size).toBe(0);
+  });
+
+  it("refuses a frame whose origin is not a string", () => {
+    expect(
+      parseMessage({
+        kind: "request",
+        callId: "c1",
+        method: "browser.<command>",
+        origin: 7,
+        payload: null,
+      }),
+    ).toBeNull();
   });
 });

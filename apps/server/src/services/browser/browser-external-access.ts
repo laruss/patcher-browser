@@ -27,14 +27,21 @@ import { permissionForBrowserCommand } from "@patcher/domain/plugin-permissions"
  * boundary and out of the contract — the same shape `telemetry.ts` and
  * `process-local-queued-lock.ts` already use here.
  *
- * **What it covers, exactly.** Commands issued on the caller's own async stack.
- * That is every built-in plugin, which is the whole of what `patcher browser`
- * reaches. It is *not* an installed plugin running in its own process: the
- * host charges those on a channel message, in a fresh async context, so the
- * scope does not reach them and they are charged what they declared, as before.
- * Nothing hides behind that gap — an external caller holding the app key can
- * install a plugin, and could equally rewrite the install-wide setting. See
- * `browser-external-access.ts` in `@patcher/domain` for that argument in full.
+ * **What it covers, exactly.** Commands issued on the caller's own async stack,
+ * which is every built-in plugin and therefore the whole of what
+ * `patcher browser` reaches — **and, since the caller crosses the plugin
+ * channel, an installed plugin running in its own process too.** The host
+ * serves those on a channel message, in a fresh async context this store
+ * cannot reach; what puts it back is the id the host minted for its own
+ * outbound call, quoted back on the frame and looked up in the host's own
+ * record (`browser-caller-handoff.ts`). So a third-party plugin with browser
+ * permissions and a CLI command of its own is no longer a door the setting
+ * leaves open.
+ *
+ * What is still not charged is a plugin's own work — a schedule, a background
+ * service, its HTTP route — because none of those is a caller from outside
+ * Patcher; they are charged the permissions the plugin declared, as they always
+ * were.
  *
  * **Two callers now, and two levels.** The setting is what an outside caller
  * holding the *app key* is allowed, and that caller can write it, so it is a
