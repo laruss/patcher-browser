@@ -91,6 +91,52 @@ describe("DesktopBrowserViewManager dialogs", () => {
     ).toHaveLength(1);
   });
 
+  // Chromium drops the `Page` domain with its protocol client, so a session
+  // that replaces a lost one owns none of the wiring above. These two are what
+  // #101 was: the per-tab `dialogsWired` flag outlived the session it described,
+  // so the next one short-circuited and never re-enabled the domain, and a
+  // dialog open when the client went stayed pending in a shell that could no
+  // longer answer it.
+  it("wires dialogs again for the session that replaces a lost one", async () => {
+    const { hostWindow, manager, webContents } = await attachTabWithDialogs();
+
+    // DevTools taking the debugger, or a renderer crash.
+    webContents.debugger.emitDetach("canceled by user");
+    webContents.debugger.attached = false;
+
+    await manager.snapshot({ hostWindow, request: { tabId: "browser:a" } });
+
+    expect(webContents.debugger.attachCalls).toHaveLength(2);
+    expect(
+      webContents.debugger.commands.filter(
+        (command) => command.method === "Page.enable",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("gives the page back when the debugger goes with a dialog open", async () => {
+    const { hostWindow, view, webContents } = await attachTabWithDialogs();
+    openDialog(webContents, {
+      type: "confirm",
+      message: "Sure?",
+      defaultPrompt: "",
+    });
+    expect(view.visible).toBe(false);
+
+    webContents.debugger.emitDetach("canceled by user");
+
+    // Not a claim that the page came unblocked — the dialog most likely still
+    // stands and no new session can answer it. What it buys is that the app
+    // stops holding a modal over a hidden view for a dialog `respondToDialog`
+    // can no longer reach, which is the difference between a blocked page and
+    // a browser tab with nothing in it.
+    expect(view.visible).toBe(true);
+    expect(dialogPushesOf(hostWindow).at(-1)).toEqual({
+      tabId: "browser:a",
+      dialog: null,
+    });
+  });
+
   it("hides the page and reports the dialog when one opens", async () => {
     const { hostWindow, view, webContents } = await attachTabWithDialogs();
     expect(view.visible).toBe(true);

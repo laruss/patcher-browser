@@ -264,7 +264,7 @@ against our own shell.
   path-escape case that makes the join safe, NUL, the Windows device names, and
   truncation that keeps the extension (and the absurd-extension case that
   cannot); collision counting, the last-dot split, and the timestamp fallback.
-- `desktop-browser-view-manager.test.ts` — a download saved under a sanitized
+- `desktop-browser-view-manager-chrome.test.ts` — a download saved under a sanitized
   name with **no `preventDefault`** (the dialog suppression is the feature), the
   terminal event arriving under the id the start used, a failed transfer passed
   through as its own state, the rate limit refusing and saying so, a download
@@ -286,11 +286,11 @@ against our own shell.
   frozen while the list is open and revealed when it closes **or when the chrome
   unmounts**, and the list closing on an outside click, on Escape, and on the
   address bar taking focus — while a click inside it changes nothing.
-- `desktop-browser-view-manager.test.ts` — the overlay sequence: the page still
+- `desktop-browser-view-manager-chrome.test.ts` — the overlay sequence: the page still
   showing while the capture is in flight and hidden only once the bitmap is
   pushed, the reveal-then-clear ordering on close, and the page hidden anyway
   when the capture fails.
-- `desktop-browser-view-manager.test.ts` — the path allowlist: a file Patcher
+- `desktop-browser-view-manager-chrome.test.ts` — the path allowlist: a file Patcher
   downloaded opens and reveals, **a path it did not write is refused and
   nothing is touched** (including a plausible one inside the downloads folder),
   and the OS refusal passed through as a failure.
