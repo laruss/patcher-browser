@@ -30,11 +30,11 @@ const GRANT = {
   level: "read",
 } as const;
 
-/** One driving signal, as `drivingSignals` renders it. */
-function drivingSignal(phase: "started" | "settled", requestId = "r1") {
+/** One driving signal about `r1`, as `drivingSignals` renders it. */
+function drivingSignal(phase: "started" | "settled") {
   return {
     type: "browser-driving",
-    requestId,
+    requestId: "r1",
     phase,
     issuer: GRANT,
   };

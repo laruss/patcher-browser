@@ -53,16 +53,27 @@ export interface BrowserDrivingTracker {
   /**
    * A command has arrived. Undefined issuers — the app's own work — do nothing.
    *
-   * `elsewhere` is the window it is being performed in, not the window it is
-   * being reported in: a `browser-driving` signal is only ever sent to windows
-   * that are not doing it.
+   * `requestId` is the server's own id for the command, and it is what this is
+   * keyed on: a window can be told about *two* commands from one caller at
+   * once, one it is performing and one another window is, and they end
+   * separately. `elsewhere` is the window the command is being performed in,
+   * not the window it is being reported in — a `browser-driving` signal is only
+   * ever sent to windows that are not doing it.
    */
-  started(
-    issuer: BrowserCommandIssuer | undefined,
-    options?: { elsewhere?: boolean },
-  ): void;
-  /** That command has answered, one way or the other. */
-  settled(issuer: BrowserCommandIssuer | undefined): void;
+  started(command: {
+    requestId: string;
+    issuer: BrowserCommandIssuer | undefined;
+    elsewhere?: boolean;
+  }): void;
+  /**
+   * That command has answered, one way or the other.
+   *
+   * An id this window never saw start is ignored, which is what it means for a
+   * window to register — or reconnect — part-way through somebody's command:
+   * it hears the end of one whose beginning went to a socket that did not
+   * exist yet.
+   */
+  settled(requestId: string): void;
   /**
    * Forget what another window told us, and keep what this window is doing.
    *
@@ -81,6 +92,11 @@ export interface CreateBrowserDrivingTrackerArgs {
   set(state: BrowserDrivingState | null): void;
 }
 
+interface InFlightCommand {
+  elsewhere: boolean;
+  issuer: BrowserCommandIssuer;
+}
+
 /**
  * Tracks who is driving, outside React.
  *
@@ -93,13 +109,23 @@ export interface CreateBrowserDrivingTrackerArgs {
 export function createBrowserDrivingTracker(
   args: CreateBrowserDrivingTrackerArgs,
 ): BrowserDrivingTracker {
-  /** Per driver: how many of its commands are unanswered, and who it is. */
-  const inFlight = new Map<
-    string,
-    { count: number; elsewhere: boolean; issuer: BrowserCommandIssuer }
-  >();
+  /**
+   * The commands in flight, by the server's id for each, in the order they
+   * started.
+   *
+   * By command rather than by caller, which is the correction of two review
+   * rounds: one caller can have a command in *this* window and another in a
+   * different one at the same time — this window was the primary, its socket
+   * blipped, the next command went to the window that got promoted while the
+   * first command carried on here — and per-caller bookkeeping collapses those
+   * two into one entry with one place. Then the mirrored one ends and the row
+   * says "in another window" about a command running here, or a reconnect drops
+   * the entry and the row goes down while a tab is visibly being driven.
+   */
+  const inFlight = new Map<string, InFlightCommand>();
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let current: { elsewhere: boolean; key: string } | null = null;
+  /** Whose row is up, and whether the command it names is in another window. */
+  let shown: { elsewhere: boolean; key: string } | null = null;
 
   function clearTimer(): void {
     if (timer === null) return;
@@ -108,114 +134,114 @@ export function createBrowserDrivingTracker(
   }
 
   /**
-   * Anybody else still mid-command, for when the shown driver finishes.
+   * The command that started most recently, of a caller's or of anybody's.
    *
-   * The most recently *started* one, which is what `started` keeps the map in
-   * order of. Taking the first entry would hand a three-way overlap back to the
-   * oldest driver, and "who moved last" is the rule everything else here
-   * follows.
+   * "Who moved last" is the rule the whole of this follows, and insertion order
+   * is what `started` keeps the map in, so the last match is the answer. Taking
+   * the first would hand a three-way overlap back to the oldest driver.
    */
-  function stillDriving(
-    except: string,
-  ): { elsewhere: boolean; issuer: BrowserCommandIssuer } | undefined {
-    for (const [key, entry] of [...inFlight].reverse()) {
-      if (key !== except && entry.count > 0) {
-        return { elsewhere: entry.elsewhere, issuer: entry.issuer };
+  function latest(forKey?: string): InFlightCommand | undefined {
+    let found: InFlightCommand | undefined;
+    for (const command of inFlight.values()) {
+      if (forKey === undefined || browserIssuerKey(command.issuer) === forKey) {
+        found = command;
       }
     }
-    return undefined;
+    return found;
+  }
+
+  function show(command: InFlightCommand): void {
+    shown = {
+      elsewhere: command.elsewhere,
+      key: browserIssuerKey(command.issuer),
+    };
+    clearTimer();
+    args.set({
+      issuer: command.issuer,
+      active: true,
+      elsewhere: command.elsewhere,
+    });
+  }
+
+  /**
+   * The caller whose row is up has nothing left in flight.
+   *
+   * Say it stopped, then either hand the row to whoever is still driving — two
+   * at once is not supported (see the atom's docstring), and this is about not
+   * lying when it happens anyway — or start the linger. Never clear it while
+   * somebody is still driving.
+   */
+  function finish(command: InFlightCommand): void {
+    const key = browserIssuerKey(command.issuer);
+    args.set({
+      issuer: command.issuer,
+      active: false,
+      elsewhere: command.elsewhere,
+    });
+    const other = latest();
+    if (other !== undefined) {
+      show(other);
+      return;
+    }
+    clearTimer();
+    timer = setTimeout(() => {
+      timer = null;
+      if (shown?.key !== key || latest(key) !== undefined) return;
+      shown = null;
+      args.set(null);
+    }, BROWSER_DRIVING_LINGER_MS);
   }
 
   return {
-    started(issuer, options) {
+    started({ requestId, issuer, elsewhere = false }) {
       if (issuer === undefined) return;
-      const key = browserIssuerKey(issuer);
-      const elsewhere = options?.elsewhere === true;
-      const held = inFlight.get(key);
-      // Deleted before it is set, so the map stays in order of who started most
-      // recently: `Map.set` on an existing key keeps its old position, and that
-      // order is what a handover reads.
-      inFlight.delete(key);
-      inFlight.set(key, { count: (held?.count ?? 0) + 1, elsewhere, issuer });
-      current = { elsewhere, key };
-      clearTimer();
-      args.set({ issuer, active: true, elsewhere });
+      // Deleted before it is set, so the map stays in the order commands
+      // started: `Map.set` on an existing key keeps its old position.
+      inFlight.delete(requestId);
+      inFlight.set(requestId, { elsewhere, issuer });
+      show({ elsewhere, issuer });
     },
-    settled(issuer) {
-      if (issuer === undefined) return;
-      const key = browserIssuerKey(issuer);
-      const held = inFlight.get(key);
-      const left = Math.max((held?.count ?? 0) - 1, 0);
-      // Which window it was in is read from what `started` recorded rather than
-      // passed in again: a settle carries no news about where the command ran,
-      // and asking the caller for it twice is how the two halves disagree.
-      const elsewhere = held?.elsewhere ?? current?.elsewhere === true;
-      if (left === 0) inFlight.delete(key);
-      else inFlight.set(key, { count: left, elsewhere, issuer });
+    settled(requestId) {
+      const finished = inFlight.get(requestId);
+      // Nothing was recorded under this id: the app's own browsing, or a
+      // command that began before this window was listening. Either way there
+      // is nothing to end, and counting it would end somebody else's.
+      if (finished === undefined) return;
+      inFlight.delete(requestId);
+      const key = browserIssuerKey(finished.issuer);
       // Somebody else started driving while this command was in the air. Their
-      // indicator is the current one and this answer must not replace it.
-      if (current?.key !== key) return;
-      args.set({ issuer, active: left > 0, elsewhere });
-      if (left > 0) return;
-      // This driver has stopped, but somebody else has not. Hand the indicator
-      // over now rather than lingering on a name that is finished — and never
-      // clear it, which would say nobody is driving while somebody is. Two at
-      // once is not supported (see the atom's docstring); this is about not
-      // lying when it happens anyway.
-      const other = stillDriving(key);
-      if (other !== undefined) {
-        current = {
-          elsewhere: other.elsewhere,
-          key: browserIssuerKey(other.issuer),
-        };
-        clearTimer();
-        args.set({
-          issuer: other.issuer,
-          active: true,
-          elsewhere: other.elsewhere,
-        });
+      // row is the current one and this answer must not replace it.
+      if (shown?.key !== key) return;
+      // Another of this caller's commands is still in the air — including one
+      // in a different window than this one was.
+      const mine = latest(key);
+      if (mine !== undefined) {
+        show(mine);
         return;
       }
-      clearTimer();
-      timer = setTimeout(() => {
-        timer = null;
-        if (current?.key !== key || (inFlight.get(key)?.count ?? 0) > 0) return;
-        current = null;
-        args.set(null);
-      }, BROWSER_DRIVING_LINGER_MS);
+      finish(finished);
     },
     forgetOtherWindows() {
-      for (const [key, entry] of [...inFlight]) {
-        if (entry.elsewhere) inFlight.delete(key);
+      for (const [requestId, command] of [...inFlight]) {
+        if (command.elsewhere) inFlight.delete(requestId);
       }
-      // Nothing shown, or this window's own work is what is shown: there is
-      // nothing to correct, and the entries above are gone so a later handover
+      // Nothing shown, or what is shown is a command this window is performing:
+      // nothing to correct, and the commands above are gone so a later handover
       // cannot bring one of them back.
-      if (current?.elsewhere !== true) return;
-      const dropped = current.key;
+      if (shown?.elsewhere !== true) return;
       clearTimer();
-      // The same handover a settle does, and for the same reason: if this
-      // window is still performing something, that is who is driving now.
-      const other = stillDriving(dropped);
+      const other = latest();
       if (other === undefined) {
-        current = null;
+        shown = null;
         args.set(null);
         return;
       }
-      current = {
-        elsewhere: other.elsewhere,
-        key: browserIssuerKey(other.issuer),
-      };
-      args.set({
-        issuer: other.issuer,
-        active: true,
-        elsewhere: other.elsewhere,
-      });
+      show(other);
     },
     dispose() {
       clearTimer();
       inFlight.clear();
-      current = null;
+      shown = null;
       args.set(null);
     },
   };

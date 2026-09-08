@@ -289,10 +289,14 @@ export class WebSocketManager {
   }
 
   /**
-   * Announce that this client can drive a browser surface. The server addresses
-   * the window that claimed the role first and keeps it there while it lasts
-   * (`ws/hub.ts`), so re-registering after a reconnect is how a window keeps
-   * the agent's browser commands rather than how it takes them.
+   * Announce that this client can drive a browser surface.
+   *
+   * The server addresses the window that claimed the role first (`ws/hub.ts`),
+   * so re-registering after a reconnect is how a window asks to keep the
+   * agent's browser commands rather than how it takes them — and it keeps them
+   * only while the server still lists the socket it dropped. Once the close has
+   * been processed the claim is a new one, behind any sibling window's, and the
+   * agent's next command goes there instead.
    */
   registerBrowserHost(browserHostId: string): void {
     this.browserHostId = browserHostId;

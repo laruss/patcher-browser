@@ -525,17 +525,23 @@ window's socket goes away, its registration is already out of the map, so
 "fewer than two windows" would skip the settle that a still-open sibling needs
 to take its indicator down.
 
-**Two rules about a window that arrives late**, which is what the `requestId` on
-the signal is for. A window that registers — or reconnects — part-way through a
-command is in the audience for that command's `settled` without ever having
-heard its `started`, and the tracker counts *per caller*: counting the stray
-settle would take down the row of another command the same caller started since,
-while it is still driving. So the window pairs the phases by that id and ignores
-one it cannot place. And on a reconnect it forgets what it was *mirroring* —
-a settle sent while the socket was down is never resent — while keeping what it
-is performing itself, because that settles locally whatever the socket did.
-Clearing both would be the same lie from the other side: no row while a tab is
-visibly being driven.
+**The `requestId` on the signal is what the window's bookkeeping is keyed on**,
+and both reasons are the same shape. A window that registers — or reconnects —
+part-way through a command is in the audience for that command's `settled`
+without ever having heard its `started`; and *one caller* can have a command in
+this window and another in a different one at the same time — this window was
+the primary, its socket blipped, the next command went to the window that got
+promoted while the first command carried on here. Counting per caller collapses
+both cases: the stray settle ends a command that is still running, and the two
+commands share one "where", so the row says "in another window" about a tab in
+this one. Keyed by command, an end with no beginning is nothing to end, and each
+command carries its own place.
+
+On a reconnect the window forgets what it was *mirroring* — a settle sent while
+the socket was down is never resent — while keeping what it is performing
+itself, because that settles locally whatever the socket did. Clearing both
+would be the same lie from the other side: no row while a tab is visibly being
+driven.
 
 **The button is the one that fits the caller.** A grant gets **Pause**, which is
 the whole reason pausing exists. A caller from outside with no grant gets a link
@@ -688,18 +694,20 @@ Named here rather than left to be rediscovered.
   browsing carries no issuer at all, and the field is absent rather than null.
 - `apps/app/src/lib/browser-agent/driving.test.ts` — the indicator stays up
   between one agent's commands, stays up while a slow one is still in the air,
-  counts overlapping commands rather than the last to answer, and shows whoever
-  is driving now rather than whoever answered last. Plus which window: a
-  settle carries no news about *where*, so it is read from what the start
-  recorded rather than defaulted — otherwise the row flips to "this browser"
-  for the four seconds it lingers, which is when a person is most likely to
-  read it.
+  counts overlapping commands rather than the last to answer, does not blink
+  `inactive` between two of one caller's, and shows whoever is driving now
+  rather than whoever answered last. Plus which window, in the three states the
+  reviews found: a settle reads its place from what its own start recorded — so
+  the row does not flip to "this browser" for the four seconds it lingers — one
+  caller's two windows are told apart as they settle, and a reconnect keeps that
+  caller's local command while dropping its mirrored one.
 - `apps/app/src/lib/browser-agent/useBrowserAgentBridge.test.tsx` — the
   subscription a non-serving window's whole indicator hangs on: a signal from
-  another window is shown as being elsewhere, a settle for a command this window
-  never saw start is ignored rather than counted against one it did, a reconnect
-  stops the row claiming a command that ended while the socket was down, and
-  unmounting stops both listeners.
+  another window is shown as being elsewhere, each phase's own command id
+  reaches the tracker, a reconnect stops the row claiming a command that ended
+  while the socket was down *and* keeps one this window is still performing
+  (its executor stubbed to never answer, which is the state the rule is about),
+  and unmounting stops both listeners.
 - `apps/app/src/views/BrowserSurfaceView.test.tsx` — the placement, in the state
   that used to lose it: with a Patcher screen holding the tab there is no
   address bar, and the row is on screen anyway.

@@ -24,10 +24,17 @@ import { browserDrivingAtom } from "./driving";
 
 type Unsubscribe = () => void;
 
+interface CommandSignal {
+  type: "browser-command-request";
+  requestId: string;
+  command: { type: "tabs.list" };
+  issuer: typeof GRANT;
+}
+
 const wsManager = {
-  onBrowserCommand: vi.fn<(callback: (signal: unknown) => void) => Unsubscribe>(
-    () => () => undefined,
-  ),
+  onBrowserCommand: vi.fn<
+    (callback: (signal: CommandSignal) => void) => Unsubscribe
+  >(() => () => undefined),
   onBrowserDriving: vi.fn<
     (callback: (signal: BrowserDrivingSignal) => void) => Unsubscribe
   >(() => () => undefined),
@@ -40,6 +47,13 @@ const wsManager = {
 };
 
 vi.mock("@/lib/ws", () => ({ wsManager }));
+
+// A command this window is performing and has not finished. Nothing else here
+// needs the executor, and a real one would answer within the test — which is
+// the opposite of the state the reconnect case is about.
+vi.mock("./execute", () => ({
+  executeBrowserCommand: () => new Promise(() => undefined),
+}));
 
 const GRANT = {
   kind: "grant",
@@ -85,6 +99,17 @@ function mountBridge() {
     deliver(signal: BrowserDrivingSignal) {
       for (const [callback] of wsManager.onBrowserDriving.mock.calls) {
         callback(signal);
+      }
+    },
+    /** A command addressed to this window, the way the server sends one. */
+    command(requestId: string) {
+      for (const [callback] of wsManager.onBrowserCommand.mock.calls) {
+        callback({
+          type: "browser-command-request",
+          requestId,
+          command: { type: "tabs.list" },
+          issuer: GRANT,
+        });
       }
     },
     /** Reconnect, the way the ws manager announces one. */
@@ -141,7 +166,7 @@ describe("the browser agent bridge, in a window that is not serving", () => {
     expect(bridge.store.get(browserDrivingAtom)).toBeNull();
   });
 
-  it("ignores a settle for a command it never saw start", () => {
+  it("passes each phase's own command id through", () => {
     const bridge = mountBridge();
 
     // The sequence a window gets when it registers — or reconnects — part-way
@@ -151,14 +176,39 @@ describe("the browser agent bridge, in a window that is not serving", () => {
     bridge.deliver(driving("started", "r2"));
     bridge.deliver(driving("settled", "r1"));
 
-    // The tracker counts per caller, so counting the stray settle would take
-    // r2's row down while r2 is still driving — the one thing this row must
-    // never do. Pairing by request id is the only thing that can tell them
-    // apart, and this callback is where the ids are.
+    // The tracker ignores an end it never saw begin, but only if it is given
+    // the id: a subscription that passed the same id for both phases, or
+    // dropped it, would end r2 here — and r2 is still driving.
     expect(bridge.store.get(browserDrivingAtom)).toEqual({
       issuer: GRANT,
       active: true,
       elsewhere: true,
+    });
+  });
+
+  it("keeps a command this window is performing through a reconnect", () => {
+    const bridge = mountBridge();
+
+    // This window is the one serving: the command arrives as a request, and
+    // its executor has not answered.
+    bridge.command("r1");
+    expect(bridge.store.get(browserDrivingAtom)).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: false,
+    });
+
+    bridge.reconnect();
+
+    // A reconnect drops what this window was told about *other* windows, and
+    // nothing else. Clearing the tracker wholesale — which is what this did
+    // before the review — takes the row down while a tab in this window is
+    // visibly being driven, and no settle is coming to put it back: the local
+    // command answers to a promise, not to the socket.
+    expect(bridge.store.get(browserDrivingAtom)).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: false,
     });
   });
 
