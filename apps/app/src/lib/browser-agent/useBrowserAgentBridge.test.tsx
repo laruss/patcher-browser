@@ -297,12 +297,12 @@ describe("the browser agent bridge, keeping the record", () => {
 
     bridge.deliver(drivingStarted("r1"));
     bridge.deliver(
-      drivingSettled("r1", { ok: false, error: "tab_not_found" }),
+      drivingSettled("r1", { ok: false, error: "unknown_tab" }),
     );
 
     expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
       kind: "failed",
-      code: "tab_not_found",
+      code: "unknown_tab",
     });
   });
 

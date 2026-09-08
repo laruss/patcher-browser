@@ -416,7 +416,7 @@ describe("WebSocketManager browser commands", () => {
       requestId: "req_5",
       phase: "settled",
       issuer: { kind: "outside" },
-      outcome: { ok: false, error: "tab_not_found" },
+      outcome: { ok: false, error: "unknown_tab" },
     } as const;
     dispatchRaw(signal);
 

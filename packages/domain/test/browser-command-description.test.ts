@@ -107,7 +107,12 @@ describe("what it cuts", () => {
 
   it("leaves a short one exactly as it reads", () => {
     expect(
-      browserCommandRecordDetail({ type: "navigation.open", url: "https://x.test/", tabId: null }),
+      browserCommandRecordDetail({
+        type: "navigation.open",
+        tabId: null,
+        url: "https://x.test/",
+        newTab: false,
+      }),
     ).toBe("https://x.test/");
   });
 });

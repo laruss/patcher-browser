@@ -500,7 +500,7 @@ describe("NotificationHub browser commands", () => {
         requestId: "r1",
         outcome: {
           ok: false,
-          code: "tab_not_found",
+          code: "unknown_tab",
           message: "That tab is not open any more.",
         },
       },
@@ -511,7 +511,7 @@ describe("NotificationHub browser commands", () => {
     // not the message, which is written for the agent that asked.
     expect(drivingSignals(watching.messages)).toEqual([
       drivingStarted(),
-      drivingSettled({ ok: false, error: "tab_not_found" }),
+      drivingSettled({ ok: false, error: "unknown_tab" }),
     ]);
     expect(watching.messages.join("\n")).not.toContain("not open any more");
   });

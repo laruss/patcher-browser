@@ -97,7 +97,7 @@ describe("the recent browser commands control", () => {
 
   it("tells a refusal apart from a command nobody answered", () => {
     renderControl([
-      entry({ requestId: "r1", status: { kind: "failed", code: "tab_not_found" } }),
+      entry({ requestId: "r1", status: { kind: "failed", code: "unknown_tab" } }),
       entry({ requestId: "r2", status: { kind: "unanswered" } }),
       entry({ requestId: "r3", status: { kind: "running" } }),
     ]);
@@ -108,7 +108,7 @@ describe("the recent browser commands control", () => {
     // Not "failed": the command timed out or the window performing it went
     // away, and whether the browser did it is not known.
     expect(rows[1]?.textContent).toContain("no answer");
-    expect(rows[2]?.textContent).toContain("failed · tab_not_found");
+    expect(rows[2]?.textContent).toContain("failed · unknown_tab");
   });
 
   it("still shows a command the frame did not describe", () => {

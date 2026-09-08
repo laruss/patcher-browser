@@ -101,11 +101,11 @@ describe("the browser activity log", () => {
     const record = log();
 
     record.activity.started({ requestId: "r1", issuer: GRANT, command: CLICK });
-    record.activity.settled("r1", { ok: false, error: "tab_not_found" });
+    record.activity.settled("r1", { ok: false, error: "unknown_tab" });
 
     expect(record.entries[0]?.status).toEqual({
       kind: "failed",
-      code: "tab_not_found",
+      code: "unknown_tab",
     });
   });
 
