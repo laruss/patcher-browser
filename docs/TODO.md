@@ -301,12 +301,17 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   over. Closing it properly means the shell saying where the open came from —
   an optional field on that channel, feature-detected the way placement itself
   was.
-- **The indicator says who, not what.** A grant's name and level, and nothing
-  about the command: no URL, no selector, no count of what was read. The trace
-  recorder (`patcher browser trace-start`) already records exactly that and is
-  not wired to it, and the scope sketch calls an automatic trace for outside
-  callers the optional half of this. Worth doing when somebody wants to answer
-  "what did it do" rather than "is something happening".
+- **What drove the browser is one window's memory.** The row now names the
+  command and each window keeps the last 200 of them, read in Settings under the
+  grants
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
+  What that is not is durable: the list is in the renderer, so a reload starts
+  it empty and a window that was closed while an agent worked has nothing to
+  show. It also keeps no screenshots and no read sizes — "it read the page" does
+  not say how much came back. Making it survive a reload means a table, a
+  retention policy and a route, and the complete record already exists as
+  `patcher browser trace-start`, so this is worth doing when somebody needs the
+  answer *after* closing the window rather than during the session.
 - **Revoking or pausing a browser access grant does not undo what it set up.**
   The credential stops at the next request
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)),

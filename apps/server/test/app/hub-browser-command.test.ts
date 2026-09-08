@@ -30,34 +30,50 @@ const GRANT = {
   level: "read",
 } as const;
 
-/** One driving signal about `r1`, as `drivingSignals` renders it. */
-function drivingSignal(phase: "started" | "settled") {
+/**
+ * The start of `r1`, as `drivingSignals` renders it.
+ *
+ * `tabs.list` renders to an empty detail, which is honest: the command is the
+ * whole of what happened, and the window falls back to naming it.
+ */
+function drivingStarted(command = { name: "tabs.list", detail: "" }) {
   return {
     type: "browser-driving",
     requestId: "r1",
-    phase,
+    phase: "started",
     issuer: GRANT,
+    command,
   };
 }
 
-function drivingSignals(
-  messages: string[],
-): Array<{
+/** Its end. `null` is "nobody answered", which is not a failure. */
+function drivingSettled(
+  outcome: { ok: boolean; error: string | null } | null = {
+    ok: true,
+    error: null,
+  },
+) {
+  return {
+    type: "browser-driving",
+    requestId: "r1",
+    phase: "settled",
+    issuer: GRANT,
+    outcome,
+  };
+}
+
+interface ParsedDrivingSignal {
   type?: string;
   phase?: string;
   requestId?: string;
   issuer?: unknown;
-}> {
+  command?: unknown;
+  outcome?: unknown;
+}
+
+function drivingSignals(messages: string[]): ParsedDrivingSignal[] {
   return messages
-    .map(
-      (raw) =>
-        JSON.parse(raw) as {
-          type?: string;
-          phase?: string;
-          requestId?: string;
-          issuer?: unknown;
-        },
-    )
+    .map((raw) => JSON.parse(raw) as ParsedDrivingSignal)
     .filter((message) => message.type === "browser-driving");
 }
 
@@ -354,10 +370,10 @@ describe("NotificationHub browser commands", () => {
     // sent once, to one socket, so a person reading a thread over there used to
     // see an agent work with nothing on screen saying so.
     expect(drivingSignals(watching.messages)).toEqual([
-      drivingSignal("started"),
+      drivingStarted(),
     ]);
     expect(drivingSignals(alsoWatching.messages)).toEqual([
-      drivingSignal("started"),
+      drivingStarted(),
     ]);
     // And the window performing it is not told twice: it counts the command
     // from the request itself, so an announcement here would have it show two
@@ -375,14 +391,177 @@ describe("NotificationHub browser commands", () => {
     // funnel called twice, which the client would count against a command the
     // same caller had started since.
     expect(drivingSignals(watching.messages)).toEqual([
-      drivingSignal("started"),
-      drivingSignal("settled"),
+      drivingStarted(),
+      drivingSettled(),
     ]);
     expect(drivingSignals(alsoWatching.messages)).toEqual([
-      drivingSignal("started"),
-      drivingSignal("settled"),
+      drivingStarted(),
+      drivingSettled(),
     ]);
     expect(drivingSignals(serving.messages)).toEqual([]);
+  });
+
+  it("names the command, in the words the caller's own trace uses", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: {
+          type: "page.interact",
+          tabId: null,
+          generation: null,
+          interaction: { action: "fill", ref: "e2", text: "hello" },
+        },
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+
+    // The window has no other source for this — it never sees the command —
+    // and the rendering is the trace's own, so what a person reads in the
+    // chrome and what the caller's trace says are the same words.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingStarted({ name: "page.interact", detail: 'fill e2 "hello"' }),
+    ]);
+
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: okResponse("r1"),
+    });
+    await pending;
+  });
+
+  it("sends the rendering of a command, never the command", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: {
+          type: "page.storage",
+          tabId: null,
+          operation: {
+            kind: "items-set",
+            area: "local",
+            items: [{ name: "token", value: "super-secret" }],
+          },
+        },
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+
+    // A frame that carried the command itself would carry a `state.load`'s
+    // cookies and a storage write's values to every other window. The line
+    // names the key it touched and not what was written.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingStarted({ name: "page.storage", detail: "items-set local token" }),
+    ]);
+    expect(watching.messages.join("\n")).not.toContain("super-secret");
+
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: okResponse("r1"),
+    });
+    await pending;
+  });
+
+  it("reports a refusal with its own code", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: {
+        type: "browser-command.response",
+        requestId: "r1",
+        outcome: {
+          ok: false,
+          code: "unknown_tab",
+          message: "That tab is not open any more.",
+        },
+      },
+    });
+    await pending;
+
+    // The code, because it is the reason a person reads a record at all — and
+    // not the message, which is written for the agent that asked.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingStarted(),
+      drivingSettled({ ok: false, error: "unknown_tab" }),
+    ]);
+    expect(watching.messages.join("\n")).not.toContain("not open any more");
+  });
+
+  it("tells the other windows how it went, not what it read", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: {
+          type: "page.get_text",
+          tabId: null,
+          maxLength: 10_000,
+          selector: null,
+        },
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: {
+        type: "browser-command.response",
+        requestId: "r1",
+        outcome: {
+          ok: true,
+          value: {
+            type: "text",
+            text: "the private page the agent just read",
+            truncated: false,
+          },
+        },
+      },
+    });
+    await pending;
+
+    // The answer to a read is the page. It goes to the caller that asked for
+    // it and nowhere else: these windows are being told that a command
+    // finished, not handed its contents.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingStarted({ name: "page.get_text", detail: "" }),
+      drivingSettled({ ok: true, error: null }),
+    ]);
+    expect(watching.messages.join("\n")).not.toContain("the private page");
   });
 
   it("says nothing at all when the command could not be sent", async () => {
@@ -440,9 +619,11 @@ describe("NotificationHub browser commands", () => {
 
     // The entrance with no answer and no closed socket. A window left holding
     // this row would hold it for a command the server has already given up on.
+    // And no outcome with it: the command may well have been performed, so a
+    // record saying it failed would be inventing news.
     expect(drivingSignals(watching.messages)).toEqual([
-      drivingSignal("started"),
-      drivingSignal("settled"),
+      drivingStarted(),
+      drivingSettled(null),
     ]);
   });
 
@@ -500,8 +681,8 @@ describe("NotificationHub browser commands", () => {
     await assertion;
 
     expect(drivingSignals(watching.messages)).toEqual([
-      drivingSignal("started"),
-      drivingSignal("settled"),
+      drivingStarted(),
+      drivingSettled(null),
     ]);
   });
 

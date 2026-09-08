@@ -39,6 +39,13 @@ import { browserIssuerName } from "@/lib/browser-agent/issuer";
  * click. Revoking is still a click away in Settings, for the credential they
  * want gone.
  *
+ * **And what it is doing, not only who is doing it.** The line is the same one
+ * a trace step carries, rendered by the same function — so what a person reads
+ * here and what the caller's own trace says about that command are the same
+ * words. Commands whose rendering is empty (a snapshot, a read of the whole
+ * page) fall back to the command's own name, because "Claude Code is driving
+ * this browser ·" with nothing after it reads as a bug.
+ *
  * The other two issuers get no button, because neither has one honest thing to
  * press. A turn inside Patcher is stopped in the thread it belongs to. A caller
  * holding the app key cannot be told apart from any other holder of the app
@@ -58,7 +65,10 @@ export function BrowserDrivingIndicator({
   const pause = useSetBrowserAccessGrantPaused();
 
   if (driving === null) return null;
-  const { issuer } = driving;
+  const { command, issuer } = driving;
+  // Empty for a read of the whole page or a snapshot: those commands have
+  // nothing to name beyond themselves.
+  const what = command === null ? null : command.detail || command.name;
 
   return (
     <div
@@ -82,6 +92,7 @@ export function BrowserDrivingIndicator({
         {issuer.kind === "grant"
           ? ` · ${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[issuer.level].label.toLowerCase()}`
           : ""}
+        {what === null ? null : <span className="opacity-80"> · {what}</span>}
       </p>
       {issuer.kind === "grant" ? (
         // Once it is paused the row is telling the truth about a moment that

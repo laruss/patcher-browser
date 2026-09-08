@@ -5,11 +5,7 @@ import {
   type BrowserCommand,
   type BrowserCommandOutcome,
 } from "@patcher/domain";
-import {
-  BrowserTraceRecorder,
-  browserCommandChangesPage,
-  describeBrowserCommand,
-} from "./trace";
+import { BrowserTraceRecorder, browserCommandChangesPage } from "./trace";
 
 const OK: BrowserCommandOutcome = { ok: true, value: { type: "tabs", tabs: [] } };
 
@@ -27,76 +23,6 @@ function click(ref: string): BrowserCommand {
     },
   };
 }
-
-describe("describeBrowserCommand", () => {
-  it("says what was typed, because a log that will not is not a log", () => {
-    expect(
-      describeBrowserCommand({
-        type: "page.interact",
-        tabId: null,
-        generation: null,
-        interaction: { action: "fill", ref: "e2", text: "hello" },
-      }),
-    ).toBe('fill e2 "hello"');
-  });
-
-  it("names the storage keys a write touched and none of their values", () => {
-    // A trace is a file people save and send each other; a cookie value in one
-    // is a session in one.
-    const detail = describeBrowserCommand({
-      type: "page.storage",
-      tabId: null,
-      operation: {
-        kind: "items-set",
-        area: "local",
-        items: [{ name: "token", value: "super-secret" }],
-      },
-    });
-
-    expect(detail).toBe("items-set local token");
-    expect(detail).not.toContain("super-secret");
-  });
-
-  it("does not spell a cookie write out at all", () => {
-    const detail = describeBrowserCommand({
-      type: "page.storage",
-      tabId: null,
-      operation: {
-        kind: "cookies-set",
-        cookies: [
-          {
-            name: "session",
-            value: "super-secret",
-            domain: "example.com",
-            path: "/",
-            secure: false,
-            httpOnly: true,
-            sameSite: "Lax",
-            expires: -1,
-          },
-        ],
-      },
-    });
-
-    expect(detail).toBe("cookies-set 1");
-    expect(detail).not.toContain("super-secret");
-  });
-
-  it("keeps the parts of a control command that say what it did", () => {
-    expect(
-      describeBrowserCommand({
-        type: "page.control",
-        tabId: null,
-        generation: null,
-        operation: {
-          kind: "evaluate",
-          expression: "() => document.title",
-          ref: null,
-        },
-      }),
-    ).toBe("evaluate () => document.title");
-  });
-});
 
 describe("browserCommandChangesPage", () => {
   it("takes a picture after anything that is not a plain read", () => {

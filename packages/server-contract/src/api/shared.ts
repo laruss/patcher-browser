@@ -1,13 +1,15 @@
 import { z } from "zod";
 import {
   BRANCH_LIST_QUERY_MAX_LENGTH,
+  BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH,
   browserAccessGrantLevelSchema,
+  browserCommandRecordDetail,
   browserCommandSchema,
   changedMessageLenientSchema,
   changedMessageSchema,
   gitBranchNameSchema,
 } from "@patcher/domain";
-import type { GitBranchName } from "@patcher/domain";
+import type { BrowserCommand, GitBranchName } from "@patcher/domain";
 
 export {
   BRANCH_LIST_LIMIT_MAX,
@@ -294,6 +296,62 @@ export const browserCommandRequestSignalLenientSchema = z.object({
 });
 
 /**
+ * What a window is told about the command that is being performed, which is the
+ * difference between "something is driving" and "something is doing this".
+ *
+ * `name` is the command's own type and `detail` its rendered line, the same two
+ * a trace step carries and rendered by the same function
+ * (`browserCommandRecordDetail`) — so the row in one window and the trace the
+ * caller takes away say the same words. Its length is the trace's, which is
+ * what that function cuts to: the field cannot be the reason a frame fails to
+ * build.
+ *
+ * The rendering, not the command: the JSON of a `page.storage` write is the
+ * person's own cookies, and this frame goes to every other window.
+ */
+export const browserDrivingCommandSchema = z
+  .object({
+    name: z.string().max(64),
+    detail: z.string().max(BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH),
+  })
+  .strict();
+export type BrowserDrivingCommand = z.infer<typeof browserDrivingCommandSchema>;
+
+/**
+ * The pair, for one command.
+ *
+ * Both sides of this signal build it: the server for the windows it tells, and
+ * the window performing the command for its own chrome — which has the command
+ * in hand and no frame to read. One function so the two cannot drift into
+ * saying different things about the same command in two windows.
+ */
+export function browserDrivingCommandFor(
+  command: BrowserCommand,
+): BrowserDrivingCommand {
+  return {
+    name: command.type,
+    detail: browserCommandRecordDetail(command),
+  };
+}
+
+/**
+ * How the command ended, in the same two fields a trace step ends with.
+ *
+ * `null` in place of one of these is not "it succeeded" — it is **no answer at
+ * all**, which is what a window sees when the command timed out, when the
+ * window performing it went away, or when the send itself failed. A record that
+ * showed those as finished would be claiming an outcome nobody has.
+ */
+export const browserDrivingOutcomeSchema = z
+  .object({
+    ok: z.boolean(),
+    /** The failure's code, or null when it succeeded. */
+    error: z.string().max(64).nullable(),
+  })
+  .strict();
+export type BrowserDrivingOutcome = z.infer<typeof browserDrivingOutcomeSchema>;
+
+/**
  * Ephemeral server→client signal telling a window that a browser command is
  * being performed in a **different** window.
  *
@@ -309,25 +367,44 @@ export const browserCommandRequestSignalLenientSchema = z.object({
  * `settled` runs exactly the code the serving window runs, instead of a second
  * spelling of it here that would drift.
  *
+ * **A union rather than one object with optional halves**, because the two
+ * phases carry different things and always did: a start knows the command and
+ * cannot know how it ended, a settle knows how it ended and would only be
+ * repeating the command. Optional fields on one object would let the server
+ * build a start with no command, or a settle claiming one, and nothing would
+ * say which is meant.
+ *
  * **`issuer` is required.** A command with nobody to name is the app's own
  * browsing and must stay silent, so it is not announced at all — an absent
  * issuer is not a driver whose name is unknown, it is the person's own work.
  *
  * **`requestId` is the same id the command carries, and it is read.** A window
  * that registers — or reconnects — part-way through a command is still in the
- * audience for that command's `settled`, and the client counts *per caller*: a
- * settle it cannot pair with a start it saw would take down the row of another
- * command the same caller started since. So the client ignores one, which it
- * can only do because the phases are named.
+ * audience for that command's `settled`, and the client keys what it is showing
+ * by that id: a settle it cannot pair with a start it saw would take down the
+ * row of another command the same caller started since. So the client ignores
+ * one, which it can only do because the phases are named.
  */
-export const browserDrivingSignalSchema = z
-  .object({
-    type: z.literal("browser-driving"),
-    requestId: z.string().min(1).max(128),
-    phase: z.enum(["started", "settled"]),
-    issuer: browserCommandIssuerSchema,
-  })
-  .strict();
+export const browserDrivingSignalSchema = z.discriminatedUnion("phase", [
+  z
+    .object({
+      type: z.literal("browser-driving"),
+      requestId: z.string().min(1).max(128),
+      phase: z.literal("started"),
+      issuer: browserCommandIssuerSchema,
+      command: browserDrivingCommandSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("browser-driving"),
+      requestId: z.string().min(1).max(128),
+      phase: z.literal("settled"),
+      issuer: browserCommandIssuerSchema,
+      outcome: browserDrivingOutcomeSchema.nullable(),
+    })
+    .strict(),
+]);
 export type BrowserDrivingSignal = z.infer<typeof browserDrivingSignalSchema>;
 
 /**
@@ -340,13 +417,64 @@ export type BrowserDrivingSignal = z.infer<typeof browserDrivingSignalSchema>;
  * which is the pre-existing behaviour — no indicator — rather than a broken one.
  * A `phase` this app does not know is worth the same treatment for the same
  * reason.
+ *
+ * **The command and the outcome are optional here and required there**, and
+ * neither is strict here, which is the one place these two schemas deliberately
+ * disagree. Strict guards what
+ * the server sends, and a start with no command would be the server forgetting.
+ * Lenient parses what arrived, and a window loaded from a server that predates
+ * these fields still knows who is driving — which is the whole signal — so
+ * dropping the frame over the half it cannot have would trade a working
+ * indicator for a missing one.
  */
-export const browserDrivingSignalLenientSchema = z.object({
-  type: z.literal("browser-driving"),
-  requestId: z.string().min(1).max(128),
-  phase: z.enum(["started", "settled"]),
-  issuer: browserCommandIssuerSchema,
+/**
+ * The two payloads without `.strict()`, for the lenient side only.
+ *
+ * `optional()` on a strict object forgives the field's absence and nothing
+ * inside it, so a newer server that adds a field to either of these — the
+ * additive change this wire is *for* — would make an old window drop the whole
+ * frame. Dropping a `started` loses the row; dropping a `settled` is worse,
+ * since nothing else ends a command this window is only being told about: the
+ * indicator would stay on until the socket next reconnects.
+ *
+ * The lengths stay. A field a newer server adds is a change this wire allows; a
+ * `detail` longer than the cap or a code longer than 64 is a server breaking its
+ * own outgoing schema, and there is nothing to be gained by rendering it.
+ */
+const browserDrivingCommandLenientSchema = z.object({
+  name: z.string().max(64),
+  detail: z.string().max(BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH),
 });
+const browserDrivingOutcomeLenientSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().max(64).nullable(),
+});
+
+export const browserDrivingSignalLenientSchema = z.discriminatedUnion("phase", [
+  z.object({
+    type: z.literal("browser-driving"),
+    requestId: z.string().min(1).max(128),
+    phase: z.literal("started"),
+    issuer: browserCommandIssuerSchema,
+    command: browserDrivingCommandLenientSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("browser-driving"),
+    requestId: z.string().min(1).max(128),
+    phase: z.literal("settled"),
+    issuer: browserCommandIssuerSchema,
+    outcome: browserDrivingOutcomeLenientSchema.nullish(),
+  }),
+]);
+/**
+ * What a client actually has after parsing one, which is not
+ * {@link BrowserDrivingSignal}: the two halves the lenient schema forgives are
+ * missing from this type, so a window cannot read a command the frame never
+ * carried without saying what it does when there is none.
+ */
+export type BrowserDrivingSignalReceived = z.infer<
+  typeof browserDrivingSignalLenientSchema
+>;
 
 export const workspaceFileSchema = z.object({
   path: z.string(),

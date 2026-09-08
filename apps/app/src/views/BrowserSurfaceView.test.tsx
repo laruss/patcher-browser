@@ -405,6 +405,7 @@ describe("BrowserSurfaceView", () => {
         issuer: OWNER,
         active: true,
         elsewhere: false,
+        command: { name: "navigation.open", detail: "https://x.test/" },
       });
     });
 

@@ -382,6 +382,87 @@ describe("WebSocketManager browser commands", () => {
     expect(changed).not.toHaveBeenCalled();
   });
 
+  it("takes a driving signal that is missing the half it can do without", () => {
+    // The one place the strict and lenient schemas of this signal disagree on
+    // purpose. A `started` the server built always names the command and a
+    // `settled` always reports an outcome or the absence of one — but a window
+    // loaded from a server that predates those fields would otherwise drop the
+    // frame entirely, and who is driving is the whole signal.
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    const changed = vi.fn();
+    manager.onBrowserDriving(driving);
+    manager.onChanged(changed);
+
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_4",
+      phase: "settled",
+      issuer: { kind: "outside" },
+    });
+
+    expect(driving).toHaveBeenCalledTimes(1);
+    expect(driving.mock.calls[0]?.[0]?.outcome).toBeUndefined();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("shows a driving signal a newer server added a field to", () => {
+    // The additive change this wire exists for, one level down: the fields the
+    // client cannot read are inside `command` and `outcome`, and a strict
+    // nested schema would drop the whole frame over them. Losing a `started`
+    // costs the row; losing a `settled` is worse — nothing else ends a command
+    // this window is only being told about, so the indicator would stay on
+    // until the socket next reconnects.
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    manager.onBrowserDriving(driving);
+
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_6",
+      phase: "started",
+      issuer: { kind: "outside" },
+      command: { name: "page.interact", detail: "click e42", tabId: "tab_1" },
+    });
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_6",
+      phase: "settled",
+      issuer: { kind: "outside" },
+      outcome: { ok: true, error: null, tookMs: 42 },
+    });
+
+    expect(driving).toHaveBeenCalledTimes(2);
+    // Read, and the field nobody knows about dropped rather than passed on.
+    expect(driving.mock.calls[0]?.[0]?.command).toEqual({
+      name: "page.interact",
+      detail: "click e42",
+    });
+    expect(driving.mock.calls[1]?.[0]?.outcome).toEqual({
+      ok: true,
+      error: null,
+    });
+  });
+
+  it("carries what the command did through to the subscriber", () => {
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    manager.onBrowserDriving(driving);
+
+    const signal = {
+      type: "browser-driving",
+      requestId: "req_5",
+      phase: "settled",
+      issuer: { kind: "outside" },
+      outcome: { ok: false, error: "unknown_tab" },
+    } as const;
+    dispatchRaw(signal);
+
+    // Passed on whole rather than reduced to a boolean here: the window's
+    // record shows the code, and this is the only place it can come from.
+    expect(driving).toHaveBeenCalledWith(signal);
+  });
+
   it("drops a driving signal it cannot read, and drives nothing on it", () => {
     // Unlike a command, there is nothing here to degrade to: the whole content
     // is who is driving, so an issuer kind this app does not know leaves
