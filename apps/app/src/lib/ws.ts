@@ -1,6 +1,7 @@
 import ReconnectingWebSocket from "partysocket/ws";
 import {
   browserCommandRequestSignalLenientSchema,
+  browserDrivingSignalLenientSchema,
   changedMessageLenientSchema,
   pluginSignalLenientSchema,
   realtimeSubscriptionTargetKey,
@@ -9,6 +10,7 @@ import {
 } from "@patcher/server-contract";
 import type {
   BrowserCommandRequestSignal,
+  BrowserDrivingSignal,
   ClientMessage,
   ChangedMessage,
   PluginSignal,
@@ -26,6 +28,7 @@ type ThreadOpenCallback = (signal: ThreadOpenSignal) => void;
 type ThreadPaneActionCallback = (signal: ThreadPaneActionSignal) => void;
 type PluginSignalCallback = (signal: PluginSignal) => void;
 type BrowserCommandCallback = (signal: BrowserCommandRequestSignal) => void;
+type BrowserDrivingCallback = (signal: BrowserDrivingSignal) => void;
 type ConnectedCallback = (event: { reconnected: boolean }) => void;
 type ConnectionStateCallback = () => void;
 export type WebSocketConnectionState =
@@ -46,6 +49,7 @@ export class WebSocketManager {
   private threadPaneActionCallbacks = new Set<ThreadPaneActionCallback>();
   private pluginSignalCallbacks = new Set<PluginSignalCallback>();
   private browserCommandCallbacks = new Set<BrowserCommandCallback>();
+  private browserDrivingCallbacks = new Set<BrowserDrivingCallback>();
   // Re-announced on every reconnect, so a server restart does not leave agents
   // believing no browser is open.
   private browserHostId: string | null = null;
@@ -162,6 +166,17 @@ export class WebSocketManager {
       return;
     }
 
+    // Who is driving the browser in *another* window. Never sent to the window
+    // performing the command — that one learns it from the request itself — so
+    // a window has one source for this and cannot count a command twice.
+    const browserDriving = browserDrivingSignalLenientSchema.safeParse(parsed);
+    if (browserDriving.success) {
+      for (const cb of this.browserDrivingCallbacks) {
+        cb(browserDriving.data);
+      }
+      return;
+    }
+
     // Ephemeral plugin realtime signal (patcher.realtime.publish). Not buffered:
     // only live useRealtime subscribers care, and V1 has no replay.
     const pluginSignal = pluginSignalLenientSchema.safeParse(parsed);
@@ -260,9 +275,28 @@ export class WebSocketManager {
   }
 
   /**
-   * Announce that this client can drive a browser surface. The server addresses
-   * the most recent registration, so re-registering is how a window claims the
-   * agent's browser commands.
+   * Who is driving the browser in one of the app's other windows.
+   *
+   * Separate from {@link onBrowserCommand} because it is the other half of the
+   * same fact: that one arrives in the window that has to *do* the command, and
+   * this one in every window that only has to say it is happening.
+   */
+  onBrowserDriving(callback: BrowserDrivingCallback): () => void {
+    this.browserDrivingCallbacks.add(callback);
+    return () => {
+      this.browserDrivingCallbacks.delete(callback);
+    };
+  }
+
+  /**
+   * Announce that this client can drive a browser surface.
+   *
+   * The server addresses the window that claimed the role first (`ws/hub.ts`),
+   * so re-registering after a reconnect is how a window asks to keep the
+   * agent's browser commands rather than how it takes them — and it keeps them
+   * only while the server still lists the socket it dropped. Once the close has
+   * been processed the claim is a new one, behind any sibling window's, and the
+   * agent's next command goes there instead.
    */
   registerBrowserHost(browserHostId: string): void {
     this.browserHostId = browserHostId;

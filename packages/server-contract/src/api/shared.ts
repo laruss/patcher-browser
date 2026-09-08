@@ -293,6 +293,61 @@ export const browserCommandRequestSignalLenientSchema = z.object({
   issuer: browserCommandIssuerSchema.optional().catch(undefined),
 });
 
+/**
+ * Ephemeral server→client signal telling a window that a browser command is
+ * being performed in a **different** window.
+ *
+ * The command itself goes to one socket, because it must be performed once and
+ * answered once — so the window serving it is the only one that learns anybody
+ * is driving, and a person reading a thread in another window sees nothing
+ * while an agent works. This carries the same `issuer` to the app's other
+ * windows so each of them can say so in its own chrome.
+ *
+ * **Two phases rather than a computed state**, because the linger and the
+ * handover between two drivers are the client's own rules and already written
+ * there (`browser-agent/driving.ts`): a window that hears `started` and
+ * `settled` runs exactly the code the serving window runs, instead of a second
+ * spelling of it here that would drift.
+ *
+ * **`issuer` is required.** A command with nobody to name is the app's own
+ * browsing and must stay silent, so it is not announced at all — an absent
+ * issuer is not a driver whose name is unknown, it is the person's own work.
+ *
+ * **`requestId` is the same id the command carries, and it is read.** A window
+ * that registers — or reconnects — part-way through a command is still in the
+ * audience for that command's `settled`, and the client counts *per caller*: a
+ * settle it cannot pair with a start it saw would take down the row of another
+ * command the same caller started since. So the client ignores one, which it
+ * can only do because the phases are named.
+ */
+export const browserDrivingSignalSchema = z
+  .object({
+    type: z.literal("browser-driving"),
+    requestId: z.string().min(1).max(128),
+    phase: z.enum(["started", "settled"]),
+    issuer: browserCommandIssuerSchema,
+  })
+  .strict();
+export type BrowserDrivingSignal = z.infer<typeof browserDrivingSignalSchema>;
+
+/**
+ * Lenient counterpart for INBOUND parsing on clients, mirroring
+ * {@link browserCommandRequestSignalLenientSchema}.
+ *
+ * The issuer union is closed here too, and the same `.catch` cannot help: a
+ * signal whose only content is who is driving has nothing left to show once the
+ * name is dropped. So a fourth kind fails this parse and the signal is ignored,
+ * which is the pre-existing behaviour — no indicator — rather than a broken one.
+ * A `phase` this app does not know is worth the same treatment for the same
+ * reason.
+ */
+export const browserDrivingSignalLenientSchema = z.object({
+  type: z.literal("browser-driving"),
+  requestId: z.string().min(1).max(128),
+  phase: z.enum(["started", "settled"]),
+  issuer: browserCommandIssuerSchema,
+});
+
 export const workspaceFileSchema = z.object({
   path: z.string(),
   name: z.string(),

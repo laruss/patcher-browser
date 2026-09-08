@@ -7,7 +7,7 @@ import { browserDrivingAtom } from "@/lib/browser-agent/driving";
 import { browserIssuerName } from "@/lib/browser-agent/issuer";
 
 /**
- * "Something other than you is driving this browser", in the browser's own
+ * "Something other than you is driving this browser", in the window's own
  * chrome.
  *
  * The only place it can be said. Electron draws no banner over a
@@ -19,6 +19,18 @@ import { browserIssuerName } from "@/lib/browser-agent/issuer";
  * so anything drawn over the page area would be invisible in the desktop app.
  * This is a row of the chrome, like the downloads panel. See
  * docs/architecture/browser-surface.md.
+ *
+ * **Under the tab strip rather than inside a page's chrome**, which is what
+ * makes it a window-level signal: the strip is the one row on screen for every
+ * desktop route, so this is up while the person is reading a thread, in
+ * Settings, or in a Patcher screen occupying a tab — none of which used to say
+ * anything at all. The web build has no surface off its own route and keeps
+ * that limit.
+ *
+ * **And it says which window.** Only one window is sent the agent's commands,
+ * so the others hear about it from the server (`browser-driving`) and cannot
+ * show the tab in question — sending a person to look at a tab that is not
+ * there would be worse than the silence this replaces.
  *
  * **The button pauses rather than revokes.** It is pressed while an agent is
  * doing something the person did not want, and the thing they want back is the
@@ -64,7 +76,9 @@ export function BrowserDrivingIndicator({
       />
       <p className="min-w-0 flex-1 truncate">
         <span className="font-medium">{browserIssuerName(issuer)}</span> is driving
-        this browser
+        {driving.elsewhere
+          ? " Patcher's browser in another window"
+          : " this browser"}
         {issuer.kind === "grant"
           ? ` · ${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[issuer.level].label.toLowerCase()}`
           : ""}

@@ -22,6 +22,45 @@ function okResponse(requestId: string): BrowserCommandResponseMessage {
   };
 }
 
+/** The grant a person named, as the window would show it. */
+const GRANT = {
+  kind: "grant",
+  grantId: "bag_1",
+  label: "Claude Code",
+  level: "read",
+} as const;
+
+/** One driving signal about `r1`, as `drivingSignals` renders it. */
+function drivingSignal(phase: "started" | "settled") {
+  return {
+    type: "browser-driving",
+    requestId: "r1",
+    phase,
+    issuer: GRANT,
+  };
+}
+
+function drivingSignals(
+  messages: string[],
+): Array<{
+  type?: string;
+  phase?: string;
+  requestId?: string;
+  issuer?: unknown;
+}> {
+  return messages
+    .map(
+      (raw) =>
+        JSON.parse(raw) as {
+          type?: string;
+          phase?: string;
+          requestId?: string;
+          issuer?: unknown;
+        },
+    )
+    .filter((message) => message.type === "browser-driving");
+}
+
 function sentRequestIds(messages: string[]): string[] {
   return messages
     .map((raw) => JSON.parse(raw) as { type?: string; requestId?: string })
@@ -288,6 +327,182 @@ describe("NotificationHub browser commands", () => {
       browserHostId: "window-a",
       hostCount: 2,
     });
+  });
+
+  it("tells every other window who is driving, and not the one doing it", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    // Two, not one: a loop that stopped at the first eligible recipient would
+    // pass with a single watcher while a person's third window showed nothing.
+    const watching = createMockHubSocket();
+    const alsoWatching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+    hub.registerBrowserHost(alsoWatching, { browserHostId: "window-c" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+
+    // The other windows have no way to learn this otherwise: the command is
+    // sent once, to one socket, so a person reading a thread over there used to
+    // see an agent work with nothing on screen saying so.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingSignal("started"),
+    ]);
+    expect(drivingSignals(alsoWatching.messages)).toEqual([
+      drivingSignal("started"),
+    ]);
+    // And the window performing it is not told twice: it counts the command
+    // from the request itself, so an announcement here would have it show two
+    // commands in flight for one.
+    expect(drivingSignals(serving.messages)).toEqual([]);
+
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: okResponse("r1"),
+    });
+    await expect(pending).resolves.toEqual(okResponse("r1"));
+
+    // The whole sequence, in order: exactly one start and exactly one settle.
+    // Asserting the last frame alone would accept a second settle from a
+    // funnel called twice, which the client would count against a command the
+    // same caller had started since.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingSignal("started"),
+      drivingSignal("settled"),
+    ]);
+    expect(drivingSignals(alsoWatching.messages)).toEqual([
+      drivingSignal("started"),
+      drivingSignal("settled"),
+    ]);
+    expect(drivingSignals(serving.messages)).toEqual([]);
+  });
+
+  it("says nothing at all when the command could not be sent", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+    serving.send = () => {
+      throw new Error("socket is gone");
+    };
+
+    await expect(
+      hub.requestBrowserCommand({
+        message: {
+          type: "browser-command-request",
+          requestId: "r1",
+          command: LIST,
+          issuer: GRANT,
+        },
+        timeoutMs: 1_000,
+      }),
+    ).rejects.toThrow("socket is gone");
+
+    // The one guarantee that rests on ordering alone: the issuer is recorded on
+    // the waiter *after* a successful send, so this path reaches the settle
+    // funnel with nothing to end. Announce the start before the send, or move
+    // the issuer up into the waiter where every other field lives, and this
+    // window gets a start that never ends or an end that never started.
+    expect(drivingSignals(watching.messages)).toEqual([]);
+  });
+
+  it("ends the other window's indicator when the command times out", async () => {
+    vi.useFakeTimers();
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+    const assertion = expect(pending).rejects.toThrow(
+      "Timed out waiting for the browser to answer",
+    );
+    await vi.advanceTimersByTimeAsync(1_001);
+    await assertion;
+
+    // The entrance with no answer and no closed socket. A window left holding
+    // this row would hold it for a command the server has already given up on.
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingSignal("started"),
+      drivingSignal("settled"),
+    ]);
+  });
+
+  it("says nothing about a command with nobody to name", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      timeoutMs: 1_000,
+    });
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: okResponse("r1"),
+    });
+    await expect(pending).resolves.toEqual(okResponse("r1"));
+
+    // An absent issuer is the app's own browsing — the person's own work, in
+    // the window in front of them. An indicator for it would be on all the
+    // time, in every window.
+    expect(drivingSignals(watching.messages)).toEqual([]);
+  });
+
+  it("ends the other window's indicator when the serving window vanishes", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerClient(serving);
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+        issuer: GRANT,
+      },
+      timeoutMs: 60_000,
+    });
+    const assertion = expect(pending).rejects.toThrow(
+      "No browser window is connected",
+    );
+
+    // The path that has no answer to carry the news: the window doing the work
+    // is gone, so nothing will ever settle that command. Its registration is
+    // already out of the map by the time this runs, which is why the audience
+    // is resolved by excluding the performer rather than by counting windows —
+    // counting would find one window left, decide there was nobody to tell,
+    // and leave the indicator up in the window that *is* still open.
+    hub.unregisterClient(serving);
+    await assertion;
+
+    expect(drivingSignals(watching.messages)).toEqual([
+      drivingSignal("started"),
+      drivingSignal("settled"),
+    ]);
   });
 
   it("promotes the waiting window when the one driving goes away", () => {

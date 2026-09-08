@@ -41,10 +41,17 @@ afterEach(() => {
   setPaused.mockReset();
 });
 
-function renderIndicator(issuer: BrowserCommandIssuer | null) {
+function renderIndicator(
+  issuer: BrowserCommandIssuer | null,
+  options: { elsewhere?: boolean } = {},
+) {
   const store = createStore();
   if (issuer !== null) {
-    store.set(browserDrivingAtom, { issuer, active: true });
+    store.set(browserDrivingAtom, {
+      issuer,
+      active: true,
+      elsewhere: options.elsewhere === true,
+    });
   }
   const { queryClient } = createQueryClientTestHarness();
   const onOpenAppRoute = vi.fn();
@@ -120,6 +127,30 @@ describe("the browser driving indicator", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(onOpenAppRoute).toHaveBeenCalledWith("/settings");
+  });
+
+  it("says when the tab being driven is in another window", () => {
+    // Only one window is sent the agent's commands, so the others hear about it
+    // from the server and have no tab to show. Saying "this browser" there
+    // would send the person looking for a tab that is not in front of them.
+    renderIndicator(
+      {
+        kind: "grant",
+        grantId: "bag_3k9wq2mnpx",
+        label: "Claude Code",
+        level: "read",
+      },
+      { elsewhere: true },
+    );
+
+    const status = screen.getByRole("status");
+    expect(status.textContent).toContain("in another window");
+    expect(status.textContent).not.toContain("this browser");
+    // The lever still works from here: pausing a grant is a call to the server,
+    // not something the window doing the driving has to be asked for — which is
+    // the whole reason it is worth showing this in a window that cannot see the
+    // tab.
+    expect(screen.getByRole("button", { name: "Pause" })).not.toBeNull();
   });
 
   it("names a turn inside Patcher and offers no button", () => {

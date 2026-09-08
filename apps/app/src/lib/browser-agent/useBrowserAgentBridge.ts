@@ -89,8 +89,39 @@ export function useBrowserAgentBridge(): void {
       },
     });
 
+    // The same fact for a window that is not serving: only one window is sent
+    // the commands, so every other one would show nothing while an agent works
+    // (`browser-driving`, ws/hub.ts). Fed into the same tracker, so the linger
+    // and the handover between two drivers are one implementation rather than
+    // two that drift — and a window is only ever sent one of the two, so
+    // nothing is counted twice.
+    //
+    // The phases carry the server's id for the command, which is what the
+    // tracker keys on — so a settle for a command this window never saw start
+    // is ignored there rather than counted against one it did.
+    const unsubscribeDriving = wsManager.onBrowserDriving((signal) => {
+      if (signal.phase === "started") {
+        driving.started({
+          requestId: signal.requestId,
+          issuer: signal.issuer,
+          elsewhere: true,
+        });
+        return;
+      }
+      driving.settled(signal.requestId);
+    });
+
+    // A reconnect is where this window's copy of "who is driving" can be
+    // wrong: a settle sent while the socket was down is not resent, so a row
+    // this window was only mirroring can outlive the command it names. What
+    // stays is what this window is performing itself — that settles locally
+    // whatever the socket did.
+    const unsubscribeConnected = wsManager.onConnected(({ reconnected }) => {
+      if (reconnected) driving.forgetOtherWindows();
+    });
+
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {
-      driving.started(signal.issuer);
+      driving.started({ requestId: signal.requestId, issuer: signal.issuer });
       void executeBrowserCommand(signal.command, {
         // Who this is for, which decides which tab an unqualified command lands
         // on and whether a named one is theirs to touch (`tab-owners.ts`).
@@ -152,7 +183,7 @@ export function useBrowserAgentBridge(): void {
         trace: traces.for(signal.issuer),
       })
         .then((outcome) => {
-          driving.settled(signal.issuer);
+          driving.settled(signal.requestId);
           wsManager.sendBrowserCommandResponse({
             type: "browser-command.response",
             requestId: signal.requestId,
@@ -160,7 +191,7 @@ export function useBrowserAgentBridge(): void {
           });
         })
         .catch((error: unknown) => {
-          driving.settled(signal.issuer);
+          driving.settled(signal.requestId);
           // Never leave the server's waiter to time out on a bug in here: an
           // answer, even a bad one, is what unblocks the agent's tool call.
           wsManager.sendBrowserCommandResponse({
@@ -182,6 +213,8 @@ export function useBrowserAgentBridge(): void {
     return () => {
       wsManager.unregisterBrowserHost(browserHostId);
       unsubscribeCommands();
+      unsubscribeDriving();
+      unsubscribeConnected();
       unsubscribeLiveState();
       driving.dispose();
       queue.dispose();

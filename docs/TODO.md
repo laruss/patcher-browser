@@ -157,15 +157,17 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 ## Core-only, structural
 
-- **The "who is driving" indicator is only in the browser chrome.**
-  `browser-command-request` now carries an `issuer`
-  ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
-  and the browser surface draws a row naming the grant, the turn, or a bare
-  "outside" while commands are arriving. What it does not cover: a person
-  reading a thread in another window sees nothing, because the row lives in a
-  surface they do not have open. A window-level signal — the title bar, the tab
-  strip, a tray item — is the piece that would fix that, and it is a different
-  surface rather than a bigger version of this one.
+- **The "who is driving" indicator does not leave the app.** It is a row of the
+  window's own chrome now — under the tab strip, which is the one row on screen
+  for every desktop route, and fed in the app's *other* windows by the server's
+  `browser-driving` signal
+  ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
+  What is still uncovered is a person who is not looking at Patcher at all:
+  another application in front, or the window minimised. A tray item or a dock
+  badge is the surface for that, and it is a different one again — main-process
+  work, with no renderer to draw it and nothing in the app that owns such a
+  surface today. The web build is uncovered for its own reason: it hosts no
+  browser surface off `/browser`, so there is no window row to put this in.
 - **A plugin can name any of its own in-flight calls, and can keep one open.**
   The caller now crosses the plugin channel as an id the host minted, and the
   channel refuses one it does not have in flight, so no outsider can forge one,
