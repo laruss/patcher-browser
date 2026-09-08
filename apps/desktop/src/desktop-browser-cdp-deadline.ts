@@ -56,6 +56,57 @@
  * carry out an action, because a budget for the whole action would stop a
  * `type` into a slow page with half the text in the field — the one thing
  * `InteractionDeadline`'s own docstring says not to do.
+ *
+ * **Where the clocks are, and why each is the shape it is.** Collected here
+ * rather than in six paragraphs across `desktop-browser-view.ts`, which is the
+ * longest file in the repository and pinned at its size: the rule counts
+ * comment lines on purpose, because what it limits is how much of one file a
+ * reader has to hold at once, and this reasoning is about one subject rather
+ * than about six call sites.
+ *
+ * - **A snapshot** gets one budget for the command ({@link cdpBudget}). Every
+ *   send in it is a renderer round trip, and a tab that has stopped answering —
+ *   blocked on a dialog an earlier command left open, or busy-looping — would
+ *   otherwise leave the command pending until the tab went, holding that tab's
+ *   queue with it. One budget rather than one per send because a snapshot is
+ *   one answer the caller waits on once, and abandoning it leaves nothing
+ *   behind.
+ * - **A full-page capture** gets the same, and needs it most: it deliberately
+ *   does *not* take the tab's dialogs over — a picture should not change how the
+ *   browser behaves for the person using it — so it is the one command that can
+ *   be blocked by a dialog it cannot see or answer.
+ * - **An evaluation** gets its own, far longer budget, because
+ *   `Runtime.callFunctionOn` is sent with `awaitPromise`: the thing being waited
+ *   for is the caller's own code, so an expression awaiting a `fetch` is
+ *   legitimately slow. What it ends is the expression that never settles.
+ * - **An interaction** splits in two. Everything before the first event that
+ *   touches the page — enabling `DOM`, creating the isolated world, resolving
+ *   the ref, scrolling the element into view — is raced against the
+ *   `InteractionDeadline` that was already there, whose refusal can truthfully
+ *   say nothing was sent. Everything after it goes through a per-send budget
+ *   here, whose refusal cannot.
+ * - **Vision mode's** mouse sends are the interaction path's dispatch with the
+ *   ref lookup taken out, and hang for the same reason, so they get the same
+ *   per-send budget.
+ * - **`Page.enable`** is bounded inside `ensureDialogInterception` rather than
+ *   at each of the five commands that call it: it is the one send that function
+ *   makes, enabling a domain is renderer work like anything else, and before
+ *   that `control` and `record` could still wait forever on a tab already
+ *   blocked.
+ * - **Filming** gets the per-send budget too — starting and stopping a
+ *   screencast are renderer sends, so a film could hold a tab's queue the way
+ *   the rest did.
+ *
+ * **What every one of those refusals must not do is claim more than it knows.**
+ * A stall coming out of a broad `catch` as somebody else's fault is the failure
+ * mode this had twice before review found it: a stalled `DOM.querySelector`
+ * read as an invalid selector, telling a caller to fix syntax that was fine,
+ * and a stalled `DOM.resolveNode` read as a stale ref, telling them to take a
+ * fresh snapshot — the one thing that cannot work on a page that has stopped
+ * answering. Every `catch` around a bounded send rethrows {@link CdpStalledError}
+ * before translating anything else, and every command's own `catch` maps it to
+ * `page-stalled` rather than to `failed`, because `failed` is where a message
+ * goes to die: the app turns it into "the page could not be inspected".
  */
 import type { CdpSession } from "./desktop-browser-cdp.js";
 

@@ -242,16 +242,28 @@ describe("an action whose page stops answering", () => {
     // the minute, so the action has to stop part-way rather than run on.
     const TEXT = "abcdefghi";
     vi.useFakeTimers();
+    const startedAt = Date.now();
     const fake = fakeSession({
       samples: [READY, READY],
       stall: ["Input.dispatchKeyEvent"],
     });
 
-    const acting = settling(
-      interact({
-        session: fake.session,
-        interaction: { action: "type", ref: "e1", text: TEXT },
-      }),
+    // The settle time, not the test's clock: the loop below advances once more
+    // after the action has already ended, so `Date.now()` at the end of it
+    // overstates how long the action took by a whole poll.
+    let endedAt: number | undefined;
+    const acting = interact({
+      session: fake.session,
+      interaction: { action: "type", ref: "e1", text: TEXT },
+    }).then(
+      (value): unknown => {
+        endedAt = Date.now();
+        return value;
+      },
+      (error: unknown): unknown => {
+        endedAt = Date.now();
+        return error;
+      },
     );
     // Generous, and it ends on the break: the point is where *the action*
     // stops, so the loop keeps answering until there is nothing left waiting.
@@ -273,8 +285,13 @@ describe("an action whose page stops answering", () => {
     // sentence has to say which of the two happened — plus how much of the
     // text is in the field, because that is what the caller has to look at.
     const message = (error as Error).message;
-    expect(message).toContain(`of ${TEXT.length} characters`);
-    expect(message).toContain("are in the field; the rest are not");
+    expect(message).toContain(`of ${TEXT.length} keystrokes`);
+    // What it must *not* promise: a send being acknowledged says the key event
+    // was processed, not that the character survived in the field — a page can
+    // cancel a key, cap the length, reformat or move focus. So the sentence
+    // sends the caller to read the value rather than to type the rest.
+    expect(message).toContain("read the field's value");
+    expect(message).not.toContain("are in the field");
     // An even number of key events: the ceiling is checked between characters,
     // so the action stops on a whole keystroke rather than between a key's
     // down and its up — which the first spelling of this got wrong, leaving a
@@ -285,6 +302,13 @@ describe("an action whose page stops answering", () => {
     expect(keys.length % 2).toBe(0);
     expect(keys.length).toBeGreaterThan(0);
     expect(keys.length).toBeLessThan(TEXT.length * 2);
+    // And the arithmetic, which "it stopped part-way" does not check: the
+    // ceiling is only honest if the action is *over* by then. Reserving room
+    // for a whole keystroke is what buys that — checking for any time left
+    // would let a two-send character start with milliseconds to spare and
+    // finish ten seconds late.
+    expect(endedAt).toBeDefined();
+    expect((endedAt ?? 0) - startedAt).toBeLessThanOrEqual(60_000);
   });
 
   it("still refuses with the reason the actionability check measured", async () => {

@@ -260,6 +260,17 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   the window knowing what the server knows about a credential, which is a
   channel that does not exist; the alternative is a deadline on the wait, which
   trades a late command for an out-of-order one.
+- **The manager's test file blocks the assertions its own fixtures could make.**
+  `apps/desktop/test/desktop-browser-view-manager.test.ts` is pinned at 8 360
+  lines, and issue #80 calls splitting it along its `describe` blocks the safest
+  change in that list. What makes it urgent rather than tidy: on 2026-09-08 a
+  review pointed out that the fixture for a missing assertion **already exists**
+  there — "recovers by reattaching after the session is lost" calls `emitDetach`,
+  and one line asserting `Page.enable` is sent twice would have covered the
+  `dialogsWired` fix in this branch. It could not be added, because the file
+  cannot grow. Four other wires from the same branch are untestable for the same
+  reason, and `vi.hoisted` around the electron mock blocks extracting the
+  harness into a shared file, so the split has to come first.
 - **The SDK's fake host still speaks bare refs.** A snapshot from the real host
   hands out `[ref=e2@6]` and accepts it back; `fake-plugin-host.ts` returns the
   fixture text unchanged and matches `[ref=e2]` exactly, so a plugin test that
@@ -519,6 +530,18 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   measured.
 
 ## Flaky, and known to be
+
+- **A root `bun run test` fails a different package each time.** Three
+  consecutive full runs on 2026-09-07/08 failed `@patcher/host-watcher`,
+  then eleven tests in `apps/server`'s `patcher-app-artifact.test.ts`, then
+  `@patcher/host-workspace`'s "preserves rename detection in a path-subset
+  patch" — every failure a timeout (5 s, 20 s, 30 s), every package green on its
+  own, and CI green on the same commits. Same shape as the Tiptap entry below
+  and the same cause: the root script is `turbo run test --concurrency=2`, so a
+  suite that spawns git or node subprocesses shares the machine with another
+  package. Worth knowing before reading a red root run as a regression; worth
+  fixing by giving the subprocess-spawning tests their own timeouts rather than
+  by retrying.
 
 - **A Tiptap timer outliving its test.** `apps/app` once failed a root
   `bun run test` with all 3076 tests passing and one error _outside_ them: a

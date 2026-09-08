@@ -62,7 +62,6 @@ import {
   type PatcherDesktopBrowserDevToolsVisibleRequest,
   type PatcherDesktopBrowserDevToolsState,
   PATCHER_DESKTOP_BROWSER_MAX_COOKIES,
-  PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
   PATCHER_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH,
   PATCHER_DESKTOP_BROWSER_MAX_ROUTES,
   PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH,
@@ -131,12 +130,14 @@ import {
   cdpBudget,
   cdpSessionWithDeadline,
   CdpStalledError,
-  PATCHER_DESKTOP_BROWSER_EVAL_TIMEOUT_MS,
   PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
   PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS,
 } from "./desktop-browser-cdp-deadline.js";
 import {
+  controlRefusalReason,
+  ControlRefusal,
   dispatchMouse,
+  evaluateInPage,
   performInteraction,
   MOUSE_BUTTON_MASK,
   type MousePoint,
@@ -183,7 +184,6 @@ import {
   type DesktopBrowserPdfTextOutcome,
 } from "./desktop-browser-pdf-text.js";
 import {
-  formatBrowserEvalValue,
   matchBrowserRoute,
   toBrowserFulfillHeaders,
 } from "./desktop-browser-control.js";
@@ -1176,12 +1176,9 @@ function lookupSnapshotNode(
 /**
  * Resolve a ref into an object the interaction scripts can be called on.
  *
- * Both round trips are raced against the interaction's own clock rather than
- * left to the page: creating the isolated world and resolving the node are
- * renderer work, so a tab already blocked on a `confirm()` answers neither, and
- * before this the action simply waited. Both are side-effect free, which is
- * what makes the deadline's own refusal — nothing was sent to the page — the
- * true one here.
+ * Both round trips are raced against the interaction's own clock: they are
+ * renderer work, and they are side-effect free, which is what makes that
+ * deadline's refusal — nothing was sent to the page — the true one here.
  */
 async function resolveInteractionTarget(
   session: CdpSession,
@@ -1195,10 +1192,9 @@ async function resolveInteractionTarget(
     ensureAutomationWorld(session, entry),
     "while preparing the page for the action",
   );
-  // The `catch` is inside the race, not around it: a send that fails means the
-  // node is gone and `unknown-ref` below is the answer, while a race that
-  // expires has to come out as the deadline's own refusal rather than as a
-  // claim about the element.
+  // The `catch` is inside the race, not around it: a failed send means the node
+  // is gone, while an expired race must not come out as a claim about the
+  // element.
   const resolved = await deadline.race(
     session
       .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
@@ -1216,45 +1212,6 @@ async function resolveInteractionTarget(
     );
   }
   return { backendNodeId, objectId };
-}
-
-type ControlRefusalReason = Extract<
-  PatcherDesktopBrowserControlResult,
-  { ok: false }
->["reason"];
-
-const CONTROL_REFUSAL_REASONS = new Set<string>([
-  "no-view",
-  "no-page",
-  "debugger-unavailable",
-  "stale-refs",
-  "unknown-ref",
-  "evaluation-failed",
-  "too-many-routes",
-  "failed",
-]);
-
-/**
- * The interaction and control refusal vocabularies overlap but are not the
- * same — control cannot report `not-actionable`, having skipped the check that
- * produces it, and interaction has nothing to say about routes. So the shared
- * steps (resolving a ref) keep throwing {@link InteractionRefusal} and this
- * maps it, while the control-only refusals get their own class.
- */
-function controlRefusalReason(reason: string): ControlRefusalReason {
-  return (
-    CONTROL_REFUSAL_REASONS.has(reason) ? reason : "failed"
-  ) as ControlRefusalReason;
-}
-
-class ControlRefusal extends Error {
-  readonly reason: ControlRefusalReason;
-
-  constructor(reason: ControlRefusalReason, message: string) {
-    super(message);
-    this.name = "ControlRefusal";
-    this.reason = reason;
-  }
 }
 
 /**
@@ -1283,8 +1240,18 @@ async function applyRouteInterception(
   if (wanted === entry.routesEnabled) {
     return;
   }
-  await session.send(wanted ? "Fetch.enable" : "Fetch.disable");
-  entry.routesEnabled = wanted;
+  try {
+    await session.send(wanted ? "Fetch.enable" : "Fetch.disable");
+    entry.routesEnabled = wanted;
+  } catch (error) {
+    // Assume the worse of the two states rather than leaving the old one.
+    // `Fetch.enable` is idempotent, so a needless re-enable costs one round
+    // trip; a missed one leaves a route listed as live and intercepting
+    // nothing, because the next pass would see `routesEnabled` already true
+    // and return early.
+    entry.routesEnabled = false;
+    throw error;
+  }
 }
 
 function wireRouteInterception(
@@ -1323,6 +1290,40 @@ function wireRouteInterception(
 }
 
 /** The routes a tab holds, as the wire reports them. */
+/**
+ * Install a route table, and put it back if the interception will not follow.
+ *
+ * The table is what `route-list` reports, so a route left in it while `Fetch`
+ * is off tells a caller their mock is live when nothing is intercepting.
+ *
+ * Restored **only when the table is still the one this command installed**: a
+ * detach clears it to match Chromium dropping the interception with its
+ * protocol client, and restoring over that would report routes on a tab that
+ * has no client at all. Identity is enough for the test, because every write to
+ * `entry.routes` replaces the array rather than mutating it — the one in-place
+ * change is a route's own `matched` counter. Raised by the security re-review
+ * on 2026-09-08, which is also where the shared helper came from: the check is
+ * subtle enough that two copies of it would be two chances to get it wrong.
+ */
+async function installRoutes(
+  entry: BrowserViewEntry,
+  routes: PatcherDesktopBrowserRouteState[],
+  session: CdpSession,
+  tabId: string,
+): Promise<Extract<PatcherDesktopBrowserControlResult, { kind: "routes" }>> {
+  const before = entry.routes;
+  entry.routes = routes;
+  try {
+    await applyRouteInterception(session, entry);
+  } catch (error) {
+    if (entry.routes === routes) {
+      entry.routes = before;
+    }
+    throw error;
+  }
+  return entryRoutes(entry, tabId);
+}
+
 function entryRoutes(
   entry: BrowserViewEntry,
   tabId: string,
@@ -1335,110 +1336,6 @@ function entryRoutes(
     routes: entry.routes.map((route) => ({ ...route })),
     offline: entry.offline,
   };
-}
-
-/**
- * Evaluate the caller's own JavaScript in the page.
- *
- * **In the page's world, not the isolated one** every other script here runs
- * in — which is the deliberate difference and the whole reason `eval` is worth
- * having: `window.__NEXT_DATA__`, a framework's state, a function the page
- * defined are all invisible from an isolated world, and reading them is what
- * people reach for `eval` to do. The isolated world protects our own fixed
- * scripts from a page that shadows globals; it cannot protect an expression
- * whose entire job is to touch the page.
- *
- * The expression is never spliced into a string. It crosses as CDP's
- * `functionDeclaration`, so the protocol parses it as one function and a page
- * cannot be reached through the way we sent it.
- */
-async function evaluateInPage(
-  rawSession: CdpSession,
-  entry: BrowserViewEntry,
-  expression: string,
-  ref: string | null,
-  generation: number | undefined,
-): Promise<{ value: string; truncated: boolean }> {
-  // Its own clock, and the most generous of them, because the call below is
-  // sent with `awaitPromise`: the thing being waited for is the caller's own
-  // code, so an expression that awaits a `fetch` is legitimately slow. What
-  // this ends is the expression that never settles at all, which used to hold
-  // the tab's queue for as long as the tab lived.
-  const session = cdpSessionWithDeadline(rawSession, {
-    remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_EVAL_TIMEOUT_MS),
-    dialogOpen: () => entry.pendingDialog !== null,
-  });
-  let objectId: string;
-  let callArguments: { objectId: string }[] = [];
-  if (ref === null) {
-    // `Runtime.evaluate` with no context id lands in the page's main world, so
-    // its global object is the handle to call the caller's function on.
-    const global = await session.send<{ result?: { objectId?: string } }>(
-      "Runtime.evaluate",
-      { expression: "globalThis" },
-    );
-    if (typeof global.result?.objectId !== "string") {
-      throw new InteractionRefusal(
-        "failed",
-        "The tab has no page to evaluate in.",
-      );
-    }
-    objectId = global.result.objectId;
-  } else {
-    const backendNodeId = lookupSnapshotNode(entry, ref, generation);
-    // No `executionContextId`, so this resolves in the main world too — the
-    // same element, addressed where the caller's code can see the page.
-    // The `catch` narrows to the send's own failure, which means the node is
-    // gone; a stall has to come out as itself. The same shape as
-    // `resolveInteractionTarget`, and it was missed here — telling a caller to
-    // snapshot again is exactly the wrong move on a page that has stopped
-    // answering, because the snapshot stalls too.
-    const resolved = await session
-      .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
-        backendNodeId,
-      })
-      .catch((error: unknown) => {
-        if (error instanceof CdpStalledError) {
-          throw error;
-        }
-        return null;
-      });
-    if (typeof resolved?.object?.objectId !== "string") {
-      throw new InteractionRefusal(
-        "unknown-ref",
-        `Element ${ref} is no longer on the page. Snapshot it again.`,
-      );
-    }
-    objectId = resolved.object.objectId;
-    // Passed as the first argument, so `(el) => el.value` reads as it does in
-    // Playwright; `this` is the element as well, for `function () { … }` form.
-    callArguments = [{ objectId }];
-  }
-
-  const response = await session.send<{
-    result?: { value?: unknown };
-    exceptionDetails?: { text?: string; exception?: { description?: string } };
-  }>("Runtime.callFunctionOn", {
-    objectId,
-    functionDeclaration: expression,
-    arguments: callArguments,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (response.exceptionDetails !== undefined) {
-    // The page ran it and it threw. That is the caller's to fix, and its own
-    // message is the only useful thing to say about it.
-    throw new ControlRefusal(
-      "evaluation-failed",
-      response.exceptionDetails.exception?.description ??
-        response.exceptionDetails.text ??
-        "The expression threw.",
-    );
-  }
-  return formatBrowserEvalValue(
-    response.result?.value,
-    PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
-  );
 }
 
 /**
@@ -1455,12 +1352,9 @@ async function performControl(
   tabId: string,
   request: PatcherDesktopBrowserControlRequest,
 ): Promise<PatcherDesktopBrowserControlResult> {
-  // Vision mode's mouse events are the same sends the interaction path makes,
-  // and hang for the same reason: a click at a coordinate that opens a
-  // `confirm()` is never acknowledged. Per send rather than one budget for the
-  // command, because `control` is a single operation and a caller pipelining
-  // them gets each bounded on its own. The evaluation is the exception below —
-  // it takes the unbounded session and puts its own, far longer, clock on it.
+  // Per send: vision mode's mouse events are the interaction path's dispatch
+  // and hang the same way. The evaluation below is the exception — it takes the
+  // unbounded session and puts its own, far longer, clock on it.
   const session = cdpSessionWithDeadline(rawSession, {
     remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
     dialogOpen: () => entry.pendingDialog !== null,
@@ -1511,13 +1405,15 @@ async function performControl(
       if (operation.ref !== null) {
         await session.enableDomain("DOM");
       }
-      const evaluated = await evaluateInPage(
-        rawSession,
-        entry,
-        operation.expression,
-        operation.ref,
-        request.generation,
-      );
+      const evaluated = await evaluateInPage({
+        // The unbounded session: the evaluation puts its own, far longer, clock
+        // on it rather than inheriting the per-send one above.
+        session: rawSession,
+        expression: operation.expression,
+        ref: operation.ref,
+        lookupNode: (ref) => lookupSnapshotNode(entry, ref, request.generation),
+        dialogOpen: () => entry.pendingDialog !== null,
+      });
       return {
         ok: true,
         kind: "evaluated",
@@ -1540,35 +1436,23 @@ async function performControl(
       // Newest first, so the route just added is the one that answers — the
       // rule Playwright follows and the one a person debugging a mock expects.
       //
-      // Put back if the `Fetch.enable` behind it does not land: the table is
-      // what `route-list` reports, and reporting a route while interception is
-      // off tells a caller their mock is live when nothing is intercepting.
-      // `routesEnabled` is set after the send, so the next route command
-      // re-enables either way — this is about not lying in the meantime.
-      const before = entry.routes;
-      entry.routes = [{ ...operation.route, matched: 0 }, ...existing];
-      try {
-        await applyRouteInterception(session, entry);
-      } catch (error) {
-        entry.routes = before;
-        throw error;
-      }
-      return entryRoutes(entry, tabId);
+      return await installRoutes(
+        entry,
+        [{ ...operation.route, matched: 0 }, ...existing],
+        session,
+        tabId,
+      );
     }
 
     case "route-clear": {
-      const before = entry.routes;
-      entry.routes =
+      return await installRoutes(
+        entry,
         operation.pattern === null
           ? []
-          : entry.routes.filter((route) => route.pattern !== operation.pattern);
-      try {
-        await applyRouteInterception(session, entry);
-      } catch (error) {
-        entry.routes = before;
-        throw error;
-      }
-      return entryRoutes(entry, tabId);
+          : entry.routes.filter((route) => route.pattern !== operation.pattern),
+        session,
+        tabId,
+      );
     }
 
     case "route-list":
@@ -1631,11 +1515,8 @@ async function resolveSelectorNode(
       selector,
     })
     .catch((error: unknown) => {
-      // A stall is not the selector's fault, and this catch is broad enough to
-      // have called it one: a valid selector against a page that stopped
-      // answering would have been told to fix its own syntax, with the stall's
-      // sentence quoted as the browser's complaint about it. Found by the
-      // code review on 2026-09-07.
+      // A stall is not the selector's fault, and this catch was broad enough
+      // to have called it one.
       if (error instanceof CdpStalledError) {
         throw error;
       }
@@ -1725,15 +1606,15 @@ async function performRecord(
       // A recording nothing is filling would answer `video-stop` with an empty
       // film and no explanation.
       entry.video = null;
-      // And a start that was abandoned rather than refused may still land: the
-      // deadline drops the answer, not the command. Chromium would then be
-      // filming a tab this shell no longer thinks is being filmed, discarding
-      // every frame, with `video-stop` refusing `not-recording` and nothing
-      // short of detaching the debugger able to stop it. Sends on one session
-      // are ordered, so a stop queued now undoes a start that lands later.
-      // Best-effort by construction: if this one stalls too there is nothing
-      // further to try, and the caller is already being told the start failed.
-      await session.send("Page.stopScreencast").catch(() => undefined);
+      // A start that was abandoned rather than refused may still land, so
+      // Chromium would be filming a tab this shell thinks is idle. Issued and
+      // not awaited: what makes it undo the start is that it reaches the wire
+      // *after* it — `send` calls `sendCommand` before its own first `await` —
+      // and awaiting the answer would cost the same five seconds again, taking
+      // this refusal past the caller's ten-second wait and replacing the
+      // sentence naming the dialog with a generic timeout. That is the whole
+      // point of the sentence, so the undo is best-effort by construction.
+      void session.send("Page.stopScreencast").catch(() => undefined);
       throw error;
     }
     return { ok: true, kind: "recording", ...page, active: true };
@@ -2668,7 +2549,19 @@ export function createDesktopBrowserViewManager(
     entry: BrowserViewEntry,
     hostWindow: DesktopBrowserHostWindow,
   ): void {
-    if (entry.view.webContents.isDestroyed()) {
+    // The host as well as the view, and the same three conditions `send` uses:
+    // `isHostResizing` below reads `hostWindow.webContents.id`, which throws
+    // once that webContents is gone. Reachable since a detach began clearing
+    // the pending dialog — a debugger detach can arrive while the window is
+    // already tearing down, with the child view still alive, which is the
+    // ordering `releaseWindow` exists to handle. An exception in that callback
+    // is an uncaught one in the main process. Found by the code re-review on
+    // 2026-09-08; the security re-review read the view guard and stopped.
+    if (
+      entry.view.webContents.isDestroyed() ||
+      hostWindow.isDestroyed() ||
+      hostWindow.webContents.isDestroyed()
+    ) {
       return;
     }
     // Reasons the app is drawing its own chrome across the whole page area, and
@@ -3901,18 +3794,19 @@ export function createDesktopBrowserViewManager(
         entry.cdp = null;
         invalidateSnapshotRefs(entry);
         forgetEntryInterception(entry);
-        // And so was the dialog interception. Chromium drops the `Page` domain
+        // And so was the dialog interception: Chromium drops the `Page` domain
         // with its protocol client, so leaving `dialogsWired` set means the
-        // next session short-circuits and never re-enables it: dialogs on this
-        // tab go back to Chromium's native modal, which nothing can answer,
-        // for as long as the tab lives. The stall refusal beside this reads
-        // `pendingDialog`, so a stale one is worse than none — it tells a
-        // caller to answer a dialog that no longer exists and that
-        // `browser dialog` cannot reach. Cleared through the same helper the
-        // dialog's own close event uses, so the app takes its dialog down with
-        // the session rather than holding a panel over a page nobody is
-        // blocking. Found by the security review on 2026-09-07; the stale flag
-        // predates the deadline work, the wrong sentence is what made it show.
+        // next session short-circuits and never re-enables it, and dialogs on
+        // this tab go back to a native modal nothing can answer for as long as
+        // the tab lives. That is what this line is for.
+        //
+        // Clearing `pendingDialog` is bookkeeping and *not* a claim that the
+        // page came unblocked — a dialog open when the client went most likely
+        // stands, and no new session can answer it. What it buys is that the
+        // stall refusal beside this stops telling callers to answer a dialog
+        // `browser dialog` cannot reach, and falls back to "busy or wedged",
+        // which is true. Through the same helper the close event uses, so the
+        // app is told rather than left holding a panel over the page.
         entry.dialogsWired = false;
         clearPendingDialog(entry.hostWindow, entry.tabId, entry);
       },
@@ -4001,12 +3895,8 @@ export function createDesktopBrowserViewManager(
       clearPendingDialog(hostWindow, tabId, entry);
     });
 
-    // Bounded here rather than at each of the five commands that call this,
-    // because this is the one send the function makes and every caller wants it
-    // bounded for the same reason: enabling a domain is renderer work, so a tab
-    // already blocked on an earlier command's dialog answers it no faster than
-    // anything else, and before this that left `control` and `record` waiting
-    // with nothing to end it.
+    // Bounded here rather than at each of the five commands that call this:
+    // it is the one send the function makes, and every caller wants it bounded.
     await cdpSessionWithDeadline(session, {
       remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
       dialogOpen: () => entry.pendingDialog !== null,
@@ -4289,13 +4179,8 @@ export function createDesktopBrowserViewManager(
       };
     }
 
-    // From here on the session has a clock: everything below is a renderer
-    // round trip, and a tab that has stopped answering — blocked on a dialog an
-    // earlier command left open, a busy-looping main thread — would otherwise
-    // leave this command pending until the tab went, holding that tab's queue
-    // with it. One budget for the whole snapshot rather than one per send,
-    // because it is one answer the caller waits on once and nothing is left
-    // behind by abandoning it.
+    // From here on the session has a clock — one budget for the whole snapshot.
+    // See `desktop-browser-cdp-deadline.ts` for which command gets which shape.
     session = cdpSessionWithDeadline(session, {
       remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS),
       dialogOpen: () => entry.pendingDialog !== null,
@@ -4364,10 +4249,8 @@ export function createDesktopBrowserViewManager(
       if (error instanceof SnapshotRefusal) {
         return { ok: false, reason: error.reason, message: error.message };
       }
-      // Its own reason rather than `failed`, because `failed` is where a
-      // message goes to die: the app turns it into "the page could not be
-      // inspected" and the sentence saying a dialog is holding the tab — the
-      // one thing the caller can act on — never reaches them.
+      // Its own reason rather than `failed`, which the app turns into "the page
+      // could not be inspected", losing the sentence naming the dialog.
       if (error instanceof CdpStalledError) {
         return { ok: false, reason: "page-stalled", message: error.message };
       }
@@ -4980,13 +4863,11 @@ export function createDesktopBrowserViewManager(
           entry,
           session,
         );
-        // Raced, like the two round trips in `resolveInteractionTarget`:
-        // enabling a domain is a send like any other, and a tab already blocked
-        // on a dialog from an earlier command answers neither. Nothing here
-        // touches the page, so running out of time means nothing was sent —
-        // which is what the deadline's own refusal says. `Page.enable` is
-        // bounded inside `ensureDialogInterception` instead, so that one send
-        // is not racing two clocks at once.
+        // Raced, like the two round trips in `resolveInteractionTarget`, and
+        // for the same reason: nothing here touches the page, so running out of
+        // time means nothing was sent. `Page.enable` is bounded inside
+        // `ensureDialogInterception` instead of here, so that one send is not
+        // racing two clocks at once.
         await deadline.race(
           session.enableDomain("DOM"),
           "while preparing to inspect the page",
@@ -5009,8 +4890,8 @@ export function createDesktopBrowserViewManager(
         if (error instanceof InteractionRefusal) {
           return { ok: false, reason: error.reason, message: error.message };
         }
-        // Kept apart from every refusal above it: those all mean nothing was
-        // sent to the page, and this one cannot promise that.
+        // Apart from every refusal above it: those mean nothing was sent to
+        // the page, and this one cannot promise that.
         if (error instanceof CdpStalledError) {
           return { ok: false, reason: "page-stalled", message: error.message };
         }
@@ -5072,15 +4953,8 @@ export function createDesktopBrowserViewManager(
       // attaches a session: this one does not drive the page, so it cannot
       // provoke a dialog, and taking a tab's dialogs over is a visible change
       // to how the browser behaves for the human using it. A picture should not
-      // cost that.
-      //
-      // Which is also why it needs the clock most: `Page.captureScreenshot` is
-      // renderer work, this command queues on the tab like any other, and a
-      // dialog an *earlier* command left open blocks it with nothing here able
-      // to see or answer that dialog. One budget for the command, the
-      // snapshot's, because a capture is a read of the same kind. Found by the
-      // code review on 2026-09-07 — the first pass bounded four paths and left
-      // this one.
+      // cost that — which is also why it needs a clock most, since a dialog an
+      // *earlier* command left open blocks it with nothing here able to see it.
       try {
         return await captureFullPageImage(
           entry,
@@ -5217,11 +5091,9 @@ export function createDesktopBrowserViewManager(
           entry,
           session,
         );
-        // Starting and stopping a screencast are renderer sends like any
-        // other, so filming could hold a tab's queue exactly the way the three
-        // paths above did. Per send, at the input budget, because none of these
-        // is legitimately slow. Stopping is unaffected either way: its send
-        // already has a `catch` that keeps the frames already taken.
+        // Per send: starting and stopping a screencast are renderer sends, so
+        // filming could hold a tab's queue the way the rest did. Stopping is
+        // unaffected — its send already has a `catch` that keeps the frames.
         return await performRecord(
           cdpSessionWithDeadline(session, {
             remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,

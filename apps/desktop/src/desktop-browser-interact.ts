@@ -1,5 +1,6 @@
 /**
- * Performing one interaction on a tab, once the element has been resolved.
+ * Driving a tab once the element has been resolved: interactions, the caller's
+ * own expressions, and the refusal vocabulary the two share.
  *
  * The seam issue #80 names for this file, taken at the point the interaction
  * path stops needing a `BrowserViewEntry`: everything here works from a CDP
@@ -18,10 +19,20 @@
  * it out go through a bounded session of their own
  * (`desktop-browser-cdp-deadline.ts`) whose refusal says the page stopped
  * answering and that the caller has to look.
+ *
+ * `evaluateInPage` and the `ControlRefusal` vocabulary came here later, for the
+ * same reason and by the same seam: both work from a session, a parsed request
+ * and — for the one thing they cannot do themselves, turning a `[ref=eN]` into
+ * a node — a callback. The view manager keeps only the half that reaches into a
+ * `BrowserViewEntry`. The immediate cause was arithmetic rather than taste: two
+ * reviews objected to the pinned file growing at all, and the answer the rule
+ * itself gives is to put the code in a module instead.
  */
-import type {
-  PatcherDesktopBrowserInteractRequest,
-  PatcherDesktopBrowserInteraction,
+import {
+  PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
+  type PatcherDesktopBrowserControlResult,
+  type PatcherDesktopBrowserInteractRequest,
+  type PatcherDesktopBrowserInteraction,
 } from "@patcher/desktop-contract";
 import {
   callOnElement,
@@ -38,11 +49,13 @@ import {
   PATCHER_BROWSER_READ_CHECKED_SCRIPT,
   PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
 } from "./desktop-browser-actions.js";
+import { formatBrowserEvalValue } from "./desktop-browser-control.js";
 import type { CdpSession } from "./desktop-browser-cdp.js";
 import {
   cdpBudget,
   cdpSessionWithDeadline,
   CdpStalledError,
+  PATCHER_DESKTOP_BROWSER_EVAL_TIMEOUT_MS,
   PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
 } from "./desktop-browser-cdp-deadline.js";
 import {
@@ -353,14 +366,21 @@ export async function performInteraction(args: InteractionArgs): Promise<void> {
         // message survives to whoever reads it — `failed` is replaced by "that
         // page's content could not be read" at the far end — and because what
         // it has to say is the same thing: look at the page.
-        if (ceiling() <= 0) {
+        // Room for a *whole* character, not a positive number: a keystroke is
+        // two independently bounded sends, so starting one with milliseconds
+        // left could finish ten seconds past the ceiling this advertises — and
+        // past the widest wait a caller can ask for. Stopping up to a keystroke
+        // early is the honest side of that.
+        if (ceiling() <= 2 * PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS) {
           throw new CdpStalledError(
             `Typing into that element ran out of its ${
               ACTION_CEILING_MS / 1_000
-            } seconds after ${index} of ${characters.length} characters, ` +
-              `because the page answered every keystroke slowly. Those ` +
-              `${index} characters are in the field; the rest are not. Look at ` +
-              `the page before typing again, or the field will hold both.`,
+            } seconds after ${index} of ${characters.length} keystrokes, ` +
+              `because the page answered every one of them slowly. What those ` +
+              `${index} keystrokes left in the field is not knowable from ` +
+              `here — the page can cancel a key, cap the length, reformat, or ` +
+              `move focus — so read the field's value before typing again ` +
+              `rather than retrying the rest of the text.`,
             "Input.dispatchKeyEvent",
             0,
           );
@@ -511,4 +531,155 @@ export async function performInteraction(args: InteractionArgs): Promise<void> {
       );
     }
   }
+}
+
+export type ControlRefusalReason = Extract<
+  PatcherDesktopBrowserControlResult,
+  { ok: false }
+>["reason"];
+
+const CONTROL_REFUSAL_REASONS = new Set<string>([
+  "no-view",
+  "no-page",
+  "debugger-unavailable",
+  "stale-refs",
+  "unknown-ref",
+  "evaluation-failed",
+  "too-many-routes",
+  "failed",
+]);
+
+/**
+ * The interaction and control refusal vocabularies overlap but are not the
+ * same — control cannot report `not-actionable`, having skipped the check that
+ * produces it, and interaction has nothing to say about routes. So the shared
+ * steps (resolving a ref) keep throwing {@link InteractionRefusal} and this
+ * maps it, while the control-only refusals get their own class.
+ */
+export function controlRefusalReason(reason: string): ControlRefusalReason {
+  return (
+    CONTROL_REFUSAL_REASONS.has(reason) ? reason : "failed"
+  ) as ControlRefusalReason;
+}
+
+export class ControlRefusal extends Error {
+  readonly reason: ControlRefusalReason;
+
+  constructor(reason: ControlRefusalReason, message: string) {
+    super(message);
+    this.name = "ControlRefusal";
+    this.reason = reason;
+  }
+}
+
+/**
+ * Evaluate the caller's own JavaScript in the page.
+ *
+ * **In the page's world, not the isolated one** every other script here runs
+ * in — which is the deliberate difference and the whole reason `eval` is worth
+ * having: `window.__NEXT_DATA__`, a framework's state, a function the page
+ * defined are all invisible from an isolated world, and reading them is what
+ * people reach for `eval` to do. The isolated world protects our own fixed
+ * scripts from a page that shadows globals; it cannot protect an expression
+ * whose entire job is to touch the page.
+ *
+ * The expression is never spliced into a string. It crosses as CDP's
+ * `functionDeclaration`, so the protocol parses it as one function and a page
+ * cannot be reached through the way we sent it.
+ */
+export interface EvaluateInPageArgs {
+  session: CdpSession;
+  expression: string;
+  /** Null evaluates against the page's global object. */
+  ref: string | null;
+  /**
+   * The node a `[ref=eN]` names, looked up against the snapshot that handed it
+   * out. A callback for the reason `ResolveInteractionTarget` is one: the table
+   * lives on the tab's entry, and nothing here needs the rest of it.
+   */
+  lookupNode: (ref: string) => number;
+  /** Whether a JavaScript dialog is holding this tab, for a stall to name. */
+  dialogOpen: () => boolean;
+}
+
+export async function evaluateInPage(
+  args: EvaluateInPageArgs,
+): Promise<{ value: string; truncated: boolean }> {
+  const { expression, ref } = args;
+  // Its own clock, and the most generous of them: `awaitPromise` below is
+  // waiting on the caller's own code, so slow is legitimate and never-settling
+  // is not.
+  const session = cdpSessionWithDeadline(args.session, {
+    remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_EVAL_TIMEOUT_MS),
+    dialogOpen: args.dialogOpen,
+  });
+  let objectId: string;
+  let callArguments: { objectId: string }[] = [];
+  if (ref === null) {
+    // `Runtime.evaluate` with no context id lands in the page's main world, so
+    // its global object is the handle to call the caller's function on.
+    const global = await session.send<{ result?: { objectId?: string } }>(
+      "Runtime.evaluate",
+      { expression: "globalThis" },
+    );
+    if (typeof global.result?.objectId !== "string") {
+      throw new InteractionRefusal(
+        "failed",
+        "The tab has no page to evaluate in.",
+      );
+    }
+    objectId = global.result.objectId;
+  } else {
+    const backendNodeId = args.lookupNode(ref);
+    // No `executionContextId`, so this resolves in the main world too — the
+    // same element, addressed where the caller's code can see the page.
+    // Narrowed to the send's own failure, which means the node is gone. Telling
+    // a caller to snapshot again is the wrong move on a page that has stopped
+    // answering, because the snapshot stalls too.
+    const resolved = await session
+      .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
+        backendNodeId,
+      })
+      .catch((error: unknown) => {
+        if (error instanceof CdpStalledError) {
+          throw error;
+        }
+        return null;
+      });
+    if (typeof resolved?.object?.objectId !== "string") {
+      throw new InteractionRefusal(
+        "unknown-ref",
+        `Element ${ref} is no longer on the page. Snapshot it again.`,
+      );
+    }
+    objectId = resolved.object.objectId;
+    // Passed as the first argument, so `(el) => el.value` reads as it does in
+    // Playwright; `this` is the element as well, for `function () { … }` form.
+    callArguments = [{ objectId }];
+  }
+
+  const response = await session.send<{
+    result?: { value?: unknown };
+    exceptionDetails?: { text?: string; exception?: { description?: string } };
+  }>("Runtime.callFunctionOn", {
+    objectId,
+    functionDeclaration: expression,
+    arguments: callArguments,
+    returnByValue: true,
+    awaitPromise: true,
+  });
+  if (response.exceptionDetails !== undefined) {
+    // The page ran it and it threw. That is the caller's to fix, and its own
+    // message is the only useful thing to say about it.
+    throw new ControlRefusal(
+      "evaluation-failed",
+      response.exceptionDetails.exception?.description ??
+        response.exceptionDetails.text ??
+        "The expression threw.",
+    );
+  }
+  return formatBrowserEvalValue(
+    response.result?.value,
+    PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
+  );
 }

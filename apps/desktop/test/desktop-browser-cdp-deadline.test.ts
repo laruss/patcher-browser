@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { patcherDesktopBrowserInteractResultSchema } from "@patcher/desktop-contract";
+import {
+  patcherDesktopBrowserCaptureFullPageResultSchema,
+  patcherDesktopBrowserInteractResultSchema,
+} from "@patcher/desktop-contract";
 import type { CdpSession } from "../src/desktop-browser-cdp.js";
 import {
   cdpBudget,
@@ -324,12 +327,21 @@ describe("a CDP session with a clock on it", () => {
     );
     await vi.advanceTimersByTimeAsync(1_000);
 
-    const parsed = patcherDesktopBrowserInteractResultSchema.parse({
-      ok: false,
-      reason: "page-stalled",
-      message: ((await stalled) as Error).message,
-    });
-    expect(parsed).toMatchObject({ ok: false, reason: "page-stalled" });
+    const message = ((await stalled) as Error).message;
+    // Both enums that carry this refusal, because `.catch("failed")` means a
+    // reason the schema has not heard of comes back as `failed` rather than
+    // throwing — so parsing is the only way to tell "shipped" from "silently
+    // degraded", and doing it for one enum says nothing about the others. The
+    // capture enum is here because a review pointed out that this test passed
+    // with the full-page half of the fix removed.
+    for (const schema of [
+      patcherDesktopBrowserInteractResultSchema,
+      patcherDesktopBrowserCaptureFullPageResultSchema,
+    ]) {
+      expect(
+        schema.parse({ ok: false, reason: "page-stalled", message }),
+      ).toMatchObject({ ok: false, reason: "page-stalled" });
+    }
   });
 
   it("leaves subscribing, detaching and the attached flag alone", () => {

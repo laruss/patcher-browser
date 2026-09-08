@@ -47,9 +47,10 @@
  * same (`actsOnItsTab` in `execute.ts`): they are the way out while the clock
  * is still running, and the clocks are not short. A read gives the page 15
  * seconds and an evaluation 30, both of which the caller has usually stopped
- * waiting for; an action's sends are bounded one at a time and share a
- * one-minute ceiling, so a page that answers every keystroke just slowly enough
- * is the worst case rather than an unbounded one.
+ * waiting for; an action's sends are bounded one at a time, and `type` — the
+ * only action whose length the caller picks — stops after a minute, so a page
+ * that answers every keystroke just slowly enough is the worst case rather than
+ * an unbounded one.
  */
 
 export interface BrowserTabQueue {
