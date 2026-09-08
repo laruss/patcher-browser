@@ -236,7 +236,7 @@ That makes the first diagnostic question answerable in one command: if
   interpolation left in it and does not run in world 0 or 999; malformed results
   rejected; re-truncation and flag preservation; the largest accepted value still
   satisfies the other package's schema, so the two sets of caps cannot drift.
-- `desktop-browser-view-manager.test.ts` — the read uses the **isolated** world
+- `desktop-browser-view-manager-reads.test.ts` — the read uses the **isolated** world
   and never the main one; missing / destroyed / empty-URL tabs each get their own
   refusal; a page that never answers times out and its late reply changes
   nothing; a throwing or malformed script is `unreadable`; titles truncate.
