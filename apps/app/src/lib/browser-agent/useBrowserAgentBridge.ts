@@ -95,21 +95,36 @@ export function useBrowserAgentBridge(): void {
     // and the handover between two drivers are one implementation rather than
     // two that drift — and a window is only ever sent one of the two, so
     // nothing is counted twice.
+    //
+    // The ids of the commands this window has been told about and not yet been
+    // told ended. Bounded by how many can be in flight at once, because the
+    // server settles every one of them within its own timeout; a reconnect
+    // clears it, which is the one case where a settle never arrives.
+    const mirrored = new Set<string>();
     const unsubscribeDriving = wsManager.onBrowserDriving((signal) => {
       if (signal.phase === "started") {
+        mirrored.add(signal.requestId);
         driving.started(signal.issuer, { elsewhere: true });
         return;
       }
+      // A settle for a start this window never saw — it registered, or
+      // reconnected, part-way through that command. Counting it would take
+      // down the row of a *different* command the same caller has started
+      // since, because the tracker counts per caller and this is the one place
+      // that knows which command a phase belongs to.
+      if (!mirrored.delete(signal.requestId)) return;
       driving.settled(signal.issuer);
     });
 
     // A reconnect is where this window's copy of "who is driving" can be
-    // wrong: a settle sent while the socket was down is not resent, and the
-    // indicator would stay up for a command that has ended. The serving window
-    // pays a little for the same rule — a command it is still performing stops
-    // showing until its next one — which is the honest side of the trade.
+    // wrong: a settle sent while the socket was down is not resent, so a row
+    // this window was only mirroring can outlive the command it names. What
+    // stays is what this window is performing itself — that settles locally
+    // whatever the socket did.
     const unsubscribeConnected = wsManager.onConnected(({ reconnected }) => {
-      if (reconnected) driving.dispose();
+      if (!reconnected) return;
+      mirrored.clear();
+      driving.forgetOtherWindows();
     });
 
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {

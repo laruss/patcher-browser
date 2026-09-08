@@ -1412,10 +1412,13 @@ only the app key is called just that and pointed at the setting, since nothing
 narrower exists for it; a turn inside Patcher is shown as "an agent in Patcher"
 and left to its own thread, which is where it is stopped.
 `patcher browser status` answers the same question from the other side, so an
-agent can be told what it may do instead of finding out by being refused. Two
-things that does not do: the indicator is a row of the browser chrome, so it is
-not on screen while you are reading a thread elsewhere in the app; and it says
-who is driving rather than what they are doing.
+agent can be told what it may do instead of finding out by being refused. The
+row is the window's rather than a page's — under the tab strip, which is on
+screen for every desktop route, and in the app's *other* windows too, fed by a
+`browser-driving` signal the server sends to every browser host but the one
+performing the command. What it still does not do: it says who is driving rather
+than what they are doing, and it is inside the app, so Patcher behind another
+application or minimised shows nothing until you come back to it.
 
 A grant is deliberately **not** bounded by the level above, and the reverse of a
 ceiling is the point: a ceiling would mean opening the browser to every process

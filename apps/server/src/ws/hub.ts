@@ -1287,9 +1287,11 @@ export class NotificationHub implements DbNotifier {
       this.browserCommandWaiters.delete(requestId);
     }
     clearTimeout(waiter.timeout);
-    // Every way this wait can end passes here — the answer, the timeout, a
-    // failed send, the host's socket going away — which is why the other
-    // windows are told from here rather than four times over.
+    // Every way this wait can end passes here — the answer, the timeout, the
+    // host's socket going away — which is why the other windows are told from
+    // here rather than three times over. A send that threw passes here too and
+    // deliberately announces nothing: the issuer is recorded only after a
+    // successful send, so there was no start to end.
     this.announceBrowserDriving({
       issuer: waiter.issuer,
       performer: waiter.socket,

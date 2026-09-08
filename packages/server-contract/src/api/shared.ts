@@ -312,7 +312,13 @@ export const browserCommandRequestSignalLenientSchema = z.object({
  * **`issuer` is required.** A command with nobody to name is the app's own
  * browsing and must stay silent, so it is not announced at all — an absent
  * issuer is not a driver whose name is unknown, it is the person's own work.
- * `requestId` pairs the phases and is the same id the command carries.
+ *
+ * **`requestId` is the same id the command carries, and it is read.** A window
+ * that registers — or reconnects — part-way through a command is still in the
+ * audience for that command's `settled`, and the client counts *per caller*: a
+ * settle it cannot pair with a start it saw would take down the row of another
+ * command the same caller started since. So the client ignores one, which it
+ * can only do because the phases are named.
  */
 export const browserDrivingSignalSchema = z
   .object({

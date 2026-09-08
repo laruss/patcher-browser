@@ -204,6 +204,51 @@ describe("the browser driving tracker", () => {
     });
   });
 
+  it("forgets another window's driver without forgetting this window's own", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    // Both at once, which is the state a window is in while it serves the
+    // commands *and* hears about another window's: its own most recently, so
+    // that is what is shown.
+    driving.tracker.started(GRANT, { elsewhere: true });
+    driving.tracker.started(OTHER_GRANT);
+
+    driving.tracker.forgetOtherWindows();
+
+    // The local one survives — it settles when its command answers, whatever
+    // the socket did — and the mirrored one is gone rather than waiting to be
+    // handed the row back by a settle that will never arrive.
+    expect(driving.last).toEqual({
+      issuer: OTHER_GRANT,
+      active: true,
+      elsewhere: false,
+    });
+    driving.tracker.settled(OTHER_GRANT);
+    vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
+    expect(driving.last).toBeNull();
+  });
+
+  it("hands the row back to this window when the mirrored one is dropped", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    // The other order: this window's command started first, so the row is
+    // showing the other window's when the reconnect happens.
+    driving.tracker.started(OTHER_GRANT);
+    driving.tracker.started(GRANT, { elsewhere: true });
+    expect(driving.last?.issuer).toEqual(GRANT);
+
+    driving.tracker.forgetOtherWindows();
+
+    // Not cleared: something is still driving, and it is this window doing it.
+    expect(driving.last).toEqual({
+      issuer: OTHER_GRANT,
+      active: true,
+      elsewhere: false,
+    });
+  });
+
   it("clears when the window goes away, timer and all", () => {
     vi.useFakeTimers();
     const driving = track();

@@ -81,8 +81,9 @@ last" depends on history it cannot see.
 The refusal is a dead end on its own: an agent says "ask them to hand it over"
 and the person has nothing to press. So the refusal itself raises the ask. The
 executor records it (`browserTabHandoverAskAtom`), and the browser chrome draws
-a row under the driving indicator — *Claude Code is asking to work in "…"* —
-with **Hand it over** beside it. Answering it claims the tab for that agent; the
+a row under the address bar — *Claude Code is asking to work in "…"* —
+with **Hand it over** beside it. It stays in the page chrome, where the driving
+indicator no longer is, because this one is about the tab in front of you. Answering it claims the tab for that agent; the
 agent's next command works.
 
 The ask carries both halves of the question, which is why it comes from the
@@ -147,8 +148,10 @@ which is the backstop for any path that forgets.
   to the person on revoke — would quietly make a page an agent had been working
   in the default target of the next caller's unqualified command.
 - **Not a window-level signal.** A tab an agent holds carries a mark in the
-  strip, named after the agent, and its menu offers the tab back. Both live in
-  the browser surface, so a person reading a thread in another window still
-  sees nothing — the same gap the driving indicator has
-  ([browser-external-access.md](browser-external-access.md)), and the same fix:
-  a signal on the window rather than inside it.
+  strip, named after the agent, and its menu offers the tab back. Both are drawn
+  from this window's own tab state, so a person reading a thread in another
+  window still sees nothing. The driving indicator had the same gap and no
+  longer does — the server tells the app's other windows who is driving
+  ([browser-external-access.md](browser-external-access.md)) — which is also the
+  shape of the fix here, and a bigger one: *who* is driving is one line, while
+  *which tabs whose* is a second window's whole strip.

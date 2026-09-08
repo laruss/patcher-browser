@@ -48,8 +48,11 @@ const GRANT = {
   level: "read",
 } as const;
 
-function driving(phase: "started" | "settled"): BrowserDrivingSignal {
-  return { type: "browser-driving", requestId: "r1", phase, issuer: GRANT };
+function driving(
+  phase: "started" | "settled",
+  requestId = "r1",
+): BrowserDrivingSignal {
+  return { type: "browser-driving", requestId, phase, issuer: GRANT };
 }
 
 function mountBridge() {
@@ -138,13 +141,39 @@ describe("the browser agent bridge, in a window that is not serving", () => {
     expect(bridge.store.get(browserDrivingAtom)).toBeNull();
   });
 
+  it("ignores a settle for a command it never saw start", () => {
+    const bridge = mountBridge();
+
+    // The sequence a window gets when it registers — or reconnects — part-way
+    // through a command: it hears that command's settle without ever having
+    // heard its start. Meanwhile the same caller started another one, which
+    // this window did see.
+    bridge.deliver(driving("started", "r2"));
+    bridge.deliver(driving("settled", "r1"));
+
+    // The tracker counts per caller, so counting the stray settle would take
+    // r2's row down while r2 is still driving — the one thing this row must
+    // never do. Pairing by request id is the only thing that can tell them
+    // apart, and this callback is where the ids are.
+    expect(bridge.store.get(browserDrivingAtom)).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: true,
+    });
+  });
+
   it("stops listening when the window unmounts", () => {
-    const unsubscribe = vi.fn();
-    wsManager.onBrowserDriving.mockReturnValueOnce(unsubscribe);
+    const unsubscribeDriving = vi.fn();
+    const unsubscribeConnected = vi.fn();
+    wsManager.onBrowserDriving.mockReturnValueOnce(unsubscribeDriving);
+    wsManager.onConnected.mockReturnValueOnce(unsubscribeConnected);
     const bridge = mountBridge();
 
     bridge.unmount();
 
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(unsubscribeDriving).toHaveBeenCalledTimes(1);
+    // Both, because a listener left behind closes over this window's store: a
+    // reconnect would go on clearing an indicator in a window that is gone.
+    expect(unsubscribeConnected).toHaveBeenCalledTimes(1);
   });
 });

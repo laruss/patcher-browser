@@ -3,7 +3,7 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import { browserIssuerKey } from "./issuer";
 
 /**
- * Whether something other than the person is driving this window's browser.
+ * Whether something other than the person is driving Patcher's browser.
  *
  * Electron draws no "a program is controlling this browser" banner and a native
  * `WebContentsView` cannot be decorated from the page side, so what the app puts
@@ -64,14 +64,16 @@ export interface BrowserDrivingTracker {
   /** That command has answered, one way or the other. */
   settled(issuer: BrowserCommandIssuer | undefined): void;
   /**
-   * Drop the timer and the indicator.
+   * Forget what another window told us, and keep what this window is doing.
    *
-   * Two occasions, and the second is why this is not only teardown: the window
-   * is going away, or the connection it was learning this from broke and came
-   * back — a `settled` that was sent while the socket was down is not resent,
-   * and an indicator held up by a command that ended is worse than one that
-   * lights again on the next command.
+   * For a reconnect: a `settled` sent while the socket was down is not resent,
+   * so an indicator this window was only mirroring can be held up by a command
+   * that ended minutes ago. What must not go with it is a command *this* window
+   * is still performing — that settles locally whatever the socket did, and
+   * taking its row down would say nobody is driving while somebody is.
    */
+  forgetOtherWindows(): void;
+  /** The window is going away: drop the timer and the indicator. */
   dispose(): void;
 }
 
@@ -181,6 +183,34 @@ export function createBrowserDrivingTracker(
         current = null;
         args.set(null);
       }, BROWSER_DRIVING_LINGER_MS);
+    },
+    forgetOtherWindows() {
+      for (const [key, entry] of [...inFlight]) {
+        if (entry.elsewhere) inFlight.delete(key);
+      }
+      // Nothing shown, or this window's own work is what is shown: there is
+      // nothing to correct, and the entries above are gone so a later handover
+      // cannot bring one of them back.
+      if (current?.elsewhere !== true) return;
+      const dropped = current.key;
+      clearTimer();
+      // The same handover a settle does, and for the same reason: if this
+      // window is still performing something, that is who is driving now.
+      const other = stillDriving(dropped);
+      if (other === undefined) {
+        current = null;
+        args.set(null);
+        return;
+      }
+      current = {
+        elsewhere: other.elsewhere,
+        key: browserIssuerKey(other.issuer),
+      };
+      args.set({
+        issuer: other.issuer,
+        active: true,
+        elsewhere: other.elsewhere,
+      });
     },
     dispose() {
       clearTimer();

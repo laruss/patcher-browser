@@ -525,6 +525,18 @@ window's socket goes away, its registration is already out of the map, so
 "fewer than two windows" would skip the settle that a still-open sibling needs
 to take its indicator down.
 
+**Two rules about a window that arrives late**, which is what the `requestId` on
+the signal is for. A window that registers — or reconnects — part-way through a
+command is in the audience for that command's `settled` without ever having
+heard its `started`, and the tracker counts *per caller*: counting the stray
+settle would take down the row of another command the same caller started since,
+while it is still driving. So the window pairs the phases by that id and ignores
+one it cannot place. And on a reconnect it forgets what it was *mirroring* —
+a settle sent while the socket was down is never resent — while keeping what it
+is performing itself, because that settles locally whatever the socket did.
+Clearing both would be the same lie from the other side: no row while a tab is
+visibly being driven.
+
 **The button is the one that fits the caller.** A grant gets **Pause**, which is
 the whole reason pausing exists. A caller from outside with no grant gets a link
 to Settings, because the install-wide level is the only lever that reaches it. A
@@ -684,16 +696,20 @@ Named here rather than left to be rediscovered.
   read it.
 - `apps/app/src/lib/browser-agent/useBrowserAgentBridge.test.tsx` — the
   subscription a non-serving window's whole indicator hangs on: a signal from
-  another window is shown as being elsewhere, a reconnect stops the row
-  claiming a command that ended while the socket was down, and unmounting stops
-  the listening.
+  another window is shown as being elsewhere, a settle for a command this window
+  never saw start is ignored rather than counted against one it did, a reconnect
+  stops the row claiming a command that ended while the socket was down, and
+  unmounting stops both listeners.
 - `apps/app/src/views/BrowserSurfaceView.test.tsx` — the placement, in the state
   that used to lose it: with a Patcher screen holding the tab there is no
   address bar, and the row is on screen anyway.
-- `apps/server/test/app/hub-browser-command.test.ts` — the other windows are
-  told and the performer is not, a command with nobody to name is not
-  announced, and the window still open gets the settle when the one doing the
-  work vanishes.
+- `apps/server/test/app/hub-browser-command.test.ts` — *two* other windows are
+  told and the performer is not (one watcher would accept a loop that stopped
+  after the first), one start and one settle rather than a last frame that
+  happens to be right, a command with nobody to name is not announced, a send
+  that threw announces neither phase — the guarantee that rests on recording the
+  issuer only after a successful send — and the settle reaches the window still
+  open when the command times out and when the one doing the work vanishes.
 - `apps/app/src/components/browser-surface/BrowserDrivingIndicator.test.tsx` —
   the label a person typed rather than the grant id, the level in the settings
   screen's words, **Pause** rather than revoke, Settings for a caller with no
