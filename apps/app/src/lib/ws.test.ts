@@ -406,6 +406,44 @@ describe("WebSocketManager browser commands", () => {
     expect(changed).not.toHaveBeenCalled();
   });
 
+  it("shows a driving signal a newer server added a field to", () => {
+    // The additive change this wire exists for, one level down: the fields the
+    // client cannot read are inside `command` and `outcome`, and a strict
+    // nested schema would drop the whole frame over them. Losing a `started`
+    // costs the row; losing a `settled` is worse — nothing else ends a command
+    // this window is only being told about, so the indicator would stay on
+    // until the socket next reconnects.
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    manager.onBrowserDriving(driving);
+
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_6",
+      phase: "started",
+      issuer: { kind: "outside" },
+      command: { name: "page.interact", detail: "click e42", tabId: "tab_1" },
+    });
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_6",
+      phase: "settled",
+      issuer: { kind: "outside" },
+      outcome: { ok: true, error: null, tookMs: 42 },
+    });
+
+    expect(driving).toHaveBeenCalledTimes(2);
+    // Read, and the field nobody knows about dropped rather than passed on.
+    expect(driving.mock.calls[0]?.[0]?.command).toEqual({
+      name: "page.interact",
+      detail: "click e42",
+    });
+    expect(driving.mock.calls[1]?.[0]?.outcome).toEqual({
+      ok: true,
+      error: null,
+    });
+  });
+
   it("carries what the command did through to the subscriber", () => {
     const { manager } = createConnectedManager();
     const driving = vi.fn();

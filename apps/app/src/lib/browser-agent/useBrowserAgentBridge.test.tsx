@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { Provider as JotaiProvider, createStore } from "jotai";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { BrowserCommandOutcome } from "@patcher/domain";
 import type {
   BrowserDrivingOutcome,
   BrowserDrivingSignal,
@@ -52,11 +53,23 @@ const wsManager = {
 
 vi.mock("@/lib/ws", () => ({ wsManager }));
 
-// A command this window is performing and has not finished. Nothing else here
-// needs the executor, and a real one would answer within the test — which is
-// the opposite of the state the reconnect case is about.
+/**
+ * The executor, controllable rather than absent.
+ *
+ * Its default is a promise that never answers, which is the state the reconnect
+ * case is about — a command this window is still performing. The tests that
+ * care how a local command *ends* hand it one they can settle themselves,
+ * because that path is the one the remote frames cannot stand in for: a window
+ * performing a command is told nothing by the server about it.
+ */
+const executeBrowserCommand =
+  vi.fn<(...args: unknown[]) => Promise<BrowserCommandOutcome>>(
+    () => new Promise(() => undefined),
+  );
+
 vi.mock("./execute", () => ({
-  executeBrowserCommand: () => new Promise(() => undefined),
+  executeBrowserCommand: (...args: unknown[]) =>
+    executeBrowserCommand(...args),
 }));
 
 const GRANT = {
@@ -153,6 +166,11 @@ const { useBrowserAgentBridge: useBridge } = await import(
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  // `clearAllMocks` also clears the implementation, and every test that does
+  // not set its own needs the command it starts to stay unfinished.
+  executeBrowserCommand.mockImplementation(
+    () => new Promise(() => undefined),
+  );
 });
 
 describe("the browser agent bridge, in a window that is not serving", () => {
@@ -338,6 +356,66 @@ describe("the browser agent bridge, keeping the record", () => {
     // to the socket.
     expect(entries.find((entry) => entry.requestId === "r2")?.status).toEqual({
       kind: "running",
+    });
+  });
+
+  it("finishes a row this window performed, with the outcome it got", async () => {
+    executeBrowserCommand.mockResolvedValueOnce({
+      ok: false,
+      code: "unknown_tab",
+      message: "That tab is not open. List the tabs to see which ids exist.",
+    });
+    const bridge = mountBridge();
+
+    bridge.command("r1");
+    // The executor's promise, and the `.then` behind it.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The path no frame can stand in for: the window performing a command is
+    // told nothing about it by the server, so if this window did not write the
+    // answer down itself the row would say "running" for the rest of the
+    // session. The code, not the message the agent is sent.
+    expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
+      kind: "failed",
+      code: "unknown_tab",
+    });
+    // And the agent still gets its answer.
+    expect(wsManager.sendBrowserCommandResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a row done when the command it performed succeeded", async () => {
+    executeBrowserCommand.mockResolvedValueOnce({
+      ok: true,
+      value: { type: "tabs", tabs: [] },
+    });
+    const bridge = mountBridge();
+
+    bridge.command("r1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
+      kind: "ok",
+    });
+  });
+
+  it("records a bug in the executor as the failure the agent is sent", async () => {
+    executeBrowserCommand.mockRejectedValueOnce(new Error("boom"));
+    const bridge = mountBridge();
+
+    bridge.command("r1");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Not "no answer": the agent is being sent `invalid_command`, and a record
+    // that said nobody answered would disagree with what the caller was told.
+    expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
+      kind: "failed",
+      code: "invalid_command",
     });
   });
 });

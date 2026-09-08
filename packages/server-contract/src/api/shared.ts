@@ -418,28 +418,52 @@ export type BrowserDrivingSignal = z.infer<typeof browserDrivingSignalSchema>;
  * A `phase` this app does not know is worth the same treatment for the same
  * reason.
  *
- * **The command and the outcome are optional here and required there**, which
- * is the one place these two schemas deliberately disagree. Strict guards what
+ * **The command and the outcome are optional here and required there**, and
+ * neither is strict here, which is the one place these two schemas deliberately
+ * disagree. Strict guards what
  * the server sends, and a start with no command would be the server forgetting.
  * Lenient parses what arrived, and a window loaded from a server that predates
  * these fields still knows who is driving — which is the whole signal — so
  * dropping the frame over the half it cannot have would trade a working
  * indicator for a missing one.
  */
+/**
+ * The two payloads without `.strict()`, for the lenient side only.
+ *
+ * `optional()` on a strict object forgives the field's absence and nothing
+ * inside it, so a newer server that adds a field to either of these — the
+ * additive change this wire is *for* — would make an old window drop the whole
+ * frame. Dropping a `started` loses the row; dropping a `settled` is worse,
+ * since nothing else ends a command this window is only being told about: the
+ * indicator would stay on until the socket next reconnects.
+ *
+ * The lengths stay. A field a newer server adds is a change this wire allows; a
+ * `detail` longer than the cap or a code longer than 64 is a server breaking its
+ * own outgoing schema, and there is nothing to be gained by rendering it.
+ */
+const browserDrivingCommandLenientSchema = z.object({
+  name: z.string().max(64),
+  detail: z.string().max(BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH),
+});
+const browserDrivingOutcomeLenientSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().max(64).nullable(),
+});
+
 export const browserDrivingSignalLenientSchema = z.discriminatedUnion("phase", [
   z.object({
     type: z.literal("browser-driving"),
     requestId: z.string().min(1).max(128),
     phase: z.literal("started"),
     issuer: browserCommandIssuerSchema,
-    command: browserDrivingCommandSchema.optional(),
+    command: browserDrivingCommandLenientSchema.optional(),
   }),
   z.object({
     type: z.literal("browser-driving"),
     requestId: z.string().min(1).max(128),
     phase: z.literal("settled"),
     issuer: browserCommandIssuerSchema,
-    outcome: browserDrivingOutcomeSchema.nullish(),
+    outcome: browserDrivingOutcomeLenientSchema.nullish(),
   }),
 ]);
 /**
