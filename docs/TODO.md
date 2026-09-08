@@ -228,6 +228,17 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   hypothesis consistent with the measurement rather than a verified cause — the
   view's own attachment was not observed.
 
+  **What was not established is whether the event is dropped or queued**, and
+  it decides the advice. Dropped, the refusal is the whole story. Queued, an
+  agent that retries after the refusal has stacked N clicks behind the mount,
+  and activating the tab delivers all of them — which used to be impossible,
+  because the first click held the tab's queue and no second one could be sent.
+  It could not be measured from here: a session with no on-screen window
+  acknowledges a click on the _active_ tab and still never runs the page's
+  handler, so "did it land" has no answer without a window on screen. Whoever
+  picks this up should click a background tab, take the refusal, activate the
+  tab, and read the page.
+
   It used to hang for as long as the tab lived; it now refuses in five seconds
   (`desktop-browser-cdp-deadline.ts`), which is the difference between a wedged
   queue and a bad answer, not a fix. What makes it worth its own entry is who

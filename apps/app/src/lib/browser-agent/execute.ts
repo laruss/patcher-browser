@@ -571,6 +571,14 @@ function observeFailure(
         "result_too_large",
         `That is too large to return.${detail}`,
       );
+    case "page-stalled":
+      // Only the full-page capture can answer this; a viewport capture and the
+      // two logs never touch the renderer. Shared mapper, so it lives here.
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering while it was being captured.`,
+      );
     default:
       return failure(
         "page_read_failed",

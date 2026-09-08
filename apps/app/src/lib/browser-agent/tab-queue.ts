@@ -45,7 +45,11 @@
  * past 27 seconds and drained at 33. The two commands that get a tab out of
  * that state, answering the dialog and closing it, are never queued all the
  * same (`actsOnItsTab` in `execute.ts`): they are the way out while the clock
- * is still running, and 15 to 30 seconds is a long time to be stuck.
+ * is still running, and the clocks are not short. A read gives the page 15
+ * seconds and an evaluation 30, both of which the caller has usually stopped
+ * waiting for; an action's sends are bounded one at a time and share a
+ * one-minute ceiling, so a page that answers every keystroke just slowly enough
+ * is the worst case rather than an unbounded one.
  */
 
 export interface BrowserTabQueue {

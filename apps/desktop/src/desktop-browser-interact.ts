@@ -40,6 +40,7 @@ import {
 } from "./desktop-browser-actions.js";
 import type { CdpSession } from "./desktop-browser-cdp.js";
 import {
+  cdpBudget,
   cdpSessionWithDeadline,
   CdpStalledError,
   PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
@@ -147,6 +148,33 @@ async function readCheckedState(
 /** How long to keep re-reading a control's state after clicking it. */
 const CHECKED_SETTLE_TIMEOUT_MS = 500;
 
+/**
+ * How long a `type` may go on for.
+ *
+ * The per-send budget is what keeps a slow page from losing half a `type`, and
+ * on its own it bounds nothing here: `type` is the one action whose number of
+ * sends the caller chooses — two events a character against a 1 024-character
+ * cap — so a page answering each just inside five seconds holds that tab's
+ * queue for hours, and the page picks the timing. Every other action is a fixed
+ * handful of sends and needs no ceiling. A minute because that is the widest
+ * wait any caller can ask for (`BROWSER_COMMAND_MAX_TIMEOUT_MS`): past it
+ * nobody is listening, so finishing late has stopped being worth anything.
+ *
+ * **Checked between characters, not between sends.** The first spelling of this
+ * shortened the *send* budget instead, and a test caught what that does: the
+ * ceiling fell between a key's down and its up, leaving the page with a key
+ * logically held — the exact half-delivered sequence the deadline work is
+ * careful about everywhere else. A keystroke is the unit a caller reasons
+ * about, so it is the unit this stops on.
+ *
+ * The trade, said rather than discovered: a legitimately slow page and a very
+ * long `type` end with part of the text in the field, which is the case the
+ * per-send budget exists to avoid. Still avoided wherever the whole action fits
+ * in a minute, which is every page that is slow rather than hostile. Raised by
+ * the security review on 2026-09-07.
+ */
+const ACTION_CEILING_MS = 60_000;
+
 export interface InteractionArgs {
   session: CdpSession;
   resolveTarget: ResolveInteractionTarget;
@@ -181,6 +209,7 @@ export async function performInteraction(args: InteractionArgs): Promise<void> {
    * `PATCHER_BROWSER_ACTION_TIMEOUT_MS` and it stops being latent: a stalled
    * poll would then throw away a reason the check had already measured.
    */
+  const ceiling = cdpBudget(ACTION_CEILING_MS);
   const acting = cdpSessionWithDeadline(session, {
     remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
     dialogOpen: args.dialogOpen,
@@ -316,7 +345,26 @@ export async function performInteraction(args: InteractionArgs): Promise<void> {
       // One event per character, because that is the whole difference from
       // fill: autocompletes and input masks react to keystrokes, not to a value
       // appearing.
-      for (const character of Array.from(interaction.text)) {
+      const characters = Array.from(interaction.text);
+      for (const [index, character] of characters.entries()) {
+        // {@link ACTION_CEILING_MS}: the only action a page can stretch without
+        // limit, stopped on a whole keystroke. A `CdpStalledError` rather than
+        // an `InteractionRefusal` because this is the one refusal shape whose
+        // message survives to whoever reads it — `failed` is replaced by "that
+        // page's content could not be read" at the far end — and because what
+        // it has to say is the same thing: look at the page.
+        if (ceiling() <= 0) {
+          throw new CdpStalledError(
+            `Typing into that element ran out of its ${
+              ACTION_CEILING_MS / 1_000
+            } seconds after ${index} of ${characters.length} characters, ` +
+              `because the page answered every keystroke slowly. Those ` +
+              `${index} characters are in the field; the rest are not. Look at ` +
+              `the page before typing again, or the field will hold both.`,
+            "Input.dispatchKeyEvent",
+            0,
+          );
+        }
         await dispatchKey(acting, characterKeyEvent(character));
       }
       return;

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { patcherDesktopBrowserInteractResultSchema } from "@patcher/desktop-contract";
 import type { CdpSession } from "../src/desktop-browser-cdp.js";
 import {
   cdpBudget,
@@ -301,6 +302,34 @@ describe("a CDP session with a clock on it", () => {
     expect(error).toBeInstanceOf(CdpStalledError);
     expect((error as CdpStalledError).method).toBe("Accessibility.enable");
     expect(fake.domainsEnabled).toEqual(["Accessibility"]);
+  });
+
+  it("makes a refusal the wire will actually carry", async () => {
+    // Two things at once, and both are the contract rather than a copy of it.
+    // The result schema caps `message` at 1 024 characters and its parse is
+    // strict about that, so a sentence that outgrew the cap would turn a
+    // refusal into a parse failure at the boundary — and the reason has to come
+    // back as itself rather than through `.catch("failed")`, which is what an
+    // older shell's value degrades to. Measured with the dialog branch, which
+    // is the longer of the two sentences.
+    vi.useFakeTimers();
+    const fake = fakeSession();
+    const bounded = cdpSessionWithDeadline(fake.session, {
+      remainingMs: () => 1_000,
+      dialogOpen: () => true,
+    });
+
+    const stalled = settling(
+      bounded.send("Emulation.clearDeviceMetricsOverride"),
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const parsed = patcherDesktopBrowserInteractResultSchema.parse({
+      ok: false,
+      reason: "page-stalled",
+      message: ((await stalled) as Error).message,
+    });
+    expect(parsed).toMatchObject({ ok: false, reason: "page-stalled" });
   });
 
   it("leaves subscribing, detaching and the attached flag alone", () => {

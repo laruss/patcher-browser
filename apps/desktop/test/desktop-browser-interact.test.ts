@@ -233,6 +233,60 @@ describe("an action whose page stops answering", () => {
     ]);
   });
 
+  it("stops a `type` the page is answering just slowly enough", async () => {
+    // The other side of the per-send budget, and the reason it is not the whole
+    // story: `type` is the one action whose length the caller chooses — two
+    // events a character, up to 1 024 of them — so a page that answers each
+    // just inside five seconds holds that tab's queue for hours, and the page
+    // picks the timing. Nine characters at very nearly ten seconds each is past
+    // the minute, so the action has to stop part-way rather than run on.
+    const TEXT = "abcdefghi";
+    vi.useFakeTimers();
+    const fake = fakeSession({
+      samples: [READY, READY],
+      stall: ["Input.dispatchKeyEvent"],
+    });
+
+    const acting = settling(
+      interact({
+        session: fake.session,
+        interaction: { action: "type", ref: "e1", text: TEXT },
+      }),
+    );
+    // Generous, and it ends on the break: the point is where *the action*
+    // stops, so the loop keeps answering until there is nothing left waiting.
+    for (let event = 0; event < TEXT.length * 2 + 2; event += 1) {
+      await vi.advanceTimersByTimeAsync(
+        PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS - 1,
+      );
+      if (fake.pendingCount() === 0) {
+        break;
+      }
+      fake.answerPending();
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    const error = await acting;
+    expect(error).toBeInstanceOf(CdpStalledError);
+    // Not "the tab stopped answering": every send was answered, and quickly
+    // enough each time. What ran out is the action's own minute, and the
+    // sentence has to say which of the two happened — plus how much of the
+    // text is in the field, because that is what the caller has to look at.
+    const message = (error as Error).message;
+    expect(message).toContain(`of ${TEXT.length} characters`);
+    expect(message).toContain("are in the field; the rest are not");
+    // An even number of key events: the ceiling is checked between characters,
+    // so the action stops on a whole keystroke rather than between a key's
+    // down and its up — which the first spelling of this got wrong, leaving a
+    // key logically held in the page.
+    const keys = fake.sent.filter(
+      (method) => method === "Input.dispatchKeyEvent",
+    );
+    expect(keys.length % 2).toBe(0);
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.length).toBeLessThan(TEXT.length * 2);
+  });
+
   it("still refuses with the reason the actionability check measured", async () => {
     // The refusal that was already here, run through the new code: a covered
     // element ends the action with "something is on top of it" and nothing

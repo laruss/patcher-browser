@@ -1388,11 +1388,21 @@ async function evaluateInPage(
     const backendNodeId = lookupSnapshotNode(entry, ref, generation);
     // No `executionContextId`, so this resolves in the main world too — the
     // same element, addressed where the caller's code can see the page.
+    // The `catch` narrows to the send's own failure, which means the node is
+    // gone; a stall has to come out as itself. The same shape as
+    // `resolveInteractionTarget`, and it was missed here — telling a caller to
+    // snapshot again is exactly the wrong move on a page that has stopped
+    // answering, because the snapshot stalls too.
     const resolved = await session
       .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
         backendNodeId,
       })
-      .catch(() => null);
+      .catch((error: unknown) => {
+        if (error instanceof CdpStalledError) {
+          throw error;
+        }
+        return null;
+      });
     if (typeof resolved?.object?.objectId !== "string") {
       throw new InteractionRefusal(
         "unknown-ref",
@@ -1529,17 +1539,35 @@ async function performControl(
       }
       // Newest first, so the route just added is the one that answers — the
       // rule Playwright follows and the one a person debugging a mock expects.
+      //
+      // Put back if the `Fetch.enable` behind it does not land: the table is
+      // what `route-list` reports, and reporting a route while interception is
+      // off tells a caller their mock is live when nothing is intercepting.
+      // `routesEnabled` is set after the send, so the next route command
+      // re-enables either way — this is about not lying in the meantime.
+      const before = entry.routes;
       entry.routes = [{ ...operation.route, matched: 0 }, ...existing];
-      await applyRouteInterception(session, entry);
+      try {
+        await applyRouteInterception(session, entry);
+      } catch (error) {
+        entry.routes = before;
+        throw error;
+      }
       return entryRoutes(entry, tabId);
     }
 
     case "route-clear": {
+      const before = entry.routes;
       entry.routes =
         operation.pattern === null
           ? []
           : entry.routes.filter((route) => route.pattern !== operation.pattern);
-      await applyRouteInterception(session, entry);
+      try {
+        await applyRouteInterception(session, entry);
+      } catch (error) {
+        entry.routes = before;
+        throw error;
+      }
       return entryRoutes(entry, tabId);
     }
 
@@ -1603,6 +1631,14 @@ async function resolveSelectorNode(
       selector,
     })
     .catch((error: unknown) => {
+      // A stall is not the selector's fault, and this catch is broad enough to
+      // have called it one: a valid selector against a page that stopped
+      // answering would have been told to fix its own syntax, with the stall's
+      // sentence quoted as the browser's complaint about it. Found by the
+      // code review on 2026-09-07.
+      if (error instanceof CdpStalledError) {
+        throw error;
+      }
       // Only the browser can judge a selector, so its complaint is the answer —
       // and it is the caller's to fix rather than anything about the page.
       throw new SnapshotRefusal(
@@ -1689,6 +1725,15 @@ async function performRecord(
       // A recording nothing is filling would answer `video-stop` with an empty
       // film and no explanation.
       entry.video = null;
+      // And a start that was abandoned rather than refused may still land: the
+      // deadline drops the answer, not the command. Chromium would then be
+      // filming a tab this shell no longer thinks is being filmed, discarding
+      // every frame, with `video-stop` refusing `not-recording` and nothing
+      // short of detaching the debugger able to stop it. Sends on one session
+      // are ordered, so a stop queued now undoes a start that lands later.
+      // Best-effort by construction: if this one stalls too there is nothing
+      // further to try, and the caller is already being told the start failed.
+      await session.send("Page.stopScreencast").catch(() => undefined);
       throw error;
     }
     return { ok: true, kind: "recording", ...page, active: true };
@@ -3856,6 +3901,20 @@ export function createDesktopBrowserViewManager(
         entry.cdp = null;
         invalidateSnapshotRefs(entry);
         forgetEntryInterception(entry);
+        // And so was the dialog interception. Chromium drops the `Page` domain
+        // with its protocol client, so leaving `dialogsWired` set means the
+        // next session short-circuits and never re-enables it: dialogs on this
+        // tab go back to Chromium's native modal, which nothing can answer,
+        // for as long as the tab lives. The stall refusal beside this reads
+        // `pendingDialog`, so a stale one is worse than none — it tells a
+        // caller to answer a dialog that no longer exists and that
+        // `browser dialog` cannot reach. Cleared through the same helper the
+        // dialog's own close event uses, so the app takes its dialog down with
+        // the session rather than holding a panel over a page nobody is
+        // blocking. Found by the security review on 2026-09-07; the stale flag
+        // predates the deadline work, the wrong sentence is what made it show.
+        entry.dialogsWired = false;
+        clearPendingDialog(entry.hostWindow, entry.tabId, entry);
       },
     });
     entry.cdp = session;
@@ -5014,9 +5073,27 @@ export function createDesktopBrowserViewManager(
       // provoke a dialog, and taking a tab's dialogs over is a visible change
       // to how the browser behaves for the human using it. A picture should not
       // cost that.
+      //
+      // Which is also why it needs the clock most: `Page.captureScreenshot` is
+      // renderer work, this command queues on the tab like any other, and a
+      // dialog an *earlier* command left open blocks it with nothing here able
+      // to see or answer that dialog. One budget for the command, the
+      // snapshot's, because a capture is a read of the same kind. Found by the
+      // code review on 2026-09-07 — the first pass bounded four paths and left
+      // this one.
       try {
-        return await captureFullPageImage(entry, session, request);
+        return await captureFullPageImage(
+          entry,
+          cdpSessionWithDeadline(session, {
+            remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS),
+            dialogOpen: () => entry.pendingDialog !== null,
+          }),
+          request,
+        );
       } catch (error) {
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
+        }
         return {
           ok: false,
           reason: "failed",

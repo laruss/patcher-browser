@@ -25,6 +25,30 @@
  * follow, and for the same reason: a late answer must not resolve a call the
  * caller has already been told about.
  *
+ * What that leaves behind on the input path is worth naming, because "look at
+ * the page" is the only mitigation there is. A click is three sends; if the
+ * dialog opens on `mousePressed`, the `mouseReleased` after it is never sent,
+ * so the page is left with a button held down and reads the next pointer move
+ * as a drag. A `type` can stop between a key's down and up the same way. That
+ * is not new — the command used to hang there instead, with the same half-sent
+ * sequence in the page and nobody able to act on the tab at all — but it is now
+ * reachable by a caller who is told what happened, which is the trade this
+ * makes. Raised by the security review on 2026-09-07.
+ *
+ * **And a stateful send that is abandoned can leave the shell's bookkeeping
+ * disagreeing with Chromium.** A route table, a network override, a screencast:
+ * the send may land after the refusal, so neither "it happened" nor "it did
+ * not" is knowable. Where the wrong answer is *reported* to a caller it is
+ * reverted — `route-set` puts its table back, because `route-list` would
+ * otherwise describe a mock that is not intercepting — and where a late arrival
+ * would strand Chromium in a state nothing could reach, it is undone by a
+ * following send, which is ordered behind it: a stalled `Page.startScreencast`
+ * gets a `Page.stopScreencast` queued after it. What is deliberately *not* done
+ * is detaching the session to reset both sides at once. It looks like the
+ * general answer and is the wrong one here: the likeliest reason a send stalled
+ * is a dialog holding the renderer, and detaching hands that dialog back to
+ * Chromium's native modal, which nothing can answer for the life of the tab.
+ *
  * **What the two budget shapes are for.** {@link cdpBudget} gives a whole
  * command one clock, which is right for a read: it is one answer the caller
  * waits on once, and abandoning it leaves nothing behind. A constant

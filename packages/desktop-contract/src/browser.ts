@@ -1443,7 +1443,8 @@ export const patcherDesktopBrowserCaptureFullPageResultSchema = z.union([
      * `debugger-unavailable` is the one this has and the viewport capture does
      * not: DevTools open on the tab holds Chromium's only protocol client, and
      * the honest answer is to say so rather than to quietly hand back a
-     * viewport picture instead.
+     * viewport picture instead. `page-stalled` is the other, and for the same
+     * reason: this is the only capture that waits on the renderer.
      */
     reason: z
       .enum([
@@ -1451,6 +1452,7 @@ export const patcherDesktopBrowserCaptureFullPageResultSchema = z.union([
         "no-page",
         "debugger-unavailable",
         "too-large",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
