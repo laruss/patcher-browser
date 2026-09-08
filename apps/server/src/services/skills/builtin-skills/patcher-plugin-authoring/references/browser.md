@@ -854,10 +854,11 @@ Failures throw errors matched by `name` — `"BrowserHostUnavailableError"` when
 window is connected, `"BrowserCommandTimeoutError"`, `"BrowserCommandAbortedError"`,
 and `"BrowserCommandError"` carrying a `code` (`no_active_tab`, `unknown_tab`,
 `tab_not_live`, `desktop_unavailable`, `unsupported_command`, `blocked_url`,
-`page_read_timeout`, `page_read_failed`, `debugger_unavailable`, `stale_refs`,
-`unknown_ref`, `invalid_selector`, `no_match`, `not_actionable`,
-`unsupported_key`, `result_too_large`,
-`evaluation_failed`, `too_many_routes`, `already_recording`, `not_recording`).
+`page_read_timeout`, `page_stalled`, `page_read_failed`, `debugger_unavailable`,
+`stale_refs`, `unknown_ref`, `invalid_selector`, `no_match`, `not_actionable`,
+`unsupported_key`, `result_too_large`, `evaluation_failed`, `too_many_routes`,
+`already_recording`, `not_recording`, `invalid_command`,
+`external_access_denied`, `tab_not_yours`).
 The bundled `browser-tools`
 plugin is the worked example.
 

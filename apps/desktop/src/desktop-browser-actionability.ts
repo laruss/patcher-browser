@@ -203,10 +203,18 @@ export async function waitForActionable(
   deadline: InteractionDeadline,
 ): Promise<{ x: number; y: number }> {
   // Best-effort: an element with no layout box throws here, and the sample below
-  // reports that in terms the caller can act on.
-  await session
-    .send("DOM.scrollIntoViewIfNeeded", { backendNodeId: target.backendNodeId })
-    .catch(() => undefined);
+  // reports that in terms the caller can act on. Raced all the same — the
+  // `catch` is inside the race, so a scroll that *fails* is shrugged off and a
+  // page that never answers at all still ends the wait, which before this was
+  // the one round trip in an interaction with nothing bounding it.
+  await deadline.race(
+    session
+      .send("DOM.scrollIntoViewIfNeeded", {
+        backendNodeId: target.backendNodeId,
+      })
+      .catch(() => undefined),
+    "while scrolling the element into view",
+  );
 
   let blocked: BrowserActionBlockedReason = "detached";
   let previous: BrowserActionRect | null = null;

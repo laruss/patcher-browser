@@ -62,7 +62,6 @@ import {
   type PatcherDesktopBrowserDevToolsVisibleRequest,
   type PatcherDesktopBrowserDevToolsState,
   PATCHER_DESKTOP_BROWSER_MAX_COOKIES,
-  PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
   PATCHER_DESKTOP_BROWSER_MAX_PDF_BASE64_LENGTH,
   PATCHER_DESKTOP_BROWSER_MAX_ROUTES,
   PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH,
@@ -75,7 +74,6 @@ import {
   type PatcherDesktopBrowserSnapshotInRequest,
   type PatcherDesktopBrowserRecordResult,
   type PatcherDesktopBrowserRouteState,
-  type PatcherDesktopBrowserInteraction,
   type PatcherDesktopBrowserInteractRequest,
   type PatcherDesktopBrowserInteractResult,
   type PatcherDesktopBrowserNetworkEntry,
@@ -129,11 +127,25 @@ import {
 } from "./desktop-browser-download.js";
 import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
 import {
+  cdpBudget,
+  cdpSessionWithDeadline,
+  CdpStalledError,
+  PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+  PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS,
+} from "./desktop-browser-cdp-deadline.js";
+import {
+  controlRefusalReason,
+  ControlRefusal,
+  dispatchMouse,
+  evaluateInPage,
+  performInteraction,
+  MOUSE_BUTTON_MASK,
+  type MousePoint,
+} from "./desktop-browser-interact.js";
+import {
   InteractionDeadline,
   InteractionRefusal,
   callOnElement,
-  delay,
-  waitForActionable,
   type InteractionTarget,
 } from "./desktop-browser-actionability.js";
 import {
@@ -142,23 +154,9 @@ import {
   type AxNode,
 } from "./desktop-browser-snapshot.js";
 import {
-  PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS,
   PATCHER_BROWSER_ACTION_TIMEOUT_MS,
   PATCHER_BROWSER_AUTOMATION_WORLD_NAME,
-  PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
-  PATCHER_BROWSER_READ_CHECKED_SCRIPT,
-  PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
-  parseBrowserScriptOutcome,
 } from "./desktop-browser-actions.js";
-import {
-  CDP_MODIFIER_ALT,
-  CDP_MODIFIER_CONTROL,
-  CDP_MODIFIER_META,
-  CDP_MODIFIER_SHIFT,
-  characterKeyEvent,
-  parseBrowserKeyChord,
-  type BrowserKeyEvent,
-} from "./desktop-browser-keyboard.js";
 import {
   PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
   parseBrowserCaptureRegion,
@@ -186,7 +184,6 @@ import {
   type DesktopBrowserPdfTextOutcome,
 } from "./desktop-browser-pdf-text.js";
 import {
-  formatBrowserEvalValue,
   matchBrowserRoute,
   toBrowserFulfillHeaders,
 } from "./desktop-browser-control.js";
@@ -1176,21 +1173,37 @@ function lookupSnapshotNode(
   return backendNodeId;
 }
 
-/** Resolve a ref into an object the interaction scripts can be called on. */
+/**
+ * Resolve a ref into an object the interaction scripts can be called on.
+ *
+ * Both round trips are raced against the interaction's own clock: they are
+ * renderer work, and they are side-effect free, which is what makes that
+ * deadline's refusal — nothing was sent to the page — the true one here.
+ */
 async function resolveInteractionTarget(
   session: CdpSession,
   entry: BrowserViewEntry,
   ref: string,
   generation: number | undefined,
+  deadline: InteractionDeadline,
 ): Promise<InteractionTarget> {
   const backendNodeId = lookupSnapshotNode(entry, ref, generation);
-  const worldId = await ensureAutomationWorld(session, entry);
-  const resolved = await session
-    .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
-      backendNodeId,
-      executionContextId: worldId,
-    })
-    .catch(() => null);
+  const worldId = await deadline.race(
+    ensureAutomationWorld(session, entry),
+    "while preparing the page for the action",
+  );
+  // The `catch` is inside the race, not around it: a failed send means the node
+  // is gone, while an expired race must not come out as a claim about the
+  // element.
+  const resolved = await deadline.race(
+    session
+      .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
+        backendNodeId,
+        executionContextId: worldId,
+      })
+      .catch(() => null),
+    "while looking the element up",
+  );
   const objectId = resolved?.object?.objectId;
   if (typeof objectId !== "string") {
     throw new InteractionRefusal(
@@ -1199,417 +1212,6 @@ async function resolveInteractionTarget(
     );
   }
   return { backendNodeId, objectId };
-}
-
-const MOUSE_BUTTON_MASK: Record<string, number> = {
-  left: 1,
-  right: 2,
-  middle: 4,
-};
-
-function modifierMask(modifiers: readonly string[]): number {
-  let mask = 0;
-  for (const modifier of modifiers) {
-    if (modifier === "Alt") mask |= CDP_MODIFIER_ALT;
-    if (modifier === "Control") mask |= CDP_MODIFIER_CONTROL;
-    if (modifier === "Meta") mask |= CDP_MODIFIER_META;
-    if (modifier === "Shift") mask |= CDP_MODIFIER_SHIFT;
-  }
-  return mask;
-}
-
-interface MousePoint {
-  x: number;
-  y: number;
-}
-
-async function dispatchMouse(
-  session: CdpSession,
-  type: string,
-  point: MousePoint,
-  params: Record<string, unknown> = {},
-): Promise<void> {
-  await session.send("Input.dispatchMouseEvent", { type, ...point, ...params });
-}
-
-/**
- * Press and release a key.
- *
- * Modifiers ride the event's bitmask rather than being pressed as their own
- * events. Pages read `event.ctrlKey`, which the mask provides; the separate
- * keydown for the modifier itself only matters to a page watching for the
- * modifier alone, which no form does.
- */
-async function dispatchKey(
-  session: CdpSession,
-  event: BrowserKeyEvent,
-): Promise<void> {
-  const base = {
-    modifiers: event.modifiers,
-    key: event.key,
-    code: event.code,
-    windowsVirtualKeyCode: event.windowsVirtualKeyCode,
-    nativeVirtualKeyCode: event.windowsVirtualKeyCode,
-  };
-  await session.send("Input.dispatchKeyEvent", {
-    // `keyDown` carries text and inserts it; `rawKeyDown` is the right event for
-    // a key that inserts nothing, and Chromium treats the two differently.
-    type: event.text.length > 0 ? "keyDown" : "rawKeyDown",
-    ...base,
-    ...(event.text.length > 0
-      ? { text: event.text, unmodifiedText: event.text }
-      : {}),
-  });
-  await session.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
-}
-
-async function readCheckedState(
-  session: CdpSession,
-  objectId: string,
-): Promise<boolean> {
-  const outcome = parseBrowserScriptOutcome(
-    await callOnElement(session, objectId, PATCHER_BROWSER_READ_CHECKED_SCRIPT),
-  );
-  if (outcome === null || !outcome.ok || outcome.checked === null) {
-    throw new InteractionRefusal(
-      "failed",
-      "That element is not a checkbox, a radio button, or anything with a checked state.",
-    );
-  }
-  return outcome.checked;
-}
-
-/** How long to keep re-reading a control's state after clicking it. */
-const CHECKED_SETTLE_TIMEOUT_MS = 500;
-
-async function performInteraction(
-  session: CdpSession,
-  entry: BrowserViewEntry,
-  request: PatcherDesktopBrowserInteractRequest,
-  deadline: InteractionDeadline,
-): Promise<void> {
-  const interaction: PatcherDesktopBrowserInteraction = request.interaction;
-
-  if (interaction.action === "resize") {
-    // Device metrics rather than the view's bounds: the panel's size belongs to
-    // the renderer's layout, and fighting it would leave the page and the panel
-    // permanently out of step.
-    if (interaction.width === 0 && interaction.height === 0) {
-      await session.send("Emulation.clearDeviceMetricsOverride");
-      return;
-    }
-    await session.send("Emulation.setDeviceMetricsOverride", {
-      width: interaction.width,
-      height: interaction.height,
-      deviceScaleFactor: 0,
-      mobile: false,
-    });
-    return;
-  }
-
-  if (interaction.action === "press" && interaction.ref === null) {
-    const event = parseBrowserKeyChord(interaction.key);
-    if (event === null) {
-      throw new InteractionRefusal(
-        "unsupported-key",
-        `${JSON.stringify(interaction.key)} is not a key the browser can press.`,
-      );
-    }
-    deadline.assertTimeToAct("pressing the key");
-    await dispatchKey(session, event);
-    return;
-  }
-
-  // Every remaining action names an element; only `press` allows a null ref,
-  // and that case returned above.
-  const ref = interaction.ref;
-  if (ref === null) {
-    throw new InteractionRefusal("unknown-ref", "No element was named.");
-  }
-  const target = await resolveInteractionTarget(
-    session,
-    entry,
-    ref,
-    request.generation,
-  );
-
-  switch (interaction.action) {
-    case "upload": {
-      // No actionability wait: a styled upload control almost always hides the
-      // real <input type=file>, so requiring it to be visible would refuse the
-      // common case. CDP rejects a node that is not a file input.
-      deadline.assertTimeToAct("handing the files over");
-      await session
-        .send("DOM.setFileInputFiles", {
-          files: [...interaction.paths],
-          backendNodeId: target.backendNodeId,
-        })
-        .catch((error: unknown) => {
-          throw new InteractionRefusal(
-            "failed",
-            `That element would not take files: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        });
-      return;
-    }
-
-    case "select": {
-      await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("choosing the options");
-      const outcome = parseBrowserScriptOutcome(
-        await callOnElement(
-          session,
-          target.objectId,
-          PATCHER_BROWSER_SELECT_OPTION_SCRIPT,
-          [{ value: [...interaction.values] }],
-        ),
-      );
-      if (outcome === null || !outcome.ok) {
-        throw new InteractionRefusal(
-          "failed",
-          outcome?.reason === "not_select"
-            ? "That element is not a dropdown."
-            : "None of those values match an option in that dropdown.",
-        );
-      }
-      return;
-    }
-
-    case "fill": {
-      await waitForActionable(session, target, deadline);
-      // The last point at which this action can still be called off: what
-      // follows selects the old value and replaces it, and a caller already told
-      // this timed out must not have it land on top of their next write.
-      deadline.assertTimeToAct("filling the field");
-      const outcome = parseBrowserScriptOutcome(
-        await callOnElement(
-          session,
-          target.objectId,
-          PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
-        ),
-      );
-      if (outcome === null || !outcome.ok) {
-        throw new InteractionRefusal(
-          "failed",
-          "That element is not a text field.",
-        );
-      }
-      if (interaction.text.length === 0) {
-        // insertText("") inserts nothing rather than clearing the selection, so
-        // an empty fill has to be a deletion.
-        await dispatchKey(session, {
-          key: "Delete",
-          code: "Delete",
-          windowsVirtualKeyCode: 46,
-          text: "",
-          modifiers: 0,
-        });
-        return;
-      }
-      await session.send("Input.insertText", { text: interaction.text });
-      return;
-    }
-
-    case "type": {
-      await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("typing the text");
-      await session.send("DOM.focus", { backendNodeId: target.backendNodeId });
-      // One event per character, because that is the whole difference from
-      // fill: autocompletes and input masks react to keystrokes, not to a value
-      // appearing.
-      for (const character of Array.from(interaction.text)) {
-        await dispatchKey(session, characterKeyEvent(character));
-      }
-      return;
-    }
-
-    case "press": {
-      const event = parseBrowserKeyChord(interaction.key);
-      if (event === null) {
-        throw new InteractionRefusal(
-          "unsupported-key",
-          `${JSON.stringify(interaction.key)} is not a key the browser can press.`,
-        );
-      }
-      await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("pressing the key");
-      await session.send("DOM.focus", { backendNodeId: target.backendNodeId });
-      await dispatchKey(session, event);
-      return;
-    }
-
-    case "hover": {
-      const point = await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("moving the pointer");
-      await dispatchMouse(session, "mouseMoved", point, { button: "none" });
-      return;
-    }
-
-    case "drag": {
-      // One budget for both waits: two five-second waits back to back would
-      // outlast the bridge that is waiting on this command.
-      const from = await waitForActionable(session, target, deadline);
-      const to = await waitForActionable(
-        session,
-        await resolveInteractionTarget(
-          session,
-          entry,
-          interaction.targetRef,
-          request.generation,
-        ),
-        deadline,
-      );
-      deadline.assertTimeToAct("starting the drag");
-      await dispatchMouse(session, "mouseMoved", from, { button: "none" });
-      await dispatchMouse(session, "mousePressed", from, {
-        button: "left",
-        buttons: 1,
-        clickCount: 1,
-      });
-      // An intermediate move, because a drag that teleports never fires the
-      // `dragover`/`pointermove` a drop target listens for.
-      await dispatchMouse(
-        session,
-        "mouseMoved",
-        { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
-        { button: "left", buttons: 1 },
-      );
-      await dispatchMouse(session, "mouseMoved", to, {
-        button: "left",
-        buttons: 1,
-      });
-      await dispatchMouse(session, "mouseReleased", to, {
-        button: "left",
-        buttons: 0,
-        clickCount: 1,
-      });
-      return;
-    }
-
-    case "check": {
-      const point = await waitForActionable(session, target, deadline);
-      if (
-        (await deadline.race(
-          readCheckedState(session, target.objectId),
-          "while reading whether the control was already set",
-        )) === interaction.checked
-      ) {
-        return;
-      }
-      deadline.assertTimeToAct("clicking the control");
-      await dispatchMouse(session, "mouseMoved", point, { button: "none" });
-      await dispatchMouse(session, "mousePressed", point, {
-        button: "left",
-        buttons: 1,
-        clickCount: 1,
-      });
-      await dispatchMouse(session, "mouseReleased", point, {
-        button: "left",
-        buttons: 0,
-        clickCount: 1,
-      });
-      // Confirm rather than assume: a controlled component can refuse the
-      // change, and reporting success on a checkbox that did not move would be
-      // the worst kind of lie to an agent.
-      // Its own budget, and its own clock: the interaction deadline is spent by
-      // now, and this runs *after* the click, so it can no longer refuse on the
-      // grounds that nothing was sent.
-      const settleBy = Date.now() + CHECKED_SETTLE_TIMEOUT_MS;
-      for (;;) {
-        if (
-          (await readCheckedState(session, target.objectId)) ===
-          interaction.checked
-        ) {
-          return;
-        }
-        if (Date.now() >= settleBy) {
-          throw new InteractionRefusal(
-            "failed",
-            `The control did not become ${interaction.checked ? "checked" : "unchecked"}.`,
-          );
-        }
-        await delay(PATCHER_BROWSER_ACTION_POLL_INTERVAL_MS);
-      }
-    }
-
-    case "click": {
-      const point = await waitForActionable(session, target, deadline);
-      deadline.assertTimeToAct("clicking");
-      const modifiers = modifierMask(interaction.modifiers);
-      const buttons = MOUSE_BUTTON_MASK[interaction.button] ?? 1;
-      await dispatchMouse(session, "mouseMoved", point, {
-        button: "none",
-        modifiers,
-      });
-      // Chromium wants the running count on each event, so a double click is
-      // press/release at 1 followed by press/release at 2 — not one event
-      // claiming to be two clicks.
-      for (let count = 1; count <= interaction.clickCount; count += 1) {
-        await dispatchMouse(session, "mousePressed", point, {
-          button: interaction.button,
-          buttons,
-          clickCount: count,
-          modifiers,
-        });
-        await dispatchMouse(session, "mouseReleased", point, {
-          button: interaction.button,
-          buttons: 0,
-          clickCount: count,
-          modifiers,
-        });
-      }
-      return;
-    }
-
-    default: {
-      const exhaustive: never = interaction;
-      throw new InteractionRefusal(
-        "failed",
-        `Unhandled interaction ${JSON.stringify(exhaustive)}`,
-      );
-    }
-  }
-}
-
-type ControlRefusalReason = Extract<
-  PatcherDesktopBrowserControlResult,
-  { ok: false }
->["reason"];
-
-const CONTROL_REFUSAL_REASONS = new Set<string>([
-  "no-view",
-  "no-page",
-  "debugger-unavailable",
-  "stale-refs",
-  "unknown-ref",
-  "evaluation-failed",
-  "too-many-routes",
-  "failed",
-]);
-
-/**
- * The interaction and control refusal vocabularies overlap but are not the
- * same — control cannot report `not-actionable`, having skipped the check that
- * produces it, and interaction has nothing to say about routes. So the shared
- * steps (resolving a ref) keep throwing {@link InteractionRefusal} and this
- * maps it, while the control-only refusals get their own class.
- */
-function controlRefusalReason(reason: string): ControlRefusalReason {
-  return (
-    CONTROL_REFUSAL_REASONS.has(reason) ? reason : "failed"
-  ) as ControlRefusalReason;
-}
-
-class ControlRefusal extends Error {
-  readonly reason: ControlRefusalReason;
-
-  constructor(reason: ControlRefusalReason, message: string) {
-    super(message);
-    this.name = "ControlRefusal";
-    this.reason = reason;
-  }
 }
 
 /**
@@ -1638,8 +1240,18 @@ async function applyRouteInterception(
   if (wanted === entry.routesEnabled) {
     return;
   }
-  await session.send(wanted ? "Fetch.enable" : "Fetch.disable");
-  entry.routesEnabled = wanted;
+  try {
+    await session.send(wanted ? "Fetch.enable" : "Fetch.disable");
+    entry.routesEnabled = wanted;
+  } catch (error) {
+    // Assume the worse of the two states rather than leaving the old one.
+    // `Fetch.enable` is idempotent, so a needless re-enable costs one round
+    // trip; a missed one leaves a route listed as live and intercepting
+    // nothing, because the next pass would see `routesEnabled` already true
+    // and return early.
+    entry.routesEnabled = false;
+    throw error;
+  }
 }
 
 function wireRouteInterception(
@@ -1678,6 +1290,40 @@ function wireRouteInterception(
 }
 
 /** The routes a tab holds, as the wire reports them. */
+/**
+ * Install a route table, and put it back if the interception will not follow.
+ *
+ * The table is what `route-list` reports, so a route left in it while `Fetch`
+ * is off tells a caller their mock is live when nothing is intercepting.
+ *
+ * Restored **only when the table is still the one this command installed**: a
+ * detach clears it to match Chromium dropping the interception with its
+ * protocol client, and restoring over that would report routes on a tab that
+ * has no client at all. Identity is enough for the test, because every write to
+ * `entry.routes` replaces the array rather than mutating it — the one in-place
+ * change is a route's own `matched` counter. Raised by the security re-review
+ * on 2026-09-08, which is also where the shared helper came from: the check is
+ * subtle enough that two copies of it would be two chances to get it wrong.
+ */
+async function installRoutes(
+  entry: BrowserViewEntry,
+  routes: PatcherDesktopBrowserRouteState[],
+  session: CdpSession,
+  tabId: string,
+): Promise<Extract<PatcherDesktopBrowserControlResult, { kind: "routes" }>> {
+  const before = entry.routes;
+  entry.routes = routes;
+  try {
+    await applyRouteInterception(session, entry);
+  } catch (error) {
+    if (entry.routes === routes) {
+      entry.routes = before;
+    }
+    throw error;
+  }
+  return entryRoutes(entry, tabId);
+}
+
 function entryRoutes(
   entry: BrowserViewEntry,
   tabId: string,
@@ -1693,91 +1339,6 @@ function entryRoutes(
 }
 
 /**
- * Evaluate the caller's own JavaScript in the page.
- *
- * **In the page's world, not the isolated one** every other script here runs
- * in — which is the deliberate difference and the whole reason `eval` is worth
- * having: `window.__NEXT_DATA__`, a framework's state, a function the page
- * defined are all invisible from an isolated world, and reading them is what
- * people reach for `eval` to do. The isolated world protects our own fixed
- * scripts from a page that shadows globals; it cannot protect an expression
- * whose entire job is to touch the page.
- *
- * The expression is never spliced into a string. It crosses as CDP's
- * `functionDeclaration`, so the protocol parses it as one function and a page
- * cannot be reached through the way we sent it.
- */
-async function evaluateInPage(
-  session: CdpSession,
-  entry: BrowserViewEntry,
-  expression: string,
-  ref: string | null,
-  generation: number | undefined,
-): Promise<{ value: string; truncated: boolean }> {
-  let objectId: string;
-  let callArguments: { objectId: string }[] = [];
-  if (ref === null) {
-    // `Runtime.evaluate` with no context id lands in the page's main world, so
-    // its global object is the handle to call the caller's function on.
-    const global = await session.send<{ result?: { objectId?: string } }>(
-      "Runtime.evaluate",
-      { expression: "globalThis" },
-    );
-    if (typeof global.result?.objectId !== "string") {
-      throw new InteractionRefusal(
-        "failed",
-        "The tab has no page to evaluate in.",
-      );
-    }
-    objectId = global.result.objectId;
-  } else {
-    const backendNodeId = lookupSnapshotNode(entry, ref, generation);
-    // No `executionContextId`, so this resolves in the main world too — the
-    // same element, addressed where the caller's code can see the page.
-    const resolved = await session
-      .send<{ object?: { objectId?: string } }>("DOM.resolveNode", {
-        backendNodeId,
-      })
-      .catch(() => null);
-    if (typeof resolved?.object?.objectId !== "string") {
-      throw new InteractionRefusal(
-        "unknown-ref",
-        `Element ${ref} is no longer on the page. Snapshot it again.`,
-      );
-    }
-    objectId = resolved.object.objectId;
-    // Passed as the first argument, so `(el) => el.value` reads as it does in
-    // Playwright; `this` is the element as well, for `function () { … }` form.
-    callArguments = [{ objectId }];
-  }
-
-  const response = await session.send<{
-    result?: { value?: unknown };
-    exceptionDetails?: { text?: string; exception?: { description?: string } };
-  }>("Runtime.callFunctionOn", {
-    objectId,
-    functionDeclaration: expression,
-    arguments: callArguments,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (response.exceptionDetails !== undefined) {
-    // The page ran it and it threw. That is the caller's to fix, and its own
-    // message is the only useful thing to say about it.
-    throw new ControlRefusal(
-      "evaluation-failed",
-      response.exceptionDetails.exception?.description ??
-        response.exceptionDetails.text ??
-        "The expression threw.",
-    );
-  }
-  return formatBrowserEvalValue(
-    response.result?.value,
-    PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
-  );
-}
-
-/**
  * Perform one direct-control operation on a tab whose session is attached.
  *
  * The mouse commands are the interaction module's dispatch with the ref lookup
@@ -1786,11 +1347,18 @@ async function evaluateInPage(
  * anything is.
  */
 async function performControl(
-  session: CdpSession,
+  rawSession: CdpSession,
   entry: BrowserViewEntry,
   tabId: string,
   request: PatcherDesktopBrowserControlRequest,
 ): Promise<PatcherDesktopBrowserControlResult> {
+  // Per send: vision mode's mouse events are the interaction path's dispatch
+  // and hang the same way. The evaluation below is the exception — it takes the
+  // unbounded session and puts its own, far longer, clock on it.
+  const session = cdpSessionWithDeadline(rawSession, {
+    remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+    dialogOpen: () => entry.pendingDialog !== null,
+  });
   const operation = request.operation;
   const acted = (): PatcherDesktopBrowserControlResult => ({
     ok: true,
@@ -1837,13 +1405,15 @@ async function performControl(
       if (operation.ref !== null) {
         await session.enableDomain("DOM");
       }
-      const evaluated = await evaluateInPage(
-        session,
-        entry,
-        operation.expression,
-        operation.ref,
-        request.generation,
-      );
+      const evaluated = await evaluateInPage({
+        // The unbounded session: the evaluation puts its own, far longer, clock
+        // on it rather than inheriting the per-send one above.
+        session: rawSession,
+        expression: operation.expression,
+        ref: operation.ref,
+        lookupNode: (ref) => lookupSnapshotNode(entry, ref, request.generation),
+        dialogOpen: () => entry.pendingDialog !== null,
+      });
       return {
         ok: true,
         kind: "evaluated",
@@ -1865,18 +1435,24 @@ async function performControl(
       }
       // Newest first, so the route just added is the one that answers — the
       // rule Playwright follows and the one a person debugging a mock expects.
-      entry.routes = [{ ...operation.route, matched: 0 }, ...existing];
-      await applyRouteInterception(session, entry);
-      return entryRoutes(entry, tabId);
+      //
+      return await installRoutes(
+        entry,
+        [{ ...operation.route, matched: 0 }, ...existing],
+        session,
+        tabId,
+      );
     }
 
     case "route-clear": {
-      entry.routes =
+      return await installRoutes(
+        entry,
         operation.pattern === null
           ? []
-          : entry.routes.filter((route) => route.pattern !== operation.pattern);
-      await applyRouteInterception(session, entry);
-      return entryRoutes(entry, tabId);
+          : entry.routes.filter((route) => route.pattern !== operation.pattern),
+        session,
+        tabId,
+      );
     }
 
     case "route-list":
@@ -1939,6 +1515,11 @@ async function resolveSelectorNode(
       selector,
     })
     .catch((error: unknown) => {
+      // A stall is not the selector's fault, and this catch was broad enough
+      // to have called it one.
+      if (error instanceof CdpStalledError) {
+        throw error;
+      }
       // Only the browser can judge a selector, so its complaint is the answer —
       // and it is the caller's to fix rather than anything about the page.
       throw new SnapshotRefusal(
@@ -2025,6 +1606,15 @@ async function performRecord(
       // A recording nothing is filling would answer `video-stop` with an empty
       // film and no explanation.
       entry.video = null;
+      // A start that was abandoned rather than refused may still land, so
+      // Chromium would be filming a tab this shell thinks is idle. Issued and
+      // not awaited: what makes it undo the start is that it reaches the wire
+      // *after* it — `send` calls `sendCommand` before its own first `await` —
+      // and awaiting the answer would cost the same five seconds again, taking
+      // this refusal past the caller's ten-second wait and replacing the
+      // sentence naming the dialog with a generic timeout. That is the whole
+      // point of the sentence, so the undo is best-effort by construction.
+      void session.send("Page.stopScreencast").catch(() => undefined);
       throw error;
     }
     return { ok: true, kind: "recording", ...page, active: true };
@@ -2959,7 +2549,19 @@ export function createDesktopBrowserViewManager(
     entry: BrowserViewEntry,
     hostWindow: DesktopBrowserHostWindow,
   ): void {
-    if (entry.view.webContents.isDestroyed()) {
+    // The host as well as the view, and the same three conditions `send` uses:
+    // `isHostResizing` below reads `hostWindow.webContents.id`, which throws
+    // once that webContents is gone. Reachable since a detach began clearing
+    // the pending dialog — a debugger detach can arrive while the window is
+    // already tearing down, with the child view still alive, which is the
+    // ordering `releaseWindow` exists to handle. An exception in that callback
+    // is an uncaught one in the main process. Found by the code re-review on
+    // 2026-09-08; the security re-review read the view guard and stopped.
+    if (
+      entry.view.webContents.isDestroyed() ||
+      hostWindow.isDestroyed() ||
+      hostWindow.webContents.isDestroyed()
+    ) {
       return;
     }
     // Reasons the app is drawing its own chrome across the whole page area, and
@@ -4192,6 +3794,21 @@ export function createDesktopBrowserViewManager(
         entry.cdp = null;
         invalidateSnapshotRefs(entry);
         forgetEntryInterception(entry);
+        // And so was the dialog interception: Chromium drops the `Page` domain
+        // with its protocol client, so leaving `dialogsWired` set means the
+        // next session short-circuits and never re-enables it, and dialogs on
+        // this tab go back to a native modal nothing can answer for as long as
+        // the tab lives. That is what this line is for.
+        //
+        // Clearing `pendingDialog` is bookkeeping and *not* a claim that the
+        // page came unblocked — a dialog open when the client went most likely
+        // stands, and no new session can answer it. What it buys is that the
+        // stall refusal beside this stops telling callers to answer a dialog
+        // `browser dialog` cannot reach, and falls back to "busy or wedged",
+        // which is true. Through the same helper the close event uses, so the
+        // app is told rather than left holding a panel over the page.
+        entry.dialogsWired = false;
+        clearPendingDialog(entry.hostWindow, entry.tabId, entry);
       },
     });
     entry.cdp = session;
@@ -4278,7 +3895,12 @@ export function createDesktopBrowserViewManager(
       clearPendingDialog(hostWindow, tabId, entry);
     });
 
-    await session.enableDomain("Page");
+    // Bounded here rather than at each of the five commands that call this:
+    // it is the one send the function makes, and every caller wants it bounded.
+    await cdpSessionWithDeadline(session, {
+      remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+      dialogOpen: () => entry.pendingDialog !== null,
+    }).enableDomain("Page");
   }
 
   function captureDialogPlaceholder(
@@ -4557,6 +4179,13 @@ export function createDesktopBrowserViewManager(
       };
     }
 
+    // From here on the session has a clock — one budget for the whole snapshot.
+    // See `desktop-browser-cdp-deadline.ts` for which command gets which shape.
+    session = cdpSessionWithDeadline(session, {
+      remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS),
+      dialogOpen: () => entry.pendingDialog !== null,
+    });
+
     try {
       // Any automation on this tab means the shell owns its dialogs from now
       // on — otherwise the first `confirm()` would block the page with nothing
@@ -4619,6 +4248,11 @@ export function createDesktopBrowserViewManager(
     } catch (error) {
       if (error instanceof SnapshotRefusal) {
         return { ok: false, reason: error.reason, message: error.message };
+      }
+      // Its own reason rather than `failed`, which the app turns into "the page
+      // could not be inspected", losing the sentence naming the dialog.
+      if (error instanceof CdpStalledError) {
+        return { ok: false, reason: "page-stalled", message: error.message };
       }
       return {
         ok: false,
@@ -5222,17 +4856,44 @@ export function createDesktopBrowserViewManager(
         // Same reason as in `snapshot`: from the moment we drive this tab, its
         // dialogs are ours to answer. A click that opens a `confirm()` would
         // otherwise block the page with nothing able to respond.
+        //
         await ensureDialogInterception(
           hostWindow,
           request.tabId,
           entry,
           session,
         );
-        await session.enableDomain("DOM");
-        await performInteraction(session, entry, request, deadline);
+        // Raced, like the two round trips in `resolveInteractionTarget`, and
+        // for the same reason: nothing here touches the page, so running out of
+        // time means nothing was sent. `Page.enable` is bounded inside
+        // `ensureDialogInterception` instead of here, so that one send is not
+        // racing two clocks at once.
+        await deadline.race(
+          session.enableDomain("DOM"),
+          "while preparing to inspect the page",
+        );
+        await performInteraction({
+          session,
+          resolveTarget: (ref) =>
+            resolveInteractionTarget(
+              session,
+              entry,
+              ref,
+              request.generation,
+              deadline,
+            ),
+          request,
+          deadline,
+          dialogOpen: () => entry.pendingDialog !== null,
+        });
       } catch (error) {
         if (error instanceof InteractionRefusal) {
           return { ok: false, reason: error.reason, message: error.message };
+        }
+        // Apart from every refusal above it: those mean nothing was sent to
+        // the page, and this one cannot promise that.
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
         }
         return {
           ok: false,
@@ -5292,10 +4953,21 @@ export function createDesktopBrowserViewManager(
       // attaches a session: this one does not drive the page, so it cannot
       // provoke a dialog, and taking a tab's dialogs over is a visible change
       // to how the browser behaves for the human using it. A picture should not
-      // cost that.
+      // cost that — which is also why it needs a clock most, since a dialog an
+      // *earlier* command left open blocks it with nothing here able to see it.
       try {
-        return await captureFullPageImage(entry, session, request);
+        return await captureFullPageImage(
+          entry,
+          cdpSessionWithDeadline(session, {
+            remainingMs: cdpBudget(PATCHER_DESKTOP_BROWSER_SNAPSHOT_TIMEOUT_MS),
+            dialogOpen: () => entry.pendingDialog !== null,
+          }),
+          request,
+        );
       } catch (error) {
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
+        }
         return {
           ok: false,
           reason: "failed",
@@ -5366,6 +5038,9 @@ export function createDesktopBrowserViewManager(
         if (error instanceof ControlRefusal) {
           return { ok: false, reason: error.reason, message: error.message };
         }
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
+        }
         if (error instanceof InteractionRefusal) {
           return {
             ok: false,
@@ -5416,13 +5091,22 @@ export function createDesktopBrowserViewManager(
           entry,
           session,
         );
+        // Per send: starting and stopping a screencast are renderer sends, so
+        // filming could hold a tab's queue the way the rest did. Stopping is
+        // unaffected — its send already has a `catch` that keeps the frames.
         return await performRecord(
-          session,
+          cdpSessionWithDeadline(session, {
+            remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
+            dialogOpen: () => entry.pendingDialog !== null,
+          }),
           entry,
           request.tabId,
           request.operation,
         );
       } catch (error) {
+        if (error instanceof CdpStalledError) {
+          return { ok: false, reason: "page-stalled", message: error.message };
+        }
         return {
           ok: false,
           reason: "failed",

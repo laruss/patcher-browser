@@ -169,12 +169,12 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 - **A plugin can name any of its own in-flight calls, and can keep one open.**
   The caller now crosses the plugin channel as an id the host minted, and the
   channel refuses one it does not have in flight, so no outsider can forge one,
-  and no plugin can reach another's *while each has its own process* — two
+  and no plugin can reach another's _while each has its own process_ — two
   sharing one can write frames on each other's channel keys and are one trust
   domain for that and several other reasons, which is why the default is one
   process each
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
-  What a plugin does see is every id the host has open for *it* — from any of
+  What a plugin does see is every id the host has open for _it_ — from any of
   its work, not only from another served call — and it decides when to answer,
   so it can hold a turn's agent-tool call open and act as that thread after the
   turn moved on. Not a way in (a plugin is a Node module with `child_process`
@@ -186,7 +186,7 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   entered around the plugin's handler. That reaches further than the handler
   itself — Node binds the store to async work created inside it, so a promise
   the command started still carries the id after the command returned — but it
-  does not reach work whose *invoking* resource was created somewhere else: a
+  does not reach work whose _invoking_ resource was created somewhere else: a
   `setInterval` started in the factory, a queue pump ticking on its own. Where
   the code was written decides nothing — a job the handler schedules is on the
   stack however its queue was built — and a browser call from something outside
@@ -198,12 +198,12 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
   Two ways to answer it, and the second is the real decision. A per-plugin "an
   outside call is in flight" fallback for frames with no origin is the worse one
-  twice over: it attributes a plugin's *background* work to a caller — a wrong
+  twice over: it attributes a plugin's _background_ work to a caller — a wrong
   refusal and a wrong tab owner — and it still misses the common shape, a worker
   that runs when no call is in flight at all. **Refusing a browser call that
   carries no valid origin** does close it, fail-closed, and the first version of
   this entry dismissed it on a premise the code contradicts: an out-of-process
-  schedule tick and a background service each run *inside* their own served
+  schedule tick and a background service each run _inside_ their own served
   request (`schedule`, `backgroundService`), so their browser calls do carry an
   in-flight origin and would not be refused. What it would refuse is exactly the
   gap — a timer or a pump running on its own, and fire-and-forget continuations
@@ -214,18 +214,45 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   down rather than done.
 
   Found by the security review on 2026-09-07; narrowed once by the second review
-  round (work the command *starts* does keep the id) and again when that round
+  round (work the command _starts_ does keep the id) and again when that round
   found the false premise above.
-- **Three shell paths can leave a command unanswered forever.** A snapshot
-  (`Accessibility.getFullAXTree`), an evaluation (`Runtime.callFunctionOn` with
-  `awaitPromise`) and the input dispatch inside a click are sent to the page
-  with no deadline of their own — `desktop-browser-page-read.ts` says as much
-  about CDP sends in general — so a page that opens a `confirm()` from a click,
-  or an expression that never resolves, leaves the command open until the tab
-  goes. It cost one call before; now it holds that tab's queue
-  (`tab-queue.ts`), which is why answering a dialog and closing a tab are the
-  two commands that never queue. The fix is the deadline the interaction path
-  already has (`InteractionDeadline`), applied to the other three.
+
+- **An agent cannot click in a tab that is not the active one.** Measured on
+  2026-09-07 against a real window: `Input.dispatchMouseEvent` into a tab opened
+  with `--background` is _never_ acknowledged, while the same click on the same
+  element after `browser activate` succeeds — and reads (`snapshot`, `text`) work
+  on that background tab throughout. So this is input alone, and the shape fits
+  the deck: `BrowserTabDeck` mounts a `WebContentsView` only for the active tab,
+  so a background tab has no widget for Chromium to deliver a synthesised event
+  to, while script execution and the debugger's DOM work need none. That is a
+  hypothesis consistent with the measurement rather than a verified cause — the
+  view's own attachment was not observed.
+
+  **What was not established is whether the event is dropped or queued**, and
+  it decides the advice. Dropped, the refusal is the whole story. Queued, an
+  agent that retries after the refusal has stacked N clicks behind the mount,
+  and activating the tab delivers all of them — which used to be impossible,
+  because the first click held the tab's queue and no second one could be sent.
+  It could not be measured from here: a session with no on-screen window
+  acknowledges a click on the _active_ tab and still never runs the page's
+  handler, so "did it land" has no answer without a window on screen. Whoever
+  picks this up should click a background tab, take the refusal, activate the
+  tab, and read the page.
+
+  It used to hang for as long as the tab lived; it now refuses in five seconds
+  (`desktop-browser-cdp-deadline.ts`), which is the difference between a wedged
+  queue and a bad answer, not a fix. What makes it worth its own entry is who
+  hits it: tab ownership tells an agent to work in a tab of its own, and
+  `--background` is what it is told to use in a browser a person is also working
+  in — so the recommended shape is the one that cannot act. The actionability
+  check does not catch it either, reporting the element visible and on top a
+  moment before the event goes nowhere. The candidates are activating the tab
+  for the duration of an interaction (visible to the person, and racy against
+  their own clicking), mounting an offscreen view for background tabs, or
+  refusing an interaction on an unmounted tab with a sentence that says to
+  activate it — the last being honest and cheap, and the only one that does not
+  need a new mechanism.
+
 - **A queued command outlives a pause.** The credential is checked when the
   request arrives, so a command that then waits its turn on a tab can run after
   the person has paused or revoked the grant that sent it — and after the server
@@ -233,6 +260,17 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   the window knowing what the server knows about a credential, which is a
   channel that does not exist; the alternative is a deadline on the wait, which
   trades a late command for an out-of-order one.
+- **The manager's test file blocks the assertions its own fixtures could make.**
+  `apps/desktop/test/desktop-browser-view-manager.test.ts` is pinned at 8 360
+  lines, and issue #80 calls splitting it along its `describe` blocks the safest
+  change in that list. What makes it urgent rather than tidy: on 2026-09-08 a
+  review pointed out that the fixture for a missing assertion **already exists**
+  there — "recovers by reattaching after the session is lost" calls `emitDetach`,
+  and one line asserting `Page.enable` is sent twice would have covered the
+  `dialogsWired` fix in this branch. It could not be added, because the file
+  cannot grow. Four other wires from the same branch are untestable for the same
+  reason, and `vi.hoisted` around the electron mock blocks extracting the
+  harness into a shared file, so the split has to come first.
 - **The SDK's fake host still speaks bare refs.** A snapshot from the real host
   hands out `[ref=e2@6]` and accepts it back; `fake-plugin-host.ts` returns the
   fixture text unchanged and matches `[ref=e2]` exactly, so a plugin test that
@@ -492,6 +530,18 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   measured.
 
 ## Flaky, and known to be
+
+- **A root `bun run test` fails a different package each time.** Three
+  consecutive full runs on 2026-09-07/08 failed `@patcher/host-watcher`,
+  then eleven tests in `apps/server`'s `patcher-app-artifact.test.ts`, then
+  `@patcher/host-workspace`'s "preserves rename detection in a path-subset
+  patch" — every failure a timeout (5 s, 20 s, 30 s), every package green on its
+  own, and CI green on the same commits. Same shape as the Tiptap entry below
+  and the same cause: the root script is `turbo run test --concurrency=2`, so a
+  suite that spawns git or node subprocesses shares the machine with another
+  package. Worth knowing before reading a red root run as a regression; worth
+  fixing by giving the subprocess-spawning tests their own timeouts rather than
+  by retrying.
 
 - **A Tiptap timer outliving its test.** `apps/app` once failed a root
   `bun run test` with all 3076 tests passing and one error _outside_ them: a

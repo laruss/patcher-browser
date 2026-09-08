@@ -356,6 +356,15 @@ export function explainBrowserError(error: unknown): string {
       return "The browser only opens http and https URLs. Check the address and try again.";
     case "page_read_timeout":
       return "The page did not respond in time. It may still be loading; try again in a moment.";
+    case "page_stalled":
+      // Passed through, and it is the reason this code exists: the shell's
+      // sentence names the CDP call the tab stopped answering and, when it can
+      // see one, the dialog blocking the page — and no fixed sentence here
+      // could carry either. It also deliberately does not say nothing
+      // happened, which every other timeout-shaped answer above does.
+      return error instanceof Error
+        ? error.message
+        : "The browser tab stopped answering. Look at the page rather than assuming that command did nothing.";
     case "page_read_failed":
       return "That page's content could not be read.";
     case "debugger_unavailable":

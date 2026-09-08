@@ -450,6 +450,33 @@ describe("browser-tools interaction", () => {
     expect(textOf(result)).toContain("on top of it");
   });
 
+  it("hands on the whole sentence when the tab stopped answering", async () => {
+    const host = createHost();
+    // What the shell says when a click opened a dialog nobody has answered.
+    host.harness.behavior.browser.failNextCall(
+      "page_stalled",
+      "The browser tab stopped answering `Input.dispatchMouseEvent`, so " +
+        "Patcher stopped waiting for it. A JavaScript dialog is open on that " +
+        "tab and blocks the page until it is answered — answer or dismiss it, " +
+        "then look at the page.",
+    );
+
+    const result = await host.harness.behavior.callAgentTool("browser_click", {
+      tabId: "tab-1",
+      ref: "e1",
+    });
+
+    expect(isError(result)).toBe(true);
+    // The dialog is the fix, and only the shell's own sentence names it. This
+    // is the reading end of that sentence: a fixed reply here — which is what
+    // every timeout-shaped code above gets — would leave the agent retrying a
+    // click that cannot land until somebody answers the dialog.
+    expect(textOf(result)).toContain("A JavaScript dialog is open");
+    expect(textOf(result)).toContain("answer or dismiss it");
+    // And it must not pick up the promise the other refusals make.
+    expect(textOf(result)).not.toContain("nothing happened");
+  });
+
   it("names the key names it accepts when given one it does not", async () => {
     const host = createHost();
     host.harness.behavior.browser.failNextCall("unsupported_key");

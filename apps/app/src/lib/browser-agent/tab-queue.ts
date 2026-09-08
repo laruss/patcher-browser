@@ -36,14 +36,21 @@
  * reachable with one slow command and no queue at all. Waiting is the only
  * behaviour that keeps a sequence a sequence.
  *
- * **And it assumes commands settle, which not all of them do.** Several shell
- * paths have no deadline of their own (a snapshot, an evaluation, the input
- * dispatch inside a click), so a page holding a `confirm()` open can leave a
- * command unanswered for as long as the dialog stands — and everything queued
- * behind it on that tab waits. The two commands that get a tab out of that
- * state, answering the dialog and closing the tab, are therefore never queued
- * (`actsOnItsTab` in `execute.ts`); the deadline those paths are missing is in
- * docs/TODO.md. Found by review before it shipped, not in the field.
+ * **And it assumes commands settle.** They do now, but only because the shell
+ * was given a clock: a snapshot, an evaluation and the input dispatch inside a
+ * click had no deadline of their own, so a page holding a `confirm()` open left
+ * a command unanswered for as long as the dialog stood, and everything queued
+ * behind it on that tab waited with it. `desktop-browser-cdp-deadline.ts` bounds
+ * those sends — measured, a tab whose evaluation never settles held its queue
+ * past 27 seconds and drained at 33. The two commands that get a tab out of
+ * that state, answering the dialog and closing it, are never queued all the
+ * same (`actsOnItsTab` in `execute.ts`): they are the way out while the clock
+ * is still running, and the clocks are not short. A read gives the page 15
+ * seconds and an evaluation 30, both of which the caller has usually stopped
+ * waiting for; an action's sends are bounded one at a time, and `type` — the
+ * only action whose length the caller picks — stops after a minute, so a page
+ * that answers every keystroke just slowly enough is the worst case rather than
+ * an unbounded one.
  */
 
 export interface BrowserTabQueue {

@@ -15516,7 +15516,19 @@ interface PluginBrowserNavigation {
  * window is connected at all), `"BrowserCommandTimeoutError"`, and
  * `"BrowserCommandAbortedError"`.
  */
-type PluginBrowserErrorCode = "no_active_tab" | "unknown_tab" | "tab_not_live" | "desktop_unavailable" | "unsupported_command" | "blocked_url" | "page_read_timeout" | "page_read_failed" | "debugger_unavailable" | "stale_refs" | "unknown_ref" | "invalid_selector" | "no_match" | "not_actionable" | "unsupported_key" | "result_too_large" | "evaluation_failed" | "too_many_routes" | "already_recording" | "not_recording" | "invalid_command"
+type PluginBrowserErrorCode = "no_active_tab" | "unknown_tab" | "tab_not_live" | "desktop_unavailable" | "unsupported_command" | "blocked_url" | "page_read_timeout"
+/**
+ * The tab stopped answering the browser debugger and the shell stopped
+ * waiting for it.
+ *
+ * The one code here that promises nothing about whether the command took
+ * effect: it can arrive after an input event has already gone into the page.
+ * So look at the page rather than retrying. The usual cause is a JavaScript
+ * dialog nobody has answered — it blocks the renderer — and the message says
+ * so when the shell can see one, in which case `patcher browser dialog` is
+ * the way out.
+ */
+ | "page_stalled" | "page_read_failed" | "debugger_unavailable" | "stale_refs" | "unknown_ref" | "invalid_selector" | "no_match" | "not_actionable" | "unsupported_key" | "result_too_large" | "evaluation_failed" | "too_many_routes" | "already_recording" | "not_recording" | "invalid_command"
 /**
  * The caller is an agent outside Patcher and the user has not allowed it this
  * far. Decided in the host before the command is sent, so it means with

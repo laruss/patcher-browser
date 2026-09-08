@@ -464,6 +464,15 @@ function snapshotFailure(
         "no_match",
         result.message ?? "Nothing on the page matches that selector.",
       );
+    case "page-stalled":
+      // The shell's sentence, kept whole. It is the only one here that names
+      // what the tab was waiting on, and — when the shell can see a dialog —
+      // the thing the caller has to do about it.
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering while it was being read.`,
+      );
     default:
       return failure(
         "page_read_failed",
@@ -508,6 +517,15 @@ function interactFailure(
       );
     case "unsupported-key":
       return failure("unsupported_key", `That key cannot be pressed.${detail}`);
+    case "page-stalled":
+      // Not prefixed with a claim of its own, unlike its neighbours: every
+      // other line here can say what did not happen, and this one is the case
+      // where the action may have landed before the page stopped.
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering part-way through that action.`,
+      );
     default:
       return failure(
         "page_read_failed",
@@ -552,6 +570,14 @@ function observeFailure(
       return failure(
         "result_too_large",
         `That is too large to return.${detail}`,
+      );
+    case "page-stalled":
+      // Only the full-page capture can answer this; a viewport capture and the
+      // two logs never touch the renderer. Shared mapper, so it lives here.
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering while it was being captured.`,
       );
     default:
       return failure(
@@ -629,6 +655,12 @@ function controlFailure(
         "too_many_routes",
         `That tab holds too many routes.${detail}`,
       );
+    case "page-stalled":
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering part-way through that command.`,
+      );
     default:
       return failure(
         "page_read_failed",
@@ -666,6 +698,12 @@ function recordFailure(
       );
     case "not-recording":
       return failure("not_recording", `That tab is not being filmed.${detail}`);
+    case "page-stalled":
+      return failure(
+        "page_stalled",
+        result.message ??
+          `Browser tab ${tabId} stopped answering while the recording was starting.`,
+      );
     default:
       return failure(
         "page_read_failed",

@@ -762,7 +762,9 @@ export const patcherDesktopBrowserSnapshotResultSchema = z.union([
      * browser debugger could not be attached, DevTools holding the tab being
      * the realistic cause. `invalid-selector` and `no-match` can only come from
      * a scoped snapshot, and are separate because they call for different
-     * fixes: one is the selector's syntax, the other is the page. `failed` —
+     * fixes: one is the selector's syntax, the other is the page.
+     * `page-stalled` — the tab stopped answering the debugger and the snapshot
+     * was abandoned; `message` says what it was waiting on. `failed` —
      * anything else.
      */
     reason: z
@@ -772,6 +774,7 @@ export const patcherDesktopBrowserSnapshotResultSchema = z.union([
         "debugger-unavailable",
         "invalid-selector",
         "no-match",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
@@ -1164,6 +1167,9 @@ export const patcherDesktopBrowserInteractResultSchema = z.union([
      * `not-actionable` — the element never became clickable; `message` says why
      * (covered, disabled, still animating).
      * `unsupported-key` — the key name is not one the shell can emit.
+     * `page-stalled` — the tab stopped answering the debugger part-way
+     * through; unlike every other refusal here it does **not** mean nothing
+     * happened, and `message` is written to say so.
      */
     reason: z
       .enum([
@@ -1174,6 +1180,7 @@ export const patcherDesktopBrowserInteractResultSchema = z.union([
         "unknown-ref",
         "not-actionable",
         "unsupported-key",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
@@ -1436,7 +1443,8 @@ export const patcherDesktopBrowserCaptureFullPageResultSchema = z.union([
      * `debugger-unavailable` is the one this has and the viewport capture does
      * not: DevTools open on the tab holds Chromium's only protocol client, and
      * the honest answer is to say so rather than to quietly hand back a
-     * viewport picture instead.
+     * viewport picture instead. `page-stalled` is the other, and for the same
+     * reason: this is the only capture that waits on the renderer.
      */
     reason: z
       .enum([
@@ -1444,6 +1452,7 @@ export const patcherDesktopBrowserCaptureFullPageResultSchema = z.union([
         "no-page",
         "debugger-unavailable",
         "too-large",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
@@ -1855,6 +1864,9 @@ export const patcherDesktopBrowserControlResultSchema = z.union([
      * `evaluation-failed` — the page ran the expression and it threw, which is
      * the caller's to fix rather than the browser's.
      * `too-many-routes` — the tab already holds as many as it will.
+     * `page-stalled` — the tab stopped answering the debugger, which for an
+     * evaluation means the expression never settled; it does not mean the
+     * expression did nothing.
      */
     reason: z
       .enum([
@@ -1865,6 +1877,7 @@ export const patcherDesktopBrowserControlResultSchema = z.union([
         "unknown-ref",
         "evaluation-failed",
         "too-many-routes",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
@@ -1986,6 +1999,9 @@ export const patcherDesktopBrowserRecordResultSchema = z.union([
      * `no-view` / `no-page` / `debugger-unavailable` as elsewhere.
      * `already-recording` — one film per tab; stop it before starting another.
      * `not-recording` — nothing to stop, or to mark a chapter in.
+     * `page-stalled` — the tab stopped answering the debugger while the
+     * recording was being started; stopping one never reports it, because a
+     * film already taken is a better answer than a refusal.
      */
     reason: z
       .enum([
@@ -1994,6 +2010,7 @@ export const patcherDesktopBrowserRecordResultSchema = z.union([
         "debugger-unavailable",
         "already-recording",
         "not-recording",
+        "page-stalled",
         "failed",
       ])
       .catch("failed"),
