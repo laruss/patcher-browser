@@ -1416,9 +1416,13 @@ agent can be told what it may do instead of finding out by being refused. The
 row is the window's rather than a page's — under the tab strip, which is on
 screen for every desktop route, and in the app's *other* windows too, fed by a
 `browser-driving` signal the server sends to every browser host but the one
-performing the command. What it still does not do: it says who is driving rather
-than what they are doing, and it is inside the app, so Patcher behind another
-application or minimised shows nothing until you come back to it.
+performing the command. It names the command too, in the words the caller's own
+trace uses, and each window keeps the last 200 commands to be read in Settings
+under the grants — the record is what that window heard, held in memory, so a
+reload starts it empty and the caller's own `patcher browser trace-start` is
+still the complete log. What it still does not do: it is inside the app, so
+Patcher behind another application or minimised shows nothing until you come
+back to it.
 
 A grant is deliberately **not** bounded by the level above, and the reverse of a
 ceiling is the point: a ceiling would mean opening the browser to every process

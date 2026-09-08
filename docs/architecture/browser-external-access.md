@@ -543,6 +543,41 @@ itself, because that settles locally whatever the socket did. Clearing both
 would be the same lie from the other side: no row while a tab is visibly being
 driven.
 
+**And it says what, not only who.** A name and a level say something is
+driving; the line beside them says it is filling in the form the person is
+looking at. It is the same rendering the caller's own trace keeps — the trace
+recorder's private function moved to `@patcher/domain` and both use it, so what
+a person reads in the chrome and what a trace says about that command cannot
+disagree. Keys are named and their values are not: a cookie write is
+`cookies-set 3`, a `localStorage` write names the items and not their contents.
+Typed text *is* kept, because a record that will not say what was filled in is
+not a record of what happened. Commands whose rendering is empty — a snapshot,
+a read of the whole page — fall back to naming the command, which is the whole
+of what happened.
+
+That is also why the signal became a union of its two phases rather than one
+object with optional halves: a `started` names the command and cannot know how
+it ended, a `settled` reports how it ended — `ok`, a failure's own code, or
+**null**, which is "nobody answered" and is a third state rather than a
+failure. The command timed out or the window performing it went away; whether
+the browser did the thing is not known, and a record claiming either would be
+inventing news. What never travels is the outcome's `value`: the answer to a
+read is the page, and it goes to the caller that asked for it and nowhere else.
+
+**And the record outlives the row.** The indicator is gone four seconds after
+the last command, and "what did that agent do" is asked afterwards — usually
+while deciding whether to pause the grant. So each window also keeps what it
+heard (`browser-agent/activity.ts`): the last 200 commands with who, when, the
+same rendered line, and where each got to, fed by the same two feeders as the
+indicator and read in Settings under the grants and the level, which are the
+levers the answer informs. This is the automatic trace for outside callers the
+scope sketch called the optional half of saying "what" — it needs nobody to
+start it, which matters because the party who would have to start it is the one
+whose behaviour is in question. On a reconnect, commands another window was
+performing are marked as having no answer rather than left saying "running" for
+the rest of the session; what this window performs itself is untouched, since
+that settles locally whatever the socket did.
+
 **The button is the one that fits the caller.** A grant gets **Pause**, which is
 the whole reason pausing exists. A caller from outside with no grant gets a link
 to Settings, because the install-wide level is the only lever that reaches it. A
@@ -609,9 +644,15 @@ Named here rather than left to be rediscovered.
   and it is a different one again rather than a wider version of this row. The
   web build keeps the older limit for a different reason — it hosts no browser
   surface off `/browser`, so there is nothing there to draw a window row in.
-- **It says who, not what.** The name and the level, and nothing about the
-  command — no URL, no selector, no list of what was read. A trace exists
-  (`patcher browser trace-start`) and is not wired to this.
+- **The record is one window's memory, not an audit log.** It says who, what
+  and how it went now, and the caller's own trace is still the better log: this
+  one is what *this window* heard, so a window that was closed or whose socket
+  was down has a hole there, it is held in memory (a reload starts an empty
+  list), it keeps no screenshots — a picture per command is megabytes held
+  forever in a renderer — and it records no read sizes, so "it read the page"
+  does not say how much came back. Making it durable means a table, a retention
+  policy and a route, for a record whose complete form already exists as
+  `patcher browser trace-start`.
 - **Pausing stops new commands, not what is already installed.** A network mock
   or a page script the holder put in place before the pause is still there; so is
   a command already in flight — and since commands now take turns on a tab
@@ -700,14 +741,22 @@ Named here rather than left to be rediscovered.
   reviews found: a settle reads its place from what its own start recorded — so
   the row does not flip to "this browser" for the four seconds it lingers — one
   caller's two windows are told apart as they settle, and a reconnect keeps that
-  caller's local command while dropping its mirrored one.
+  caller's local command while dropping its mirrored one. And what it names, in
+  the three places the command and the caller come apart: the row names the
+  command still running rather than the one that just answered, keeps naming
+  the one it just finished while it lingers, and moves both the name and the
+  line together on a handover.
 - `apps/app/src/lib/browser-agent/useBrowserAgentBridge.test.tsx` — the
   subscription a non-serving window's whole indicator hangs on: a signal from
   another window is shown as being elsewhere, each phase's own command id
   reaches the tracker, a reconnect stops the row claiming a command that ended
   while the socket was down *and* keeps one this window is still performing
   (its executor stubbed to never answer, which is the state the rule is about),
-  and unmounting stops both listeners.
+  and unmounting stops both listeners. Plus the record's two feeders, each of
+  which can be wired wrong invisibly: a command this window performs is written
+  down as *this window* renders it, a settle's outcome is taken off the frame
+  rather than guessed, no answer is recorded as no answer, and a reconnect ends
+  the other window's open rows while leaving this window's running.
 - `apps/app/src/views/BrowserSurfaceView.test.tsx` — the placement, in the state
   that used to lose it: with a Patcher screen holding the tab there is no
   address bar, and the row is on screen anyway.
@@ -717,15 +766,41 @@ Named here rather than left to be rediscovered.
   happens to be right, a command with nobody to name is not announced, a send
   that threw announces neither phase — the guarantee that rests on recording the
   issuer only after a successful send — and the settle reaches the window still
-  open when the command times out and when the one doing the work vanishes.
+  open when the command times out and when the one doing the work vanishes,
+  carrying **no** outcome in both of those, because nobody answered. Plus what
+  the frame says and does not: the command's rendered line in the trace's own
+  words, a storage write's key without its value, a refusal's code without the
+  message written for the agent, and a read's answer nowhere at all — asserted
+  against the raw frames, which is what actually leaves the server.
 - `apps/app/src/components/browser-surface/BrowserDrivingIndicator.test.tsx` —
   the label a person typed rather than the grant id, the level in the settings
   screen's words, **Pause** rather than revoke, Settings for a caller with no
-  grant, and no button at all for a turn.
+  grant, and no button at all for a turn. Plus what it is doing: the command's
+  line, the command's own name when that line is empty, and who is driving even
+  when the frame carried no command at all.
 - `apps/app/src/lib/ws.test.ts` — the issuer survives the app's lenient parse,
   which is the one place dropping it would look exactly like a server that never
   sent it; and `browser-driving` reaches its own subscribers rather than the
-  command ones, which would have a window perform an action nobody sent it.
+  command ones, which would have a window perform an action nobody sent it —
+  including the one place the strict and lenient schemas disagree on purpose, a
+  frame missing the command or the outcome, which is still shown for who is
+  driving rather than dropped.
+- `packages/domain/test/browser-command-description.test.ts` — the words both
+  records use: what was typed is kept, a storage write names its keys and not
+  their values, a cookie write is not spelled out at all, and a command that
+  renders longer than a record's line is cut to it — which is what keeps the
+  server's own strict parse on the send path from ever throwing.
+- `apps/app/src/lib/browser-agent/activity.test.ts` — the record's own rules:
+  nothing about the person's own browsing, each settle paired with the command
+  it belongs to rather than the newest, a failure's code kept, no answer told
+  apart from done, an end with no beginning ignored, the oldest dropped at the
+  cap, a reconnect ending the other window's open commands and only those, and
+  the changed row replaced rather than mutated — which is what makes it
+  re-render.
+- `apps/app/src/components/settings/BrowserActivitySettingsControl.test.tsx` —
+  newest first, the caller's own label, the command and its line, the time, a
+  refusal's code, "no answer" for the ones nobody answered, and an empty state
+  that says so rather than an empty box.
 - `apps/app/src/views/SettingsView.browserAccessGrants.test.tsx` — three states
   that are not interchangeable: a pending read is not "no grants", a live grant
   offers both ways to stop it, a paused one says so and offers Resume, and a
@@ -755,6 +830,13 @@ PATCHER_AGENT_KEY=<the key> patcher browser text     # indicator appears; then c
 PATCHER_AGENT_KEY=<the key> patcher browser text     # 401, "is paused", not "was revoked"
 patcher agent-access resume <id>
 ```
+
+The row's line and the record are the other half no test spans, because the
+rendering crosses the route, the hub, a socket and two windows: with two
+windows open, one command should put the same line in both chromes — the
+window performing it renders its own, the other reads the frame — and both
+Settings screens should then list it under the grant's label with what became
+of it.
 
 That pass is also what found the two defects the tests could not: a refusal
 quoting `patcher browser-tools`, a command that does not exist, as the obvious
