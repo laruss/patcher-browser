@@ -1,5 +1,5 @@
-import { threadScope } from "@patcher/domain";
-import { describe, expect, it, vi } from "vitest";
+import { threadScope, turnScope } from "@patcher/domain";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEventSink, type CreateEventSinkOptions } from "./event-sink.js";
 import { ServerResponseError } from "./server-client.js";
 
@@ -45,6 +45,21 @@ function systemErrorEvent(threadId: string) {
     message: "boom",
   } as const;
 }
+
+// The last event of a turn: nothing follows it to trigger another flush.
+function turnCompletedEvent(threadId: string) {
+  return {
+    type: "turn/completed",
+    threadId,
+    scope: turnScope("turn-1"),
+    providerThreadId: "provider-thread-1",
+    status: "completed",
+  } as const;
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("event sink", () => {
   it("posts emitted events", async () => {
@@ -345,6 +360,89 @@ describe("event sink", () => {
       { threadId: "thr_1", event: systemErrorEvent("thr_1") },
       { threadId: "thr_2", event: systemErrorEvent("thr_2") },
     ]);
+  });
+
+  it("retries a transient failure on its own when nothing else will flush", async () => {
+    // A turn's final event has no later emit behind it, and the session stays
+    // healthy so the reconnect that would flush the queue never comes. Left
+    // alone, the completed turn never reaches the server: the task stays
+    // active in the UI and its result stays missing.
+    vi.useFakeTimers();
+    const postEvents = vi
+      .fn<CreateEventSinkOptions["postEvents"]>()
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockImplementation(async (events) => ({
+        kind: "accepted",
+        acceptedEvents: events.map((event, eventIndex) => ({
+          eventIndex,
+          sequence: eventIndex + 1,
+          threadId: event.threadId,
+        })),
+        rejectedEvents: [],
+      }));
+    const sink = createEventSink({
+      isSessionOpen: () => true,
+      logger: createLogger(),
+      postEvents,
+    });
+
+    sink.emit({ threadId: "thr_1", event: turnCompletedEvent("thr_1") });
+    await sink.flush();
+    expect(postEvents).toHaveBeenCalledTimes(1);
+
+    // The retry waits rather than spinning on the failure.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(postEvents).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(postEvents).toHaveBeenCalledTimes(2);
+    expect(postEvents).toHaveBeenLastCalledWith([
+      { threadId: "thr_1", event: turnCompletedEvent("thr_1") },
+    ]);
+
+    // The queue drained, so the retry stops rather than reposting forever.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(postEvents).toHaveBeenCalledTimes(2);
+    await sink.dispose();
+  });
+
+  it("leaves a closed session to the reconnect instead of retrying into it", async () => {
+    vi.useFakeTimers();
+    const postEvents = acceptingPostEvents();
+    const sink = createEventSink({
+      isSessionOpen: () => false,
+      logger: createLogger(),
+      postEvents,
+    });
+
+    sink.emit({ threadId: "thr_1", event: turnCompletedEvent("thr_1") });
+    await sink.flush();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(postEvents).not.toHaveBeenCalled();
+    await sink.dispose();
+  });
+
+  it("stops retrying once disposed", async () => {
+    vi.useFakeTimers();
+    const postEvents = vi
+      .fn<CreateEventSinkOptions["postEvents"]>()
+      .mockRejectedValue(new Error("connection reset"));
+    const sink = createEventSink({
+      isSessionOpen: () => true,
+      logger: createLogger(),
+      postEvents,
+    });
+
+    sink.emit({ threadId: "thr_1", event: turnCompletedEvent("thr_1") });
+    await sink.flush();
+    expect(postEvents).toHaveBeenCalledTimes(1);
+
+    await sink.dispose();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(postEvents).toHaveBeenCalledTimes(1);
   });
 
   it("never throws from emit regardless of how many events queue up", () => {

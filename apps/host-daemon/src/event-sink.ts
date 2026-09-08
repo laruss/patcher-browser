@@ -16,6 +16,13 @@ const DEFAULT_DEBOUNCE_MS = 100;
 const QUEUE_DEPTH_WARN_THRESHOLD = 512;
 const QUEUE_AGE_WARN_THRESHOLD_MS = 30_000;
 
+// Backoff for a delivery that failed for a reason that can pass. Same shape as
+// the daemon's own websocket reconnection so a server that is down produces one
+// retry rhythm rather than two.
+const RETRY_MIN_DELAY_MS = 1_000;
+const RETRY_MAX_DELAY_MS = 30_000;
+const RETRY_DELAY_GROW_FACTOR = 2;
+
 export interface EventSinkInput {
   event: ThreadEvent;
   threadId: string;
@@ -124,6 +131,8 @@ export function createEventSink(options: CreateEventSinkOptions): EventSink {
   // null while the queue is empty. Used only for the debug tripwire below.
   let backedUpSinceMs: number | null = null;
   let backpressureLogged = false;
+  // The delay the next retry will wait, or null outside a failure episode.
+  let retryDelayMs: number | null = null;
 
   function maybeLogQueuePressure(): void {
     if (backpressureLogged || backedUpSinceMs === null) {
@@ -253,11 +262,30 @@ export function createEventSink(options: CreateEventSinkOptions): EventSink {
       if (queue.length === 0) {
         backedUpSinceMs = null;
         backpressureLogged = false;
+        retryDelayMs = null;
       }
       if (delivered < batch.length) {
         return;
       }
     }
+  }
+
+  // A transient post failure leaves the queue non-empty with nothing scheduled
+  // to drain it: the next emit and the reconnect that reopens the session are
+  // the only things that flush, and neither is coming — the session is healthy,
+  // and the event that failed is a turn's last one. Without this the finished
+  // turn stays invisible and its task stays active in the UI indefinitely.
+  //
+  // Nothing is scheduled while the session is closed: reopening it flushes.
+  function scheduleRetryAfterFailedDelivery(): void {
+    if (disposed || queue.length === 0 || !options.isSessionOpen()) {
+      return;
+    }
+    retryDelayMs =
+      retryDelayMs === null
+        ? RETRY_MIN_DELAY_MS
+        : Math.min(retryDelayMs * RETRY_DELAY_GROW_FACTOR, RETRY_MAX_DELAY_MS);
+    scheduleFlush(retryDelayMs);
   }
 
   async function flush(): Promise<void> {
@@ -272,6 +300,7 @@ export function createEventSink(options: CreateEventSinkOptions): EventSink {
       await flushPromise;
     } finally {
       flushPromise = null;
+      scheduleRetryAfterFailedDelivery();
     }
   }
 

@@ -251,15 +251,32 @@ export class ServerConnection {
     } catch (error) {
       this.options.logger.warn(
         { ...runtimeErrorLogFields(error), type: parsed.type },
-        "Failed to send websocket message",
+        "Failed to send websocket message; reconnecting",
       );
-      websocket.close(1013, "send-failed");
+      this.reconnectAfterSendFailure("send-failed");
       return false;
     }
     if (recoverableKey !== null) {
       this.pendingRecoverableMessages.delete(recoverableKey);
     }
     return true;
+  }
+
+  /**
+   * Drops the socket and dials a fresh daemon session after output could not
+   * be handed to it — a send that threw, or an output queue that outgrew its
+   * limit.
+   *
+   * Deliberately not `close()`: partysocket reads an explicit close as a
+   * permanent stop (it clears `shouldReconnect`), and nothing else restarts a
+   * live connection — the health monitor watches resources and a supervisor
+   * only restarts an exited process. A recoverable burst of terminal output
+   * would take the whole host offline until its daemon was restarted by hand.
+   * `reconnect()` is the recovery operation, and it is already what an
+   * inactive or expired session does.
+   */
+  private reconnectAfterSendFailure(reason: string): void {
+    this.websocket?.reconnect(1013, reason);
   }
 
   private enqueueTerminalSocketPayload(payload: string): boolean {
@@ -273,10 +290,10 @@ export class ServerConnection {
           maxQueueBytes: TERMINAL_SOCKET_MAX_QUEUE_BYTES,
           pendingBytes: this.pendingTerminalSocketBytes,
         },
-        "Terminal websocket output queue exceeded its limit",
+        "Terminal websocket output queue exceeded its limit; reconnecting",
       );
       this.clearTerminalSocketPayloads();
-      this.websocket?.close(1013, "terminal-backpressure");
+      this.reconnectAfterSendFailure("terminal-backpressure");
       return false;
     }
     this.pendingTerminalSocketPayloads.push({ bytes, payload });
@@ -315,10 +332,10 @@ export class ServerConnection {
       } catch (error) {
         this.options.logger.warn(
           { ...runtimeErrorLogFields(error) },
-          "Failed to drain terminal websocket output",
+          "Failed to drain terminal websocket output; reconnecting",
         );
-        websocket.close(1013, "send-failed");
         this.clearTerminalSocketPayloads();
+        this.reconnectAfterSendFailure("send-failed");
         return;
       }
       this.pendingTerminalSocketPayloads.shift();
