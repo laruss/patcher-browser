@@ -253,6 +253,13 @@ export class ServerConnection {
         { ...runtimeErrorLogFields(error), type: parsed.type },
         "Failed to send websocket message; reconnecting",
       );
+      // Reconnecting makes this a disconnect, and surviving one is the whole
+      // point of a recoverable message. Every caller of these kinds discards
+      // the false below, so the map is the only thing that carries it to the
+      // session about to open — buffer it exactly as the not-open branch does.
+      if (recoverableKey !== null) {
+        this.pendingRecoverableMessages.set(recoverableKey, parsed);
+      }
       this.reconnectAfterSendFailure("send-failed");
       return false;
     }

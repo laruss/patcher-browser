@@ -362,48 +362,76 @@ describe("event sink", () => {
     ]);
   });
 
-  it("retries a transient failure on its own when nothing else will flush", async () => {
+  it("retries a transient failure on its own, backing off to a bounded ceiling", async () => {
     // A turn's final event has no later emit behind it, and the session stays
     // healthy so the reconnect that would flush the queue never comes. Left
     // alone, the completed turn never reaches the server: the task stays
     // active in the UI and its result stays missing.
     vi.useFakeTimers();
-    const postEvents = vi
-      .fn<CreateEventSinkOptions["postEvents"]>()
-      .mockRejectedValueOnce(new Error("connection reset"))
-      .mockImplementation(async (events) => ({
-        kind: "accepted",
-        acceptedEvents: events.map((event, eventIndex) => ({
-          eventIndex,
-          sequence: eventIndex + 1,
-          threadId: event.threadId,
-        })),
-        rejectedEvents: [],
-      }));
+    let failuresLeft = 0;
+    const postEvents = vi.fn<CreateEventSinkOptions["postEvents"]>(
+      async (events) => {
+        if (failuresLeft > 0) {
+          failuresLeft -= 1;
+          throw new Error("connection reset");
+        }
+        return {
+          kind: "accepted",
+          acceptedEvents: events.map((event, eventIndex) => ({
+            eventIndex,
+            sequence: eventIndex + 1,
+            threadId: event.threadId,
+          })),
+          rejectedEvents: [],
+        };
+      },
+    );
     const sink = createEventSink({
       isSessionOpen: () => true,
       logger: createLogger(),
       postEvents,
     });
 
+    // A second, doubling, held at thirty however long the server stays down.
+    const delaysMs = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000];
+    failuresLeft = delaysMs.length + 1;
+
     sink.emit({ threadId: "thr_1", event: turnCompletedEvent("thr_1") });
     await sink.flush();
     expect(postEvents).toHaveBeenCalledTimes(1);
 
-    // The retry waits rather than spinning on the failure.
-    await vi.advanceTimersByTimeAsync(0);
-    expect(postEvents).toHaveBeenCalledTimes(1);
+    let attempts = 1;
+    for (const delayMs of delaysMs) {
+      // Waiting, rather than spinning on the failure: nothing fires early.
+      await vi.advanceTimersByTimeAsync(delayMs - 1);
+      expect(postEvents).toHaveBeenCalledTimes(attempts);
+      await vi.advanceTimersByTimeAsync(1);
+      attempts += 1;
+      expect(postEvents).toHaveBeenCalledTimes(attempts);
+    }
 
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(postEvents).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(postEvents).toHaveBeenCalledTimes(attempts + 1);
     expect(postEvents).toHaveBeenLastCalledWith([
       { threadId: "thr_1", event: turnCompletedEvent("thr_1") },
     ]);
 
     // The queue drained, so the retry stops rather than reposting forever.
-    await vi.advanceTimersByTimeAsync(60_000);
+    postEvents.mockClear();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(postEvents).not.toHaveBeenCalled();
+
+    // And the next episode starts from the floor rather than the ceiling the
+    // last one climbed to.
+    failuresLeft = 1;
+    sink.emit({ threadId: "thr_2", event: turnCompletedEvent("thr_2") });
+    await sink.flush();
+    expect(postEvents).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(postEvents).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
     expect(postEvents).toHaveBeenCalledTimes(2);
+
     await sink.dispose();
   });
 

@@ -277,6 +277,12 @@ export function createEventSink(options: CreateEventSinkOptions): EventSink {
   // turn stays invisible and its task stays active in the UI indefinitely.
   //
   // Nothing is scheduled while the session is closed: reopening it flushes.
+  //
+  // A floor for a queue nothing else will touch, not a rate limit. An event
+  // that flushes immediately still preempts the timer, exactly as it did before
+  // there was one, and that is what notices a recovered server at once rather
+  // than up to thirty seconds late. Attempts stay bounded by how fast events
+  // are produced, which is the provider's pace, not a loop of our own.
   function scheduleRetryAfterFailedDelivery(): void {
     if (disposed || queue.length === 0 || !options.isSessionOpen()) {
       return;
