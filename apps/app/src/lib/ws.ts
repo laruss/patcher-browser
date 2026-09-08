@@ -10,7 +10,7 @@ import {
 } from "@patcher/server-contract";
 import type {
   BrowserCommandRequestSignal,
-  BrowserDrivingSignal,
+  BrowserDrivingSignalReceived,
   ClientMessage,
   ChangedMessage,
   PluginSignal,
@@ -28,7 +28,7 @@ type ThreadOpenCallback = (signal: ThreadOpenSignal) => void;
 type ThreadPaneActionCallback = (signal: ThreadPaneActionSignal) => void;
 type PluginSignalCallback = (signal: PluginSignal) => void;
 type BrowserCommandCallback = (signal: BrowserCommandRequestSignal) => void;
-type BrowserDrivingCallback = (signal: BrowserDrivingSignal) => void;
+type BrowserDrivingCallback = (signal: BrowserDrivingSignalReceived) => void;
 type ConnectedCallback = (event: { reconnected: boolean }) => void;
 type ConnectionStateCallback = () => void;
 export type WebSocketConnectionState =

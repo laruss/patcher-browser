@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import {
   realtimeSubscriptionTargetKey as subscriptionKey,
+  type BrowserCommand,
   type RealtimeSubscriptionTarget,
   type ChangedMessage,
   type EnvironmentChangeKind,
@@ -21,6 +22,7 @@ import type {
 } from "@patcher/host-daemon-contract";
 import {
   browserCommandRequestSignalSchema,
+  browserDrivingCommandFor,
   browserDrivingSignalSchema,
   pluginSignalSchema,
   serverMessageSchema,
@@ -29,6 +31,7 @@ import {
   threadPaneActionSignalSchema,
   type BrowserCommandIssuer,
   type BrowserCommandRequestSignal,
+  type BrowserDrivingOutcome,
   type ThreadPaneAction,
   type ThreadOpenFile,
   type ThreadOpenSplit,
@@ -978,6 +981,7 @@ export class NotificationHub implements DbNotifier {
       // the settle half has the same issuer without re-deriving it.
       waiter.issuer = args.message.issuer;
       this.announceBrowserDriving({
+        command: args.message.command,
         issuer: args.message.issuer,
         performer: host.socket,
         phase: "started",
@@ -1005,14 +1009,22 @@ export class NotificationHub implements DbNotifier {
    * a socket that throws mid-loop would take a real answer down with it. The
    * message itself cannot fail to build: the issuer reached here through the
    * request's own strict parse, and is recorded on the waiter only once that
-   * parse has passed.
+   * parse has passed. The same has to hold for what was added to it — the
+   * command's `name` is its own type off that parsed union, `detail` comes from
+   * the renderer that cuts to the field's own length, and an outcome's `error`
+   * is a code from a closed enum. None of the three can be the reason a
+   * `.parse` on this path throws.
    */
-  private announceBrowserDriving(args: {
-    issuer: BrowserCommandIssuer | undefined;
-    performer: HubSocket;
-    phase: "started" | "settled";
-    requestId: string;
-  }): void {
+  private announceBrowserDriving(
+    args: {
+      issuer: BrowserCommandIssuer | undefined;
+      performer: HubSocket;
+      requestId: string;
+    } & (
+      | { phase: "started"; command: BrowserCommand }
+      | { phase: "settled"; outcome: BrowserDrivingOutcome | null }
+    ),
+  ): void {
     // Nobody to name is the app's own browsing — the person's own work, in the
     // window they are looking at, which needs no indicator anywhere.
     if (args.issuer === undefined) return;
@@ -1024,14 +1036,27 @@ export class NotificationHub implements DbNotifier {
     const recipients = [...this.browserHosts.values()].filter(
       (registration) => registration.socket !== args.performer,
     );
+    // Nobody to tell, so the command is not rendered either: a single-window
+    // install runs every command an agent sends through this.
     if (recipients.length === 0) return;
     const payload = JSON.stringify(
-      browserDrivingSignalSchema.parse({
-        type: "browser-driving",
-        requestId: args.requestId,
-        phase: args.phase,
-        issuer: args.issuer,
-      }),
+      browserDrivingSignalSchema.parse(
+        args.phase === "started"
+          ? {
+              type: "browser-driving",
+              requestId: args.requestId,
+              phase: "started",
+              issuer: args.issuer,
+              command: browserDrivingCommandFor(args.command),
+            }
+          : {
+              type: "browser-driving",
+              requestId: args.requestId,
+              phase: "settled",
+              issuer: args.issuer,
+              outcome: args.outcome,
+            },
+      ),
     );
     for (const registration of recipients) {
       try {
@@ -1054,7 +1079,13 @@ export class NotificationHub implements DbNotifier {
     if (waiter.socket !== args.socket) {
       return { handled: false, reason: "host_mismatch" };
     }
-    this.deleteBrowserCommandWaiter(args.message.requestId, waiter);
+    // The one path with an answer to report. `value` stays here: it is what the
+    // command read off the page, and the other windows are being told what
+    // happened, not handed the page.
+    this.deleteBrowserCommandWaiter(args.message.requestId, waiter, {
+      ok: args.message.outcome.ok,
+      error: args.message.outcome.ok ? null : args.message.outcome.code,
+    });
     waiter.resolve(args.message);
     return { handled: true };
   }
@@ -1282,6 +1313,13 @@ export class NotificationHub implements DbNotifier {
   private deleteBrowserCommandWaiter(
     requestId: string,
     waiter: BrowserCommandWaiter,
+    /**
+     * How the command ended, for the windows watching. Only one of this
+     * funnel's callers has an answer to pass — the other three *are* the
+     * absence of one, and null is what the other windows are told rather than
+     * an outcome nobody has.
+     */
+    outcome: BrowserDrivingOutcome | null = null,
   ): void {
     if (this.browserCommandWaiters.get(requestId) === waiter) {
       this.browserCommandWaiters.delete(requestId);
@@ -1294,6 +1332,7 @@ export class NotificationHub implements DbNotifier {
     // successful send, so there was no start to end.
     this.announceBrowserDriving({
       issuer: waiter.issuer,
+      outcome,
       performer: waiter.socket,
       phase: "settled",
       requestId,

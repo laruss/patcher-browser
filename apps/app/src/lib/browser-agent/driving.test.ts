@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BrowserCommandIssuer } from "@patcher/server-contract";
+import type {
+  BrowserCommandIssuer,
+  BrowserDrivingCommand,
+} from "@patcher/server-contract";
 import {
   BROWSER_DRIVING_LINGER_MS,
   createBrowserDrivingTracker,
@@ -47,7 +50,7 @@ function track() {
      */
     start(
       issuer: BrowserCommandIssuer | undefined,
-      options: { elsewhere?: boolean } = {},
+      options: { elsewhere?: boolean; command?: BrowserDrivingCommand } = {},
     ): string {
       commands += 1;
       const requestId = `r${commands}`;
@@ -107,6 +110,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
   });
 
@@ -123,6 +127,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
   });
 
@@ -148,7 +153,7 @@ describe("the browser driving tracker", () => {
     // to whoever started most recently *of the others*, so the name changes
     // while the agent it named is still working.
     expect(driving.states.slice(before)).toEqual([
-      { issuer: GRANT, active: true, elsewhere: false },
+      { issuer: GRANT, active: true, elsewhere: false, command: null },
     ]);
     driving.tracker.settled(first);
     // And now it does hand over, because this caller has nothing left.
@@ -172,6 +177,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
   });
 
@@ -220,12 +226,14 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 2);
     expect(driving.last).toEqual({
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
 
     driving.tracker.settled(first);
@@ -245,6 +253,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: true,
+      command: null,
     });
 
     // The settle carries no news about *where* — so it is read from what the
@@ -257,6 +266,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: false,
       elsewhere: true,
+      command: null,
     });
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
     expect(driving.last).toBeNull();
@@ -277,6 +287,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: true,
+      command: null,
     });
   });
 
@@ -299,6 +310,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
   });
 
@@ -318,6 +330,7 @@ describe("the browser driving tracker", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
   });
 
@@ -339,6 +352,7 @@ describe("the browser driving tracker", () => {
       issuer: OTHER_GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
     driving.tracker.settled(own);
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
@@ -362,6 +376,7 @@ describe("the browser driving tracker", () => {
       issuer: OTHER_GRANT,
       active: true,
       elsewhere: false,
+      command: null,
     });
   });
 
@@ -383,5 +398,82 @@ describe("the browser driving tracker", () => {
     const writes = driving.states.length;
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 2);
     expect(driving.states.length).toBe(writes);
+  });
+});
+
+/**
+ * What the row says is being *done*, which is the half a person can act on.
+ *
+ * Separate from the cases above because they are about who is driving and this
+ * is about the command in the chrome staying the command that is running: the
+ * two move together for a single command and come apart the moment two
+ * overlap, which is most of a session.
+ */
+describe("the command the browser driving tracker names", () => {
+  const CLICK: BrowserDrivingCommand = {
+    name: "page.interact",
+    detail: "click e42",
+  };
+  const OPEN: BrowserDrivingCommand = {
+    name: "navigation.open",
+    detail: "https://x.test/",
+  };
+
+  it("names the command that is running, not the one that just answered", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    const first = driving.start(GRANT, { command: CLICK });
+    const second = driving.start(GRANT, { command: OPEN });
+    driving.tracker.settled(second);
+
+    // One caller, two commands, the second answering first. Carrying the
+    // settled command's line over would have the row describing something that
+    // has finished while the other is still going.
+    expect(driving.last).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: false,
+      command: CLICK,
+    });
+    driving.tracker.settled(first);
+    expect(driving.last?.command).toEqual(CLICK);
+  });
+
+  it("keeps naming the command it just finished, for as long as it lingers", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    driving.tracker.settled(driving.start(GRANT, { command: OPEN }));
+
+    // The row is up for four more seconds and is describing a moment that has
+    // passed; a name with nothing beside it is what a person would be left
+    // reading for most of the time this is on screen.
+    expect(driving.last).toEqual({
+      issuer: GRANT,
+      active: false,
+      elsewhere: false,
+      command: OPEN,
+    });
+    vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
+    expect(driving.last).toBeNull();
+  });
+
+  it("hands the row over with the new driver's own command", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    driving.start(GRANT, { command: CLICK });
+    driving.tracker.settled(driving.start(OTHER_GRANT, { command: OPEN }));
+
+    // A handover between two callers moves the name and the line together:
+    // showing this agent's name against the other one's command would be a
+    // sentence that never happened.
+    expect(driving.last).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: false,
+      command: CLICK,
+    });
   });
 });

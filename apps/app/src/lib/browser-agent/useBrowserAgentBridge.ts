@@ -12,7 +12,9 @@ import {
   destroyPersistedBrowserView,
   registerBrowserView,
 } from "@/components/secondary-panel/browserViewVisibilityCoordinator";
+import { browserDrivingCommandFor } from "@patcher/server-contract";
 import { wsManager } from "../ws";
+import { browserActivityAtom, createBrowserActivityLog } from "./activity";
 import { browserDrivingAtom, createBrowserDrivingTracker } from "./driving";
 import {
   browserTabOwnersAtom,
@@ -89,6 +91,16 @@ export function useBrowserAgentBridge(): void {
       },
     });
 
+    // And what it did, which outlives the indicator: the row is gone four
+    // seconds after the last command, and "what did that agent do" is asked
+    // afterwards (`activity.ts`). Fed from the same two places for the same
+    // reason — one implementation of "a command started" rather than two.
+    const activity = createBrowserActivityLog({
+      set: (entries) => {
+        store.set(browserActivityAtom, entries);
+      },
+    });
+
     // The same fact for a window that is not serving: only one window is sent
     // the commands, so every other one would show nothing while an agent works
     // (`browser-driving`, ws/hub.ts). Fed into the same tracker, so the linger
@@ -101,14 +113,23 @@ export function useBrowserAgentBridge(): void {
     // is ignored there rather than counted against one it did.
     const unsubscribeDriving = wsManager.onBrowserDriving((signal) => {
       if (signal.phase === "started") {
+        const command = signal.command ?? null;
         driving.started({
           requestId: signal.requestId,
           issuer: signal.issuer,
           elsewhere: true,
+          command,
+        });
+        activity.started({
+          requestId: signal.requestId,
+          issuer: signal.issuer,
+          elsewhere: true,
+          command,
         });
         return;
       }
       driving.settled(signal.requestId);
+      activity.settled(signal.requestId, signal.outcome ?? null);
     });
 
     // A reconnect is where this window's copy of "who is driving" can be
@@ -117,11 +138,27 @@ export function useBrowserAgentBridge(): void {
     // stays is what this window is performing itself — that settles locally
     // whatever the socket did.
     const unsubscribeConnected = wsManager.onConnected(({ reconnected }) => {
-      if (reconnected) driving.forgetOtherWindows();
+      if (!reconnected) return;
+      driving.forgetOtherWindows();
+      activity.forgetOtherWindows();
     });
 
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {
-      driving.started({ requestId: signal.requestId, issuer: signal.issuer });
+      // Rendered here rather than read off a frame: this window is the one
+      // performing the command, so nobody sent it the pair — and it is the same
+      // function the server renders with, so the two windows say the same
+      // words about the same command.
+      const command = browserDrivingCommandFor(signal.command);
+      driving.started({
+        requestId: signal.requestId,
+        issuer: signal.issuer,
+        command,
+      });
+      activity.started({
+        requestId: signal.requestId,
+        issuer: signal.issuer,
+        command,
+      });
       void executeBrowserCommand(signal.command, {
         // Who this is for, which decides which tab an unqualified command lands
         // on and whether a named one is theirs to touch (`tab-owners.ts`).
@@ -184,6 +221,10 @@ export function useBrowserAgentBridge(): void {
       })
         .then((outcome) => {
           driving.settled(signal.requestId);
+          activity.settled(signal.requestId, {
+            ok: outcome.ok,
+            error: outcome.ok ? null : outcome.code,
+          });
           wsManager.sendBrowserCommandResponse({
             type: "browser-command.response",
             requestId: signal.requestId,
@@ -192,6 +233,12 @@ export function useBrowserAgentBridge(): void {
         })
         .catch((error: unknown) => {
           driving.settled(signal.requestId);
+          // A bug in the executor, not a refusal by the browser — recorded as
+          // the failure it is, with the code the agent is about to be sent.
+          activity.settled(signal.requestId, {
+            ok: false,
+            error: "invalid_command",
+          });
           // Never leave the server's waiter to time out on a bug in here: an
           // answer, even a bad one, is what unblocks the agent's tool call.
           wsManager.sendBrowserCommandResponse({
@@ -217,6 +264,7 @@ export function useBrowserAgentBridge(): void {
       unsubscribeConnected();
       unsubscribeLiveState();
       driving.dispose();
+      activity.dispose();
       queue.dispose();
       traces.dispose();
     };

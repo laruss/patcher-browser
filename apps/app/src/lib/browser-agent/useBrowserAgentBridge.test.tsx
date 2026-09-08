@@ -3,11 +3,15 @@
 import { cleanup, render } from "@testing-library/react";
 import { Provider as JotaiProvider, createStore } from "jotai";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BrowserDrivingSignal } from "@patcher/server-contract";
+import type {
+  BrowserDrivingOutcome,
+  BrowserDrivingSignal,
+} from "@patcher/server-contract";
 import {
   createNoopDesktopBrowserApi,
   createPatcherDesktopApi,
 } from "@/test/patcher-desktop-test-utils";
+import { browserActivityAtom } from "./activity";
 import { browserDrivingAtom } from "./driving";
 
 /**
@@ -62,11 +66,31 @@ const GRANT = {
   level: "read",
 } as const;
 
-function driving(
-  phase: "started" | "settled",
+const CLICK = { name: "page.interact", detail: "click e42" } as const;
+
+function drivingStarted(requestId = "r1"): BrowserDrivingSignal {
+  return {
+    type: "browser-driving",
+    requestId,
+    phase: "started",
+    issuer: GRANT,
+    command: CLICK,
+  };
+}
+
+/** `outcome: null` is the server saying nobody answered — a timeout, or the
+ *  window that was performing it going away. */
+function drivingSettled(
   requestId = "r1",
+  outcome: BrowserDrivingOutcome | null = { ok: true, error: null },
 ): BrowserDrivingSignal {
-  return { type: "browser-driving", requestId, phase, issuer: GRANT };
+  return {
+    type: "browser-driving",
+    requestId,
+    phase: "settled",
+    issuer: GRANT,
+    outcome,
+  };
 }
 
 function mountBridge() {
@@ -135,7 +159,7 @@ describe("the browser agent bridge, in a window that is not serving", () => {
   it("shows the other window's driver as being somewhere else", () => {
     const bridge = mountBridge();
 
-    bridge.deliver(driving("started"));
+    bridge.deliver(drivingStarted());
 
     expect(bridge.store.get(browserDrivingAtom)).toEqual({
       issuer: GRANT,
@@ -143,20 +167,24 @@ describe("the browser agent bridge, in a window that is not serving", () => {
       // The whole point of the flag: this window cannot show the tab, so a row
       // saying "this browser" would be pointing at nothing.
       elsewhere: true,
+      // And what it is doing, which this window has no other way to know: it
+      // never saw the command, only this frame.
+      command: CLICK,
     });
 
-    bridge.deliver(driving("settled"));
+    bridge.deliver(drivingSettled());
 
     expect(bridge.store.get(browserDrivingAtom)).toEqual({
       issuer: GRANT,
       active: false,
       elsewhere: true,
+      command: CLICK,
     });
   });
 
   it("stops claiming somebody is driving after the stream broke", () => {
     const bridge = mountBridge();
-    bridge.deliver(driving("started"));
+    bridge.deliver(drivingStarted());
 
     // The settle that would have ended it was sent while this window's socket
     // was down, and nothing resends it. Without this the row stays up for a
@@ -173,8 +201,8 @@ describe("the browser agent bridge, in a window that is not serving", () => {
     // through a command: it hears that command's settle without ever having
     // heard its start. Meanwhile the same caller started another one, which
     // this window did see.
-    bridge.deliver(driving("started", "r2"));
-    bridge.deliver(driving("settled", "r1"));
+    bridge.deliver(drivingStarted("r2"));
+    bridge.deliver(drivingSettled("r1"));
 
     // The tracker ignores an end it never saw begin, but only if it is given
     // the id: a subscription that passed the same id for both phases, or
@@ -183,6 +211,7 @@ describe("the browser agent bridge, in a window that is not serving", () => {
       issuer: GRANT,
       active: true,
       elsewhere: true,
+      command: CLICK,
     });
   });
 
@@ -196,6 +225,9 @@ describe("the browser agent bridge, in a window that is not serving", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      // Rendered in this window from the command it was sent, by the same
+      // function the server renders the frame with.
+      command: { name: "tabs.list", detail: "" },
     });
 
     bridge.reconnect();
@@ -209,6 +241,9 @@ describe("the browser agent bridge, in a window that is not serving", () => {
       issuer: GRANT,
       active: true,
       elsewhere: false,
+      // Rendered in this window from the command it was sent, by the same
+      // function the server renders the frame with.
+      command: { name: "tabs.list", detail: "" },
     });
   });
 
@@ -225,5 +260,84 @@ describe("the browser agent bridge, in a window that is not serving", () => {
     // Both, because a listener left behind closes over this window's store: a
     // reconnect would go on clearing an indicator in a window that is gone.
     expect(unsubscribeConnected).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The other half of what a window keeps: not "is something driving" but "what
+ * did it do", which is asked after the indicator is gone (`activity.ts`).
+ *
+ * At this level because the record's two feeders are here, and each of them can
+ * be wired wrong in a way the log itself cannot see: a local command whose
+ * rendering never happens, an outcome dropped on the way from the frame, or a
+ * reconnect that leaves a row saying "running" for the rest of the session.
+ */
+describe("the browser agent bridge, keeping the record", () => {
+  it("writes down a command this window performs, as it renders it", () => {
+    const bridge = mountBridge();
+
+    bridge.command("r1");
+
+    const entries = bridge.store.get(browserActivityAtom);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      requestId: "r1",
+      issuer: GRANT,
+      // The window has the command itself and no frame, so this is the local
+      // rendering — same function as the server's, which is what keeps one
+      // command from reading two ways in two windows.
+      command: { name: "tabs.list", detail: "" },
+      status: { kind: "running" },
+      elsewhere: false,
+    });
+  });
+
+  it("takes the outcome off the settle rather than guessing one", () => {
+    const bridge = mountBridge();
+
+    bridge.deliver(drivingStarted("r1"));
+    bridge.deliver(
+      drivingSettled("r1", { ok: false, error: "tab_not_found" }),
+    );
+
+    expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
+      kind: "failed",
+      code: "tab_not_found",
+    });
+  });
+
+  it("says no answer, which is not the same as done", () => {
+    const bridge = mountBridge();
+
+    bridge.deliver(drivingStarted("r1"));
+    // What the server sends when the command timed out or the window
+    // performing it went away: the phase, and no outcome to report.
+    bridge.deliver(drivingSettled("r1", null));
+
+    expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
+      kind: "unanswered",
+    });
+  });
+
+  it("ends the other window's rows on a reconnect and keeps its own running", () => {
+    const bridge = mountBridge();
+
+    bridge.deliver(drivingStarted("r1"));
+    bridge.command("r2");
+
+    bridge.reconnect();
+
+    const entries = bridge.store.get(browserActivityAtom);
+    // The mirrored one can never be settled now — its settle was sent while
+    // this socket was down and nothing resends it — so the record says what is
+    // true about it rather than leaving it open forever.
+    expect(entries.find((entry) => entry.requestId === "r1")?.status).toEqual({
+      kind: "unanswered",
+    });
+    // And the local one is still being performed: it answers to a promise, not
+    // to the socket.
+    expect(entries.find((entry) => entry.requestId === "r2")?.status).toEqual({
+      kind: "running",
+    });
   });
 });

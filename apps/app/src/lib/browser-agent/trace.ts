@@ -15,13 +15,12 @@
  */
 
 import {
-  BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH,
   BROWSER_COMMAND_MAX_TRACE_IMAGE_BASE64_LENGTH,
   BROWSER_COMMAND_MAX_TRACE_STEPS,
   BROWSER_COMMAND_MAX_VIDEO_FRAME_BASE64_LENGTH,
+  browserCommandRecordDetail,
   type BrowserCommand,
   type BrowserCommandOutcome,
-  type BrowserInteraction,
   type BrowserTraceStep,
 } from "@patcher/domain";
 
@@ -37,108 +36,6 @@ export interface BrowserTrace {
   droppedSteps: number;
   droppedImages: number;
   durationMs: number;
-}
-
-function describeInteraction(interaction: BrowserInteraction): string {
-  switch (interaction.action) {
-    case "click":
-      return `click ${interaction.ref}${
-        interaction.button === "left" ? "" : ` (${interaction.button})`
-      }${interaction.clickCount === 2 ? " x2" : ""}`;
-    case "hover":
-      return `hover ${interaction.ref}`;
-    case "drag":
-      return `drag ${interaction.ref} onto ${interaction.targetRef}`;
-    case "fill":
-      return `fill ${interaction.ref} ${JSON.stringify(interaction.text)}`;
-    case "type":
-      return `type ${interaction.ref} ${JSON.stringify(interaction.text)}`;
-    case "press":
-      return `press ${interaction.key}${
-        interaction.ref === null ? "" : ` on ${interaction.ref}`
-      }`;
-    case "select":
-      return `select ${interaction.ref} ${interaction.values.join(", ")}`;
-    case "check":
-      return `${interaction.checked ? "check" : "uncheck"} ${interaction.ref}`;
-    case "upload":
-      return `upload ${interaction.ref} ${interaction.paths.join(", ")}`;
-    default:
-      return `resize ${interaction.width}x${interaction.height}`;
-  }
-}
-
-/**
- * One command as a line someone can read back.
- *
- * Rendered rather than serialized, because the JSON of a `state.load` is a set
- * of the user's cookies and a trace is a file people save and send each other.
- * So keys are named and their values are not — while what was typed into a form
- * field is kept, since a log that will not say what was filled in is not a log
- * of what happened.
- */
-export function describeBrowserCommand(command: BrowserCommand): string {
-  switch (command.type) {
-    case "tabs.open":
-      return command.url ?? "new tab";
-    case "tabs.close":
-    case "tabs.activate":
-      return command.tabId;
-    case "page.handle_dialog":
-      return command.accept ? "accept" : "dismiss";
-    // Only when it was scoped. "Read the page" and "read this element" are
-    // different steps, and the second one attached a debugger to do it.
-    case "page.get_text":
-      return command.selector === null ? "" : `in ${command.selector}`;
-    case "page.interact":
-      return describeInteraction(command.interaction);
-    case "page.observe":
-      return command.observation.kind;
-    case "page.storage": {
-      const operation = command.operation;
-      switch (operation.kind) {
-        case "cookies-set":
-          return `cookies-set ${operation.cookies.length}`;
-        case "cookies-clear":
-          return "cookies-clear";
-        case "items-get":
-          return `items-get ${operation.area}`;
-        case "items-set":
-          return `items-set ${operation.area} ${operation.items
-            .map((item) => item.name)
-            .join(", ")}`;
-        case "items-clear":
-          return `items-clear ${operation.area}`;
-        default:
-          return operation.kind;
-      }
-    }
-    case "page.control": {
-      const operation = command.operation;
-      switch (operation.kind) {
-        case "mouse-move":
-          return `mouse-move ${operation.x},${operation.y}`;
-        case "mouse-button":
-          return `mouse-${operation.down ? "down" : "up"} ${operation.button}`;
-        case "mouse-wheel":
-          return `mouse-wheel ${operation.deltaX},${operation.deltaY}`;
-        case "evaluate":
-          return `evaluate ${operation.expression}`;
-        case "route-set":
-          return `route ${operation.route.pattern}`;
-        case "route-clear":
-          return `unroute ${operation.pattern ?? "all"}`;
-        case "offline":
-          return `offline ${operation.offline}`;
-        default:
-          return operation.kind;
-      }
-    }
-    case "navigation.open":
-      return command.url;
-    default:
-      return "";
-  }
 }
 
 /**
@@ -218,10 +115,7 @@ export class BrowserTraceRecorder {
       seq: this.seq,
       at: Math.max(0, Math.round(now - startedAt)),
       command: command.type,
-      detail: describeBrowserCommand(command).slice(
-        0,
-        BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH,
-      ),
+      detail: browserCommandRecordDetail(command),
       ok: outcome.ok,
       error: outcome.ok ? null : outcome.code,
       image: this.keepImage(image),

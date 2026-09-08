@@ -11,7 +11,10 @@ import { Provider as JotaiProvider, createStore } from "jotai";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BrowserCommandIssuer } from "@patcher/server-contract";
+import type {
+  BrowserCommandIssuer,
+  BrowserDrivingCommand,
+} from "@patcher/server-contract";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { browserDrivingAtom } from "@/lib/browser-agent/driving";
 import { BrowserDrivingIndicator } from "./BrowserDrivingIndicator";
@@ -26,6 +29,12 @@ import { BrowserDrivingIndicator } from "./BrowserDrivingIndicator";
  */
 
 const setPaused = vi.fn();
+
+/** What most rows say: a command with something to name. */
+const CLICK: BrowserDrivingCommand = {
+  name: "page.interact",
+  detail: "click e42",
+};
 
 vi.mock("@/lib/sdk", () => ({
   sdk: {
@@ -43,7 +52,7 @@ afterEach(() => {
 
 function renderIndicator(
   issuer: BrowserCommandIssuer | null,
-  options: { elsewhere?: boolean } = {},
+  options: { elsewhere?: boolean; command?: BrowserDrivingCommand | null } = {},
 ) {
   const store = createStore();
   if (issuer !== null) {
@@ -51,6 +60,7 @@ function renderIndicator(
       issuer,
       active: true,
       elsewhere: options.elsewhere === true,
+      command: options.command ?? CLICK,
     });
   }
   const { queryClient } = createQueryClientTestHarness();
@@ -90,6 +100,47 @@ describe("the browser driving indicator", () => {
     // The id is not shown: it means nothing to the person, and the label is
     // what they typed.
     expect(status.textContent).not.toContain("bag_3k9wq2mnpx");
+  });
+
+  it("says what it is doing, in the words the trace uses", () => {
+    renderIndicator(
+      { kind: "grant", grantId: "bag_1", label: "Claude Code", level: "read" },
+      { command: { name: "navigation.open", detail: "https://bank.test/pay" } },
+    );
+
+    // The difference between an indicator a person watches and one they act on.
+    // Same rendering as the caller's own trace, so the two cannot disagree
+    // about what happened.
+    expect(screen.getByRole("status").textContent).toContain(
+      "https://bank.test/pay",
+    );
+  });
+
+  it("names the command itself when there is nothing else to say", () => {
+    renderIndicator(
+      { kind: "grant", grantId: "bag_1", label: "Claude Code", level: "read" },
+      // A read of the whole page renders as an empty line — the command *is*
+      // the whole of what happened.
+      { command: { name: "page.snapshot", detail: "" } },
+    );
+
+    const status = screen.getByRole("status");
+    expect(status.textContent).toContain("page.snapshot");
+    // And not a trailing separator with nothing after it, which reads as a bug
+    // in the indicator rather than as a command with no detail.
+    expect(status.textContent?.trimEnd().endsWith("\u00b7")).toBe(false);
+  });
+
+  it("says who even when the frame carried no command", () => {
+    // A window loaded from a server that predates the field. Who is driving is
+    // the whole point of the row, and dropping it over the half that is
+    // missing would trade a working indicator for none.
+    renderIndicator(
+      { kind: "grant", grantId: "bag_1", label: "Claude Code", level: "read" },
+      { command: null },
+    );
+
+    expect(screen.getByRole("status").textContent).toContain("Claude Code");
   });
 
   it("pauses that grant rather than revoking it", async () => {

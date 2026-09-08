@@ -41,6 +41,7 @@ import {
   type ThemePreference,
 } from "@/hooks/useTheme";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
+import { BrowserActivitySettingsControl } from "@/components/settings/BrowserActivitySettingsControl";
 import { UsageLimitsSettingsSection } from "@/components/settings/UsageLimitsSettingsSection";
 import { SidebarThreadListSetting } from "@/components/settings/SidebarThreadListSetting";
 import {
@@ -1265,6 +1266,11 @@ export function GeneralSettingsSection({
             onSetPaused={onSetBrowserAccessGrantPaused}
           />
         ) : null}
+
+        {/* Under the two levers rather than in a section of its own: the
+            reason to read what an agent did is usually to decide whether to
+            pause the grant above. */}
+        {desktopBrowserAvailable ? <BrowserActivitySettingsControl /> : null}
 
         <RewriteLocalhostLinksSettingsControl
           enabled={rewriteLocalhostLinks}

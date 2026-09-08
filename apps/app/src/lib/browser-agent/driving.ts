@@ -1,5 +1,8 @@
 import { atom } from "jotai";
-import type { BrowserCommandIssuer } from "@patcher/server-contract";
+import type {
+  BrowserCommandIssuer,
+  BrowserDrivingCommand,
+} from "@patcher/server-contract";
 import { browserIssuerKey } from "./issuer";
 
 /**
@@ -42,6 +45,16 @@ export interface BrowserDrivingState {
    * look at something that is not there.
    */
   elsewhere: boolean;
+  /**
+   * The command being performed, as a name and a rendered line.
+   *
+   * "Who" without "what" is the difference between an indicator a person
+   * watches and one they can act on: a name and a level say something is
+   * driving, and the line says it is filling in the form they are looking at.
+   * Null when the frame carried none — a window loaded from a server that
+   * predates the field — and the row then says what it always said.
+   */
+  command: BrowserDrivingCommand | null;
 }
 
 export const browserDrivingAtom = atom<BrowserDrivingState | null>(null);
@@ -64,6 +77,7 @@ export interface BrowserDrivingTracker {
     requestId: string;
     issuer: BrowserCommandIssuer | undefined;
     elsewhere?: boolean;
+    command?: BrowserDrivingCommand | null;
   }): void;
   /**
    * That command has answered, one way or the other.
@@ -93,6 +107,7 @@ export interface CreateBrowserDrivingTrackerArgs {
 }
 
 interface InFlightCommand {
+  command: BrowserDrivingCommand | null;
   elsewhere: boolean;
   issuer: BrowserCommandIssuer;
 }
@@ -160,6 +175,7 @@ export function createBrowserDrivingTracker(
       issuer: command.issuer,
       active: true,
       elsewhere: command.elsewhere,
+      command: command.command,
     });
   }
 
@@ -177,6 +193,11 @@ export function createBrowserDrivingTracker(
       issuer: command.issuer,
       active: false,
       elsewhere: command.elsewhere,
+      // The command it just finished, kept for the linger: the row is saying
+      // what happened a second ago, and dropping the line there would leave a
+      // name with nothing beside it for the four seconds a person is most
+      // likely to read it.
+      command: command.command,
     });
     const other = latest();
     if (other !== undefined) {
@@ -193,13 +214,13 @@ export function createBrowserDrivingTracker(
   }
 
   return {
-    started({ requestId, issuer, elsewhere = false }) {
+    started({ requestId, issuer, elsewhere = false, command = null }) {
       if (issuer === undefined) return;
       // Deleted before it is set, so the map stays in the order commands
       // started: `Map.set` on an existing key keeps its old position.
       inFlight.delete(requestId);
-      inFlight.set(requestId, { elsewhere, issuer });
-      show({ elsewhere, issuer });
+      inFlight.set(requestId, { command, elsewhere, issuer });
+      show({ command, elsewhere, issuer });
     },
     settled(requestId) {
       const finished = inFlight.get(requestId);
