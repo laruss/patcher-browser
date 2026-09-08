@@ -59,16 +59,19 @@ const SOURCE_FILES = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"];
 /**
  * Files over the limit when the rule landed, at the size they were then.
  *
- * Ten of the seventeen are tests, and they are held to the same limit for the
- * same reason: `desktop-browser-view-manager.test.ts` is the longest file in the
- * repository, and a test nobody can navigate is where a duplicate case hides.
+ * Nine of the sixteen are tests, and they are held to the same limit for the
+ * same reason a source file is: a test nobody can navigate is where a duplicate
+ * case hides, and one that cannot grow is one an assertion cannot be added to.
+ * `desktop-browser-view-manager.test.ts` was both — the longest file in the
+ * repository at 8 360 lines, with the fixture for a missing regression already
+ * in it — and left this list by being split into six suites over a shared
+ * harness.
  *
  * This list is the debt itself, so it is also the tracking list: issue #80 has
  * the measured seam for each entry, and an entry leaves here when its file goes
  * under the limit.
  */
 const PINNED_OVER_LIMIT = {
-  "apps/desktop/test/desktop-browser-view-manager.test.ts": 8360,
   "packages/agent-runtime/src/codex/adapter.test.ts": 6088,
   "packages/agent-runtime/src/claude-code/adapter.test.ts": 5795,
   "apps/desktop/src/desktop-browser-view.ts": 5215,
