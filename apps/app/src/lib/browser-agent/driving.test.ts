@@ -90,7 +90,7 @@ describe("the browser driving tracker", () => {
     driving.tracker.started(GRANT);
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 10);
 
-    expect(driving.last).toEqual({ issuer: GRANT, active: true });
+    expect(driving.last).toEqual({ issuer: GRANT, active: true, elsewhere: false });
   });
 
   it("counts overlapping commands rather than the last one to answer", () => {
@@ -102,7 +102,7 @@ describe("the browser driving tracker", () => {
     driving.tracker.settled(GRANT);
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 2);
 
-    expect(driving.last).toEqual({ issuer: GRANT, active: true });
+    expect(driving.last).toEqual({ issuer: GRANT, active: true, elsewhere: false });
   });
 
   it("shows whoever is driving now, not whoever answered last", () => {
@@ -148,13 +148,60 @@ describe("the browser driving tracker", () => {
     driving.tracker.started(OTHER_GRANT);
     driving.tracker.settled(OTHER_GRANT);
 
-    expect(driving.last).toEqual({ issuer: GRANT, active: true });
+    expect(driving.last).toEqual({ issuer: GRANT, active: true, elsewhere: false });
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS * 2);
-    expect(driving.last).toEqual({ issuer: GRANT, active: true });
+    expect(driving.last).toEqual({ issuer: GRANT, active: true, elsewhere: false });
 
     driving.tracker.settled(GRANT);
     vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
     expect(driving.last).toBeNull();
+  });
+
+  it("keeps saying which window a command was in, including as it settles", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    // What a window that is not serving the commands gets: the server's
+    // `browser-driving` signal, whose whole content is who and which phase.
+    driving.tracker.started(GRANT, { elsewhere: true });
+    expect(driving.last).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: true,
+    });
+
+    // The settle carries no news about *where* — so it must be read from what
+    // the start recorded. Getting this wrong would have the row flip to "this
+    // browser" for the four seconds it lingers, which is the moment a person
+    // most likely reads it.
+    driving.tracker.settled(GRANT);
+
+    expect(driving.last).toEqual({
+      issuer: GRANT,
+      active: false,
+      elsewhere: true,
+    });
+    vi.advanceTimersByTime(BROWSER_DRIVING_LINGER_MS + 1);
+    expect(driving.last).toBeNull();
+  });
+
+  it("hands over between windows without carrying the wrong one's place", () => {
+    vi.useFakeTimers();
+    const driving = track();
+
+    // A window can be both in one moment of its life: it serves the commands
+    // while it is the primary host, and hears about the other window's for as
+    // long as it is not. A handover between the two must not hand over the
+    // place along with the name.
+    driving.tracker.started(GRANT, { elsewhere: true });
+    driving.tracker.started(OTHER_GRANT);
+    driving.tracker.settled(OTHER_GRANT);
+
+    expect(driving.last).toEqual({
+      issuer: GRANT,
+      active: true,
+      elsewhere: true,
+    });
   });
 
   it("clears when the window goes away, timer and all", () => {

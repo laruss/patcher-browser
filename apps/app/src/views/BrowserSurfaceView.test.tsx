@@ -19,6 +19,7 @@ import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { getBrowserSurfaceTabsStorageKey } from "@/lib/browser-surface-tabs";
 import { getBrowserFaviconsStorageKey } from "@/lib/browser-favicons";
 import { getBrowserMutedTabsStorageKey } from "@/lib/browser-tab-mute";
+import { browserDrivingAtom } from "@/lib/browser-agent/driving";
 import {
   browserTabOwnersAtom,
   withBrowserTabOwner,
@@ -382,6 +383,34 @@ describe("BrowserSurfaceView", () => {
       pinnedId ?? "New tab",
     );
     expect(screen.getAllByRole("button", { name: /^Close / })).toHaveLength(1);
+  });
+
+  // Who is driving is a fact about the window, not about a page, and the window
+  // is where a person reads a thread. It rides the tab strip's row for exactly
+  // that reason: on desktop the surface holds the main area for every route, so
+  // a Patcher screen takes a tab and the page chrome below the strip — address
+  // bar and all — is not rendered at all. While it lived in that chrome, this
+  // was the state in which an agent drove a tab and the window said nothing.
+  it("says who is driving while a Patcher screen is holding the tab", () => {
+    const surface = renderSurface(createNoopDesktopBrowserApi(), {
+      appScreen: <div data-testid="app-screen">Threads</div>,
+    });
+
+    // The state the assertion depends on: an app screen, so no page chrome.
+    expect(screen.getByTestId("app-screen")).not.toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+
+    act(() => {
+      surface.store.set(browserDrivingAtom, {
+        issuer: OWNER,
+        active: true,
+        elsewhere: false,
+      });
+    });
+
+    // By its sentence rather than by its role: the surface has more than one
+    // live region, and the point here is *which* row is on screen.
+    expect(screen.getByText(/is driving/).textContent).toContain("Claude Code");
   });
 
   // The surface owns the omnibox chrome, so the tab content must not render its

@@ -21,11 +21,13 @@ import type {
 } from "@patcher/host-daemon-contract";
 import {
   browserCommandRequestSignalSchema,
+  browserDrivingSignalSchema,
   pluginSignalSchema,
   serverMessageSchema,
   terminalServerMessageSchema,
   threadOpenSignalSchema,
   threadPaneActionSignalSchema,
+  type BrowserCommandIssuer,
   type BrowserCommandRequestSignal,
   type ThreadPaneAction,
   type ThreadOpenFile,
@@ -163,6 +165,12 @@ interface BrowserHostRegistration {
 }
 
 interface BrowserCommandWaiter {
+  /**
+   * Who the other windows were told is driving, if anybody. Held here because
+   * every way this wait can end goes through one funnel
+   * (`deleteBrowserCommandWaiter`), and that is where they are told it stopped.
+   */
+  issuer?: BrowserCommandIssuer;
   reject: (reason?: Error) => void;
   resolve: (message: BrowserCommandResponseMessage) => void;
   /** The socket the request went to — the analogue of the RPC waiter's session. */
@@ -963,8 +971,76 @@ export class NotificationHub implements DbNotifier {
       } catch (error) {
         this.deleteBrowserCommandWaiter(args.message.requestId, waiter);
         reject(error instanceof Error ? error : new Error(String(error)));
+        return;
       }
+      // After the send, and only if it worked: the other windows are told about
+      // a command the browser is actually performing. Recorded on the waiter so
+      // the settle half has the same issuer without re-deriving it.
+      waiter.issuer = args.message.issuer;
+      this.announceBrowserDriving({
+        issuer: args.message.issuer,
+        performer: host.socket,
+        phase: "started",
+        requestId: args.message.requestId,
+      });
     });
+  }
+
+  /**
+   * Tell the app's *other* windows who is driving the browser.
+   *
+   * The command goes to one socket because it must be performed once and
+   * answered once, so without this the window serving it is the only one that
+   * knows anybody is driving — a person reading a thread in another window sees
+   * an agent work with nothing on screen saying so
+   * (`docs/architecture/browser-external-access.md`).
+   *
+   * **Browser hosts, not every client.** The audience is the app's own windows,
+   * which is exactly the set that registered here; a plugin is refused that
+   * registration (`ws/client-protocol.ts`), so this reaches no plugin process
+   * and the grant label it carries goes nowhere it was not already going.
+   *
+   * **A broadcast must never fail the command it describes.** This runs on the
+   * send path and inside the settle funnel, one of whose callers is a timer, so
+   * a socket that throws mid-loop would take a real answer down with it. The
+   * message itself cannot fail to build: the issuer reached here through the
+   * request's own strict parse, and is recorded on the waiter only once that
+   * parse has passed.
+   */
+  private announceBrowserDriving(args: {
+    issuer: BrowserCommandIssuer | undefined;
+    performer: HubSocket;
+    phase: "started" | "settled";
+    requestId: string;
+  }): void {
+    // Nobody to name is the app's own browsing — the person's own work, in the
+    // window they are looking at, which needs no indicator anywhere.
+    if (args.issuer === undefined) return;
+    // Resolved before the message is built, and by *exclusion* rather than by
+    // counting: on the path where the serving socket goes away its registration
+    // is already gone from the map, so "fewer than two windows" would skip the
+    // one announcement a sibling cannot do without — the settle that ends an
+    // indicator it would otherwise hold up forever.
+    const recipients = [...this.browserHosts.values()].filter(
+      (registration) => registration.socket !== args.performer,
+    );
+    if (recipients.length === 0) return;
+    const payload = JSON.stringify(
+      browserDrivingSignalSchema.parse({
+        type: "browser-driving",
+        requestId: args.requestId,
+        phase: args.phase,
+        issuer: args.issuer,
+      }),
+    );
+    for (const registration of recipients) {
+      try {
+        registration.socket.send(payload);
+      } catch {
+        // A window whose socket is going away shows nothing, which is what it
+        // showed before this existed.
+      }
+    }
   }
 
   recordBrowserCommandResponse(
@@ -1211,6 +1287,15 @@ export class NotificationHub implements DbNotifier {
       this.browserCommandWaiters.delete(requestId);
     }
     clearTimeout(waiter.timeout);
+    // Every way this wait can end passes here — the answer, the timeout, a
+    // failed send, the host's socket going away — which is why the other
+    // windows are told from here rather than four times over.
+    this.announceBrowserDriving({
+      issuer: waiter.issuer,
+      performer: waiter.socket,
+      phase: "settled",
+      requestId,
+    });
   }
 
   private rejectBrowserCommandWaitersForSocket(socket: HubSocket): void {

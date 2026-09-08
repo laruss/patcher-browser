@@ -495,6 +495,36 @@ commands does not read as stopping once a second. Two agents at once is not
 something this product supports yet, so it shows whoever moved last rather than a
 list implying the rest is handled.
 
+**Under the tab strip, which is what makes it the window's row rather than a
+page's.** On desktop the browser surface holds the whole main area for every
+route — Patcher's own screens open *in a tab* and the agent screens in the side
+panel — so the page chrome below the strip (the address bar and everything with
+it) is not rendered at all while a person is reading a thread. The indicator
+lived in that chrome and went away with it, in exactly the case the whole thing
+exists for. The strip is the one row on screen for every desktop route, so that
+is where it goes; the handover prompt stays below the address bar, because that
+one *is* about the tab in front of you.
+
+**And the fact reaches the app's other windows.** The command is sent to one
+socket, because it must be performed once and answered once, so the window
+serving it was the only one that learned anybody was driving — a second window
+showed nothing, and the only trace was a line in the server log. The hub now
+also sends a `browser-driving` signal, `started` and `settled`, to every
+*other* registered browser host: the app's own windows, which is exactly the set
+that registers there (a plugin is refused that registration, so the grant's
+label goes nowhere it was not already going). Those windows feed it into the
+same tracker their own commands would, so the linger and the handover between
+two drivers have one implementation rather than two that drift, and they say
+"in another window" rather than "this browser" — a window that cannot show the
+tab must not send a person looking for it. Never sent to the window performing
+the command, which is what keeps one window from counting a command twice.
+
+The audience is resolved by *excluding* the performer rather than by counting
+windows, and the difference is load-bearing: on the path where the serving
+window's socket goes away, its registration is already out of the map, so
+"fewer than two windows" would skip the settle that a still-open sibling needs
+to take its indicator down.
+
 **The button is the one that fits the caller.** A grant gets **Pause**, which is
 the whole reason pausing exists. A caller from outside with no grant gets a link
 to Settings, because the install-wide level is the only lever that reaches it. A
@@ -554,12 +584,13 @@ Named here rather than left to be rediscovered.
   (`bun run patcher:dev browser tabs`) needs the setting on, and
   `patcher settings browser-access` from a plain terminal takes effect with no
   prompt, because a person at their own terminal *is* the user.
-- **The indicator is only visible where it is drawn.** It is a row of the
-  browser chrome, so a person reading a thread in another window, or on another
-  screen of the app, sees nothing while an agent drives a tab. The bridge that
-  serves the commands is mounted above the router and works everywhere; the
-  indicator is not, and a window-level or tray-level signal is a separate piece
-  of work.
+- **The indicator is only visible where the app is.** It is a row of the app's
+  own chrome in every window now, but it is still inside the app: a person with
+  Patcher behind another application, or minimised, sees nothing until they come
+  back to it. A tray item or a dock badge is the surface that would reach them,
+  and it is a different one again rather than a wider version of this row. The
+  web build keeps the older limit for a different reason — it hosts no browser
+  surface off `/browser`, so there is nothing there to draw a window row in.
 - **It says who, not what.** The name and the level, and nothing about the
   command — no URL, no selector, no list of what was read. A trace exists
   (`patcher browser trace-start`) and is not wired to this.
@@ -646,14 +677,31 @@ Named here rather than left to be rediscovered.
 - `apps/app/src/lib/browser-agent/driving.test.ts` — the indicator stays up
   between one agent's commands, stays up while a slow one is still in the air,
   counts overlapping commands rather than the last to answer, and shows whoever
-  is driving now rather than whoever answered last.
+  is driving now rather than whoever answered last. Plus which window: a
+  settle carries no news about *where*, so it is read from what the start
+  recorded rather than defaulted — otherwise the row flips to "this browser"
+  for the four seconds it lingers, which is when a person is most likely to
+  read it.
+- `apps/app/src/lib/browser-agent/useBrowserAgentBridge.test.tsx` — the
+  subscription a non-serving window's whole indicator hangs on: a signal from
+  another window is shown as being elsewhere, a reconnect stops the row
+  claiming a command that ended while the socket was down, and unmounting stops
+  the listening.
+- `apps/app/src/views/BrowserSurfaceView.test.tsx` — the placement, in the state
+  that used to lose it: with a Patcher screen holding the tab there is no
+  address bar, and the row is on screen anyway.
+- `apps/server/test/app/hub-browser-command.test.ts` — the other windows are
+  told and the performer is not, a command with nobody to name is not
+  announced, and the window still open gets the settle when the one doing the
+  work vanishes.
 - `apps/app/src/components/browser-surface/BrowserDrivingIndicator.test.tsx` —
   the label a person typed rather than the grant id, the level in the settings
   screen's words, **Pause** rather than revoke, Settings for a caller with no
   grant, and no button at all for a turn.
 - `apps/app/src/lib/ws.test.ts` — the issuer survives the app's lenient parse,
   which is the one place dropping it would look exactly like a server that never
-  sent it.
+  sent it; and `browser-driving` reaches its own subscribers rather than the
+  command ones, which would have a window perform an action nobody sent it.
 - `apps/app/src/views/SettingsView.browserAccessGrants.test.tsx` — three states
   that are not interchangeable: a pending read is not "no grants", a live grant
   offers both ways to stop it, a paused one says so and offers Resume, and a

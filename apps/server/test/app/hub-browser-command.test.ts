@@ -22,6 +22,35 @@ function okResponse(requestId: string): BrowserCommandResponseMessage {
   };
 }
 
+/** The grant a person named, as the window would show it. */
+const GRANT = {
+  kind: "grant",
+  grantId: "bag_1",
+  label: "Claude Code",
+  level: "read",
+} as const;
+
+function drivingSignals(
+  messages: string[],
+): Array<{
+  type?: string;
+  phase?: string;
+  requestId?: string;
+  issuer?: unknown;
+}> {
+  return messages
+    .map(
+      (raw) =>
+        JSON.parse(raw) as {
+          type?: string;
+          phase?: string;
+          requestId?: string;
+          issuer?: unknown;
+        },
+    )
+    .filter((message) => message.type === "browser-driving");
+}
+
 function sentRequestIds(messages: string[]): string[] {
   return messages
     .map((raw) => JSON.parse(raw) as { type?: string; requestId?: string })
@@ -287,6 +316,114 @@ describe("NotificationHub browser commands", () => {
       connected: true,
       browserHostId: "window-a",
       hostCount: 2,
+    });
+  });
+
+  it("tells the app's other windows who is driving, and not the one doing it", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+        issuer: GRANT,
+      },
+      timeoutMs: 1_000,
+    });
+
+    // The other window has no way to learn this otherwise: the command is sent
+    // once, to one socket, so a person reading a thread over there used to see
+    // an agent work with nothing on screen saying so.
+    expect(drivingSignals(watching.messages)).toEqual([
+      {
+        type: "browser-driving",
+        requestId: "r1",
+        phase: "started",
+        issuer: GRANT,
+      },
+    ]);
+    // And the window performing it is not told twice: it counts the command
+    // from the request itself, so an announcement here would have it show two
+    // commands in flight for one.
+    expect(drivingSignals(serving.messages)).toEqual([]);
+
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: okResponse("r1"),
+    });
+    await expect(pending).resolves.toEqual(okResponse("r1"));
+
+    expect(drivingSignals(watching.messages).at(-1)).toEqual({
+      type: "browser-driving",
+      requestId: "r1",
+      phase: "settled",
+      issuer: GRANT,
+    });
+  });
+
+  it("says nothing about a command with nobody to name", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      timeoutMs: 1_000,
+    });
+    hub.recordBrowserCommandResponse({
+      socket: serving,
+      message: okResponse("r1"),
+    });
+    await expect(pending).resolves.toEqual(okResponse("r1"));
+
+    // An absent issuer is the app's own browsing — the person's own work, in
+    // the window in front of them. An indicator for it would be on all the
+    // time, in every window.
+    expect(drivingSignals(watching.messages)).toEqual([]);
+  });
+
+  it("ends the other window's indicator when the serving window vanishes", async () => {
+    const hub = new NotificationHub();
+    const serving = createMockHubSocket();
+    const watching = createMockHubSocket();
+    hub.registerClient(serving);
+    hub.registerBrowserHost(serving, { browserHostId: "window-a" });
+    hub.registerBrowserHost(watching, { browserHostId: "window-b" });
+
+    const pending = hub.requestBrowserCommand({
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+        issuer: GRANT,
+      },
+      timeoutMs: 60_000,
+    });
+    const assertion = expect(pending).rejects.toThrow(
+      "No browser window is connected",
+    );
+
+    // The path that has no answer to carry the news: the window doing the work
+    // is gone, so nothing will ever settle that command. Its registration is
+    // already out of the map by the time this runs, which is why the audience
+    // is resolved by excluding the performer rather than by counting windows —
+    // counting would find one window left, decide there was nobody to tell,
+    // and leave the indicator up in the window that *is* still open.
+    hub.unregisterClient(serving);
+    await assertion;
+
+    expect(drivingSignals(watching.messages).at(-1)).toEqual({
+      type: "browser-driving",
+      requestId: "r1",
+      phase: "settled",
+      issuer: GRANT,
     });
   });
 

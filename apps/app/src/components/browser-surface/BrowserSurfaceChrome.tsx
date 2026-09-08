@@ -42,7 +42,6 @@ import {
   BrowserDownloadsButton,
   BrowserDownloadsPanel,
 } from "./BrowserDownloads";
-import { BrowserDrivingIndicator } from "./BrowserDrivingIndicator";
 import { BrowserTabHandover } from "./BrowserTabHandover";
 import { BrowserOmniboxSuggestions } from "./BrowserOmniboxSuggestions";
 import { BrowserPluginToolbar } from "./BrowserPluginToolbar";
@@ -602,13 +601,12 @@ export function BrowserSurfaceChrome({
           />
         )}
       </div>
-      {/* Under the toolbar and above the downloads panel, in the layout rather
-          than over the page: a native view composites above the DOM, so an
-          overlay would be invisible in the desktop app. */}
-      <BrowserDrivingIndicator onOpenAppRoute={onOpenAppRoute} />
-      {/* Below the indicator that says who is driving, because it is the same
-          agent asking for something — and it outlives the indicator, which
-          fades a few seconds after the last command. */}
+      {/* The indicator that says who is driving is not here: it belongs to the
+          window rather than to a page's chrome, so it rides the tab strip's row
+          in `BrowserSurfaceView` and is on screen while a person reads a thread
+          too. This is still where the handover prompt goes — it is about *this*
+          tab, and it outlives the indicator, which fades a few seconds after
+          the last command. */}
       <BrowserTabHandover />
       {isDownloadsOpen ? (
         <BrowserDownloadsPanel

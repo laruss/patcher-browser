@@ -16,6 +16,7 @@ import type {
 import type { UpdateBrowserTabArgs } from "@/components/secondary-panel/useThreadFileTabs";
 import { BrowserDevToolsPanel } from "@/components/browser-surface/BrowserDevToolsPanel";
 import { BrowserFindBar } from "@/components/browser-surface/BrowserFindBar";
+import { BrowserDrivingIndicator } from "@/components/browser-surface/BrowserDrivingIndicator";
 import { BrowserSurfaceChrome } from "@/components/browser-surface/BrowserSurfaceChrome";
 import { BrowserSurfaceTabStrip } from "@/components/browser-surface/BrowserSurfaceTabStrip";
 import { BrowserTabSwitcher } from "@/components/browser-surface/BrowserTabSwitcher";
@@ -1060,6 +1061,13 @@ export function BrowserSurfaceView({
         tabOwners={tabOwners}
         tabs={state.tabs}
       />
+      {/* Directly under the tab strip, and outside the chrome below it, because
+          this one is about the window and not about a page: the strip is the one
+          row on screen for *every* desktop route, so an agent driving a tab is
+          visible while the person is reading a thread, in Settings, or in a
+          Patcher screen that has taken a tab. Above the address bar for the same
+          reason — it is not a fact about the page underneath it. */}
+      <BrowserDrivingIndicator onOpenAppRoute={openAppRoute} />
       {/* No address bar over an app screen: Patcher's own screens are not pages to
           type a URL into, and an omnibox that could not describe what is below
           it would be chrome pretending to drive something. */}

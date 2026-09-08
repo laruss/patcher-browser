@@ -356,6 +356,60 @@ describe("WebSocketManager browser commands", () => {
     expect(browserCommand.mock.calls[0]?.[0]?.issuer).toBeUndefined();
   });
 
+  it("routes who-is-driving to its own subscribers, and never as a command", () => {
+    // The two signals are one fact from two sides: the window that has to
+    // perform the command gets the command, every other window gets this. A
+    // window that handled this one as a command would try to perform a browser
+    // action nobody sent it.
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    const browserCommand = vi.fn();
+    const changed = vi.fn();
+    manager.onBrowserDriving(driving);
+    manager.onBrowserCommand(browserCommand);
+    manager.onChanged(changed);
+
+    const signal = {
+      type: "browser-driving",
+      requestId: "req_1",
+      phase: "started",
+      issuer: { kind: "outside" },
+    } as const;
+    dispatchRaw(signal);
+
+    expect(driving).toHaveBeenCalledWith(signal);
+    expect(browserCommand).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("drops a driving signal it cannot read, and drives nothing on it", () => {
+    // Unlike a command, there is nothing here to degrade to: the whole content
+    // is who is driving, so an issuer kind this app does not know leaves
+    // nothing to show and the signal is dropped — no indicator, which is what
+    // this window showed before the signal existed. It falls through to the
+    // changed-message parser like any unrecognised message and is logged there;
+    // asserted rather than prevented, because that is what this app does with
+    // every message a newer server invents.
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    const changed = vi.fn();
+    manager.onBrowserDriving(driving);
+    manager.onChanged(changed);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_2",
+      phase: "started",
+      issuer: { kind: "plugin", pluginId: "something-new" },
+    });
+
+    expect(driving).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+
   it("re-announces the browser host after a reconnect", () => {
     const { manager, socket } = createConnectedManager();
     manager.registerBrowserHost("window-a");

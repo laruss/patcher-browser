@@ -21,12 +21,27 @@ import { browserIssuerKey } from "./issuer";
  * would read as "it stopped" every second. It stays for a few seconds after the
  * last command settles, which also covers the gap between a command finishing
  * and the agent's next one arriving.
+ *
+ * **Two windows, one browser.** Only one window serves the agent's commands —
+ * the server addresses the host that claimed the role first — so in every other
+ * window this is fed by the server's `browser-driving` signal instead of by the
+ * commands themselves, and says so: the tabs being driven are not the ones that
+ * window is showing.
  */
 
 export interface BrowserDrivingState {
   issuer: BrowserCommandIssuer;
   /** True while one of this issuer's commands has not answered yet. */
   active: boolean;
+  /**
+   * True when the driving is happening in another window of this app.
+   *
+   * The difference is what the person can do about it: in this window they can
+   * watch the tab, and in the other one they cannot see it at all — so an
+   * indicator that said the same thing in both would be telling one of them to
+   * look at something that is not there.
+   */
+  elsewhere: boolean;
 }
 
 export const browserDrivingAtom = atom<BrowserDrivingState | null>(null);
@@ -35,11 +50,28 @@ export const browserDrivingAtom = atom<BrowserDrivingState | null>(null);
 export const BROWSER_DRIVING_LINGER_MS = 4_000;
 
 export interface BrowserDrivingTracker {
-  /** A command has arrived. Undefined issuers — the app's own work — do nothing. */
-  started(issuer: BrowserCommandIssuer | undefined): void;
+  /**
+   * A command has arrived. Undefined issuers — the app's own work — do nothing.
+   *
+   * `elsewhere` is the window it is being performed in, not the window it is
+   * being reported in: a `browser-driving` signal is only ever sent to windows
+   * that are not doing it.
+   */
+  started(
+    issuer: BrowserCommandIssuer | undefined,
+    options?: { elsewhere?: boolean },
+  ): void;
   /** That command has answered, one way or the other. */
   settled(issuer: BrowserCommandIssuer | undefined): void;
-  /** The window is going away: drop the timer and the indicator. */
+  /**
+   * Drop the timer and the indicator.
+   *
+   * Two occasions, and the second is why this is not only teardown: the window
+   * is going away, or the connection it was learning this from broke and came
+   * back — a `settled` that was sent while the socket was down is not resent,
+   * and an indicator held up by a command that ended is worse than one that
+   * lights again on the next command.
+   */
   dispose(): void;
 }
 
@@ -62,10 +94,10 @@ export function createBrowserDrivingTracker(
   /** Per driver: how many of its commands are unanswered, and who it is. */
   const inFlight = new Map<
     string,
-    { count: number; issuer: BrowserCommandIssuer }
+    { count: number; elsewhere: boolean; issuer: BrowserCommandIssuer }
   >();
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let current: string | null = null;
+  let current: { elsewhere: boolean; key: string } | null = null;
 
   function clearTimer(): void {
     if (timer === null) return;
@@ -81,37 +113,47 @@ export function createBrowserDrivingTracker(
    * oldest driver, and "who moved last" is the rule everything else here
    * follows.
    */
-  function stillDriving(except: string): BrowserCommandIssuer | undefined {
+  function stillDriving(
+    except: string,
+  ): { elsewhere: boolean; issuer: BrowserCommandIssuer } | undefined {
     for (const [key, entry] of [...inFlight].reverse()) {
-      if (key !== except && entry.count > 0) return entry.issuer;
+      if (key !== except && entry.count > 0) {
+        return { elsewhere: entry.elsewhere, issuer: entry.issuer };
+      }
     }
     return undefined;
   }
 
   return {
-    started(issuer) {
+    started(issuer, options) {
       if (issuer === undefined) return;
       const key = browserIssuerKey(issuer);
+      const elsewhere = options?.elsewhere === true;
       const held = inFlight.get(key);
       // Deleted before it is set, so the map stays in order of who started most
       // recently: `Map.set` on an existing key keeps its old position, and that
       // order is what a handover reads.
       inFlight.delete(key);
-      inFlight.set(key, { count: (held?.count ?? 0) + 1, issuer });
-      current = key;
+      inFlight.set(key, { count: (held?.count ?? 0) + 1, elsewhere, issuer });
+      current = { elsewhere, key };
       clearTimer();
-      args.set({ issuer, active: true });
+      args.set({ issuer, active: true, elsewhere });
     },
     settled(issuer) {
       if (issuer === undefined) return;
       const key = browserIssuerKey(issuer);
-      const left = Math.max((inFlight.get(key)?.count ?? 0) - 1, 0);
+      const held = inFlight.get(key);
+      const left = Math.max((held?.count ?? 0) - 1, 0);
+      // Which window it was in is read from what `started` recorded rather than
+      // passed in again: a settle carries no news about where the command ran,
+      // and asking the caller for it twice is how the two halves disagree.
+      const elsewhere = held?.elsewhere ?? current?.elsewhere === true;
       if (left === 0) inFlight.delete(key);
-      else inFlight.set(key, { count: left, issuer });
+      else inFlight.set(key, { count: left, elsewhere, issuer });
       // Somebody else started driving while this command was in the air. Their
       // indicator is the current one and this answer must not replace it.
-      if (current !== key) return;
-      args.set({ issuer, active: left > 0 });
+      if (current?.key !== key) return;
+      args.set({ issuer, active: left > 0, elsewhere });
       if (left > 0) return;
       // This driver has stopped, but somebody else has not. Hand the indicator
       // over now rather than lingering on a name that is finished — and never
@@ -120,15 +162,22 @@ export function createBrowserDrivingTracker(
       // lying when it happens anyway.
       const other = stillDriving(key);
       if (other !== undefined) {
-        current = browserIssuerKey(other);
+        current = {
+          elsewhere: other.elsewhere,
+          key: browserIssuerKey(other.issuer),
+        };
         clearTimer();
-        args.set({ issuer: other, active: true });
+        args.set({
+          issuer: other.issuer,
+          active: true,
+          elsewhere: other.elsewhere,
+        });
         return;
       }
       clearTimer();
       timer = setTimeout(() => {
         timer = null;
-        if (current !== key || (inFlight.get(key)?.count ?? 0) > 0) return;
+        if (current?.key !== key || (inFlight.get(key)?.count ?? 0) > 0) return;
         current = null;
         args.set(null);
       }, BROWSER_DRIVING_LINGER_MS);

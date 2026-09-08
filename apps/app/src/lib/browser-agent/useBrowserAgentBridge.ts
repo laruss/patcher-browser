@@ -89,6 +89,29 @@ export function useBrowserAgentBridge(): void {
       },
     });
 
+    // The same fact for a window that is not serving: only one window is sent
+    // the commands, so every other one would show nothing while an agent works
+    // (`browser-driving`, ws/hub.ts). Fed into the same tracker, so the linger
+    // and the handover between two drivers are one implementation rather than
+    // two that drift — and a window is only ever sent one of the two, so
+    // nothing is counted twice.
+    const unsubscribeDriving = wsManager.onBrowserDriving((signal) => {
+      if (signal.phase === "started") {
+        driving.started(signal.issuer, { elsewhere: true });
+        return;
+      }
+      driving.settled(signal.issuer);
+    });
+
+    // A reconnect is where this window's copy of "who is driving" can be
+    // wrong: a settle sent while the socket was down is not resent, and the
+    // indicator would stay up for a command that has ended. The serving window
+    // pays a little for the same rule — a command it is still performing stops
+    // showing until its next one — which is the honest side of the trade.
+    const unsubscribeConnected = wsManager.onConnected(({ reconnected }) => {
+      if (reconnected) driving.dispose();
+    });
+
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {
       driving.started(signal.issuer);
       void executeBrowserCommand(signal.command, {
@@ -182,6 +205,8 @@ export function useBrowserAgentBridge(): void {
     return () => {
       wsManager.unregisterBrowserHost(browserHostId);
       unsubscribeCommands();
+      unsubscribeDriving();
+      unsubscribeConnected();
       unsubscribeLiveState();
       driving.dispose();
       queue.dispose();
