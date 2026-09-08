@@ -756,7 +756,11 @@ Named here rather than left to be rediscovered.
   which can be wired wrong invisibly: a command this window performs is written
   down as *this window* renders it, a settle's outcome is taken off the frame
   rather than guessed, no answer is recorded as no answer, and a reconnect ends
-  the other window's open rows while leaving this window's running.
+  the other window's open rows while leaving this window's running. And how a
+  command *this* window performed ends, which no frame can stand in for since
+  the server tells the performer nothing: a refusal keeps its own code, a
+  success reads done, and a bug in the executor is recorded as the
+  `invalid_command` the agent is sent.
 - `apps/app/src/views/BrowserSurfaceView.test.tsx` — the placement, in the state
   that used to lose it: with a Patcher screen holding the tab there is no
   address bar, and the row is on screen anyway.
@@ -782,9 +786,12 @@ Named here rather than left to be rediscovered.
   which is the one place dropping it would look exactly like a server that never
   sent it; and `browser-driving` reaches its own subscribers rather than the
   command ones, which would have a window perform an action nobody sent it —
-  including the one place the strict and lenient schemas disagree on purpose, a
-  frame missing the command or the outcome, which is still shown for who is
-  driving rather than dropped.
+  including the two places the strict and lenient schemas disagree on purpose: a
+  frame missing the command or the outcome is still shown for who is driving
+  rather than dropped, and so is one where a newer server has added a field
+  *inside* either of them — which a strict nested schema would have rejected
+  whole, leaving a `settled` nobody else can deliver and an indicator on until
+  the next reconnect.
 - `packages/domain/test/browser-command-description.test.ts` — the words both
   records use: what was typed is kept, a storage write names its keys and not
   their values, a cookie write is not spelled out at all, and a command that
