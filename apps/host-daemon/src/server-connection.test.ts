@@ -353,8 +353,9 @@ describe("ServerConnection", () => {
     }
   });
 
-  it("closes the connection when a terminal websocket send throws", async () => {
-    const { connection, webSocket } = createConnectionFixture();
+  it("opens a fresh session when a terminal websocket send throws", async () => {
+    const { connection, openSession, setSession, webSocket } =
+      createConnectionFixture({ sessionIds: ["session-1", "session-2"] });
     try {
       await connection.start();
       const socket = webSocket.sockets[0];
@@ -375,7 +376,138 @@ describe("ServerConnection", () => {
           },
         }),
       ).toBe(false);
-      expect(socket.close).toHaveBeenCalledWith(1013, "send-failed");
+
+      // close() is what partysocket reads as "stop for good", so a failed send
+      // must never use it: the session has to come back on its own.
+      expect(socket.close).not.toHaveBeenCalled();
+      expect(socket.reconnect).toHaveBeenCalledWith(1013, "send-failed");
+      // Not merely a second openSession call: the replacement socket has to
+      // reach the open handler with the new session behind it.
+      await vi.waitFor(() => {
+        expect(setSession).toHaveBeenLastCalledWith(
+          expect.objectContaining({ sessionId: "session-2" }),
+        );
+      });
+      expect(openSession).toHaveBeenCalledTimes(2);
+    } finally {
+      await connection.shutdown();
+    }
+  });
+
+  it("keeps a recoverable message for the next session when its send throws", async () => {
+    const { connection, webSocket } = createConnectionFixture({
+      sessionIds: ["session-1", "session-2"],
+    });
+    try {
+      await connection.start();
+      const socket = webSocket.sockets[0];
+      if (!socket) {
+        throw new Error("Expected test socket");
+      }
+      const change = {
+        type: "environment-change" as const,
+        environmentId: "env-1",
+        change: "thread-storage-changed" as const,
+      };
+      vi.mocked(socket.send).mockImplementationOnce(() => {
+        throw new Error("send failed");
+      });
+
+      expect(connection.sendMessage(change)).toBe(false);
+
+      // Every caller of this message kind discards that false, so the map
+      // replayed on open is the only thing that can still deliver the change.
+      await vi.waitFor(() => {
+        expect(socket.send).toHaveBeenCalledTimes(2);
+      });
+      const replayed = vi.mocked(socket.send).mock.calls[1]?.[0];
+      expect(JSON.parse(replayed ?? "null")).toEqual(change);
+    } finally {
+      await connection.shutdown();
+    }
+  });
+
+  it("opens a fresh session when the terminal output queue overflows", async () => {
+    const { connection, openSession, setSession, webSocket } =
+      createConnectionFixture({ sessionIds: ["session-1", "session-2"] });
+    try {
+      await connection.start();
+      const socket = webSocket.sockets[0];
+      if (!socket) {
+        throw new Error("Expected test socket");
+      }
+      // Above high water nothing reaches the socket, so valid output piles up
+      // in the daemon's own queue until it passes the 32 MiB limit — the shape
+      // of a slow connection under a chatty terminal.
+      webSocket.setBufferedAmount(socket, 2 * 1024 * 1024);
+      // The largest chunk the wire schema accepts, so nothing here is rejected
+      // for being malformed on the way to the limit.
+      const dataBase64 = Buffer.alloc(64 * 1024, 0x61).toString("base64");
+
+      let accepted = true;
+      for (let seq = 0; accepted && seq < 512; seq += 1) {
+        accepted = connection.sendMessage({
+          type: "terminal.output",
+          terminalId: "term-1",
+          chunk: { seq, dataBase64 },
+        });
+      }
+
+      expect(accepted).toBe(false);
+      expect(socket.close).not.toHaveBeenCalled();
+      expect(socket.reconnect).toHaveBeenCalledWith(
+        1013,
+        "terminal-backpressure",
+      );
+      await vi.waitFor(() => {
+        expect(setSession).toHaveBeenLastCalledWith(
+          expect.objectContaining({ sessionId: "session-2" }),
+        );
+      });
+      expect(openSession).toHaveBeenCalledTimes(2);
+    } finally {
+      await connection.shutdown();
+    }
+  });
+
+  it("opens a fresh session when draining queued terminal output throws", async () => {
+    vi.useFakeTimers();
+    const { connection, openSession, setSession, webSocket } =
+      createConnectionFixture({ sessionIds: ["session-1", "session-2"] });
+    try {
+      await connection.start();
+      const socket = webSocket.sockets[0];
+      if (!socket) {
+        throw new Error("Expected test socket");
+      }
+      webSocket.setBufferedAmount(socket, 2 * 1024 * 1024);
+
+      expect(
+        connection.sendMessage({
+          type: "terminal.output",
+          terminalId: "term-1",
+          chunk: {
+            seq: 0,
+            dataBase64: Buffer.from("hello").toString("base64"),
+          },
+        }),
+      ).toBe(true);
+      expect(socket.send).not.toHaveBeenCalled();
+
+      // The buffer drops back below high water, and the drain that follows
+      // finds the socket unable to take the payload after all.
+      webSocket.setBufferedAmount(socket, 0);
+      vi.mocked(socket.send).mockImplementation(() => {
+        throw new Error("send failed");
+      });
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(socket.close).not.toHaveBeenCalled();
+      expect(socket.reconnect).toHaveBeenCalledWith(1013, "send-failed");
+      expect(openSession).toHaveBeenCalledTimes(2);
+      expect(setSession).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sessionId: "session-2" }),
+      );
     } finally {
       await connection.shutdown();
     }
