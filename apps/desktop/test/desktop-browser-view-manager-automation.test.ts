@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH } from "@patcher/desktop-contract";
+import { PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS } from "../src/desktop-browser-cdp-deadline.js";
 import {
   PATCHER_BROWSER_ACTIONABILITY_SCRIPT,
   PATCHER_BROWSER_PREPARE_FILL_SCRIPT,
@@ -36,12 +37,15 @@ beforeEach(resetElectronMock);
 // so the app has to draw one, and the native view has to get out of the way. A
 // dialog left half-handled is a wedged tab, which is the bug this replaces.
 describe("DesktopBrowserViewManager dialogs", () => {
-  async function attachTabWithDialogs(): Promise<{
+  interface DialogHarness {
     hostWindow: FakeHostWindow;
     manager: DesktopBrowserViewManager;
     webContents: ReturnType<typeof requireFakeView>["webContents"];
     view: ReturnType<typeof requireFakeView>;
-  }> {
+  }
+
+  /** A tab automation has not touched yet, so its `Page.enable` is still to come. */
+  function attachTabForDialogs(): DialogHarness {
     const manager = createDesktopBrowserViewManager({
       partition: "persist:test",
     });
@@ -59,9 +63,17 @@ describe("DesktopBrowserViewManager dialogs", () => {
     view.webContents.debugger.results.set("Accessibility.getFullAXTree", {
       nodes: [{ nodeId: "1", role: { value: "main" } }],
     });
-    // Dialog interception rides the same lazy attach automation pays for.
-    await manager.snapshot({ hostWindow, request: { tabId: "browser:a" } });
     return { hostWindow, manager, view, webContents: view.webContents };
+  }
+
+  async function attachTabWithDialogs(): Promise<DialogHarness> {
+    const harness = attachTabForDialogs();
+    // Dialog interception rides the same lazy attach automation pays for.
+    await harness.manager.snapshot({
+      hostWindow: harness.hostWindow,
+      request: { tabId: "browser:a" },
+    });
+    return harness;
   }
 
   function dialogPushesOf(hostWindow: FakeHostWindow): unknown[] {
@@ -80,6 +92,12 @@ describe("DesktopBrowserViewManager dialogs", () => {
   ): void {
     webContents.debugger.emitMessage("Page.javascriptDialogOpening", params);
   }
+
+  // One of the tests below runs the clock itself; a throw before it gives the
+  // timers back would otherwise hand fake ones to whatever runs next.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("enables the Page domain so dialogs reach us at all", async () => {
     const { webContents } = await attachTabWithDialogs();
@@ -112,6 +130,86 @@ describe("DesktopBrowserViewManager dialogs", () => {
         (command) => command.method === "Page.enable",
       ),
     ).toHaveLength(2);
+  });
+
+  // #111 is the same flag from the other side: it was claimed before the send
+  // that earns it, so an enable that failed left the tab marked as wired with
+  // the domain off. Every command after it short-circuited on the flag and
+  // reported success while the tab's dialogs were back on Chromium's native
+  // modal, which no agent and no Patcher UI can answer.
+  it("enables the Page domain again after an enable that failed", async () => {
+    const { hostWindow, manager, view, webContents } = attachTabForDialogs();
+    webContents.debugger.failures.set("Page.enable", new Error("target busy"));
+
+    await expect(
+      manager.snapshot({ hostWindow, request: { tabId: "browser:a" } }),
+    ).resolves.toMatchObject({ ok: false, reason: "failed" });
+
+    webContents.debugger.failures.delete("Page.enable");
+    await expect(
+      manager.snapshot({ hostWindow, request: { tabId: "browser:a" } }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(
+      webContents.debugger.commands.filter(
+        (command) => command.method === "Page.enable",
+      ),
+    ).toHaveLength(2);
+
+    // The point of the retry, rather than the send that carries it: this tab's
+    // dialogs reach the app again.
+    openDialog(webContents, {
+      type: "confirm",
+      message: "Sure?",
+      defaultPrompt: "",
+    });
+    expect(view.visible).toBe(false);
+    expect(dialogPushesOf(hostWindow).at(-1)).toMatchObject({
+      dialog: { type: "confirm", message: "Sure?" },
+    });
+  });
+
+  // The other half of that ordering, and the reason the retry above is not
+  // bought by enabling first and subscribing after: Chromium's browser-side
+  // handler takes this tab's dialogs when it dispatches `Page.enable`, not when
+  // the renderer answers it — and #96 gave that answer a five-second clock. A
+  // send that is abandoned and lands anyway must find the listeners already
+  // there, or the dialog is intercepted with nobody to report it.
+  it("keeps the tab's dialogs when the enable stalls and lands late", async () => {
+    const { hostWindow, manager, view, webContents } = attachTabForDialogs();
+    let landEnable: (() => void) | null = null;
+    webContents.debugger.results.set(
+      "Page.enable",
+      () =>
+        new Promise((resolve) => {
+          landEnable = () => resolve({});
+        }),
+    );
+
+    vi.useFakeTimers();
+    const stalled = manager.snapshot({
+      hostWindow,
+      request: { tabId: "browser:a" },
+    });
+    await vi.advanceTimersByTimeAsync(PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS);
+    await expect(stalled).resolves.toMatchObject({
+      ok: false,
+      reason: "page-stalled",
+    });
+    vi.useRealTimers();
+
+    // The renderer answers after we stopped waiting; the domain is on either
+    // way, so the next dialog is ours whether we asked for it or not.
+    (landEnable as (() => void) | null)?.();
+    openDialog(webContents, {
+      type: "alert",
+      message: "Late",
+      defaultPrompt: "",
+    });
+
+    expect(view.visible).toBe(false);
+    expect(dialogPushesOf(hostWindow).at(-1)).toMatchObject({
+      dialog: { type: "alert", message: "Late" },
+    });
   });
 
   it("gives the page back when the debugger goes with a dialog open", async () => {

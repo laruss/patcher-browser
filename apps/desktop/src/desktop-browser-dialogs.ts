@@ -87,6 +87,26 @@ export function createBrowserDialogInterception({
    * and also the cost (a human now sees the app's dialog instead of the
    * system's). It happens per tab, on the same lazy attach automation pays for,
    * so a tab nobody has automated keeps the native behaviour.
+   *
+   * **`dialogsWired` says the listeners are attached to *this* session, and
+   * nothing else.** It is not a record that the domain is on: that belongs to
+   * `CdpSession`, which enables a domain once, forgets an attempt that failed,
+   * and is happy to be asked again. So the enable is sent on every call and a
+   * failure is retried by the next command that needs it — where the flag used
+   * to be set before the send that earns it, one transient failure returned a
+   * tab's dialogs to Chromium's native modal for the life of the tab, silently,
+   * with every later command reporting success (#111).
+   *
+   * **Subscribing before the enable is the half that must not be reordered.**
+   * Chromium's browser-side handler starts intercepting this tab's dialogs when
+   * it dispatches `Page.enable`, not when the renderer answers it — and #96 put
+   * a five-second clock on that answer, so a send can be abandoned and still
+   * land, or land before it is answered. A dialog arriving on a domain nobody
+   * is listening to is worse than the bug above: `pendingDialog` stays null, so
+   * the app draws nothing and `respondToDialog` refuses. Claiming the tab first
+   * also means two overlapping callers cannot stack a second copy of both
+   * listeners — `CdpSession.on` holds a `Set` and each call passes a fresh
+   * closure, so it would not dedupe them.
    */
   async function ensureDialogInterception(
     hostWindow: DesktopBrowserHostWindow,
@@ -94,43 +114,41 @@ export function createBrowserDialogInterception({
     entry: BrowserViewEntry,
     session: CdpSession,
   ): Promise<void> {
-    if (entry.dialogsWired) {
-      return;
-    }
-    entry.dialogsWired = true;
-
-    session.on("Page.javascriptDialogOpening", (params) => {
-      const opening = params as {
-        type?: string;
-        message?: string;
-        defaultPrompt?: string;
-      };
-      const type = opening.type ?? "alert";
-      entry.pendingDialog = {
-        type:
-          type === "confirm" || type === "prompt" || type === "beforeunload"
-            ? type
-            : "alert",
-        message: truncate(
-          opening.message ?? "",
-          PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
-        ),
-        defaultPrompt: truncate(
-          opening.defaultPrompt ?? "",
-          PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
-        ),
-      };
-      captureDialogPlaceholder(hostWindow, tabId, entry);
-      applyEntryVisibility(entry, hostWindow);
-      send(hostWindow, PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL, {
-        tabId,
-        dialog: entry.pendingDialog,
+    if (!entry.dialogsWired) {
+      entry.dialogsWired = true;
+      session.on("Page.javascriptDialogOpening", (params) => {
+        const opening = params as {
+          type?: string;
+          message?: string;
+          defaultPrompt?: string;
+        };
+        const type = opening.type ?? "alert";
+        entry.pendingDialog = {
+          type:
+            type === "confirm" || type === "prompt" || type === "beforeunload"
+              ? type
+              : "alert",
+          message: truncate(
+            opening.message ?? "",
+            PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+          ),
+          defaultPrompt: truncate(
+            opening.defaultPrompt ?? "",
+            PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
+          ),
+        };
+        captureDialogPlaceholder(hostWindow, tabId, entry);
+        applyEntryVisibility(entry, hostWindow);
+        send(hostWindow, PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL, {
+          tabId,
+          dialog: entry.pendingDialog,
+        });
       });
-    });
 
-    session.on("Page.javascriptDialogClosed", () => {
-      clearPendingDialog(hostWindow, tabId, entry);
-    });
+      session.on("Page.javascriptDialogClosed", () => {
+        clearPendingDialog(hostWindow, tabId, entry);
+      });
+    }
 
     // Bounded here rather than at each of the five commands that call this:
     // it is the one send the function makes, and every caller wants it bounded.
