@@ -830,8 +830,22 @@ rather than selecting the tab it landed on.
 Two differences from that strip, both because this one is simpler: the drag is
 restricted to the horizontal axis and there is **no lifted clone** portaled out
 to `document.body`. The panel's strip scrolls, so a translated tab would be
-clipped by its viewport; this one is a single row that clips rather than scrolls,
-and the sort happens inside it, so the tab never leaves the box.
+clipped by its viewport; this one is a single row, and the sort happens inside
+it.
+
+What it does instead is **hand the clip outwards for as long as a tab is in the
+air**. The tab list ends where the last tab does — that is what puts the new-tab
+button after it rather than at the far edge — so clipping to the list made that
+button a wall: a tab carried towards it was cut off at the button's edge, and
+could not be seen crossing the space it is allowed to land in. While a tab is
+carried the list stops clipping and the strip row clips instead, so the tab
+travels the whole row and still nothing escapes the strip. The carried tab draws
+_over_ the new-tab button, being the positioned one, while the tabs that stayed
+put pass under it — so a crowded strip still shows the way to open another tab
+mid-drag. That is Chromium's arrangement too: it anchors that button to the
+trailing edge of the last tab's _ideal_ bounds, so the button travels with the
+tabs and never stands in a carried one's way. Where a tab may be _dropped_ is
+unchanged; the button is not a position in the strip.
 
 The drop resolves to an index and goes through `moveBrowserSurfaceTab`, which is
 also what `tabs.move` calls. The index is **clamped into the tab's own block**
