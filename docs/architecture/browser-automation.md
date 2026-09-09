@@ -100,7 +100,7 @@ equivalent of `install --skills`.
 | Core — `eval`                                                       | done                          | `Runtime.callFunctionOn` in the page's own world                                                              |
 | Core — `run-code`                                                   | **out**                       | PW's is a driver-side script with the Playwright API; ours would be arbitrary code in the shell — see Stage E |
 | Core — `wait-for`                                                   | **Stage G**                   | polled in the CLI over the primitives that exist — text, snapshot, URL, the tab's network log                 |
-| Core — `scroll`                                                     | **Stage G**                   | fixed expressions through `control.evaluate`; see the note in Stage G on where it belongs                     |
+| Core — `scroll`                                                     | **Stage G**                   | `page.scroll`, a command of its own since #115; the app's fixed expressions, sent as an `evaluate`            |
 | DevTools — tracing                                                  | done                          | our own action log, kept in the app (see Stage F)                                                             |
 | DevTools — video                                                    | done                          | `Page.startScreencast` → frames + timings; the system's ffmpeg encodes on `--encode`                          |
 | Sessions (`-s`, `--profile`, `--persistent`)                        | **n/a**                       | PW runs separate browsers; ours is the user's one browser, and tabs are the unit                              |
@@ -175,14 +175,29 @@ takes `--page` (the default), `--top`, `--bottom`, `--by <px>` or a ref, and
 answers with the offset, the document height and the viewport — so an endless feed
 can say "there is more" instead of leaving the caller to guess.
 
-It rides `control.evaluate` with four fixed expressions, which is the one
-compromise in this stage: that channel costs `page.inject`, the arbitrary-JS
+It shipped riding `control.evaluate` with four fixed expressions, which was the
+one compromise in this stage: that channel costs `page.inject`, the arbitrary-JS
 permission, for something that should cost `page.interact`. Nothing a caller
-supplies reaches the page (`--by` is an integer by the time it gets there), so it
-is safe — but a plugin wanting `scroll` would have to declare `page.inject` for
-it. The right home is a new interaction on its own shell channel, next to the
-actionability wait; that is a follow-up, not a blocker, and this note is here so
-it is a decision rather than an oversight.
+supplied reached the page (`--by` is an integer by the time it gets there), so it
+was safe — but an `interact` agent asked to read a long page was refused it, and
+a plugin wanting `scroll` had to declare `page.inject` for it.
+
+**Fixed in #115, on the price rather than on the channel.** `page.scroll` is now
+a browser command of its own, priced `page.interact` in
+`permissionForBrowserCommand` beside `page.zoom`, carrying a target union
+(`page`, `top`, `bottom`, `by <pixels>`, `element <ref>`) rather than an
+expression. The expressions moved out of `plugins/browser-tools` and into
+`apps/app/src/lib/browser-agent/scroll.ts`, which is what makes "the code is
+ours" true below the command as well as inside one plugin: the only thing a
+caller contributes is an integer the schema has already checked.
+
+What did **not** change is how it travels. The shell wire is frozen and has no
+scroll of its own, so the app still sends an ordinary `evaluate` — which means
+the fix works against every desktop build, and also that the note's original
+answer is still open: the right home for the _channel_ is a scroll on the shell
+wire, next to the actionability wait, negotiated the way invariant 2 sanctions.
+That is a follow-up, and this paragraph is here so it stays a decision rather
+than an oversight.
 
 **Two smaller ones, same shape.** `status` answered `{connected, windowCount}` —
 true, and not the question, which is "can I act, and where am I": it now carries

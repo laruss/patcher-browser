@@ -60,7 +60,7 @@ The complete manifest, with the optional fields SKILL.md leaves out:
   | `tabs.read`             | `browser.tabs.list`, `page.url`, `page.title`                                                                                             |
   | `tabs.modify`           | opening, closing, activating tabs, `browser.tabs.pin/mute/duplicate/move`, `browser.navigation.*`                                         |
   | `page.read`             | page text, selection, snapshot, screenshot, PDF, console                                                                                  |
-  | `page.interact`         | `page.act`, answering page dialogs, mouse input, `page.zoom`                                                                              |
+  | `page.interact`         | `page.act`, `page.scroll`, answering page dialogs, mouse input, `page.zoom`                                                               |
   | `page.inject`           | `browser.control.evaluate` — arbitrary JavaScript in the page                                                                             |
   | `network.observe`       | the page's network log, including headers                                                                                                 |
   | `network.intercept`     | route mocking, unrouting, forcing a tab offline                                                                                           |
