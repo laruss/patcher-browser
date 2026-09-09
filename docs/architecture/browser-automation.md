@@ -330,9 +330,12 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   `desktop-browser-cdp-deadline.ts` wraps the session the action's own sends go
   out on, because a CDP send has no deadline of its own and the renderer is what
   answers most of them: measured on a real window, `Input.dispatchMouseEvent`
-  into a tab Chromium is producing no frames for is _never_ acknowledged, so
-  before this every click into an agent's own background tab hung until the tab
-  went — holding that tab's queue with it. The refusal it makes is the only one
+  into a tab Chromium is producing no frames for is answered only by Chromium's
+  own fallback at ~5s, or — for a wheel — not at all, so before this every click
+  into an agent's own background tab hung until the tab went, holding that tab's
+  queue with it. (Re-measured for #114: "never acknowledged" was the wheel and
+  the pre-deadline hang; a move does arrive, five seconds late. The bullet below
+  is why neither happens on a tab this shell is driving.) The refusal it makes is the only one
   on this path that cannot say nothing happened, so it says the opposite: look
   at the page. Its budget is **per send**, not per action, so the `type` rule
   above still holds — a slow page finishes late rather than halfway. The reads
@@ -341,6 +344,46 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   caller's own code), and `page_stalled` is their code: `failed` would have the
   app replace the sentence naming the dialog with "the page could not be
   inspected".
+- **A driven tab is kept rendering, because pointer input is frame-aligned.**
+  Chromium dispatches `mousemove` and `wheel` on the renderer's next main frame,
+  and a `WebContentsView` nobody is showing produces none — so those two waited
+  for the fallback above while key events, `mousePressed`/`mouseReleased` and
+  every read answered in about a millisecond on the same tab in the same second.
+  That is #114, and the states that cause it are ordinary: a tab in the deck's
+  background, a menu or dialog over the page area, a resize burst, a minimised
+  or covered window, a sleeping display. `keepPageRendering`
+  (`desktop-browser-interact.ts`) turns background throttling off for the tab
+  while an interaction or a vision-mode pointer operation runs, and gives it
+  back afterwards.
+
+  **Measured** (Electron 41.7.0, macOS, 2026-09-09), the same view before and
+  after the call: `requestAnimationFrame` 0/s → 120/s, `mouseMoved` 5001-5008ms
+  → 1-3ms, `mouseWheel` unanswered → answered, and a synthesised click lands on
+  the element it was aimed at. Unchanged for a view hidden before it ever
+  painted, and with the display asleep.
+
+  **What it costs, and it is a policy rather than a repair.** Giving the
+  throttling back does not stop the frames of the document already running:
+  Chromium keeps the widget in the shown state it was forced into until it is
+  next hidden, so a driven tab renders — and reports itself `visible`, with
+  timers at full rate — until the view is hidden again or the tab navigates.
+  Electron also draws the whole window's frames while any one of its
+  `webContents` has throttling off. For a tab an agent is driving that is mostly
+  what automation wants, since the consequences of a click have to run for the
+  next snapshot to see them.
+
+  The narrower lever, measured and not taken: `capturePage(rect, { stayHidden:
+true })` forces one frame and flushes the queued events — the abandoned send
+  is answered at the capture, the page stays `hidden`, and it works on a
+  minimised window. One frame per event leaves the page frozen between them, so
+  the click lands and nothing it triggers ever runs.
+
+  **Abandoned input is queued, not dropped** (the question `docs/TODO.md` left
+  open): five sends abandoned before the fallback delivered nothing while the
+  view was hidden, then all of them arrived the moment frames resumed. So a
+  caller that retried a stalled click stacked clicks that all landed later —
+  which is what makes fixing the cause worth more than improving the refusal.
+
 - **One `interact` channel**, not one per verb. Every action shares the same
   preamble (resolve the ref, check the generation, wait for actionability), and a
   channel per verb would freeze nine copies of it across a wire-frozen boundary.
@@ -407,7 +450,11 @@ added afterwards that cannot avoid it. That is the property the whole stage is
 built around, and it is why the mechanisms moved:
 
 - **`screenshot`** — `capturePage()`, the visible viewport, JPEG by default and
-  PNG on request. Full-page is the exception below.
+  PNG on request. Full-page is the exception below. It is also the one read here
+  with a side effect on the page: `capturePage()` with Electron's defaults makes
+  a hidden page visible for the capture, which fires `visibilitychange` in the
+  page and flushes whatever pointer events were queued for a frame (measured for
+  #114; `{ stayHidden: true }` is the form that does not).
 - **`pdf`** — `printToPDF()`, which _is_ the whole document. It is also the one
   call that can come back `result_too_large`; a truncated PDF is not a smaller
   PDF, so the cap is a refusal.

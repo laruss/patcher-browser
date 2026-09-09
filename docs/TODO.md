@@ -219,42 +219,6 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   round (work the command _starts_ does keep the id) and again when that round
   found the false premise above.
 
-- **An agent cannot click in a tab that is not the active one.** Measured on
-  2026-09-07 against a real window: `Input.dispatchMouseEvent` into a tab opened
-  with `--background` is _never_ acknowledged, while the same click on the same
-  element after `browser activate` succeeds — and reads (`snapshot`, `text`) work
-  on that background tab throughout. So this is input alone, and the shape fits
-  the deck: `BrowserTabDeck` mounts a `WebContentsView` only for the active tab,
-  so a background tab has no widget for Chromium to deliver a synthesised event
-  to, while script execution and the debugger's DOM work need none. That is a
-  hypothesis consistent with the measurement rather than a verified cause — the
-  view's own attachment was not observed.
-
-  **What was not established is whether the event is dropped or queued**, and
-  it decides the advice. Dropped, the refusal is the whole story. Queued, an
-  agent that retries after the refusal has stacked N clicks behind the mount,
-  and activating the tab delivers all of them — which used to be impossible,
-  because the first click held the tab's queue and no second one could be sent.
-  It could not be measured from here: a session with no on-screen window
-  acknowledges a click on the _active_ tab and still never runs the page's
-  handler, so "did it land" has no answer without a window on screen. Whoever
-  picks this up should click a background tab, take the refusal, activate the
-  tab, and read the page.
-
-  It used to hang for as long as the tab lived; it now refuses in five seconds
-  (`desktop-browser-cdp-deadline.ts`), which is the difference between a wedged
-  queue and a bad answer, not a fix. What makes it worth its own entry is who
-  hits it: tab ownership tells an agent to work in a tab of its own, and
-  `--background` is what it is told to use in a browser a person is also working
-  in — so the recommended shape is the one that cannot act. The actionability
-  check does not catch it either, reporting the element visible and on top a
-  moment before the event goes nowhere. The candidates are activating the tab
-  for the duration of an interaction (visible to the person, and racy against
-  their own clicking), mounting an offscreen view for background tabs, or
-  refusing an interaction on an unmounted tab with a sentence that says to
-  activate it — the last being honest and cheap, and the only one that does not
-  need a new mechanism.
-
 - **A queued command outlives a pause.** The credential is checked when the
   request arrives, so a command that then waits its turn on a tab can run after
   the person has paused or revoked the grant that sent it — and after the server
@@ -507,8 +471,10 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   intensive throttling; the window is too short to tell 1/min from 0). rAF stops
   outright, and pixel reads go with it: `capturePage` needs a visible view, which
   is why `captureAndHide` and `setOverlay` both snapshot _before_ hiding.
-  `backgroundThrottling: false` removes all of it — timers stay at 100/s and the
-  page keeps reporting `visibilityState: "visible"` while hidden.
+  `backgroundThrottling: false` removes all of it — timers stay at 100/s, rAF
+  comes back at 120/s on a view that is still hidden (measured for #114, which
+  is what makes pointer input answerable there), and the page keeps reporting
+  `visibilityState: "visible"` while hidden.
 
   Which is where the real cost is, and it is not the throttling. A hidden page is
   a full renderer process holding the user's real session, with no strip row, no
