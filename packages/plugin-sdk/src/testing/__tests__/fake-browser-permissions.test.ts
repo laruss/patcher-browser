@@ -61,6 +61,18 @@ const SURFACE: ReadonlyArray<{
       (b as PluginBrowserish).page.act({ action: "hover", ref: "e1" }),
   },
   {
+    // The pair this row exists for: two ways of moving the same page, and only
+    // one of them is the caller's own code (#115).
+    label: "page.scroll",
+    charged: "page.interact",
+    command: {
+      type: "page.scroll",
+      tabId: null,
+      target: { kind: "page" },
+    },
+    call: (b: never) => (b as PluginBrowserish).page.scroll(),
+  },
+  {
     label: "control.evaluate",
     charged: "page.inject",
     command: {
@@ -119,7 +131,12 @@ const SURFACE: ReadonlyArray<{
 /** The fake's browser surface is exercised dynamically; this names the parts used. */
 type PluginBrowserish = {
   tabs: { list(): unknown; open(args: { url: string }): unknown };
-  page: { getText(): unknown; act(args: unknown): unknown; network(): unknown };
+  page: {
+    getText(): unknown;
+    act(args: unknown): unknown;
+    scroll(): unknown;
+    network(): unknown;
+  };
   control: {
     evaluate(args: { expression: string }): unknown;
     setOffline(args: { offline: boolean }): unknown;

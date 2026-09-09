@@ -22,7 +22,19 @@ import {
   BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH,
   type BrowserCommand,
   type BrowserInteraction,
+  type BrowserScrollTarget,
 } from "./browser-control.js";
+
+function describeScrollTarget(target: BrowserScrollTarget): string {
+  switch (target.kind) {
+    case "by":
+      return `by ${target.pixels}`;
+    case "element":
+      return `${target.ref} into view`;
+    default:
+      return target.kind;
+  }
+}
 
 function describeInteraction(interaction: BrowserInteraction): string {
   switch (interaction.action) {
@@ -80,6 +92,8 @@ function describeBrowserCommand(command: BrowserCommand): string {
       return command.selector === null ? "" : `in ${command.selector}`;
     case "page.interact":
       return describeInteraction(command.interaction);
+    case "page.scroll":
+      return describeScrollTarget(command.target);
     case "page.observe":
       return command.observation.kind;
     case "page.storage": {

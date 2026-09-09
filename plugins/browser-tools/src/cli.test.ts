@@ -230,7 +230,7 @@ describe("patcher browser CLI", () => {
     // use it" stopped being the same question.
     host.harness.behavior.browser.failNextCall(
       "external_access_denied",
-      "`patcher browser` ran a browser command needing \"tabs.read\", and this install does not let agents outside Patcher drive the browser at all. Nothing happened.",
+      '`patcher browser` ran a browser command needing "tabs.read", and this install does not let agents outside Patcher drive the browser at all. Nothing happened.',
     );
 
     const denied = await host.harness.runCli(["status"]);
@@ -1864,10 +1864,15 @@ describe("patcher browser CLI scrolling", () => {
     return host;
   }
 
-  function expressions(host: ReturnType<typeof scrollHost>): string[] {
+  /**
+   * What the command asked for, rather than what it runs. The expressions are
+   * the app's since #115 — `plugins/browser-tools` no longer writes any — so
+   * what this file can still pin is that each flag names the right target.
+   */
+  function targets(host: ReturnType<typeof scrollHost>): unknown[] {
     return host.harness.inspection.browserCalls
-      .filter((call) => call.type === "control.evaluate")
-      .map((call) => String(call.args.expression));
+      .filter((call) => call.type === "page.scroll")
+      .map((call) => call.args.to);
   }
 
   it("scrolls one viewport down by default, and says where it landed", async () => {
@@ -1878,7 +1883,7 @@ describe("patcher browser CLI scrolling", () => {
     expect(result.exitCode).toBe(0);
     // The answer an infinite feed needs: whether there is more below.
     expect(result.stdout).toBe("900 of 4000 (viewport 1000)\n");
-    expect(expressions(host)[0]).toContain("window.innerHeight");
+    expect(targets(host)[0]).toBe("page");
   });
 
   it("goes to the top and to the bottom", async () => {
@@ -1887,8 +1892,7 @@ describe("patcher browser CLI scrolling", () => {
     await host.harness.runCli(["scroll", "--bottom"]);
     await host.harness.runCli(["scroll", "--top"]);
 
-    expect(expressions(host)[0]).toContain("el.scrollTop = el.scrollHeight");
-    expect(expressions(host)[1]).toContain("el.scrollTop = 0");
+    expect(targets(host)).toEqual(["bottom", "top"]);
   });
 
   it("takes a pixel delta, and only a whole number of them", async () => {
@@ -1897,7 +1901,7 @@ describe("patcher browser CLI scrolling", () => {
     await host.harness.runCli(["scroll", "--by", "-400"]);
     const bad = await host.harness.runCli(["scroll", "--by", "half"]);
 
-    expect(expressions(host)[0]).toContain("el.scrollTop + -400");
+    expect(targets(host)[0]).toEqual({ by: -400 });
     expect(bad.exitCode).toBe(2);
   });
 
@@ -1906,11 +1910,25 @@ describe("patcher browser CLI scrolling", () => {
 
     await host.harness.runCli(["scroll", "e1"]);
 
-    const call = host.harness.inspection.browserCalls.find(
-      (each) => each.type === "control.evaluate",
-    );
-    expect(call?.args.ref).toBe("e1");
-    expect(String(call?.args.expression)).toContain("scrollIntoView");
+    expect(targets(host)[0]).toEqual({ ref: "e1" });
+  });
+
+  it("refuses a generation with no ref to be stale against", async () => {
+    // Every option this table lists has to be one the command acts on: a
+    // `--generation` that travelled and was ignored is the silent no-op the
+    // table exists to stop, and scrolling the page names no ref.
+    const host = scrollHost();
+
+    const result = await host.harness.runCli([
+      "scroll",
+      "--top",
+      "--generation",
+      "5",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("--generation");
+    expect(targets(host)).toEqual([]);
   });
 
   it("says when the page did not move, and when it is at the bottom", async () => {

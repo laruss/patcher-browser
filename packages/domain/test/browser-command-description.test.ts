@@ -3,6 +3,7 @@ import { browserCommandRecordDetail } from "../src/browser-command-description.j
 import {
   BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH,
   BROWSER_COMMAND_MAX_EVAL_EXPRESSION_LENGTH,
+  type BrowserScrollTarget,
 } from "../src/browser-control.js";
 
 /**
@@ -66,6 +67,20 @@ describe("the line a record keeps", () => {
 
     expect(detail).toBe("cookies-set 1");
     expect(detail).not.toContain("super-secret");
+  });
+
+  it("says which way a scroll went, since the command name says the rest", () => {
+    // The renderer's switch ends in a `default`, so a target with no arm of its
+    // own would read as an empty detail rather than fail to compile.
+    const detail = (target: BrowserScrollTarget): string =>
+      browserCommandRecordDetail({ type: "page.scroll", tabId: null, target });
+
+    expect(detail({ kind: "page" })).toBe("page");
+    expect(detail({ kind: "bottom" })).toBe("bottom");
+    expect(detail({ kind: "by", pixels: -400 })).toBe("by -400");
+    expect(detail({ kind: "element", ref: "e4", generation: 6 })).toBe(
+      "e4 into view",
+    );
   });
 
   it("keeps the parts of a control command that say what it did", () => {
