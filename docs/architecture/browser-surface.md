@@ -65,6 +65,22 @@ Placement rides a third channel rather than a field on the second, which is what
 invariant 2 asks for; a shell without it can only mean the foreground, which is
 what every renderer did before.
 
+_Where in the strip_ is the other half of placement, and it comes out of the same
+payload: the channel names the tab the link was on, so the tab it opens goes
+directly behind that page rather than at the end of the strip — at the end it is
+a tab the user has to go find, which is the opposite of queueing one. Behind the
+ones already queued from that page, so three Cmd-clicked links keep the order
+they were clicked instead of stacking up backwards; the queue ends at the first
+tab nobody opened from a page, so a queued link never jumps over one the user put
+there. That is the whole job of `openerTabId` on the tab record — the next link
+from the same page is the only thing that reads it.
+
+A _pinned_ page cannot have a neighbour outside the pinned block, so its links
+queue at the head of the unpinned one. That is also where a second pinned page's
+links queue, which is why the scan steps over tabs opened from somewhere else
+rather than stopping at them: what has to hold is that each page's own links stay
+in the order they were clicked.
+
 Background here is also lazier than Chrome's. The deck mounts one view at a
 time, so a background tab has no `WebContentsView` and its page loads when the
 tab is first selected — the same as a tab restored from the last session.

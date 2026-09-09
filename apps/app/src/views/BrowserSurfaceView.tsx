@@ -194,8 +194,17 @@ export function BrowserSurfaceView({
   );
 
   const openSurfaceTab = useCallback(
-    (url?: string, { background = false }: { background?: boolean } = {}) => {
-      const tab = openTab(url, { activate: !background });
+    (
+      url?: string,
+      {
+        background = false,
+        openerTabId,
+      }: { background?: boolean; openerTabId?: string } = {},
+    ) => {
+      // `openerTabId` is what puts a link's tab beside the page it was on
+      // rather than at the far end of the strip; absent, this appends as it
+      // always has.
+      const tab = openTab(url, { activate: !background, openerTabId });
       // A background tab is not a selection, so the window stays where it is:
       // routing to it is exactly the "took my page away" that Cmd-clicking a
       // link is meant to avoid.
@@ -386,14 +395,14 @@ export function BrowserSurfaceView({
     if (browserApi.onPlacedOpenTab) {
       return browserApi.onPlacedOpenTab(({ background, tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
-          openSurfaceTab(url, { background });
+          openSurfaceTab(url, { background, openerTabId: tabId });
         }
       });
     }
     if (browserApi.onScopedOpenTab) {
       return browserApi.onScopedOpenTab(({ tabId, url }) => {
         if (surfaceTabIds.has(tabId)) {
-          openSurfaceTab(url);
+          openSurfaceTab(url, { openerTabId: tabId });
         }
       });
     }

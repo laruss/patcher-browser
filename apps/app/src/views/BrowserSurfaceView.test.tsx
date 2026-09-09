@@ -16,7 +16,11 @@ import {
   createNoopDesktopBrowserApi,
 } from "@/test/patcher-desktop-test-utils";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
-import { getBrowserSurfaceTabsStorageKey } from "@/lib/browser-surface-tabs";
+import {
+  browserSurfaceTabsAtom,
+  getBrowserSurfaceTabsStorageKey,
+  getBrowserSurfaceWebTabs,
+} from "@/lib/browser-surface-tabs";
 import { getBrowserFaviconsStorageKey } from "@/lib/browser-favicons";
 import { getBrowserMutedTabsStorageKey } from "@/lib/browser-tab-mute";
 import { browserDrivingAtom } from "@/lib/browser-agent/driving";
@@ -535,6 +539,63 @@ describe("BrowserSurfaceView", () => {
     // Both channels carry the same request, so subscribing to both would open
     // the link twice.
     expect(scopedListener).not.toHaveBeenCalled();
+  });
+
+  // Queueing is the point of the gesture, and a queue is only a queue if it is
+  // beside the page the links are on: at the end of the strip, past whatever
+  // else is open, each tab is one the user has to go find.
+  it("places middle-clicked links behind the page they came from", () => {
+    const opener = {
+      environmentId: null,
+      id: "browser:opener",
+      kind: "browser" as const,
+      title: null,
+      url: "https://example.com/links",
+    };
+    window.localStorage.setItem(
+      getBrowserSurfaceTabsStorageKey(),
+      JSON.stringify({
+        activeTabId: opener.id,
+        tabs: [
+          opener,
+          { ...opener, id: "browser:other", url: "https://example.com/other" },
+        ],
+      }),
+    );
+    const placedListeners: Array<
+      (request: { background: boolean; tabId: string; url: string }) => void
+    > = [];
+    const surface = renderSurface({
+      ...createNoopDesktopBrowserApi(),
+      onPlacedOpenTab(listener) {
+        placedListeners.push(listener);
+        return () => {};
+      },
+    });
+    const click = (url: string) => {
+      act(() => {
+        placedListeners.at(-1)?.({ background: true, tabId: opener.id, url });
+      });
+    };
+
+    click("https://example.com/first");
+    click("https://example.com/second");
+
+    // Both behind the page they were clicked on, in the order they were
+    // clicked, and ahead of the tab that was already there.
+    expect(
+      getBrowserSurfaceWebTabs(surface.store.get(browserSurfaceTabsAtom)).map(
+        (tab) => tab.url,
+      ),
+    ).toEqual([
+      "https://example.com/links",
+      "https://example.com/first",
+      "https://example.com/second",
+      "https://example.com/other",
+    ]);
+    expect(surface.store.get(browserSurfaceTabsAtom).activeTabId).toBe(
+      opener.id,
+    );
   });
 
   it("opens a placed request that is not background in the foreground", () => {
