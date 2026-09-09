@@ -135,10 +135,9 @@ import {
 import {
   controlRefusalReason,
   ControlRefusal,
-  dispatchMouse,
   evaluateInPage,
   performInteraction,
-  MOUSE_BUTTON_MASK,
+  performPointerControl,
   type MousePoint,
 } from "./desktop-browser-interact.js";
 import {
@@ -1367,35 +1366,13 @@ async function performControl(
   });
 
   switch (operation.kind) {
-    case "mouse-move": {
-      entry.mousePoint = { x: operation.x, y: operation.y };
-      await dispatchMouse(session, "mouseMoved", entry.mousePoint, {
-        button: "none",
-      });
-      return acted();
-    }
-
-    case "mouse-button": {
-      await dispatchMouse(
-        session,
-        operation.down ? "mousePressed" : "mouseReleased",
-        entry.mousePoint,
-        {
-          button: operation.button,
-          buttons: operation.down
-            ? (MOUSE_BUTTON_MASK[operation.button] ?? 1)
-            : 0,
-          clickCount: 1,
-        },
-      );
-      return acted();
-    }
-
+    case "mouse-move":
+    case "mouse-button":
     case "mouse-wheel": {
-      await dispatchMouse(session, "mouseWheel", entry.mousePoint, {
-        button: "none",
-        deltaX: operation.deltaX,
-        deltaY: operation.deltaY,
+      await performPointerControl({
+        session,
+        operation,
+        pointer: entry.mousePoint,
       });
       return acted();
     }

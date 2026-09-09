@@ -30,6 +30,7 @@
  */
 import {
   PATCHER_DESKTOP_BROWSER_MAX_EVAL_RESULT_LENGTH,
+  type PatcherDesktopBrowserControlOperation,
   type PatcherDesktopBrowserControlResult,
   type PatcherDesktopBrowserInteractRequest,
   type PatcherDesktopBrowserInteraction,
@@ -109,6 +110,77 @@ export async function dispatchMouse(
   params: Record<string, unknown> = {},
 ): Promise<void> {
   await session.send("Input.dispatchMouseEvent", { type, ...point, ...params });
+}
+
+/** The vision-mode operations that move or press the pointer itself. */
+export type BrowserPointerOperation = Extract<
+  PatcherDesktopBrowserControlOperation,
+  { kind: "mouse-move" | "mouse-button" | "mouse-wheel" }
+>;
+
+export interface PointerControlArgs {
+  session: CdpSession;
+  operation: BrowserPointerOperation;
+  /**
+   * Where the pointer is on this tab, updated in place by a move.
+   *
+   * A value rather than the entry it lives on, which is what lets this module
+   * keep its promise of not reaching into a `BrowserViewEntry` — and in place
+   * rather than returned, because `mouse-button` and `mouse-wheel` act at
+   * wherever the last move left the pointer, including a move whose send never
+   * came back: the event is queued in the page, not discarded, so forgetting
+   * where it went would be the less honest record of the two.
+   */
+  pointer: MousePoint;
+}
+
+/**
+ * Drive the pointer at raw viewport coordinates.
+ *
+ * Moved out of `desktop-browser-view.ts` whole (#80), to the module that
+ * already owns {@link dispatchMouse} and {@link MOUSE_BUTTON_MASK}. It is the
+ * interaction path's dispatch with the ref lookup and the actionability wait
+ * taken out — which is exactly what makes it vision mode: these land on
+ * whatever is at the coordinate, and nothing here checks that anything is.
+ */
+export async function performPointerControl({
+  operation,
+  pointer,
+  session,
+}: PointerControlArgs): Promise<void> {
+  switch (operation.kind) {
+    case "mouse-move": {
+      pointer.x = operation.x;
+      pointer.y = operation.y;
+      await dispatchMouse(session, "mouseMoved", pointer, { button: "none" });
+      return;
+    }
+
+    case "mouse-button": {
+      await dispatchMouse(
+        session,
+        operation.down ? "mousePressed" : "mouseReleased",
+        pointer,
+        {
+          button: operation.button,
+          buttons: operation.down
+            ? (MOUSE_BUTTON_MASK[operation.button] ?? 1)
+            : 0,
+          clickCount: 1,
+        },
+      );
+      return;
+    }
+
+    default: {
+      await dispatchMouse(session, "mouseWheel", pointer, {
+        button: "none",
+        deltaX: operation.deltaX,
+        deltaY: operation.deltaY,
+      });
+      return;
+    }
+  }
 }
 
 /**
