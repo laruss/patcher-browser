@@ -135,10 +135,10 @@ import {
 import {
   controlRefusalReason,
   ControlRefusal,
-  dispatchMouse,
   evaluateInPage,
+  keepPageRendering,
   performInteraction,
-  MOUSE_BUTTON_MASK,
+  performPointerControl,
   type MousePoint,
 } from "./desktop-browser-interact.js";
 import {
@@ -1367,35 +1367,14 @@ async function performControl(
   });
 
   switch (operation.kind) {
-    case "mouse-move": {
-      entry.mousePoint = { x: operation.x, y: operation.y };
-      await dispatchMouse(session, "mouseMoved", entry.mousePoint, {
-        button: "none",
-      });
-      return acted();
-    }
-
-    case "mouse-button": {
-      await dispatchMouse(
-        session,
-        operation.down ? "mousePressed" : "mouseReleased",
-        entry.mousePoint,
-        {
-          button: operation.button,
-          buttons: operation.down
-            ? (MOUSE_BUTTON_MASK[operation.button] ?? 1)
-            : 0,
-          clickCount: 1,
-        },
-      );
-      return acted();
-    }
-
+    case "mouse-move":
+    case "mouse-button":
     case "mouse-wheel": {
-      await dispatchMouse(session, "mouseWheel", entry.mousePoint, {
-        button: "none",
-        deltaX: operation.deltaX,
-        deltaY: operation.deltaY,
+      await performPointerControl({
+        session,
+        operation,
+        page: entry.view.webContents,
+        pointer: entry.mousePoint,
       });
       return acted();
     }
@@ -4775,6 +4754,11 @@ export function createDesktopBrowserViewManager(
       const deadline = new InteractionDeadline(
         PATCHER_BROWSER_ACTION_TIMEOUT_MS,
       );
+      // The whole interaction rather than its sends alone: the actionability
+      // wait's settle check compares two samples a poll apart, and on a page
+      // producing no frames an element that is in fact still moving holds
+      // perfectly still (#114).
+      const releaseRendering = keepPageRendering(entry.view.webContents);
       try {
         // Same reason as in `snapshot`: from the moment we drive this tab, its
         // dialogs are ours to answer. A click that opens a `confirm()` would
@@ -4823,6 +4807,8 @@ export function createDesktopBrowserViewManager(
           reason: "failed",
           message: error instanceof Error ? error.message : String(error),
         };
+      } finally {
+        releaseRendering();
       }
 
       // A click that navigated has already changed these; reporting them saves
