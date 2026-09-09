@@ -1169,6 +1169,16 @@ describe("DesktopBrowserViewManager control", () => {
   it("asks for frames to move the pointer, and not to run an expression", async () => {
     const { hostWindow, manager, webContents } = await attachTabForControl();
 
+    // What was throttled when the send went out, not merely that both calls
+    // happened before the command resolved: asking for frames after the wheel
+    // event is sent would satisfy the second and still leave the tab waiting
+    // five seconds for one (#114).
+    const throttledWhenSent: boolean[] = [];
+    webContents.debugger.results.set("Input.dispatchMouseEvent", () => {
+      throttledWhenSent.push(webContents.backgroundThrottling);
+      return {};
+    });
+
     await manager.control({
       hostWindow,
       request: {
@@ -1177,6 +1187,7 @@ describe("DesktopBrowserViewManager control", () => {
       },
     });
 
+    expect(throttledWhenSent).toEqual([false]);
     expect(webContents.backgroundThrottlingCalls).toEqual([false, true]);
 
     // The pointer is the half of vision mode that waits on a frame. An
