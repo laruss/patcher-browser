@@ -34,7 +34,6 @@ export type PluginSettingsReader = (
 import type {
   BrowserCommand,
   BrowserCommandValue,
-  BrowserControlOperation,
   BrowserRecordOperation,
   BrowserCookie,
   BrowserInteraction,
@@ -91,7 +90,6 @@ import type {
   PluginLogger,
   PluginBrowser,
   PluginBrowserCallOptions,
-  PluginBrowserRoutes,
   PluginBrowserVideo,
   PluginMentionItem,
   PluginMentionSearchContext,
@@ -132,6 +130,7 @@ import type {
 import type { PatcherSdk, ThreadForkArgs, ThreadSpawnArgs } from "@patcher/sdk";
 import type { ServerLogger } from "../../types.js";
 import type { PluginInteractionResult } from "../interactions/pending-interactions.js";
+import { createPluginBrowserControl } from "./plugin-api-browser-control.js";
 import { appendPluginLogLine } from "./plugin-log.js";
 import { resolveDeclaredMatches } from "./plugin-declared-sites.js";
 import {
@@ -1868,54 +1867,6 @@ export function createPluginApi(options: {
     });
   }
 
-  /**
-   * A route, with what an API mock wants without having to say so: 200, an
-   * empty body, and a content type read off the body's first character. A mock
-   * served as the wrong type fails in a way that looks like the mock never
-   * fired, which is an expensive thing to debug.
-   */
-  function routeCandidate(args: unknown): unknown {
-    const record = (
-      typeof args === "object" && args !== null ? args : {}
-    ) as Record<string, unknown>;
-    const body = record.body ?? "";
-    return {
-      pattern: record.pattern,
-      status: record.status ?? 200,
-      contentType:
-        record.contentType ??
-        (typeof body === "string" && /^\s*[[{]/u.test(body)
-          ? "application/json"
-          : "text/plain"),
-      body,
-      headers: record.headers ?? [],
-    };
-  }
-
-  /**
-   * Every direct-control operation is checked here, the way `page.act`'s is:
-   * against the schema the app will parse it with, so a plugin's own mistake
-   * reads as that plugin's error rather than as a refusal that travelled to the
-   * browser and back.
-   */
-  function normalizeControlOperation(
-    candidate: unknown,
-    method: string,
-  ): BrowserControlOperation {
-    const parsed =
-      loadBrowserControl().browserControlOperationSchema.safeParse(candidate);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      const path = issue?.path.join(".") ?? "";
-      throw new Error(
-        `${method} received invalid arguments${
-          path === "" ? "" : ` (${path})`
-        }: ${issue?.message ?? "unrecognized"}`,
-      );
-    }
-    return parsed.data;
-  }
-
   /** Recording operations, checked here for the same reason control's are. */
   function normalizeRecordOperation(
     candidate: unknown,
@@ -1980,31 +1931,6 @@ export function createPluginApi(options: {
       );
     }
     return value as Extract<BrowserCommandValue, { type: TType }>;
-  }
-
-  /** The three route calls differ only in the operation they send. */
-  async function controlRoutes(
-    operation: BrowserControlOperation,
-    tabId: string | undefined,
-    options: PluginBrowserCallOptions | undefined,
-  ): Promise<PluginBrowserRoutes> {
-    const value = await callBrowser(
-      {
-        type: "page.control",
-        tabId: optionalTabId(tabId),
-        generation: null,
-        operation,
-      },
-      options,
-      "routes",
-    );
-    return {
-      tabId: value.tabId,
-      url: value.url,
-      title: value.title,
-      routes: value.routes,
-      offline: value.offline,
-    };
   }
 
   const omniboxProviders: PluginOmniboxProviderRecord[] = [];
@@ -2905,133 +2831,12 @@ export function createPluginApi(options: {
         return { removed: value.removed };
       },
     },
-    control: {
-      async evaluate(args, options) {
-        const value = await callBrowser(
-          {
-            type: "page.control",
-            tabId: optionalTabId(args?.tabId),
-            generation: normalizeSnapshotGeneration(args?.generation),
-            operation: normalizeControlOperation(
-              {
-                kind: "evaluate",
-                expression: args?.expression,
-                ref: args?.ref ?? null,
-              },
-              "browser.control.evaluate",
-            ),
-          },
-          options,
-          "evaluated",
-        );
-        return {
-          tabId: value.tabId,
-          url: value.url,
-          title: value.title,
-          value: value.value,
-          truncated: value.truncated,
-        };
-      },
-      async mouseMove(args, options) {
-        const value = await callBrowser(
-          {
-            type: "page.control",
-            tabId: optionalTabId(args?.tabId),
-            generation: null,
-            operation: normalizeControlOperation(
-              { kind: "mouse-move", x: args?.x, y: args?.y },
-              "browser.control.mouseMove",
-            ),
-          },
-          options,
-          "interacted",
-        );
-        return { tabId: value.tabId, url: value.url, title: value.title };
-      },
-      async mouseButton(args, options) {
-        const value = await callBrowser(
-          {
-            type: "page.control",
-            tabId: optionalTabId(args?.tabId),
-            generation: null,
-            operation: normalizeControlOperation(
-              {
-                kind: "mouse-button",
-                button: args?.button ?? "left",
-                down: args?.down,
-              },
-              "browser.control.mouseButton",
-            ),
-          },
-          options,
-          "interacted",
-        );
-        return { tabId: value.tabId, url: value.url, title: value.title };
-      },
-      async mouseWheel(args, options) {
-        const value = await callBrowser(
-          {
-            type: "page.control",
-            tabId: optionalTabId(args?.tabId),
-            generation: null,
-            operation: normalizeControlOperation(
-              {
-                kind: "mouse-wheel",
-                deltaX: args?.deltaX ?? 0,
-                deltaY: args?.deltaY ?? 0,
-              },
-              "browser.control.mouseWheel",
-            ),
-          },
-          options,
-          "interacted",
-        );
-        return { tabId: value.tabId, url: value.url, title: value.title };
-      },
-      async route(args, options) {
-        return await controlRoutes(
-          normalizeControlOperation(
-            { kind: "route-set", route: routeCandidate(args) },
-            "browser.control.route",
-          ),
-          args?.tabId,
-          options,
-        );
-      },
-      async routes(args, options) {
-        return await controlRoutes(
-          { kind: "route-list" },
-          args?.tabId,
-          options,
-        );
-      },
-      async unroute(args, options) {
-        return await controlRoutes(
-          normalizeControlOperation(
-            { kind: "route-clear", pattern: args?.pattern ?? null },
-            "browser.control.unroute",
-          ),
-          args?.tabId,
-          options,
-        );
-      },
-      async setOffline(args, options) {
-        const value = await callBrowser(
-          {
-            type: "page.control",
-            tabId: optionalTabId(args?.tabId),
-            generation: null,
-            operation: normalizeControlOperation(
-              { kind: "offline", offline: args?.offline },
-              "browser.control.setOffline",
-            ),
-          },
-          options,
-          "interacted",
-        );
-        return { tabId: value.tabId, url: value.url, title: value.title };
-      },
-    },
+    control: createPluginBrowserControl({
+      callBrowser,
+      optionalTabId,
+      normalizeSnapshotGeneration,
+      loadBrowserControl,
+    }),
     recording: {
       async traceStart(args, options) {
         await callBrowser(
