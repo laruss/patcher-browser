@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.1.1-alpha.4
+
+alpha.3 was about what a sandboxed turn cannot reach. This one is about the
+browser, and the same question asked at a different door: `patcher browser`
+drives the user's real, signed-in session, and the only thing standing in front
+of it was a plugin toggle that answers a question about _Patcher's own_ agents.
+Anything else on the machine — Claude Code, Codex, a script, a person at their
+own terminal — read the app key, enabled the plugin without asking anybody, and
+drove the browser. Measured on 2026-09-05: a foreign shell reached
+`patcher plugin enable browser-tools` with no interaction of any kind.
+
+What went in is not one gate but the four things that make a gate mean
+something: a level the person sets, a credential they can revoke, a window that
+says who is driving and lets them stop it, and tabs that keep an outside agent
+off the page they are reading.
+
+Still macOS on Apple Silicon, still ad-hoc signed, and still without
+auto-update: the first launch needs one explicit approval in System Settings,
+and a newer alpha has to be downloaded rather than offered.
+
+### Who may drive the browser
+
+- **A level, `off` by default.** Settings decides what an agent outside Patcher
+  may do — nothing, read, interact, or full — and the levels are groups of the
+  permissions browser commands already cost, so there is no second vocabulary to
+  learn. A browser permission added later does not compile until somebody has
+  decided what it costs an outside agent.
+- **A credential, so the level is a boundary rather than a default.** The caller
+  the level decides about was holding the app key while it asked, and that key
+  opens the whole API, this setting included. A _browser access grant_ is now a
+  fourth caller identity beside a plugin, a turn and the app: derived rather
+  than stored, so there is no table of live keys to leak; accepted on two routes
+  and no others; and revocable, at which point every key derived for it stops
+  working. Only the app and a person's own terminal can mint one.
+
+### Seeing it happen, and stopping it
+
+- **Every window says who is driving.** A `patcher browser` command was
+  indistinguishable from the person's own click — a tab navigates, a form fills
+  in, and nothing said who did it. The grant's label and level, or the thread,
+  now show on every screen, with a control that stops the caller.
+- **And what they are driving with.** The indicator names the command, and each
+  window keeps the last 200 of them, read in Settings beside the grants. Never
+  the outcome's value: a page read's answer is the page, and that does not
+  belong in a notification to every window.
+- **The tab an agent is working in is marked** in the strip, so "somebody is
+  driving" no longer leaves the person guessing which of eight tabs it meant.
+
+### Two agents, one browser
+
+- **A tab an agent opened is that agent's.** Every tab-targeting command takes a
+  `tabId` that may be null, null meant "the active tab", and the active tab is
+  the one the person is reading — so two agents doing the documented thing
+  worked in the same tab as each other and as the human. Everything else is the
+  person's, and a caller outside Patcher is refused it until it is handed over.
+  A turn keeps reaching the page the person is looking at, which is the case the
+  in-app tools were built for.
+- **Commands on one tab take turns**, so a snapshot and the action that followed
+  it can no longer be split by somebody else's navigation.
+- **A ref carries the snapshot it came from.** The check that an element has not
+  moved since it was named used to be optional and off, guarding exactly the
+  case a caller cannot see for itself.
+- **The caller survives the plugin boundary**, so a third-party plugin with
+  browser permissions and a CLI command of its own is not a way around any of
+  the above.
+
+### Tabs
+
+- **A link opens beside the page it came from.** Cmd/Ctrl+click, the middle
+  button and "Open link in new tab" appended to the end of the strip; they now
+  land behind the page the link was on, and behind the links already queued from
+  it, so several of them keep the order they were clicked.
+- **A dragged tab travels the whole strip** instead of being cut off at the
+  new-tab button. Where it may be dropped is unchanged.
+
+### Fixes
+
+- **The host daemon repairs itself.** Two failures left it somewhere nothing
+  later restored, with the process still alive so no supervisor saw anything to
+  restart: a websocket that read three recoverable errors as a permanent stop,
+  taking every task on that host offline until somebody restarted it by hand,
+  and an event queue that could be left with nothing to drain it — a finished
+  turn staying invisible while its result sat in the daemon's memory.
+- **Three paths in the browser shell that could never answer** now have a
+  deadline, and a page that has stopped answering is refused with a reason of
+  its own instead of waiting out somebody else's.
+- **Dialogs survive a lost debugger.** A tab whose protocol client went away
+  re-arms its dialog interception instead of falling back to Chromium's native
+  modal, which nothing in the app can answer, and a dialog left open when the
+  client went no longer holds the page hidden behind it.
+
+### Under the hood
+
+- The longest file in the repository — an 8 360-line test suite, pinned at that
+  length so it could shrink and could not grow — is six suites over a shared
+  harness. That is what let the dialog regression above be written at all.
+
 ## 0.1.1-alpha.3
 
 alpha.2 made a sandboxed turn the default. This build is what came of taking
