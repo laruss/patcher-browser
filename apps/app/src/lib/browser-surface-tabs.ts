@@ -70,8 +70,26 @@ interface SurfaceTabPinning {
   pinned?: boolean;
 }
 
-/** A web page's tab as this surface holds it: the shared record, plus pinning. */
-export type WebSurfaceTab = BrowserFixedPanelTab & SurfaceTabPinning;
+/**
+ * Which tab a page was opened *from*, when a page opened it — a Cmd/Ctrl-clicked
+ * link, the middle button, "Open link in new tab".
+ *
+ * Kept on the tab rather than in a side table because what needs it is the
+ * *next* link from the same page: tabs sharing an opener sit as one run behind
+ * it, so three queued links stay in the order they were clicked. Absent rather
+ * than null on a tab nobody opened, for the reason {@link SurfaceTabPinning}
+ * gives — every strip an older build wrote is a list without the field.
+ *
+ * Web tabs only: an app tab is a route the user picked, and no page opens one.
+ */
+interface SurfaceTabOpener {
+  openerTabId?: string;
+}
+
+/** A web page's tab as this surface holds it: the shared record, plus the above. */
+export type WebSurfaceTab = BrowserFixedPanelTab &
+  SurfaceTabPinning &
+  SurfaceTabOpener;
 
 /** Either kind of tab in the surface's one ordered strip. */
 export type BrowserSurfaceTab = WebSurfaceTab | AppSurfaceTab;
@@ -104,6 +122,7 @@ const webSurfaceTabSchema = z
     environmentId: z.string().min(1).nullable(),
     id: z.string().min(1),
     kind: z.literal("browser"),
+    openerTabId: z.string().min(1).optional(),
     pinned: z.boolean().optional(),
     title: z.string().min(1).nullable(),
     url: z.string(),
@@ -123,9 +142,10 @@ const appSurfaceTabSchema = z
 /**
  * The storage version stays at 1 across the arrival of app tabs: every state an
  * older build wrote is a list of web tabs, which still parses. Only the reverse
- * — an older build reading a strip that now holds an app tab — fails, and it
- * fails into {@link EMPTY_BROWSER_SURFACE_TABS_STATE} and reopens a new tab
- * rather than into anything the user has to repair.
+ * — an older build reading a strip that now holds an app tab, or a web tab
+ * carrying an opener — fails, and it fails into
+ * {@link EMPTY_BROWSER_SURFACE_TABS_STATE} and reopens a new tab rather than
+ * into anything the user has to repair.
  */
 const surfaceTabSchema = z.discriminatedUnion("kind", [
   webSurfaceTabSchema,
@@ -156,14 +176,92 @@ function reconcileActiveTabId(
   return { ...state, activeTabId: state.tabs.at(-1)?.id ?? null };
 }
 
+/**
+ * Where a tab opened from another one belongs: behind its opener, and behind the
+ * tabs already opened from that same opener.
+ *
+ * Behind the ones already queued rather than always immediately behind the
+ * opener, because the gesture this serves is queueing links: Cmd-click three of
+ * them and each new tab would push the last one further away, so the queue would
+ * read backwards.
+ *
+ * Two things make that more than `opener + 1`. A **pinned** page cannot have a
+ * neighbour outside the pinned block, so its links queue at the head of the
+ * unpinned one — which is where a *second* pinned page's links queue too, so
+ * the scan steps over tabs opened from somewhere else instead of stopping at
+ * them, and each page keeps its own order. It does stop at the first tab nobody
+ * opened from a page: that one the user put there, and a queued link must not
+ * jump over it.
+ *
+ * The index this returns is always inside the unpinned block, which is what
+ * lets the caller insert without re-sorting — the pinned block is a prefix
+ * ({@link orderPinnedFirst} is what guarantees it), so counting is enough to
+ * know where it ends.
+ *
+ * Null when the opener has left the strip. The link still opens, at the end: a
+ * page closing the tab it opened from is not a reason to drop what it asked
+ * for.
+ */
+function openedBrowserSurfaceTabIndex(
+  tabs: readonly BrowserSurfaceTab[],
+  openerTabId: string,
+): number | null {
+  const openerIndex = tabs.findIndex((tab) => tab.id === openerTabId);
+  const opener = tabs[openerIndex];
+  if (opener === undefined) {
+    return null;
+  }
+  const anchor = isPinnedSurfaceTab(opener)
+    ? tabs.filter(isPinnedSurfaceTab).length
+    : openerIndex + 1;
+  let index = anchor;
+  for (let at = anchor; at < tabs.length; at += 1) {
+    const next = tabs[at];
+    const from = isWebSurfaceTab(next) ? next.openerTabId : undefined;
+    if (from === undefined) {
+      break;
+    }
+    if (from === openerTabId) {
+      index = at + 1;
+    }
+  }
+  return index;
+}
+
+export interface AddBrowserSurfaceTabOptions {
+  /**
+   * The tab whose page opened this one, which decides where it lands — see
+   * {@link openedBrowserSurfaceTabIndex}. Absent for a tab no page opened: the
+   * new-tab button, an external link, the empty tab the surface guarantees.
+   */
+  openerTabId?: string;
+}
+
 export function addBrowserSurfaceTab(
   state: BrowserSurfaceTabsState,
   tab: BrowserSurfaceTab,
+  { openerTabId }: AddBrowserSurfaceTabOptions = {},
 ): BrowserSurfaceTabsState {
   if (state.tabs.some((existing) => existing.id === tab.id)) {
     return activateBrowserSurfaceTab(state, tab.id);
   }
-  return { activeTabId: tab.id, tabs: [...state.tabs, tab] };
+  const index =
+    openerTabId === undefined
+      ? null
+      : openedBrowserSurfaceTabIndex(state.tabs, openerTabId);
+  if (index === null) {
+    return { activeTabId: tab.id, tabs: [...state.tabs, tab] };
+  }
+  return {
+    activeTabId: tab.id,
+    // No `orderPinnedFirst` here: the index is already inside the unpinned
+    // block, so a link from a pinned page cannot split the pinned one.
+    tabs: [
+      ...state.tabs.slice(0, index),
+      isWebSurfaceTab(tab) ? { ...tab, openerTabId } : tab,
+      ...state.tabs.slice(index),
+    ],
+  };
 }
 
 /**
@@ -573,10 +671,13 @@ export interface BrowserSurfaceTabsController {
    * `activate: false` opens it in the background, leaving the strip pointing
    * where it was — what the surface needs when it is only making sure a page
    * exists to come back to, and what an agent's `browser_tabs_open` asks for.
+   *
+   * `openerTabId` names the tab the link was on, and puts the new tab beside it
+   * instead of at the end of the strip — {@link AddBrowserSurfaceTabOptions}.
    */
   openTab: (
     url?: string,
-    options?: { activate?: boolean },
+    options?: { activate?: boolean; openerTabId?: string },
   ) => BrowserFixedPanelTab;
   /**
    * Guarantee the surface has a page to show, adding an empty tab only when
@@ -647,13 +748,16 @@ export function useBrowserSurfaceTabs(): BrowserSurfaceTabsController {
   const openTab = useCallback(
     (
       url: string = BROWSER_SURFACE_NEW_TAB_URL,
-      { activate = true }: { activate?: boolean } = {},
+      {
+        activate = true,
+        openerTabId,
+      }: { activate?: boolean; openerTabId?: string } = {},
     ) => {
       // Built here rather than inside the reducer so the reducers stay pure and
       // directly testable; only this hook needs an id generator.
       const tab = createBrowserSurfaceTab(url);
       setState((current) => {
-        const opened = addBrowserSurfaceTab(current, tab);
+        const opened = addBrowserSurfaceTab(current, tab, { openerTabId });
         // `addBrowserSurfaceTab` always focuses; put focus back for a background
         // tab, falling through to the new one when there was nothing to keep.
         return activate

@@ -627,12 +627,24 @@ export function BrowserSurfaceTabStrip({
     },
     [consumeDragClickSuppression],
   );
+  // Whether a tab is in the air, which is what moves the clip outwards for as
+  // long as it is — see the two boxes below.
+  const [isCarryingTab, setIsCarryingTab] = useState(false);
+  const handleDragStart = useCallback(() => {
+    beginDragClickSuppression();
+    setIsCarryingTab(true);
+  }, [beginDragClickSuppression]);
+  const handleDragCancel = useCallback(() => {
+    clearDragClickSuppressionSoon();
+    setIsCarryingTab(false);
+  }, [clearDragClickSuppressionSoon]);
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       // A drop is not a click on the tab it landed on, and the pointer sequence
       // ends with one — so the click is swallowed rather than activating a tab
       // the user was only carrying.
       clearDragClickSuppressionSoon();
+      setIsCarryingTab(false);
       const over = event.over;
       if (over === null) {
         return;
@@ -679,6 +691,10 @@ export function BrowserSurfaceTabStrip({
         usesDesktopChrome && MACOS_WINDOW_DRAG_CLASS,
         "transition-[padding] duration-200 ease-linear",
         chromeReserveClassName,
+        // The carried tab's fence, and only while one is carried: the clip it
+        // escapes below has to land somewhere, and the strip is where a tab can
+        // be — the whole row, new-tab button included.
+        isCarryingTab && "overflow-hidden",
       )}
     >
       {/* The tabs get their own box so the new-tab button, which never shrinks,
@@ -697,8 +713,8 @@ export function BrowserSurfaceTabStrip({
       <DndContext
         sensors={sensors}
         modifiers={TAB_DRAG_MODIFIERS}
-        onDragStart={beginDragClickSuppression}
-        onDragCancel={clearDragClickSuppressionSoon}
+        onDragStart={handleDragStart}
+        onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
       >
         <SortableContext
@@ -706,7 +722,19 @@ export function BrowserSurfaceTabStrip({
           strategy={horizontalListSortingStrategy}
         >
           <div
-            className="flex min-w-0 items-stretch overflow-hidden"
+            className={cn(
+              "flex min-w-0 items-stretch",
+              // Not while a tab is in the air. This box ends where the last tab
+              // does, so clipping to it made the new-tab button a wall: a tab
+              // carried towards it was cut off at its edge, when what the strip
+              // owes the pointer is the whole row — Chromium anchors that button
+              // to the trailing edge of the last tab's *ideal* bounds, so it
+              // travels with the tabs and never stands in the way of one.
+              // Nothing escapes the strip, which takes the clip meanwhile, and
+              // the carried tab draws over the button rather than under it (it
+              // is the positioned one — see `z-10` on the tab).
+              !isCarryingTab && "overflow-hidden",
+            )}
             role="tablist"
             aria-label="Browser tabs"
             onClickCapture={handleClickCapture}

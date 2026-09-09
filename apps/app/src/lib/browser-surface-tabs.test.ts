@@ -139,6 +139,164 @@ describe("browser surface tabs", () => {
   });
 });
 
+// Cmd/Ctrl+click, the middle button, "Open link in new tab". The tab has to
+// land beside the page the link was on: at the far end of the strip it is a tab
+// the user has to go find, which is the opposite of what queueing a link is for.
+describe("browser surface tabs opened from a page", () => {
+  it("puts a link's tab directly behind the page it was opened from", () => {
+    const state = stateWith(["a", "b", "c"], "a");
+
+    const opened = addBrowserSurfaceTab(state, tab("link"), {
+      openerTabId: "a",
+    });
+
+    expect(opened.tabs.map((entry) => entry.id)).toEqual([
+      "a",
+      "link",
+      "b",
+      "c",
+    ]);
+    // Where focus goes is the caller's; the reducer focuses what it adds, and
+    // the hook puts focus back for a background tab.
+    expect(opened.activeTabId).toBe("link");
+  });
+
+  it("queues links from one page in the order they were clicked", () => {
+    const first = addBrowserSurfaceTab(stateWith(["a", "b"], "a"), tab("1"), {
+      openerTabId: "a",
+    });
+    const second = addBrowserSurfaceTab(first, tab("2"), { openerTabId: "a" });
+    const third = addBrowserSurfaceTab(second, tab("3"), { openerTabId: "a" });
+
+    expect(third.tabs.map((entry) => entry.id)).toEqual([
+      "a",
+      "1",
+      "2",
+      "3",
+      "b",
+    ]);
+  });
+
+  // The run behind an opener is that opener's own, so a queued link stops at
+  // the first tab that came from somewhere else rather than jumping over it.
+  it("stops the run at a tab another page opened", () => {
+    const state = {
+      activeTabId: "a",
+      tabs: [
+        tab("a"),
+        { ...tab("mine"), openerTabId: "a" },
+        { ...tab("theirs"), openerTabId: "b" },
+      ],
+    };
+
+    const opened = addBrowserSurfaceTab(state, tab("next"), {
+      openerTabId: "a",
+    });
+
+    expect(opened.tabs.map((entry) => entry.id)).toEqual([
+      "a",
+      "mine",
+      "next",
+      "theirs",
+    ]);
+    // Recorded on the tab, which is what the next link from the same page reads
+    // to find the end of the run.
+    expect(opened.tabs[2]).toMatchObject({ id: "next", openerTabId: "a" });
+  });
+
+  // The pinned block is a block: a link from a pinned page cannot land inside
+  // it, so it lands at the head of the unpinned one — Chromium's behaviour.
+  it("lands a link from a pinned page at the head of the unpinned block", () => {
+    const first = setBrowserSurfaceTabPinned(stateWith(["a", "b", "c"], "a"), {
+      pinned: true,
+      tabId: "a",
+    });
+    const pinned = setBrowserSurfaceTabPinned(first, {
+      pinned: true,
+      tabId: "b",
+    });
+
+    const opened = addBrowserSurfaceTab(pinned, tab("link"), {
+      openerTabId: "a",
+    });
+
+    expect(opened.tabs.map((entry) => entry.id)).toEqual([
+      "a",
+      "b",
+      "link",
+      "c",
+    ]);
+    expect(
+      opened.tabs.filter(isPinnedSurfaceTab).map((entry) => entry.id),
+    ).toEqual(["a", "b"]);
+  });
+
+  // A pinned page's links cannot sit next to it — the pinned block is a block —
+  // so they queue at the head of the unpinned one. Anchoring the queue on the
+  // opener's own index instead put each new link ahead of the last, which is
+  // the backwards queue this whole placement exists to avoid.
+  it("queues links from a pinned page in order behind the pinned block", () => {
+    const first = setBrowserSurfaceTabPinned(stateWith(["a", "b", "c"], "a"), {
+      pinned: true,
+      tabId: "a",
+    });
+    const pinned = setBrowserSurfaceTabPinned(first, {
+      pinned: true,
+      tabId: "b",
+    });
+
+    const one = addBrowserSurfaceTab(pinned, tab("1"), { openerTabId: "a" });
+    const two = addBrowserSurfaceTab(one, tab("2"), { openerTabId: "a" });
+
+    expect(two.tabs.map((entry) => entry.id)).toEqual([
+      "a",
+      "b",
+      "1",
+      "2",
+      "c",
+    ]);
+    expect(
+      two.tabs.filter(isPinnedSurfaceTab).map((entry) => entry.id),
+    ).toEqual(["a", "b"]);
+  });
+
+  // Two pinned pages share that head, so a queue steps over the other's tabs
+  // rather than stopping at them: what has to hold is that each page's own
+  // links stay in the order they were clicked.
+  it("keeps two pinned pages' queues in their own order", () => {
+    const first = setBrowserSurfaceTabPinned(stateWith(["a", "b", "c"], "a"), {
+      pinned: true,
+      tabId: "a",
+    });
+    const pinned = setBrowserSurfaceTabPinned(first, {
+      pinned: true,
+      tabId: "b",
+    });
+
+    const fromA = addBrowserSurfaceTab(pinned, tab("a1"), { openerTabId: "a" });
+    const fromB = addBrowserSurfaceTab(fromA, tab("b1"), { openerTabId: "b" });
+    const both = addBrowserSurfaceTab(fromB, tab("a2"), { openerTabId: "a" });
+
+    const ids = both.tabs.map((entry) => entry.id);
+    expect(ids.indexOf("a1")).toBeLessThan(ids.indexOf("a2"));
+    expect(ids.indexOf("b1")).toBeLessThan(ids.indexOf("a1"));
+    expect(ids.at(-1)).toBe("c");
+  });
+
+  it("appends when the opener has left the strip", () => {
+    const opened = addBrowserSurfaceTab(
+      stateWith(["a", "b"], "a"),
+      tab("link"),
+      { openerTabId: "gone" },
+    );
+
+    expect(opened.tabs.map((entry) => entry.id)).toEqual(["a", "b", "link"]);
+    // No opener recorded either: the id names nothing this strip can place the
+    // next link behind.
+    expect(Object.hasOwn(opened.tabs[2] ?? {}, "openerTabId")).toBe(false);
+  });
+});
+
 describe("pinned browser surface tabs", () => {
   it("moves a pinned tab to the leading block", () => {
     const pinned = setBrowserSurfaceTabPinned(stateWith(["a", "b", "c"], "a"), {
@@ -300,6 +458,17 @@ describe("browser surface tab persistence", () => {
 
     expect(parsed.tabs.map((entry) => entry.id)).toEqual(["a", "b"]);
     expect(parsed.activeTabId).toBe("b");
+  });
+
+  it("restores which page opened a tab", () => {
+    const stored = JSON.stringify({
+      activeTabId: "link",
+      tabs: [tab("a"), { ...tab("link"), openerTabId: "a" }],
+    });
+
+    const parsed = parseBrowserSurfaceTabsState(stored, fallback);
+
+    expect(parsed.tabs[1]).toMatchObject({ id: "link", openerTabId: "a" });
   });
 
   it("restores which tabs were pinned", () => {
