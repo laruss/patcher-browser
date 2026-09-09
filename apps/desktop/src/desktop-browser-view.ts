@@ -136,6 +136,7 @@ import {
   controlRefusalReason,
   ControlRefusal,
   evaluateInPage,
+  keepPageRendering,
   performInteraction,
   performPointerControl,
   type MousePoint,
@@ -1372,6 +1373,7 @@ async function performControl(
       await performPointerControl({
         session,
         operation,
+        page: entry.view.webContents,
         pointer: entry.mousePoint,
       });
       return acted();
@@ -4752,6 +4754,11 @@ export function createDesktopBrowserViewManager(
       const deadline = new InteractionDeadline(
         PATCHER_BROWSER_ACTION_TIMEOUT_MS,
       );
+      // The whole interaction rather than its sends alone: the actionability
+      // wait's settle check compares two samples a poll apart, and on a page
+      // producing no frames an element that is in fact still moving holds
+      // perfectly still (#114).
+      const releaseRendering = keepPageRendering(entry.view.webContents);
       try {
         // Same reason as in `snapshot`: from the moment we drive this tab, its
         // dialogs are ours to answer. A click that opens a `confirm()` would
@@ -4800,6 +4807,8 @@ export function createDesktopBrowserViewManager(
           reason: "failed",
           message: error instanceof Error ? error.message : String(error),
         };
+      } finally {
+        releaseRendering();
       }
 
       // A click that navigated has already changed these; reporting them saves

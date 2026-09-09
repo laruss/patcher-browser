@@ -562,6 +562,58 @@ describe("DesktopBrowserViewManager interactions", () => {
     ).toEqual([1, 2]);
   });
 
+  it("asks the page for frames before each input event, and gives them back", async () => {
+    const { hostWindow, manager, webContents, generation } =
+      await attachTabForInteractions();
+
+    // What was throttled at the moment each send went out, rather than what was
+    // called: asking for frames after the event is sent is asking too late, and
+    // a test of the call alone would pass either way (#114).
+    const throttledWhenSent: boolean[] = [];
+    webContents.debugger.results.set("Input.dispatchMouseEvent", () => {
+      throttledWhenSent.push(webContents.backgroundThrottling);
+      return {};
+    });
+
+    const result = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation,
+        interaction: {
+          action: "click",
+          ref: "e1",
+          button: "left",
+          clickCount: 1,
+          modifiers: [],
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(throttledWhenSent).toEqual([false, false, false]);
+    expect(webContents.backgroundThrottlingCalls).toEqual([false, true]);
+  });
+
+  it("gives the frames back when the interaction refuses instead", async () => {
+    const { hostWindow, manager, webContents, generation } =
+      await attachTabForInteractions();
+
+    const result = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation: generation + 1,
+        interaction: { action: "hover", ref: "e1" },
+      },
+    });
+
+    // A refusal is the path that has to give it back: nothing else will, and a
+    // tab left unthrottled by every failed command is the leak this would be.
+    expect(result).toMatchObject({ ok: false, reason: "stale-refs" });
+    expect(webContents.backgroundThrottlingCalls).toEqual([false, true]);
+  });
+
   it("refuses a ref from a snapshot the page has moved past", async () => {
     const { hostWindow, manager, webContents, generation } =
       await attachTabForInteractions();
@@ -1112,6 +1164,36 @@ describe("DesktopBrowserViewManager control", () => {
       ["Input.dispatchMouseEvent", "mouseReleased", 120, 64],
       ["Input.dispatchMouseEvent", "mouseWheel", 120, 64],
     ]);
+  });
+
+  it("asks for frames to move the pointer, and not to run an expression", async () => {
+    const { hostWindow, manager, webContents } = await attachTabForControl();
+
+    await manager.control({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        operation: { kind: "mouse-wheel", deltaX: 0, deltaY: -240 },
+      },
+    });
+
+    expect(webContents.backgroundThrottlingCalls).toEqual([false, true]);
+
+    // The pointer is the half of vision mode that waits on a frame. An
+    // expression does not, and should not cost a tab its throttling.
+    await manager.control({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        operation: {
+          kind: "evaluate",
+          expression: "() => document.title",
+          ref: null,
+        },
+      },
+    });
+
+    expect(webContents.backgroundThrottlingCalls).toEqual([false, true]);
   });
 
   it("fulfills a paused request that matches and continues one that does not", async () => {

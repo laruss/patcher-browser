@@ -112,6 +112,72 @@ export async function dispatchMouse(
   await session.send("Input.dispatchMouseEvent", { type, ...point, ...params });
 }
 
+/** The slice of Electron's `WebContents` the input path needs. */
+export interface PageRenderingTarget {
+  setBackgroundThrottling(allowed: boolean): void;
+  isDestroyed(): boolean;
+}
+
+/**
+ * Keep the page producing frames for as long as this shell is driving it, and
+ * give the throttling back afterwards.
+ *
+ * **Why an input path cares about frames at all.** Chromium dispatches
+ * `mousemove` and `wheel` on the renderer's next main frame; a widget nobody is
+ * showing produces none, so the send is not answered until Chromium's own
+ * fallback gives up waiting for a frame — measured at 5001-5008ms against the
+ * {@link PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS} budget of 5000, which is why
+ * #114 looked like a coin toss rather than a broken feature. Key events and
+ * `mousePressed`/`mouseReleased` are not frame-aligned and answer in about a
+ * millisecond throughout, which is why the keyboard looked fine while three
+ * quarters of the mouse commands timed out.
+ *
+ * The states that stop the frames are all ordinary, and none of them is the
+ * page's fault: a tab in the background of the deck, a menu or a dialog
+ * standing over the page area (`applyEntryVisibility`), a resize burst, a
+ * minimised or covered window — and the user's display going to sleep, which
+ * is exactly when an agent is most likely to be working unattended.
+ *
+ * **Measured** (Electron 41.7.0, macOS, 2026-09-09), per condition, before and
+ * after this call: rAF 0/s and `mouseMoved` at 5001-5008ms become 120/s and
+ * 1-3ms, `mouseWheel` goes from never answered to answered, and a synthesised
+ * click lands on the element it was aimed at rather than nowhere. The same
+ * holds for a view hidden before it ever painted and for a sleeping display.
+ *
+ * **What the give-back does and does not do.** Restoring the flag does not stop
+ * the frames of the document already running: Chromium keeps the widget in the
+ * shown state it was forced into until the next time it is hidden. So the
+ * throttling comes back when the view is next hidden or when the tab navigates
+ * — for a tab that stays in the background, at its next document. Measured:
+ * with the flag restored and the view hidden again, rAF is back to 0 and a move
+ * back to 5008ms. It is therefore worth doing and worth not overstating.
+ *
+ * **The policy that leaves, said rather than discovered.** Until then the
+ * driven tab renders and reports itself visible, so its timers run at full rate
+ * and a page that pauses when hidden does not pause; Electron also draws the
+ * whole window's frames while any one of its `webContents` has throttling off.
+ * For a tab an agent is driving that is mostly what automation wants — the
+ * consequences of a click have to run for the next snapshot to see them — but
+ * it is a choice about someone's battery, not a free fix.
+ *
+ * The narrower lever, measured and not taken: `capturePage(rect, { stayHidden:
+ * true })` forces a single frame and flushes the queued events (the abandoned
+ * send is answered at the capture, the page stays `hidden`, and it works on a
+ * minimised window). One frame per event leaves the page frozen between them,
+ * so the click lands and nothing it triggers ever runs.
+ */
+export function keepPageRendering(page: PageRenderingTarget): () => void {
+  page.setBackgroundThrottling(false);
+  return () => {
+    // A tab closed mid-command leaves a destroyed `webContents` behind, and an
+    // exception here would replace whatever the command was actually reporting.
+    if (page.isDestroyed()) {
+      return;
+    }
+    page.setBackgroundThrottling(true);
+  };
+}
+
 /** The vision-mode operations that move or press the pointer itself. */
 export type BrowserPointerOperation = Extract<
   PatcherDesktopBrowserControlOperation,
@@ -132,6 +198,8 @@ export interface PointerControlArgs {
    * where it went would be the less honest record of the two.
    */
   pointer: MousePoint;
+  /** The tab's page, which has to be rendering for a move to be dispatched. */
+  page: PageRenderingTarget;
 }
 
 /**
@@ -145,41 +213,50 @@ export interface PointerControlArgs {
  */
 export async function performPointerControl({
   operation,
+  page,
   pointer,
   session,
 }: PointerControlArgs): Promise<void> {
-  switch (operation.kind) {
-    case "mouse-move": {
-      pointer.x = operation.x;
-      pointer.y = operation.y;
-      await dispatchMouse(session, "mouseMoved", pointer, { button: "none" });
-      return;
-    }
+  // Here rather than around the whole of `performControl`: the pointer is the
+  // half of vision mode that needs frames, and `evaluate`, the routes and
+  // `offline` should not pay a tab's battery for a send that never waits on one.
+  const releaseRendering = keepPageRendering(page);
+  try {
+    switch (operation.kind) {
+      case "mouse-move": {
+        pointer.x = operation.x;
+        pointer.y = operation.y;
+        await dispatchMouse(session, "mouseMoved", pointer, { button: "none" });
+        return;
+      }
 
-    case "mouse-button": {
-      await dispatchMouse(
-        session,
-        operation.down ? "mousePressed" : "mouseReleased",
-        pointer,
-        {
-          button: operation.button,
-          buttons: operation.down
-            ? (MOUSE_BUTTON_MASK[operation.button] ?? 1)
-            : 0,
-          clickCount: 1,
-        },
-      );
-      return;
-    }
+      case "mouse-button": {
+        await dispatchMouse(
+          session,
+          operation.down ? "mousePressed" : "mouseReleased",
+          pointer,
+          {
+            button: operation.button,
+            buttons: operation.down
+              ? (MOUSE_BUTTON_MASK[operation.button] ?? 1)
+              : 0,
+            clickCount: 1,
+          },
+        );
+        return;
+      }
 
-    default: {
-      await dispatchMouse(session, "mouseWheel", pointer, {
-        button: "none",
-        deltaX: operation.deltaX,
-        deltaY: operation.deltaY,
-      });
-      return;
+      default: {
+        await dispatchMouse(session, "mouseWheel", pointer, {
+          button: "none",
+          deltaX: operation.deltaX,
+          deltaY: operation.deltaY,
+        });
+        return;
+      }
     }
+  } finally {
+    releaseRendering();
   }
 }
 

@@ -839,6 +839,19 @@ function createElectronMock() {
     }
 
     /**
+     * Whether this page is throttled when it is off screen, and every change
+     * in order — the order is the assertion, since asking for frames after the
+     * event has been sent would be asking too late (#114).
+     */
+    backgroundThrottling = true;
+    public readonly backgroundThrottlingCalls: boolean[] = [];
+
+    setBackgroundThrottling(allowed: boolean): void {
+      this.backgroundThrottling = allowed;
+      this.backgroundThrottlingCalls.push(allowed);
+    }
+
+    /**
      * Fires `destroyed` like Electron's does. Setting the flag alone left the
      * whole teardown path — the handler the manager installs for a popup
      * closing itself — unexercised by every test that closes a view.
