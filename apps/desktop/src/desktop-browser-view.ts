@@ -48,7 +48,6 @@ import {
   type PatcherDesktopBrowserFindRequest,
   type PatcherDesktopBrowserFindResult,
   PATCHER_DESKTOP_BROWSER_MAX_SNAPSHOT_LENGTH,
-  PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
   type PatcherDesktopBrowserDialog,
   type PatcherDesktopBrowserDialogRespondRequest,
   PATCHER_DESKTOP_BROWSER_MAX_CLIENT_CERTIFICATES,
@@ -95,7 +94,6 @@ import {
 import type { AppCommandId, AppShortcutInput } from "@patcher/domain";
 import { matchesBrowserUrlPattern } from "@patcher/domain/browser-url-pattern";
 import {
-  PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL,
   PATCHER_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
   PATCHER_DESKTOP_BROWSER_FAVICON_CHANNEL,
   PATCHER_DESKTOP_BROWSER_ZOOM_CHANNEL,
@@ -126,6 +124,7 @@ import {
   sanitizeDownloadFilename,
 } from "./desktop-browser-download.js";
 import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
+import { createBrowserDialogInterception } from "./desktop-browser-dialogs.js";
 import {
   cdpBudget,
   cdpSessionWithDeadline,
@@ -371,7 +370,7 @@ export const PATCHER_BROWSER_PARTITION = "persist:patcher-browser";
  */
 const ERR_ABORTED = -3;
 
-interface BrowserViewEntry {
+export interface BrowserViewEntry {
   view: WebContentsView;
   /**
    * The tab and window this view belongs to, kept on the entry because
@@ -3839,69 +3838,15 @@ export function createDesktopBrowserViewManager(
     forgetEntryInterception(entry);
   }
 
-  /**
-   * Take this tab's JavaScript dialogs.
-   *
-   * Enabling the `Page` domain is what moves dialogs off Chromium's native
-   * modal and onto the protocol — which is the point (an agent can answer one)
-   * and also the cost (a human now sees the app's dialog instead of the
-   * system's). It happens per tab, on the same lazy attach automation pays for,
-   * so a tab nobody has automated keeps the native behaviour.
-   */
-  async function ensureDialogInterception(
-    hostWindow: DesktopBrowserHostWindow,
-    tabId: string,
-    entry: BrowserViewEntry,
-    session: CdpSession,
-  ): Promise<void> {
-    if (entry.dialogsWired) {
-      return;
-    }
-    entry.dialogsWired = true;
-
-    session.on("Page.javascriptDialogOpening", (params) => {
-      const opening = params as {
-        type?: string;
-        message?: string;
-        defaultPrompt?: string;
-      };
-      const type = opening.type ?? "alert";
-      entry.pendingDialog = {
-        type:
-          type === "confirm" || type === "prompt" || type === "beforeunload"
-            ? type
-            : "alert",
-        message: truncate(
-          opening.message ?? "",
-          PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
-        ),
-        defaultPrompt: truncate(
-          opening.defaultPrompt ?? "",
-          PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH,
-        ),
-      };
-      // Stand a bitmap of the frozen page in for the hidden view, so the dialog
-      // appears over the page rather than over an empty panel. Same machinery
-      // the resize burst uses; a capture that fails just leaves the panel bare.
-      captureDialogPlaceholder(hostWindow, tabId, entry);
-      applyEntryVisibility(entry, hostWindow);
-      send(hostWindow, PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL, {
-        tabId,
-        dialog: entry.pendingDialog,
-      });
+  // Taking a tab's dialogs over, and giving the page back, live in
+  // `desktop-browser-dialogs.ts`. What stays here is the three things that path
+  // borrows from this closure.
+  const { ensureDialogInterception, clearPendingDialog } =
+    createBrowserDialogInterception({
+      send,
+      applyEntryVisibility,
+      captureDialogPlaceholder,
     });
-
-    session.on("Page.javascriptDialogClosed", () => {
-      clearPendingDialog(hostWindow, tabId, entry);
-    });
-
-    // Bounded here rather than at each of the five commands that call this:
-    // it is the one send the function makes, and every caller wants it bounded.
-    await cdpSessionWithDeadline(session, {
-      remainingMs: () => PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
-      dialogOpen: () => entry.pendingDialog !== null,
-    }).enableDomain("Page");
-  }
 
   function captureDialogPlaceholder(
     hostWindow: DesktopBrowserHostWindow,
@@ -3924,28 +3869,6 @@ export function createDesktopBrowserViewManager(
       .catch(() => {
         // No placeholder; the panel's own background shows behind the dialog.
       });
-  }
-
-  function clearPendingDialog(
-    hostWindow: DesktopBrowserHostWindow,
-    tabId: string,
-    entry: BrowserViewEntry,
-  ): void {
-    if (entry.pendingDialog === null) {
-      return;
-    }
-    entry.pendingDialog = null;
-    applyEntryVisibility(entry, hostWindow);
-    // Reveal first, then drop the placeholder, so the swap never flashes an
-    // empty panel — the same ordering `endWindowResize` uses.
-    send(hostWindow, PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL, {
-      tabId,
-      dataUrl: null,
-    });
-    send(hostWindow, PATCHER_DESKTOP_BROWSER_DIALOG_CHANNEL, {
-      tabId,
-      dialog: null,
-    });
   }
 
   /**
