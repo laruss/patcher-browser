@@ -38,6 +38,7 @@ const SAMPLE_COMMANDS: readonly BrowserCommand[] = [
       ref: "e1",
     },
   },
+  { type: "page.scroll", tabId: null, target: { kind: "page" } },
   {
     type: "page.observe",
     tabId: null,

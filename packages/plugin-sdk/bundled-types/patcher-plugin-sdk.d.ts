@@ -10294,8 +10294,8 @@ type ReorderPinnedThreadRequest = z$1.infer<typeof reorderPinnedThreadRequestSch
 declare const threadOpenSplitSchema: z$1.ZodEnum<{
     left: "left";
     right: "right";
-    down: "down";
     top: "top";
+    down: "down";
     replace: "replace";
 }>;
 type ThreadOpenSplit = z$1.infer<typeof threadOpenSplitSchema>;
@@ -15084,6 +15084,34 @@ interface PluginBrowserPage {
         tabId?: string;
         generation?: number;
     }, options?: PluginBrowserCallOptions): Promise<PluginBrowserPageState>;
+    /**
+     * Scroll the page, and resolve with where it ended up.
+     *
+     * Costs `page.interact`, like every other way of driving a page as the user
+     * would. It runs one of a handful of fixed expressions the app owns — the
+     * caller supplies at most an integer — which is what separates it from
+     * {@link PluginBrowserControl.evaluate} and its `page.inject`.
+     *
+     * `to` defaults to one viewport down, less a tenth so the line that was at
+     * the bottom is still on screen at the top. `{ by }` is a pixel count and may
+     * be negative; `{ ref }` brings that element to the middle of the view, and
+     * takes its own `generation` because it is the only target with a ref to be
+     * stale.
+     *
+     * `value` is JSON text: `[top, height, viewport, before]`, so a page that has
+     * stopped growing can be told from one that has more below. A page is free to
+     * answer with something else — it can redefine `scrollTop` — so read it
+     * defensively rather than trusting the shape.
+     */
+    scroll(args?: {
+        to?: "page" | "top" | "bottom" | {
+            by: number;
+        } | {
+            ref: string;
+            generation?: number;
+        };
+        tabId?: string;
+    }, options?: PluginBrowserCallOptions): Promise<PluginBrowserEvaluated>;
     /**
      * Answer the JavaScript dialog a tab is blocked on. Resolves false when there
      * was none — including when the user answered it first, which is not a

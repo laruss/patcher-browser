@@ -504,6 +504,54 @@ const browserVideoChapterSchema = z.object({
 export const BROWSER_COMMAND_MIN_ZOOM_FACTOR = 0.25;
 export const BROWSER_COMMAND_MAX_ZOOM_FACTOR = 5;
 
+/**
+ * How far one `page.scroll` may move the page, in CSS pixels. Mirrors the bound
+ * `patcher browser scroll --by` parses against and must not drift from it: the
+ * CLI refuses a bigger number with its own message, before this schema is asked.
+ */
+export const BROWSER_COMMAND_MAX_SCROLL_PIXELS = 1_000_000;
+
+/**
+ * Where a scroll should leave the page.
+ *
+ * A union rather than a mode beside three nullable fields, because the ways to
+ * name a place are mutually exclusive and a wire able to carry "to the top, by
+ * 300 pixels, and also bring e4 into view" leaves every reader of it deciding
+ * which part to believe. It also makes the executor's switch exhaustive, so a
+ * target added later does not compile until it has an expression.
+ *
+ * `page` is not `by` with a default: one viewport less a tenth is a number only
+ * the page knows, so it is a target of its own rather than a pixel count this
+ * side could work out. The tenth is the overlap a reader gets from Page Down,
+ * and what keeps a paragraph from falling between two scrolls.
+ */
+export const browserScrollTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("page") }),
+  z.object({ kind: z.literal("top") }),
+  z.object({ kind: z.literal("bottom") }),
+  z.object({
+    kind: z.literal("by"),
+    /** Negative scrolls back up. */
+    pixels: z
+      .number()
+      .int()
+      .min(-BROWSER_COMMAND_MAX_SCROLL_PIXELS)
+      .max(BROWSER_COMMAND_MAX_SCROLL_PIXELS),
+  }),
+  z.object({
+    kind: z.literal("element"),
+    ref: browserRefSchema,
+    /**
+     * Which snapshot the ref came from, or null to skip the check — the same
+     * staleness guard an interaction carries. It sits on the one target that
+     * has a ref rather than on the command, where the other four would each
+     * have to say they ignore it.
+     */
+    generation: z.number().int().nonnegative().nullable(),
+  }),
+]);
+export type BrowserScrollTarget = z.infer<typeof browserScrollTargetSchema>;
+
 export const browserCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("tabs.list") }),
   z.object({
@@ -625,6 +673,27 @@ export const browserCommandSchema = z.discriminatedUnion("type", [
      */
     generation: z.number().int().nonnegative().nullable(),
     interaction: browserInteractionSchema,
+  }),
+  /**
+   * Scroll the page, and answer with where it ended up.
+   *
+   * A command of its own rather than an expression on the direct-control
+   * channel, which is where it started and what it used to cost.
+   * `control.evaluate` prices `page.inject` because the code on that channel is
+   * the caller's; here it never is. The expressions are the app's own and the
+   * only value from outside is an integer this schema has already checked, so
+   * an agent that may click and type may scroll — which is what four other
+   * places in this repository already promised (#115).
+   *
+   * On the *shell* wire it is still an `evaluate`: that one is frozen and has
+   * no scroll of its own, so the app builds the expression. The answer is
+   * `[top, height, viewport, before]`, which is what lets an endless feed say
+   * "there is more" instead of leaving the caller to guess.
+   */
+  z.object({
+    type: z.literal("page.scroll"),
+    tabId: optionalTabIdSchema,
+    target: browserScrollTargetSchema,
   }),
   z.object({
     /**
@@ -815,6 +884,12 @@ export const browserCommandValueSchema = z.discriminatedUnion("type", [
      * What an expression returned, as JSON text. Text rather than a value
      * because what a page returns is page-shaped: a schema describing it would
      * either reject something legitimate or accept anything at all.
+     *
+     * Also what `page.scroll` answers with, for a narrower version of the same
+     * reason: its expression is the app's own and returns four numbers, but the
+     * page it runs in can have redefined `scrollTop`, so the tuple is what a
+     * well-behaved document reports rather than something this wire can
+     * promise.
      */
     type: z.literal("evaluated"),
     tabId: z.string().min(1),

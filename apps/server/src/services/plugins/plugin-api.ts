@@ -35,6 +35,7 @@ import type {
   BrowserCommand,
   BrowserCommandValue,
   BrowserRecordOperation,
+  BrowserScrollTarget,
   BrowserCookie,
   BrowserInteraction,
   BrowserStorageItem,
@@ -1723,6 +1724,42 @@ export function createPluginApi(options: {
   }
 
   /**
+   * The SDK's compact `to` as the wire's target, checked the same way an action
+   * is. The default lives here rather than in the schema: "nothing" means one
+   * viewport down to a caller, and a wire that defaulted would scroll for a
+   * caller who meant to say where and forgot.
+   */
+  function normalizeScrollTarget(to: unknown): BrowserScrollTarget {
+    let candidate: unknown = to ?? { kind: "page" };
+    if (typeof to === "string") {
+      candidate = { kind: to };
+    } else if (typeof to === "object" && to !== null) {
+      const record = to as Record<string, unknown>;
+      if ("by" in record) {
+        candidate = { kind: "by", pixels: record.by };
+      } else if ("ref" in record) {
+        candidate = {
+          kind: "element",
+          ref: record.ref,
+          generation: record.generation ?? null,
+        };
+      }
+    }
+    const parsed =
+      loadBrowserControl().browserScrollTargetSchema.safeParse(candidate);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const path = issue?.path.join(".") ?? "";
+      throw new Error(
+        `browser.page.scroll received invalid arguments${
+          path === "" ? "" : ` (${path})`
+        }: ${issue?.message ?? "unrecognized"}`,
+      );
+    }
+    return parsed.data;
+  }
+
+  /**
    * How many log entries to hand back. Bounded here rather than left to the
    * schema alone so a plugin asking for a nonsense limit is told which call was
    * wrong.
@@ -2506,6 +2543,24 @@ export function createPluginApi(options: {
           "interacted",
         );
         return { tabId: value.tabId, url: value.url, title: value.title };
+      },
+      async scroll(args, options) {
+        const value = await callBrowser(
+          {
+            type: "page.scroll",
+            tabId: optionalTabId(args?.tabId),
+            target: normalizeScrollTarget(args?.to),
+          },
+          options,
+          "evaluated",
+        );
+        return {
+          tabId: value.tabId,
+          url: value.url,
+          title: value.title,
+          value: value.value,
+          truncated: value.truncated,
+        };
       },
       async screenshot(args, options) {
         const value = await callBrowser(

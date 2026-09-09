@@ -35,6 +35,7 @@ import {
   newestBrowserTabOwnedBy,
   type BrowserTabOwners,
 } from "./tab-owners";
+import { browserScrollExpression } from "./scroll";
 import {
   annotateSnapshotRefs,
   browserInteractionRefs,
@@ -1355,6 +1356,66 @@ async function runBrowserCommand(
         tabId: result.tabId,
         url: ended.url,
         title: ended.title,
+      });
+    }
+
+    case "page.scroll": {
+      const resolution = resolveTab(command.tabId, deps);
+      if (!resolution.ok) {
+        return resolution.outcome;
+      }
+      const { tab } = resolution.resolved;
+      if (desktopBrowser.control === undefined) {
+        return failure(
+          "unsupported_command",
+          "This version of the Patcher desktop app cannot scroll a page.",
+        );
+      }
+      const target = command.target;
+      // Only one target names an element, and it is the only one that carries a
+      // snapshot to be stale against.
+      const scoped = target.kind === "element" ? target.ref : null;
+      const generation = browserRefGeneration({
+        declared: target.kind === "element" ? target.generation : null,
+        refs: [scoped],
+      });
+      if (!generation.ok) {
+        return failure("invalid_command", generation.message);
+      }
+      const result = await desktopBrowser.control({
+        tabId: tab.id,
+        ...(generation.generation === null
+          ? {}
+          : { generation: generation.generation }),
+        // An `evaluate` on the shell wire, because that wire is frozen and has
+        // no scroll of its own. The expression is this app's, which is what
+        // makes the command cost `page.interact` rather than `page.inject`.
+        operation: {
+          kind: "evaluate",
+          expression: browserScrollExpression(target),
+          // Bare, because the shell's wire knows only `eN`.
+          ref: scoped === null ? null : splitBrowserRef(scoped).ref,
+        },
+      });
+      if (!result.ok) {
+        return controlFailure(result, tab.id);
+      }
+      if (result.kind !== "evaluated") {
+        // An `evaluate` is answered with `evaluated`; anything else means this
+        // app and the shell disagree about the channel, not that the page
+        // refused to move.
+        return failure(
+          "page_read_failed",
+          "The page answered the scroll with something other than a position.",
+        );
+      }
+      return success({
+        type: "evaluated",
+        tabId: result.tabId,
+        url: result.url,
+        title: result.title,
+        value: result.value,
+        truncated: result.truncated,
       });
     }
 

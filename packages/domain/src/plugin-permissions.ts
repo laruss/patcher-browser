@@ -522,6 +522,14 @@ export function permissionForBrowserCommand(
     // sees. It is not free: Chromium remembers zoom per site, so a plugin
     // setting it here decides what that site looks like next time.
     case "page.zoom":
+    // Scrolling is what a reader does, and the price follows the command rather
+    // than the channel it rides. `page.scroll` is four fixed expressions the app
+    // owns; the only value from outside is an integer the schema has already
+    // checked, so nothing arbitrary reaches the page. It cost `page.inject` for
+    // as long as it travelled on `control.evaluate`, which left an `interact`
+    // agent scrolling a feed with raw wheel events — the command the help tells
+    // it not to use (#115).
+    case "page.scroll":
       return "page.interact";
     case "page.observe":
       return permissionForObservation(command.observation.kind);

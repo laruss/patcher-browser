@@ -2576,6 +2576,21 @@ function createFakePluginHostInternal(
           title: tab.title,
         });
       },
+      scroll(args) {
+        beginBrowserCall("page.scroll", "page.interact", { ...args });
+        const tab = requireLiveBrowserTab(args?.tabId);
+        // Answers with what a test set for `evaluated`, because a scroll is one
+        // of the app's own expressions and comes back the way one does. A fake
+        // has no layout, so where the page would have landed is the test's to
+        // say: `setPageContent({ evaluated: "[900,4000,1000,0]" })`.
+        return Promise.resolve({
+          tabId: tab.tabId,
+          url: tab.url,
+          title: tab.title,
+          value: readBrowserPageContent(tab.tabId).evaluated,
+          truncated: false,
+        });
+      },
       screenshot(args) {
         beginBrowserCall("page.screenshot", "page.read", { ...args });
         const tab = requireLiveBrowserTab(args?.tabId);

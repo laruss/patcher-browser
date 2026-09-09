@@ -2157,6 +2157,154 @@ describe("page.zoom", () => {
   });
 });
 
+describe("page.scroll", () => {
+  const state = {
+    activeTabId: "t",
+    tabs: [tab("t", "https://example.com/")],
+  } satisfies BrowserSurfaceTabsState;
+
+  function scrollHarness() {
+    return createHarness({
+      state,
+      live: { t: liveState("t") },
+      control: {
+        ok: true,
+        kind: "evaluated",
+        tabId: "t",
+        url: "https://example.com/",
+        title: "Example",
+        value: "[900,4000,1000,0]",
+        truncated: false,
+      },
+    });
+  }
+
+  function expressions(harness: ReturnType<typeof scrollHarness>): string[] {
+    return harness.calls.control.map((call) =>
+      String(
+        (call as { operation: { expression?: unknown } }).operation.expression,
+      ),
+    );
+  }
+
+  // The command exists so that the price follows it rather than the channel, so
+  // what has to be pinned is that the code reaching the page is ours: each
+  // target picks one of the app's expressions, and the only thing a caller
+  // contributes is the integer in the third one.
+  it("turns each target into the app's own expression", async () => {
+    const harness = scrollHarness();
+
+    for (const target of [
+      { kind: "page" },
+      { kind: "top" },
+      { kind: "bottom" },
+      { kind: "by", pixels: -400 },
+    ] as const) {
+      await expect(
+        executeBrowserCommand(
+          { type: "page.scroll", tabId: null, target },
+          harness.deps,
+        ),
+      ).resolves.toMatchObject({
+        ok: true,
+        value: { type: "evaluated", value: "[900,4000,1000,0]" },
+      });
+    }
+
+    const sent = expressions(harness);
+    expect(sent[0]).toContain("Math.round(window.innerHeight * 0.9)");
+    expect(sent[1]).toContain("el.scrollTop = 0");
+    expect(sent[2]).toContain("el.scrollTop = el.scrollHeight");
+    expect(sent[3]).toContain("el.scrollTop + -400");
+    // Every one of them reads the position back, which is what a caller scrolls
+    // an endless feed to find out.
+    for (const expression of sent) {
+      expect(expression).toContain(
+        "return [el.scrollTop, el.scrollHeight, window.innerHeight",
+      );
+    }
+  });
+
+  it("brings an element into view with the bare ref and its snapshot", async () => {
+    const harness = scrollHarness();
+
+    await expect(
+      executeBrowserCommand(
+        {
+          type: "page.scroll",
+          tabId: null,
+          target: { kind: "element", ref: "e2@4", generation: null },
+        },
+        harness.deps,
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(harness.calls.control).toEqual([
+      {
+        tabId: "t",
+        // Taken off the ref, since the shell's wire knows only `e2`.
+        generation: 4,
+        operation: {
+          kind: "evaluate",
+          expression: expect.stringContaining("scrollIntoView"),
+          ref: "e2",
+        },
+      },
+    ]);
+  });
+
+  it("refuses a ref and a generation that name different snapshots", async () => {
+    const harness = scrollHarness();
+
+    await expect(
+      executeBrowserCommand(
+        {
+          type: "page.scroll",
+          tabId: null,
+          target: { kind: "element", ref: "e2@4", generation: 6 },
+        },
+        harness.deps,
+      ),
+    ).resolves.toMatchObject({ ok: false, code: "invalid_command" });
+    expect(harness.calls.control).toEqual([]);
+  });
+
+  // The wire refuses it before the executor sees it, which is what makes "the
+  // only value that reaches the page is an integer this schema checked" true
+  // rather than a claim about the caller's manners.
+  it("refuses a pixel count past what the schema allows", async () => {
+    const harness = scrollHarness();
+
+    await expect(
+      executeBrowserCommand(
+        {
+          type: "page.scroll",
+          tabId: null,
+          target: { kind: "by", pixels: 2_000_000 },
+        },
+        harness.deps,
+      ),
+    ).resolves.toMatchObject({ ok: false, code: "invalid_command" });
+    expect(harness.calls.control).toEqual([]);
+  });
+
+  it("says this desktop build cannot scroll rather than pretending", async () => {
+    const harness = createHarness({
+      state,
+      live: { t: liveState("t") },
+      omitControl: true,
+    });
+
+    expectFailure(
+      await executeBrowserCommand(
+        { type: "page.scroll", tabId: null, target: { kind: "page" } },
+        harness.deps,
+      ),
+      "unsupported_command",
+    );
+  });
+});
+
 describe("executeBrowserCommand reading part of a page", () => {
   it("reads the element a selector names, on its own channel", async () => {
     const harness = createHarness({

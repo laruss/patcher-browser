@@ -73,6 +73,27 @@ describe("browser access levels for agents outside Patcher", () => {
     expect(browserExternalAccessAllows("interact", "tabs.modify")).toBe(true);
   });
 
+  it("admits both ways of moving a page at the level that admits a click", () => {
+    // #115. `scroll` cost `page.inject` for as long as it travelled on
+    // `control.evaluate`, so an `interact` agent asked to read a long page was
+    // refused the command the help lists under Acting and left with the raw
+    // wheel event beside it — which reports nothing about where the page went.
+    const scroll = permissionForBrowserCommand({
+      type: "page.scroll",
+      tabId: null,
+      target: { kind: "by", pixels: 300 },
+    });
+    const wheel = permissionForBrowserCommand({
+      type: "page.control",
+      tabId: null,
+      generation: null,
+      operation: { kind: "mouse-wheel", deltaX: 0, deltaY: 300 },
+    });
+
+    expect(scroll).toBe(wheel);
+    expect(browserExternalAccessAllows("interact", scroll)).toBe(true);
+  });
+
   it("names the lowest level that would admit a permission", () => {
     for (const permission of BROWSER_COMMAND_PERMISSIONS) {
       const lowest = lowestBrowserExternalAccessLevelFor(permission);

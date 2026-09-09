@@ -1391,55 +1391,6 @@ function parseScrollPosition(value: string): ScrollPosition | null {
   return { top, height, viewport, before };
 }
 
-/**
- * The scrolling expressions, as constants.
- *
- * `scroll` rides `control.evaluate` — the same channel `eval` uses — and that
- * needs saying plainly, because everything else on that channel is listed under
- * "Direct control — these skip what makes the commands above safe". What makes
- * those unsafe is that the code is the caller's. Here the code is *this file's*:
- * four fixed expressions, and the only value that reaches the page from outside
- * is `--by`, which the parser has already reduced to an integer. So the command
- * belongs with the acting commands, where scrolling a feed is an ordinary thing
- * to want, rather than in the section that asks the caller to justify itself.
- *
- * Each answers with `[top, height, viewport, before]` so the caller learns
- * whether the page actually moved — which on an infinite feed is the difference
- * between "keep going" and "this is the end".
- */
-function scrollExpression(
-  mode: "page" | "top" | "bottom",
-  by: number | null,
-): string {
-  const target =
-    mode === "top"
-      ? "0"
-      : mode === "bottom"
-        ? "el.scrollHeight"
-        : by === null
-          ? // One viewport less a tenth, so the line that was at the bottom is
-            // still on screen at the top — the overlap Page Down gives a reader,
-            // and what keeps a paragraph from falling between two scrolls.
-            "el.scrollTop + Math.round(window.innerHeight * 0.9)"
-          : `el.scrollTop + ${by}`;
-  // `scrollTop =` rather than `scrollBy`: a page with `scroll-behavior: smooth`
-  // animates the second one, and the position read back would be where the
-  // page was on its way rather than where it is going.
-  return `() => {
-  const el = document.scrollingElement ?? document.body;
-  const before = el.scrollTop;
-  el.scrollTop = ${target};
-  return [el.scrollTop, el.scrollHeight, window.innerHeight, before];
-}`;
-}
-
-/** The same, for an element: bring it to the middle of the view. */
-const SCROLL_INTO_VIEW_EXPRESSION = `(element) => {
-  element.scrollIntoView({ block: "center", inline: "nearest" });
-  const el = document.scrollingElement ?? document.body;
-  return [el.scrollTop, el.scrollHeight, window.innerHeight, el.scrollTop];
-}`;
-
 function renderScroll(position: ScrollPosition, json: boolean): string {
   if (json) {
     return `${JSON.stringify(position)}\n`;
@@ -1936,20 +1887,33 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
                 stderr: `A ref scrolls that element into view; ${modes[0]} scrolls the page. Pass one.\n`,
               };
             }
+            if (ref === null && parsed.generation !== undefined) {
+              return {
+                exitCode: 2,
+                stderr:
+                  "--generation says which snapshot a ref came from, and scrolling the page uses no ref. Pass it with one.\n",
+              };
+            }
             const mode = parsed.seen.has("--top")
               ? "top"
               : parsed.seen.has("--bottom")
                 ? "bottom"
                 : "page";
-            const result = await patcher.browser.control.evaluate(
+            const by = parsed.scrollBy;
+            const result = await patcher.browser.page.scroll(
               {
-                expression:
+                to:
                   ref === null
-                    ? scrollExpression(mode, parsed.scrollBy ?? null)
-                    : SCROLL_INTO_VIEW_EXPRESSION,
-                ...(ref === null ? {} : { ref }),
+                    ? by === undefined
+                      ? mode
+                      : { by }
+                    : {
+                        ref,
+                        ...(parsed.generation === undefined
+                          ? {}
+                          : { generation: parsed.generation }),
+                      },
                 tabId,
-                generation: parsed.generation,
               },
               options,
             );
