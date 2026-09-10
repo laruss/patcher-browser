@@ -1186,6 +1186,13 @@ async function runBrowserCommand(
       // `tabs.close` needs no such line — the row draws nothing for a tab that
       // is gone, and a closed tab's ask is replaceable.
       deps.withdrawTabHandover({ issuer, tabId: tab.id });
+      // And the tab stops being an automated tab. Route mocks, offline
+      // emulation and a running screencast live with its debugger rather than
+      // with the claim, so without this a tab could be handed back still
+      // lying about the network, or still being filmed — and its former holder
+      // could no longer clear either. `tabs.close` needs no such line: it
+      // destroys the view, and the session goes with it.
+      deps.desktopBrowser?.endAutomation?.({ tabId: tab.id });
       const state = deps.getState();
       return success({ type: "tab", tab: toSnapshot(tab, state, deps) });
     }

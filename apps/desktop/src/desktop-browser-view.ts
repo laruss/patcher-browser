@@ -123,7 +123,13 @@ import {
   resolveUniqueDownloadPath,
   sanitizeDownloadFilename,
 } from "./desktop-browser-download.js";
-import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
+import {
+  createCdpSession,
+  endCdpAutomation,
+  forgetCdpSessionScopedState,
+  releaseCdpSessionFor,
+  type CdpSession,
+} from "./desktop-browser-cdp.js";
 import { createBrowserDialogInterception } from "./desktop-browser-dialogs.js";
 import {
   cdpBudget,
@@ -736,6 +742,8 @@ interface SetEntryDesiredBoundsArgs {
 export interface DesktopBrowserViewManager {
   attach(args: HostScopedRequestArgs<PatcherDesktopBrowserAttachRequest>): void;
   detach(args: HostScopedTabArgs): void;
+  /** See {@link endCdpAutomation}, which is the whole of it. */
+  endAutomation(args: HostScopedTabArgs): void;
   /**
    * Print a tab's page through the OS dialog.
    *
@@ -3747,7 +3755,7 @@ export function createDesktopBrowserViewManager(
     rememberClosedTabSession(entry);
     entries.delete(key);
     entriesByWebContentsId.delete(entry.view.webContents.id);
-    releaseCdpSession(entry);
+    releaseCdpSessionFor(entry);
     clearEntryLocalOriginState(entry);
     if (!hostWindow.isDestroyed()) {
       hostWindow.contentView.removeChildView(entry.view);
@@ -3771,7 +3779,7 @@ export function createDesktopBrowserViewManager(
         // Refs were resolved against a session that no longer exists.
         entry.cdp = null;
         invalidateSnapshotRefs(entry);
-        forgetEntryInterception(entry);
+        forgetCdpSessionScopedState(entry);
         // And so was the dialog interception: Chromium drops the `Page` domain
         // with its protocol client, so leaving `dialogsWired` set means the
         // next session short-circuits and never re-enables it, and dialogs on
@@ -3791,30 +3799,6 @@ export function createDesktopBrowserViewManager(
     });
     entry.cdp = session;
     return session;
-  }
-
-  /**
-   * Chromium drops request interception, network emulation and the screencast
-   * when its protocol client goes, so the tab is routed, online and unfilmed
-   * again whether we like it or not. Forgetting them here is what stops
-   * `route-list` describing a tab that is no longer mocked, and `video-stop`
-   * answering with a recording that stopped growing when the debugger did.
-   */
-  function forgetEntryInterception(entry: BrowserViewEntry): void {
-    entry.routes = [];
-    entry.routesWired = false;
-    entry.routesEnabled = false;
-    entry.offline = false;
-    entry.video = null;
-    entry.videoWired = false;
-  }
-
-  function releaseCdpSession(entry: BrowserViewEntry): void {
-    entry.cdp?.detach();
-    entry.cdp = null;
-    entry.dialogsWired = false;
-    entry.pendingDialog = null;
-    forgetEntryInterception(entry);
   }
 
   // Taking a tab's dialogs over, and giving the page back, live in
@@ -4393,6 +4377,9 @@ export function createDesktopBrowserViewManager(
           entry.view.webContents.navigationHistory.goForward();
         }
       });
+    },
+    endAutomation(args) {
+      withEntry(args, endCdpAutomation);
     },
     reload({ hostWindow, tabId }) {
       withEntry({ hostWindow, tabId }, (entry) => {

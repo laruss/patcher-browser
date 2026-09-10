@@ -2633,6 +2633,15 @@ export interface PatcherDesktopBrowserApi {
    */
   print?(request: PatcherDesktopBrowserTabRef): void;
   /**
+   * Nobody is driving this tab any more — its claim ended, by the agent handing
+   * it back or the person taking it. Undoes what lives with the tab's debugger
+   * rather than with its page, and never attaches one to a tab that had none:
+   * `endCdpAutomation`, and docs/architecture/browser-tab-ownership.md. Optional
+   * for the same version skew as the methods above; on an older shell the state
+   * outlives the claim, as it did everywhere before this.
+   */
+  endAutomation?(request: PatcherDesktopBrowserTabRef): void;
+  /**
    * Scale a tab's page. Optional for the same version skew as
    * {@link PatcherDesktopBrowserApi.onFavicon}; a caller that finds it missing has
    * an older shell and leaves zoom alone rather than pretending to change it.

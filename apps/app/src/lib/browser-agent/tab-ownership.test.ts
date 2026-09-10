@@ -704,6 +704,29 @@ describe("handing a tab back", () => {
     ]);
   });
 
+  it("stops automating a tab it gives back", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://work.example/")] },
+      live: { a: liveState("a") },
+      issuer: GRANT,
+      owners: ownedBy([["a", GRANT]]),
+    });
+
+    const released = await executeBrowserCommand(
+      { type: "tabs.release", tabId: "a" },
+      harness.deps,
+    );
+
+    // Route mocks, offline emulation and a running screencast live with the
+    // tab's debugger rather than with the claim, so a tab handed back without
+    // this could still be lying about the network or still being filmed — and
+    // its former holder could no longer clear either, having given the tab up.
+    expect(released).toMatchObject({ ok: true });
+    expect(harness.calls.automationEnded).toEqual(["a"]);
+    // Not by destroying the view: the page surviving is the whole command.
+    expect(harness.calls.destroyed).toEqual([]);
+  });
+
   it("refuses a tab the caller holds nothing on, and tells nobody whose it is", async () => {
     const harness = createHarness({
       state: {

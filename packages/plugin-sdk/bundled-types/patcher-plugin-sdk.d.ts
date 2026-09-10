@@ -14860,9 +14860,11 @@ interface PluginBrowserTabs {
      * when somebody else does. It costs `tabs.read`, so a caller allowed only to
      * read can still give back what it was lent.
      *
-     * What it does not undo is anything you did to the page while you held it. A
-     * tab you left mocked, offline or recording stays that way, and you cannot
-     * reach it afterwards — clear those first.
+     * It also ends the tab's automation, so what you hand back behaves like the
+     * person's tab again: route mocks, offline emulation and a running recording
+     * all go with the claim. The exception is a page blocked on an unanswered
+     * dialog — only the client holding it can answer, so it keeps what you set
+     * until the person answers it themselves.
      */
     release(args: {
         tabId: string;

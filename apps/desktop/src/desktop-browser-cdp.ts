@@ -199,3 +199,87 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
     },
   };
 }
+
+/**
+ * The tab bookkeeping that is only true while a CDP session is attached.
+ *
+ * Described by the fields rather than by `BrowserViewEntry`, which lives in
+ * `desktop-browser-view.ts` and imports this module: the narrow shape is what
+ * keeps the dependency pointing one way.
+ */
+export interface CdpSessionScopedState {
+  cdp: CdpSession | null;
+  dialogsWired: boolean;
+  pendingDialog: unknown;
+  routes: unknown[];
+  routesWired: boolean;
+  routesEnabled: boolean;
+  offline: boolean;
+  video: unknown;
+  videoWired: boolean;
+}
+
+/**
+ * Chromium drops request interception, network emulation and the screencast
+ * when its protocol client goes, so the tab is routed, online and unfilmed
+ * again whether we like it or not. Forgetting them here is what stops
+ * `route-list` describing a tab that is no longer mocked, and `video-stop`
+ * answering with a recording that stopped growing when the debugger did.
+ *
+ * Moved out of the view module (#80) to pay for `endAutomation`, which is the
+ * other caller: giving a tab back to the person ends its automation, and this
+ * is the half of that which is bookkeeping.
+ */
+export function forgetCdpSessionScopedState(
+  state: CdpSessionScopedState,
+): void {
+  state.routes = [];
+  state.routesWired = false;
+  state.routesEnabled = false;
+  state.offline = false;
+  state.video = null;
+  state.videoWired = false;
+}
+
+/**
+ * Drop a tab's session, which is what actually undoes the three above.
+ *
+ * Clearing `pendingDialog` is bookkeeping and *not* a claim that the page came
+ * unblocked — see the `onDetach` handler in `desktop-browser-view.ts`, which
+ * says the same thing and tells the app.
+ */
+export function releaseCdpSessionFor(state: CdpSessionScopedState): void {
+  state.cdp?.detach();
+  state.cdp = null;
+  state.dialogsWired = false;
+  state.pendingDialog = null;
+  forgetCdpSessionScopedState(state);
+}
+
+/**
+ * Stop automating a tab, because it is the person's again: an agent released
+ * its claim on it, or the person took it back (`tab-owners.ts` in the app).
+ *
+ * Two things it deliberately does not do.
+ *
+ * **It never attaches a session.** A tab nobody was driving has nothing to
+ * undo, and attaching one to find that out would take the tab's dialogs over —
+ * so the sweep meant to hand a tab back would itself have been the thing that
+ * changed how the tab behaves for the person (#117).
+ *
+ * **And it does not act under an open dialog.** The page is blocked on it, only
+ * this client can answer it, and a dialog open when the client goes most likely
+ * stands — so dropping the session here would hand back a page nothing can
+ * unblock. Leaving it means the person answers it in Patcher's own panel, and
+ * the tab keeps whatever was set on it until then, which is the better of two
+ * bad corners.
+ */
+export function endCdpAutomation(state: CdpSessionScopedState): void {
+  if (state.cdp === null || !state.cdp.isAttached()) {
+    return;
+  }
+  if (state.pendingDialog !== null) {
+    return;
+  }
+  releaseCdpSessionFor(state);
+}

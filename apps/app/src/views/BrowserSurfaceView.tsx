@@ -248,6 +248,11 @@ export function BrowserSurfaceView({
           tabId,
         }),
       );
+      // The person's door into the same room as `tabs.release`: a claim ending
+      // has to end the tab's automation too, or they take back a tab that is
+      // still mocked, offline or being filmed — and the agent they took it from
+      // can no longer clear any of it.
+      getDesktopBrowserApi()?.endAutomation?.({ tabId });
     },
     [openWebTabIds, setTabOwners],
   );

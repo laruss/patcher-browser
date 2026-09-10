@@ -70,6 +70,11 @@ export const PATCHER_DESKTOP_BROWSER_ZOOM_CHANNEL =
 // got one.
 export const PATCHER_DESKTOP_BROWSER_SET_MUTED_CHANNEL =
   "patcher-desktop:browser:set-muted";
+// A tab's claim ended, so nobody is driving it any more: the agent handed it
+// back or the person took it. One direction only, like muting — the renderer is
+// the only place a claim exists, and there is nothing to hear back.
+export const PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL =
+  "patcher-desktop:browser:end-automation";
 // What the shell knows about the page's connection that the renderer cannot see
 // in the URL: whether it is riding a certificate a human waved through. Its own
 // channel rather than a field on the wire-frozen state payload, for the reason

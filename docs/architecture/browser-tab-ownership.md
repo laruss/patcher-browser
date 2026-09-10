@@ -165,13 +165,34 @@ arriving through the row instead. Withdrawing is keyed on the caller *and* the
 tab, because the ask that is waiting may be somebody else's live question. Found
 by review.
 
-**What it does not undo is what the agent did to the page.** Route mocks,
-offline emulation and a running recording live with the tab's debugger session,
-not with the claim, so a tab released while mocked stays mocked — and the agent
-cannot clear it afterwards, because the tab is no longer its to act on. The
-person's **Take back** has had exactly this hole since ownership shipped and
-nothing about `release` widens it; both doors need the same fix, which is its
-own change. Until then the CLI and the skill both say to clear those first.
+**And the tab stops being an automated tab.** Route mocks, offline emulation, a
+running recording and the dialog interception that replaces Chromium's own modal
+live with the tab's *debugger session*, not with the claim — so a tab released
+while mocked stayed mocked, and its former holder could no longer clear it,
+having given the tab up. The person's **Take back** had the identical hole from
+the day ownership shipped. Both doors now call one shell command,
+`endAutomation`, which drops the session; Chromium undoes the interception, the
+emulation and the screencast when its client goes, so dropping it *is* the undo.
+
+Two things that command deliberately does not do, and they are the whole reason
+it is a command of its own rather than a `route-clear` and an `offline false`
+sent from the renderer:
+
+- **It never attaches a session.** Every `page.control` operation goes through
+  `ensureCdpSession`, which creates one if there is none — so sweeping a tab
+  nobody had driven would have attached a debugger to it and taken the person's
+  dialogs over. The sweep meant to hand a tab back would have been the change it
+  was there to undo. Asking first is no way out either: `route-list` attaches
+  the same way.
+- **It does not act under an open dialog.** The page is blocked on it, only that
+  client can answer it, and a dialog open when the client goes most likely
+  stands — so dropping the session there would hand back a page nothing can
+  unblock. It leaves the session instead, the person answers in Patcher's own
+  panel, and the tab keeps what was set on it until then. The better of two bad
+  corners, and the only one this leaves.
+
+An older desktop shell does not have the command, and the renderer feature-tests
+for it: there the state outlives the claim, as it did everywhere before this.
 
 ## Handing a tab over, and taking it back
 

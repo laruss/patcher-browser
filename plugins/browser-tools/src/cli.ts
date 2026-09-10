@@ -343,7 +343,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     options: ["--json"],
     details: [
       "For a tab they handed you, one they lent you a look at, or one you opened and want to leave them. `close` was the only way to end a claim before, and it destroys the page.",
-      "Anything you did to the page stays done: clear your route mocks, offline mode and recordings first, because afterwards that tab is not yours to reach.",
+      "It also undoes what you set on the page — route mocks, offline mode, a running recording — so what you hand back behaves like their tab. Except on a page blocked by an unanswered dialog: answer it first.",
     ],
   },
   {

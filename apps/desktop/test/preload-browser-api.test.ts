@@ -39,6 +39,7 @@ import {
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_BOUNDS_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_POPUP_TABS_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_MUTED_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_VISIBLE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
@@ -260,6 +261,7 @@ describe("desktop preload browser API", () => {
       "control",
       "detach",
       "downloadAction",
+      "endAutomation",
       "find",
       "goBack",
       "goForward",
@@ -323,6 +325,7 @@ describe("desktop preload browser API", () => {
     api.browser.setBounds(boundsRequest);
     api.browser.setVisible(visibleRequest);
     api.browser.setMuted?.({ tabId: "browser:a", muted: true });
+    api.browser.endAutomation?.({ tabId: "browser:a" });
     api.setTheme("dark");
     await api.checkForUpdates();
     await expect(api.getWindowState?.()).resolves.toEqual({
@@ -370,6 +373,10 @@ describe("desktop preload browser API", () => {
       {
         channel: PATCHER_DESKTOP_BROWSER_SET_MUTED_CHANNEL,
         payload: { tabId: "browser:a", muted: true },
+      },
+      {
+        channel: PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL,
+        payload: { tabId: "browser:a" },
       },
       { channel: PATCHER_DESKTOP_SET_THEME_CHANNEL, payload: "dark" },
     ]);

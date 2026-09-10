@@ -544,6 +544,36 @@ describe("BrowserSurfaceView", () => {
   // Queueing is the point of the gesture, and a queue is only a queue if it is
   // beside the page the links are on: at the end of the strip, past whatever
   // else is open, each tab is one the user has to go find.
+  it("stops automating a tab the person takes back", () => {
+    const endAutomation = vi.fn();
+    const surface = renderSurface({
+      ...createNoopDesktopBrowserApi(),
+      endAutomation,
+    });
+    const tabId = getBrowserSurfaceWebTabs(
+      surface.store.get(browserSurfaceTabsAtom),
+    )[0]?.id as string;
+    act(() => {
+      surface.store.set(browserTabOwnersAtom, (current) =>
+        withBrowserTabOwner(current, {
+          claim: { issuer: OWNER, mode: "drive" },
+          openTabIds: [tabId],
+          tabId,
+        }),
+      );
+    });
+
+    fireEvent.contextMenu(screen.getByRole("tab"));
+    fireEvent.click(screen.getByText(`Take back from ${OWNER.label}`));
+
+    // The person's door into the same room as `patcher browser release`: a
+    // claim ending has to end the tab's automation too, or they take back a tab
+    // still mocked, offline or being filmed — and the agent they took it from
+    // can no longer clear any of it.
+    expect(surface.store.get(browserTabOwnersAtom).has(tabId)).toBe(false);
+    expect(endAutomation).toHaveBeenCalledWith({ tabId });
+  });
+
   it("places middle-clicked links behind the page they came from", () => {
     const opener = {
       environmentId: null,
