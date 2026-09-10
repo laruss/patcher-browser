@@ -44,11 +44,25 @@ export const BROWSER_COMMAND_MAX_SELECTOR_LENGTH = 1024;
  * Relative on purpose. The alternative is naming the owner — and then a grant
  * learns the label of every other grant, and a turn's thread id travels to a
  * shell outside Patcher, for a question every caller asks about itself. What a
- * caller needs is which tabs it may act on, and that is three answers:
+ * caller needs is which tabs it may act on, and that is four answers:
  * `"you"` is its own, `"person"` is the one the human is working in, and
  * `"agent"` is somebody else's, which nothing but the person can hand over.
+ *
+ * `"shared"` is the fourth and the newest (#117): the person's tab, which they
+ * answered "look, don't touch" about — readable by this caller, not actable in.
+ * It is a value here rather than a second field beside this one because the
+ * question a caller asks about a tab is single ("what is this tab to me"), and
+ * because every rule that switches on this then has to decide the new case
+ * instead of being free to ignore a field it does not know about. To everybody
+ * *else* such a tab still answers `"person"`, which is what it still is: a look
+ * claim is a view onto the person's page, not a transfer of it.
  */
-export const browserTabOwnerSchema = z.enum(["you", "person", "agent"]);
+export const browserTabOwnerSchema = z.enum([
+  "you",
+  "person",
+  "agent",
+  "shared",
+]);
 export type BrowserTabOwner = z.infer<typeof browserTabOwnerSchema>;
 
 export const browserTabSnapshotSchema = z.object({
@@ -560,6 +574,16 @@ export const browserCommandSchema = z.discriminatedUnion("type", [
     activate: z.boolean(),
   }),
   z.object({ type: z.literal("tabs.close"), tabId: z.string().min(1) }),
+  /**
+   * Hand a tab back to the person without closing it.
+   *
+   * The other half of a handover, and until #117 the only way to end one was
+   * `tabs.close` — which destroys the page, the one outcome a person who lent
+   * their tab does not want. Named rather than defaulted to "my newest tab":
+   * giving a tab away is not a thing to do to whichever tab happens to be at
+   * hand.
+   */
+  z.object({ type: z.literal("tabs.release"), tabId: z.string().min(1) }),
   z.object({ type: z.literal("tabs.activate"), tabId: z.string().min(1) }),
   /**
    * Pin or unpin a tab, which moves it into or out of the strip's pinned block.

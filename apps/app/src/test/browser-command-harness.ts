@@ -138,6 +138,10 @@ export function createHarness(args: HarnessArgs = {}) {
     readPageIn: [] as unknown[],
     backgroundViews: [] as Array<{ tabId: string; url: string }>,
     handoverAsks: [] as Array<{ issuer: BrowserCommandIssuer; tabId: string }>,
+    handoverWithdrawals: [] as Array<{
+      issuer: BrowserCommandIssuer;
+      tabId: string;
+    }>,
     dialogs: [] as unknown[],
   };
   let nextTabId = 0;
@@ -393,15 +397,18 @@ export function createHarness(args: HarnessArgs = {}) {
     // The bridge's own wiring, on purpose: pruning happens on write, so a test
     // that kept its own map would not be exercising the rule that drops the
     // entry for a tab somebody closed.
-    setTabOwner: ({ issuer, tabId }) => {
+    setTabOwner: ({ claim, tabId }) => {
       owners = withBrowserTabOwner(owners, {
-        issuer,
+        claim,
         openTabIds: getBrowserSurfaceWebTabs(state).map((each) => each.id),
         tabId,
       });
     },
     requestTabHandover: (ask) => {
       calls.handoverAsks.push(ask);
+    },
+    withdrawTabHandover: (ask) => {
+      calls.handoverWithdrawals.push(ask);
     },
     ...(args.resolvePdfText === undefined
       ? {}

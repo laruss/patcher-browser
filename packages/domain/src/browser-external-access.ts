@@ -95,8 +95,12 @@ export const BROWSER_ACCESS_GRANT_LEVELS =
  *
  * - **read** — what the page shows and where the tabs point. A page's text,
  *   its accessibility tree, a screenshot, its console and its network log.
- *   Nothing here changes anything, and everything here is already on the
- *   user's own screen.
+ *   Everything here is already on the user's own screen, and nothing here
+ *   changes anything — with one deliberate exception, `tabs.release`, which
+ *   changes only the caller's own access and only downwards. It is filed here
+ *   because a caller lent a tab at this level must be able to give it back
+ *   (#117), and `permissionForBrowserCommand` says the same thing beside the
+ *   price itself.
  * - **interact** — driving the browser as the user would: opening and closing
  *   tabs, navigating, clicking, typing, answering a page's dialogs. This is the
  *   level at which an agent can act *as* the signed-in user on a site, which is
@@ -178,7 +182,7 @@ export const BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS: Record<
   read: {
     label: "Read pages",
     detail:
-      "Read your open tabs, the text and structure of a page, screenshots, and what a page logs and requests. Nothing is changed.",
+      "Read your open tabs, the text and structure of a page, screenshots, and what a page logs and requests. The only thing it can change is its own access: an agent you have lent a tab can hand that tab back.",
   },
   interact: {
     label: "Read and act",

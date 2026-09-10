@@ -49,6 +49,8 @@ export interface BrowserTrace {
 export function browserCommandChangesPage(command: BrowserCommand): boolean {
   switch (command.type) {
     case "tabs.list":
+    // Handing a tab back changes the window's map, not the page in it.
+    case "tabs.release":
     case "page.get_url":
     case "page.get_title":
     case "page.get_text":

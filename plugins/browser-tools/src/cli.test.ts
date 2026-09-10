@@ -44,6 +44,7 @@ describe("patcher browser CLI", () => {
     expect(names).toContain("tabs");
     expect(names).toContain("text");
     expect(names).toContain("status");
+    expect(names).toContain("release");
   });
 
   it("prints usage instead of guessing when told nothing", async () => {
@@ -66,6 +67,35 @@ describe("patcher browser CLI", () => {
     expect(result.stdout).toContain("tab-1");
     expect(result.stdout).toContain("live");
     expect(result.stdout).toContain("cold");
+  });
+
+  it("hands a tab back without closing it", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["release", "tab-1"]);
+
+    expect(result.exitCode).toBe(0);
+    // The command it sends, not just the sentence it prints: the fake models no
+    // ownership, so a handler that called `activate` instead would print this
+    // same hard-coded line and answer with the same tab.
+    expect(host.harness.inspection.browserCalls).toEqual([
+      { type: "tabs.release", args: { tabId: "tab-1" } },
+    ]);
+    expect(result.stdout).toContain("Handed tab-1 back.");
+    // And it is not `close`: the tab is still in the strip afterwards. What the
+    // claim being dropped looks like is asserted where ownership exists, in
+    // `apps/app/src/lib/browser-agent/tab-ownership.test.ts`.
+    const listed = await host.harness.runCli(["tabs"]);
+    expect(listed.stdout).toContain("tab-1");
+  });
+
+  it("wants a tab named before it gives one away", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["release"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("A tab id is required.");
   });
 
   it("emits machine-readable output on request", async () => {

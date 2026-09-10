@@ -38,6 +38,18 @@ const SURFACE: ReadonlyArray<{
       (b as PluginBrowserish).tabs.open({ url: "https://a.test/" }),
   },
   {
+    // The row that matters most here, because the price is the surprising one:
+    // handing a tab back is charged `tabs.read` and not `tabs.modify` with the
+    // other tab-state changes, so that a caller lent a tab at the `read` level
+    // can give it back (#117). Two places state that, and this is what stops
+    // one of them moving alone.
+    label: "tabs.release",
+    charged: "tabs.read",
+    command: { type: "tabs.release", tabId: "fake-tab-1" },
+    call: (b: never) =>
+      (b as PluginBrowserish).tabs.release({ tabId: "fake-tab-1" }),
+  },
+  {
     label: "page.getText",
     charged: "page.read",
     command: {
@@ -130,7 +142,11 @@ const SURFACE: ReadonlyArray<{
 
 /** The fake's browser surface is exercised dynamically; this names the parts used. */
 type PluginBrowserish = {
-  tabs: { list(): unknown; open(args: { url: string }): unknown };
+  tabs: {
+    list(): unknown;
+    open(args: { url: string }): unknown;
+    release(args: { tabId: string }): unknown;
+  };
   page: {
     getText(): unknown;
     act(args: unknown): unknown;

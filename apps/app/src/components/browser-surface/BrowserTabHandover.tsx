@@ -1,6 +1,10 @@
-import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtom, useAtomValue, useStore } from "jotai";
 import { Button } from "@patcher/shared-ui/button";
-import { browserIssuerName } from "@/lib/browser-agent/issuer";
+import type { BrowserTabClaimMode } from "@/lib/browser-agent/tab-owners";
+import {
+  browserIssuerKey,
+  browserIssuerName,
+} from "@/lib/browser-agent/issuer";
 import { getBrowserUrlHost } from "@/lib/browser-url";
 import {
   browserTabHandoverAskAtom,
@@ -30,11 +34,23 @@ import { browserSurfaceTabLabel } from "./BrowserSurfaceTabStrip";
  *
  * The person's other direction, taking a tab back from an agent, is on the tab's
  * own context menu, where the tab is the thing being pointed at.
+ *
+ * **Two ways to say yes** (#117). *Hand it over* is the old one: the tab becomes
+ * that agent's, at whatever its grant allows, until the person takes it back.
+ * *Let them look* lends the page and not the browsing — the agent can read it
+ * and nothing more, and the tab stays the person's in every other respect. The
+ * pair exists because there was no way to answer "read the page I am on" except
+ * by also allowing everything else on it.
+ *
+ * An agent that already has the look and wants more asks again — the refusal it
+ * gets for acting is the same ask — and then only *Hand it over* is on offer,
+ * because pressing *Let them look* would grant what they already granted and
+ * read as having answered.
  */
 export function BrowserTabHandover() {
   const [ask, setAsk] = useAtom(browserTabHandoverAskAtom);
   const tabsState = useAtomValue(browserSurfaceTabsAtom);
-  const setOwners = useSetAtom(browserTabOwnersAtom);
+  const [owners, setOwners] = useAtom(browserTabOwnersAtom);
   const store = useStore();
 
   if (ask === null) return null;
@@ -44,6 +60,27 @@ export function BrowserTabHandover() {
   // subject, and answering it would hand over something that is gone.
   if (tab === undefined) return null;
   const host = getBrowserUrlHost(tab.url);
+  const held = owners.get(ask.tabId);
+  const alreadyLooking =
+    held !== undefined &&
+    held.mode === "look" &&
+    browserIssuerKey(held.issuer) === browserIssuerKey(ask.issuer);
+
+  const answer = (mode: BrowserTabClaimMode) => {
+    setOwners((current) =>
+      withBrowserTabOwner(current, {
+        // The strip as it is at the click, not as it was at the render:
+        // an ownership write prunes claims whose tabs are gone, and an
+        // agent may have opened one since this row was drawn.
+        claim: { issuer: ask.issuer, mode },
+        openTabIds: getBrowserSurfaceWebTabs(
+          store.get(browserSurfaceTabsAtom),
+        ).map((candidate) => candidate.id),
+        tabId: ask.tabId,
+      }),
+    );
+    setAsk(null);
+  };
 
   return (
     <div
@@ -52,7 +89,8 @@ export function BrowserTabHandover() {
     >
       <p className="min-w-0 flex-1 truncate">
         <span className="font-medium">{browserIssuerName(ask.issuer)}</span> is
-        asking to work in {browserSurfaceTabLabel(tab)}
+        asking to {alreadyLooking ? "work in, not just read," : "work in"}{" "}
+        {browserSurfaceTabLabel(tab)}
         {/* The address too, when the title is not it: two tabs a site titles
             the same way — "Inbox", "Dashboard" — are otherwise one name, and
             the tab being given away is the thing to be sure of. */}
@@ -69,22 +107,21 @@ export function BrowserTabHandover() {
       >
         Not now
       </Button>
+      {alreadyLooking ? null : (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            answer("look");
+          }}
+        >
+          Let them look
+        </Button>
+      )}
       <Button
         size="sm"
         onClick={() => {
-          setOwners((current) =>
-            withBrowserTabOwner(current, {
-              // The strip as it is at the click, not as it was at the render:
-              // an ownership write prunes claims whose tabs are gone, and an
-              // agent may have opened one since this row was drawn.
-              issuer: ask.issuer,
-              openTabIds: getBrowserSurfaceWebTabs(
-                store.get(browserSurfaceTabsAtom),
-              ).map((candidate) => candidate.id),
-              tabId: ask.tabId,
-            }),
-          );
-          setAsk(null);
+          answer("drive");
         }}
       >
         Hand it over

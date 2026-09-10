@@ -82,6 +82,7 @@ function describeBrowserCommand(command: BrowserCommand): string {
     case "tabs.open":
       return command.url ?? "new tab";
     case "tabs.close":
+    case "tabs.release":
     case "tabs.activate":
       return command.tabId;
     case "page.handle_dialog":

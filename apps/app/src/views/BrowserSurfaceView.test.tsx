@@ -708,7 +708,7 @@ describe("BrowserSurfaceView", () => {
     act(() => {
       surface.store.set(browserTabOwnersAtom, (current) =>
         withBrowserTabOwner(current, {
-          issuer: OWNER,
+          claim: { issuer: OWNER, mode: "drive" },
           openTabIds: [openerTabId],
           tabId: openerTabId,
         }),
@@ -726,7 +726,7 @@ describe("BrowserSurfaceView", () => {
 
     expect(
       surface.store.get(browserTabOwnersAtom).get("browser-popup:2"),
-    ).toEqual(OWNER);
+    ).toEqual({ issuer: OWNER, mode: "drive" });
 
     act(() => {
       popupListeners.at(-1)?.({ kind: "closed", tabId: "browser-popup:2" });

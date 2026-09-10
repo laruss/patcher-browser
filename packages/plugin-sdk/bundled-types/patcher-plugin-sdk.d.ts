@@ -14804,10 +14804,16 @@ interface PluginBrowserTab {
      * act on — the rules, and why a turn inside Patcher may also use the person's,
      * are in docs/architecture/browser-tab-ownership.md.
      *
+     * `"shared"` is the person's tab that they have lent you a look at: reading it
+     * answers — its text, its structure, a screenshot, what it logs and requests —
+     * and everything that would change it is refused. Hand it back with
+     * {@link PluginBrowserTabs.release} when you are done, or ask for more by
+     * naming it for something that acts, which asks them again.
+     *
      * Absent when the host had nobody to be relative to, and from an older host
      * that did not answer with it at all.
      */
-    owner?: "you" | "person" | "agent";
+    owner?: "you" | "person" | "agent" | "shared";
 }
 interface PluginBrowserCallOptions {
     /**
@@ -14841,6 +14847,26 @@ interface PluginBrowserTabs {
         closedTabId: string;
         tabs: PluginBrowserTab[];
     }>;
+    /**
+     * Hand a tab back to the person, without closing it.
+     *
+     * The other half of a handover, and the only one that does not destroy the
+     * page: `close` was the sole way to end a claim before this, which is the one
+     * outcome somebody who lent you their tab does not want. Works on any claim
+     * of your own — one the person handed over, one they lent you a look at, or a
+     * tab you opened yourself and want to leave them.
+     *
+     * Refused with `tab_not_yours` when you hold no claim on that tab, including
+     * when somebody else does. It costs `tabs.read`, so a caller allowed only to
+     * read can still give back what it was lent.
+     *
+     * What it does not undo is anything you did to the page while you held it. A
+     * tab you left mocked, offline or recording stays that way, and you cannot
+     * reach it afterwards — clear those first.
+     */
+    release(args: {
+        tabId: string;
+    }, options?: PluginBrowserCallOptions): Promise<PluginBrowserTab>;
     activate(args: {
         tabId: string;
     }, options?: PluginBrowserCallOptions): Promise<PluginBrowserTab>;

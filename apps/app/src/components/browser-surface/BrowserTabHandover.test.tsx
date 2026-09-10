@@ -8,6 +8,7 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
   browserTabHandoverAskAtom,
   browserTabOwnersAtom,
+  type BrowserTabOwners,
 } from "@/lib/browser-agent/tab-owners";
 import {
   browserSurfaceTabsAtom,
@@ -31,12 +32,20 @@ const GRANT: BrowserCommandIssuer = {
   level: "interact",
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // The owners atom is backed by local storage and reads it when a store first
+  // asks, so one test's answer would otherwise be the next test's opening
+  // state — and this file is entirely about what a click does to that map.
+  localStorage.clear();
+});
 
 function renderHandover({
   ask,
+  owners,
 }: {
   ask: { issuer: BrowserCommandIssuer; tabId: string } | null;
+  owners?: BrowserTabOwners;
 }) {
   const store = createStore();
   const first = {
@@ -54,6 +63,7 @@ function renderHandover({
     tabs: [first, second],
   });
   if (ask !== null) store.set(browserTabHandoverAskAtom, ask);
+  if (owners !== undefined) store.set(browserTabOwnersAtom, owners);
   render(<BrowserTabHandover />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <JotaiProvider store={store}>{children}</JotaiProvider>
@@ -87,11 +97,48 @@ describe("the tab handover ask", () => {
 
     screen.getByRole("button", { name: "Hand it over" }).click();
 
-    expect(store.get(browserTabOwnersAtom).get("b")).toEqual(GRANT);
+    expect(store.get(browserTabOwnersAtom).get("b")).toEqual({
+      issuer: GRANT,
+      mode: "drive",
+    });
     expect(store.get(browserTabOwnersAtom).has("a")).toBe(false);
     // And the question goes: leaving it up would offer to give away a tab that
     // is already given.
     expect(store.get(browserTabHandoverAskAtom)).toBeNull();
+  });
+
+  it("lends a look without lending the tab", () => {
+    const { store } = renderHandover({ ask: { issuer: GRANT, tabId: "a" } });
+
+    screen.getByRole("button", { name: "Let them look" }).click();
+
+    // The answer that did not exist: the agent can read this page and nothing
+    // more, and the tab is still the person's to work in.
+    expect(store.get(browserTabOwnersAtom).get("a")).toEqual({
+      issuer: GRANT,
+      mode: "look",
+    });
+    expect(store.get(browserTabHandoverAskAtom)).toBeNull();
+  });
+
+  it("offers only the bigger answer to an agent that already looks", () => {
+    const { store } = renderHandover({
+      ask: { issuer: GRANT, tabId: "a" },
+      owners: new Map([["a", { issuer: GRANT, mode: "look" }]]),
+    });
+
+    // Acting in a tab it was lent is refused, and the refusal asks again — so
+    // this row is the ask to go further. "Let them look" here would grant what
+    // is already granted and read as having answered.
+    expect(screen.queryByRole("button", { name: "Let them look" })).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("not just read");
+
+    screen.getByRole("button", { name: "Hand it over" }).click();
+
+    expect(store.get(browserTabOwnersAtom).get("a")).toEqual({
+      issuer: GRANT,
+      mode: "drive",
+    });
   });
 
   it("gives nothing away when the answer is no", () => {

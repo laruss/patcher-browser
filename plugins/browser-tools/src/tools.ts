@@ -261,9 +261,10 @@ function describeTab(tab: PluginBrowserTab): Record<string, unknown> {
     canGoBack: tab.canGoBack,
     canGoForward: tab.canGoForward,
     // Left out when the host did not say, which is what an older one does.
-    // Named `owner` rather than folded into a boolean because the three answers
-    // call for three different next moves: work in it, ask the person for it,
-    // or leave it alone.
+    // Named `owner` rather than folded into a boolean because the answers call
+    // for different next moves: work in it, ask the person for it, or leave it
+    // alone. A turn never sees the fourth, `shared` — it is never refused the
+    // person's tab, so it is never lent one (#117).
     ...(tab.owner === undefined ? {} : { owner: tab.owner }),
   };
 }

@@ -3,7 +3,7 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import { createHarness, liveState, tab } from "@/test/browser-command-harness";
 import { executeBrowserCommand } from "./execute";
 import { createBrowserTabQueue } from "./tab-queue";
-import type { BrowserTabOwners } from "./tab-owners";
+import type { BrowserTabClaim, BrowserTabOwners } from "./tab-owners";
 
 /**
  * Two commands, one browser.
@@ -36,7 +36,22 @@ function deferred() {
 }
 
 function ownedBy(entries: Array<[string, BrowserCommandIssuer]>) {
-  return new Map(entries) as BrowserTabOwners;
+  return new Map(
+    entries.map(([tabId, issuer]): [string, BrowserTabClaim] => [
+      tabId,
+      { issuer, mode: "drive" },
+    ]),
+  ) as BrowserTabOwners;
+}
+
+/** The other answer: the person lent this caller a look and nothing more. */
+function lentTo(entries: Array<[string, BrowserCommandIssuer]>) {
+  return new Map(
+    entries.map(([tabId, issuer]): [string, BrowserTabClaim] => [
+      tabId,
+      { issuer, mode: "look" },
+    ]),
+  ) as BrowserTabOwners;
 }
 
 describe("two commands on one browser", () => {
@@ -240,5 +255,43 @@ describe("two commands on one browser", () => {
     expect(refused).toMatchObject({ ok: false, code: "tab_not_yours" });
     gate.resolve();
     await read;
+  });
+
+  it("makes a lent tab's second read wait, without asking to take it over", async () => {
+    const gate = deferred();
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a") },
+      queue: createBrowserTabQueue(),
+      readPageGate: gate.promise,
+      owners: lentTo([["a", GRANT]]),
+      issuer: GRANT,
+    });
+
+    const read = executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+    const observe = executeBrowserCommand(
+      {
+        type: "page.observe",
+        tabId: "a",
+        observation: { kind: "console", limit: 20 },
+      },
+      harness.deps,
+    );
+
+    // A read the person allowed takes its turn like any other read of that tab.
+    // Asserted through the second command's own side effect, because two
+    // promises that both resolve say nothing about whether they overlapped.
+    await Promise.resolve();
+    expect(harness.calls.observations).toEqual([]);
+    gate.resolve();
+    expect(await read).toMatchObject({ ok: true });
+    expect(await observe).toMatchObject({ ok: true });
+    expect(harness.calls.observations).toHaveLength(1);
+    // And placing either one in the queue resolves its tab, which must not be a
+    // second and third way to put a question on the person's screen (#116).
+    expect(harness.calls.handoverAsks).toEqual([]);
   });
 });
