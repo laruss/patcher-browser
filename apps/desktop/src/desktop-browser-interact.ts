@@ -139,19 +139,22 @@ export interface PageRenderingTarget {
  * changed: `type` and `press Enter` answered `ok` while the page's own
  * `keydown` listener recorded nothing, the field kept its old value and the
  * form never submitted (4/4 rounds); an empty `fill` and `press Backspace` —
- * the `rawKeyDown` shape — the same (3/3); and none of it arrived when the tab
- * was later shown and focused. With the call in place, all of them landed. That
- * is #119, and it was reported as success, which is the worst answer this
- * module can give.
+ * the `rawKeyDown` shape — the same (3/3); and nothing arrived when the tab was
+ * later shown and focused. With the call in place, all of them landed. That is
+ * #119, and it was reported as success, which is the worst answer this module
+ * can give.
  *
- * Frames are not the explanation for that half, and this docstring does not
- * have one: `Input.insertText` writes to the same hidden tab in the same
- * second, and `Emulation.setFocusEmulationEnabled` makes the keys land without
- * touching the throttling — both of which point somewhere other than the
- * renderer's frame clock. So the coupling is real and measured but not
- * understood, which is the reason not to narrow this hold to the pointer sends
- * on the grounds that keys are not frame-aligned. The test that stands in for
- * the understanding is "holds the frames for a key send too" in
+ * Why this call reaches the keyboard is **not** established, and this docstring
+ * deliberately does not guess. Neither of the two things that look like
+ * evidence is any: `Input.insertText` writes to the same hidden tab in the same
+ * second but takes a different dispatch path, and
+ * `Emulation.setFocusEmulationEnabled` makes the keys land without touching the
+ * throttling — but it restores the frames too (measured: rAF 0/s to 120/s, a
+ * `mouseMoved` from 5019ms to 3ms), so it is another door to this state rather
+ * than another mechanism. So the coupling is measured and unexplained, which is
+ * the reason not to narrow this hold to the pointer sends on the grounds that
+ * keys are not frame-aligned. The test that stands in for the missing
+ * explanation is "holds the frames for a key send too" in
  * `desktop-browser-view-manager-automation.test.ts`.
  *
  * The states that stop the frames are all ordinary, and none of them is the

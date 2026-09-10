@@ -384,22 +384,29 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   nothing else changed: `type` and `press Enter` answered `ok` while the page's
   own `keydown` listener recorded nothing, the field kept its value and the form
   never submitted (4/4 rounds); an empty `fill` and `press Backspace`, the
-  `rawKeyDown` shape, the same (3/3); and none of it arrived when the tab was
-  later shown and focused — which is the transition that flushes queued pointer
-  events and also gives the view keyboard focus, so a queue would have drained
-  there. With the call in place every one of them landed.
+  `rawKeyDown` shape, the same (3/3); and nothing arrived when the tab was later
+  shown and focused, which rules out late delivery on that transition rather
+  than a queue in general. With the call in place every one of them landed.
 
-  What that does **not** come with is a mechanism. Frames cannot be the
-  explanation: `Input.insertText` writes to the same hidden tab in the same
-  second, and `Emulation.setFocusEmulationEnabled` makes the keys land without
-  touching the throttling at all (measured, and not taken — it would leave the
-  page told it has focus for as long as the session lives, on top of the
-  `visibilityState: "visible"` the hold already forces). So one call fixes two
-  problems for two reasons and only one of them is understood, which is why
+  **Why the hold reaches the keyboard is not established here, and two things
+  that look like evidence are not.** `Input.insertText` writes to the same
+  hidden tab in the same second — but it is a different dispatch path, so it
+  says nothing about what the key events wanted.
+  `Emulation.setFocusEmulationEnabled` makes the keys land with the throttling
+  untouched — but measured on a hidden tab (2026-09-10) it takes
+  `requestAnimationFrame` from 0/s to 120/s and a `mouseMoved` from 5019ms to
+  3ms, so it restores the frames as well; it is a second door to the same state,
+  not evidence of a second mechanism. (It is also reversible, unlike the hold:
+  `enabled: false` puts rAF back to 0/s and the move back to 5004ms. Not taken
+  anyway — while it is on, the page is told it has focus and reports
+  `visibilityState: "visible"`, which is a bigger lie to the page for a state
+  the hold already reaches.)
+
+  So the coupling is measured and the reason for it is not, which is why
   narrowing the hold to the pointer sends — the obvious saving, since keys are
   not frame-aligned — is the change to refuse. "Holds the frames for a key send
   too" in `desktop-browser-view-manager-automation.test.ts` is what stands in
-  for the missing explanation, and #119's own proposal, refusing a key send into
+  for the missing explanation. And #119's own proposal, refusing a key send into
   a view that is not on screen, is what the fix made wrong: the tab that
   proposal would refuse is one this shell can now type into.
 
