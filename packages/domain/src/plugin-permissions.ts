@@ -494,6 +494,13 @@ export function permissionForBrowserCommand(
     case "tabs.list":
     case "page.get_url":
     case "page.get_title":
+    // Handing a tab back is the one command that only ever *narrows* the
+    // caller's own access, so it is charged the cheapest thing there is. It
+    // cannot join the tab-state changes below: a `read`-level grant may be lent
+    // a tab (#117) and would then have no way to give it back, which would make
+    // the lending a one-way door. See `BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS`,
+    // where `read` says what this one exception is.
+    case "tabs.release":
       return "tabs.read";
     case "tabs.open":
     case "tabs.close":

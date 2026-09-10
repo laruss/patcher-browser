@@ -132,6 +132,7 @@ import type { PatcherSdk, ThreadForkArgs, ThreadSpawnArgs } from "@patcher/sdk";
 import type { ServerLogger } from "../../types.js";
 import type { PluginInteractionResult } from "../interactions/pending-interactions.js";
 import { createPluginBrowserControl } from "./plugin-api-browser-control.js";
+import { createPluginBrowserTabs } from "./plugin-api-browser-tabs.js";
 import { appendPluginLogLine } from "./plugin-log.js";
 import { resolveDeclaredMatches } from "./plugin-declared-sites.js";
 import {
@@ -2414,98 +2415,11 @@ export function createPluginApi(options: {
       }
       downloadHandlers.push(handler);
     },
-    tabs: {
-      async list(options) {
-        return (await callBrowser({ type: "tabs.list" }, options, "tabs")).tabs;
-      },
-      async open(args, options) {
-        return (
-          await callBrowser(
-            {
-              type: "tabs.open",
-              url: normalizeBrowserUrlArg(args?.url, "tabs.open"),
-              activate: args?.activate ?? true,
-            },
-            options,
-            "tab",
-          )
-        ).tab;
-      },
-      async close(args, options) {
-        const value = await callBrowser(
-          {
-            type: "tabs.close",
-            tabId: requireTabId(args?.tabId, "tabs.close"),
-          },
-          options,
-          "closed",
-        );
-        return { closedTabId: value.closedTabId, tabs: value.tabs };
-      },
-      async activate(args, options) {
-        return (
-          await callBrowser(
-            {
-              type: "tabs.activate",
-              tabId: requireTabId(args?.tabId, "tabs.activate"),
-            },
-            options,
-            "tab",
-          )
-        ).tab;
-      },
-      async pin(args, options) {
-        return (
-          await callBrowser(
-            {
-              type: "tabs.pin",
-              tabId: requireTabId(args?.tabId, "tabs.pin"),
-              pinned: args?.pinned ?? true,
-            },
-            options,
-            "tab",
-          )
-        ).tab;
-      },
-      async mute(args, options) {
-        return (
-          await callBrowser(
-            {
-              type: "tabs.mute",
-              tabId: requireTabId(args?.tabId, "tabs.mute"),
-              muted: args?.muted ?? true,
-            },
-            options,
-            "tab",
-          )
-        ).tab;
-      },
-      async duplicate(args, options) {
-        return (
-          await callBrowser(
-            {
-              type: "tabs.duplicate",
-              tabId: requireTabId(args?.tabId, "tabs.duplicate"),
-            },
-            options,
-            "tab",
-          )
-        ).tab;
-      },
-      async move(args, options) {
-        return (
-          await callBrowser(
-            {
-              type: "tabs.move",
-              tabId: requireTabId(args?.tabId, "tabs.move"),
-              toIndex: args?.toIndex ?? 0,
-            },
-            options,
-            "tab",
-          )
-        ).tab;
-      },
-    },
+    tabs: createPluginBrowserTabs({
+      callBrowser,
+      requireTabId,
+      normalizeBrowserUrlArg,
+    }),
     page: {
       async snapshot(args, options) {
         const value = await callBrowser(

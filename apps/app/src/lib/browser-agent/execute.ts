@@ -1,6 +1,8 @@
 import {
   BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH,
   browserCommandSchema,
+  permissionForBrowserCommand,
+  type BrowserCommandPermission,
   type BrowserRecordOperation,
   type BrowserCommand,
   type BrowserCommandErrorCode,
@@ -29,10 +31,12 @@ import {
   type BrowserTraceRecorder,
 } from "./trace";
 import {
+  browserTabLentToLookAt,
   browserTabOwnerFor,
   EMPTY_BROWSER_TAB_OWNERS,
   mayActOnBrowserTab,
   newestBrowserTabOwnedBy,
+  type BrowserTabClaim,
   type BrowserTabOwners,
 } from "./tab-owners";
 import { browserScrollExpression } from "./scroll";
@@ -145,12 +149,12 @@ export interface BrowserCommandDeps {
   /** Tab ownership as the window holds it. Absent means nobody owns anything. */
   getTabOwners?: () => BrowserTabOwners;
   /**
-   * Claim a tab for a caller, or hand it back to the person with a null issuer,
+   * Claim a tab for a caller, or hand it back to the person with a null claim,
    * which is also how a closed tab's entry is dropped. A seam like
    * {@link BrowserCommandDeps.destroyView}.
    */
   setTabOwner?: (args: {
-    issuer: BrowserCommandIssuer | null;
+    claim: BrowserTabClaim | null;
     tabId: string;
   }) => void;
   /**
@@ -225,8 +229,8 @@ function toSnapshot(
       ? {}
       : {
           owner: browserTabOwnerFor({
+            claim: tabOwners(deps).get(tab.id),
             issuer,
-            owner: tabOwners(deps).get(tab.id),
           }),
         }),
   };
@@ -289,35 +293,34 @@ function fallsBackToActiveTab(
 }
 
 /** Whether this caller may act on a tab it did not name — see `resolveTab`. */
-function mayUseTab(tabId: string, deps: BrowserCommandDeps): boolean {
+function mayUseTab(
+  tabId: string,
+  need: BrowserCommandPermission,
+  deps: BrowserCommandDeps,
+): boolean {
   const issuer = deps.issuer;
   if (issuer === undefined) return true;
   return mayActOnBrowserTab({
+    claim: tabOwners(deps).get(tabId),
     issuer,
-    owner: browserTabOwnerFor({ issuer, owner: tabOwners(deps).get(tabId) }),
+    need,
   });
 }
 
 /**
- * Which tab a command acts on, and whether this caller may act on it.
+ * Which tab a command acts on, with no question of whether it may.
  *
  * A null tabId means "mine" — the caller's own newest tab — and only falls back
- * to the tab the person is looking at for the callers above. Every tab-targeted
- * command comes through here, which is what makes one rule enough.
+ * to the tab the person is looking at for the callers above.
  *
- * `use` is `"see"` for the two commands that answer from the strip's own record
- * of a tab rather than from its page: its address and its title. **Ownership is
- * about acting, not about seeing** — `tabs.list` hands those same two fields
- * over for every tab and always has (browser-tab-ownership.md) — so refusing
- * them by name answered one permission two ways, and the stricter way
- * interrupted the person to ask for a field the caller had already read (#116).
- * It narrows nothing else: a null tabId still resolves to the caller's own tab,
- * so "no tab named" never quietly becomes the page the person is reading.
+ * Split from {@link resolveTab} for one caller: queue placement, which has to
+ * know a command's tab before the command runs and must not raise the person's
+ * handover question a second and third time on the way (#116).
  */
-function resolveTab(
+function locateTab(
   tabId: string | null,
   deps: BrowserCommandDeps,
-  use: "act" | "see" = "act",
+  need: BrowserCommandPermission,
 ): Resolution {
   const state = deps.getState();
   const webTabs = getBrowserSurfaceWebTabs(state);
@@ -340,8 +343,21 @@ function resolveTab(
       ? getActiveBrowserSurfaceWebTab(state)
       : null;
     const tab =
-      own ?? (active !== null && mayUseTab(active.id, deps) ? active : null);
+      own ??
+      (active !== null && mayUseTab(active.id, need, deps) ? active : null);
     if (tab === null) {
+      // A tab the person lent this caller to read is not a tab it can be given
+      // by default — that is the point of `newestBrowserTabOwnedBy` skipping
+      // look claims — but it is the answer to "you have nothing open", which
+      // would otherwise be false in the one case the lending exists for (#117).
+      const lent =
+        issuer === undefined
+          ? null
+          : browserTabLentToLookAt({
+              issuer,
+              openTabIds: webTabs.map((each) => each.id),
+              owners: tabOwners(deps),
+            });
       return {
         ok: false,
         outcome: failure(
@@ -351,12 +367,14 @@ function resolveTab(
           // layer that explains it to each of them passes it through.
           webTabs.length === 0
             ? "No browser tab is open. Open one first."
-            : // No tab was named, so nothing was asked for and there is nothing
-              // to wait on. It ended in "ask them to hand you the tab they are
-              // in" until #116: a turn reaches this line only for a tab that is
-              // another agent's, which the person cannot give away, and a caller
-              // outside Patcher has to name a tab for the asking to happen.
-              "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Open one of your own — opening one in the background does not take the person's window.",
+            : lent !== null
+              ? `You have no browser tab of your own open. The person lent you a look at tab ${lent}: name it to read it, or open one of your own to work in.`
+              : // No tab was named, so nothing was asked for and there is nothing
+                // to wait on. It ended in "ask them to hand you the tab they are
+                // in" until #116: a turn reaches this line only for a tab that is
+                // another agent's, which the person cannot give away, and a caller
+                // outside Patcher has to name a tab for the asking to happen.
+                "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Open one of your own — opening one in the background does not take the person's window.",
         ),
       };
     }
@@ -372,42 +390,93 @@ function resolveTab(
       ),
     };
   }
-  if (issuer !== undefined && use === "act") {
-    const held = tabOwners(deps).get(tab.id);
-    const owner = browserTabOwnerFor({ issuer, owner: held });
-    if (!mayActOnBrowserTab({ issuer, owner })) {
-      if (owner === "person") {
-        // The person is the only one who can answer this, so put the question
-        // where they are. The refusal below stands either way: nothing waits.
-        deps.requestTabHandover({ issuer, tabId: tab.id });
-      }
-      return {
-        ok: false,
-        outcome: failure(
-          "tab_not_yours",
-          // What to do instead is written here, not in the layer that explains
-          // this code to a caller (`tools.ts`), because the two answers differ
-          // by the one thing only this line knows: whether the asking has
-          // already happened. It had — one line up — while every caller was
-          // being sent to go and ask (#116).
-          `Browser tab ${tab.id} belongs to ${describeTabOwner(held)}. ${
-            owner === "person"
-              ? // Deliberately not "a row is on their screen". A waiting ask
-                // is not replaced (`tab-owners.ts`), the row is hidden while a
-                // Patcher screen holds the tab in front of them, and it does
-                // not survive a reload of their window — so this promises no
-                // event to wait for, and gives the ask itself as the retry.
-                "Work in a tab of your own — opening one in the background does not take the person's window. Naming it is what asks them for it; they answer in the browser window, and the ask does not survive a reload of it, so if nothing has changed after a wait, name it again rather than treating this as final."
-              : // Another agent's. The person can take a tab back from the
-                // strip's menu but has no way to give one away, so "ask them to
-                // hand this one over" was an errand with no destination.
-                "Work in a tab of your own — opening one in the background does not take the person's window."
-          }`,
-        ),
-      };
-    }
-  }
   return { ok: true, resolved: { tab, state } };
+}
+
+/**
+ * {@link locateTab}, and then whether this caller may run *this* command on what
+ * it found. Every tab-targeted command comes through here, which is what makes
+ * one rule enough.
+ *
+ * What decides is the command's price (`permissionForBrowserCommand`) rather
+ * than a second judgement written beside each command: the two commands that
+ * answer from the strip's own record of a tab — its address and its title — are
+ * the ones priced `tabs.read`, and a tab the person lent for reading admits
+ * exactly the prices `tab-owners.ts` lists. Answering one permission two ways is
+ * the bug #116 was, so it is answered once, where the price is.
+ */
+function resolveTab(
+  tabId: string | null,
+  deps: BrowserCommandDeps,
+  need: BrowserCommandPermission,
+): Resolution {
+  const located = locateTab(tabId, deps, need);
+  const issuer = deps.issuer;
+  if (!located.ok || issuer === undefined) {
+    return located;
+  }
+  // Seeing is not acting. `tabs.read` is a tab's address and its title, which
+  // `tabs.list` hands over for every tab to every caller — so refusing them by
+  // name answered one permission two ways, and the stricter way interrupted the
+  // person for a field the caller had already read (#116). `tabs.release` is
+  // priced here too and is the one member that is not a read: it only narrows
+  // the caller's own access, and its own rule is narrower than this one and is
+  // checked where it runs.
+  //
+  // Only for a tab that was *named*. `locateTab`'s fallback asks the acting
+  // question whatever the price, so "no tab named" still never quietly becomes
+  // the page the person is reading, or another agent's.
+  if (need === "tabs.read") {
+    return located;
+  }
+  const { tab } = located.resolved;
+  const claim = tabOwners(deps).get(tab.id);
+  const owner = browserTabOwnerFor({ claim, issuer });
+  if (mayActOnBrowserTab({ claim, issuer, need })) {
+    return located;
+  }
+  // Who to name is the *answer*, not the claim: a tab somebody else was lent a
+  // look at is still the person's, and a refusal that named the other agent
+  // would tell this caller about a claim it has no business knowing.
+  const held = owner === "agent" ? claim?.issuer : undefined;
+  if (owner === "person" || owner === "shared") {
+    // The person is the only one who can answer this, so put the question
+    // where they are. From `shared` it is the ask to go further, which is the
+    // same row with the same "Hand it over" on it. The refusal below stands
+    // either way: nothing waits.
+    deps.requestTabHandover({ issuer, tabId: tab.id });
+  }
+  return {
+    ok: false,
+    outcome: failure(
+      "tab_not_yours",
+      // What to do instead is written here, not in the layer that explains
+      // this code to a caller (`tools.ts`), because the answers differ by the
+      // things only this line knows: whether the asking has already happened,
+      // and what the person has already said yes to. Every caller was being
+      // sent to go and ask until #116.
+      `Browser tab ${tab.id} ${
+        owner === "shared"
+          ? // Already lent, for reading. Do not repeat "work in a tab of your
+            // own": they have one thing the others do not, and the useful
+            // sentence is which half of it they have.
+            "is the person's, and they lent you a look at it rather than the run of it. Reading it still answers — its text, its structure, a screenshot, what it logs and requests. Acting in it has just asked them to hand it over; they answer in the browser window, and the ask does not survive a reload of it, so if nothing has changed after a wait, name it again rather than treating this as final."
+          : `belongs to ${describeTabOwner(held)}. ${
+              owner === "person"
+                ? // Deliberately not "a row is on their screen". A waiting ask
+                  // is not replaced (`tab-owners.ts`), the row is hidden while a
+                  // Patcher screen holds the tab in front of them, and it does
+                  // not survive a reload of their window — so this promises no
+                  // event to wait for, and gives the ask itself as the retry.
+                  "Work in a tab of your own — opening one in the background does not take the person's window. Naming it is what asks them for it; they answer in the browser window, and the ask does not survive a reload of it, so if nothing has changed after a wait, name it again rather than treating this as final."
+                : // Another agent's. The person can take a tab back from the
+                  // strip's menu but has no way to give one away, so "ask them to
+                  // hand this one over" was an errand with no destination.
+                  "Work in a tab of your own — opening one in the background does not take the person's window."
+            }`
+      }`,
+    ),
+  };
 }
 
 const NOT_LIVE_HINT =
@@ -798,16 +867,23 @@ function runTraceOperation(
  * of the person's screen with every step — a page it is refused by name, and
  * refused a screenshot of, arriving through the trace instead. Found by review
  * on 2026-09-05; the trace predates tab ownership and quietly outflanked it.
+ *
+ * The price checked is the *command's*, not the screenshot's, and that is what
+ * keeps a tab the person lent for reading out of the film: every command that
+ * gets a picture at all is one `browserCommandChangesPage` calls a change, and
+ * a look claim admits none of those. Charging the picture's own `page.read`
+ * instead would photograph their page on every step (#117).
  */
 async function captureTraceImage(
   deps: BrowserCommandDeps,
+  need: BrowserCommandPermission,
 ): Promise<string | null> {
   const observe = deps.desktopBrowser?.observe;
   const active = getActiveBrowserSurfaceWebTab(deps.getState());
   if (observe === undefined || active === null) {
     return null;
   }
-  if (!mayUseTab(active.id, deps)) {
+  if (!mayUseTab(active.id, need, deps)) {
     return null;
   }
   const result = await observe({
@@ -835,7 +911,7 @@ async function recordTraceStep(
   }
   const image =
     trace.wantsScreenshots && browserCommandChangesPage(command)
-      ? await captureTraceImage(deps)
+      ? await captureTraceImage(deps, permissionForBrowserCommand(command))
       : null;
   trace.record(command, outcome, image, now(deps));
 }
@@ -961,15 +1037,16 @@ function queuedTabId(
   if (!("tabId" in command) || !actsOnItsTab(command)) {
     return null;
   }
-  // `"see"` here for its other property: it resolves the tab without the
-  // ownership check, and it is the check that asks the person for the tab. This
-  // is placement in a queue, not a command — the same refusal would have asked
-  // twice more before the command itself asked, and a row the person had
-  // dismissed while a command waited its turn came back for no new reason
-  // (#116). `mayUseTab` is the same rule with no side effect, so what lands in
-  // a queue is unchanged: a command about to be refused still queues nowhere.
-  const resolution = resolveTab(command.tabId, deps, "see");
-  return resolution.ok && mayUseTab(resolution.resolved.tab.id, deps)
+  // `locateTab` rather than `resolveTab` for the one thing it does not do: ask
+  // the person for the tab. This is placement in a queue, not a command — the
+  // same refusal would have asked twice more before the command itself asked,
+  // and a row the person had dismissed while a command waited its turn came
+  // back for no new reason (#116). `mayUseTab` is the same rule with no side
+  // effect, so what lands in a queue is unchanged: a command about to be
+  // refused still queues nowhere.
+  const need = permissionForBrowserCommand(command);
+  const resolution = locateTab(command.tabId, deps, need);
+  return resolution.ok && mayUseTab(resolution.resolved.tab.id, need, deps)
     ? resolution.resolved.tab.id
     : null;
 }
@@ -1008,6 +1085,12 @@ function actsOnItsTab(command: BrowserCommand): boolean {
       );
     case "page.handle_dialog":
     case "tabs.close":
+    // And handing a tab back, which is one write to the window's own map and
+    // reaches no page at all. Queuing it would make giving a tab up wait on the
+    // work being given up, which is the same shape as the two above: the way
+    // out of a tab that has stopped answering is not a thing to put in its
+    // queue.
+    case "tabs.release":
       return false;
     default:
       return true;
@@ -1018,6 +1101,9 @@ async function runBrowserCommand(
   command: BrowserCommand,
   deps: BrowserCommandDeps,
 ): Promise<BrowserCommandOutcome> {
+  // What this command costs, which is also what decides whether the tab it
+  // names is one this caller may run it on — see `resolveTab`.
+  const need = permissionForBrowserCommand(command);
   // Tab bookkeeping is renderer state and answers anywhere, including the web
   // build. Everything below the second switch touches a real page and needs the
   // desktop shell, which is why the guard sits between them rather than being
@@ -1029,7 +1115,7 @@ async function runBrowserCommand(
     }
 
     case "page.get_url": {
-      const resolution = resolveTab(command.tabId, deps, "see");
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1041,13 +1127,46 @@ async function runBrowserCommand(
     }
 
     case "page.get_title": {
-      const resolution = resolveTab(command.tabId, deps, "see");
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
       const { tab } = resolution.resolved;
       const live = deps.getLiveState(tab.id);
       return success({ type: "title", title: live?.title ?? tab.title });
+    }
+
+    case "tabs.release": {
+      // `locateTab`, because this command's rule is not the ownership rule and
+      // is narrower than it: the claim has to be *this caller's*, where acting
+      // only needs the tab to be usable. Sent through `resolveTab` it would
+      // also have raised the person's handover question — a row asking them to
+      // hand over a tab so that somebody could give it back.
+      const located = locateTab(command.tabId, deps, need);
+      if (!located.ok) {
+        return located.outcome;
+      }
+      const { tab } = located.resolved;
+      const issuer = deps.issuer;
+      const claim = tabOwners(deps).get(tab.id);
+      const mine =
+        issuer !== undefined &&
+        ["you", "shared"].includes(browserTabOwnerFor({ claim, issuer }));
+      if (!mine) {
+        return failure(
+          "tab_not_yours",
+          // One sentence for both refusals. That a *different* caller holds
+          // this tab is not this one's to be told — the same reason the owner
+          // field is relative — and the way forward is identical either way.
+          `Browser tab ${tab.id} is not yours to hand back: you hold no claim on it.`,
+        );
+      }
+      // The same write `tabs.close` makes, without the half that destroys the
+      // page — which is the whole command. It also prunes entries for tabs that
+      // are gone, as every write here does.
+      deps.setTabOwner?.({ claim: null, tabId: tab.id });
+      const state = deps.getState();
+      return success({ type: "tab", tab: toSnapshot(tab, state, deps) });
     }
   }
 
@@ -1084,7 +1203,10 @@ async function runBrowserCommand(
       // After the tab is in the strip, not before: a claim on a tab the window
       // does not hold is pruned as stale by the same call that would record it.
       if (deps.issuer !== undefined) {
-        deps.setTabOwner?.({ issuer: deps.issuer, tabId: tab.id });
+        deps.setTabOwner?.({
+          claim: { issuer: deps.issuer, mode: "drive" },
+          tabId: tab.id,
+        });
       }
       // A background tab gets its page here rather than when someone looks at
       // it. Without this the answer is a tab with a stored URL and no live
@@ -1106,7 +1228,7 @@ async function runBrowserCommand(
     }
 
     case "tabs.close": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1119,7 +1241,7 @@ async function runBrowserCommand(
       // The claim goes with the tab, and the write prunes every other entry
       // whose tab is gone — including the ones the person closed themselves,
       // which nothing else here would ever hear about.
-      deps.setTabOwner?.({ issuer: null, tabId: tab.id });
+      deps.setTabOwner?.({ claim: null, tabId: tab.id });
       const state = deps.getState();
       return success({
         type: "closed",
@@ -1129,7 +1251,7 @@ async function runBrowserCommand(
     }
 
     case "tabs.activate": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1143,7 +1265,7 @@ async function runBrowserCommand(
     }
 
     case "tabs.pin": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1162,7 +1284,7 @@ async function runBrowserCommand(
     }
 
     case "tabs.mute": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1184,7 +1306,7 @@ async function runBrowserCommand(
     }
 
     case "tabs.duplicate": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1200,7 +1322,10 @@ async function runBrowserCommand(
       // the person's: a duplicate is a new tab, and the one it came from is
       // untouched.
       if (deps.issuer !== undefined) {
-        deps.setTabOwner?.({ issuer: deps.issuer, tabId: duplicate.id });
+        deps.setTabOwner?.({
+          claim: { issuer: deps.issuer, mode: "drive" },
+          tabId: duplicate.id,
+        });
       }
       const state = deps.getState();
       return success({
@@ -1210,7 +1335,7 @@ async function runBrowserCommand(
     }
 
     case "tabs.move": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1229,7 +1354,7 @@ async function runBrowserCommand(
     }
 
     case "page.get_text": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1272,7 +1397,7 @@ async function runBrowserCommand(
     }
 
     case "page.handle_dialog": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1295,7 +1420,7 @@ async function runBrowserCommand(
     }
 
     case "page.snapshot": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1353,7 +1478,7 @@ async function runBrowserCommand(
     }
 
     case "page.interact": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1405,7 +1530,7 @@ async function runBrowserCommand(
     }
 
     case "page.scroll": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1465,7 +1590,7 @@ async function runBrowserCommand(
     }
 
     case "page.observe": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1572,7 +1697,7 @@ async function runBrowserCommand(
     }
 
     case "page.storage": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1621,7 +1746,7 @@ async function runBrowserCommand(
     }
 
     case "page.control": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1688,7 +1813,7 @@ async function runBrowserCommand(
       if (operation.kind === "trace-start" || operation.kind === "trace-stop") {
         return runTraceOperation(operation, deps);
       }
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1726,7 +1851,7 @@ async function runBrowserCommand(
     }
 
     case "page.get_selection": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1761,7 +1886,7 @@ async function runBrowserCommand(
           deps,
         );
       }
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1795,7 +1920,7 @@ async function runBrowserCommand(
     case "navigation.back":
     case "navigation.forward":
     case "navigation.reload": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }
@@ -1841,7 +1966,7 @@ async function runBrowserCommand(
     }
 
     case "page.zoom": {
-      const resolution = resolveTab(command.tabId, deps);
+      const resolution = resolveTab(command.tabId, deps, need);
       if (!resolution.ok) {
         return resolution.outcome;
       }

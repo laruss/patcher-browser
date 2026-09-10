@@ -164,10 +164,10 @@ export function useBrowserAgentBridge(): void {
         // on and whether a named one is theirs to touch (`tab-owners.ts`).
         issuer: signal.issuer,
         getTabOwners: () => store.get(browserTabOwnersAtom),
-        setTabOwner: ({ issuer, tabId }) => {
+        setTabOwner: ({ claim, tabId }) => {
           store.set(browserTabOwnersAtom, (current) =>
             withBrowserTabOwner(current, {
-              issuer,
+              claim,
               // Read here rather than passed in: the claim is recorded after the
               // tab is in the strip, and this is the write that also drops
               // entries for tabs that are gone.

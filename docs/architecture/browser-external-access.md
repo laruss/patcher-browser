@@ -499,9 +499,12 @@ list implying the rest is handled.
 page's.** On desktop the browser surface holds the whole main area for every
 route — Patcher's own screens open *in a tab* and the agent screens in the side
 panel — so the page chrome below the strip (the address bar and everything with
-it) is not rendered at all while a person is reading a thread. The indicator
-lived in that chrome and went away with it, in exactly the case the whole thing
-exists for. The strip is the one row on screen for every desktop route, so that
+it) is not rendered at all while a person is in Settings, on an extensions page
+or in a plugin's panel. The indicator lived in that chrome and went away with
+it, in a case the whole thing exists for. (A thread is *not* one of those: it
+paints in the side panel, so the chrome stays mounted beside it. This sentence
+said otherwise until #117; the corrected version was already in
+[browser-tab-ownership.md](browser-tab-ownership.md).) The strip is the one row on screen for every desktop route, so that
 is where it goes; the handover prompt stays below the address bar, because that
 one *is* about the tab in front of you.
 

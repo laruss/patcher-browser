@@ -468,10 +468,13 @@ describe("browser surface tab menu", () => {
           [
             "tab-1",
             {
-              kind: "grant" as const,
-              grantId: "grant_1",
-              label: "Claude Code",
-              level: "read" as const,
+              issuer: {
+                kind: "grant" as const,
+                grantId: "grant_1",
+                label: "Claude Code",
+                level: "read" as const,
+              },
+              mode: "drive" as const,
             },
           ],
         ]),
@@ -501,10 +504,13 @@ describe("browser surface tab menu", () => {
           [
             "tab-1",
             {
-              kind: "grant" as const,
-              grantId: "grant_1",
-              label: "Claude Code",
-              level: "read" as const,
+              issuer: {
+                kind: "grant" as const,
+                grantId: "grant_1",
+                label: "Claude Code",
+                level: "read" as const,
+              },
+              mode: "drive" as const,
             },
           ],
         ]),
@@ -518,16 +524,55 @@ describe("browser surface tab menu", () => {
     ).not.toBeNull();
   });
 
+  it("draws looking apart from driving, and says so in the menu", () => {
+    renderStrip([browserTab("tab-1", "A")], {}, new Set(), {
+      tabOwners: new Map([
+        [
+          "tab-1",
+          {
+            issuer: {
+              kind: "grant" as const,
+              grantId: "grant_1",
+              label: "Claude Code",
+              level: "read" as const,
+            },
+            mode: "look" as const,
+          },
+        ],
+      ]),
+    });
+
+    // A stale look claim wearing the driving mark would read as an agent with
+    // the run of a page the person is still working in, which is the objection
+    // that ruled out keeping the two relations apart in the first place.
+    expect(
+      screen.getByLabelText("Claude Code is reading this tab"),
+    ).not.toBeNull();
+    expect(screen.queryByLabelText("Claude Code is working in this tab")).toBe(
+      null,
+    );
+
+    fireEvent.contextMenu(tabBox(/A/));
+
+    // "Take back" would be an offer to undo something nobody did: the tab was
+    // never taken.
+    expect(screen.getByText("Stop Claude Code reading this")).not.toBeNull();
+    expect(screen.queryByText(/Take back/)).toBeNull();
+  });
+
   it("offers a tab back from the agent holding it, by name", () => {
     const held = renderStrip([browserTab("tab-1", "A")], {}, new Set(), {
       tabOwners: new Map([
         [
           "tab-1",
           {
-            kind: "grant" as const,
-            grantId: "grant_1",
-            label: "Claude Code",
-            level: "read" as const,
+            issuer: {
+              kind: "grant" as const,
+              grantId: "grant_1",
+              label: "Claude Code",
+              level: "read" as const,
+            },
+            mode: "drive" as const,
           },
         ],
       ]),

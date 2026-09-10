@@ -3,7 +3,7 @@ import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import { createHarness, liveState, tab } from "@/test/browser-command-harness";
 import { executeBrowserCommand } from "./execute";
 import { createBrowserTabQueue } from "./tab-queue";
-import type { BrowserTabOwners } from "./tab-owners";
+import type { BrowserTabClaim, BrowserTabOwners } from "./tab-owners";
 
 /**
  * Two commands, one browser.
@@ -36,7 +36,22 @@ function deferred() {
 }
 
 function ownedBy(entries: Array<[string, BrowserCommandIssuer]>) {
-  return new Map(entries) as BrowserTabOwners;
+  return new Map(
+    entries.map(([tabId, issuer]): [string, BrowserTabClaim] => [
+      tabId,
+      { issuer, mode: "drive" },
+    ]),
+  ) as BrowserTabOwners;
+}
+
+/** The other answer: the person lent this caller a look and nothing more. */
+function lentTo(entries: Array<[string, BrowserCommandIssuer]>) {
+  return new Map(
+    entries.map(([tabId, issuer]): [string, BrowserTabClaim] => [
+      tabId,
+      { issuer, mode: "look" },
+    ]),
+  ) as BrowserTabOwners;
 }
 
 describe("two commands on one browser", () => {
@@ -240,5 +255,34 @@ describe("two commands on one browser", () => {
     expect(refused).toMatchObject({ ok: false, code: "tab_not_yours" });
     gate.resolve();
     await read;
+  });
+
+  it("lets a lent tab take its turn without asking to take it over", async () => {
+    const gate = deferred();
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a") },
+      queue: createBrowserTabQueue(),
+      readPageGate: gate.promise,
+      owners: lentTo([["a", GRANT]]),
+      issuer: GRANT,
+    });
+
+    const first = executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+    const second = executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    gate.resolve();
+    expect(await first).toMatchObject({ ok: true });
+    expect(await second).toMatchObject({ ok: true });
+    // A read the person allowed queues like any other read of that tab — and
+    // placing it in the queue resolves the tab, which must not be a second and
+    // third way to put a question on their screen (#116).
+    expect(harness.calls.handoverAsks).toEqual([]);
   });
 });

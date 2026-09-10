@@ -21,7 +21,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Icon, type IconName } from "@patcher/shared-ui/icon";
-import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -39,6 +38,7 @@ import { useOptionalIsSidebarShowing } from "@/components/ui/sidebar.js";
 import { browserIssuerName } from "@/lib/browser-agent/issuer";
 import {
   EMPTY_BROWSER_TAB_OWNERS,
+  type BrowserTabClaim,
   type BrowserTabOwners,
 } from "@/lib/browser-agent/tab-owners";
 import {
@@ -281,23 +281,39 @@ const TAB_DRAG_MODIFIERS: Modifier[] = [restrictTabDragToHorizontalAxis];
  * favicon — so the only sign that something else was working in one was the
  * indicator saying *somebody* is driving, with no way to tell which of eight
  * tabs they meant.
+ *
+ * Looking and driving are drawn apart on purpose (#117): a stale look claim
+ * that wore the driving mark would read as an agent with the run of a page the
+ * person is still working in, which is the objection that ruled out keeping the
+ * two relations separate in the first place.
  */
+/**
+ * What a claim on a tab says, in one sentence, for a screen reader and for the
+ * pinned tab that has no room for a title.
+ */
+function browserTabClaimLabel(claim: BrowserTabClaim): string {
+  const who = browserIssuerName(claim.issuer);
+  return claim.mode === "look"
+    ? `${who} is reading this tab`
+    : `${who} is working in this tab`;
+}
+
 function BrowserSurfaceTabMarks({
+  claim,
   isMuted,
-  owner,
   pluginStatus,
 }: {
+  claim: BrowserTabClaim | null;
   isMuted: boolean;
-  owner: BrowserCommandIssuer | null;
   pluginStatus: PluginBrowserTabStatus | null;
 }) {
   return (
     <>
-      {owner === null ? null : (
+      {claim === null ? null : (
         <Icon
-          name="Terminal"
+          name={claim.mode === "look" ? "Eye" : "Terminal"}
           className="size-3.5 shrink-0 opacity-70"
-          aria-label={`${browserIssuerName(owner)} is working in this tab`}
+          aria-label={browserTabClaimLabel(claim)}
         />
       )}
       {isMuted ? (
@@ -343,8 +359,8 @@ interface BrowserSurfaceTabStripTabProps {
   }) => void;
   onSetMuted: (args: { muted: boolean; tabId: string }) => void;
   onSetPinned: (args: { pinned: boolean; tabId: string }) => void;
-  /** The agent this tab belongs to, or null while it is the person's. */
-  owner: BrowserCommandIssuer | null;
+  /** What an agent was given on this tab, or null while it is only the person's. */
+  claim: BrowserTabClaim | null;
   /** Null when the surface passed no handler, which is what a test does. */
   onTakeBack: ((tabId: string) => void) | null;
   pluginStatus: PluginBrowserTabStatus | null;
@@ -367,8 +383,8 @@ function BrowserSurfaceTabStripTab({
   onRunTabAction,
   onSetMuted,
   onSetPinned,
+  claim,
   onTakeBack,
-  owner,
   pluginStatus,
   showsDivider,
   tab,
@@ -376,9 +392,7 @@ function BrowserSurfaceTabStripTab({
 }: BrowserSurfaceTabStripTabProps) {
   const label = browserSurfaceTabLabel(tab);
   const pinnedLabel =
-    owner === null
-      ? label
-      : `${label} — ${browserIssuerName(owner)} is working in this tab`;
+    claim === null ? label : `${label} — ${browserTabClaimLabel(claim)}`;
   const isApp = isAppSurfaceTab(tab);
   const isPinned = isPinnedSurfaceTab(tab);
   const { isDragging, listeners, setNodeRef, transform, transition } =
@@ -460,7 +474,7 @@ function BrowserSurfaceTabStripTab({
             )}
             <BrowserSurfaceTabMarks
               isMuted={isMuted}
-              owner={owner}
+              claim={claim}
               pluginStatus={pluginStatus}
             />
           </button>
@@ -519,17 +533,20 @@ function BrowserSurfaceTabStripTab({
             {isMuted ? "Unmute tab" : "Mute tab"}
           </ContextMenuItem>
         ) : null}
-        {owner === null || onTakeBack === null ? null : (
+        {claim === null || onTakeBack === null ? null : (
           // Only on a tab an agent holds, and named after the agent: "take
           // back" on the person's own tab would be an offer to undo something
-          // nobody did.
+          // nobody did. A tab they were only lent a look at was never taken, so
+          // the entry says what ending it actually does.
           <ContextMenuItem
             onSelect={() => {
               onTakeBack(tab.id);
             }}
           >
             <Icon name="ArrowTurnBackward" aria-hidden />
-            Take back from {browserIssuerName(owner)}
+            {claim.mode === "look"
+              ? `Stop ${browserIssuerName(claim.issuer)} reading this`
+              : `Take back from ${browserIssuerName(claim.issuer)}`}
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />
@@ -756,7 +773,7 @@ export function BrowserSurfaceTabStrip({
                 onSetMuted={onSetMuted}
                 onSetPinned={onSetPinned}
                 onTakeBack={onTakeBack ?? null}
-                owner={tabOwners.get(tab.id) ?? null}
+                claim={tabOwners.get(tab.id) ?? null}
                 pluginStatus={pluginStatuses.get(tab.id) ?? null}
                 // Chromium's separator rule: a hairline on the edge two plain tabs
                 // share, and none touching the selected tab, which is already

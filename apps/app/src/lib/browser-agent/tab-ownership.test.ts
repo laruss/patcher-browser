@@ -4,7 +4,7 @@ import { createHarness, liveState, tab } from "@/test/browser-command-harness";
 import { BrowserTraceRecorder } from "./trace";
 import { executeBrowserCommand } from "./execute";
 import { createBrowserTabQueue } from "./tab-queue";
-import type { BrowserTabOwners } from "./tab-owners";
+import type { BrowserTabClaim, BrowserTabOwners } from "./tab-owners";
 
 /**
  * Whose tab a command lands on.
@@ -31,7 +31,22 @@ const OTHER_GRANT: BrowserCommandIssuer = {
 const TURN: BrowserCommandIssuer = { kind: "thread", threadId: "thread_1" };
 
 function ownedBy(entries: Array<[string, BrowserCommandIssuer]>) {
-  return new Map(entries) as BrowserTabOwners;
+  return new Map(
+    entries.map(([tabId, issuer]): [string, BrowserTabClaim] => [
+      tabId,
+      { issuer, mode: "drive" },
+    ]),
+  ) as BrowserTabOwners;
+}
+
+/** The other answer: the person lent this caller a look and nothing more. */
+function lentTo(entries: Array<[string, BrowserCommandIssuer]>) {
+  return new Map(
+    entries.map(([tabId, issuer]): [string, BrowserTabClaim] => [
+      tabId,
+      { issuer, mode: "look" },
+    ]),
+  ) as BrowserTabOwners;
 }
 
 describe("tab ownership", () => {
@@ -188,9 +203,9 @@ describe("tab ownership", () => {
     // agent with nothing to wait on.
     expect(outcome.message).toContain("Naming it is what asks them for it");
     expect(outcome.message).not.toContain("hand this one over");
-    // And it promises no row on screen — the chrome that draws one is not
-    // mounted while the person reads a thread — only that naming it again is
-    // what puts the ask back.
+    // And it promises no row on screen — the chrome that draws one is gone
+    // while a Patcher screen of their own holds the main area, and the ask does
+    // not survive a reload — only that naming it again is what puts it back.
     expect(outcome.message).toContain("name it again");
     expect(harness.calls.reload).toEqual([]);
   });
@@ -222,6 +237,145 @@ describe("tab ownership", () => {
     // and this sentence is read by a different caller. Found by review.
     expect(outcome.message).not.toContain("Codex");
     // The person cannot answer this one: it is not their tab to give.
+    expect(harness.calls.handoverAsks).toEqual([]);
+  });
+
+  it("lends a page to one agent without taking it from the person", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a") },
+      issuer: TURN,
+      // The person answered "let them look" to a grant, about the tab they are
+      // working in and discussing in this very thread.
+      owners: lentTo([["a", GRANT]]),
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "navigation.reload", tabId: "a" },
+      harness.deps,
+    );
+
+    // A view onto a page is not a transfer of it. Were a look claim to read as
+    // ownership, this refusal would tell the person's own thread that the page
+    // in front of them belongs to another agent, and offer them "Take back" on
+    // a tab nobody took.
+    expect(outcome.ok).toBe(true);
+    expect(harness.calls.reload).toEqual(["a"]);
+    expect(harness.calls.handoverAsks).toEqual([]);
+  });
+
+  it("reads a tab it was lent, and refuses to act in it", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a", { title: "Their page" }) },
+      issuer: GRANT,
+      owners: lentTo([["a", GRANT]]),
+      // A real queue, because placing a command resolves its tab too, and it is
+      // the resolve that asks the person for it (#116).
+      queue: createBrowserTabQueue(),
+      readPage: {
+        ok: true,
+        tabId: "a",
+        url: "https://person.example/",
+        title: "Their page",
+        isLoading: false,
+        contentKind: "html",
+        text: "the page they are reading",
+        textTruncated: false,
+        selection: "",
+        selectionTruncated: false,
+      },
+    });
+
+    const read = await executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(read.ok).toBe(true);
+    if (!read.ok) throw new Error("a lent tab refused the reading it was lent");
+    expect(read.value).toEqual({
+      type: "text",
+      text: "the page they are reading",
+      truncated: false,
+    });
+    // Reading is the whole of what was lent, so nothing was asked for.
+    expect(harness.calls.handoverAsks).toEqual([]);
+
+    const act = await executeBrowserCommand(
+      { type: "navigation.reload", tabId: "a" },
+      harness.deps,
+    );
+
+    expect(act.ok).toBe(false);
+    if (act.ok) throw new Error("a look claim let an agent drive");
+    expect(act.code).toBe("tab_not_yours");
+    expect(harness.calls.reload).toEqual([]);
+    // The sentence for this caller is not the one for a caller holding nothing:
+    // it has been answered already, and "work in a tab of your own" would throw
+    // away the thing it was given.
+    expect(act.message).toContain("lent you a look at it");
+    expect(act.message).not.toContain("Work in a tab of your own");
+    // Wanting more is a new question, and it is the same row: once, however
+    // many times the command resolved its tab.
+    expect(harness.calls.handoverAsks).toEqual([{ issuer: GRANT, tabId: "a" }]);
+    expect(act.message).toContain("name it again");
+  });
+
+  it("keeps the expensive reads out of what a look lends", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a") },
+      issuer: GRANT,
+      owners: lentTo([["a", GRANT]]),
+    });
+
+    // Cookies and site storage are a login that can leave the machine, and
+    // filming a tab is every page it visits while it runs. Neither is what
+    // "look at my page" says, and neither is priced as reading.
+    const storage = await executeBrowserCommand(
+      { type: "page.storage", tabId: "a", operation: { kind: "cookies-get" } },
+      harness.deps,
+    );
+    const film = await executeBrowserCommand(
+      {
+        type: "page.record",
+        tabId: "a",
+        operation: { kind: "video-start", fps: 2 },
+      },
+      harness.deps,
+    );
+
+    expect(storage.ok).toBe(false);
+    expect(film.ok).toBe(false);
+    if (storage.ok || film.ok) throw new Error("a look claim paid for more");
+    expect(storage.code).toBe("tab_not_yours");
+    expect(film.code).toBe("tab_not_yours");
+  });
+
+  it("points a caller with nothing of its own at the tab it was lent", async () => {
+    const harness = createHarness({
+      state: {
+        activeTabId: "a",
+        tabs: [tab("a", "https://person.example/"), tab("b")],
+      },
+      issuer: GRANT,
+      owners: lentTo([["a", GRANT]]),
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    // A lent tab is deliberately not what a null tabId means — "let them look
+    // at this" must not silently redirect every unqualified command into the
+    // page the person is working in. But saying "the tabs that are open are not
+    // yours to work in" would be false in the one case the lending exists for.
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("a lent tab became a default target");
+    expect(outcome.code).toBe("no_active_tab");
+    expect(outcome.message).toContain("lent you a look at tab a");
     expect(harness.calls.handoverAsks).toEqual([]);
   });
 
@@ -330,7 +484,10 @@ describe("tab ownership", () => {
       type: "tab",
       tab: { tabId: "new-1", owner: "you" },
     });
-    expect(harness.getOwners().get("new-1")).toEqual(GRANT);
+    expect(harness.getOwners().get("new-1")).toEqual({
+      issuer: GRANT,
+      mode: "drive",
+    });
   });
 
   it("says whose each tab is in the listing", async () => {
@@ -452,5 +609,103 @@ describe("tab ownership", () => {
     // address answers for every caller now and would pass this either way.
     expect(outcome).toMatchObject({ ok: true });
     expect(harness.calls.reload).toEqual(["a"]);
+  });
+});
+
+describe("handing a tab back", () => {
+  it("leaves the tab open and the page alone", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://work.example/")] },
+      live: { a: liveState("a") },
+      issuer: GRANT,
+      owners: ownedBy([["a", GRANT]]),
+      queue: createBrowserTabQueue(),
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "tabs.release", tabId: "a" },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok)
+      throw new Error("a caller could not give back its own tab");
+    // Answered with the tab as it now is, which is the confirmation: the claim
+    // is gone and the page is not. `tabs.close` was the only way to end a claim
+    // before this, and it destroys the one thing the person wanted kept.
+    expect(outcome.value).toMatchObject({
+      type: "tab",
+      tab: { tabId: "a", owner: "person" },
+    });
+    expect(harness.calls.destroyed).toEqual([]);
+    expect(harness.deps.getState().tabs.map((each) => each.id)).toEqual(["a"]);
+    // Nobody was asked anything: giving a tab up is not a question.
+    expect(harness.calls.handoverAsks).toEqual([]);
+
+    // And it is really gone, not merely reported gone.
+    const after = await executeBrowserCommand(
+      { type: "navigation.reload", tabId: "a" },
+      harness.deps,
+    );
+    expect(after).toMatchObject({ ok: false, code: "tab_not_yours" });
+  });
+
+  it("gives back a look as readily as the run of a tab", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a") },
+      issuer: GRANT,
+      owners: lentTo([["a", GRANT]]),
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "tabs.release", tabId: "a" },
+      harness.deps,
+    );
+
+    // The exit a look claim was given instead of a timeout: an access that
+    // expired mid-read is a failure an agent cannot tell from a refusal.
+    expect(outcome).toMatchObject({
+      ok: true,
+      value: { tab: { owner: "person" } },
+    });
+  });
+
+  it("refuses a tab the caller holds nothing on, and tells nobody whose it is", async () => {
+    const harness = createHarness({
+      state: {
+        activeTabId: "a",
+        tabs: [tab("a", "https://person.example/"), tab("b")],
+      },
+      issuer: GRANT,
+      owners: ownedBy([["b", OTHER_GRANT]]),
+      queue: createBrowserTabQueue(),
+    });
+
+    const theirs = await executeBrowserCommand(
+      { type: "tabs.release", tabId: "a" },
+      harness.deps,
+    );
+    const somebody = await executeBrowserCommand(
+      { type: "tabs.release", tabId: "b" },
+      harness.deps,
+    );
+
+    // Releasing a claim that is not yours would be a way to strip another
+    // agent's tab — cheaper than any other, since this costs `tabs.read`.
+    for (const outcome of [theirs, somebody]) {
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok)
+        throw new Error("a caller gave away what it did not hold");
+      expect(outcome.code).toBe("tab_not_yours");
+      expect(outcome.message).toContain("you hold no claim on it");
+    }
+    // Nor is the person asked to hand over a tab so that somebody can give it
+    // back, which is what sending this through the ownership check would do.
+    expect(harness.calls.handoverAsks).toEqual([]);
+    expect(harness.deps.getTabOwners?.().get("b")).toEqual({
+      issuer: OTHER_GRANT,
+      mode: "drive",
+    });
   });
 });

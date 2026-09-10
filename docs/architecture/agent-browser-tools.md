@@ -81,7 +81,9 @@ now.** A null `tabId` used to mean "the active tab" for everybody, so two agents
 and the person all worked in one tab. It now means "my newest tab", and a tab
 another agent holds is refused — anything but its address and title, which the
 tab listing hands over regardless — while a turn may still use the tab the
-person is looking at, which is the case this whole surface exists for:
+person is looking at, which is the case this whole surface exists for. The
+person can also lend one of their tabs to be read and not driven, and an agent
+can hand a tab back without closing it:
 [browser-tab-ownership.md](browser-tab-ownership.md).
 
 ## The constraint everything else bends around

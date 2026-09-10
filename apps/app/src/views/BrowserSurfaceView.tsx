@@ -243,7 +243,7 @@ export function BrowserSurfaceView({
     (tabId: string) => {
       setTabOwners((current) =>
         withBrowserTabOwner(current, {
-          issuer: null,
+          claim: null,
           openTabIds: openWebTabIds(),
           tabId,
         }),
@@ -264,11 +264,15 @@ export function BrowserSurfaceView({
   const inheritTabOwner = useCallback(
     ({ fromTabId, toTabId }: { fromTabId: string; toTabId: string }) => {
       setTabOwners((current) => {
-        const owner = current.get(fromTabId);
-        return owner === undefined
+        const claim = current.get(fromTabId);
+        // Only a tab an agent is *driving* passes its claim on. A popup out of a
+        // tab the person merely lent for reading is almost certainly a window
+        // the person opened themselves, and inheriting there would hand an agent
+        // a tab nobody was ever asked about (#117).
+        return claim === undefined || claim.mode === "look"
           ? current
           : withBrowserTabOwner(current, {
-              issuer: owner,
+              claim,
               openTabIds: openWebTabIds(),
               tabId: toTabId,
             });
@@ -310,7 +314,7 @@ export function BrowserSurfaceView({
       // does not hand an agent a tab the person deliberately closed.
       setTabOwners((current) =>
         withBrowserTabOwner(current, {
-          issuer: null,
+          claim: null,
           openTabIds: openWebTabIds(),
           tabId,
         }),
@@ -543,7 +547,7 @@ export function BrowserSurfaceView({
         // back if the person reopens the tab, and it should come back theirs.
         setTabOwners((current) =>
           withBrowserTabOwner(current, {
-            issuer: null,
+            claim: null,
             openTabIds: openWebTabIds(),
             tabId: popup.tabId,
           }),

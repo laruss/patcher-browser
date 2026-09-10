@@ -32,6 +32,11 @@ The two "no"s are about *acting*. A tab's address and title are answered for
 every tab, to every caller, because that is what the listing already hands over
 — see "A listing still lists everything" below.
 
+And "until handed over" has two answers now, not one — see "Look, don't touch"
+below. A tab the person lent for reading is not in this table because it is not
+a fourth kind of caller: it is the person's tab, with one caller allowed to read
+it.
+
 **The asymmetry is the point.** A turn is a conversation the person is having in
 the same window, and "read the page I am looking at" is the case the in-app
 tools were built for ([agent-browser-tools.md](agent-browser-tools.md)). A
@@ -81,6 +86,9 @@ last" depends on history it cannot see.
   `person`, `agent`. Relative rather than named, so a grant does not learn the
   label of every other grant, and a turn's thread id does not travel to a shell.
   The `patcher browser tabs` listing shows it as `owner:you`.
+- Every tab a caller was lent carries `owner: shared` — see below — and nobody
+  else is told about the lending at all: to every other caller that tab still
+  answers `person`, which is what it still is.
 - Naming a tab that is not yours, for anything but those two reads, is
   `tab_not_yours`, which says whose it is. It is not `unknown_tab`: the id is
   right, and a fresh listing changes nothing. The sentence also says what to do
@@ -90,6 +98,72 @@ last" depends on history it cannot see.
 - An unqualified command from a caller with no tab of its own is `no_active_tab`
   with a different sentence — there *is* a tab, it is not yours, open one.
 
+## Look, don't touch
+
+Handing a tab over was the only way to say yes, and it says a great deal: the
+tab becomes that agent's, at whatever its grant allows — clicking, typing,
+navigating, and at `full` injecting script and filming it. "Read the page I am
+on" had to be answered with all of that or with nothing.
+
+So a claim has a **mode**. `drive` is the old answer. `look` lends the page and
+not the browsing: the caller may read — the page's text, its structure, a
+screenshot, what it logs and what it requests — and everything that would change
+it is refused. Which prices those are is a `Record` in `tab-owners.ts` over
+every browser permission, so a permission added later does not compile until
+somebody decides whether "look, don't touch" covers it. It is the same line the
+`read` external-access level draws, written out again on purpose: that one is
+how far a caller may reach into this browser at all, and this one is what the
+person said about one tab.
+
+**A look claim leaves the tab the person's**, and that is the load-bearing half.
+`browserTabOwnerFor` answers `person` for it to everybody except its holder,
+who gets `shared`. Answering `agent` instead — which is what falls out of a map
+that only knows *who* — would take the person's own page away from the thread
+they were discussing it in, refuse it to every other caller entitled to their
+tabs, and offer them "Take back" on a tab nobody took. And a lent tab is never
+what a null `tabId` means, so "let them look at this page" cannot quietly
+redirect the rest of that agent's unqualified commands into it.
+
+**What it costs the person, which the button cannot say.** Reading a page's
+structure attaches the browser's debugger, and from then on that tab's
+JavaScript dialogs are drawn by Patcher rather than by Chromium
+(`BrowserPageDialog.tsx`). They still answer them; the box looks different. It
+is the same cost a turn already puts on a tab it reads for them, which is why a
+lent tab is not held to a stricter standard than the in-app path.
+
+**It is on the tab, not on the page.** The claim follows that tab through every
+later navigation the person makes, and it ends only when the agent releases it
+or the person takes it back — deliberately not on a timer, because an access
+that expires mid-read is a failure an agent cannot tell from a refusal.
+
+## Handing a tab back
+
+`tabs.close` was the only agent-facing path that ended a claim, and it destroys
+the page — the one outcome somebody who lent their tab does not want. Taking
+over a page from exactly the state the person left it in works and works well,
+because a handover is a write to a map rather than a reload; giving it back did
+not exist.
+
+`patcher browser release <tab-id>` is that write without the destruction. It
+works on any claim of the caller's own — one handed over, one lent for reading,
+or a tab it opened itself and means to leave the person. A claim that is not the
+caller's is `tab_not_yours`, in one sentence that does not say whose it is: that
+would be a cheap way to learn about another agent, and the way forward is the
+same either way.
+
+It costs `tabs.read`, the cheapest bucket there is, because it is the one
+command that only ever *narrows* the caller's own access. At `tabs.modify` with
+the other tab-state changes, a caller lent a tab at the `read` level could not
+give it back, and the lending would be a one-way door.
+
+**What it does not undo is what the agent did to the page.** Route mocks,
+offline emulation and a running recording live with the tab's debugger session,
+not with the claim, so a tab released while mocked stays mocked — and the agent
+cannot clear it afterwards, because the tab is no longer its to act on. The
+person's **Take back** has had exactly this hole since ownership shipped and
+nothing about `release` widens it; both doors need the same fix, which is its
+own change. Until then the CLI and the skill both say to clear those first.
+
 ## Handing a tab over, and taking it back
 
 The refusal is a dead end on its own: an agent says "ask them to hand it over"
@@ -98,9 +172,17 @@ once per command: placing a command in a tab's queue resolves its tab too, and
 that resolve used to ask again. The
 executor records it (`browserTabHandoverAskAtom`), and the browser chrome draws
 a row under the address bar — *Claude Code is asking to work in "…"* —
-with **Hand it over** beside it. It stays in the page chrome, where the driving
-indicator no longer is, because this one is about the tab in front of you. Answering it claims the tab for that agent; the
-agent's next command works.
+with two answers beside it: **Let them look**, which lends the page, and **Hand
+it over**, which lends the browsing. It stays in the page chrome, where the
+driving indicator no longer is, because this one is about the tab in front of
+you. Either answer claims the tab for that agent, in the mode it names; the
+agent's next command works, or its next *read* does.
+
+An agent that holds a look claim and tries to act is refused, and that refusal
+raises this row again — which is how a look becomes a handover. Then only **Hand
+it over** is offered, and the row says the agent is asking to work in the tab
+*and not just read it*: a second **Let them look** would grant what was already
+granted and read as having answered.
 
 **And the refusal says so**, rather than sending the agent off to ask for what
 it has already asked for (#116). What it promises is deliberately small:
@@ -120,7 +202,14 @@ agent rather than from a menu: a menu would have to list every grant on the
 install so the person could pick the one they were already talking to.
 
 The other direction is on the tab's own context menu, where the tab is the thing
-being pointed at: **Take back from Claude Code** on a tab an agent holds.
+being pointed at: **Take back from Claude Code** on a tab an agent holds, and
+**Stop Claude Code reading this** on one it was only lent — "take back" would be
+an offer to undo something nobody did. The strip's mark tells the two apart for
+the same reason: a stale look claim wearing the driving mark would read as an
+agent with the run of a page the person is still working in, which is the
+objection that ruled out keeping the two relations apart in the first place.
+
+The agent's own way out is `patcher browser release` above.
 
 The agent chooses which tab it names, so it also chooses what the ask is *about*
 — which is why the row names the tab it would be given, with its address, rather
@@ -133,9 +222,14 @@ answer.
 ## Where it lives
 
 `apps/app/src/lib/browser-agent/tab-owners.ts`, as a map from tab id to the
-`issuer` the server put on the command — the same value the driving indicator
-draws, keyed the same way (kind and id, never the label, so a renamed grant is
-still itself). `resolveTab` in `execute.ts` is the one place every tab-targeted
+`issuer` the server put on the command and the mode the person answered — the
+issuer is the same value the driving indicator draws, keyed the same way (kind
+and id, never the label, so a renamed grant is still itself). A claim stored
+before there were modes is read as a `drive` claim, which is what it meant; a
+new storage key would have handed every agent's tab back to the person on the
+upgrade and then refused the agent its own next command, which is the failure
+persistence is here to prevent. The trade is the other direction: an older build
+reading a map this one wrote drops every claim in that window. `resolveTab` in `execute.ts` is the one place every tab-targeted
 command passes through, which is what makes one rule enough.
 
 It is persisted in local storage beside the tabs, because the strip survives a
@@ -173,7 +267,10 @@ which is the backstop for any path that forgets.
   ([browser-external-access.md](browser-external-access.md)).
 - **Not undone by revoking.** A revoked or paused grant keeps its claims: it can
   do nothing with them, and the tabs stay out of every *other* agent's way until
-  the person takes them back from the tab menu. The alternative — returning them
+  the person takes them back from the tab menu. Sharper for a look claim, which
+  sits on a tab the person is *using*: a revoked grant's stale look mark stays in
+  their strip until they clear it, saying an agent may read a page when nothing
+  can. Same fix, same menu. The alternative — returning them
   to the person on revoke — would quietly make a page an agent had been working
   in the default target of the next caller's unqualified command.
 - **Not a window-level signal.** A tab an agent holds carries a mark in the

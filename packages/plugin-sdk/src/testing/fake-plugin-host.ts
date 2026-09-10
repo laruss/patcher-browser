@@ -91,6 +91,7 @@ import {
 import { BROWSER_PAGE_STYLE_MAX_CSS_LENGTH } from "@patcher/domain/browser-page-style";
 import { BROWSER_PAGE_SCRIPT_MAX_CODE_LENGTH } from "@patcher/domain/browser-page-script";
 import { createFakeBrowserControl } from "./fake-plugin-host-browser-control.js";
+import { createFakeBrowserTabs } from "./fake-plugin-host-browser-tabs.js";
 import { createFakePermissionGate } from "./fake-permissions.js";
 import {
   createFakeSdk,
@@ -2430,100 +2431,15 @@ function createFakePluginHostInternal(
       }
       downloadHandlers.push(handler);
     },
-    tabs: {
-      list() {
-        beginBrowserCall("tabs.list", "tabs.read");
-        return Promise.resolve(browserTabs.map((tab) => ({ ...tab })));
+    tabs: createFakeBrowserTabs({
+      beginBrowserCall,
+      readBrowserTabs: () => browserTabs,
+      writeBrowserTabs: (tabs) => {
+        browserTabs = [...tabs];
       },
-      open(args) {
-        beginBrowserCall("tabs.open", "tabs.modify", { ...args });
-        const tabId = `fake-tab-${browserTabs.length + 1}`;
-        const activate = args?.activate ?? true;
-        const url = args?.url ?? "";
-        const tab: PluginBrowserTab = {
-          tabId,
-          url,
-          title: null,
-          active: activate,
-          // A tab opened in the foreground is not live *yet*: the strip has to
-          // mount its view, which has not happened by the time this answers.
-          // A background open is, and that is not a quirk of the fake — the
-          // host attaches a hidden view and waits for it, precisely so that
-          // "open without stealing focus" leaves something readable behind.
-          live: !activate && url.length > 0,
-          loading: false,
-          canGoBack: false,
-          canGoForward: false,
-        };
-        browserTabs = activate
-          ? [...browserTabs.map((each) => ({ ...each, active: false })), tab]
-          : [...browserTabs, tab];
-        return Promise.resolve({ ...tab });
-      },
-      close(args) {
-        beginBrowserCall("tabs.close", "tabs.modify", { ...args });
-        const tab = resolveBrowserTab(args.tabId);
-        browserTabs = browserTabs.filter((each) => each.tabId !== tab.tabId);
-        if (tab.active && browserTabs.length > 0) {
-          browserTabs = browserTabs.map((each, index) => ({
-            ...each,
-            active: index === browserTabs.length - 1,
-          }));
-        }
-        return Promise.resolve({
-          closedTabId: tab.tabId,
-          tabs: browserTabs.map((each) => ({ ...each })),
-        });
-      },
-      activate(args) {
-        beginBrowserCall("tabs.activate", "tabs.modify", { ...args });
-        resolveBrowserTab(args.tabId);
-        return Promise.resolve({ ...activateBrowserTab(args.tabId) });
-      },
-      // Pinning and muting are strip state the real browser holds and a
-      // `PluginBrowserTab` does not carry, so the fake records the call — which
-      // is what a plugin test can assert — and answers with the tab unchanged.
-      pin(args) {
-        beginBrowserCall("tabs.pin", "tabs.modify", { ...args });
-        return Promise.resolve({ ...resolveBrowserTab(args.tabId) });
-      },
-      mute(args) {
-        beginBrowserCall("tabs.mute", "tabs.modify", { ...args });
-        return Promise.resolve({ ...resolveBrowserTab(args.tabId) });
-      },
-      move(args) {
-        beginBrowserCall("tabs.move", "tabs.modify", { ...args });
-        const moved = resolveBrowserTab(args.tabId);
-        const rest = browserTabs.filter((each) => each.tabId !== moved.tabId);
-        const toIndex = Math.min(Math.max(args.toIndex, 0), rest.length);
-        browserTabs = [
-          ...rest.slice(0, toIndex),
-          moved,
-          ...rest.slice(toIndex),
-        ];
-        return Promise.resolve({ ...moved });
-      },
-      duplicate(args) {
-        beginBrowserCall("tabs.duplicate", "tabs.modify", { ...args });
-        const source = resolveBrowserTab(args.tabId);
-        const duplicate: PluginBrowserTab = {
-          ...source,
-          tabId: `fake-tab-${browserTabs.length + 1}`,
-          active: true,
-        };
-        // Beside its source, where the real one puts it.
-        const index = browserTabs.findIndex(
-          (each) => each.tabId === source.tabId,
-        );
-        const rest = browserTabs.map((each) => ({ ...each, active: false }));
-        browserTabs = [
-          ...rest.slice(0, index + 1),
-          duplicate,
-          ...rest.slice(index + 1),
-        ];
-        return Promise.resolve({ ...duplicate });
-      },
-    },
+      resolveBrowserTab,
+      activateBrowserTab,
+    }),
     page: {
       snapshot(args) {
         beginBrowserCall("page.snapshot", "page.read", { ...args });

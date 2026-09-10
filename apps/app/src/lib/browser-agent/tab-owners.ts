@@ -5,7 +5,11 @@ import {
   browserCommandIssuerSchema,
   type BrowserCommandIssuer,
 } from "@patcher/server-contract";
-import type { BrowserTabOwner } from "@patcher/domain";
+import {
+  BROWSER_COMMAND_PERMISSIONS,
+  type BrowserCommandPermission,
+  type BrowserTabOwner,
+} from "@patcher/domain";
 import { createLocalStorageSyncStorage } from "../browser-storage";
 import {
   browserSurfaceTabsAtom,
@@ -34,6 +38,14 @@ import { browserIssuerKey } from "./issuer";
  * - **A caller outside Patcher may not**, until the person hands it over. It
  *   has no thread to be visible in, and nothing on screen said it was coming.
  *
+ * The person has two ways to say yes, and a claim records which (#117). **Drive**
+ * is the old one: the tab becomes that caller's, at whatever its grant allows.
+ * **Look** lends the page without lending the browsing — reads answer, acting
+ * does not — and it leaves the tab *the person's* to everybody, this rule
+ * included, because a view onto a page is not a transfer of it. Making a look
+ * claim read as ownership would have taken the person's own page away from the
+ * thread they were discussing it in.
+ *
  * Ownership binds agents, never the person: everything reachable from the strip
  * — clicking, typing, closing — is theirs regardless of who opened the tab.
  *
@@ -57,13 +69,61 @@ export function browserTabOwnersStorageKey(): string {
   return windowKey === null ? base : `${base}-${windowKey}`;
 }
 
-/** Tab id → the caller it belongs to. Insertion order is oldest-tab-first. */
-export type BrowserTabOwners = ReadonlyMap<string, BrowserCommandIssuer>;
+/**
+ * What a caller was given on a tab: the whole of it, or the sight of it.
+ *
+ * One relation with a mode rather than two relations side by side. Everything
+ * that keys on a tab having a claim — the strip's mark, the tab menu's offer to
+ * end it, the prune when a tab closes, the per-window persistence — then covers
+ * a look claim without being told about it. A second, quieter relation would
+ * have had none of those, and would have produced a long-lived reader on a tab
+ * nobody could see was being read.
+ */
+export type BrowserTabClaimMode = "look" | "drive";
+
+export interface BrowserTabClaim {
+  issuer: BrowserCommandIssuer;
+  mode: BrowserTabClaimMode;
+}
+
+/** Tab id → the claim on it. Insertion order is oldest-tab-first. */
+export type BrowserTabOwners = ReadonlyMap<string, BrowserTabClaim>;
 
 export const EMPTY_BROWSER_TAB_OWNERS: BrowserTabOwners = new Map();
 
+const browserTabClaimSchema = z.object({
+  issuer: browserCommandIssuerSchema,
+  mode: z.enum(["look", "drive"]),
+});
+
+/**
+ * Both shapes, because the stored ones predate the mode.
+ *
+ * A claim written before #117 is a bare issuer, and it meant what `drive` means
+ * now, so it is read as one. The alternative — a new storage key — would hand
+ * every agent's tab back to the person on the upgrade and then refuse the agent
+ * its own next command, which is the exact failure the module docstring says
+ * persistence exists to prevent.
+ *
+ * The two shapes cannot be confused: an issuer is a union discriminated on
+ * `kind`, and a claim has no `kind` of its own.
+ *
+ * **What this trades is the downgrade.** `safeParse` runs over the whole array,
+ * so an older build reading a map this one wrote drops *every* claim in that
+ * window rather than the new-shaped ones — the same failure, pointed the other
+ * way. Worth it while the shape is one release old and the upgrade is the
+ * direction people travel.
+ */
 const browserTabOwnersSchema = z.array(
-  z.tuple([z.string().min(1), browserCommandIssuerSchema]),
+  z.tuple([
+    z.string().min(1),
+    z.union([
+      browserTabClaimSchema,
+      browserCommandIssuerSchema.transform(
+        (issuer): BrowserTabClaim => ({ issuer, mode: "drive" }),
+      ),
+    ]),
+  ]),
 );
 
 export function parseBrowserTabOwners(
@@ -96,7 +156,7 @@ export const browserTabOwnersAtom = atomWithStorage<BrowserTabOwners>(
 );
 
 /**
- * Records an owner, or hands a tab back to the person with a null issuer.
+ * Records a claim, or hands a tab back to the person with a null one.
  *
  * Also where a closed tab's entry goes: `openTabIds` is the strip as it is now,
  * and anything else is dropped. Doing it on every write rather than on close
@@ -110,11 +170,11 @@ export const browserTabOwnersAtom = atomWithStorage<BrowserTabOwners>(
 export function withBrowserTabOwner(
   owners: BrowserTabOwners,
   {
-    issuer,
+    claim,
     openTabIds,
     tabId,
   }: {
-    issuer: BrowserCommandIssuer | null;
+    claim: BrowserTabClaim | null;
     openTabIds: readonly string[];
     tabId: string;
   },
@@ -123,10 +183,21 @@ export function withBrowserTabOwner(
   const next = new Map(
     [...owners].filter(([id]) => id !== tabId && open.has(id)),
   );
-  if (issuer !== null && open.has(tabId)) {
-    next.set(tabId, issuer);
+  if (claim !== null && open.has(tabId)) {
+    next.set(tabId, claim);
   }
   return next;
+}
+
+/** Whether this claim is this caller's own. */
+function heldBy(
+  claim: BrowserTabClaim | undefined,
+  issuer: BrowserCommandIssuer,
+): boolean {
+  return (
+    claim !== undefined &&
+    browserIssuerKey(claim.issuer) === browserIssuerKey(issuer)
+  );
 }
 
 /**
@@ -147,44 +218,126 @@ export function newestBrowserTabOwnedBy({
   openTabIds: readonly string[];
   owners: BrowserTabOwners;
 }): string | null {
-  const key = browserIssuerKey(issuer);
   const open = new Set(openTabIds);
-  for (const [tabId, owner] of [...owners].reverse()) {
-    if (open.has(tabId) && browserIssuerKey(owner) === key) {
+  for (const [tabId, claim] of [...owners].reverse()) {
+    // A look claim is never what a null tabId means, however new it is. The
+    // person lent a page to be read, not a default target — "let them look at
+    // this" must not silently redirect every unqualified command of theirs into
+    // the tab the person is working in (#117).
+    if (open.has(tabId) && claim.mode === "drive" && heldBy(claim, issuer)) {
       return tabId;
     }
   }
   return null;
 }
 
-/** Whose a tab is, said the way the caller being answered would say it. */
-export function browserTabOwnerFor({
+/** Whether the person has lent this caller a look at some open tab. */
+export function browserTabLentToLookAt({
   issuer,
-  owner,
+  openTabIds,
+  owners,
 }: {
   issuer: BrowserCommandIssuer;
-  owner: BrowserCommandIssuer | undefined;
-}): BrowserTabOwner {
-  if (owner === undefined) return "person";
-  return browserIssuerKey(owner) === browserIssuerKey(issuer) ? "you" : "agent";
+  openTabIds: readonly string[];
+  owners: BrowserTabOwners;
+}): string | null {
+  const open = new Set(openTabIds);
+  for (const [tabId, claim] of [...owners].reverse()) {
+    if (open.has(tabId) && claim.mode === "look" && heldBy(claim, issuer)) {
+      return tabId;
+    }
+  }
+  return null;
 }
+
+/**
+ * Whose a tab is, said the way the caller being answered would say it.
+ *
+ * A **look** claim answers `"person"` to everyone but its holder, and `"shared"`
+ * to the holder. Both halves matter. The tab really is still the person's — they
+ * are working in it, and the claim lent a view of the page rather than the page
+ * — so any other caller entitled to their tabs must go on being entitled to this
+ * one; answering `"agent"` there would refuse the person's own in-app thread the
+ * page it is discussing with them, and offer them "Take back" on a tab nobody
+ * took. And the holder needs the fourth word rather than `"person"`, because
+ * `"person"` would tell it not to bother reading a page it has just been lent.
+ */
+export function browserTabOwnerFor({
+  claim,
+  issuer,
+}: {
+  claim: BrowserTabClaim | undefined;
+  issuer: BrowserCommandIssuer;
+}): BrowserTabOwner {
+  if (claim === undefined) return "person";
+  if (claim.mode === "look") return heldBy(claim, issuer) ? "shared" : "person";
+  return heldBy(claim, issuer) ? "you" : "agent";
+}
+
+/**
+ * What a look claim admits: reading the page, and nothing that changes it.
+ *
+ * A `Record` over {@link BROWSER_COMMAND_PERMISSIONS} rather than a list, so a
+ * browser permission added later does not compile until somebody decides
+ * whether "look, don't touch" covers it — the property
+ * `permissionForBrowserCommand` and `LOWEST_LEVEL_FOR_PERMISSION` both have, for
+ * the same reason.
+ *
+ * It is the same line the `read` external-access level draws, and it is written
+ * out again on purpose rather than derived from it. The two answer different
+ * questions: that one is how far an outside caller may reach into this browser
+ * *at all*, set once in settings or minted into a grant, while this one is what
+ * the person said about *this tab* when they were asked. They agree today; a
+ * change to either should be argued on its own terms rather than arriving as a
+ * side effect of the other.
+ *
+ * What "look" costs the person, which the docs say and this cannot: reading a
+ * page's structure attaches the browser's debugger, and from then on that tab's
+ * JavaScript dialogs are drawn by Patcher instead of by Chromium
+ * (`BrowserPageDialog.tsx`). They still answer them; the box looks different.
+ * That is the same cost a turn already puts on a tab it reads for them.
+ */
+const LOOK_CLAIM_ADMITS: Record<BrowserCommandPermission, boolean> = {
+  "tabs.read": true,
+  "page.read": true,
+  "network.observe": true,
+  "tabs.modify": false,
+  "page.interact": false,
+  "page.credentials": false,
+  "page.inject": false,
+  "network.intercept": false,
+  "page.record": false,
+};
 
 /**
  * The rule itself. See the module docstring for why a turn is let through and a
  * caller outside Patcher is not.
+ *
+ * `need` is what the command costs (`permissionForBrowserCommand`), which is
+ * what a lent tab is measured against rather than a second judgement written
+ * beside each command.
+ *
+ * This is the whole rule for a tab a caller *named*, and it is the whole rule
+ * for whether a caller may fall back to the tab in front of the person — but
+ * the two do not ask it about the same commands. See `resolveTab`, which lets
+ * `tabs.read` past for a named tab and never for the fallback.
  */
 export function mayActOnBrowserTab({
+  claim,
   issuer,
-  owner,
+  need,
 }: {
+  claim: BrowserTabClaim | undefined;
   issuer: BrowserCommandIssuer;
-  owner: BrowserTabOwner;
+  need: BrowserCommandPermission;
 }): boolean {
-  switch (owner) {
+  switch (browserTabOwnerFor({ claim, issuer })) {
     case "you":
       return true;
     case "person":
       return issuer.kind === "thread";
+    case "shared":
+      return LOOK_CLAIM_ADMITS[need];
     case "agent":
       return false;
   }

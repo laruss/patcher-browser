@@ -94,7 +94,7 @@ So the first thing to do is get a tab of your own:
 
 ```bash
 patcher browser open https://example.com --background   # yours, and it does not steal their window
-patcher browser tabs                                    # `owner:you`, `owner:person`, `owner:agent`
+patcher browser tabs                                    # `owner:you`, `owner:person`, `owner:agent`, `owner:shared`
 ```
 
 If you truly need the page they are in — they asked you about *this* page —
@@ -108,6 +108,27 @@ naming it is what asks again. What never helps is retrying in a tight loop:
 between two attempts a second apart, nothing about the situation changes on its
 own.
 
+They have two ways to say yes, so say which one you need. **Let them look**
+lends you the page: `owner:shared`, and reading it answers — text, snapshot,
+screenshot, console, network — while anything that changes it is refused, and
+the refusal asks them again for the rest. **Hand it over** gives you the tab to
+work in. Ask for the smaller one when reading is all you need; it is the one
+they can say yes to without thinking, and it leaves them their own page.
+
+When you are done with a tab of theirs, give it back — that is a thing you can
+do now, and forgetting it is worse than untidy:
+
+```bash
+patcher browser release <tab-id>    # theirs again, still open, page untouched
+```
+
+A handed tab is your *newest*, so every later command of yours without `--tab`
+lands in their page until you release it. Release also works on a tab you
+opened, when you mean to leave the result in front of them. What it does not
+undo is what you did to the page: clear your route mocks, offline mode and any
+recording **before** releasing, because afterwards that tab is not yours to
+reach.
+
 ## One constraint, worth knowing before you promise anything
 
 A tab answers page-level calls only once it has had a live view: it must have
@@ -115,8 +136,8 @@ been the active tab at some point while the browser surface was open, or have
 been opened in the background on purpose. A tab restored from an earlier session
 does not have one yet.
 
-- **Always work** — listing tabs; opening, closing, activating one; and a tab's
-  URL and title. These read renderer state rather than the page.
+- **Always work** — listing tabs; opening, closing, activating, releasing one;
+  and a tab's URL and title. These read renderer state rather than the page.
 - **Refuse with `tab_not_live`** — page text and selection, snapshot,
   screenshot, click, fill, press, and back/forward/reload. Activating the tab
   first is what clears it.

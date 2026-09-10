@@ -17,6 +17,7 @@ const SAMPLE_COMMANDS: readonly BrowserCommand[] = [
   { type: "tabs.list" },
   { type: "tabs.open", url: "https://example.test/", activate: true },
   { type: "tabs.close", tabId: "t1" },
+  { type: "tabs.release", tabId: "t1" },
   { type: "tabs.activate", tabId: "t1" },
   { type: "tabs.pin", tabId: "t1", pinned: true },
   { type: "tabs.mute", tabId: "t1", muted: true },
@@ -89,6 +90,19 @@ describe("permissionForBrowserCommand", () => {
         permissionForBrowserCommand(command),
       );
     }
+  });
+
+  it("charges handing a tab back the least there is", () => {
+    // Not `tabs.modify` with the rest of the tab-state changes: a caller lent a
+    // tab at the `read` level would then have no way to give it back, and the
+    // lending would be a one-way door (#117). It is the one command that only
+    // narrows the caller's own access.
+    expect(
+      permissionForBrowserCommand({ type: "tabs.release", tabId: "t1" }),
+    ).toBe("tabs.read");
+    expect(
+      permissionForBrowserCommand({ type: "tabs.close", tabId: "t1" }),
+    ).toBe("tabs.modify");
   });
 
   it("separates reading a page from driving it", () => {

@@ -44,6 +44,7 @@ describe("patcher browser CLI", () => {
     expect(names).toContain("tabs");
     expect(names).toContain("text");
     expect(names).toContain("status");
+    expect(names).toContain("release");
   });
 
   it("prints usage instead of guessing when told nothing", async () => {
@@ -66,6 +67,29 @@ describe("patcher browser CLI", () => {
     expect(result.stdout).toContain("tab-1");
     expect(result.stdout).toContain("live");
     expect(result.stdout).toContain("cold");
+  });
+
+  it("hands a tab back without closing it", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["release", "tab-1"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Handed tab-1 back.");
+    // The tab is still there, which is the whole difference from `close` — and
+    // the fake host models no ownership, so what this can pin is the call and
+    // its price, not the claim being dropped.
+    const listed = await host.harness.runCli(["tabs"]);
+    expect(listed.stdout).toContain("tab-1");
+  });
+
+  it("wants a tab named before it gives one away", async () => {
+    const host = createHost();
+
+    const result = await host.harness.runCli(["release"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("A tab id is required.");
   });
 
   it("emits machine-readable output on request", async () => {

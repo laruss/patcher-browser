@@ -12,6 +12,8 @@ import {
   parseBrowserTabOwners,
   requestBrowserTabHandoverAtom,
   withBrowserTabOwner,
+  type BrowserTabClaim,
+  type BrowserTabClaimMode,
   type BrowserTabOwners,
 } from "./tab-owners";
 
@@ -31,15 +33,33 @@ const GRANT: BrowserCommandIssuer = {
   level: "read",
 };
 const RENAMED: BrowserCommandIssuer = { ...GRANT, label: "Claude, at work" };
+const OTHER: BrowserCommandIssuer = { ...GRANT, grantId: "grant_2" };
 const TURN: BrowserCommandIssuer = { kind: "thread", threadId: "thread_1" };
+
+/**
+ * "May this caller act in that tab", which is the question the rule was for
+ * before a price came into it. `page.interact` stands for acting: it is the
+ * cheapest thing a look claim refuses.
+ */
+function act(args: {
+  claim: BrowserTabClaim | undefined;
+  issuer: BrowserCommandIssuer;
+}): boolean {
+  return mayActOnBrowserTab({ ...args, need: "page.interact" });
+}
 
 function claim(
   owners: BrowserTabOwners,
   tabId: string,
   issuer: BrowserCommandIssuer | null,
   openTabIds: readonly string[],
+  mode: BrowserTabClaimMode = "drive",
 ): BrowserTabOwners {
-  return withBrowserTabOwner(owners, { issuer, openTabIds, tabId });
+  return withBrowserTabOwner(owners, {
+    claim: issuer === null ? null : { issuer, mode },
+    openTabIds,
+    tabId,
+  });
 }
 
 describe("browser tab owners", () => {
@@ -103,15 +123,70 @@ describe("browser tab owners", () => {
 
     // The label is a person's note to themselves; the id is the credential.
     expect(
-      browserTabOwnerFor({ issuer: RENAMED, owner: owners.get("a") }),
+      browserTabOwnerFor({ claim: owners.get("a"), issuer: RENAMED }),
     ).toBe("you");
   });
 
   it("lets a turn use the person's tab and nobody use another agent's", () => {
-    expect(mayActOnBrowserTab({ issuer: TURN, owner: "person" })).toBe(true);
-    expect(mayActOnBrowserTab({ issuer: GRANT, owner: "person" })).toBe(false);
-    expect(mayActOnBrowserTab({ issuer: TURN, owner: "agent" })).toBe(false);
-    expect(mayActOnBrowserTab({ issuer: GRANT, owner: "you" })).toBe(true);
+    const theirs = undefined;
+    const mine = { issuer: GRANT, mode: "drive" } as const;
+    const somebody = { issuer: OTHER, mode: "drive" } as const;
+
+    expect(act({ claim: theirs, issuer: TURN })).toBe(true);
+    expect(act({ claim: theirs, issuer: GRANT })).toBe(false);
+    expect(act({ claim: mine, issuer: TURN })).toBe(false);
+    expect(act({ claim: mine, issuer: GRANT })).toBe(true);
+    expect(act({ claim: somebody, issuer: GRANT })).toBe(false);
+  });
+
+  it("lends a look without lending the tab", () => {
+    const lent = { issuer: GRANT, mode: "look" } as const;
+
+    // To its holder the tab is `shared`: readable, and nothing more.
+    expect(browserTabOwnerFor({ claim: lent, issuer: GRANT })).toBe("shared");
+    expect(
+      mayActOnBrowserTab({ claim: lent, issuer: GRANT, need: "page.read" }),
+    ).toBe(true);
+    expect(
+      mayActOnBrowserTab({
+        claim: lent,
+        issuer: GRANT,
+        need: "network.observe",
+      }),
+    ).toBe(true);
+    for (const need of [
+      "tabs.modify",
+      "page.interact",
+      "page.credentials",
+      "page.inject",
+      "network.intercept",
+      "page.record",
+    ] as const) {
+      expect(mayActOnBrowserTab({ claim: lent, issuer: GRANT, need })).toBe(
+        false,
+      );
+    }
+
+    // And to everybody else it is still the person's, which is the half that
+    // matters most: lending a page to one agent must not take it away from the
+    // thread the person is discussing it in.
+    expect(browserTabOwnerFor({ claim: lent, issuer: TURN })).toBe("person");
+    expect(act({ claim: lent, issuer: TURN })).toBe(true);
+    expect(act({ claim: lent, issuer: OTHER })).toBe(false);
+  });
+
+  it("never makes a lent tab the caller's default target", () => {
+    let owners = claim(EMPTY_BROWSER_TAB_OWNERS, "a", GRANT, ["a", "b"]);
+    // Lent second, so it is the newest entry in the map.
+    owners = claim(owners, "b", GRANT, ["a", "b"], "look");
+
+    expect(
+      newestBrowserTabOwnedBy({
+        issuer: GRANT,
+        openTabIds: ["a", "b"],
+        owners,
+      }),
+    ).toBe("a");
   });
 
   it("survives a reload, and shrugs off a stored value it cannot read", () => {
@@ -122,7 +197,17 @@ describe("browser tab owners", () => {
         JSON.stringify([...owners]),
         EMPTY_BROWSER_TAB_OWNERS,
       ).get("a"),
-    ).toEqual(GRANT);
+    ).toEqual({ issuer: GRANT, mode: "drive" });
+    // A claim stored before there were modes is one somebody drove, which is
+    // what it meant. Reading it any other way would hand every agent's tab back
+    // to the person on the upgrade and then refuse the agent its own next
+    // command.
+    expect(
+      parseBrowserTabOwners(
+        JSON.stringify([["a", GRANT]]),
+        EMPTY_BROWSER_TAB_OWNERS,
+      ).get("a"),
+    ).toEqual({ issuer: GRANT, mode: "drive" });
     // Junk in storage means "nobody owns anything", never a crash on start:
     // the browser surface is what would fail to mount.
     expect(

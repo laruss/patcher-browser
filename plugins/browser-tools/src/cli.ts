@@ -313,8 +313,9 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     details: [
       "The leading number is what --tab takes: `--tab 3` is the third tab listed.",
       '"cold" marks a tab with no live page — it cannot be read or stepped through history until it has been shown.',
-      "\"owner:\" says whose a tab is when the browser can tell: `you` is yours to act on, `person` is the one the human is working in, and `agent` is another agent's. Open your own with `open --background <url>`; naming the person's is what asks them for it, in a row in their browser window.",
+      "\"owner:\" says whose a tab is when the browser can tell: `you` is yours to act on, `person` is the one the human is working in, `agent` is another agent's, and `shared` is the person's tab they have lent you a look at — reading it answers, acting in it does not. Open your own with `open --background <url>`; naming the person's is what asks them for it, in a row in their browser window, where they can lend it or hand it over.",
       "`url` and `title` answer for any tab, as this listing does. Ownership holds back acting, not seeing.",
+      "`release <tab-id>` gives back a tab you hold — `owner:you` or `owner:shared` — without closing it.",
     ],
   },
   {
@@ -334,6 +335,16 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     summary: "Close a browser tab",
     usage: "patcher browser close <tab-id> [--json]",
     options: ["--json"],
+  },
+  {
+    name: "release",
+    summary: "Hand a tab back to the person, leaving it open",
+    usage: "patcher browser release <tab-id> [--json]",
+    options: ["--json"],
+    details: [
+      "For a tab they handed you, one they lent you a look at, or one you opened and want to leave them. `close` was the only way to end a claim before, and it destroys the page.",
+      "Anything you did to the page stays done: clear your route mocks, offline mode and recordings first, because afterwards that tab is not yours to reach.",
+    ],
   },
   {
     name: "activate",
@@ -2179,6 +2190,20 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
               stdout: parsed.json
                 ? `${JSON.stringify(result, null, 2)}\n`
                 : `Closed ${result.closedTabId}.\n${renderTabs(result.tabs, false)}`,
+            };
+          }
+
+          case "release": {
+            const tabId = rest[0];
+            if (tabId === undefined) {
+              return { exitCode: 2, stderr: "A tab id is required.\n" };
+            }
+            const tab = await patcher.browser.tabs.release({ tabId }, options);
+            return {
+              exitCode: 0,
+              stdout: parsed.json
+                ? renderTab(tab, true)
+                : `Handed ${tab.tabId} back.\n${renderTab(tab, false)}`,
             };
           }
 
