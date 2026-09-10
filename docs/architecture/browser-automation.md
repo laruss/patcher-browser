@@ -431,9 +431,12 @@ true })` forces one frame and flushes the queued events — the abandoned send
   nothing while the view was hidden, then all of them arrived the moment frames
   resumed. So a caller that retried a stalled click stacked clicks that all
   landed later — which is what makes fixing the cause worth more than improving
-  the refusal. It is the pointer's answer alone: a key send is never abandoned,
-  because it is answered at once, and the key it carried does not arrive later
-  either.
+  the refusal. That is the pointer's answer, and the keyboard's is not known to
+  be the same: on the hidden tab measured for #119 the key sends were answered
+  at once, so there was nothing for the deadline to abandon, and what they
+  carried had not arrived once the tab was shown and focused. Neither a key send
+  that genuinely stalls — which the wrapper above abandons like any other — nor
+  late delivery on some other trigger is ruled out.
 
 - **One `interact` channel**, not one per verb. Every action shares the same
   preamble (resolve the ref, check the generation, wait for actionability), and a

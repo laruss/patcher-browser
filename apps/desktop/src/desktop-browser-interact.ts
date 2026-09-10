@@ -150,11 +150,11 @@ export interface PageRenderingTarget {
  * second but takes a different dispatch path, and
  * `Emulation.setFocusEmulationEnabled` makes the keys land without touching the
  * throttling — but it restores the frames too (measured: rAF 0/s to 120/s, a
- * `mouseMoved` from 5019ms to 3ms), so it is another door to this state rather
- * than another mechanism. So the coupling is measured and unexplained, which is
- * the reason not to narrow this hold to the pointer sends on the grounds that
- * keys are not frame-aligned. The test that stands in for the missing
- * explanation is "holds the frames for a key send too" in
+ * `mouseMoved` from 5019ms to 3ms), which makes it no evidence of another
+ * mechanism, whatever else it may also be doing. So the coupling is measured
+ * and unexplained, which is the reason not to narrow this hold to the pointer
+ * sends on the grounds that keys are not frame-aligned. The test that stands in
+ * for the missing explanation is "holds the frames for a key send too" in
  * `desktop-browser-view-manager-automation.test.ts`.
  *
  * The states that stop the frames are all ordinary, and none of them is the
