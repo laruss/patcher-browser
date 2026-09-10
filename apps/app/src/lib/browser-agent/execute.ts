@@ -171,6 +171,22 @@ export interface BrowserCommandDeps {
     tabId: string;
   }) => void;
   /**
+   * Take back a question this caller asked about a tab, because it has stopped
+   * wanting the answer — it handed the tab back.
+   *
+   * Required for the same reason its opposite is. A waiting ask is not replaced
+   * while its tab is open (`tab-owners.ts`), so one left standing after a
+   * release does two wrong things at once: it blocks every later ask about
+   * every tab, and its **Hand it over** still works — minting a claim on a tab
+   * the caller has already given up, whose next unqualified command then lands
+   * in the person's page, which is the whole failure `tabs.release` exists to
+   * prevent. Found by review (#117).
+   */
+  withdrawTabHandover: (args: {
+    issuer: BrowserCommandIssuer;
+    tabId: string;
+  }) => void;
+  /**
    * Run this command after whatever else is already running on its tab
    * (`tab-queue.ts`). Absent means what every build did before: everything at
    * once, which is what let one caller's snapshot and the click that followed
@@ -1165,6 +1181,11 @@ async function runBrowserCommand(
       // page — which is the whole command. It also prunes entries for tabs that
       // are gone, as every write here does.
       deps.setTabOwner?.({ claim: null, tabId: tab.id });
+      // And any question this caller had outstanding about that tab goes with
+      // it: after this the answer would hand back what was just given up.
+      // `tabs.close` needs no such line — the row draws nothing for a tab that
+      // is gone, and a closed tab's ask is replaceable.
+      deps.withdrawTabHandover({ issuer, tabId: tab.id });
       const state = deps.getState();
       return success({ type: "tab", tab: toSnapshot(tab, state, deps) });
     }

@@ -377,6 +377,27 @@ export const browserTabHandoverAskAtom = atom<BrowserTabHandoverAsk | null>(
  * ask nobody can answer would have wedged every later one out of the window
  * until a reload. Both halves found by review on 2026-09-05.
  */
+/**
+ * Drops the waiting ask, if it is this caller's about this tab.
+ *
+ * Keyed on both halves, not on the tab alone: the ask that is waiting may
+ * belong to a *different* caller whose question is still live, and clearing
+ * that one would throw away the answer the person was about to give.
+ */
+export const withdrawBrowserTabHandoverAtom = atom(
+  null,
+  (get, set, ask: BrowserTabHandoverAsk) => {
+    const waiting = get(browserTabHandoverAskAtom);
+    if (
+      waiting !== null &&
+      waiting.tabId === ask.tabId &&
+      browserIssuerKey(waiting.issuer) === browserIssuerKey(ask.issuer)
+    ) {
+      set(browserTabHandoverAskAtom, null);
+    }
+  },
+);
+
 export const requestBrowserTabHandoverAtom = atom(
   null,
   (get, set, ask: BrowserTabHandoverAsk) => {

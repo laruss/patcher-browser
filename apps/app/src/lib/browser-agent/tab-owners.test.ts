@@ -11,6 +11,7 @@ import {
   newestBrowserTabOwnedBy,
   parseBrowserTabOwners,
   requestBrowserTabHandoverAtom,
+  withdrawBrowserTabHandoverAtom,
   withBrowserTabOwner,
   type BrowserTabClaim,
   type BrowserTabClaimMode,
@@ -231,6 +232,24 @@ describe("the handover ask", () => {
     });
     return store;
   }
+
+  it("is withdrawn by the caller that asked, and by nobody else", () => {
+    const store = storeWithTabs(["a"]);
+    store.set(requestBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
+
+    // Another caller cannot cancel this question by naming the same tab, and
+    // this caller cannot cancel it by naming another: a withdrawal that matched
+    // on one half would throw away an answer the person was about to give.
+    store.set(withdrawBrowserTabHandoverAtom, { issuer: OTHER, tabId: "a" });
+    store.set(withdrawBrowserTabHandoverAtom, { issuer: GRANT, tabId: "b" });
+    expect(store.get(browserTabHandoverAskAtom)).toEqual({
+      issuer: GRANT,
+      tabId: "a",
+    });
+
+    store.set(withdrawBrowserTabHandoverAtom, { issuer: GRANT, tabId: "a" });
+    expect(store.get(browserTabHandoverAskAtom)).toBeNull();
+  });
 
   it("keeps the ask that is waiting rather than swapping it", () => {
     // The attack it is against: an agent names a harmless tab, the person moves

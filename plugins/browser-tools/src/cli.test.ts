@@ -75,10 +75,16 @@ describe("patcher browser CLI", () => {
     const result = await host.harness.runCli(["release", "tab-1"]);
 
     expect(result.exitCode).toBe(0);
+    // The command it sends, not just the sentence it prints: the fake models no
+    // ownership, so a handler that called `activate` instead would print this
+    // same hard-coded line and answer with the same tab.
+    expect(host.harness.inspection.browserCalls).toEqual([
+      { type: "tabs.release", args: { tabId: "tab-1" } },
+    ]);
     expect(result.stdout).toContain("Handed tab-1 back.");
-    // The tab is still there, which is the whole difference from `close` — and
-    // the fake host models no ownership, so what this can pin is the call and
-    // its price, not the claim being dropped.
+    // And it is not `close`: the tab is still in the strip afterwards. What the
+    // claim being dropped looks like is asserted where ownership exists, in
+    // `apps/app/src/lib/browser-agent/tab-ownership.test.ts`.
     const listed = await host.harness.runCli(["tabs"]);
     expect(listed.stdout).toContain("tab-1");
   });

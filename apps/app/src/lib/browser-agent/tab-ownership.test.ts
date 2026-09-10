@@ -671,6 +671,39 @@ describe("handing a tab back", () => {
     });
   });
 
+  it("takes back the question it asked before giving the tab up", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      live: { a: liveState("a") },
+      issuer: GRANT,
+      owners: lentTo([["a", GRANT]]),
+    });
+
+    // Wanting more than the look it was lent asks the person to hand the tab
+    // over. Then it changes its mind and gives back what it had.
+    const refused = await executeBrowserCommand(
+      { type: "navigation.reload", tabId: "a" },
+      harness.deps,
+    );
+    expect(refused).toMatchObject({ ok: false, code: "tab_not_yours" });
+    expect(harness.calls.handoverAsks).toEqual([{ issuer: GRANT, tabId: "a" }]);
+
+    const released = await executeBrowserCommand(
+      { type: "tabs.release", tabId: "a" },
+      harness.deps,
+    );
+
+    // A question left standing does two wrong things at once: it blocks every
+    // later ask about every tab, because a waiting ask is not replaced while
+    // its tab is open — and its "Hand it over" still works, minting a claim on
+    // a tab this caller has just given up, whose next unqualified command then
+    // lands in the person's page. Which is the failure release exists to stop.
+    expect(released).toMatchObject({ ok: true });
+    expect(harness.calls.handoverWithdrawals).toEqual([
+      { issuer: GRANT, tabId: "a" },
+    ]);
+  });
+
   it("refuses a tab the caller holds nothing on, and tells nobody whose it is", async () => {
     const harness = createHarness({
       state: {

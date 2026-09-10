@@ -257,7 +257,7 @@ describe("two commands on one browser", () => {
     await read;
   });
 
-  it("lets a lent tab take its turn without asking to take it over", async () => {
+  it("makes a lent tab's second read wait, without asking to take it over", async () => {
     const gate = deferred();
     const harness = createHarness({
       state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
@@ -268,21 +268,30 @@ describe("two commands on one browser", () => {
       issuer: GRANT,
     });
 
-    const first = executeBrowserCommand(
+    const read = executeBrowserCommand(
       { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
       harness.deps,
     );
-    const second = executeBrowserCommand(
-      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+    const observe = executeBrowserCommand(
+      {
+        type: "page.observe",
+        tabId: "a",
+        observation: { kind: "console", limit: 20 },
+      },
       harness.deps,
     );
 
+    // A read the person allowed takes its turn like any other read of that tab.
+    // Asserted through the second command's own side effect, because two
+    // promises that both resolve say nothing about whether they overlapped.
+    await Promise.resolve();
+    expect(harness.calls.observations).toEqual([]);
     gate.resolve();
-    expect(await first).toMatchObject({ ok: true });
-    expect(await second).toMatchObject({ ok: true });
-    // A read the person allowed queues like any other read of that tab — and
-    // placing it in the queue resolves the tab, which must not be a second and
-    // third way to put a question on their screen (#116).
+    expect(await read).toMatchObject({ ok: true });
+    expect(await observe).toMatchObject({ ok: true });
+    expect(harness.calls.observations).toHaveLength(1);
+    // And placing either one in the queue resolves its tab, which must not be a
+    // second and third way to put a question on the person's screen (#116).
     expect(harness.calls.handoverAsks).toEqual([]);
   });
 });

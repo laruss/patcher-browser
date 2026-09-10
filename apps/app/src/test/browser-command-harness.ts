@@ -138,6 +138,10 @@ export function createHarness(args: HarnessArgs = {}) {
     readPageIn: [] as unknown[],
     backgroundViews: [] as Array<{ tabId: string; url: string }>,
     handoverAsks: [] as Array<{ issuer: BrowserCommandIssuer; tabId: string }>,
+    handoverWithdrawals: [] as Array<{
+      issuer: BrowserCommandIssuer;
+      tabId: string;
+    }>,
     dialogs: [] as unknown[],
   };
   let nextTabId = 0;
@@ -402,6 +406,9 @@ export function createHarness(args: HarnessArgs = {}) {
     },
     requestTabHandover: (ask) => {
       calls.handoverAsks.push(ask);
+    },
+    withdrawTabHandover: (ask) => {
+      calls.handoverWithdrawals.push(ask);
     },
     ...(args.resolvePdfText === undefined
       ? {}

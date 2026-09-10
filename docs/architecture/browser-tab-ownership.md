@@ -156,6 +156,15 @@ command that only ever *narrows* the caller's own access. At `tabs.modify` with
 the other tab-state changes, a caller lent a tab at the `read` level could not
 give it back, and the lending would be a one-way door.
 
+**And it takes back the question the agent asked.** A look holder that tried to
+act has an upgrade ask waiting, and a waiting ask is not replaced while its tab
+is open — so one left standing after a release would block every later ask about
+every tab, and its **Hand it over** would still work, minting a claim on a tab
+the caller had just given up. That is the failure release exists to stop,
+arriving through the row instead. Withdrawing is keyed on the caller *and* the
+tab, because the ask that is waiting may be somebody else's live question. Found
+by review.
+
 **What it does not undo is what the agent did to the page.** Route mocks,
 offline emulation and a running recording live with the tab's debugger session,
 not with the claim, so a tab released while mocked stays mocked — and the agent
