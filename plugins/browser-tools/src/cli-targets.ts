@@ -60,7 +60,9 @@ const MINTED_TAB_ID = /^browser:[A-Za-z0-9_-]{21}:[^:]*$/u;
  * tab, and a caller that typed `active` asked for the person's. Resolving it
  * gives them that tab — and, when it is not theirs to use, the refusal that
  * puts the handover question on the person's screen rather than a silent
- * answer about a different page.
+ * answer about a different page. For `url` and `title` it is the answer
+ * instead: those two read the strip's record of a tab, which the listing hands
+ * over for every tab anyway (#116).
  */
 export async function resolveTabTarget(
   patcher: PatcherPluginApi,

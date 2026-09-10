@@ -313,7 +313,8 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     details: [
       "The leading number is what --tab takes: `--tab 3` is the third tab listed.",
       '"cold" marks a tab with no live page — it cannot be read or stepped through history until it has been shown.',
-      "\"owner:\" says whose a tab is when the browser can tell: `you` is yours to act on, `person` is the one the human is working in, and `agent` is another agent's. Open your own with `open --background <url>`; the person can hand you theirs from the tab's menu in the browser window.",
+      "\"owner:\" says whose a tab is when the browser can tell: `you` is yours to act on, `person` is the one the human is working in, and `agent` is another agent's. Open your own with `open --background <url>`; naming the person's is what asks them for it, in a row in their browser window.",
+      "`url` and `title` answer for any tab, as this listing does. Ownership holds back acting, not seeing.",
     ],
   },
   {

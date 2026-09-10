@@ -244,15 +244,18 @@ describe("patcher browser CLI", () => {
     expect(denied.stdout).not.toContain("Connected (");
   });
 
-  it("keeps a refused tab's own sentence, and adds the two ways out", async () => {
+  it("keeps a refused tab's whole sentence rather than appending to it", async () => {
     const host = createHost();
     // What the window answers a caller outside Patcher that named a tab the
-    // person is working in. The sentence naming the tab is the part only the
-    // window could write, so it has to survive being explained.
-    host.harness.behavior.browser.failNextCall(
-      "tab_not_yours",
-      "Browser tab browser:abcdefghijklmnopqrstu:none belongs to the person at this machine.",
-    );
+    // person is working in, in full. This layer used to append the "what to do
+    // instead" half itself, which was wrong for every case it could not tell
+    // apart: for the person's tab it sent the caller to ask for a handover the
+    // refusal had already raised, and for another agent's it named something
+    // the person cannot do at all (#116). The window knows which; this does
+    // not, so it passes the sentence through.
+    const answer =
+      "Browser tab browser:abcdefghijklmnopqrstu:none belongs to the person at this machine. Work in a tab of your own — opening one in the background does not take the person's window. Naming it is what asks them for it; they answer in the browser window, and the ask does not survive a reload of it, so if nothing has changed after a wait, name it again rather than treating this as final.";
+    host.harness.behavior.browser.failNextCall("tab_not_yours", answer);
 
     // A minted id rather than an index: anything else costs a `tabs` call
     // first, and the injected failure would land on that instead.
@@ -263,10 +266,9 @@ describe("patcher browser CLI", () => {
     ]);
 
     expect(refused.exitCode).toBe(1);
-    expect(refused.stderr).toContain("belongs to the person at this machine");
-    // And what to do instead, or the agent retries the identical call.
-    expect(refused.stderr).toContain("a tab of your own");
-    expect(refused.stderr).toContain("hand this one over");
+    // Equality, not a substring: the failure this guards is a second sentence
+    // arriving underneath the window's own.
+    expect(refused.stderr.trim()).toBe(answer);
   });
 
   it("keeps the window's own 'no tab' sentence rather than a fixed one", async () => {
