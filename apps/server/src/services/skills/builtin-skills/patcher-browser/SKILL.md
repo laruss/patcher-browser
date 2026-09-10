@@ -86,8 +86,9 @@ running outside Patcher — a shell, Claude Code, Codex — theirs are closed to
 works in **your own newest tab** rather than the page they happen to be reading.
 You can still *see* their tabs in the listing, with their addresses and titles —
 that is what listing tabs has always meant, and it is how you find the one to
-ask for. (Inside a Patcher thread you may still work in their tab; you still
-cannot touch another agent's.)
+ask for. `url` and `title` answer for any tab for the same reason: they read
+that listing's record of a tab, not its page. (Inside a Patcher thread you may
+still work in their tab; you still cannot touch another agent's.)
 
 So the first thing to do is get a tab of your own:
 
@@ -97,9 +98,15 @@ patcher browser tabs                                    # `owner:you`, `owner:pe
 ```
 
 If you truly need the page they are in — they asked you about *this* page —
-attempt it once and then ask them. The refusal puts a row in their browser
-window offering to hand that tab over; once they do, retry. Do not retry
-before that: nothing about the situation changes on its own.
+name it once. The refusal *is* the request: naming their tab asks them for it,
+and they answer in a row in their browser window. Tell them you have asked,
+because that row may not be in front of them: it rides the address bar, so a
+Patcher screen holding the main area hides it, and a question another agent got
+in first stays until they answer that one. Then wait. If nothing has changed,
+name the tab again — the ask does not survive a reload of their window, and
+naming it is what asks again. What never helps is retrying in a tight loop:
+between two attempts a second apart, nothing about the situation changes on its
+own.
 
 ## One constraint, worth knowing before you promise anything
 

@@ -28,6 +28,10 @@ the tab.
 | A grant / anything outside Patcher | its newest tab, else refused                 | yes         | **no**, until handed over | no              |
 | Nothing named it                   | the active tab, as before                    | —           | yes                       | yes             |
 
+The two "no"s are about *acting*. A tab's address and title are answered for
+every tab, to every caller, because that is what the listing already hands over
+— see "A listing still lists everything" below.
+
 **The asymmetry is the point.** A turn is a conversation the person is having in
 the same window, and "read the page I am looking at" is the case the in-app
 tools were built for ([agent-browser-tools.md](agent-browser-tools.md)). A
@@ -67,24 +71,49 @@ last" depends on history it cannot see.
   seeing: `tabs.list` answers with every tab's address and title as it always
   has — that is the `tabs.read` permission, and it is how a caller finds the tab
   to ask for. What it cannot do is read *into* a page that is not its own.
+- **`page.get_url` and `page.get_title` follow the listing, not the refusal.**
+  They answer from the same record of a tab, at the same `tabs.read` price, so
+  naming a tab for them is not acting and is not refused. Until #116 it was:
+  one permission answered two ways, and the stricter way interrupted the person
+  with a handover question about a field the caller could already read off
+  `tabs.list`.
 - Every tab in a listing carries `owner`, relative to whoever asked: `you`,
   `person`, `agent`. Relative rather than named, so a grant does not learn the
   label of every other grant, and a turn's thread id does not travel to a shell.
   The `patcher browser tabs` listing shows it as `owner:you`.
-- Naming a tab that is not yours is `tab_not_yours`, which says whose it is. It
-  is not `unknown_tab`: the id is right, and a fresh listing changes nothing.
+- Naming a tab that is not yours, for anything but those two reads, is
+  `tab_not_yours`, which says whose it is. It is not `unknown_tab`: the id is
+  right, and a fresh listing changes nothing. The sentence also says what to do
+  instead, and that half is written by the executor rather than by the layer
+  explaining it to a caller — because the answer turns on whether the ask has
+  already been raised, which only the executor knows (#116).
 - An unqualified command from a caller with no tab of its own is `no_active_tab`
   with a different sentence — there *is* a tab, it is not yours, open one.
 
 ## Handing a tab over, and taking it back
 
 The refusal is a dead end on its own: an agent says "ask them to hand it over"
-and the person has nothing to press. So the refusal itself raises the ask. The
+and the person has nothing to press. So the refusal itself raises the ask —
+once per command: placing a command in a tab's queue resolves its tab too, and
+that resolve used to ask again. The
 executor records it (`browserTabHandoverAskAtom`), and the browser chrome draws
 a row under the address bar — *Claude Code is asking to work in "…"* —
 with **Hand it over** beside it. It stays in the page chrome, where the driving
 indicator no longer is, because this one is about the tab in front of you. Answering it claims the tab for that agent; the
 agent's next command works.
+
+**And the refusal says so**, rather than sending the agent off to ask for what
+it has already asked for (#116). What it promises is deliberately small:
+naming the tab is what asks, and the ask does not survive a reload of their
+window, so naming it again after a wait is what asks again. It does *not*
+promise a row on screen, for two reasons. The row rides the page chrome, which
+is mounted only over a web tab, so a person sitting in Settings, an extension
+page or a plugin's panel — the routes that take a tab of their own — has an ask
+recorded and nothing drawn until they come back to a web tab. (A thread is not
+one of those: it paints in the side panel, so the row is on screen beside it.)
+And an ask that arrives while another is still answerable is dropped rather
+than shown, so naming a tab again does not necessarily put a row up — it asks
+again, and the answer waits behind whoever asked first.
 
 The ask carries both halves of the question, which is why it comes from the
 agent rather than from a menu: a menu would have to list every grant on the
