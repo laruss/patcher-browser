@@ -359,23 +359,49 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   caller's own code), and `page_stalled` is their code: `failed` would have the
   app replace the sentence naming the dialog with "the page could not be
   inspected".
-- **A driven tab is kept rendering, because pointer input is frame-aligned.**
-  Chromium dispatches `mousemove` and `wheel` on the renderer's next main frame,
-  and a `WebContentsView` nobody is showing produces none — so those two waited
-  for the fallback above while key events, `mousePressed`/`mouseReleased` and
-  every read answered in about a millisecond on the same tab in the same second.
-  That is #114, and the states that cause it are ordinary: a tab in the deck's
-  background, a menu or dialog over the page area, a resize burst, a minimised
-  or covered window, a sleeping display. `keepPageRendering`
-  (`desktop-browser-interact.ts`) turns background throttling off for the tab
-  while an interaction or a vision-mode pointer operation runs, and gives it
-  back afterwards.
+- **A driven tab is kept rendering, and both halves of the input path need
+  it.** Chromium dispatches `mousemove` and `wheel` on the renderer's next main
+  frame, and a `WebContentsView` nobody is showing produces none — so those two
+  waited for the fallback above while key events,
+  `mousePressed`/`mouseReleased` and every read answered in about a millisecond
+  on the same tab in the same second. That is #114, and the states that cause it
+  are ordinary: a tab in the deck's background, a menu or dialog over the page
+  area, a resize burst, a minimised or covered window, a sleeping display.
+  `keepPageRendering` (`desktop-browser-interact.ts`) turns background
+  throttling off for the tab while an interaction or a vision-mode pointer
+  operation runs, and gives it back afterwards.
 
   **Measured** (Electron 41.7.0, macOS, 2026-09-09), the same view before and
   after the call: `requestAnimationFrame` 0/s → 120/s, `mouseMoved` 5001-5008ms
   → 1-3ms, `mouseWheel` unanswered → answered, and a synthesised click lands on
   the element it was aimed at. Unchanged for a view hidden before it ever
   painted, and with the display asleep.
+
+  **A key send answered in a millisecond was not a key that arrived** — which
+  is what "the keyboard looked fine" was hiding, and it took #119 to find.
+  Measured (Electron 41.7.0, macOS, 2026-09-10) against this manager driving a
+  tab attached hidden and never shown, with `keepPageRendering` neutralised and
+  nothing else changed: `type` and `press Enter` answered `ok` while the page's
+  own `keydown` listener recorded nothing, the field kept its value and the form
+  never submitted (4/4 rounds); an empty `fill` and `press Backspace`, the
+  `rawKeyDown` shape, the same (3/3); and none of it arrived when the tab was
+  later shown and focused — which is the transition that flushes queued pointer
+  events and also gives the view keyboard focus, so a queue would have drained
+  there. With the call in place every one of them landed.
+
+  What that does **not** come with is a mechanism. Frames cannot be the
+  explanation: `Input.insertText` writes to the same hidden tab in the same
+  second, and `Emulation.setFocusEmulationEnabled` makes the keys land without
+  touching the throttling at all (measured, and not taken — it would leave the
+  page told it has focus for as long as the session lives, on top of the
+  `visibilityState: "visible"` the hold already forces). So one call fixes two
+  problems for two reasons and only one of them is understood, which is why
+  narrowing the hold to the pointer sends — the obvious saving, since keys are
+  not frame-aligned — is the change to refuse. "Holds the frames for a key send
+  too" in `desktop-browser-view-manager-automation.test.ts` is what stands in
+  for the missing explanation, and #119's own proposal, refusing a key send into
+  a view that is not on screen, is what the fix made wrong: the tab that
+  proposal would refuse is one this shell can now type into.
 
   **What it costs, and it is a policy rather than a repair.** Giving the
   throttling back does not stop the frames of the document already running:
@@ -393,11 +419,14 @@ true })` forces one frame and flushes the queued events — the abandoned send
   minimised window. One frame per event leaves the page frozen between them, so
   the click lands and nothing it triggers ever runs.
 
-  **Abandoned input is queued, not dropped** (the question `docs/TODO.md` left
-  open): five sends abandoned before the fallback delivered nothing while the
-  view was hidden, then all of them arrived the moment frames resumed. So a
-  caller that retried a stalled click stacked clicks that all landed later —
-  which is what makes fixing the cause worth more than improving the refusal.
+  **Abandoned pointer input is queued, not dropped** (the question
+  `docs/TODO.md` left open): five sends abandoned before the fallback delivered
+  nothing while the view was hidden, then all of them arrived the moment frames
+  resumed. So a caller that retried a stalled click stacked clicks that all
+  landed later — which is what makes fixing the cause worth more than improving
+  the refusal. It is the pointer's answer alone: a key send is never abandoned,
+  because it is answered at once, and the key it carried does not arrive later
+  either.
 
 - **One `interact` channel**, not one per verb. Every action shares the same
   preamble (resolve the ref, check the generation, wait for actionability), and a

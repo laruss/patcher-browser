@@ -473,8 +473,9 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   is why `captureAndHide` and `setOverlay` both snapshot _before_ hiding.
   `backgroundThrottling: false` removes all of it — timers stay at 100/s, rAF
   comes back at 120/s on a view that is still hidden (measured for #114, which
-  is what makes pointer input answerable there), and the page keeps reporting
-  `visibilityState: "visible"` while hidden.
+  is what makes pointer input answerable there, and again for #119, where it
+  turned out to be what makes key input arrive at all), and the page keeps
+  reporting `visibilityState: "visible"` while hidden.
 
   Which is where the real cost is, and it is not the throttling. A hidden page is
   a full renderer process holding the user's real session, with no strip row, no

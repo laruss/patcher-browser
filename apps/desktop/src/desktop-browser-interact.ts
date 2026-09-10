@@ -129,8 +129,30 @@ export interface PageRenderingTarget {
  * {@link PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS} budget of 5000, which is why
  * #114 looked like a coin toss rather than a broken feature. Key events and
  * `mousePressed`/`mouseReleased` are not frame-aligned and answer in about a
- * millisecond throughout, which is why the keyboard looked fine while three
- * quarters of the mouse commands timed out.
+ * millisecond throughout — which is why the keyboard *looked* fine while three
+ * quarters of the mouse commands timed out, and why what it was actually doing
+ * took its own issue to find.
+ *
+ * **The keyboard needs this call too, and not for the reason above.** Measured
+ * (Electron 41.7.0, macOS, 2026-09-10) against this manager driving a tab
+ * attached hidden and never shown, with this call neutralised and nothing else
+ * changed: `type` and `press Enter` answered `ok` while the page's own
+ * `keydown` listener recorded nothing, the field kept its old value and the
+ * form never submitted (4/4 rounds); an empty `fill` and `press Backspace` —
+ * the `rawKeyDown` shape — the same (3/3); and none of it arrived when the tab
+ * was later shown and focused. With the call in place, all of them landed. That
+ * is #119, and it was reported as success, which is the worst answer this
+ * module can give.
+ *
+ * Frames are not the explanation for that half, and this docstring does not
+ * have one: `Input.insertText` writes to the same hidden tab in the same
+ * second, and `Emulation.setFocusEmulationEnabled` makes the keys land without
+ * touching the throttling — both of which point somewhere other than the
+ * renderer's frame clock. So the coupling is real and measured but not
+ * understood, which is the reason not to narrow this hold to the pointer sends
+ * on the grounds that keys are not frame-aligned. The test that stands in for
+ * the understanding is "holds the frames for a key send too" in
+ * `desktop-browser-view-manager-automation.test.ts`.
  *
  * The states that stop the frames are all ordinary, and none of them is the
  * page's fault: a tab in the background of the deck, a menu or a dialog
