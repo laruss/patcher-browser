@@ -184,12 +184,15 @@ sent from the renderer:
   dialogs over. The sweep meant to hand a tab back would have been the change it
   was there to undo. Asking first is no way out either: `route-list` attaches
   the same way.
-- **It does not act under an open dialog.** The page is blocked on it, only that
-  client can answer it, and a dialog open when the client goes most likely
-  stands — so dropping the session there would hand back a page nothing can
-  unblock. It leaves the session instead, the person answers in Patcher's own
-  panel, and the tab keeps what was set on it until then. The better of two bad
-  corners, and the only one this leaves.
+- **It waits out an open dialog rather than skipping it.** The page is blocked
+  on the dialog, only that client can answer it, and a dialog open when the
+  client goes most likely stands — so dropping the session there would hand
+  back a page nothing can unblock. The teardown is written on the tab instead
+  and runs as the dialog clears, which is where the first version of this was
+  wrong: it skipped, and by then the claim was already gone, so nothing would
+  ever have asked again. That is the whole bug in a narrower doorway, and
+  review caught it. A fresh client taking the tab's dialogs cancels the waiting
+  teardown, because what is set on the tab then belongs to whoever has it.
 
 An older desktop shell does not have the command, and the renderer feature-tests
 for it: there the state outlives the claim, as it did everywhere before this.

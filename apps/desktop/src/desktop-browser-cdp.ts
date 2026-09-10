@@ -211,6 +211,7 @@ export interface CdpSessionScopedState {
   cdp: CdpSession | null;
   dialogsWired: boolean;
   pendingDialog: unknown;
+  automationEndPending: boolean;
   routes: unknown[];
   routesWired: boolean;
   routesEnabled: boolean;
@@ -253,6 +254,7 @@ export function releaseCdpSessionFor(state: CdpSessionScopedState): void {
   state.cdp = null;
   state.dialogsWired = false;
   state.pendingDialog = null;
+  state.automationEndPending = false;
   forgetCdpSessionScopedState(state);
 }
 
@@ -267,18 +269,22 @@ export function releaseCdpSessionFor(state: CdpSessionScopedState): void {
  * so the sweep meant to hand a tab back would itself have been the thing that
  * changed how the tab behaves for the person (#117).
  *
- * **And it does not act under an open dialog.** The page is blocked on it, only
- * this client can answer it, and a dialog open when the client goes most likely
- * stands — so dropping the session here would hand back a page nothing can
- * unblock. Leaving it means the person answers it in Patcher's own panel, and
- * the tab keeps whatever was set on it until then, which is the better of two
- * bad corners.
+ * **And it waits out an open dialog.** The page is blocked on it, only this
+ * client can answer it, and a dialog open when the client goes most likely
+ * stands — so dropping the session there would hand back a page nothing can
+ * unblock. It is deferred rather than skipped: the person answers in Patcher's
+ * own panel and the teardown runs as the dialog clears
+ * (`desktop-browser-dialogs.ts`). Skipping outright was the first version of
+ * this, and review caught what it left — the claim was already gone, so
+ * nothing would ever have asked again, which is the whole bug in a narrower
+ * doorway.
  */
 export function endCdpAutomation(state: CdpSessionScopedState): void {
   if (state.cdp === null || !state.cdp.isAttached()) {
     return;
   }
   if (state.pendingDialog !== null) {
+    state.automationEndPending = true;
     return;
   }
   releaseCdpSessionFor(state);

@@ -14862,9 +14862,10 @@ interface PluginBrowserTabs {
      *
      * It also ends the tab's automation, so what you hand back behaves like the
      * person's tab again: route mocks, offline emulation and a running recording
-     * all go with the claim. The exception is a page blocked on an unanswered
-     * dialog — only the client holding it can answer, so it keeps what you set
-     * until the person answers it themselves.
+     * all go with the claim. On a page blocked by an unanswered dialog that undo
+     * waits for the answer, since only the client holding the dialog can give
+     * one — so answer it first if you want the tab clean at the moment you let
+     * go of it.
      */
     release(args: {
         tabId: string;

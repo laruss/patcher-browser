@@ -249,6 +249,7 @@ describe("ending a tab's automation", () => {
       cdp: null,
       dialogsWired: true,
       pendingDialog: null,
+      automationEndPending: false,
       routes: [{ pattern: "*" }],
       routesWired: true,
       routesEnabled: true,
@@ -309,7 +310,7 @@ describe("ending a tab's automation", () => {
     expect(state.dialogsWired).toBe(true);
   });
 
-  it("leaves a page that is blocked on a dialog alone", () => {
+  it("defers past an open dialog rather than skipping it", () => {
     const session = attachedSession();
     const state = stateWith({
       cdp: session,
@@ -320,10 +321,20 @@ describe("ending a tab's automation", () => {
 
     // Only this client can answer it, and a dialog open when the client goes
     // most likely stands — so handing the tab back here would hand back a page
-    // nothing can unblock. The person answers it in Patcher's own panel, and
-    // the tab keeps what was set on it until then.
+    // nothing can unblock.
     expect(session?.detachCalls).toBe(0);
     expect(state.offline).toBe(true);
     expect(state.routes).toHaveLength(1);
+    // But it is written down, and the dialog path runs it as the dialog clears.
+    // Review caught the first version skipping outright: the claim is gone by
+    // then, so nothing would ever have asked again — the whole bug, one
+    // doorway narrower.
+    expect(state.automationEndPending).toBe(true);
+
+    state.pendingDialog = null;
+    endCdpAutomation(state);
+
+    expect(session?.detachCalls).toBe(1);
+    expect(state.automationEndPending).toBe(false);
   });
 });

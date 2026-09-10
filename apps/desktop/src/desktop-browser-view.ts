@@ -475,6 +475,11 @@ export interface BrowserViewEntry {
    */
   pendingDialog: PatcherDesktopBrowserDialog["dialog"];
   /**
+   * A claim on this tab ended while a dialog was up, so ending its automation
+   * is waiting for the answer — see {@link endCdpAutomation}.
+   */
+  automationEndPending: boolean;
+  /**
    * The network question this tab is stopped on — an authentication challenge,
    * an untrusted certificate, a request for a client certificate. Hides the
    * view exactly as a dialog does, because it is answered the same way: the app
@@ -3685,6 +3690,7 @@ export function createDesktopBrowserViewManager(
       findRequestId: null,
       cdp: null,
       pendingDialog: null,
+      automationEndPending: false,
       pagePrompt: null,
       pendingAuth: null,
       htmlFullscreen: false,

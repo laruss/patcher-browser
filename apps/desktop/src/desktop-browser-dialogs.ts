@@ -18,7 +18,7 @@
  * of the entry itself.
  */
 import { PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH } from "@patcher/desktop-contract";
-import type { CdpSession } from "./desktop-browser-cdp.js";
+import { endCdpAutomation, type CdpSession } from "./desktop-browser-cdp.js";
 import {
   cdpSessionWithDeadline,
   PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
@@ -116,6 +116,11 @@ export function createBrowserDialogInterception({
   ): Promise<void> {
     if (!entry.dialogsWired) {
       entry.dialogsWired = true;
+      // A fresh client is taking this tab's dialogs, so a teardown queued for
+      // the last one no longer describes anything: the person handed the tab on
+      // while a dialog stood open, and what is set on it now belongs to whoever
+      // has it.
+      entry.automationEndPending = false;
       session.on("Page.javascriptDialogOpening", (params) => {
         const opening = params as {
           type?: string;
@@ -178,6 +183,15 @@ export function createBrowserDialogInterception({
       tabId,
       dialog: null,
     });
+    // A tab whose claim ended while this dialog was up has a teardown waiting
+    // on it: the page was blocked and only this client could answer, so ending
+    // its automation had to wait for the answer rather than be dropped — the
+    // claim was already gone, and nothing else would ever have asked again.
+    // Reached from the detach path too, where the session is already null and
+    // this is a no-op.
+    if (entry.automationEndPending) {
+      endCdpAutomation(entry);
+    }
   }
 
   return { ensureDialogInterception, clearPendingDialog };
