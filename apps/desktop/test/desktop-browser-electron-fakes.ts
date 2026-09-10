@@ -788,6 +788,15 @@ function createElectronMock() {
         }
         return this;
       },
+      off(event: string, listener: never): unknown {
+        const list =
+          event === "detach" ? this.detachListeners : this.messageListeners;
+        const at = list.indexOf(listener);
+        if (at >= 0) {
+          list.splice(at, 1);
+        }
+        return this;
+      },
       emitMessage(method: string, params: unknown): void {
         for (const listener of this.messageListeners) {
           listener({}, method, params, "session-1");

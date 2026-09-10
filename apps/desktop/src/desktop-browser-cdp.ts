@@ -50,6 +50,26 @@ export interface CdpDebuggerTarget {
       sessionId: string,
     ) => void,
   ): unknown;
+  /**
+   * Needed because a tab's debugger outlives its sessions. Ending a tab's
+   * automation and driving it again is a normal cycle now (#117), and a session
+   * that left its listeners behind would stack another pair on the same
+   * `webContents` every time round — Node warns at ten, and every stale detach
+   * handler fires on the next detach. Found by review.
+   */
+  off(
+    event: "detach",
+    listener: (event: unknown, reason: string) => void,
+  ): unknown;
+  off(
+    event: "message",
+    listener: (
+      event: unknown,
+      method: string,
+      params: unknown,
+      sessionId: string,
+    ) => void,
+  ): unknown;
 }
 
 export class CdpUnavailableError extends Error {
@@ -110,15 +130,20 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
   const enabledDomains = new Set<string>();
   const enablingDomains = new Map<string, Promise<void>>();
 
-  target.on("detach", (_event, reason) => {
+  const onTargetDetach = (_event: unknown, reason: string): void => {
     detachedReason = reason.length > 0 ? reason : "detached";
     listenersByMethod.clear();
     enabledDomains.clear();
     enablingDomains.clear();
+    forgetTargetListeners();
     args.onDetach?.(detachedReason);
-  });
+  };
 
-  target.on("message", (_event, method, params) => {
+  const onTargetMessage = (
+    _event: unknown,
+    method: string,
+    params: unknown,
+  ): void => {
     const listeners = listenersByMethod.get(method);
     if (!listeners) {
       return;
@@ -131,7 +156,16 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
         // session down with it.
       }
     }
-  });
+  };
+
+  /** Both halves, whichever way the session ended. Idempotent. */
+  function forgetTargetListeners(): void {
+    target.off("detach", onTargetDetach);
+    target.off("message", onTargetMessage);
+  }
+
+  target.on("detach", onTargetDetach);
+  target.on("message", onTargetMessage);
 
   function assertAttached(): void {
     if (detachedReason !== null) {
@@ -191,6 +225,9 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
       listenersByMethod.clear();
       enabledDomains.clear();
       enablingDomains.clear();
+      // Before the detach, so the target's own event does not find them and
+      // re-run what this method has already done.
+      forgetTargetListeners();
       try {
         target.detach();
       } catch {
@@ -212,6 +249,7 @@ export interface CdpSessionScopedState {
   dialogsWired: boolean;
   pendingDialog: unknown;
   automationEndPending: boolean;
+  dialogAnswerInFlight: boolean;
   routes: unknown[];
   routesWired: boolean;
   routesEnabled: boolean;
@@ -255,6 +293,7 @@ export function releaseCdpSessionFor(state: CdpSessionScopedState): void {
   state.dialogsWired = false;
   state.pendingDialog = null;
   state.automationEndPending = false;
+  state.dialogAnswerInFlight = false;
   forgetCdpSessionScopedState(state);
 }
 

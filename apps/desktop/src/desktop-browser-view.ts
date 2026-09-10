@@ -479,6 +479,8 @@ export interface BrowserViewEntry {
    * is waiting for the answer — see {@link endCdpAutomation}.
    */
   automationEndPending: boolean;
+  /** An answer to that dialog is on the wire; the session must outlive it. */
+  dialogAnswerInFlight: boolean;
   /**
    * The network question this tab is stopped on — an authentication challenge,
    * an untrusted certificate, a request for a client certificate. Hides the
@@ -3691,6 +3693,7 @@ export function createDesktopBrowserViewManager(
       cdp: null,
       pendingDialog: null,
       automationEndPending: false,
+      dialogAnswerInFlight: false,
       pagePrompt: null,
       pendingAuth: null,
       htmlFullscreen: false,
@@ -3810,7 +3813,7 @@ export function createDesktopBrowserViewManager(
   // Taking a tab's dialogs over, and giving the page back, live in
   // `desktop-browser-dialogs.ts`. What stays here is the three things that path
   // borrows from this closure.
-  const { ensureDialogInterception, clearPendingDialog } =
+  const { ensureDialogInterception, clearPendingDialog, respondToTabDialog } =
     createBrowserDialogInterception({
       send,
       applyEntryVisibility,
@@ -4694,33 +4697,10 @@ export function createDesktopBrowserViewManager(
     },
     async respondToDialog({ hostWindow, request }) {
       const entry = entries.get(browserViewKey(hostWindow, request.tabId));
-      if (
-        !entry ||
-        entry.view.webContents.isDestroyed() ||
-        entry.pendingDialog === null ||
-        entry.cdp === null
-      ) {
+      if (!entry || entry.view.webContents.isDestroyed()) {
         return false;
       }
-      const isPrompt = entry.pendingDialog.type === "prompt";
-      try {
-        await entry.cdp.send("Page.handleJavaScriptDialog", {
-          accept: request.accept,
-          // Chromium rejects promptText on a non-prompt dialog.
-          ...(isPrompt && request.accept
-            ? { promptText: request.promptText ?? "" }
-            : {}),
-        });
-      } catch {
-        // The page may have gone while the answer was in flight. Fall through:
-        // clearing the state below is what stops the view staying hidden.
-        clearPendingDialog(hostWindow, request.tabId, entry);
-        return false;
-      }
-      // `Page.javascriptDialogClosed` also clears this; doing it here as well
-      // keeps the view from staying hidden if that event never arrives.
-      clearPendingDialog(hostWindow, request.tabId, entry);
-      return true;
+      return await respondToTabDialog({ hostWindow, entry, request });
     },
     async interact({ hostWindow, request }) {
       const entry = entries.get(browserViewKey(hostWindow, request.tabId));

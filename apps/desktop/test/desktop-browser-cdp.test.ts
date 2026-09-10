@@ -19,6 +19,7 @@ interface FakeTarget extends CdpDebuggerTarget {
   attached: boolean;
   attachCalls: string[];
   detachCalls: number;
+  listenerCount(): number;
   commands: Array<{ method: string; params?: Record<string, unknown> }>;
   emitDetach(reason: string): void;
   emitMessage(method: string, params: unknown): void;
@@ -63,6 +64,17 @@ function createFakeTarget(options: { attached?: boolean } = {}): FakeTarget {
         messageListeners.push(listener);
       }
       return target;
+    },
+    off(event: string, listener: never) {
+      const list = event === "detach" ? detachListeners : messageListeners;
+      const at = list.indexOf(listener);
+      if (at >= 0) {
+        list.splice(at, 1);
+      }
+      return target;
+    },
+    listenerCount() {
+      return detachListeners.length + messageListeners.length;
     },
     emitDetach(reason) {
       for (const listener of detachListeners) {
@@ -250,6 +262,7 @@ describe("ending a tab's automation", () => {
       dialogsWired: true,
       pendingDialog: null,
       automationEndPending: false,
+      dialogAnswerInFlight: false,
       routes: [{ pattern: "*" }],
       routesWired: true,
       routesEnabled: true,
@@ -336,5 +349,35 @@ describe("ending a tab's automation", () => {
 
     expect(session?.detachCalls).toBe(1);
     expect(state.automationEndPending).toBe(false);
+  });
+});
+
+describe("a session's debugger listeners", () => {
+  it("come off the target when the session ends", () => {
+    const target = createFakeTarget();
+    const first = createCdpSession({ target });
+
+    const wired = target.listenerCount();
+    first.detach();
+
+    // A tab's debugger outlives its sessions, and ending a tab's automation
+    // then driving it again is a normal cycle now (#117). Listeners left
+    // behind would stack another pair every time round — Node warns at ten,
+    // and every stale detach handler fires on the next detach. Found by
+    // review.
+    expect(wired).toBeGreaterThan(0);
+    expect(target.listenerCount()).toBe(0);
+
+    createCdpSession({ target });
+    expect(target.listenerCount()).toBe(wired);
+  });
+
+  it("come off when the target detaches on its own, too", () => {
+    const target = createFakeTarget();
+    createCdpSession({ target });
+
+    target.emitDetach("devtools took the tab");
+
+    expect(target.listenerCount()).toBe(0);
   });
 });

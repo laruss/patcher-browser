@@ -121,6 +121,59 @@ describe("DesktopBrowserViewManager dialogs", () => {
     expect(webContents.debugger.detachCalls).toBe(1);
   });
 
+  it("drops a waiting teardown when somebody drives the tab again", async () => {
+    const { hostWindow, manager, webContents } = await attachTabWithDialogs();
+    openDialog(webContents, { type: "confirm", message: "Sure?" });
+    manager.endAutomation({ hostWindow, tabId: "browser:a" });
+
+    // The person took the tab back while the dialog stood open, then handed it
+    // to somebody else, who is driving it — and the session was never dropped,
+    // so its dialog listeners are still wired. Review caught the first version
+    // clearing the waiting teardown only when a *fresh* session wired them,
+    // which is exactly what does not happen here: the answer below would then
+    // have detached the new owner's session and thrown away its work.
+    await manager.snapshot({ hostWindow, request: { tabId: "browser:a" } });
+    webContents.debugger.emitMessage("Page.javascriptDialogClosed", {
+      result: true,
+    });
+
+    expect(webContents.debugger.detachCalls).toBe(0);
+  });
+
+  it("keeps the session while an answer to that dialog is in flight", async () => {
+    const { hostWindow, manager, webContents } = await attachTabWithDialogs();
+    let release = (): void => {};
+    const answering = new Promise<Record<string, unknown>>((resolve) => {
+      release = () => resolve({});
+    });
+    webContents.debugger.results.set(
+      "Page.handleJavaScriptDialog",
+      () => answering,
+    );
+    openDialog(webContents, { type: "confirm", message: "Sure?" });
+    manager.endAutomation({ hostWindow, tabId: "browser:a" });
+
+    const answered = manager.respondToDialog({
+      hostWindow,
+      request: { tabId: "browser:a", accept: true },
+    });
+    // Chromium dispatches the close before the answer's own response, and
+    // Electron rejects every outstanding command when the debugger detaches —
+    // so a teardown running here makes `respondToDialog` report a dialog it
+    // answered as unanswered. The assertion is on the detach rather than on a
+    // rejection because the fake resolves what the real one would reject.
+    webContents.debugger.emitMessage("Page.javascriptDialogClosed", {
+      result: true,
+    });
+    expect(webContents.debugger.detachCalls).toBe(0);
+
+    release();
+
+    expect(await answered).toBe(true);
+    // And once the answer has landed, the teardown it was holding up runs.
+    expect(webContents.debugger.detachCalls).toBe(1);
+  });
+
   it("ends a tab's automation outright when no dialog is in the way", async () => {
     const { hostWindow, manager, webContents } = await attachTabWithDialogs();
 
