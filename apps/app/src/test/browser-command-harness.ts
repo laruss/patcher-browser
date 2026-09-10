@@ -124,6 +124,7 @@ export function createHarness(args: HarnessArgs = {}) {
     goForward: [] as string[],
     reload: [] as string[],
     destroyed: [] as string[],
+    automationEnded: [] as string[],
     settled: [] as string[],
     snapshots: [] as unknown[],
     interactions: [] as unknown[],
@@ -149,6 +150,9 @@ export function createHarness(args: HarnessArgs = {}) {
   const desktopBrowser = {
     attach: vi.fn(),
     detach: vi.fn(),
+    endAutomation: ({ tabId }: { tabId: string }) => {
+      calls.automationEnded.push(tabId);
+    },
     ...(args.omitSetZoom === true
       ? {}
       : {

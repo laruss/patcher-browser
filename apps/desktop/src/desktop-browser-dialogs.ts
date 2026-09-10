@@ -18,7 +18,7 @@
  * of the entry itself.
  */
 import { PATCHER_DESKTOP_BROWSER_MAX_DIALOG_MESSAGE_LENGTH } from "@patcher/desktop-contract";
-import type { CdpSession } from "./desktop-browser-cdp.js";
+import { endCdpAutomation, type CdpSession } from "./desktop-browser-cdp.js";
 import {
   cdpSessionWithDeadline,
   PATCHER_DESKTOP_BROWSER_INPUT_TIMEOUT_MS,
@@ -72,6 +72,12 @@ export interface BrowserDialogInterception {
     tabId: string,
     entry: BrowserViewEntry,
   ) => void;
+  /** See the implementation: the answer has to land before the session goes. */
+  respondToTabDialog: (args: {
+    hostWindow: DesktopBrowserHostWindow;
+    entry: BrowserViewEntry;
+    request: { tabId: string; accept: boolean; promptText?: string | null };
+  }) => Promise<boolean>;
 }
 
 export function createBrowserDialogInterception({
@@ -114,6 +120,14 @@ export function createBrowserDialogInterception({
     entry: BrowserViewEntry,
     session: CdpSession,
   ): Promise<void> {
+    // Somebody is driving this tab again, so a teardown waiting on it no longer
+    // describes anything: what is set on the tab now belongs to whoever has it.
+    // Outside the wiring check on purpose — the case this is *for* is a tab
+    // handed on while a dialog stood open, and there the session was never
+    // dropped, so its listeners are still wired and the check below is skipped.
+    // Review caught the first version resetting only on a fresh session, which
+    // is precisely the case that cannot happen here.
+    entry.automationEndPending = false;
     if (!entry.dialogsWired) {
       entry.dialogsWired = true;
       session.on("Page.javascriptDialogOpening", (params) => {
@@ -178,7 +192,84 @@ export function createBrowserDialogInterception({
       tabId,
       dialog: null,
     });
+    runDeferredAutomationEnd(entry);
   }
 
-  return { ensureDialogInterception, clearPendingDialog };
+  /**
+   * The teardown a claim's end left waiting on this tab's dialog.
+   *
+   * The page was blocked and only this client could answer, so ending the tab's
+   * automation had to wait rather than be dropped — the claim was already gone,
+   * and nothing else would ever have asked again.
+   *
+   * **Not while an answer is in flight.** `Page.javascriptDialogClosed` can
+   * arrive before the response to the `Page.handleJavaScriptDialog` that caused
+   * it, and detaching rejects every outstanding command — so running here would
+   * make `respondToDialog` report that it had not answered a dialog it just
+   * answered. It runs from there instead, once the answer has landed. Found by
+   * review.
+   */
+  function runDeferredAutomationEnd(entry: BrowserViewEntry): void {
+    if (entry.automationEndPending && !entry.dialogAnswerInFlight) {
+      endCdpAutomation(entry);
+    }
+  }
+
+  /**
+   * Answer the dialog a page is blocked on, and say whether it was answered.
+   *
+   * Here rather than in the view module because everything it has to be
+   * sequenced against is here: the close event that clears the dialog, and the
+   * teardown a claim's end may have left waiting on it. Keeping the two apart
+   * is what hid the ordering below (#80 paid for the move — the view file is
+   * pinned and this change needed room in it).
+   */
+  async function respondToTabDialog({
+    hostWindow,
+    entry,
+    request,
+  }: {
+    hostWindow: DesktopBrowserHostWindow;
+    entry: BrowserViewEntry;
+    request: { tabId: string; accept: boolean; promptText?: string | null };
+  }): Promise<boolean> {
+    if (entry.pendingDialog === null || entry.cdp === null) {
+      return false;
+    }
+    const isPrompt = entry.pendingDialog.type === "prompt";
+    // The close event can beat the response to the answer that caused it, and
+    // a teardown waiting on this dialog would then detach mid-command and make
+    // this report a dialog it answered as unanswered.
+    entry.dialogAnswerInFlight = true;
+    try {
+      await entry.cdp.send("Page.handleJavaScriptDialog", {
+        accept: request.accept,
+        // Chromium rejects promptText on a non-prompt dialog.
+        ...(isPrompt && request.accept
+          ? { promptText: request.promptText ?? "" }
+          : {}),
+      });
+    } catch {
+      // The page may have gone while the answer was in flight. Fall through:
+      // clearing the state below is what stops the view staying hidden.
+      entry.dialogAnswerInFlight = false;
+      clearPendingDialog(hostWindow, request.tabId, entry);
+      runDeferredAutomationEnd(entry);
+      return false;
+    }
+    entry.dialogAnswerInFlight = false;
+    // `Page.javascriptDialogClosed` also clears this; doing it here as well
+    // keeps the view from staying hidden if that event never arrives.
+    clearPendingDialog(hostWindow, request.tabId, entry);
+    // And explicitly, because the line above returns early when the event got
+    // here first — which is the very ordering the flag exists for.
+    runDeferredAutomationEnd(entry);
+    return true;
+  }
+
+  return {
+    ensureDialogInterception,
+    clearPendingDialog,
+    respondToTabDialog,
+  };
 }

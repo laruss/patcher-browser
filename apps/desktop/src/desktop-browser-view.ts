@@ -123,7 +123,13 @@ import {
   resolveUniqueDownloadPath,
   sanitizeDownloadFilename,
 } from "./desktop-browser-download.js";
-import { createCdpSession, type CdpSession } from "./desktop-browser-cdp.js";
+import {
+  createCdpSession,
+  endCdpAutomation,
+  forgetCdpSessionScopedState,
+  releaseCdpSessionFor,
+  type CdpSession,
+} from "./desktop-browser-cdp.js";
 import { createBrowserDialogInterception } from "./desktop-browser-dialogs.js";
 import {
   cdpBudget,
@@ -469,6 +475,13 @@ export interface BrowserViewEntry {
    */
   pendingDialog: PatcherDesktopBrowserDialog["dialog"];
   /**
+   * A claim on this tab ended while a dialog was up, so ending its automation
+   * is waiting for the answer — see {@link endCdpAutomation}.
+   */
+  automationEndPending: boolean;
+  /** An answer to that dialog is on the wire; the session must outlive it. */
+  dialogAnswerInFlight: boolean;
+  /**
    * The network question this tab is stopped on — an authentication challenge,
    * an untrusted certificate, a request for a client certificate. Hides the
    * view exactly as a dialog does, because it is answered the same way: the app
@@ -736,6 +749,8 @@ interface SetEntryDesiredBoundsArgs {
 export interface DesktopBrowserViewManager {
   attach(args: HostScopedRequestArgs<PatcherDesktopBrowserAttachRequest>): void;
   detach(args: HostScopedTabArgs): void;
+  /** See {@link endCdpAutomation}, which is the whole of it. */
+  endAutomation(args: HostScopedTabArgs): void;
   /**
    * Print a tab's page through the OS dialog.
    *
@@ -3677,6 +3692,8 @@ export function createDesktopBrowserViewManager(
       findRequestId: null,
       cdp: null,
       pendingDialog: null,
+      automationEndPending: false,
+      dialogAnswerInFlight: false,
       pagePrompt: null,
       pendingAuth: null,
       htmlFullscreen: false,
@@ -3747,7 +3764,7 @@ export function createDesktopBrowserViewManager(
     rememberClosedTabSession(entry);
     entries.delete(key);
     entriesByWebContentsId.delete(entry.view.webContents.id);
-    releaseCdpSession(entry);
+    releaseCdpSessionFor(entry);
     clearEntryLocalOriginState(entry);
     if (!hostWindow.isDestroyed()) {
       hostWindow.contentView.removeChildView(entry.view);
@@ -3771,7 +3788,7 @@ export function createDesktopBrowserViewManager(
         // Refs were resolved against a session that no longer exists.
         entry.cdp = null;
         invalidateSnapshotRefs(entry);
-        forgetEntryInterception(entry);
+        forgetCdpSessionScopedState(entry);
         // And so was the dialog interception: Chromium drops the `Page` domain
         // with its protocol client, so leaving `dialogsWired` set means the
         // next session short-circuits and never re-enables it, and dialogs on
@@ -3793,34 +3810,10 @@ export function createDesktopBrowserViewManager(
     return session;
   }
 
-  /**
-   * Chromium drops request interception, network emulation and the screencast
-   * when its protocol client goes, so the tab is routed, online and unfilmed
-   * again whether we like it or not. Forgetting them here is what stops
-   * `route-list` describing a tab that is no longer mocked, and `video-stop`
-   * answering with a recording that stopped growing when the debugger did.
-   */
-  function forgetEntryInterception(entry: BrowserViewEntry): void {
-    entry.routes = [];
-    entry.routesWired = false;
-    entry.routesEnabled = false;
-    entry.offline = false;
-    entry.video = null;
-    entry.videoWired = false;
-  }
-
-  function releaseCdpSession(entry: BrowserViewEntry): void {
-    entry.cdp?.detach();
-    entry.cdp = null;
-    entry.dialogsWired = false;
-    entry.pendingDialog = null;
-    forgetEntryInterception(entry);
-  }
-
   // Taking a tab's dialogs over, and giving the page back, live in
   // `desktop-browser-dialogs.ts`. What stays here is the three things that path
   // borrows from this closure.
-  const { ensureDialogInterception, clearPendingDialog } =
+  const { ensureDialogInterception, clearPendingDialog, respondToTabDialog } =
     createBrowserDialogInterception({
       send,
       applyEntryVisibility,
@@ -4394,6 +4387,9 @@ export function createDesktopBrowserViewManager(
         }
       });
     },
+    endAutomation(args) {
+      withEntry(args, endCdpAutomation);
+    },
     reload({ hostWindow, tabId }) {
       withEntry({ hostWindow, tabId }, (entry) => {
         entry.view.webContents.reload();
@@ -4701,33 +4697,10 @@ export function createDesktopBrowserViewManager(
     },
     async respondToDialog({ hostWindow, request }) {
       const entry = entries.get(browserViewKey(hostWindow, request.tabId));
-      if (
-        !entry ||
-        entry.view.webContents.isDestroyed() ||
-        entry.pendingDialog === null ||
-        entry.cdp === null
-      ) {
+      if (!entry || entry.view.webContents.isDestroyed()) {
         return false;
       }
-      const isPrompt = entry.pendingDialog.type === "prompt";
-      try {
-        await entry.cdp.send("Page.handleJavaScriptDialog", {
-          accept: request.accept,
-          // Chromium rejects promptText on a non-prompt dialog.
-          ...(isPrompt && request.accept
-            ? { promptText: request.promptText ?? "" }
-            : {}),
-        });
-      } catch {
-        // The page may have gone while the answer was in flight. Fall through:
-        // clearing the state below is what stops the view staying hidden.
-        clearPendingDialog(hostWindow, request.tabId, entry);
-        return false;
-      }
-      // `Page.javascriptDialogClosed` also clears this; doing it here as well
-      // keeps the view from staying hidden if that event never arrives.
-      clearPendingDialog(hostWindow, request.tabId, entry);
-      return true;
+      return await respondToTabDialog({ hostWindow, entry, request });
     },
     async interact({ hostWindow, request }) {
       const entry = entries.get(browserViewKey(hostWindow, request.tabId));

@@ -50,6 +50,26 @@ export interface CdpDebuggerTarget {
       sessionId: string,
     ) => void,
   ): unknown;
+  /**
+   * Needed because a tab's debugger outlives its sessions. Ending a tab's
+   * automation and driving it again is a normal cycle now (#117), and a session
+   * that left its listeners behind would stack another pair on the same
+   * `webContents` every time round — Node warns at ten, and every stale detach
+   * handler fires on the next detach. Found by review.
+   */
+  off(
+    event: "detach",
+    listener: (event: unknown, reason: string) => void,
+  ): unknown;
+  off(
+    event: "message",
+    listener: (
+      event: unknown,
+      method: string,
+      params: unknown,
+      sessionId: string,
+    ) => void,
+  ): unknown;
 }
 
 export class CdpUnavailableError extends Error {
@@ -110,15 +130,20 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
   const enabledDomains = new Set<string>();
   const enablingDomains = new Map<string, Promise<void>>();
 
-  target.on("detach", (_event, reason) => {
+  const onTargetDetach = (_event: unknown, reason: string): void => {
     detachedReason = reason.length > 0 ? reason : "detached";
     listenersByMethod.clear();
     enabledDomains.clear();
     enablingDomains.clear();
+    forgetTargetListeners();
     args.onDetach?.(detachedReason);
-  });
+  };
 
-  target.on("message", (_event, method, params) => {
+  const onTargetMessage = (
+    _event: unknown,
+    method: string,
+    params: unknown,
+  ): void => {
     const listeners = listenersByMethod.get(method);
     if (!listeners) {
       return;
@@ -131,7 +156,16 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
         // session down with it.
       }
     }
-  });
+  };
+
+  /** Both halves, whichever way the session ended. Idempotent. */
+  function forgetTargetListeners(): void {
+    target.off("detach", onTargetDetach);
+    target.off("message", onTargetMessage);
+  }
+
+  target.on("detach", onTargetDetach);
+  target.on("message", onTargetMessage);
 
   function assertAttached(): void {
     if (detachedReason !== null) {
@@ -191,6 +225,9 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
       listenersByMethod.clear();
       enabledDomains.clear();
       enablingDomains.clear();
+      // Before the detach, so the target's own event does not find them and
+      // re-run what this method has already done.
+      forgetTargetListeners();
       try {
         target.detach();
       } catch {
@@ -198,4 +235,96 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
       }
     },
   };
+}
+
+/**
+ * The tab bookkeeping that is only true while a CDP session is attached.
+ *
+ * Described by the fields rather than by `BrowserViewEntry`, which lives in
+ * `desktop-browser-view.ts` and imports this module: the narrow shape is what
+ * keeps the dependency pointing one way.
+ */
+export interface CdpSessionScopedState {
+  cdp: CdpSession | null;
+  dialogsWired: boolean;
+  pendingDialog: unknown;
+  automationEndPending: boolean;
+  dialogAnswerInFlight: boolean;
+  routes: unknown[];
+  routesWired: boolean;
+  routesEnabled: boolean;
+  offline: boolean;
+  video: unknown;
+  videoWired: boolean;
+}
+
+/**
+ * Chromium drops request interception, network emulation and the screencast
+ * when its protocol client goes, so the tab is routed, online and unfilmed
+ * again whether we like it or not. Forgetting them here is what stops
+ * `route-list` describing a tab that is no longer mocked, and `video-stop`
+ * answering with a recording that stopped growing when the debugger did.
+ *
+ * Moved out of the view module (#80) to pay for `endAutomation`, which is the
+ * other caller: giving a tab back to the person ends its automation, and this
+ * is the half of that which is bookkeeping.
+ */
+export function forgetCdpSessionScopedState(
+  state: CdpSessionScopedState,
+): void {
+  state.routes = [];
+  state.routesWired = false;
+  state.routesEnabled = false;
+  state.offline = false;
+  state.video = null;
+  state.videoWired = false;
+}
+
+/**
+ * Drop a tab's session, which is what actually undoes the three above.
+ *
+ * Clearing `pendingDialog` is bookkeeping and *not* a claim that the page came
+ * unblocked — see the `onDetach` handler in `desktop-browser-view.ts`, which
+ * says the same thing and tells the app.
+ */
+export function releaseCdpSessionFor(state: CdpSessionScopedState): void {
+  state.cdp?.detach();
+  state.cdp = null;
+  state.dialogsWired = false;
+  state.pendingDialog = null;
+  state.automationEndPending = false;
+  state.dialogAnswerInFlight = false;
+  forgetCdpSessionScopedState(state);
+}
+
+/**
+ * Stop automating a tab, because it is the person's again: an agent released
+ * its claim on it, or the person took it back (`tab-owners.ts` in the app).
+ *
+ * Two things it deliberately does not do.
+ *
+ * **It never attaches a session.** A tab nobody was driving has nothing to
+ * undo, and attaching one to find that out would take the tab's dialogs over —
+ * so the sweep meant to hand a tab back would itself have been the thing that
+ * changed how the tab behaves for the person (#117).
+ *
+ * **And it waits out an open dialog.** The page is blocked on it, only this
+ * client can answer it, and a dialog open when the client goes most likely
+ * stands — so dropping the session there would hand back a page nothing can
+ * unblock. It is deferred rather than skipped: the person answers in Patcher's
+ * own panel and the teardown runs as the dialog clears
+ * (`desktop-browser-dialogs.ts`). Skipping outright was the first version of
+ * this, and review caught what it left — the claim was already gone, so
+ * nothing would ever have asked again, which is the whole bug in a narrower
+ * doorway.
+ */
+export function endCdpAutomation(state: CdpSessionScopedState): void {
+  if (state.cdp === null || !state.cdp.isAttached()) {
+    return;
+  }
+  if (state.pendingDialog !== null) {
+    state.automationEndPending = true;
+    return;
+  }
+  releaseCdpSessionFor(state);
 }

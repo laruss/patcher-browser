@@ -124,10 +124,11 @@ patcher browser release <tab-id>    # theirs again, still open, page untouched
 
 A handed tab is your *newest*, so every later command of yours without `--tab`
 lands in their page until you release it. Release also works on a tab you
-opened, when you mean to leave the result in front of them. What it does not
-undo is what you did to the page: clear your route mocks, offline mode and any
-recording **before** releasing, because afterwards that tab is not yours to
-reach.
+opened, when you mean to leave the result in front of them. It also undoes what
+you had set on the page — route mocks, offline mode, a running recording — so
+you are handing back a tab that behaves like theirs. A page sitting on an
+unanswered dialog is the one case that waits: the undo happens when the dialog
+is answered, so answer it before you release if you want the tab clean now.
 
 ## One constraint, worth knowing before you promise anything
 

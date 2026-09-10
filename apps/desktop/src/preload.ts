@@ -151,6 +151,7 @@ import {
   PATCHER_DESKTOP_BROWSER_SET_VISIBLE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PRINT_CHANNEL,
   PATCHER_DESKTOP_BROWSER_PAGE_SECURITY_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_MUTED_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SET_ZOOM_CHANNEL,
   PATCHER_DESKTOP_BROWSER_ZOOM_CHANNEL,
@@ -456,6 +457,9 @@ const patcherBrowserApi: PatcherDesktopBrowserApi = {
   },
   print(request: PatcherDesktopBrowserTabRef): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_PRINT_CHANNEL, request);
+  },
+  endAutomation(request: PatcherDesktopBrowserTabRef): void {
+    ipcRenderer.send(PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL, request);
   },
   onDownload(listener): PatcherDesktopBrowserUnsubscribe {
     browserDownloadListeners.add(listener);

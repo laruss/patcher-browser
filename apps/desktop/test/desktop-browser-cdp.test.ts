@@ -3,7 +3,9 @@ import {
   PATCHER_CDP_PROTOCOL_VERSION,
   CdpUnavailableError,
   createCdpSession,
+  endCdpAutomation,
   type CdpDebuggerTarget,
+  type CdpSessionScopedState,
 } from "../src/desktop-browser-cdp.js";
 
 /**
@@ -17,6 +19,7 @@ interface FakeTarget extends CdpDebuggerTarget {
   attached: boolean;
   attachCalls: string[];
   detachCalls: number;
+  listenerCount(): number;
   commands: Array<{ method: string; params?: Record<string, unknown> }>;
   emitDetach(reason: string): void;
   emitMessage(method: string, params: unknown): void;
@@ -61,6 +64,17 @@ function createFakeTarget(options: { attached?: boolean } = {}): FakeTarget {
         messageListeners.push(listener);
       }
       return target;
+    },
+    off(event: string, listener: never) {
+      const list = event === "detach" ? detachListeners : messageListeners;
+      const at = list.indexOf(listener);
+      if (at >= 0) {
+        list.splice(at, 1);
+      }
+      return target;
+    },
+    listenerCount() {
+      return detachListeners.length + messageListeners.length;
     },
     emitDetach(reason) {
       for (const listener of detachListeners) {
@@ -229,5 +243,141 @@ describe("createCdpSession", () => {
     await expect(session.send("DOM.querySelector")).rejects.toThrow(
       "No node with given id",
     );
+  });
+});
+
+/**
+ * Ending a tab's automation, which is what a claim ending has to do to it.
+ *
+ * The failures worth pinning are both about *not* acting: the sweep that hands
+ * a tab back must not be the thing that starts driving it, and it must not drop
+ * the only client that can answer a dialog the page is blocked on.
+ */
+describe("ending a tab's automation", () => {
+  function stateWith(
+    overrides: Partial<CdpSessionScopedState> = {},
+  ): CdpSessionScopedState {
+    return {
+      cdp: null,
+      dialogsWired: true,
+      pendingDialog: null,
+      automationEndPending: false,
+      dialogAnswerInFlight: false,
+      routes: [{ pattern: "*" }],
+      routesWired: true,
+      routesEnabled: true,
+      offline: true,
+      video: { frames: [] },
+      videoWired: true,
+      ...overrides,
+    };
+  }
+
+  function attachedSession(): {
+    detachCalls: number;
+  } & CdpSessionScopedState["cdp"] {
+    let detachCalls = 0;
+    return {
+      get detachCalls() {
+        return detachCalls;
+      },
+      isAttached: () => true,
+      detach: () => {
+        detachCalls += 1;
+      },
+    } as unknown as { detachCalls: number } & CdpSessionScopedState["cdp"];
+  }
+
+  it("drops the session and everything that lived with it", () => {
+    const session = attachedSession();
+    const state = stateWith({ cdp: session });
+
+    endCdpAutomation(state);
+
+    // Chromium undoes the interception, the emulation and the screencast when
+    // its client goes, so detaching *is* the undo; this clears the bookkeeping
+    // that would otherwise describe a tab none of it is true of any more.
+    expect(session?.detachCalls).toBe(1);
+    expect(state.cdp).toBeNull();
+    expect(state).toMatchObject({
+      dialogsWired: false,
+      routes: [],
+      routesWired: false,
+      routesEnabled: false,
+      offline: false,
+      video: null,
+      videoWired: false,
+    });
+  });
+
+  it("never attaches one to a tab that had none", () => {
+    const state = stateWith({ cdp: null, routes: [], offline: false });
+
+    endCdpAutomation(state);
+
+    // The whole reason this is its own call rather than a `route-clear` and an
+    // `offline false` from the renderer: those go through `ensureCdpSession`,
+    // so sweeping a tab nobody drove would have attached a debugger to it and
+    // taken the person's dialogs over — the sweep becoming the change it was
+    // meant to undo (#117).
+    expect(state.dialogsWired).toBe(true);
+  });
+
+  it("defers past an open dialog rather than skipping it", () => {
+    const session = attachedSession();
+    const state = stateWith({
+      cdp: session,
+      pendingDialog: { type: "confirm", message: "Sure?" },
+    });
+
+    endCdpAutomation(state);
+
+    // Only this client can answer it, and a dialog open when the client goes
+    // most likely stands — so handing the tab back here would hand back a page
+    // nothing can unblock.
+    expect(session?.detachCalls).toBe(0);
+    expect(state.offline).toBe(true);
+    expect(state.routes).toHaveLength(1);
+    // But it is written down, and the dialog path runs it as the dialog clears.
+    // Review caught the first version skipping outright: the claim is gone by
+    // then, so nothing would ever have asked again — the whole bug, one
+    // doorway narrower.
+    expect(state.automationEndPending).toBe(true);
+
+    state.pendingDialog = null;
+    endCdpAutomation(state);
+
+    expect(session?.detachCalls).toBe(1);
+    expect(state.automationEndPending).toBe(false);
+  });
+});
+
+describe("a session's debugger listeners", () => {
+  it("come off the target when the session ends", () => {
+    const target = createFakeTarget();
+    const first = createCdpSession({ target });
+
+    const wired = target.listenerCount();
+    first.detach();
+
+    // A tab's debugger outlives its sessions, and ending a tab's automation
+    // then driving it again is a normal cycle now (#117). Listeners left
+    // behind would stack another pair every time round — Node warns at ten,
+    // and every stale detach handler fires on the next detach. Found by
+    // review.
+    expect(wired).toBeGreaterThan(0);
+    expect(target.listenerCount()).toBe(0);
+
+    createCdpSession({ target });
+    expect(target.listenerCount()).toBe(wired);
+  });
+
+  it("come off when the target detaches on its own, too", () => {
+    const target = createFakeTarget();
+    createCdpSession({ target });
+
+    target.emitDetach("devtools took the tab");
+
+    expect(target.listenerCount()).toBe(0);
   });
 });

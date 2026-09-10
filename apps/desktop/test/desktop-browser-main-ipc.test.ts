@@ -24,6 +24,7 @@ import {
   PATCHER_DESKTOP_BROWSER_CAPTURE_FULL_PAGE_CHANNEL,
   PATCHER_DESKTOP_BROWSER_DETACH_CHANNEL,
   PATCHER_DESKTOP_BROWSER_FIND_CHANNEL,
+  PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL,
   PATCHER_DESKTOP_BROWSER_GO_BACK_CHANNEL,
   PATCHER_DESKTOP_BROWSER_GO_FORWARD_CHANNEL,
   PATCHER_DESKTOP_BROWSER_NAVIGATE_CHANNEL,
@@ -197,6 +198,7 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
   public readonly setZoomCalls: SetZoomCall[] = [];
   public readonly setMutedCalls: SetMutedCall[] = [];
   public readonly printCalls: TabCommandCall[] = [];
+  public readonly endAutomationCalls: TabCommandCall[] = [];
   public readonly stopCalls: TabCommandCall[] = [];
   public readonly readPageCalls: ReadPageCall[] = [];
   public readonly readPageInCalls: ReadPageInCall[] = [];
@@ -307,6 +309,10 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
 
   releaseWindow(hostWebContentsId: number): void {
     this.releaseWindowCalls.push(hostWebContentsId);
+  }
+
+  endAutomation(args: TabCommandCall): void {
+    this.endAutomationCalls.push(args);
   }
 
   reload(args: TabCommandCall): void {
@@ -733,6 +739,32 @@ describe("registerDesktopBrowserIpc", () => {
       { hostWindow: renderer.hostWindow, tabId: "browser:a" },
     ]);
     expect(manager.stopCalls).toEqual([
+      { hostWindow: renderer.hostWindow, tabId: "browser:a" },
+    ]);
+  });
+
+  it("routes the end of a tab's automation, and refuses a payload that is not a tab", () => {
+    const manager = new RecordingDesktopBrowserViewManager();
+    registerDesktopBrowserIpc(manager);
+    const renderer = createTrustedRenderer("main-window");
+
+    for (const payload of [
+      { tabId: "" },
+      { tabId: "browser:a", extra: true },
+    ]) {
+      sendBrowserIpc({
+        channel: PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL,
+        payload,
+        sender: renderer.sender,
+      });
+    }
+    sendBrowserIpc({
+      channel: PATCHER_DESKTOP_BROWSER_END_AUTOMATION_CHANNEL,
+      payload: { tabId: "browser:a" },
+      sender: renderer.sender,
+    });
+
+    expect(manager.endAutomationCalls).toEqual([
       { hostWindow: renderer.hostWindow, tabId: "browser:a" },
     ]);
   });

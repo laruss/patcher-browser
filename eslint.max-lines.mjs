@@ -74,7 +74,7 @@ const SOURCE_FILES = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"];
 const PINNED_OVER_LIMIT = {
   "packages/agent-runtime/src/codex/adapter.test.ts": 6088,
   "packages/agent-runtime/src/claude-code/adapter.test.ts": 5795,
-  "apps/desktop/src/desktop-browser-view.ts": 5124,
+  "apps/desktop/src/desktop-browser-view.ts": 5101,
   "apps/server/test/public/public-thread-data.test.ts": 5128,
   "packages/db/test/migrate.test.ts": 4542,
   "packages/db/test/data/events.test.ts": 4455,
