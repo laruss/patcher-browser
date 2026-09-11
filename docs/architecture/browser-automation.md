@@ -395,12 +395,12 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   `Emulation.setFocusEmulationEnabled` makes the keys land with the throttling
   untouched — but measured on a hidden tab (2026-09-10) it takes
   `requestAnimationFrame` from 0/s to 120/s and a `mouseMoved` from 5019ms to
-  3ms, so it restores the frames as well; it is a second door to the same state,
-  not evidence of a second mechanism. (It is also reversible, unlike the hold:
-  `enabled: false` puts rAF back to 0/s and the move back to 5004ms. Not taken
-  anyway — while it is on, the page is told it has focus and reports
-  `visibilityState: "visible"`, which is a bigger lie to the page for a state
-  the hold already reaches.)
+  3ms, so it restores the frames as well, which makes it no evidence of a second
+  mechanism, whatever else it may also be doing. (It is also reversible, unlike
+  the hold: `enabled: false` puts rAF back to 0/s and the move back to 5004ms.
+  Not taken anyway — while it is on, the page is told it has focus and reports
+  `visibilityState: "visible"`, and the hold makes the keys land without telling
+  the page either.)
 
   So the coupling is measured and the reason for it is not, which is why
   narrowing the hold to the pointer sends — the obvious saving, since keys are
