@@ -441,9 +441,10 @@ usually the app's own browsing and must stay silent. A caller holding the app ke
 gets `outside` with the level it is charged and nothing else, because that is
 exactly as identified as the app key is; naming it would be an invention. The
 level is not a name — it is this install's own setting, decided before the
-command was sent and already said back to that same caller on its CLI frame —
-and the window is told because the window writes the refusals, one of which used
-to advise opening a tab to a caller whose level forbids it (#120).
+command was sent, and said back to the caller itself only when what it is
+running is `patcher browser`, since `ctx.caller` carries it for that plugin's CLI
+alone. The window is told either way, because the window writes the refusals, one
+of which used to advise opening a tab to a caller whose level forbids it (#120).
 
 **It reaches exactly what the access scope reaches** — which, since the caller
 crosses the plugin channel, is both kinds of plugin. Commands issued on the

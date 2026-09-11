@@ -191,15 +191,15 @@ pages" that command is refused, and the sentence you get says so: name the tab
 you want from the listing instead. What naming it does depends on the tab and
 the command, and the listing says which tab you are looking at: `url` and
 `title` answer for any of them, because they read that listing's record rather
-than the page; a page read of one they lent you (`owner:shared`) answers too;
-naming an unclaimed tab of theirs (`owner:person`) is what asks them for it, and
-that command still fails immediately — the ask is the retry, not something to
-wait on; and a tab that is another agent's (`owner:agent`) is refused with
-nothing asked of anybody, because the user has no way to hand that one on. With
-nothing open at all there is nothing to name, and the sentence says that too:
-ask them to open the page you need. Read the sentence
-rather than assuming which of the three you are in — it is written from what
-your access is and what is open.
+than the page; a page read of one they lent you (`owner:shared`) answers too; a
+page read of one of theirs (`owner:person`) is what asks them for it — the
+command itself does not wait, it fails at once, so give them time to answer and
+then name it again rather than retrying in a loop; and a tab that is another
+agent's (`owner:agent`) is refused with nothing asked of anybody, because the
+user has no way to hand that one on. With nothing open at all there is nothing
+to name, and the sentence says that too: ask them to open the page you need.
+Read the sentence rather than assuming which case you are in — it is written
+from what your access is and what is open.
 
 ## Access is off
 
