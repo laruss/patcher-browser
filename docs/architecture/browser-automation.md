@@ -359,23 +359,56 @@ Done when: an agent can snapshot a real page and refer to its elements. ✅
   caller's own code), and `page_stalled` is their code: `failed` would have the
   app replace the sentence naming the dialog with "the page could not be
   inspected".
-- **A driven tab is kept rendering, because pointer input is frame-aligned.**
-  Chromium dispatches `mousemove` and `wheel` on the renderer's next main frame,
-  and a `WebContentsView` nobody is showing produces none — so those two waited
-  for the fallback above while key events, `mousePressed`/`mouseReleased` and
-  every read answered in about a millisecond on the same tab in the same second.
-  That is #114, and the states that cause it are ordinary: a tab in the deck's
-  background, a menu or dialog over the page area, a resize burst, a minimised
-  or covered window, a sleeping display. `keepPageRendering`
-  (`desktop-browser-interact.ts`) turns background throttling off for the tab
-  while an interaction or a vision-mode pointer operation runs, and gives it
-  back afterwards.
+- **A driven tab is kept rendering, and both halves of the input path need
+  it.** Chromium dispatches `mousemove` and `wheel` on the renderer's next main
+  frame, and a `WebContentsView` nobody is showing produces none — so those two
+  waited for the fallback above while key events,
+  `mousePressed`/`mouseReleased` and every read answered in about a millisecond
+  on the same tab in the same second. That is #114, and the states that cause it
+  are ordinary: a tab in the deck's background, a menu or dialog over the page
+  area, a resize burst, a minimised or covered window, a sleeping display.
+  `keepPageRendering` (`desktop-browser-interact.ts`) turns background
+  throttling off for the tab while an interaction or a vision-mode pointer
+  operation runs, and gives it back afterwards.
 
   **Measured** (Electron 41.7.0, macOS, 2026-09-09), the same view before and
   after the call: `requestAnimationFrame` 0/s → 120/s, `mouseMoved` 5001-5008ms
   → 1-3ms, `mouseWheel` unanswered → answered, and a synthesised click lands on
   the element it was aimed at. Unchanged for a view hidden before it ever
   painted, and with the display asleep.
+
+  **A key send answered in a millisecond was not a key that arrived** — which
+  is what "the keyboard looked fine" was hiding, and it took #119 to find.
+  Measured (Electron 41.7.0, macOS, 2026-09-10) against this manager driving a
+  tab attached hidden and never shown, with `keepPageRendering` neutralised and
+  nothing else changed: `type` and `press Enter` answered `ok` while the page's
+  own `keydown` listener recorded nothing, the field kept its value and the form
+  never submitted (4/4 rounds); an empty `fill` and `press Backspace`, the
+  `rawKeyDown` shape, the same (3/3); and nothing arrived when the tab was later
+  shown and focused, which rules out late delivery on that transition rather
+  than a queue in general. With the call in place every one of them landed.
+
+  **Why the hold reaches the keyboard is not established here, and two things
+  that look like evidence are not.** `Input.insertText` writes to the same
+  hidden tab in the same second — but it is a different dispatch path, so it
+  says nothing about what the key events wanted.
+  `Emulation.setFocusEmulationEnabled` makes the keys land with the throttling
+  untouched — but measured on a hidden tab (2026-09-10) it takes
+  `requestAnimationFrame` from 0/s to 120/s and a `mouseMoved` from 5019ms to
+  3ms, so it restores the frames as well, which makes it no evidence of a second
+  mechanism, whatever else it may also be doing. (It is also reversible, unlike
+  the hold: `enabled: false` puts rAF back to 0/s and the move back to 5004ms.
+  Not taken anyway — while it is on, the page is told it has focus and reports
+  `visibilityState: "visible"`, and the hold makes the keys land without telling
+  the page either.)
+
+  So the coupling is measured and the reason for it is not, which is why
+  narrowing the hold to the pointer sends — the obvious saving, since keys are
+  not frame-aligned — is the change to refuse. "Holds the frames for a key send
+  too" in `desktop-browser-view-manager-automation.test.ts` is what stands in
+  for the missing explanation. And #119's own proposal, refusing a key send into
+  a view that is not on screen, is what the fix made wrong: the tab that
+  proposal would refuse is one this shell can now type into.
 
   **What it costs, and it is a policy rather than a repair.** Giving the
   throttling back does not stop the frames of the document already running:
@@ -393,11 +426,17 @@ true })` forces one frame and flushes the queued events — the abandoned send
   minimised window. One frame per event leaves the page frozen between them, so
   the click lands and nothing it triggers ever runs.
 
-  **Abandoned input is queued, not dropped** (the question `docs/TODO.md` left
-  open): five sends abandoned before the fallback delivered nothing while the
-  view was hidden, then all of them arrived the moment frames resumed. So a
-  caller that retried a stalled click stacked clicks that all landed later —
-  which is what makes fixing the cause worth more than improving the refusal.
+  **Abandoned pointer input is queued, not dropped** (the question
+  `docs/TODO.md` left open): five sends abandoned before the fallback delivered
+  nothing while the view was hidden, then all of them arrived the moment frames
+  resumed. So a caller that retried a stalled click stacked clicks that all
+  landed later — which is what makes fixing the cause worth more than improving
+  the refusal. That is the pointer's answer, and the keyboard's is not known to
+  be the same: on the hidden tab measured for #119 the key sends were answered
+  at once, so there was nothing for the deadline to abandon, and what they
+  carried had not arrived once the tab was shown and focused. Neither a key send
+  that genuinely stalls — which the wrapper above abandons like any other — nor
+  late delivery on some other trigger is ruled out.
 
 - **One `interact` channel**, not one per verb. Every action shares the same
   preamble (resolve the ref, check the generation, wait for actionability), and a

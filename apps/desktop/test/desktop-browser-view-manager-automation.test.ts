@@ -693,6 +693,79 @@ describe("DesktopBrowserViewManager interactions", () => {
     expect(webContents.backgroundThrottlingCalls).toEqual([false, true]);
   });
 
+  it("holds the frames for a key send too", async () => {
+    const { hostWindow, manager, webContents, generation } =
+      await attachTabForInteractions();
+
+    // The test above sends a click, so a hold narrowed to the pointer events —
+    // the obvious saving, since keys are not frame-aligned — would keep it
+    // green while key input went back to being silently lost (#119): measured
+    // against a tab attached hidden and never shown, `type` and `press`
+    // answered `ok` with the hold neutralised while the page's own `keydown`
+    // listener recorded nothing at all, and nothing arrived when the tab was
+    // later shown. Like the mouse test, this pins the mechanism rather than the
+    // outcome, which the fake cannot reach: a future fix that made key sends
+    // land some other way would have to replace this test rather than satisfy
+    // it.
+    const throttledWhenSent: boolean[] = [];
+    webContents.debugger.results.set("Input.dispatchKeyEvent", () => {
+      throttledWhenSent.push(webContents.backgroundThrottling);
+      return {};
+    });
+
+    const typed = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        generation,
+        interaction: { action: "type", ref: "e1", text: "ab" },
+      },
+    });
+    // And a bare `press`, which is the action a pointer-shaped hold would miss
+    // completely: it reaches the key send with no actionability wait, no
+    // `DOM.focus` and no mouse event anywhere. It is also the only assertion in
+    // this suite that a `press` with no ref reaches the page at all.
+    const pressed = await manager.interact({
+      hostWindow,
+      request: {
+        tabId: "browser:a",
+        interaction: { action: "press", ref: null, key: "Enter" },
+      },
+    });
+
+    expect(typed).toMatchObject({ ok: true });
+    expect(pressed).toMatchObject({ ok: true });
+    expect(
+      inputEvents(webContents).map((event) => [
+        event.params?.type,
+        event.params?.key,
+      ]),
+    ).toEqual([
+      ["keyDown", "a"],
+      ["keyUp", "a"],
+      ["keyDown", "b"],
+      ["keyUp", "b"],
+      ["keyDown", "Enter"],
+      ["keyUp", "Enter"],
+    ]);
+    // Down and up per character, then down and up for Enter.
+    expect(throttledWhenSent).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    // Taken and given back once per command, the bare `press` included.
+    expect(webContents.backgroundThrottlingCalls).toEqual([
+      false,
+      true,
+      false,
+      true,
+    ]);
+  });
+
   it("gives the frames back when the interaction refuses instead", async () => {
     const { hostWindow, manager, webContents, generation } =
       await attachTabForInteractions();
