@@ -533,7 +533,9 @@ describe("a `patcher <plugin>` command from outside a turn", () => {
         expect(await runProbe(harness)).toEqual({ listed: true });
 
         expect(requests).toHaveLength(1);
-        expect(requests[0]?.issuer).toEqual({ kind: "outside" });
+        // The level rides along, because the window words its own refusals and
+        // one of them used to advise a `read` caller to open a tab (#120).
+        expect(requests[0]?.issuer).toEqual({ kind: "outside", level: "read" });
       },
     );
   });

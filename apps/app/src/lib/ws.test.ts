@@ -339,7 +339,12 @@ describe("WebSocketManager browser commands", () => {
     // The union is closed, and a signal this schema rejects is dropped whole by
     // the dispatcher — so a fourth issuer kind would stop an older app from
     // answering browser commands at all and every tool call would time out.
-    // Losing the indicator is the failure this lenient copy is for.
+    // Running it with no issuer is the lesser failure, and not the small one
+    // this comment claimed until #120: a command with no issuer is the app's
+    // *own* browsing, which falls back to the tab the person is looking at and
+    // skips every ownership check. Nothing better is available for a kind this
+    // build cannot read — which is why the members forgive what they can, and
+    // the test below is the case that does not have to come here at all.
     const { manager } = createConnectedManager();
     const browserCommand = vi.fn();
     manager.onBrowserCommand(browserCommand);
@@ -354,6 +359,30 @@ describe("WebSocketManager browser commands", () => {
     expect(browserCommand).toHaveBeenCalledTimes(1);
     expect(browserCommand.mock.calls[0]?.[0]?.requestId).toBe("req_3");
     expect(browserCommand.mock.calls[0]?.[0]?.issuer).toBeUndefined();
+  });
+
+  it("keeps an outside caller whose level this build cannot read", () => {
+    // A level is an enum, so a rung added between `read` and `interact` is a
+    // value an older window has never heard of. The field catches it to
+    // undefined rather than failing, because failing is the case above: the
+    // member fails, the union fails, the issuer is dropped, and the caller
+    // outside Patcher is served as though the person were driving. Catching it
+    // costs the level — the refusal is then worded the way it was before #120 —
+    // and keeps the caller.
+    const { manager } = createConnectedManager();
+    const browserCommand = vi.fn();
+    manager.onBrowserCommand(browserCommand);
+
+    dispatchRaw({
+      type: "browser-command-request",
+      requestId: "req_7",
+      command: { type: "tabs.list" },
+      issuer: { kind: "outside", level: "browse-on-your-own" },
+    });
+
+    expect(browserCommand.mock.calls[0]?.[0]?.issuer).toEqual({
+      kind: "outside",
+    });
   });
 
   it("routes who-is-driving to its own subscribers, and never as a command", () => {
@@ -476,7 +505,9 @@ describe("WebSocketManager browser commands", () => {
     const changed = vi.fn();
     manager.onBrowserDriving(driving);
     manager.onChanged(changed);
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
     dispatchRaw({
       type: "browser-driving",
@@ -495,17 +526,17 @@ describe("WebSocketManager browser commands", () => {
     const { manager, socket } = createConnectedManager();
     manager.registerBrowserHost("window-a");
 
-    expect(socket.sentMessages.map((raw) => JSON.parse(raw) as { type: string })).toEqual([
-      { type: "browser-host.register", browserHostId: "window-a" },
-    ]);
+    expect(
+      socket.sentMessages.map((raw) => JSON.parse(raw) as { type: string }),
+    ).toEqual([{ type: "browser-host.register", browserHostId: "window-a" }]);
 
     // Registration is per-connection server-side, so a reconnect that did not
     // re-announce would silently leave agents with no browser to drive.
     socket.sentMessages.length = 0;
     socket.open();
-    expect(socket.sentMessages.map((raw) => JSON.parse(raw) as { type: string })).toEqual([
-      { type: "browser-host.register", browserHostId: "window-a" },
-    ]);
+    expect(
+      socket.sentMessages.map((raw) => JSON.parse(raw) as { type: string }),
+    ).toEqual([{ type: "browser-host.register", browserHostId: "window-a" }]);
   });
 
   it("sends a response the server can correlate", () => {

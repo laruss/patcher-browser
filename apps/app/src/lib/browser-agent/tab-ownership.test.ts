@@ -29,6 +29,24 @@ const OTHER_GRANT: BrowserCommandIssuer = {
   level: "read",
 };
 const TURN: BrowserCommandIssuer = { kind: "thread", threadId: "thread_1" };
+/**
+ * The caller #120 is about: a level that may read a page and may not open a tab.
+ *
+ * Two spellings of it, because the level reaches the window by two routes — a
+ * grant carries its own, and an app-key caller is charged the install's setting,
+ * which the server puts on the `outside` issuer. Both have to word a refusal the
+ * same way, and only one of them existed on the wire before this.
+ */
+const READING_GRANT: BrowserCommandIssuer = {
+  kind: "grant",
+  grantId: "grant_3",
+  label: "Zed",
+  level: "read",
+};
+const READING_OUTSIDE: BrowserCommandIssuer = {
+  kind: "outside",
+  level: "read",
+};
 
 function ownedBy(entries: Array<[string, BrowserCommandIssuer]>) {
   return new Map(
@@ -609,6 +627,175 @@ describe("tab ownership", () => {
     // address answers for every caller now and would pass this either way.
     expect(outcome).toMatchObject({ ok: true });
     expect(harness.calls.reload).toEqual(["a"]);
+  });
+});
+
+/**
+ * What a refusal for want of a tab may tell a caller to do.
+ *
+ * The rule: no refusal recommends work the caller's level forbids. Opening a tab
+ * costs `tabs.modify` and that starts at `interact`, so every one of these
+ * sentences used to end by naming the one command a `read` caller cannot run —
+ * measured against the packaged 0.1.1-alpha.4, where `patcher browser text`
+ * under a `read` grant answered "Open one of your own" and
+ * `patcher browser open` then answered that the level does not allow it (#120).
+ *
+ * The wording for a caller that *can* open one is pinned by the tests above,
+ * which drive an `interact` grant and a turn: this file would otherwise be as
+ * green with the old sentence given to everybody.
+ */
+describe("advice a caller's level can afford", () => {
+  it("sends a read caller to name a tab rather than open one", async () => {
+    // The issue's own case, in the spelling it was measured in: an app-key
+    // caller, so the level has to arrive on the `outside` issuer to be known
+    // here at all.
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      issuer: READING_OUTSIDE,
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("the person's tab was handed over");
+    expect(outcome.code).toBe("no_active_tab");
+    // Both halves still: there is a tab, and it is not this caller's.
+    expect(outcome.message).toContain("not yours to work in");
+    expect(outcome.message).not.toContain("Open one of your own");
+    // And the route that does work for this level, which is a consent step
+    // rather than a tab of its own.
+    expect(outcome.message).toContain("Naming one of the person's");
+    expect(outcome.message).toContain("lend you a look at it");
+    // Nothing was named, so nothing was asked for — the sentence describes the
+    // ask, it does not raise one.
+    expect(harness.calls.handoverAsks).toEqual([]);
+  });
+
+  it("keeps the old wording when no level arrived with the caller", async () => {
+    // An older server, or one naming a level this build does not know: the
+    // issuer's `level` catches to undefined rather than failing, because a
+    // failed parse drops the issuer altogether and a command with no issuer is
+    // treated as the app's own browsing. Undefined means "word it as before",
+    // which is right for three of the four levels.
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      issuer: { kind: "outside" },
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("the person's tab was handed over");
+    expect(outcome.message).toContain("Open one of your own");
+  });
+
+  it("has no route to offer a read caller when nothing is open", async () => {
+    const harness = createHarness({
+      state: { activeTabId: null, tabs: [] },
+      issuer: READING_GRANT,
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("a page was read with no tab open");
+    expect(outcome.code).toBe("no_active_tab");
+    // Nothing open, nothing lent, and opening one is not this caller's to do.
+    // The honest answer is that there is no route, so the sentence says nothing
+    // happened and names the person as the only way forward — inventing one
+    // ("open one first") is what it did before.
+    expect(outcome.message).not.toContain("Open one first");
+    expect(outcome.message).toContain("Nothing happened");
+    expect(outcome.message).toContain("Ask the person to open the page");
+  });
+
+  it("drops the half a read caller cannot use from a lent tab's sentence", async () => {
+    const harness = createHarness({
+      state: {
+        activeTabId: "a",
+        tabs: [tab("a", "https://person.example/"), tab("b")],
+      },
+      issuer: READING_GRANT,
+      owners: lentTo([["a", READING_GRANT]]),
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("a lent tab became a default target");
+    expect(outcome.message).toContain("lent you a look at tab a");
+    expect(outcome.message).not.toContain("open one of your own");
+    // What replaces it is the thing that actually trips a caller holding one
+    // lent tab: the lending is never where an unnamed command lands, so every
+    // command has to name it.
+    expect(outcome.message).toContain("name it on every command");
+  });
+
+  it("keeps the ask and drops the opening when a read caller names the person's tab", async () => {
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      issuer: READING_GRANT,
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: "a", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("naming a tab bypassed the rule");
+    expect(outcome.code).toBe("tab_not_yours");
+    expect(outcome.message).not.toContain("Work in a tab of your own");
+    // The ask is the whole of what this caller can do, and naming the tab is
+    // what raised it — so the sentence keeps every word about it, including
+    // that nothing is promised on screen.
+    expect(outcome.message).toContain("Naming it is what asks them for it");
+    expect(outcome.message).toContain("name it again");
+    expect(harness.calls.handoverAsks).toEqual([
+      { issuer: READING_GRANT, tabId: "a" },
+    ]);
+  });
+
+  it("tells a read caller that nobody can give it another agent's tab", async () => {
+    const harness = createHarness({
+      state: {
+        activeTabId: "a",
+        tabs: [tab("a"), tab("b", "https://theirs.example/")],
+      },
+      issuer: READING_GRANT,
+      owners: ownedBy([["b", GRANT]]),
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_text", tabId: "b", maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("another agent's tab was read");
+    expect(outcome.code).toBe("tab_not_yours");
+    expect(outcome.message).toContain("another agent");
+    // The one branch where dropping the old clause would leave a refusal that
+    // says whose the tab is and nothing about what to do, which is the shape
+    // that gets retried. So it says both: not this one, and which kind is.
+    expect(outcome.message).not.toContain("Work in a tab of your own");
+    expect(outcome.message).toContain("nobody can give you this one");
+    expect(outcome.message).toContain(
+      "the person's own is the one you can ask",
+    );
+    expect(harness.calls.handoverAsks).toEqual([]);
   });
 });
 

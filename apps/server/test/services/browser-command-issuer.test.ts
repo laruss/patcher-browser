@@ -143,10 +143,13 @@ describe("the command a browser window is asked to run", () => {
     });
   }, 60_000);
 
-  it("says only that a caller outside Patcher issued it", async () => {
+  it("names no caller outside Patcher, and says how far it may go", async () => {
     // A terminal holding the app key is exactly as identified as the app key
     // is. Naming it would be an invention, so the wire says the true thing and
-    // stops.
+    // stops — and the one field beside the kind is not a name. It is the level
+    // this install charges such a caller, which the window needs because the
+    // window is where a refusal for want of a tab is written, and that refusal
+    // used to advise opening one to a caller whose level forbids it (#120).
     server = await serveBrowser();
     setAppSettings(server.deps.db, {
       ...getAppSettings(server.deps.db),
@@ -157,7 +160,7 @@ describe("the command a browser window is asked to run", () => {
       [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY,
     });
 
-    expect(signal.issuer).toEqual({ kind: "outside" });
+    expect(signal.issuer).toEqual({ kind: "outside", level: "read" });
   }, 60_000);
 
   it("names the thread when a turn inside Patcher issued it", async () => {
@@ -313,6 +316,6 @@ describe("the command a browser window is asked to run", () => {
     });
     await pending;
 
-    expect(signal.issuer).toEqual({ kind: "outside" });
+    expect(signal.issuer).toEqual({ kind: "outside", level: "read" });
   }, 60_000);
 });

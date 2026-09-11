@@ -73,6 +73,12 @@ Two failures are worth telling apart before you conclude anything:
 - **Navigate** — open a URL, go back, forward, reload, and open, close or
   activate a tab.
 
+Three prices, not one, and outside Patcher you may hold only the first: `status`
+says which, in these words — "read pages" is the first bullet alone, "read pages
+and act on them" is all three. Read it before planning a route, because the
+second and third bullets include **opening a tab of your own**, which the next
+section builds on.
+
 Page text is read in an isolated world, so a page can neither forge the result
 nor notice the read, and what comes back is size-capped with a two-second
 timeout. Prefer reading text over taking a screenshot when you want to know what
@@ -90,15 +96,19 @@ ask for. `url` and `title` answer for any tab for the same reason: they read
 that listing's record of a tab, not its page. (Inside a Patcher thread you may
 still work in their tab; you still cannot touch another agent's.)
 
-So the first thing to do is get a tab of your own:
+So the first thing to do is get a tab of your own — **when your access allows
+one.** `status` said which you have: at "read pages" opening a tab is not yours
+to do, and nothing else gets you one, so the asking below is not a fallback for
+that level. It is the only route, and it is a fine one.
 
 ```bash
 patcher browser open https://example.com --background   # yours, and it does not steal their window
 patcher browser tabs                                    # `owner:you`, `owner:person`, `owner:agent`, `owner:shared`
 ```
 
-If you truly need the page they are in — they asked you about *this* page —
-name it once. The refusal *is* the request: naming their tab asks them for it,
+If you truly need the page they are in — they asked you about *this* page, or
+opening one of your own is not something your access allows — name it once.
+The refusal *is* the request: naming their tab asks them for it,
 and they answer in a row in their browser window. Tell them you have asked,
 because that row may not be in front of them: it rides the address bar, so a
 Patcher screen holding the main area hides it, and a question another agent got

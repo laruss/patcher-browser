@@ -203,6 +203,39 @@ the same reason it was removed at all: it lives outside the data directory, so
 the rename never reached it, and it tells agents to run a binary this fork does
 not ship.
 
+### Advice a level can afford
+
+**No refusal recommends work the caller's level forbids.** It is one sentence and
+it was broken in five places, because the level that exists to read pages cannot
+reach a page on its own: every page read resolves a tab first, a caller outside
+Patcher has no default tab but its own, and getting one of its own costs
+`tabs.modify` — which starts at `interact`. So the window's answer for want of a
+tab ended by telling a `read` caller to open one, and `patcher browser open` then
+told it the level does not allow that. Measured against the packaged
+0.1.1-alpha.4 and reproduced in `tab-ownership.test.ts` (#120).
+
+The route that level *does* have arrived with #116 and #117 and is what the
+sentences now name: **naming one of the person's tabs is what asks them for it**,
+and they can hand it over or lend a look at it — reading answers on a lent tab,
+and `tabs.release` gives it back at `tabs.read`, so the lending is not one-way.
+Measured: with a `read` grant, naming the person's tab raises the ask, and the
+lent tab then reads.
+
+Two of the five have no route to name — nothing open, or a tab that is another
+agent's, which the person can take back but has no way to hand on — and those say
+that nothing happened and who to ask, rather than inventing one.
+
+What made this decidable in the window is the level on the issuer, which is the
+one field `outside` carries. Asked of the **permission** rather than of the
+level's name (`browserExternalAccessAllows(level, "tabs.modify")`), so a rung
+inserted between `read` and `interact` answers it correctly without being
+remembered in the window.
+
+Not fixed here, and deliberately: whether that rung should exist (#128). The
+advice was wrong either way — a plain `read` grant still cannot open a tab — and
+what the rung would add is an agent that chooses which logged-in page it reads,
+which is the line between `read` and `interact` rather than a detail of it.
+
 ## The credential, which is what makes it a boundary
 
 Everything above decides what an agent outside Patcher may do. The section below
@@ -394,10 +427,15 @@ it is answering at the route, and the socket that carries the command is forty
 call sites away, so the caller rides the same `AsyncLocalStorage` shape the
 access scope uses (`browser-command-issuer.ts`) and the bridge attaches it to
 `browser-command-request`. Three answers — a `thread`, a `grant` with the label
-and level a person gave it, and a bare `outside` — and *absent*, which is
+and level a person gave it, and an `outside` that names nobody — and *absent*,
+which is
 usually the app's own browsing and must stay silent. A caller holding the app key
-gets `outside` with nothing else, because that is exactly as identified as the
-app key is; naming it would be an invention.
+gets `outside` with the level it is charged and nothing else, because that is
+exactly as identified as the app key is; naming it would be an invention. The
+level is not a name — it is this install's own setting, decided before the
+command was sent and already said back to that same caller on its CLI frame —
+and the window is told because the window writes the refusals, one of which used
+to advise opening a tab to a caller whose level forbids it (#120).
 
 **It reaches exactly what the access scope reaches** — which, since the caller
 crosses the plugin channel, is both kinds of plugin. Commands issued on the
@@ -840,6 +878,13 @@ PATCHER_AGENT_KEY=<the key> patcher browser text     # indicator appears; then c
 PATCHER_AGENT_KEY=<the key> patcher browser text     # 401, "is paused", not "was revoked"
 patcher agent-access resume <id>
 ```
+
+`text` exits 1 both times it runs, and that is not the recipe failing: a `read`
+grant with no tab of its own is refused `no_active_tab` by the window, which is
+after the command has reached it — `page.read` is a price this level pays, so the
+gate passes it, the row is drawn before the command is performed, and the
+indicator is what these three lines are for. Swap in `patcher browser tabs` for a
+line that draws the same row and exits 0.
 
 The row's line and the record are the other half no test spans, because the
 rendering crosses the route, the hub, a socket and two windows: with two

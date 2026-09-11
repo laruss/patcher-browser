@@ -907,6 +907,14 @@ export function registerPluginRoutes(
     // level is still typed as a grant's, and from the *verified* thread id for
     // the same reason the exemption above uses it.
     const verifiedThreadId = getAgentThreadId(context);
+    // Read once and only for the caller it is about: an app-key caller's level
+    // *is* this setting, and both the gate and the window are told the same
+    // value from the same read. A turn and a plugin's own call do not touch the
+    // database for a question that is not asked of them.
+    const outsideLevel =
+      grantCaller === undefined && isOutsideCaller
+        ? getAppSettings(deps.db).browserExternalAccess
+        : undefined;
     const issuer: BrowserCommandIssuer | undefined =
       grantCaller !== undefined
         ? {
@@ -915,8 +923,13 @@ export function registerPluginRoutes(
             label: grantCaller.label,
             level: grantCaller.level,
           }
-        : isOutsideCaller
-          ? { kind: "outside" }
+        : outsideLevel !== undefined
+          ? // Not a name — the window still cannot say *what* is driving. It is
+            // what the refusal it writes has to know: whether "open a tab of
+            // your own" is advice or a command this caller's level forbids
+            // (#120). `off` can appear here and never reaches a browser
+            // command, because the gate below refuses every one of them.
+            { kind: "outside", level: outsideLevel }
           : verifiedThreadId !== undefined
             ? { kind: "thread", threadId: verifiedThreadId }
             : undefined;
@@ -927,9 +940,9 @@ export function registerPluginRoutes(
             pluginId,
             grant: { id: grantCaller.grantId, label: grantCaller.label },
           }
-        : isOutsideCaller
+        : outsideLevel !== undefined
           ? {
-              level: getAppSettings(deps.db).browserExternalAccess,
+              level: outsideLevel,
               pluginId,
             }
           : undefined;
