@@ -205,8 +205,11 @@ not ship.
 
 ### Advice a level can afford
 
-**No refusal recommends work the caller's level forbids.** It is one sentence and
-it was broken in five places, because the level that exists to read pages cannot
+**No refusal for want of a tab recommends work the caller's level forbids.** The
+five that decide *whose* tab a command lands on, which is where the defect was —
+not every refusal in the browser; `tab_not_live` still says "Activate it" to
+everybody, and "What this does not close" says why. It is one sentence and it was
+broken in all five places, because the level that exists to read pages cannot
 reach a page on its own: every page read resolves a tab first, a caller outside
 Patcher has no default tab but its own, and *opening* one of its own costs
 `tabs.modify` — which starts at `interact`. (Being handed one costs nothing, and
@@ -646,6 +649,20 @@ ignored it is refused a command later exactly as before.
 
 Named here rather than left to be rediscovered.
 
+- **One refusal still recommends what a `read` caller cannot do.** A page read of
+  a tab with no live view answers `tab_not_live`, and the sentence a caller reads
+  for that code is the browser-tools plugin's own fixed one, which opens with
+  "Activate it" — and `tabs.activate` is priced `tabs.modify`. Reachable, if
+  narrowly: a tab lent or handed over while it has never been the active tab with
+  the Browser surface mounted. It was left alone with #120 rather than fixed
+  there, because the sentence is written in the plugin layer, which cannot ask
+  the ladder — the plugin depends on the SDK and zod, and the SDK exports no
+  level predicate — so the plugin would have to keep its own copy of which levels
+  can activate a tab, and that copy is what goes stale the day a level is added
+  (#128). The window's own message for the same code names no command; passing it
+  through, the way `no_active_tab` and `page_stalled` already are, is the shape of
+  the fix, and it costs an `interact` caller the one hint it could act on. Found
+  by review.
 - **A caller holding the app key can write the install-wide setting as easily as
   read it.** The key is a `0600` file readable by any process running as the
   user, so that setting is a default rather than a boundary — which is why the
