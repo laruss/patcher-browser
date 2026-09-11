@@ -316,9 +316,13 @@ export const browserCommandRequestSignalLenientSchema = z.object({
   // An issuer the app dropped is an issuer the app never had, and a command
   // with no issuer is the app's *own* browsing: it falls back to the tab the
   // person is looking at and every ownership check short-circuits
-  // (`execute.ts`). So each member of the union forgives what it can on its own
-  // — an unknown `level` costs the level, not the caller — and this catch is
-  // the last resort for a kind that cannot be parsed at all.
+  // (`execute.ts`). So the `outside` member forgives what it can on its own —
+  // an unknown `level` there costs the level and not the caller — and this catch
+  // is the last resort for what no member can read: a kind this build has never
+  // heard of, and a `grant` whose level is one, since that member's enum is
+  // required and has no catch of its own. Closing the second of those is a
+  // precondition of adding a level at all, and is recorded on #128 rather than
+  // done here.
   issuer: browserCommandIssuerSchema.optional().catch(undefined),
 });
 

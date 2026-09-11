@@ -97,9 +97,10 @@ that listing's record of a tab, not its page. (Inside a Patcher thread you may
 still work in their tab; you still cannot touch another agent's.)
 
 So the first thing to do is get a tab of your own — **when your access allows
-one.** `status` said which you have: at "read pages" opening a tab is not yours
-to do, and nothing else gets you one, so the asking below is not a fallback for
-that level. It is the only route, and it is a fine one.
+one.** `status` said which you have: at "read pages" opening one is not yours to
+do. The other way to have a tab of your own is for the user to give you theirs —
+**Hand it over** below makes their tab yours, and it costs you nothing — so for
+that level the asking is not a fallback. It is the route, and it is a fine one.
 
 ```bash
 patcher browser open https://example.com --background   # when your access allows it; does not steal their window

@@ -707,7 +707,7 @@ describe("advice a caller's level can afford", () => {
     // issuer's `level` catches to undefined rather than failing, because a
     // failed parse drops the issuer altogether and a command with no issuer is
     // treated as the app's own browsing. Undefined means "word it as before",
-    // which is right for three of the four levels.
+    // which is right for both levels that can reach here and still open a tab.
     const harness = createHarness({
       state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
       issuer: { kind: "outside" },

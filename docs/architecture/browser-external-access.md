@@ -208,8 +208,9 @@ not ship.
 **No refusal recommends work the caller's level forbids.** It is one sentence and
 it was broken in five places, because the level that exists to read pages cannot
 reach a page on its own: every page read resolves a tab first, a caller outside
-Patcher has no default tab but its own, and getting one of its own costs
-`tabs.modify` — which starts at `interact`. So the window's answer for want of a
+Patcher has no default tab but its own, and *opening* one of its own costs
+`tabs.modify` — which starts at `interact`. (Being handed one costs nothing, and
+that is the route below.) So the window's answer for want of a
 tab ended by telling a `read` caller to open one, and `patcher browser open` then
 told it the level does not allow that. Measured against the packaged
 0.1.1-alpha.4 and reproduced in `tab-ownership.test.ts` (#120).
