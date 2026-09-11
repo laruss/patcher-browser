@@ -221,6 +221,14 @@ and `tabs.release` gives it back at `tabs.read`, so the lending is not one-way.
 Measured: with a `read` grant, naming the person's tab raises the ask, and the
 lent tab then reads.
 
+**Except where naming a tab is the answer rather than the ask.** A tab's address
+and its title are priced `tabs.read`, which `resolveTab` lets past for any named
+tab because the listing hands both over to every caller anyway (#116) — so those
+two get a sentence that says to name one, and no sentence about consent. Getting
+that wrong would have been #116's own defect one case over: a refusal describing
+a row that never appears on the person's screen. The first review pass of #120
+caught it.
+
 Two of the five have no route to name — nothing open, or a tab that is another
 agent's, which the person can take back but has no way to hand on — and those say
 that nothing happened and who to ask, rather than inventing one.
