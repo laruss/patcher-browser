@@ -667,10 +667,38 @@ describe("advice a caller's level can afford", () => {
     expect(outcome.message).not.toContain("Open one of your own");
     // And the route that does work for this level, which is a consent step
     // rather than a tab of its own.
-    expect(outcome.message).toContain("Naming one of the person's");
+    expect(outcome.message).toContain("naming it is what asks them for it");
     expect(outcome.message).toContain("lend you a look at it");
+    // Conditional on there being one: every open tab may be another agent's,
+    // and the sentence must not promise a tab of the person's that is not
+    // there. Found by review.
+    expect(outcome.message).toContain("If any of them is the person's");
     // Nothing was named, so nothing was asked for — the sentence describes the
     // ask, it does not raise one.
+    expect(harness.calls.handoverAsks).toEqual([]);
+  });
+
+  it("does not offer the ask for a read that needs no asking", async () => {
+    // A tab's address and its title are priced `tabs.read`, which `resolveTab`
+    // lets past for any named tab — the listing hands both over to everybody
+    // anyway (#116). So naming a tab here is not a request, it is the answer,
+    // and the consent sentence above would be describing a row that never
+    // appears. Found by review.
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      issuer: READING_GRANT,
+    });
+
+    const outcome = await executeBrowserCommand(
+      { type: "page.get_url", tabId: null },
+      harness.deps,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error("the person's tab was handed over");
+    expect(outcome.code).toBe("no_active_tab");
+    expect(outcome.message).toContain("name any tab from the listing");
+    expect(outcome.message).not.toContain("asks them for it");
     expect(harness.calls.handoverAsks).toEqual([]);
   });
 

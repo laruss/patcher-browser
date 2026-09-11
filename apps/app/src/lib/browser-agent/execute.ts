@@ -441,11 +441,21 @@ function locateTab(
                   // another agent's, which the person cannot give away, and a caller
                   // outside Patcher has to name a tab for the asking to happen.
                   "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Open one of your own — opening one in the background does not take the person's window."
-                : // The issue's own case. Naming one of the person's tabs is the
-                  // whole of what this caller can do, and it is what asks them
-                  // for it — the caveats on that ask belong to the refusal it
-                  // gets next, which is where naming a tab arrives.
-                  "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Naming one of the person's is what asks them for it, and they can hand it over or lend you a look at it. A tab that belongs to another agent cannot be handed to you at all.",
+                : need === "tabs.read"
+                  ? // A tab's address and its title answer for *any* tab, to
+                    // every caller, because the listing hands them over anyway
+                    // (#116) — so naming one is not an ask here, it is the
+                    // answer, and a sentence about consent would be describing
+                    // something that does not happen.
+                    "You have no browser tab of your own open, and the tabs that are open are not yours to work in. This command is not one of the ones that needs to be: name any tab from the listing and it answers."
+                  : // The issue's own case. Naming one of the person's tabs is
+                    // the whole of what this caller can do, and it is what asks
+                    // them for it — the caveats on that ask belong to the
+                    // refusal it gets next, which is where naming a tab
+                    // arrives. Conditional, because the open tabs may all be
+                    // other agents': the sentence must not presume a tab of the
+                    // person's that is not there.
+                    "You have no browser tab of your own open, and the tabs that are open are not yours to work in. If any of them is the person's, naming it is what asks them for it, and they can hand it over or lend you a look at it; a tab that belongs to another agent cannot be handed to you at all.",
         ),
       };
     }

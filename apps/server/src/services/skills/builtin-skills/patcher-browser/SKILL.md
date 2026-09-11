@@ -102,7 +102,7 @@ to do, and nothing else gets you one, so the asking below is not a fallback for
 that level. It is the only route, and it is a fine one.
 
 ```bash
-patcher browser open https://example.com --background   # yours, and it does not steal their window
+patcher browser open https://example.com --background   # when your access allows it; does not steal their window
 patcher browser tabs                                    # `owner:you`, `owner:person`, `owner:agent`, `owner:shared`
 ```
 
@@ -184,9 +184,13 @@ guessing.
 Every refusal carries a code and a sentence saying what to do next; read it
 instead of retrying the same call. `desktop_unavailable` means this Patcher runs
 as the web build with no desktop shell, and no retry will change that.
-`no_active_tab` means you have no tab to act in — open one with
-`patcher browser open <url> --background`, which is also the answer when the
-browser has tabs but none of them is yours.
+`no_active_tab` means you have no tab to act in. With access that includes
+opening tabs, the answer is `patcher browser open <url> --background`, and it is
+the same answer when the browser has tabs but none of them is yours. At "read
+pages" that command is refused, and the sentence you get says so: name the tab
+you want from the listing instead, which is what asks the user for it. Either
+way the sentence names the route you have — it is written from what your access
+is, so read it rather than assuming which case you are in.
 
 ## Access is off
 
