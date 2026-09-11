@@ -241,12 +241,14 @@ export const pluginSignalLenientSchema = z.object({
  * the answer to that, and carries the name a person gave it.
  *
  * **The level it carries is not a name.** It is how far this install lets such
- * a caller go — the server's own setting, already decided before the command
- * was sent and already said back to that same caller on its CLI frame
- * (`PluginCliCaller`). The window is told because the window is where a refusal
- * for want of a tab is written, and a refusal that advises opening one sends a
- * caller whose level cannot afford that to be refused again one layer down
- * (#120).
+ * a caller go — the server's own setting, decided before the command was sent.
+ * Said back to the caller itself as well, when what it is running is
+ * `patcher browser`: `ctx.caller` carries it for that plugin's CLI alone
+ * (`PluginCliCaller`), so a caller reaching the browser through some other
+ * plugin's command learns its level from a refusal and not before. The window is
+ * told either way, because the window is where a refusal for want of a tab is
+ * written, and a refusal that advises opening one sends a caller whose level
+ * cannot afford that to be refused again one layer down (#120).
  *
  * Optional, and catching an unrecognised value to undefined rather than
  * failing: absent means an older server, a value this build does not know means

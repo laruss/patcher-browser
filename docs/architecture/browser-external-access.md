@@ -778,8 +778,9 @@ Named here rather than left to be rediscovered.
   stand-in browser host's socket rather than off the bridge, because the field
   has to survive the route, the ambient scope, the bridge and the hub, and the
   schema makes omitting it valid at every step: a grant's command names the
-  grant, a turn's names the thread, an app-key caller's says only `outside`, and
-  a `threadId` in the request *body* does not change the answer.
+  grant, a turn's names the thread, an app-key caller's names nobody and carries
+  the level it is charged, and a `threadId` in the request *body* does not change
+  the answer.
 - `apps/server/test/services/browser/browser-bridge.test.ts` — the app's own
   browsing carries no issuer at all, and the field is absent rather than null.
 - `apps/app/src/lib/browser-agent/driving.test.ts` — the indicator stays up
