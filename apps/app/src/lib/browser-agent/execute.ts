@@ -1,6 +1,7 @@
 import {
   BROWSER_COMMAND_MAX_PAGE_TEXT_LENGTH,
   browserCommandSchema,
+  browserExternalAccessAllows,
   permissionForBrowserCommand,
   type BrowserCommandPermission,
   type BrowserRecordOperation,
@@ -308,6 +309,40 @@ function fallsBackToActiveTab(
   return issuer === undefined || issuer.kind === "thread";
 }
 
+/**
+ * Whether "open one of your own" is advice this caller can act on.
+ *
+ * Every refusal below for want of a tab used to end by recommending it, which
+ * is the one thing a `read` caller cannot do: opening a tab costs `tabs.modify`
+ * and that starts at `interact`, so the sentence named the command the reader's
+ * level forbids and sent it to be refused a second time one layer down (#120).
+ *
+ * Asked of the **permission** rather than of the level's name, so a level added
+ * between `read` and `interact` later answers this correctly without being
+ * remembered here.
+ *
+ * True for a turn and for the app's own work, and that is not a level question:
+ * neither is charged this ramp at all — a turn's gate is the plugin toggle and
+ * the permissions the plugin declared. The limit that leaves is a third-party
+ * plugin that declared only `page.read` and serves an agent tool of its own: its
+ * caller reaches this with a thread's issuer, is told to open a tab, and is
+ * refused by the plugin permission gate instead. The issuer carries no plugin
+ * id, so the window cannot tell — it is an accepted limit rather than something
+ * to plumb for.
+ *
+ * True, too, when an outside caller's frame carried no level: an older server,
+ * or one naming a level this build does not know. Both keep the wording that
+ * predates this, which is right for two of the three levels that can reach here
+ * — `interact` and `full`, since `off` refuses every browser command before the
+ * window sees one.
+ */
+function mayOpenOwnTab(issuer: BrowserCommandIssuer | undefined): boolean {
+  if (issuer === undefined || issuer.kind === "thread") return true;
+  return issuer.level === undefined
+    ? true
+    : browserExternalAccessAllows(issuer.level, "tabs.modify");
+}
+
 /** Whether this caller may act on a tab it did not name — see `resolveTab`. */
 function mayUseTab(
   tabId: string,
@@ -374,6 +409,10 @@ function locateTab(
               openTabIds: webTabs.map((each) => each.id),
               owners: tabOwners(deps),
             });
+      // Each of the three has a second form for a caller whose level cannot
+      // open a tab, because the advice half of all three was the one command
+      // such a caller is forbidden (#120). See `mayOpenOwnTab`.
+      const mayOpen = mayOpenOwnTab(issuer);
       return {
         ok: false,
         outcome: failure(
@@ -382,15 +421,43 @@ function locateTab(
           // by an agent holding the tools and by one holding the CLI, and the
           // layer that explains it to each of them passes it through.
           webTabs.length === 0
-            ? "No browser tab is open. Open one first."
+            ? mayOpen
+              ? "No browser tab is open. Open one first."
+              : // Nothing is open, nothing was lent, and opening one is not
+                // this caller's to do — so there is no route here to name, and
+                // the sentence says so rather than inventing one. The person
+                // has to open a page before naming it can ask for anything.
+                "No browser tab is open, and opening one is not something your access allows. Nothing happened. Ask the person to open the page you need, then name that tab."
             : lent !== null
-              ? `You have no browser tab of your own open. The person lent you a look at tab ${lent}: name it to read it, or open one of your own to work in.`
-              : // No tab was named, so nothing was asked for and there is nothing
-                // to wait on. It ended in "ask them to hand you the tab they are
-                // in" until #116: a turn reaches this line only for a tab that is
-                // another agent's, which the person cannot give away, and a caller
-                // outside Patcher has to name a tab for the asking to happen.
-                "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Open one of your own — opening one in the background does not take the person's window.",
+              ? mayOpen
+                ? `You have no browser tab of your own open. The person lent you a look at tab ${lent}: name it to read it, or open one of your own to work in.`
+                : // The same lending, without the half this caller cannot use.
+                  // What replaces it is the thing that trips a caller with one
+                  // lent tab and nothing else: a look claim is never what an
+                  // unnamed tab means, so every command has to name it.
+                  `You have no browser tab of your own open. The person lent you a look at tab ${lent}: name it to read it, and name it on every command — a tab lent for reading is never where an unnamed one lands.`
+              : mayOpen
+                ? // No tab was named, so nothing was asked for and there is nothing
+                  // to wait on. It ended in "ask them to hand you the tab they are
+                  // in" until #116: a turn reaches this line only for a tab that is
+                  // another agent's, which the person cannot give away, and a caller
+                  // outside Patcher has to name a tab for the asking to happen.
+                  "You have no browser tab of your own open, and the tabs that are open are not yours to work in. Open one of your own — opening one in the background does not take the person's window."
+                : need === "tabs.read"
+                  ? // A tab's address and its title answer for *any* tab, to
+                    // every caller, because the listing hands them over anyway
+                    // (#116) — so naming one is not an ask here, it is the
+                    // answer, and a sentence about consent would be describing
+                    // something that does not happen.
+                    "You have no browser tab of your own open, and the tabs that are open are not yours to work in. This command is not one of the ones that needs to be: name any tab from the listing and it answers."
+                  : // The issue's own case. Naming one of the person's tabs is
+                    // the whole of what this caller can do, and it is what asks
+                    // them for it — the caveats on that ask belong to the
+                    // refusal it gets next, which is where naming a tab
+                    // arrives. Conditional, because the open tabs may all be
+                    // other agents': the sentence must not presume a tab of the
+                    // person's that is not there.
+                    "You have no browser tab of your own open, and the tabs that are open are not yours to work in. If any of them is the person's, naming it is what asks them for it, and they can hand it over or lend you a look at it; a tab that belongs to another agent cannot be handed to you at all.",
         ),
       };
     }
@@ -455,6 +522,7 @@ function resolveTab(
   // look at is still the person's, and a refusal that named the other agent
   // would tell this caller about a claim it has no business knowing.
   const held = owner === "agent" ? claim?.issuer : undefined;
+  const mayOpen = mayOpenOwnTab(issuer);
   if (owner === "person" || owner === "shared") {
     // The person is the only one who can answer this, so put the question
     // where they are. From `shared` it is the ask to go further, which is the
@@ -484,11 +552,22 @@ function resolveTab(
                   // Patcher screen holds the tab in front of them, and it does
                   // not survive a reload of their window — so this promises no
                   // event to wait for, and gives the ask itself as the retry.
-                  "Work in a tab of your own — opening one in the background does not take the person's window. Naming it is what asks them for it; they answer in the browser window, and the ask does not survive a reload of it, so if nothing has changed after a wait, name it again rather than treating this as final."
+                  //
+                  // The first clause is dropped for a caller that cannot open a
+                  // tab (#120); the rest is the answer either way, and it is the
+                  // half that works for the level that has nothing else.
+                  `${mayOpen ? "Work in a tab of your own — opening one in the background does not take the person's window. " : ""}Naming it is what asks them for it; they answer in the browser window, and the ask does not survive a reload of it, so if nothing has changed after a wait, name it again rather than treating this as final.`
                 : // Another agent's. The person can take a tab back from the
                   // strip's menu but has no way to give one away, so "ask them to
                   // hand this one over" was an errand with no destination.
-                  "Work in a tab of your own — opening one in the background does not take the person's window."
+                  //
+                  // For a caller that cannot open a tab either, the one answer
+                  // left is that there is no answer: dropping the clause would
+                  // leave a refusal that says whose the tab is and nothing about
+                  // what to do, which is the shape that gets retried (#120).
+                  mayOpen
+                  ? "Work in a tab of your own — opening one in the background does not take the person's window."
+                  : "Nothing happened, and nobody can give you this one: the person can take a tab back but has no way to hand one on, and opening one of your own is not something your access allows. A tab that is the person's own is the one you can ask for, by naming it."
             }`
       }`,
     ),

@@ -73,6 +73,12 @@ Two failures are worth telling apart before you conclude anything:
 - **Navigate** — open a URL, go back, forward, reload, and open, close or
   activate a tab.
 
+Three prices, not one, and outside Patcher you may hold only the first: `status`
+says which, in these words — "read pages" is the first bullet alone, "read pages
+and act on them" is all three. Read it before planning a route, because the
+second and third bullets include **opening a tab of your own**, which the next
+section builds on.
+
 Page text is read in an isolated world, so a page can neither forge the result
 nor notice the read, and what comes back is size-capped with a two-second
 timeout. Prefer reading text over taking a screenshot when you want to know what
@@ -90,15 +96,20 @@ ask for. `url` and `title` answer for any tab for the same reason: they read
 that listing's record of a tab, not its page. (Inside a Patcher thread you may
 still work in their tab; you still cannot touch another agent's.)
 
-So the first thing to do is get a tab of your own:
+So the first thing to do is get a tab of your own — **when your access allows
+one.** `status` said which you have: at "read pages" opening one is not yours to
+do. The other way to have a tab of your own is for the user to give you theirs —
+**Hand it over** below makes their tab yours, and it costs you nothing — so for
+that level the asking is not a fallback. It is the route, and it is a fine one.
 
 ```bash
-patcher browser open https://example.com --background   # yours, and it does not steal their window
+patcher browser open https://example.com --background   # when your access allows it; does not steal their window
 patcher browser tabs                                    # `owner:you`, `owner:person`, `owner:agent`, `owner:shared`
 ```
 
-If you truly need the page they are in — they asked you about *this* page —
-name it once. The refusal *is* the request: naming their tab asks them for it,
+If you truly need the page they are in — they asked you about *this* page, or
+opening one of your own is not something your access allows — name it once.
+The refusal *is* the request: naming their tab asks them for it,
 and they answer in a row in their browser window. Tell them you have asked,
 because that row may not be in front of them: it rides the address bar, so a
 Patcher screen holding the main area hides it, and a question another agent got
@@ -174,9 +185,22 @@ guessing.
 Every refusal carries a code and a sentence saying what to do next; read it
 instead of retrying the same call. `desktop_unavailable` means this Patcher runs
 as the web build with no desktop shell, and no retry will change that.
-`no_active_tab` means you have no tab to act in — open one with
-`patcher browser open <url> --background`, which is also the answer when the
-browser has tabs but none of them is yours.
+`no_active_tab` means you have no tab to act in. With access that includes
+opening tabs, the answer is `patcher browser open <url> --background`, and it is
+the same answer when the browser has tabs but none of them is yours. At "read
+pages" that command is refused, and the sentence you get says so: name the tab
+you want from the listing instead. What naming it does depends on the tab and
+the command, and the listing says which tab you are looking at: `url` and
+`title` answer for any of them, because they read that listing's record rather
+than the page; a page read of one they lent you (`owner:shared`) answers too; a
+page read of one of theirs (`owner:person`) is what asks them for it — the
+command itself does not wait, it fails at once, so give them time to answer and
+then name it again rather than retrying in a loop; and a tab that is another
+agent's (`owner:agent`) is refused with nothing asked of anybody, because the
+user has no way to hand that one on. With nothing open at all there is nothing
+to name, and the sentence says that too: ask them to open the page you need.
+Read the sentence rather than assuming which case you are in — it is written
+from what your access is and what is open.
 
 ## Access is off
 

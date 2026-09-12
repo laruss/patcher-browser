@@ -96,7 +96,15 @@ last" depends on history it cannot see.
   explaining it to a caller — because the answer turns on whether the ask has
   already been raised, which only the executor knows (#116).
 - An unqualified command from a caller with no tab of its own is `no_active_tab`
-  with a different sentence — there *is* a tab, it is not yours, open one.
+  with a different sentence — there *is* a tab, it is not yours, open one. Which
+  it says only to a caller that may: opening a tab costs `tabs.modify`, so at the
+  `read` external-access level that advice named the one command the reader is
+  forbidden, and the sentence is now the route that level does have — name one of
+  the person's tabs, which is what asks them for it (#120). Not for the two
+  priced `tabs.read`: an address and a title answer for any tab that is named, so
+  theirs says that instead of describing an ask that never happens. And where
+  there is no route at all — nothing open, nothing lent, nothing openable — it
+  says so rather than inventing one.
 
 ## Look, don't touch
 

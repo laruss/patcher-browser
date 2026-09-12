@@ -3,6 +3,7 @@ import {
   BRANCH_LIST_QUERY_MAX_LENGTH,
   BROWSER_COMMAND_MAX_TRACE_DETAIL_LENGTH,
   browserAccessGrantLevelSchema,
+  browserExternalAccessLevelSchema,
   browserCommandRecordDetail,
   browserCommandSchema,
   changedMessageLenientSchema,
@@ -233,11 +234,27 @@ export const pluginSignalLenientSchema = z.object({
  * `browser-caller-handoff.ts` in the server. What is still nobody's is the work
  * a plugin does by itself: a schedule, a background service, a page script.
  *
- * `outside` has no fields on purpose. A caller holding the app key from a
+ * `outside` names nobody on purpose. A caller holding the app key from a
  * terminal is exactly as identified as the app key is — which is to say the
  * install knows *that* something outside Patcher is driving and cannot know
  * *what*. Naming it anything more specific would be an invention. A grant is
  * the answer to that, and carries the name a person gave it.
+ *
+ * **The level it carries is not a name.** It is how far this install lets such
+ * a caller go — the server's own setting, decided before the command was sent.
+ * Said back to the caller itself as well, when what it is running is
+ * `patcher browser`: `ctx.caller` carries it for that plugin's CLI alone
+ * (`PluginCliCaller`), so a caller reaching the browser through some other
+ * plugin's command learns its level from a refusal and not before. The window is
+ * told either way, because the window is where a refusal for want of a tab is
+ * written, and a refusal that advises opening one sends a caller whose level
+ * cannot afford that to be refused again one layer down (#120).
+ *
+ * Optional, and catching an unrecognised value to undefined rather than
+ * failing: absent means an older server, a value this build does not know means
+ * a level added after it, and both are a window that words the refusal the way
+ * it always did. Failing instead would drop the issuer, which is not the small
+ * loss it looks like — see the lenient schema below.
  */
 export const browserCommandIssuerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("thread"), threadId: z.string().min(1) }),
@@ -247,7 +264,10 @@ export const browserCommandIssuerSchema = z.discriminatedUnion("kind", [
     label: z.string().min(1),
     level: browserAccessGrantLevelSchema,
   }),
-  z.object({ kind: z.literal("outside") }),
+  z.object({
+    kind: z.literal("outside"),
+    level: browserExternalAccessLevelSchema.optional().catch(undefined),
+  }),
 ]);
 export type BrowserCommandIssuer = z.infer<typeof browserCommandIssuerSchema>;
 
@@ -291,7 +311,18 @@ export const browserCommandRequestSignalLenientSchema = z.object({
   // survive a newer server: a fourth kind would otherwise fail the parse, and
   // `ws.ts` drops a signal it cannot parse — so an *older app* would stop
   // answering browser commands altogether and every tool call would time out.
-  // Degrading to "no indicator" is the failure this copy exists to have.
+  //
+  // What it degrades to is worse than the "no indicator" this said until #120.
+  // An issuer the app dropped is an issuer the app never had, and a command
+  // with no issuer is the app's *own* browsing: it falls back to the tab the
+  // person is looking at and every ownership check short-circuits
+  // (`execute.ts`). So the `outside` member forgives what it can on its own —
+  // an unknown `level` there costs the level and not the caller — and this catch
+  // is the last resort for what no member can read: a kind this build has never
+  // heard of, and a `grant` whose level is one, since that member's enum is
+  // required and has no catch of its own. Closing the second of those is a
+  // precondition of adding a level at all, and is recorded on #128 rather than
+  // done here.
   issuer: browserCommandIssuerSchema.optional().catch(undefined),
 });
 

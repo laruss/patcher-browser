@@ -203,6 +203,51 @@ the same reason it was removed at all: it lives outside the data directory, so
 the rename never reached it, and it tells agents to run a binary this fork does
 not ship.
 
+### Advice a level can afford
+
+**No refusal for want of a tab recommends work the caller's level forbids.** The
+five that decide *whose* tab a command lands on, which is where the defect was —
+not every refusal in the browser; `tab_not_live` still says "Activate it" to
+everybody, and "What this does not close" says why. It is one sentence and it was
+broken in all five places, because the level that exists to read pages cannot
+reach a page on its own: every page read resolves a tab first, a caller outside
+Patcher has no default tab but its own, and *opening* one of its own costs
+`tabs.modify` — which starts at `interact`. (Being handed one costs nothing, and
+that is the route below.) So the window's answer for want of a
+tab ended by telling a `read` caller to open one, and `patcher browser open` then
+told it the level does not allow that. Measured against the packaged
+0.1.1-alpha.4 and reproduced in `tab-ownership.test.ts` (#120).
+
+The route that level *does* have arrived with #116 and #117 and is what the
+sentences now name: **naming one of the person's tabs is what asks them for it**,
+and they can hand it over or lend a look at it — reading answers on a lent tab,
+and `tabs.release` gives it back at `tabs.read`, so the lending is not one-way.
+Measured: with a `read` grant, naming the person's tab raises the ask, and the
+lent tab then reads.
+
+**Except where naming a tab is the answer rather than the ask.** A tab's address
+and its title are priced `tabs.read`, which `resolveTab` lets past for any named
+tab because the listing hands both over to every caller anyway (#116) — so those
+two get a sentence that says to name one, and no sentence about consent. Getting
+that wrong would have been #116's own defect one case over: a refusal describing
+a row that never appears on the person's screen. The first review pass of #120
+caught it.
+
+Two of the five have no route to name — nothing open, or a tab that is another
+agent's, which the person can take back but has no way to hand on — and those say
+that nothing happened and who to ask, rather than inventing one.
+
+What made this decidable in the window is the level on the issuer, which is the
+one field `outside` carries. Asked of the **permission** rather than of the
+level's name (`browserExternalAccessAllows(level, "tabs.modify")`), so a rung
+inserted between `read` and `interact` answers it correctly without being
+remembered in the window.
+
+Not fixed here, and deliberately: whether that rung should exist (#128). The
+advice was wrong either way — a plain `read` grant still cannot open a tab — and
+what the rung would add is an agent that chooses which logged-in page it reads,
+which is the line between `read` and `interact` rather than a detail of it.
+
 ## The credential, which is what makes it a boundary
 
 Everything above decides what an agent outside Patcher may do. The section below
@@ -394,10 +439,16 @@ it is answering at the route, and the socket that carries the command is forty
 call sites away, so the caller rides the same `AsyncLocalStorage` shape the
 access scope uses (`browser-command-issuer.ts`) and the bridge attaches it to
 `browser-command-request`. Three answers — a `thread`, a `grant` with the label
-and level a person gave it, and a bare `outside` — and *absent*, which is
+and level a person gave it, and an `outside` that names nobody — and *absent*,
+which is
 usually the app's own browsing and must stay silent. A caller holding the app key
-gets `outside` with nothing else, because that is exactly as identified as the
-app key is; naming it would be an invention.
+gets `outside` with the level it is charged and nothing else, because that is
+exactly as identified as the app key is; naming it would be an invention. The
+level is not a name — it is this install's own setting, decided before the
+command was sent, and said back to the caller itself only when what it is
+running is `patcher browser`, since `ctx.caller` carries it for that plugin's CLI
+alone. The window is told either way, because the window writes the refusals, one
+of which used to advise opening a tab to a caller whose level forbids it (#120).
 
 **It reaches exactly what the access scope reaches** — which, since the caller
 crosses the plugin channel, is both kinds of plugin. Commands issued on the
@@ -598,6 +649,20 @@ ignored it is refused a command later exactly as before.
 
 Named here rather than left to be rediscovered.
 
+- **One refusal still recommends what a `read` caller cannot do.** A page read of
+  a tab with no live view answers `tab_not_live`, and the sentence a caller reads
+  for that code is the browser-tools plugin's own fixed one, which opens with
+  "Activate it" — and `tabs.activate` is priced `tabs.modify`. Reachable, if
+  narrowly: a tab lent or handed over while it has never been the active tab with
+  the Browser surface mounted. It was left alone with #120 rather than fixed
+  there, because the sentence is written in the plugin layer, which cannot ask
+  the ladder — the plugin depends on the SDK and zod, and the SDK exports no
+  level predicate — so the plugin would have to keep its own copy of which levels
+  can activate a tab, and that copy is what goes stale the day a level is added
+  (#128). The window's own message for the same code names no command; passing it
+  through, the way `no_active_tab` and `page_stalled` already are, is the shape of
+  the fix, and it costs an `interact` caller the one hint it could act on. Found
+  by review.
 - **A caller holding the app key can write the install-wide setting as easily as
   read it.** The key is a `0600` file readable by any process running as the
   user, so that setting is a default rather than a boundary — which is why the
@@ -732,8 +797,9 @@ Named here rather than left to be rediscovered.
   stand-in browser host's socket rather than off the bridge, because the field
   has to survive the route, the ambient scope, the bridge and the hub, and the
   schema makes omitting it valid at every step: a grant's command names the
-  grant, a turn's names the thread, an app-key caller's says only `outside`, and
-  a `threadId` in the request *body* does not change the answer.
+  grant, a turn's names the thread, an app-key caller's names nobody and carries
+  the level it is charged, and a `threadId` in the request *body* does not change
+  the answer.
 - `apps/server/test/services/browser/browser-bridge.test.ts` — the app's own
   browsing carries no issuer at all, and the field is absent rather than null.
 - `apps/app/src/lib/browser-agent/driving.test.ts` — the indicator stays up
@@ -840,6 +906,13 @@ PATCHER_AGENT_KEY=<the key> patcher browser text     # indicator appears; then c
 PATCHER_AGENT_KEY=<the key> patcher browser text     # 401, "is paused", not "was revoked"
 patcher agent-access resume <id>
 ```
+
+`text` exits 1 both times it runs, and that is not the recipe failing: a `read`
+grant with no tab of its own is refused `no_active_tab` by the window, which is
+after the command has reached it — `page.read` is a price this level pays, so the
+gate passes it, the row is drawn before the command is performed, and the
+indicator is what these three lines are for. Swap in `patcher browser tabs` for a
+line that draws the same row and exits 0.
 
 The row's line and the record are the other half no test spans, because the
 rendering crosses the route, the hub, a socket and two windows: with two
