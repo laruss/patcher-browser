@@ -188,10 +188,10 @@ times, so three places split on the sub-operation instead:
   (`page.interact`); arbitrary JavaScript is not (`page.inject`); a mocked or
   severed network is neither (`network.intercept`).
 - **`page.observe`** is reading the page (`page.read`) except for the network
-  log (`network.observe`): every request the tab finished — endpoints, query
-  strings, cache hits, the pages it was on before this one — where the rest of
-  the group is what the page showed or wrote. It carries no headers, whatever
-  that line said until #121.
+  log (`network.observe`): a fixed-size ring of the requests the tab finished —
+  endpoints, query strings, cache hits, the pages it was on before this one —
+  where the rest of the group is what the page showed or wrote. It carries no
+  headers, whatever that line said until #121.
 - **`sdk.subscribe`** is a single function whose argument picks the feed, and
   one feed is thread activity. Gating it as an area would have handed every
   `workspace` plugin a live view of the user's threads.

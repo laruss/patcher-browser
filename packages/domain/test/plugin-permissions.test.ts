@@ -266,14 +266,16 @@ describe("what the network log discloses", () => {
     if (result.type !== "network") {
       return;
     }
-    expect(Object.keys(result.entries[0] ?? {})).toEqual([
+    // Sorted, because the wire is the field set and not the order the schema
+    // happens to declare it in.
+    expect(Object.keys(result.entries[0] ?? {}).sort()).toEqual([
+      "error",
+      "fromCache",
       "method",
-      "url",
       "resourceType",
       "status",
-      "fromCache",
-      "error",
       "timestamp",
+      "url",
     ]);
   });
 });
