@@ -62,7 +62,7 @@ The complete manifest, with the optional fields SKILL.md leaves out:
   | `page.read`             | page text, selection, snapshot, screenshot, PDF, console                                                                                  |
   | `page.interact`         | `page.act`, `page.scroll`, answering page dialogs, mouse input, `page.zoom`                                                               |
   | `page.inject`           | `browser.control.evaluate` — arbitrary JavaScript in the page                                                                             |
-  | `network.observe`       | the page's network log, including headers                                                                                                 |
+  | `network.observe`       | the tab's network log — method, address, type, status or `net::ERR_*`, cache, time; no headers                                            |
   | `network.intercept`     | route mocking, unrouting, forcing a tab offline                                                                                           |
   | `page.credentials`      | `browser.storage.*` — the user's cookies and site storage                                                                                 |
   | `page.record`           | `browser.recording.*` — traces and video                                                                                                  |

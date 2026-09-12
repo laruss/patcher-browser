@@ -52,7 +52,14 @@ export const PLUGIN_PERMISSIONS = [
   "tabs.read",
   /** What a page contains: text, selection, snapshot, screenshot, console. */
   "page.read",
-  /** The network log of a browsed page, including request and response headers. */
+  /**
+   * The network log of a browsed page — for each request the tab finished: the
+   * method, the address, the resource type, the status or Chromium's
+   * `net::ERR_*` name when there was none, whether it was served from cache,
+   * and when. No headers: this said "including request and response headers"
+   * from the day the file was written until #121, and the wire never carried
+   * any.
+   */
   "network.observe",
 
   // -- Browser: acting ------------------------------------------------------

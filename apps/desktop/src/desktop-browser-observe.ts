@@ -16,7 +16,9 @@
  *
  * What that costs, stated rather than discovered: `console-message` hands over
  * text Chromium has already flattened, so there are no structured arguments and
- * no stack traces, and `webRequest` sees headers and status but never bodies.
+ * no stack traces, and `webRequest` reports headers that an entry does not
+ * keep: `toBrowserNetworkEntry` records a request's method, address, type,
+ * outcome and cache, never its headers or its body (#121).
  * Both are what an agent needs to answer "did this page error" and "what did it
  * call"; neither is a DevTools panel.
  */
