@@ -54,10 +54,11 @@ export const PLUGIN_PERMISSIONS = [
   "page.read",
   /**
    * The network log of a browsed page — for each request it kept: the method,
-   * the address, the resource type, the status or Chromium's `net::ERR_*` name
-   * when there was none, whether it was served from cache, and when. No
-   * headers: this said "including request and response headers" from the day
-   * the file was written until #121, and the wire never carried any.
+   * the address, the resource type, the status once a response arrived,
+   * Chromium's `net::ERR_*` name if it failed — both, when it failed after the
+   * headers came back — whether it was served from cache, and when. No headers:
+   * this said "including request and response headers" from the day the file
+   * was written until #121, and the wire never carried any.
    */
   "network.observe",
 

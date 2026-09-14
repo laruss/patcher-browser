@@ -137,14 +137,19 @@ export function toBrowserNetworkEntry(
   // it is the thing worth searching for, and rewording it would only make it
   // harder to look up.
   //
-  // `net::OK` is the one that must not be kept. `onCompleted` fills `error`
-  // through the same `net::ErrorToString(net_error)` as `onErrorOccurred`, with
-  // no branch for success, and `ErrorToString(net::OK)` is the string
-  // "net::OK" — so a request that simply worked arrives carrying an error. The
-  // listing shows the error whenever there is one, so keeping it would put
-  // "net::OK" where every status belongs (#121).
+  // Two of those names are not failures and must not be kept. `onCompleted`
+  // fills `error` through the same `net::ErrorToString(net_error)` as
+  // `onErrorOccurred`, with no branch for success: a request that simply worked
+  // arrives as "net::OK", and a WebSocket that upgraded arrives as
+  // "net::ERR_WS_UPGRADE", the code Chromium completes a *successful* handshake
+  // with. The listing shows the error whenever there is one, so keeping either
+  // would put it where the status belongs — the response's own, or the
+  // handshake's 101 (#121).
   const reported = typeof details.error === "string" ? details.error : "";
-  const error = reported === "net::OK" ? "" : reported;
+  const error =
+    reported === "net::OK" || reported === "net::ERR_WS_UPGRADE"
+      ? ""
+      : reported;
   return {
     method: truncate(
       typeof details.method === "string" ? details.method : "",

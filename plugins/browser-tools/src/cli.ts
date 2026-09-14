@@ -417,7 +417,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     usage: "patcher browser network [--tab <tab-id>] [--max <n>] [--json]",
     options: ["--tab", "--max", "--json"],
     details: [
-      "The first column is the status, or the net::ERR_* name when there was no response.",
+      "The first column is the net::ERR_* name when the request failed, and the status otherwise.",
       "Tab-scoped rather than page-scoped: a navigation does not clear it.",
     ],
   },
@@ -1114,8 +1114,10 @@ function consoleLine(entry: PluginBrowserConsoleEntry): string {
 }
 
 function networkLine(entry: PluginBrowserNetworkEntry): string {
-  // The status column carries the error when there is no status, because
-  // "which requests went wrong" is the question this listing exists for.
+  // The status column carries the error whenever there is one — including a
+  // failure that arrived after the headers, which has a status as well —
+  // because "which requests went wrong" is the question this listing exists
+  // for.
   const outcome =
     entry.error ?? (entry.status === null ? "-" : String(entry.status));
   return `${outcome}\t${entry.method}\t${entry.resourceType}${
