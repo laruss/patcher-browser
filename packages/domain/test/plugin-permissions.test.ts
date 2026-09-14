@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   browserCommandSchema,
+  browserCommandValueSchema,
   type BrowserCommand,
 } from "../src/browser-control.js";
 import {
@@ -220,6 +221,62 @@ describe("patcher.permissions in the manifest", () => {
     const parsed = pluginPackageJsonSchema.safeParse(manifest(undefined));
 
     expect(parsed.success).toBe(true);
+  });
+});
+
+/**
+ * What `network.observe` actually discloses, which is what the three sentences
+ * describing it are written from: the comment on the permission itself, the
+ * `page.observe` split in docs/architecture/plugin-permissions.md, and the
+ * manifest table in the patcher-plugin-authoring skill. All three promised
+ * request and response headers from the day the permission list was written
+ * until #121, and no header was ever on the wire — a person pricing the
+ * permission was reading about `Authorization` and `Cookie` values it cannot
+ * reach.
+ *
+ * So this asserts the wire rather than the field list: a desktop build that
+ * started sending headers would have them dropped here, and adding them on
+ * purpose fails this test — which is where the reader is told that those three
+ * sentences now describe something cheaper than the permission is.
+ */
+describe("what the network log discloses", () => {
+  it("carries no headers, whatever arrives with an entry", () => {
+    const result = browserCommandValueSchema.parse({
+      type: "network",
+      tabId: "t1",
+      url: "https://example.test/",
+      title: null,
+      entries: [
+        {
+          method: "GET",
+          url: "https://example.test/api?token=secret",
+          resourceType: "xhr",
+          status: 200,
+          fromCache: false,
+          error: null,
+          timestamp: 1,
+          requestHeaders: { authorization: "Bearer let-me-in" },
+          responseHeaders: { "set-cookie": "session=1" },
+        },
+      ],
+      droppedCount: 0,
+    });
+
+    expect(result.type).toBe("network");
+    if (result.type !== "network") {
+      return;
+    }
+    // Sorted, because the wire is the field set and not the order the schema
+    // happens to declare it in.
+    expect(Object.keys(result.entries[0] ?? {}).sort()).toEqual([
+      "error",
+      "fromCache",
+      "method",
+      "resourceType",
+      "status",
+      "timestamp",
+      "url",
+    ]);
   });
 });
 

@@ -16,7 +16,9 @@
  *
  * What that costs, stated rather than discovered: `console-message` hands over
  * text Chromium has already flattened, so there are no structured arguments and
- * no stack traces, and `webRequest` sees headers and status but never bodies.
+ * no stack traces, and `webRequest` reports headers that an entry does not
+ * keep: `toBrowserNetworkEntry` records a request's method, address, type,
+ * outcome and cache, never its headers or its body (#121).
  * Both are what an agent needs to answer "did this page error" and "what did it
  * call"; neither is a DevTools panel.
  */
@@ -134,7 +136,20 @@ export function toBrowserNetworkEntry(
   // A `webRequest` error string is the raw `net::ERR_*` name. Left as it is:
   // it is the thing worth searching for, and rewording it would only make it
   // harder to look up.
-  const error = typeof details.error === "string" ? details.error : "";
+  //
+  // Two of those names are not failures and must not be kept. `onCompleted`
+  // fills `error` through the same `net::ErrorToString(net_error)` as
+  // `onErrorOccurred`, with no branch for success: a request that simply worked
+  // arrives as "net::OK", and a WebSocket that upgraded arrives as
+  // "net::ERR_WS_UPGRADE", the code Chromium completes a *successful* handshake
+  // with. The listing shows the error whenever there is one, so keeping either
+  // would put it where the status belongs — the response's own, or the
+  // handshake's 101 (#121).
+  const reported = typeof details.error === "string" ? details.error : "";
+  const error =
+    reported === "net::OK" || reported === "net::ERR_WS_UPGRADE"
+      ? ""
+      : reported;
   return {
     method: truncate(
       typeof details.method === "string" ? details.method : "",

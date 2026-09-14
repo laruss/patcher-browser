@@ -105,6 +105,48 @@ describe("toBrowserNetworkEntry", () => {
     });
   });
 
+  it("does not call a request that worked an error", () => {
+    // `onCompleted` hands over `net::ErrorToString(net_error)` exactly as
+    // `onErrorOccurred` does, so every ordinary request arrives with the string
+    // for success. Keeping it would have shown "net::OK" in place of the status
+    // wherever the error is what gets displayed (#121).
+    const entry = toBrowserNetworkEntry(
+      {
+        url: "https://example.com/app.js",
+        method: "GET",
+        resourceType: "script",
+        statusCode: 200,
+        fromCache: false,
+        error: "net::OK",
+      },
+      3,
+    );
+
+    expect(entry.error).toBeNull();
+    expect(entry.status).toBe(200);
+  });
+
+  it("does not call an upgraded WebSocket an error either", () => {
+    // A successful handshake is completed with `net::ERR_WS_UPGRADE` — the one
+    // other `net_error` that reaches `onCompleted` without anything having gone
+    // wrong. `resourceType` already says it was a socket; the sentinel would
+    // only have hidden the 101.
+    const entry = toBrowserNetworkEntry(
+      {
+        url: "wss://example.com/socket",
+        method: "GET",
+        resourceType: "webSocket",
+        statusCode: 101,
+        fromCache: false,
+        error: "net::ERR_WS_UPGRADE",
+      },
+      4,
+    );
+
+    expect(entry.error).toBeNull();
+    expect(entry.status).toBe(101);
+  });
+
   it("keeps a failure as the net:: name Chromium gave it", () => {
     // Including the firewall's own refusal, which is the case worth being able
     // to recognize rather than guess at.
