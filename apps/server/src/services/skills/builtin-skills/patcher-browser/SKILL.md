@@ -73,11 +73,13 @@ Two failures are worth telling apart before you conclude anything:
 - **Navigate** — open a URL, go back, forward, reload, and open, close or
   activate a tab.
 
-Three prices, not one, and outside Patcher you may hold only the first: `status`
-says which, in these words — "read pages" is the first bullet alone, "read pages
-and act on them" is all three. Read it before planning a route, because the
-second and third bullets include **opening a tab of your own**, which the next
-section builds on.
+Three prices, not one, and outside Patcher you may hold any prefix of them —
+but not the middle one alone: `status` says which, in these words. "read pages"
+is the first bullet; "read pages, and open tabs of your own to read" is the
+first and the **third**, which is the level for browsing on your own without
+touching the person's pages; "read pages and act on them" is all three. Read it
+before planning a route, because **opening a tab of your own** is in the third
+bullet, which the next section builds on.
 
 Page text is read in an isolated world, so a page can neither forge the result
 nor notice the read, and what comes back is size-capped with a two-second
@@ -98,7 +100,7 @@ still work in their tab; you still cannot touch another agent's.)
 
 So the first thing to do is get a tab of your own — **when your access allows
 one.** `status` said which you have: at "read pages" opening one is not yours to
-do. The other way to have a tab of your own is for the user to give you theirs —
+do, and at every level above it is. The other way to have a tab of your own is for the user to give you theirs —
 **Hand it over** below makes their tab yours, and it costs you nothing — so for
 that level the asking is not a fallback. It is the route, and it is a fine one.
 
@@ -229,20 +231,23 @@ per message. If they are still missing, a new thread will have them.
 
 ### You are a terminal beside Patcher
 
-Four positions for the install-wide setting; a grant takes the last three of
-them, because a grant that admits nothing is a grant to revoke rather than to
-issue:
+Five positions for the install-wide setting; a grant takes all but `off`,
+because a grant that admits nothing is a grant to revoke rather than to issue:
 
 | Level      | What it allows                                                          |
 | ---------- | ----------------------------------------------------------------------- |
 | `off`      | Nothing. The default, and the setting's only — not a grant level.        |
 | `read`     | Tabs, page text and structure, screenshots, console and network logs.    |
-| `interact` | The above, plus opening tabs, navigating, clicking and typing.           |
+| `browse`   | The above, plus tabs of your own: open, close, navigate.                 |
+| `interact` | The above, plus clicking, typing, scrolling and answering page dialogs.  |
 | `full`     | The above, plus cookies and site storage, page JavaScript, and recording. |
 
-Ask for the lowest one that does the job — most requests are `read`, and asking
-for `full` to read a page is asking for the user's logins to answer a question
-that did not need them.
+Ask for the lowest one that does the job. `read` is enough when the user is
+handing you the page they are already in; `browse` is the one to name when you
+have to reach a page yourself, and say which page and why — it lets you read
+anything their logins reach, so it is a bigger thing to ask for than its
+position suggests. Asking for `full` to read a page is asking for the user's
+logins to answer a question that did not need them.
 
 **Ask for a grant, not for the setting.** There are two ways to open the browser
 to you, and they are not equivalent:
@@ -255,7 +260,7 @@ That issues a credential for **you alone**. It runs `patcher browser` and
 reaches no other part of Patcher's API, the user sees it in Settings with when it
 was last used, and one click takes it back. The alternative — `patcher settings browser-access read` —
 opens the browser to *every* process on this machine that can read Patcher's key
-file. Same four levels, very different blast radius. So name the grant, and
+file. Same levels, very different blast radius. So name the grant, and
 mention the setting only if they ask for something simpler.
 
 If the user runs it with `--for claude-code` or `--for codex` it configures that

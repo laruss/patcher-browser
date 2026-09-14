@@ -35,6 +35,7 @@ declare const appSettingsSchema: z$1.ZodObject<{
         full: "full";
         off: "off";
         read: "read";
+        browse: "browse";
         interact: "interact";
     }>;
 }, z$1.core.$strict>;
@@ -171,6 +172,7 @@ declare const browserExternalAccessLevelSchema: z$1.ZodEnum<{
     full: "full";
     off: "off";
     read: "read";
+    browse: "browse";
     interact: "interact";
 }>;
 type BrowserExternalAccessLevel = z$1.infer<typeof browserExternalAccessLevelSchema>;
@@ -182,12 +184,13 @@ type BrowserExternalAccessLevel = z$1.infer<typeof browserExternalAccessLevelSch
  * grant stops working, and revoking says so — a date, in a list — where a grant
  * quietly set to `off` would read as working.
  *
- * Derived from the four rather than written out again, so a level added to the
- * ramp lands here too instead of silently staying out of grants.
+ * Derived from the ramp rather than written out again, so a level added to it
+ * lands here too instead of silently staying out of grants.
  */
 declare const browserAccessGrantLevelSchema: z$1.ZodEnum<{
     full: "full";
     read: "read";
+    browse: "browse";
     interact: "interact";
 }>;
 type BrowserAccessGrantLevel = z$1.infer<typeof browserAccessGrantLevelSchema>;
@@ -7132,6 +7135,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
             read: "read";
             full: "full";
             off: "off";
+            browse: "browse";
             interact: "interact";
         }>;
     }, z$1.core.$strict>;
@@ -7575,6 +7579,7 @@ declare const systemBrowserExternalAccessRequestSchema: z$1.ZodObject<{
         read: "read";
         full: "full";
         off: "off";
+        browse: "browse";
         interact: "interact";
     }>;
 }, z$1.core.$strip>;
@@ -7585,6 +7590,7 @@ declare const systemBrowserExternalAccessResponseSchema: z$1.ZodObject<{
         read: "read";
         full: "full";
         off: "off";
+        browse: "browse";
         interact: "interact";
     }>;
     browserToolsEnabled: z$1.ZodBoolean;
@@ -7603,6 +7609,7 @@ declare const systemBrowserAccessGrantCreateRequestSchema: z$1.ZodObject<{
     level: z$1.ZodEnum<{
         read: "read";
         full: "full";
+        browse: "browse";
         interact: "interact";
     }>;
 }, z$1.core.$strip>;
@@ -7623,6 +7630,7 @@ declare const systemBrowserAccessGrantCreateResponseSchema: z$1.ZodObject<{
         level: z$1.ZodEnum<{
             read: "read";
             full: "full";
+            browse: "browse";
             interact: "interact";
         }>;
         createdAt: z$1.ZodNumber;
@@ -7641,6 +7649,7 @@ declare const systemBrowserAccessGrantListResponseSchema: z$1.ZodObject<{
         level: z$1.ZodEnum<{
             read: "read";
             full: "full";
+            browse: "browse";
             interact: "interact";
         }>;
         createdAt: z$1.ZodNumber;

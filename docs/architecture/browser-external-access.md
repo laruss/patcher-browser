@@ -44,7 +44,8 @@ walk around it, the one that was not there.
 | ---------- | ---------------------------------------------------------------------------- |
 | `off`      | Nothing.                                                                     |
 | `read`     | `tabs.read`, `page.read`, `network.observe`                                  |
-| `interact` | plus `tabs.modify`, `page.interact`                                          |
+| `browse`   | plus `tabs.modify`                                                           |
+| `interact` | plus `page.interact`                                                         |
 | `full`     | plus `page.credentials`, `page.inject`, `network.intercept`, `page.record`   |
 
 The levels are groups of permissions the browser commands **already** cost, so
@@ -62,6 +63,52 @@ would have had to price itself at the higher of the two, which means either
 refusing the common case or granting the rare one by default. That is the same
 argument `patcher.sites` makes about *where* a plugin reaches, applied to *how
 far*.
+
+### The rung between reading and acting
+
+`browse` is `read` plus `tabs.modify`: opening, closing and navigating tabs of
+its own. It was split out of #120 as a question and answered as #128.
+
+**What it is for.** `read` cannot reach a page on its own — every page read
+resolves a tab first, a caller outside Patcher has no default tab but its own,
+and opening one costs `tabs.modify`. So until this rung, an agent asked to look
+something up in the person's browser had to be granted `interact`, which also
+lets it click and type on a site they are signed in to. The rung is the smaller
+thing to hand over for a job people were already doing at the larger one.
+
+**The objection, and where it lands.** `tabs.modify` is not the power to change
+something — ownership keeps this level off every tab the person opened
+(`resolveTab`, and [browser-tab-ownership.md](browser-tab-ownership.md)) — it is
+the power to *choose which signed-in page gets read*. Cookies belong to the
+session and not to a tab, so an agent that can name an address can read the mail,
+the bank, the admin console. That is real, and it is an argument about the
+sentence the person reads rather than about whether the step exists: `read` keeps
+its own invariant — everything it admits is already on their screen — precisely
+because the rung is not `read`. What the rung's own line has to say is that it
+reads whatever the logins reach and picks the page itself.
+
+**And an address is not only a read.** A GET in a signed-in session is an action
+on plenty of sites: a one-click unsubscribe, a confirmation link out of a mail, a
+logout, a `?delete=` in a query string. So "it cannot click or type" is not the
+same claim as "nothing can change", and the level's line does not make the second
+one.
+
+**Two things it touches that pricing could not withhold.** `tabs.activate` brings
+its own tab to the front of the person's window, and `tabs.pin`, `tabs.move` and
+`tabs.mute` land in the strip they are looking at. Neither can be priced away:
+`tabs.open` carries `activate: boolean` and costs the same `tabs.modify`, so
+withholding activation would take a new member of the permission vocabulary —
+which is mirrored into the generated plugin `.d.ts` — and refusing it in the
+window instead would answer one permission two ways, which is the defect #116
+was. Both are in the level's own sentence rather than in a promise it cannot
+keep.
+
+**A grant may be issued at it**, because grant levels are derived from the ramp
+rather than listed again. And nothing about a *lent* tab moves:
+`LOOK_CLAIM_ADMITS` still draws `read`'s line, which is what the person is saying
+yes to about one tab — though what lending is *worth* changes, since a caller
+that can open its own tab is being lent the page's live state rather than access
+to the page at all.
 
 ### The gate is the host's, and it is per command
 
@@ -212,8 +259,9 @@ everybody, and "What this does not close" says why. It is one sentence and it wa
 broken in all five places, because the level that exists to read pages cannot
 reach a page on its own: every page read resolves a tab first, a caller outside
 Patcher has no default tab but its own, and *opening* one of its own costs
-`tabs.modify` — which starts at `interact`. (Being handed one costs nothing, and
-that is the route below.) So the window's answer for want of a
+`tabs.modify`, which `read` does not admit — it started at `interact`, and since
+#128 it starts at `browse`. (Being handed one costs nothing, and that is the
+route below.) So the window's answer for want of a
 tab ended by telling a `read` caller to open one, and `patcher browser open` then
 told it the level does not allow that. Measured against the packaged
 0.1.1-alpha.4 and reproduced in `tab-ownership.test.ts` (#120).
@@ -243,10 +291,11 @@ level's name (`browserExternalAccessAllows(level, "tabs.modify")`), so a rung
 inserted between `read` and `interact` answers it correctly without being
 remembered in the window.
 
-Not fixed here, and deliberately: whether that rung should exist (#128). The
-advice was wrong either way — a plain `read` grant still cannot open a tab — and
-what the rung would add is an agent that chooses which logged-in page it reads,
-which is the line between `read` and `interact` rather than a detail of it.
+That rung now exists and is `browse` — see "The rung between reading and acting"
+above. The advice was wrong either way, which is why #120 fixed it without
+waiting for the answer: a plain `read` grant still cannot open a tab, and what
+the rung adds is an agent that chooses which signed-in page it reads, which was
+the line between `read` and `interact` rather than a detail of it.
 
 ## The credential, which is what makes it a boundary
 
@@ -658,11 +707,16 @@ Named here rather than left to be rediscovered.
   there, because the sentence is written in the plugin layer, which cannot ask
   the ladder — the plugin depends on the SDK and zod, and the SDK exports no
   level predicate — so the plugin would have to keep its own copy of which levels
-  can activate a tab, and that copy is what goes stale the day a level is added
-  (#128). The window's own message for the same code names no command; passing it
-  through, the way `no_active_tab` and `page_stalled` already are, is the shape of
-  the fix, and it costs an `interact` caller the one hint it could act on. Found
-  by review.
+  can activate a tab, and that copy is what goes stale the day a level is added.
+  #128 added one and the warning held: activation is admitted from `browse` up,
+  so this sentence is now wrong for `read` alone. That copy was never written, so
+  nothing went stale — the other one in the same file, the words
+  `patcher browser status` says for each level, is now typed over
+  `PluginCliCaller["level"]` and cannot be forgotten again. The window's own
+  message for the same code names no command; passing it through, the way
+  `no_active_tab` and `page_stalled` already are, is the shape of the fix, and it
+  costs a `browse` or `interact` caller the one hint it could act on. Found by
+  review.
 - **A caller holding the app key can write the install-wide setting as easily as
   read it.** The key is a `0600` file readable by any process running as the
   user, so that setting is a default rather than a boundary — which is why the

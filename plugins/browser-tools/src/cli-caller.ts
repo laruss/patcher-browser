@@ -14,9 +14,21 @@ import type { PluginCliCaller } from "@patcher/plugin-sdk";
  * enum, because the reader may have to repeat it to a person.
  */
 
-const LEVEL_WORDS: Record<string, string> = {
+/**
+ * Typed by the SDK's own caller rather than by `string`, so a level added to the
+ * ramp does not compile here until it has a word. `PluginCliCaller["level"]` is
+ * the whole ramp — the SDK exports no level type of its own — and this is the
+ * copy `browser-external-access.md` names as the thing that goes stale the day a
+ * level is added (#128).
+ *
+ * Read with a fallback all the same, because the value arrives on the CLI
+ * context and not from this module: a raw level is a better answer at somebody's
+ * terminal than `undefined`.
+ */
+const LEVEL_WORDS: Record<PluginCliCaller["level"], string> = {
   off: "nothing — this install does not let agents outside Patcher drive the browser",
   read: "read pages",
+  browse: "read pages, and open tabs of your own to read",
   interact: "read pages and act on them",
   full: "everything, including your logins",
 };

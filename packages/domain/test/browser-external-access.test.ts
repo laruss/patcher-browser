@@ -70,7 +70,31 @@ describe("browser access levels for agents outside Patcher", () => {
       expect(browserExternalAccessAllows("full", permission)).toBe(true);
     }
     expect(browserExternalAccessAllows("read", "tabs.modify")).toBe(false);
-    expect(browserExternalAccessAllows("interact", "tabs.modify")).toBe(true);
+    expect(browserExternalAccessAllows("browse", "tabs.modify")).toBe(true);
+  });
+
+  it("keeps the click above browsing on the user's behalf", () => {
+    // The rung #128 added, asserted as the pair on either side of it rather
+    // than as a row in the table. What `browse` buys is a tab of its own, which
+    // is how an agent reaches a page the person is not in; what it withholds is
+    // acting on the page it reached. Both halves, because a level that admitted
+    // the click would be `interact` under another name and a level that refused
+    // the tab would be `read` under another name.
+    expect(browserExternalAccessAllows("browse", "tabs.modify")).toBe(true);
+    expect(browserExternalAccessAllows("browse", "page.interact")).toBe(false);
+    expect(browserExternalAccessAllows("interact", "page.interact")).toBe(true);
+    // And it is still below the group that hands over more than the user's own
+    // hands do, which is what the ramp test proves generally and this pins for
+    // the new rung in particular.
+    expect(browserExternalAccessAllows("browse", "page.credentials")).toBe(
+      false,
+    );
+    // The refusal an agent reads still names `interact` for a click, because
+    // the lowest level that admits one has not moved.
+    expect(lowestBrowserExternalAccessLevelFor("page.interact")).toBe(
+      "interact",
+    );
+    expect(lowestBrowserExternalAccessLevelFor("tabs.modify")).toBe("browse");
   });
 
   it("admits both ways of moving a page at the level that admits a click", () => {

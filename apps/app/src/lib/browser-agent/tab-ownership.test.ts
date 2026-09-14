@@ -47,6 +47,13 @@ const READING_OUTSIDE: BrowserCommandIssuer = {
   kind: "outside",
   level: "read",
 };
+/** The rung #128 added: may open a tab of its own, may not act in anyone's. */
+const BROWSING_GRANT: BrowserCommandIssuer = {
+  kind: "grant",
+  grantId: "grant_4",
+  label: "Zed",
+  level: "browse",
+};
 
 function ownedBy(entries: Array<[string, BrowserCommandIssuer]>) {
   return new Map(
@@ -634,15 +641,18 @@ describe("tab ownership", () => {
  * What a refusal for want of a tab may tell a caller to do.
  *
  * The rule: no refusal recommends work the caller's level forbids. Opening a tab
- * costs `tabs.modify` and that starts at `interact`, so every one of these
- * sentences used to end by naming the one command a `read` caller cannot run —
+ * costs `tabs.modify`, which `read` does not admit — it started at `interact`
+ * and starts at `browse` since #128 — so every one of these sentences used to
+ * end by naming the one command a `read` caller cannot run —
  * measured against the packaged 0.1.1-alpha.4, where `patcher browser text`
  * under a `read` grant answered "Open one of your own" and
  * `patcher browser open` then answered that the level does not allow it (#120).
  *
  * The wording for a caller that *can* open one is pinned by the tests above,
  * which drive an `interact` grant and a turn: this file would otherwise be as
- * green with the old sentence given to everybody.
+ * green with the old sentence given to everybody. The rung between the two is
+ * pinned at the end, from both sides — it is the level that may open a tab and
+ * may not touch the person's.
  */
 describe("advice a caller's level can afford", () => {
   it("sends a read caller to name a tab rather than open one", async () => {
@@ -824,6 +834,52 @@ describe("advice a caller's level can afford", () => {
       "the person's own is the one you can ask",
     );
     expect(harness.calls.handoverAsks).toEqual([]);
+  });
+
+  it("tells a browsing caller to open its own, and keeps it off the person's", async () => {
+    // The rung's whole promise, from both sides, in the place that decides it.
+    // The advice half is what #120 made answerable by asking the permission
+    // rather than the level's name, so this level got the right sentence
+    // without the window being told about it.
+    const harness = createHarness({
+      state: { activeTabId: "a", tabs: [tab("a", "https://person.example/")] },
+      issuer: BROWSING_GRANT,
+    });
+
+    const advice = await executeBrowserCommand(
+      { type: "page.get_text", tabId: null, maxLength: 1000, selector: null },
+      harness.deps,
+    );
+
+    expect(advice.ok).toBe(false);
+    if (advice.ok) throw new Error("the person's tab was handed over");
+    expect(advice.message).toContain("Open one of your own");
+
+    // And the half the level is named for: navigating is what this rung buys,
+    // and it buys it nowhere near a tab the person opened. Asserted on
+    // `navigation.open` rather than on a read, because a read is refused at
+    // `read` too — this is the command the rung newly admits.
+    const theirs = await executeBrowserCommand(
+      {
+        type: "navigation.open",
+        tabId: "a",
+        url: "https://elsewhere.example/",
+        newTab: false,
+      },
+      harness.deps,
+    );
+
+    expect(theirs.ok).toBe(false);
+    if (theirs.ok) throw new Error("a browsing caller drove the person's tab");
+    expect(theirs.code).toBe("tab_not_yours");
+    expect(harness.calls.navigate).toEqual([]);
+    // It may open one, so the refusal keeps the clause a `read` caller does not
+    // get — and the ask is still raised, because the person is the only one who
+    // can answer it.
+    expect(theirs.message).toContain("Work in a tab of your own");
+    expect(harness.calls.handoverAsks).toEqual([
+      { issuer: BROWSING_GRANT, tabId: "a" },
+    ]);
   });
 });
 

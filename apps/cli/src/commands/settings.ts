@@ -171,7 +171,7 @@ export function registerSettingsCommands(
         const parsed = browserExternalAccessLevelSchema.safeParse(level);
         if (!parsed.success) {
           // Named rather than "invalid": the levels are a ramp, and a caller
-          // that guessed "all" or "write" needs to see the four words.
+          // that guessed "all" or "write" needs to see the words themselves.
           throw new Error(
             `Unknown level '${level}'. One of: ${BROWSER_EXTERNAL_ACCESS_LEVELS.join(", ")}.`,
           );

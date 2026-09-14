@@ -333,8 +333,8 @@ function fallsBackToActiveTab(
  * True, too, when a caller's frame carried no level — which either kind that
  * carries one can now arrive without: an older server, or one naming a level
  * this build does not know (#128). Both keep the wording that predates this,
- * which is right for two of the three levels that can reach here
- * — `interact` and `full`, since `off` refuses every browser command before the
+ * which is right for three of the four levels that can reach here — `browse`,
+ * `interact` and `full`, since `off` refuses every browser command before the
  * window sees one.
  */
 function mayOpenOwnTab(issuer: BrowserCommandIssuer | undefined): boolean {

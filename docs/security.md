@@ -1365,15 +1365,17 @@ turn inside Patcher is gated by the `browser-tools` toggle and the prompt behind
 it; a caller with no thread had no gate at all, and enabled the plugin without
 asking anyone. **Settings → General → Agents outside Patcher** is that gate for a
 caller holding no credential of its own: `off` by default, then `read` (tabs,
-page text, screenshots, logs), `interact` (navigating, clicking, typing) and
-`full` (cookies and site storage, JavaScript in the page, network mocking,
-recording). Ask for the lowest level that does the job; the browser holds your
-logins, and `full` hands over a session that can leave the machine.
+page text, screenshots, logs of the pages you have open), `browse` (tabs of its
+own, so it picks which of your signed-in pages gets read), `interact` (clicking
+and typing) and `full` (cookies and site storage, JavaScript in the page,
+network mocking, recording). Ask for the lowest level that does the job; the
+browser holds your logins, and `full` hands over a session that can leave the
+machine.
 `patcher settings browser-access <level>` is the same switch, and run from inside
 a thread it raises a prompt instead of taking effect.
 
-A **browser access grant** uses the same four words for how far it reaches, and
-is the narrower thing to reach for — two paragraphs down. Minting one is refused
+A **browser access grant** uses the same words for how far it reaches, and is
+the narrower thing to reach for — two paragraphs down. Minting one is refused
 inside a turn: a thread credential stops working when the turn ends and a grant
 does not, so a turn that could mint one would have given itself a browser
 credential that outlives it.
