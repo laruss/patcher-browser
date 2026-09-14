@@ -61,7 +61,7 @@ function parseLevel(value: string | undefined): BrowserAccessGrantLevel {
   const parsed = browserAccessGrantLevelSchema.safeParse(value);
   if (!parsed.success) {
     // Named rather than "invalid": the levels are a ramp, and a caller that
-    // guessed "all" or "write" needs to see the three words.
+    // guessed "all" or "write" needs to see the words themselves.
     throw new Error(
       `Unknown level '${value}'. One of: ${BROWSER_ACCESS_GRANT_LEVELS.join(", ")}.`,
     );

@@ -231,6 +231,19 @@ removed both, along with `plugins/connect`, `packages/connect-db`,
    elsewhere. Neither can anything that loads `better-sqlite3` or `node-pty`:
    both were measured against Bun 1.3.14 and both fail — see
    [Bun as a runtime](#bun-as-a-runtime-measured-against-the-two-native-modules).
+7. **The server ↔ SPA socket has no handshake either**, which invariant 2's
+   wording covers for the desktop wire and not for this one. The app bundle is
+   served by the server, so the two normally match — except for a window held
+   open across a server upgrade, which goes on parsing every later frame with
+   the schemas it was built with. So a closed enum on that wire needs a decided
+   answer for a value the build does not know, and the answer has to be checked
+   against what the _dropped_ field means downstream rather than against how
+   small the loss looks. #128 is the instance worth reading: dropping a browser
+   command's issuer looked like losing an indicator, and a command with no
+   issuer is the app's own browsing — so the frame degraded into "the person did
+   this", which is the one reading that must never be wrong. Sometimes the right
+   answer is still to drop the frame (an issuer _kind_ nobody can render leaves
+   nothing to show); what is not allowed is to leave it undecided.
 
 ## Verification baseline
 

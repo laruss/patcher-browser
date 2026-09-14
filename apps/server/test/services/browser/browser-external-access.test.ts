@@ -37,6 +37,11 @@ const READ_COOKIES: BrowserCommand = {
   tabId: null,
   operation: { kind: "cookies-get" },
 };
+const OPEN_TAB: BrowserCommand = {
+  type: "tabs.open",
+  url: "https://example.test/",
+  activate: false,
+};
 
 const TABS_VALUE: BrowserCommandValue = { type: "tabs", tabs: [] };
 
@@ -108,6 +113,35 @@ describe("browser access for callers outside Patcher", () => {
         expect(browserExternalAccessRefusal(READ_COOKIES)).not.toBeNull();
       },
     );
+  });
+
+  it("admits a tab of its own but not a click at the browsing level", () => {
+    // The rung #128 added, charged where it is actually charged — the gate the
+    // command passes through, not the table it reads. Reading was never the
+    // question at this level: what it buys is the tab, which is how an agent
+    // reaches a page the person is not in.
+    runAsExternalBrowserCaller(
+      { level: "browse", pluginId: "browser-tools" },
+      () => {
+        expect(browserExternalAccessRefusal(LIST_TABS)).toBeNull();
+        expect(browserExternalAccessRefusal(OPEN_TAB)).toBeNull();
+        expect(browserExternalAccessRefusal(CLICK)).not.toBeNull();
+        expect(browserExternalAccessRefusal(READ_COOKIES)).not.toBeNull();
+      },
+    );
+  });
+
+  it("still sends a read caller to the browsing level to open a tab", () => {
+    // The refusal names the lowest level that would admit the command, and for
+    // a tab that is no longer `interact`: a `read` caller asking to open one is
+    // told to ask for the rung rather than for the level that can also click
+    // and type as them.
+    const refusal = runAsExternalBrowserCaller(
+      { level: "read", pluginId: "browser-tools" },
+      () => browserExternalAccessRefusal(OPEN_TAB),
+    );
+    expect(refusal).toContain("tabs.modify");
+    expect(refusal).toContain("patcher settings browser-access browse");
   });
 
   it("admits acting but not the user's logins at the acting level", () => {

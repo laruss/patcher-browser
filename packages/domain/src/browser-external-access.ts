@@ -52,6 +52,7 @@ import {
 export const BROWSER_EXTERNAL_ACCESS_LEVELS = [
   "off",
   "read",
+  "browse",
   "interact",
   "full",
 ] as const;
@@ -72,8 +73,8 @@ export type BrowserExternalAccessLevel = z.infer<
  * grant stops working, and revoking says so — a date, in a list — where a grant
  * quietly set to `off` would read as working.
  *
- * Derived from the four rather than written out again, so a level added to the
- * ramp lands here too instead of silently staying out of grants.
+ * Derived from the ramp rather than written out again, so a level added to it
+ * lands here too instead of silently staying out of grants.
  */
 export const browserAccessGrantLevelSchema =
   browserExternalAccessLevelSchema.exclude(["off"]);
@@ -91,7 +92,7 @@ export const BROWSER_ACCESS_GRANT_LEVELS =
  * what it costs an outside agent — the same property
  * `permissionForBrowserCommand` has one layer down, for the same reason.
  *
- * The three groups, and what separates them:
+ * The four groups, and what separates them:
  *
  * - **read** — what the page shows and where the tabs point. A page's text,
  *   its accessibility tree, a screenshot, its console and its network log.
@@ -101,10 +102,23 @@ export const BROWSER_ACCESS_GRANT_LEVELS =
  *   because a caller lent a tab at this level must be able to give it back
  *   (#117), and `permissionForBrowserCommand` says the same thing beside the
  *   price itself.
- * - **interact** — driving the browser as the user would: opening and closing
- *   tabs, navigating, clicking, typing, answering a page's dialogs. This is the
- *   level at which an agent can act *as* the signed-in user on a site, which is
- *   why it is a step of its own rather than folded into reading.
+ * - **browse** — the same reading, on pages the agent chose rather than pages
+ *   the person opened: opening, closing and navigating tabs of its own. What
+ *   separates it from `read` is not that it changes something — ownership keeps
+ *   it off every tab the person opened, `tab-owners.ts` — it is that reading
+ *   stops being confined to what is already on their screen: it reads whatever
+ *   the signed-in session reaches by naming an address, and an address it opens
+ *   can act on a site the way following a link does. What it withholds against
+ *   `interact` is the click. Two things it does touch, and pricing could
+ *   withhold neither, since `tabs.open` carries `activate` and costs this same
+ *   permission: it can bring its own tab to the front of the person's window,
+ *   and pinning, muting and moving land in the strip they are looking at. Why
+ *   the step exists at all, and why those two are accepted:
+ *   `docs/architecture/browser-external-access.md` (#128).
+ * - **interact** — driving the browser as the user would: clicking, typing,
+ *   scrolling, answering a page's dialogs. This is the level at which an agent
+ *   can act *as* the signed-in user on a site, which is why it is a step of its
+ *   own rather than folded into reading.
  * - **full** — the three that hand over more than a user's own hands do.
  *   `page.credentials` is the session cookies themselves, which is a login that
  *   can be carried off the machine rather than used in place. `page.inject` is
@@ -119,7 +133,7 @@ const LOWEST_LEVEL_FOR_PERMISSION: Record<
   "tabs.read": "read",
   "page.read": "read",
   "network.observe": "read",
-  "tabs.modify": "interact",
+  "tabs.modify": "browse",
   "page.interact": "interact",
   "page.credentials": "full",
   "page.inject": "full",
@@ -184,10 +198,15 @@ export const BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS: Record<
     detail:
       "Read your open tabs, the text and structure of a page, screenshots, and what a page logs and requests. The only thing it can change is its own access: an agent you have lent a tab can hand that tab back.",
   },
+  browse: {
+    label: "Browse on its own",
+    detail:
+      "Everything above, and tabs of its own: opening, closing and navigating them. So it chooses which of the pages you are signed in to gets read, and opening one by address can act on a site the way following a link does. It cannot click, type or scroll. The tabs you opened stay yours unless you hand one over, though it can bring its own tab to the front of your window and move it about in your tab strip.",
+  },
   interact: {
     label: "Read and act",
     detail:
-      "Everything above, plus opening and closing tabs, navigating, clicking and typing — acting on sites as you, while you are signed in to them.",
+      "Everything above, plus clicking, typing, scrolling and answering a page's dialogs — acting on sites as you, while you are signed in to them.",
   },
   full: {
     label: "Everything, including logins",

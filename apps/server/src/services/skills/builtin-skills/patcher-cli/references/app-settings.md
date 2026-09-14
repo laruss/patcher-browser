@@ -24,16 +24,18 @@ credential that outlives the turn, so a turn gets a 403 there.
 
 - `browserExternalAccess` decides how far an agent or terminal **outside**
   Patcher may drive the browser with `patcher browser`: `off` (the default),
-  `read`, `interact`, or `full`. Threads inside Patcher are not affected — their
-  gate is the `browser-tools` plugin.
+  `read`, `browse`, `interact`, or `full`. Threads inside Patcher are not
+  affected — their gate is the `browser-tools` plugin.
 - `patcher settings browser-access` prints the current level; with a level it
   sets one, and turns the `browser-tools` plugin on if it is off. Going back to
   `off` leaves the plugin alone, because threads use it too.
 - The levels are a ramp over the permissions browser commands already cost:
-  `read` is tabs, page text and structure, screenshots and logs; `interact` adds
-  navigating, clicking and typing; `full` adds cookies and site storage, running
-  JavaScript in a page, mocking its network, and recording. Ask for the lowest
-  one that does the job.
+  `read` is tabs, page text and structure, screenshots and logs; `browse` adds
+  tabs of its own — opening, closing and navigating them, so it picks which
+  signed-in page it reads rather than reading the one the user is in; `interact`
+  adds clicking, typing and scrolling; `full` adds cookies and site storage,
+  running JavaScript in a page, mocking its network, and recording. Ask for the
+  lowest one that does the job.
 - A command past the level is refused before it reaches the browser, so nothing
   happened; the refusal names the permission, the level that would admit it, and
   this command.
@@ -44,7 +46,7 @@ credential that outlives the turn, so a turn gets a 403 there.
   one to suggest. `grant <label> --level <level>` mints a credential for **one**
   agent, which reaches `patcher browser` and no other part of this API; the
   setting above opens the browser to every process that can read the app key.
-  Its levels are `read`, `interact` and `full` — `off` belongs to the setting.
+  Its levels are the ramp above without `off`, which belongs to the setting.
 - `--for claude-code` and `--for codex` run that agent's own `mcp add`, so the
   credential lands in its configuration instead of a file. `--for shell` (the
   default) prints `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` to export.

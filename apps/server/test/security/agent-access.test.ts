@@ -18,7 +18,9 @@ import {
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
 } from "@patcher/server-contract";
+import type { BrowserCommandRequestSignal } from "@patcher/server-contract";
 import { builtinPluginSource } from "../../src/services/plugins/builtin-registry.js";
+import { createMockHubSocket } from "../helpers/mock-hub-socket.js";
 import {
   seedEnvironment,
   seedHostSession,
@@ -603,6 +605,43 @@ describe("a browser access grant", () => {
   });
 });
 
+/**
+ * A window that answers, so the frame the hub sent can be read.
+ *
+ * The other tests in this describe assert the *refusal* side, which needs no
+ * window — this is the only one that needs the command to get as far as being
+ * dispatched.
+ */
+function answeringBrowserWindow(
+  running: RunningTestServer,
+): BrowserCommandRequestSignal[] {
+  const requests: BrowserCommandRequestSignal[] = [];
+  const socket = createMockHubSocket();
+  const record = socket.send.bind(socket);
+  socket.send = (data: string) => {
+    record(data);
+    const message = JSON.parse(data) as BrowserCommandRequestSignal;
+    if (message.type !== "browser-command-request") return;
+    requests.push(message);
+    // On a later tick, like the route test's copy: the hub is inside its own
+    // send and answering from under it would settle a request it has not
+    // finished registering.
+    setTimeout(() => {
+      running.hub.recordBrowserCommandResponse({
+        socket,
+        message: {
+          type: "browser-command.response",
+          requestId: message.requestId,
+          outcome: { ok: true, value: { type: "tabs", tabs: [] } },
+        },
+      });
+    }, 0);
+  };
+  running.hub.registerClient(socket);
+  running.hub.registerBrowserHost(socket, { browserHostId: "window-grant" });
+  return requests;
+}
+
 describe("a browser command charged to a grant", () => {
   it("is charged the grant's own level, not the install-wide setting", async () => {
     server = await startTestServer();
@@ -623,6 +662,31 @@ describe("a browser command charged to a grant", () => {
     // and its refusal is the sentence asserted against below.
     expect(body).toContain("No browser window is connected");
     expect(body).not.toContain("browser access grant");
+  });
+
+  it("tells the window which grant is driving, and how far it reaches", async () => {
+    // The level on the frame is what the window words its own refusals with
+    // (#120) and what the person reads beside the grant's name in the driving
+    // row. Nothing else pins it for a *grant*: the route test covers the
+    // `outside` and `thread` issuers, and until #128 the outgoing schema's
+    // required enum stood in for this assertion — which it did by throwing
+    // inside the hub's send, failing a command the gate had already allowed
+    // over a field that only words a sentence.
+    server = await startTestServer();
+    await server.pluginService.install(builtinPluginSource("browser-tools"));
+    const { grant, key } = issueGrant(server, "read", "Claude Code");
+    const requests = answeringBrowserWindow(server);
+
+    const { body } = await runBrowserCli(server, key, ["tabs"]);
+
+    expect(body).not.toContain("No browser window is connected");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.issuer).toEqual({
+      kind: "grant",
+      grantId: grant.id,
+      label: "Claude Code",
+      level: "read",
+    });
   });
 
   it("is refused above its level, and named in the refusal", async () => {

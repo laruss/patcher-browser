@@ -163,15 +163,22 @@ export function registerSettingsCommands(
           const config = await sdk.system.config();
           const current = config.generalSettings.browserExternalAccess;
           if (outputJson(opts, { level: current })) return;
+          // The level as the server sent it, with the sentence only if this
+          // build has one: responses are not parsed on the way in, so a level
+          // added after this CLI was built is a `Record` miss (#128).
+          const described: { label: string; detail: string } | undefined =
+            BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[current];
           console.log(
-            `${current} — ${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[current].detail}`,
+            described === undefined
+              ? current
+              : `${current} — ${described.detail}`,
           );
           return;
         }
         const parsed = browserExternalAccessLevelSchema.safeParse(level);
         if (!parsed.success) {
           // Named rather than "invalid": the levels are a ramp, and a caller
-          // that guessed "all" or "write" needs to see the four words.
+          // that guessed "all" or "write" needs to see the words themselves.
           throw new Error(
             `Unknown level '${level}'. One of: ${BROWSER_EXTERNAL_ACCESS_LEVELS.join(", ")}.`,
           );

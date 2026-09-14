@@ -255,6 +255,16 @@ export const pluginSignalLenientSchema = z.object({
  * a level added after it, and both are a window that words the refusal the way
  * it always did. Failing instead would drop the issuer, which is not the small
  * loss it looks like — see the lenient schema below.
+ *
+ * **Both members that carry one forgive it, and the grant's did not until
+ * #128.** Its level was required, so a grant at a level the parsing build had
+ * never heard of failed the member, failed the union, and cost a window the
+ * whole caller — which reads as the person driving — while the same value on an
+ * `outside` caller cost only the level. That asymmetry was not a decision; the
+ * two were written a release apart. What a grant has that the level is no part
+ * of is its identity: `browserIssuerKey` is the kind and the id, so a grant
+ * whose level was dropped still matches its own tab claims, and the person is
+ * still shown the name they typed with a Pause button beside it.
  */
 export const browserCommandIssuerSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("thread"), threadId: z.string().min(1) }),
@@ -262,7 +272,7 @@ export const browserCommandIssuerSchema = z.discriminatedUnion("kind", [
     kind: z.literal("grant"),
     grantId: z.string().min(1),
     label: z.string().min(1),
-    level: browserAccessGrantLevelSchema,
+    level: browserAccessGrantLevelSchema.optional().catch(undefined),
   }),
   z.object({
     kind: z.literal("outside"),
@@ -316,13 +326,19 @@ export const browserCommandRequestSignalLenientSchema = z.object({
   // An issuer the app dropped is an issuer the app never had, and a command
   // with no issuer is the app's *own* browsing: it falls back to the tab the
   // person is looking at and every ownership check short-circuits
-  // (`execute.ts`). So the `outside` member forgives what it can on its own —
-  // an unknown `level` there costs the level and not the caller — and this catch
-  // is the last resort for what no member can read: a kind this build has never
-  // heard of, and a `grant` whose level is one, since that member's enum is
-  // required and has no catch of its own. Closing the second of those is a
-  // precondition of adding a level at all, and is recorded on #128 rather than
-  // done here.
+  // (`execute.ts`). So both members that carry a level forgive one they cannot
+  // read — it costs the level and not the caller (#128) — and this catch is the
+  // last resort for the one thing no member can read: a kind this build has
+  // never heard of.
+  //
+  // **Which direction that protects.** This schema is compiled into the app
+  // bundle the server serves, so it reaches a window only once that window has
+  // loaded from a server that has it. What it closes is the *next* level added
+  // to the ramp; it cannot close the one it shipped with, because the window at
+  // risk is one held open across the upgrade and still running the older
+  // bundle. Closing that would take a capability the app declares when it
+  // registers as the browser host, which is the shape invariant 2 in
+  // `bb-migration.md` sanctions for the other wire, and is not built.
   issuer: browserCommandIssuerSchema.optional().catch(undefined),
 });
 
@@ -448,6 +464,12 @@ export type BrowserDrivingSignal = z.infer<typeof browserDrivingSignalSchema>;
  * which is the pre-existing behaviour — no indicator — rather than a broken one.
  * A `phase` this app does not know is worth the same treatment for the same
  * reason.
+ *
+ * A level this build cannot read was in that set until #128 and is not: a grant
+ * at a new rung dropped the frame, so the one surface that tells a person
+ * something other than them is driving their browser said nothing at all. It
+ * now keeps the name and the Pause button and drops only the words for how far
+ * the grant reaches.
  *
  * **The command and the outcome are optional here and required there**, and
  * neither is strict here, which is the one place these two schemas deliberately

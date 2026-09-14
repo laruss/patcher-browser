@@ -385,6 +385,36 @@ describe("WebSocketManager browser commands", () => {
     });
   });
 
+  it("keeps a grant whose level this build cannot read", () => {
+    // The same forgiveness as the caller above, and it arrived a release later
+    // (#128). Without it the member failed, the union failed, and the outer
+    // catch dropped the *whole* grant — which the app reads as its own
+    // browsing, so a named credential was served the tab the person was
+    // looking at with every ownership check short-circuited. What survives is
+    // what a tab claim is keyed on: the kind and the id.
+    const { manager } = createConnectedManager();
+    const browserCommand = vi.fn();
+    manager.onBrowserCommand(browserCommand);
+
+    dispatchRaw({
+      type: "browser-command-request",
+      requestId: "req_8",
+      command: { type: "tabs.list" },
+      issuer: {
+        kind: "grant",
+        grantId: "bag_2",
+        label: "Claude Code",
+        level: "browse-on-your-own",
+      },
+    });
+
+    expect(browserCommand.mock.calls[0]?.[0]?.issuer).toEqual({
+      kind: "grant",
+      grantId: "bag_2",
+      label: "Claude Code",
+    });
+  });
+
   it("routes who-is-driving to its own subscribers, and never as a command", () => {
     // The two signals are one fact from two sides: the window that has to
     // perform the command gets the command, every other window gets this. A
@@ -490,6 +520,37 @@ describe("WebSocketManager browser commands", () => {
     // Passed on whole rather than reduced to a boolean here: the window's
     // record shows the code, and this is the only place it can come from.
     expect(driving).toHaveBeenCalledWith(signal);
+  });
+
+  it("still says who is driving when the grant's level is from a newer server", () => {
+    // The other half of the same catch, and the half with no fallback behind
+    // it: this signal is the only surface that tells a person something other
+    // than them is driving their browser, and a grant at a rung this build
+    // does not know used to fail the union and drop the frame — so the row
+    // said nothing at all. It now loses the words for how far the grant
+    // reaches and keeps the name and the Pause button (#128).
+    const { manager } = createConnectedManager();
+    const driving = vi.fn();
+    manager.onBrowserDriving(driving);
+
+    dispatchRaw({
+      type: "browser-driving",
+      requestId: "req_9",
+      phase: "started",
+      issuer: {
+        kind: "grant",
+        grantId: "bag_3",
+        label: "Codex",
+        level: "browse-on-your-own",
+      },
+      command: { name: "tabs.list", detail: "" },
+    });
+
+    expect(driving.mock.calls[0]?.[0]?.issuer).toEqual({
+      kind: "grant",
+      grantId: "bag_3",
+      label: "Codex",
+    });
   });
 
   it("drops a driving signal it cannot read, and drives nothing on it", () => {
