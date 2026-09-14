@@ -990,6 +990,14 @@ export function BrowserExternalAccessSettingsControl({
   level,
   onLevelChange,
 }: BrowserExternalAccessSettingsControlProps) {
+  // The level arrives from the server's config and nothing between the two
+  // validates it — the SDK returns the response as it came — so a value written
+  // by a build this one is not is a `Record` miss, which used to throw and take
+  // the screen with it. It renders as itself instead, and the row still offers
+  // every level this build knows (#128).
+  const described = BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level] as
+    | { label: string; detail: string }
+    | undefined;
   return (
     <div className="space-y-2.5">
       <SettingsWithControl
@@ -1006,7 +1014,7 @@ export function BrowserExternalAccessSettingsControl({
               disabled={disabled}
             >
               <span className="min-w-0 truncate">
-                {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].label}
+                {described?.label ?? level}
               </span>
               <Icon
                 name="ChevronDown"
@@ -1038,7 +1046,8 @@ export function BrowserExternalAccessSettingsControl({
         </DropdownMenu>
       </SettingsWithControl>
       <p className="text-xs text-subtle-foreground">
-        {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level].detail}
+        {described?.detail ??
+          `This install is set to "${level}", which this window is too old to describe. Reload it.`}
       </p>
     </div>
   );

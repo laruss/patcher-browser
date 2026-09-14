@@ -11,9 +11,9 @@ export { typedRoutes } from "@patcher/hono-typed-routes";
 // Selected re-exports from @patcher/domain so contract consumers don't need a
 // direct @patcher/domain dependency. Keep these explicit: starring another
 // package's barrel would absorb its entire surface.
-// What a `patcher browser` caller from outside Patcher can be allowed: four
-// values for the install-wide setting, three for a grant, which never has `off`
-// — a grant that admitted nothing would be a grant to revoke rather than issue.
+// What a `patcher browser` caller from outside Patcher can be allowed: the
+// install-wide setting's ramp, and the same ramp without `off` for a grant —
+// a grant that admitted nothing would be a grant to revoke rather than issue.
 // Re-exported for the plugin SDK, which types a CLI caller with them and
 // deliberately depends on no other Patcher package.
 export type {

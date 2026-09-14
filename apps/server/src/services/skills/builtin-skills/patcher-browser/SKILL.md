@@ -69,17 +69,16 @@ Two failures are worth telling apart before you conclude anything:
 
 - **Read** — the open tabs; a page's URL, title, rendered text, or the user's
   current selection; a structural snapshot of the page; a screenshot.
-- **Act** — click, fill a field, press keys, answer a page dialog.
 - **Navigate** — open a URL, go back, forward, reload, and open, close or
   activate a tab.
+- **Act** — click, fill a field, press keys, answer a page dialog.
 
-Three prices, not one, and outside Patcher you may hold any prefix of them —
-but not the middle one alone: `status` says which, in these words. "read pages"
-is the first bullet; "read pages, and open tabs of your own to read" is the
-first and the **third**, which is the level for browsing on your own without
-touching the person's pages; "read pages and act on them" is all three. Read it
-before planning a route, because **opening a tab of your own** is in the third
-bullet, which the next section builds on.
+Three prices, not one, and outside Patcher you hold the first, the first two, or
+all three — in that order, which is why they are listed in it. `status` says
+which, in these words: "read pages" is the first bullet, "read pages, and open
+tabs of your own to read" is the first two, and "read pages and act on them" is
+all three. Read it before planning a route, because **opening a tab of your own**
+is the second bullet, which the next section builds on.
 
 Page text is read in an isolated world, so a page can neither forge the result
 nor notice the read, and what comes back is size-capped with a two-second

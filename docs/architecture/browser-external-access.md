@@ -943,7 +943,7 @@ nothing above exercises the daemon → shim → CLI → server path end to end:
 patcher settings browser-access          # off, with what that means
 patcher browser tabs                     # refused, naming "tabs.read" and `read`
 patcher settings browser-access read
-patcher browser open https://example.com # refused, naming "tabs.modify" and `interact`
+patcher browser open https://example.com # refused, naming "tabs.modify" and `browse`
 patcher browser cookie-list              # refused, naming "page.credentials" and `full`
 patcher settings browser-access full
 patcher browser cookie-list              # reaches the browser

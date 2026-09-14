@@ -237,6 +237,16 @@ describe("patcher browser CLI", () => {
     expect(granted.stdout).toContain("read pages");
     expect(granted.stdout).toContain("Claude Code");
 
+    // The rung between the two says both halves of what it is: it reads, and
+    // it opens tabs of its own to read (#128). This is the answer an agent gets
+    // to "can I act" before it tries anything.
+    const browsing = await host.harness.runCli(["status"], {
+      caller: { kind: "outside", level: "browse" },
+    });
+    expect(browsing.stdout).toContain(
+      "read pages, and open tabs of your own to read",
+    );
+
     // Said on the refusals too: a caller told only "no window" asks again.
     host.harness.behavior.browser.setConnected(false);
     const offline = await host.harness.runCli(["status"], {
