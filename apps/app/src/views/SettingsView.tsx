@@ -995,9 +995,8 @@ export function BrowserExternalAccessSettingsControl({
   // by a build this one is not is a `Record` miss, which used to throw and take
   // the screen with it. It renders as itself instead, and the row still offers
   // every level this build knows (#128).
-  const described = BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level] as
-    | { label: string; detail: string }
-    | undefined;
+  const described: { label: string; detail: string } | undefined =
+    BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[level];
   return (
     <div className="space-y-2.5">
       <SettingsWithControl

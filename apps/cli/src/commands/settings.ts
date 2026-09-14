@@ -166,9 +166,8 @@ export function registerSettingsCommands(
           // The level as the server sent it, with the sentence only if this
           // build has one: responses are not parsed on the way in, so a level
           // added after this CLI was built is a `Record` miss (#128).
-          const described = BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[current] as
-            | { label: string; detail: string }
-            | undefined;
+          const described: { label: string; detail: string } | undefined =
+            BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[current];
           console.log(
             described === undefined
               ? current
