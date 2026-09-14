@@ -18,8 +18,7 @@ import { PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@patcher/deskto
  *
  * The policy sits in its own module for the reason the page-read rules do: it
  * carries the limits, and limits are worth testing without an Electron window.
- * So does the rule both captures share, that a tab has to be on screen for
- * either to have anything to take.
+ * So does what both captures make of a tab that is not on screen.
  */
 
 /**
