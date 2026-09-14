@@ -218,6 +218,35 @@ describe("browser tab owners", () => {
       parseBrowserTabOwners("not json at all", EMPTY_BROWSER_TAB_OWNERS).size,
     ).toBe(0);
   });
+
+  it("survives a reload for a grant whose level it could not read", () => {
+    // A claim this build can write itself, now that an unreadable level costs
+    // the level instead of the caller (#128): the command that opened the tab
+    // arrived from a server naming a rung this window does not know, and
+    // `execute.ts` records the issuer it was given. If the stored shape could
+    // not be read back, `safeParse` runs over the whole array — so that one
+    // claim would drop *every* claim in the window, which is the failure the
+    // module docstring says persistence exists to prevent.
+    const noLevel: BrowserCommandIssuer = {
+      kind: "grant",
+      grantId: "grant_9",
+      label: "Claude Code",
+    };
+    const owners = claim(
+      claim(EMPTY_BROWSER_TAB_OWNERS, "a", GRANT, ["a", "b"]),
+      "b",
+      noLevel,
+      ["a", "b"],
+    );
+
+    const read = parseBrowserTabOwners(
+      JSON.stringify([...owners]),
+      EMPTY_BROWSER_TAB_OWNERS,
+    );
+
+    expect(read.get("b")).toEqual({ issuer: noLevel, mode: "drive" });
+    expect(read.get("a")).toEqual({ issuer: GRANT, mode: "drive" });
+  });
 });
 
 describe("the handover ask", () => {

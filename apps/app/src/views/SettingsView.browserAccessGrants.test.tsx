@@ -63,6 +63,24 @@ describe("the browser access grants list", () => {
     expect(screen.getByRole("button", { name: "Revoke" })).toBeTruthy();
   });
 
+  it("renders a grant whose level it cannot read rather than throwing", () => {
+    // Nothing between SQLite and this row validates the level: the column is a
+    // cast and the route hands the rows through, so a level written by a newer
+    // build — or by hand — reached a `Record` index that has no entry for it
+    // and took the whole list down with a TypeError. The level is shown raw
+    // instead, which is the same trade the wire makes one layer up (#128).
+    // Cast, because the type is exactly what the data is not bound by.
+    renderControl([
+      {
+        ...BASE,
+        level: "browse-on-your-own",
+      } as unknown as SystemBrowserAccessGrant,
+    ]);
+
+    expect(screen.getByText("Claude Code")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeTruthy();
+  });
+
   it("says a paused grant is paused, and offers to resume it", () => {
     const { onSetPaused } = renderControl([
       { ...BASE, pausedAt: Date.parse("2026-09-05T09:00:00Z") },

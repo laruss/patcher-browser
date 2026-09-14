@@ -89,7 +89,11 @@ export function BrowserDrivingIndicator({
         {driving.elsewhere
           ? " Patcher's browser in another window"
           : " this browser"}
-        {issuer.kind === "grant"
+        {/* How far it reaches, when this build can read the answer. A grant
+            from a server that knows a level added after this window was loaded
+            keeps its name and its Pause button and loses this clause, which is
+            the half a person can act on without it (#128). */}
+        {issuer.kind === "grant" && issuer.level !== undefined
           ? ` · ${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[issuer.level].label.toLowerCase()}`
           : ""}
         {what === null ? null : <span className="opacity-80"> · {what}</span>}

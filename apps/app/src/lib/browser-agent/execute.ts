@@ -330,9 +330,10 @@ function fallsBackToActiveTab(
  * id, so the window cannot tell — it is an accepted limit rather than something
  * to plumb for.
  *
- * True, too, when an outside caller's frame carried no level: an older server,
- * or one naming a level this build does not know. Both keep the wording that
- * predates this, which is right for two of the three levels that can reach here
+ * True, too, when a caller's frame carried no level — which either kind that
+ * carries one can now arrive without: an older server, or one naming a level
+ * this build does not know (#128). Both keep the wording that predates this,
+ * which is right for two of the three levels that can reach here
  * — `interact` and `full`, since `off` refuses every browser command before the
  * window sees one.
  */

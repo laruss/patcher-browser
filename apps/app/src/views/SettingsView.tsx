@@ -1136,8 +1136,16 @@ export function BrowserAccessGrantsSettingsControl({
                   {grant.label}
                 </p>
                 <p className="truncate text-subtle-foreground">
-                  {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[grant.level].label} ·{" "}
-                  {describeGrantState(grant)}
+                  {/* The raw level as the fallback, because nothing validates
+                      this one: the column is a cast over SQLite text and the
+                      route hands the rows through, so a level a rolled-back
+                      build cannot read used to throw here and take the whole
+                      grants list down with it (#128). The gate does not depend
+                      on this — an unknown level admits nothing, since
+                      `LEVEL_RANK` misses it. */}
+                  {BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[grant.level]?.label ??
+                    grant.level}{" "}
+                  · {describeGrantState(grant)}
                 </p>
               </div>
               {grant.revokedAt === null ? (

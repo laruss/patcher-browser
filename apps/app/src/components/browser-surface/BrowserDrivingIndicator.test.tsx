@@ -143,6 +143,26 @@ describe("the browser driving indicator", () => {
     expect(screen.getByRole("status").textContent).toContain("Claude Code");
   });
 
+  it("says who even when the level is from a newer server", () => {
+    // The same trade as the command above, on the other half of the frame.
+    // A grant at a rung this window has never heard of used to fail the parse
+    // and take the whole signal with it, so the row said nothing — and the row
+    // is the only place a person learns that something other than them is
+    // driving. It loses the reach and keeps the two things they can act on:
+    // the name they typed, and the button that stops it (#128).
+    renderIndicator({
+      kind: "grant",
+      grantId: "bag_1",
+      label: "Claude Code",
+    });
+
+    const status = screen.getByRole("status");
+    expect(status.textContent).toContain("Claude Code");
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    // And no dangling separator where the reach would have been.
+    expect(status.textContent).not.toContain("\u00b7 undefined");
+  });
+
   it("pauses that grant rather than revoking it", async () => {
     renderIndicator({
       kind: "grant",
