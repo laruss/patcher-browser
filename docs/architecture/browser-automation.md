@@ -508,7 +508,9 @@ built around, and it is why the mechanisms moved:
   with a side effect on the page: `capturePage()` with Electron's defaults makes
   a hidden page visible for the capture, which fires `visibilitychange` in the
   page and flushes whatever pointer events were queued for a frame (measured for
-  #114; `{ stayHidden: true }` is the form that does not).
+  #114; `{ stayHidden: true }` is the form that does not). A tab the deck has
+  hidden has no picture to take at all — see
+  [A picture needs the tab on screen](#a-picture-needs-the-tab-on-screen-132).
 - **`pdf`** — `printToPDF()`, which _is_ the whole document. It is also the one
   call that can come back `result_too_large`; a truncated PDF is not a smaller
   PDF, so the cap is a refusal.
@@ -605,6 +607,54 @@ the drift-guard test pins both halves of that (`observation-contract.test.ts`).
 
 Done when: an agent can see the page and read what went wrong on it. ✅ (against
 fakes, as with A and B)
+
+#### A picture needs the tab on screen (#132)
+
+Both captures take what the view draws, and a `WebContentsView` that is not on
+screen draws nothing. Measured on Electron 41.7.0, macOS, 2026-09-14: a bare
+`BrowserWindow` holding one view on screen and a second one under test, one case
+per process so that a capture left hanging could not answer or block the next.
+
+- **Hidden with `setVisible(false)` before it ever painted** — which is how an
+  agent's background tab is attached — and **painted, then hidden**:
+  `capturePage()` and `capturePage(rect, { stayHidden: true })` both reject at
+  once with "Current display surface not available for capture". Not an empty
+  image, which is what the code had assumed.
+- **The same two in a minimised window:** before paint, both still reject;
+  after paint, both answer — the default firing `visibilitychange` in the page,
+  `stayHidden` silently.
+- **On screen in a minimised window:** both answer, the same way. This is the
+  case #114's `stayHidden` measurement was of, and it does not carry over to a
+  view the deck has hidden.
+- **`Page.captureScreenshot`**, full page or clipped to the viewport, asked four
+  seconds after the page loaded: timed out in 32 attempts of 32, across both
+  hidden states. Within about a second of the load a few came back, on what
+  reads as a frame still pending. In a minimised window it timed out for a view
+  on screen too.
+- **Holding background throttling off** — `keepPageRendering`, the fix for
+  input — rescued neither capture, and left the view rendering at 120 rAF/s and
+  reporting itself `visible` after it was given back. A second
+  `setVisible(false)` on the view, already hidden, did not undo that.
+
+So nothing on this list makes a hidden tab photographable, and what changed is
+what the caller is told. A full-page capture of a tab whose page is not drawn —
+in the background, or behind a dialog, a prompt or a menu the app draws over it
+— is refused before the debugger is attached, instead of stalling for the whole
+budget and ending in a sentence that blames the page. A viewport capture is
+still asked, because the minimised rows answer, and one that brings nothing back
+says where the tab is instead of passing Chromium's sentence on.
+`page_read_failed` now reaches the caller with the executor's sentence, where it
+used to be replaced by one fixed line.
+
+The shell's sentence states the fact and advises nothing. It cannot tell which
+screen the app is showing — the person on a thread hides every tab, the one they
+last looked at included — nor whether the caller may bring a tab forward at all,
+so what to do instead is in the agent's instructions and the skill, which can
+say "where your access allows it".
+
+Not handled: the full-page timeout in a minimised window, for which the shell
+has no word from the host window, and anything about a covered window or a
+sleeping display, which were not measured.
 
 ### Stage D — storage and state
 

@@ -237,7 +237,7 @@ export const BROWSER_TOOLS_INSTRUCTIONS = `The browser tools drive the Patcher d
 - Snapshotting attaches the browser debugger to that tab, which fails while the user has DevTools open on it.
 - Acting on an element waits for it to be visible, settled and not covered first, so never sleep before clicking. If you are told an element could not be acted on, the message says why — something on top of it, disabled, still animating — and that is what to fix.
 - Snapshot again after any action that could have changed the page. Clicking a link or submitting a form is reported with the URL it ended on, but a page that rewrites itself afterwards is not.
-- A screenshot shows what the page looks like — the snapshot tool is the one that says what the page *is*, and it is what refs come from. Reach for a screenshot when layout, rendering or a visual detail is the question. It captures what is on screen, so activate the tab first if it is not the one showing; fullPage captures the whole document instead, at the cost of attaching the debugger.
+- A screenshot shows what the page looks like — the snapshot tool is the one that says what the page *is*, and it is what refs come from. Reach for a screenshot when layout, rendering or a visual detail is the question. It photographs the page as the browser draws it, so the tab has to be on screen: a tab in the background — one you opened with activate:false included — or any tab while the user is on another Patcher screen is refused, with fullPage as without. Read such a tab with text or a snapshot; a picture of it means bringing it to the front where your access allows that, which takes over the user's window. fullPage captures the whole document rather than the viewport, at the cost of attaching the debugger.
 - The remaining browser commands live in the \`patcher browser\` CLI, which drives exactly the same browser: \`wait\`, \`scroll\`, hover, drag, type, select, check, uncheck, upload, resize, and the observation commands \`console\`, \`network\`, \`screenshot\` (to a file) and \`pdf\`. Run \`patcher browser help\` for the list, and \`patcher browser <command> --help\` for one command's exact arguments — that is where the argument forms are, not in the summary lines.
 - \`patcher browser wait --text "…"\` / \`--selector <css>\` / \`--url <pattern>\` / \`--network-idle\` is how you wait for something to appear. It exits 124 when the condition never came, which is a different thing from the page failing.
 - \`patcher browser scroll\` moves down one viewport, or takes \`--top\`, \`--bottom\`, \`--by <px>\`, or a ref to bring into view. It reports the offset, the document height and the viewport, so on an endless feed you can tell "there is more" from "this is the end" instead of scrolling blind.
@@ -367,7 +367,15 @@ export function explainBrowserError(error: unknown): string {
         ? error.message
         : "The browser tab stopped answering. Look at the page rather than assuming that command did nothing.";
     case "page_read_failed":
-      return "That page's content could not be read.";
+      // Passed through since #132. One fixed sentence stood in for every
+      // refusal under this code — a screenshot of a tab that is not on screen
+      // among them — and told a caller none of them apart. What arrives is the
+      // executor's sentence, which after a shell failure it had no words for
+      // ends in Electron's or Chromium's own text: rougher to read, and still
+      // something to act on where the fixed sentence was not.
+      return error instanceof Error
+        ? error.message
+        : "That page's content could not be read.";
     case "debugger_unavailable":
       return "The browser debugger could not attach to that tab — the user most likely has DevTools open on it. Ask them to close it, or use a different tab.";
     case "stale_refs":

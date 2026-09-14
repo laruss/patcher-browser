@@ -393,6 +393,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     details: [
       "PNG when the name ends .png, JPEG otherwise. The path is relative to the shell that ran this.",
       "--full-page captures the whole document, which needs the browser debugger; the viewport capture does not.",
+      "Either one needs the tab on screen: a background tab, or any tab while the person is on another Patcher screen, is refused.",
     ],
   },
   {

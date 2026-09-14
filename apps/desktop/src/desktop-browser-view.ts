@@ -164,6 +164,8 @@ import {
 } from "./desktop-browser-actions.js";
 import {
   PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
+  missingViewportCaptureRefusal,
+  offScreenCaptureRefusal,
   parseBrowserCaptureRegion,
 } from "./desktop-browser-capture.js";
 import {
@@ -1714,13 +1716,11 @@ async function captureObservation(
     };
   }
 
-  const image = await entry.view.webContents.capturePage();
-  if (image.isEmpty()) {
-    return {
-      ok: false,
-      reason: "failed",
-      message: "The browser captured nothing — the tab may be hidden.",
-    };
+  // Asked even of a tab off screen, which in a minimised window can still
+  // answer (#132); only a capture that brought nothing back is explained.
+  const image = await entry.view.webContents.capturePage().catch(() => null);
+  if (image === null || image.isEmpty()) {
+    return missingViewportCaptureRefusal(entry);
   }
   const buffer =
     observation.format === "png"
@@ -4818,6 +4818,10 @@ export function createDesktopBrowserViewManager(
       }
       if (entry.view.webContents.getURL().length === 0) {
         return { ok: false, reason: "no-page" };
+      }
+      const offScreen = offScreenCaptureRefusal(entry);
+      if (offScreen !== null) {
+        return offScreen;
       }
 
       let session: CdpSession;

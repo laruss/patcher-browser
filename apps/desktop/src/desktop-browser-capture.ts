@@ -18,6 +18,8 @@ import { PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@patcher/deskto
  *
  * The policy sits in its own module for the reason the page-read rules do: it
  * carries the limits, and limits are worth testing without an Electron window.
+ * So does the rule both captures share, that a tab has to be on screen for
+ * either to have anything to take.
  */
 
 /**
@@ -99,4 +101,76 @@ export function parseBrowserCaptureRegion(
       flooredWidth > PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION ||
       flooredHeight > PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION,
   };
+}
+
+/** The parts of a tab's state that decide whether its page is being drawn. */
+export interface BrowserCaptureDrawState {
+  visible: boolean;
+  overlayActive: boolean;
+  pendingDialog: unknown;
+  pagePrompt: unknown;
+}
+
+export interface BrowserCaptureRefusal {
+  ok: false;
+  reason: "failed";
+  message: string;
+}
+
+/**
+ * Refuse a picture of a tab whose page is not being drawn, or answer null.
+ *
+ * Both captures take what the view draws, and a view that is not on screen
+ * draws nothing. Measured on Electron 41.7.0 for #132: `capturePage` on a view
+ * hidden with `setVisible(false)` rejects at once — with `stayHidden`, and with
+ * background throttling held off, just the same — and `Page.captureScreenshot`
+ * waits for a frame that never comes, in 32 attempts out of 32. Holding the
+ * throttling off does not rescue either, and leaves the page rendering and
+ * reporting itself visible afterwards.
+ *
+ * It states the fact and advises nothing, because the shell cannot know what
+ * would help. A tab is hidden when the person is on a thread or in Settings as
+ * much as when another tab is selected, and bringing a tab forward is something
+ * some callers may not do at all. The advice lives where the caller's access is
+ * known.
+ *
+ * Not only the deck's own `visible`: a dialog, a page prompt or a menu the app
+ * draws across the page hides the view while `visible` stays true.
+ */
+export function offScreenCaptureRefusal(
+  tab: BrowserCaptureDrawState,
+): BrowserCaptureRefusal | null {
+  if (tab.pendingDialog !== null) {
+    return {
+      ok: false,
+      reason: "failed",
+      message:
+        "A JavaScript dialog is open on that tab, and its page is not drawn until the dialog is answered.",
+    };
+  }
+  if (!tab.visible || tab.overlayActive || tab.pagePrompt !== null) {
+    return {
+      ok: false,
+      reason: "failed",
+      message:
+        "That tab is not on screen, and the browser only photographs a page it is drawing. Its text, a snapshot, and its console and network logs can still be read.",
+    };
+  }
+  return null;
+}
+
+/**
+ * Why a viewport capture came back without a picture: where the tab is, when
+ * that explains it, and otherwise only that nothing came back.
+ */
+export function missingViewportCaptureRefusal(
+  tab: BrowserCaptureDrawState,
+): BrowserCaptureRefusal {
+  return (
+    offScreenCaptureRefusal(tab) ?? {
+      ok: false,
+      reason: "failed",
+      message: "The browser captured nothing.",
+    }
+  );
 }
