@@ -117,6 +117,13 @@ export interface BrowserCaptureRefusal {
   message: string;
 }
 
+/** A capture of a tab on screen that came back with no picture in it. */
+export const PATCHER_DESKTOP_BROWSER_CAPTURED_NOTHING: BrowserCaptureRefusal = {
+  ok: false,
+  reason: "failed",
+  message: "The browser captured nothing.",
+};
+
 /**
  * Refuse a picture of a tab whose page is not being drawn, or answer null.
  *
@@ -124,9 +131,10 @@ export interface BrowserCaptureRefusal {
  * draws nothing. Measured on Electron 41.7.0 for #132: `capturePage` on a view
  * hidden with `setVisible(false)` rejects at once — with `stayHidden`, and with
  * background throttling held off, just the same — and `Page.captureScreenshot`
- * waits for a frame that never comes, in 32 attempts out of 32. Holding the
- * throttling off does not rescue either, and leaves the page rendering and
- * reporting itself visible afterwards.
+ * waits for a frame that never comes, in 32 attempts out of 32. The one hidden
+ * view that did answer was a viewport capture in a minimised window, of a view
+ * that had painted before it was hidden; {@link captureViewportImage} is what
+ * keeps that working.
  *
  * It states the fact and advises nothing, because the shell cannot know what
  * would help. A tab is hidden when the person is on a thread or in Settings as
@@ -134,11 +142,13 @@ export interface BrowserCaptureRefusal {
  * some callers may not do at all. The advice lives where the caller's access is
  * known.
  *
- * Not only the deck's own `visible`: a dialog, a page prompt or a menu the app
+ * The conditions `applyEntryVisibility` hides a view for, not only the deck's
+ * own `visible`: a resize placeholder, a dialog, a page prompt or a menu the app
  * draws across the page hides the view while `visible` stays true.
  */
 export function offScreenCaptureRefusal(
   tab: BrowserCaptureDrawState,
+  hostResizing: boolean,
 ): BrowserCaptureRefusal | null {
   if (tab.pendingDialog !== null) {
     return {
@@ -148,7 +158,12 @@ export function offScreenCaptureRefusal(
         "A JavaScript dialog is open on that tab, and its page is not drawn until the dialog is answered.",
     };
   }
-  if (!tab.visible || tab.overlayActive || tab.pagePrompt !== null) {
+  if (
+    !tab.visible ||
+    hostResizing ||
+    tab.overlayActive ||
+    tab.pagePrompt !== null
+  ) {
     return {
       ok: false,
       reason: "failed",
@@ -160,17 +175,32 @@ export function offScreenCaptureRefusal(
 }
 
 /**
- * Why a viewport capture came back without a picture: where the tab is, when
- * that explains it, and otherwise only that nothing came back.
+ * Take the viewport picture, and explain one that could not be taken by where
+ * the tab is — when that is the explanation.
+ *
+ * Asked even of a tab known to be off screen: in a minimised window a view
+ * hidden after it painted still answers (#132), and refusing up front would
+ * save no time, since a hidden view rejects at once. A rejection from a tab that
+ * is on screen is thrown on untouched, so the browser's own reason still reaches
+ * the caller.
  */
-export function missingViewportCaptureRefusal(
-  tab: BrowserCaptureDrawState,
-): BrowserCaptureRefusal {
-  return (
-    offScreenCaptureRefusal(tab) ?? {
-      ok: false,
-      reason: "failed",
-      message: "The browser captured nothing.",
+export async function captureViewportImage<
+  Image extends { isEmpty(): boolean },
+>(
+  capture: () => Promise<Image>,
+  offScreen: BrowserCaptureRefusal | null,
+): Promise<Image | BrowserCaptureRefusal> {
+  let image: Image;
+  try {
+    image = await capture();
+  } catch (error) {
+    if (offScreen === null) {
+      throw error;
     }
-  );
+    return offScreen;
+  }
+  if (image.isEmpty()) {
+    return offScreen ?? PATCHER_DESKTOP_BROWSER_CAPTURED_NOTHING;
+  }
+  return image;
 }

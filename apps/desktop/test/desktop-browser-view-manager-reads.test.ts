@@ -1193,6 +1193,21 @@ describe("DesktopBrowserViewManager full-page captures", () => {
     expect(webContents.debugger.attachCalls).toEqual([]);
   });
 
+  it("refuses a tab behind a resize placeholder the same way", async () => {
+    const { hostWindow, manager, webContents } = attachTabForFullPage();
+    // The deck still calls this tab visible; the shell has hidden its view
+    // behind a bitmap for as long as the window is being dragged.
+    manager.beginWindowResize(hostWindow);
+
+    const result = await manager.captureFullPage({
+      hostWindow,
+      request: { tabId: "browser:a", format: "jpeg", quality: 70 },
+    });
+
+    expect(JSON.stringify(result)).toContain("not on screen");
+    expect(webContents.debugger.attachCalls).toEqual([]);
+  });
+
   it("omits quality for PNG, which has no such knob", async () => {
     const { hostWindow, manager, webContents } = attachTabForFullPage();
 

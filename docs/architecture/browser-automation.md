@@ -636,13 +636,16 @@ per process so that a capture left hanging could not answer or block the next.
   reporting itself `visible` after it was given back. A second
   `setVisible(false)` on the view, already hidden, did not undo that.
 
-So nothing on this list makes a hidden tab photographable, and what changed is
-what the caller is told. A full-page capture of a tab whose page is not drawn —
-in the background, or behind a dialog, a prompt or a menu the app draws over it
-— is refused before the debugger is attached, instead of stalling for the whole
-budget and ending in a sentence that blames the page. A viewport capture is
-still asked, because the minimised rows answer, and one that brings nothing back
-says where the tab is instead of passing Chromium's sentence on.
+So nothing on this list makes a hidden tab reliably photographable — what did
+answer was a viewport capture in a minimised window, of a view that had painted
+— and what changed is what the caller is told. A full-page capture of a tab
+whose page is not drawn — in the background, or behind a dialog, a prompt, a
+menu or a resize placeholder the app draws over it — is refused before the
+debugger is attached, instead of stalling for the whole budget and ending in a
+sentence that blames the page. A viewport capture is still asked, because the
+minimised rows answer; one that fails for a tab off screen says where the tab
+is instead of passing Chromium's sentence on, and one that fails for a tab on
+screen still passes on the browser's own reason.
 `page_read_failed` now reaches the caller with the executor's sentence, where it
 used to be replaced by one fixed line.
 

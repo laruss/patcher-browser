@@ -163,8 +163,9 @@ import {
   PATCHER_BROWSER_AUTOMATION_WORLD_NAME,
 } from "./desktop-browser-actions.js";
 import {
+  PATCHER_DESKTOP_BROWSER_CAPTURED_NOTHING,
   PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
-  missingViewportCaptureRefusal,
+  captureViewportImage,
   offScreenCaptureRefusal,
   parseBrowserCaptureRegion,
 } from "./desktop-browser-capture.js";
@@ -1669,6 +1670,7 @@ async function captureObservation(
   entry: BrowserViewEntry,
   tabId: string,
   observation: PatcherDesktopBrowserObservation,
+  hostResizing: boolean,
 ): Promise<PatcherDesktopBrowserObserveResult> {
   const page = { tabId, ...entryPageIdentity(entry) };
 
@@ -1716,11 +1718,12 @@ async function captureObservation(
     };
   }
 
-  // Asked even of a tab off screen, which in a minimised window can still
-  // answer (#132); only a capture that brought nothing back is explained.
-  const image = await entry.view.webContents.capturePage().catch(() => null);
-  if (image === null || image.isEmpty()) {
-    return missingViewportCaptureRefusal(entry);
+  const image = await captureViewportImage(
+    () => entry.view.webContents.capturePage(),
+    offScreenCaptureRefusal(entry, hostResizing),
+  );
+  if ("ok" in image) {
+    return image;
   }
   const buffer =
     observation.format === "png"
@@ -1817,11 +1820,7 @@ async function captureFullPageImage(
   );
   const base64 = captured.data ?? "";
   if (base64.length === 0) {
-    return {
-      ok: false,
-      reason: "failed",
-      message: "The browser captured nothing.",
-    };
+    return PATCHER_DESKTOP_BROWSER_CAPTURED_NOTHING;
   }
   if (base64.length > PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH) {
     return {
@@ -4802,6 +4801,7 @@ export function createDesktopBrowserViewManager(
           entry,
           request.tabId,
           request.observation,
+          isHostResizing(hostWindow),
         );
       } catch (error) {
         return {
@@ -4819,9 +4819,9 @@ export function createDesktopBrowserViewManager(
       if (entry.view.webContents.getURL().length === 0) {
         return { ok: false, reason: "no-page" };
       }
-      const offScreen = offScreenCaptureRefusal(entry);
-      if (offScreen !== null) {
-        return offScreen;
+      const hidden = offScreenCaptureRefusal(entry, isHostResizing(hostWindow));
+      if (hidden !== null) {
+        return hidden;
       }
 
       let session: CdpSession;

@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { PATCHER_DESKTOP_BROWSER_MAX_FULL_PAGE_DIMENSION } from "@patcher/desktop-contract";
 import {
   PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
-  missingViewportCaptureRefusal,
+  captureViewportImage,
   offScreenCaptureRefusal,
   parseBrowserCaptureRegion,
+  type BrowserCaptureDrawState,
 } from "../src/desktop-browser-capture.js";
 
 describe("the content-size script", () => {
@@ -101,21 +102,19 @@ describe("offScreenCaptureRefusal", () => {
   };
 
   it("lets a tab on screen be captured", () => {
-    expect(offScreenCaptureRefusal(drawn)).toBeNull();
-    expect(missingViewportCaptureRefusal(drawn).message).toBe(
-      "The browser captured nothing.",
-    );
+    expect(offScreenCaptureRefusal(drawn, false)).toBeNull();
   });
 
   it("refuses a tab in the background, or one the app is drawing over", () => {
-    for (const tab of [
-      { ...drawn, visible: false },
-      { ...drawn, overlayActive: true },
-      { ...drawn, pagePrompt: { kind: "auth" } },
-    ]) {
-      const message = offScreenCaptureRefusal(tab)?.message ?? "";
+    const hidden: Array<[BrowserCaptureDrawState, boolean]> = [
+      [{ ...drawn, visible: false }, false],
+      [drawn, true],
+      [{ ...drawn, overlayActive: true }, false],
+      [{ ...drawn, pagePrompt: { kind: "auth" } }, false],
+    ];
+    for (const [tab, hostResizing] of hidden) {
+      const message = offScreenCaptureRefusal(tab, hostResizing)?.message ?? "";
       expect(message).toContain("not on screen");
-      expect(missingViewportCaptureRefusal(tab).message).toBe(message);
       // A fact, not advice: the shell cannot tell a caller that may bring the
       // tab forward from one that may not, nor a tab behind another from every
       // tab behind a thread.
@@ -125,8 +124,59 @@ describe("offScreenCaptureRefusal", () => {
 
   it("names the dialog when a dialog is what hides the page", () => {
     expect(
-      offScreenCaptureRefusal({ ...drawn, pendingDialog: { type: "alert" } })
-        ?.message,
+      offScreenCaptureRefusal(
+        { ...drawn, pendingDialog: { type: "alert" } },
+        false,
+      )?.message,
     ).toContain("dialog is open");
+  });
+});
+
+describe("captureViewportImage", () => {
+  const picture = { isEmpty: () => false };
+  const blank = { isEmpty: () => true };
+  const offScreen = {
+    ok: false as const,
+    reason: "failed" as const,
+    message: "That tab is not on screen.",
+  };
+
+  it("hands the picture back, even from a tab off screen that could take one", async () => {
+    await expect(captureViewportImage(async () => picture, null)).resolves.toBe(
+      picture,
+    );
+    // A minimised window answers for a view hidden after it painted (#132).
+    await expect(
+      captureViewportImage(async () => picture, offScreen),
+    ).resolves.toBe(picture);
+  });
+
+  it("explains a picture a tab off screen could not give by where it is", async () => {
+    await expect(
+      captureViewportImage(
+        () =>
+          Promise.reject(
+            new Error("Current display surface not available for capture"),
+          ),
+        offScreen,
+      ),
+    ).resolves.toBe(offScreen);
+    await expect(
+      captureViewportImage(async () => blank, offScreen),
+    ).resolves.toBe(offScreen);
+  });
+
+  it("keeps the browser's own reason when the tab is on screen", async () => {
+    const failure = new Error("compositor gone");
+    await expect(
+      captureViewportImage(() => Promise.reject(failure), null),
+    ).rejects.toBe(failure);
+    await expect(
+      captureViewportImage(async () => blank, null),
+    ).resolves.toEqual({
+      ok: false,
+      reason: "failed",
+      message: "The browser captured nothing.",
+    });
   });
 });
