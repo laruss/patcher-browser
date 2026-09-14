@@ -163,7 +163,10 @@ import {
   PATCHER_BROWSER_AUTOMATION_WORLD_NAME,
 } from "./desktop-browser-actions.js";
 import {
+  PATCHER_DESKTOP_BROWSER_CAPTURED_NOTHING,
   PATCHER_DESKTOP_BROWSER_CONTENT_SIZE_SCRIPT,
+  captureViewportImage,
+  offScreenCaptureRefusal,
   parseBrowserCaptureRegion,
 } from "./desktop-browser-capture.js";
 import {
@@ -1667,6 +1670,7 @@ async function captureObservation(
   entry: BrowserViewEntry,
   tabId: string,
   observation: PatcherDesktopBrowserObservation,
+  hostResizing: boolean,
 ): Promise<PatcherDesktopBrowserObserveResult> {
   const page = { tabId, ...entryPageIdentity(entry) };
 
@@ -1714,13 +1718,12 @@ async function captureObservation(
     };
   }
 
-  const image = await entry.view.webContents.capturePage();
-  if (image.isEmpty()) {
-    return {
-      ok: false,
-      reason: "failed",
-      message: "The browser captured nothing — the tab may be hidden.",
-    };
+  const image = await captureViewportImage(
+    () => entry.view.webContents.capturePage(),
+    offScreenCaptureRefusal(entry, hostResizing),
+  );
+  if ("ok" in image) {
+    return image;
   }
   const buffer =
     observation.format === "png"
@@ -1817,11 +1820,7 @@ async function captureFullPageImage(
   );
   const base64 = captured.data ?? "";
   if (base64.length === 0) {
-    return {
-      ok: false,
-      reason: "failed",
-      message: "The browser captured nothing.",
-    };
+    return PATCHER_DESKTOP_BROWSER_CAPTURED_NOTHING;
   }
   if (base64.length > PATCHER_DESKTOP_BROWSER_MAX_SCREENSHOT_BASE64_LENGTH) {
     return {
@@ -4802,6 +4801,7 @@ export function createDesktopBrowserViewManager(
           entry,
           request.tabId,
           request.observation,
+          isHostResizing(hostWindow),
         );
       } catch (error) {
         return {
@@ -4818,6 +4818,10 @@ export function createDesktopBrowserViewManager(
       }
       if (entry.view.webContents.getURL().length === 0) {
         return { ok: false, reason: "no-page" };
+      }
+      const hidden = offScreenCaptureRefusal(entry, isHostResizing(hostWindow));
+      if (hidden !== null) {
+        return hidden;
       }
 
       let session: CdpSession;

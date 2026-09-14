@@ -533,6 +533,27 @@ describe("browser-tools observation", () => {
     });
   });
 
+  it("hands on why a page could not be pictured", async () => {
+    const host = createHost();
+    // What the executor says of #132's case, a tab that is not on screen.
+    host.harness.behavior.browser.failNextCall(
+      "page_read_failed",
+      "The browser could not look at tab tab-1. That tab is not on screen, " +
+        "and the browser only photographs a page it is drawing.",
+    );
+
+    const result = await host.harness.behavior.callAgentTool(
+      "browser_screenshot",
+      { tabId: "tab-1" },
+    );
+
+    expect(isError(result)).toBe(true);
+    // The one fixed sentence this code used to get could not tell "not on
+    // screen" from any other failure, and a model retried into it.
+    expect(textOf(result)).toContain("not on screen");
+    expect(textOf(result)).not.toContain("could not be read");
+  });
+
   it("explains a capture that was too large without pretending it returned one", async () => {
     const host = createHost();
     host.harness.behavior.browser.failNextCall(

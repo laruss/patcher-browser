@@ -954,9 +954,9 @@ function runTraceOperation(
  *
  * The active tab, and only it: a `WebContentsView` that is not the visible one
  * has nothing composited to capture, so a picture of the tab a background
- * command addressed would come back empty anyway. A capture that fails leaves
- * the step without an image rather than failing the step — the command already
- * happened.
+ * command addressed would be refused anyway, short of a minimised window
+ * (#132). A capture that fails leaves the step without an image rather than
+ * failing the step — the command already happened.
  *
  * **And only when the active tab is one this caller could have acted on.**
  * Otherwise a caller working in its own background tab would collect a picture

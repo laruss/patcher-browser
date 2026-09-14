@@ -701,6 +701,9 @@ const whole = await patcher.browser.page.screenshot({ fullPage: true }); // the 
 // width/height are device pixels for a viewport capture and CSS pixels for a
 // full-page one; truncated means the document was past ~16k pixels and this is
 // its top. fullPage fails with debugger_unavailable while DevTools has the tab.
+// A capture needs the tab on screen: a background tab — or any tab while the
+// user is on another Patcher screen — is refused with page_read_failed (the
+// viewport one aside, in a minimised window; not something to build on).
 const doc = await patcher.browser.page.pdf({}, { timeoutMs: 60_000 }); // whole document
 const log = await patcher.browser.page.console({ limit: 50 });
 const requests = await patcher.browser.page.network({ limit: 50 });
@@ -791,13 +794,16 @@ Rules worth building around:
 - **Live is earned once, then kept.** Switching tabs hides the view but leaves
   the page loaded and running, so a tab the user is not looking at is still
   readable and drivable — and a page script in it keeps running. What is never
-  live is the tab that has _never_ been shown: `tabs.open({ activate: false })`
-  stores a URL and loads nothing. Closing the tab ends it, and so does
-  restarting the app.
+  live is a tab restored from an earlier session that has not been shown since:
+  it holds a URL and loads nothing. `tabs.open({ activate: false })` is the
+  deliberate exception — it gets a hidden view and loads. Closing the tab ends
+  it, and so does restarting the app.
 
-  So a background job that reads pages needs each tab brought forward **once per
-  run of the app**, not once per pass — after that it can read them hidden,
-  without taking the user's focus. `getStatus().connected` is the synchronous
+  So a background job over _restored_ tabs needs each one brought forward **once
+  per run of the app**, not once per pass, while one over tabs it opened itself
+  does not. Either way it can then read them hidden (text, snapshots and logs; a
+  screenshot needs the tab on screen), without taking the user's focus.
+  `getStatus().connected` is the synchronous
   check for whether a window is there at all; there is no headless tab, so with
   no window there is nothing to read.
 

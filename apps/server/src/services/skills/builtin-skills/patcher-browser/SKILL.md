@@ -162,7 +162,8 @@ does not have one yet.
   loads it when that tab is next shown.
 - **Opening one in the background is live** — `activate: false` (or
   `patcher browser open <url> --background`) loads the page without moving the
-  user's focus, so you can read it straight away. That is the flag to reach for
+  user's focus, so you can read it straight away — its text and a snapshot, not
+  a screenshot, which only a tab on screen has. That is the flag to reach for
   in a browser someone is also working in; without it, your first navigation
   drags their window onto your page.
 

@@ -668,6 +668,56 @@ describe("DesktopBrowserViewManager observations", () => {
     });
   });
 
+  // #132. A view that is not on screen has no surface to copy, and Electron
+  // says so in words written for Chromium's developers.
+  it("says a tab is not on screen when its capture brings nothing back", async () => {
+    const { hostWindow, manager, webContents } = attachTabForObservations();
+    manager.setVisible({
+      hostWindow,
+      request: { tabId: "browser:a", visible: false },
+    });
+    const screenshot = {
+      tabId: "browser:a",
+      observation: { kind: "screenshot", format: "jpeg", quality: 70 },
+    } as const;
+
+    const pending = manager.observe({ hostWindow, request: screenshot });
+    // Still asked rather than refused up front: in a minimised window a view
+    // hidden after it painted does answer.
+    expect(webContents.pendingCaptureRejecters).toHaveLength(1);
+    webContents.pendingCaptureResolvers.splice(0);
+    for (const reject of webContents.pendingCaptureRejecters.splice(0)) {
+      reject(new Error("Current display surface not available for capture"));
+    }
+    const refused = await pending;
+
+    expect(refused).toMatchObject({ ok: false, reason: "failed" });
+    expect(JSON.stringify(refused)).toContain("not on screen");
+    expect(JSON.stringify(refused)).not.toContain("display surface");
+    // Only the picture needs the page drawn.
+    await expect(
+      manager.observe({
+        hostWindow,
+        request: {
+          tabId: "browser:a",
+          observation: { kind: "console", limit: 10 },
+        },
+      }),
+    ).resolves.toMatchObject({ ok: true, kind: "console" });
+
+    // And it follows where the tab is now, not where it was.
+    manager.setVisible({
+      hostWindow,
+      request: { tabId: "browser:a", visible: true },
+    });
+    const shown = manager.observe({ hostWindow, request: screenshot });
+    await settlePendingCaptures(requireFakeView(0));
+    await expect(shown).resolves.toMatchObject({
+      ok: true,
+      kind: "screenshot",
+    });
+  });
+
   // The user's Cmd+P, which is a different thing from rendering a PDF for a
   // program: it opens the OS dialog and reports nothing back.
   it("opens the print dialog for a page, and not for an empty tab", () => {
@@ -1121,6 +1171,41 @@ describe("DesktopBrowserViewManager full-page captures", () => {
     expect(
       webContents.debugger.commands.map((command) => command.method),
     ).not.toContain("Page.enable");
+  });
+
+  it("refuses a tab that is not on screen before attaching the debugger", async () => {
+    const { hostWindow, manager, webContents } = attachTabForFullPage();
+    manager.setVisible({
+      hostWindow,
+      request: { tabId: "browser:a", visible: false },
+    });
+
+    const result = await manager.captureFullPage({
+      hostWindow,
+      request: { tabId: "browser:a", format: "jpeg", quality: 70 },
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "failed" });
+    expect(JSON.stringify(result)).toContain("not on screen");
+    // Measured for #132: the capture waits for a frame a hidden view never
+    // draws, so asking would cost the whole budget and end in a stall blamed
+    // on the page — after taking a debugger session for nothing.
+    expect(webContents.debugger.attachCalls).toEqual([]);
+  });
+
+  it("refuses a tab behind a resize placeholder the same way", async () => {
+    const { hostWindow, manager, webContents } = attachTabForFullPage();
+    // The deck still calls this tab visible; the shell has hidden its view
+    // behind a bitmap for as long as the window is being dragged.
+    manager.beginWindowResize(hostWindow);
+
+    const result = await manager.captureFullPage({
+      hostWindow,
+      request: { tabId: "browser:a", format: "jpeg", quality: 70 },
+    });
+
+    expect(JSON.stringify(result)).toContain("not on screen");
+    expect(webContents.debugger.attachCalls).toEqual([]);
   });
 
   it("omits quality for PNG, which has no such knob", async () => {

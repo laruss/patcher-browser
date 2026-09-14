@@ -1748,6 +1748,12 @@ export interface PluginBrowserPage {
    * stops short of taking the tab's dialogs over, so a page that alerts still
    * shows the user Chromium's own modal. A document past ~16k CSS pixels comes
    * back as its top, with `truncated` set.
+   *
+   * **A capture needs the tab on screen.** A picture is what the browser draws,
+   * and it draws nothing for a tab in the background, or for any tab while the
+   * user is on another Patcher screen. That is `page_read_failed` — always for
+   * `fullPage`, and for the viewport unless the window is minimised, which is
+   * nothing to build on — while the tab's text, snapshot and logs still answer.
    */
   screenshot(
     args?: {
