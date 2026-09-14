@@ -136,7 +136,15 @@ export function toBrowserNetworkEntry(
   // A `webRequest` error string is the raw `net::ERR_*` name. Left as it is:
   // it is the thing worth searching for, and rewording it would only make it
   // harder to look up.
-  const error = typeof details.error === "string" ? details.error : "";
+  //
+  // `net::OK` is the one that must not be kept. `onCompleted` fills `error`
+  // through the same `net::ErrorToString(net_error)` as `onErrorOccurred`, with
+  // no branch for success, and `ErrorToString(net::OK)` is the string
+  // "net::OK" — so a request that simply worked arrives carrying an error. The
+  // listing shows the error whenever there is one, so keeping it would put
+  // "net::OK" where every status belongs (#121).
+  const reported = typeof details.error === "string" ? details.error : "";
+  const error = reported === "net::OK" ? "" : reported;
   return {
     method: truncate(
       typeof details.method === "string" ? details.method : "",
