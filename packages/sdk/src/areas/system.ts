@@ -23,6 +23,8 @@ import type {
   SystemBrowserAccessRequestOutcomeResponse,
   SystemBrowserExternalAccessRequest,
   SystemBrowserExternalAccessResponse,
+  SystemCliSkillsSetupRequest,
+  SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
   SystemInstallCliSkillsRequest,
   SystemInstallCliSkillsResponse,
@@ -77,6 +79,8 @@ export interface SystemCliSkillsStatusArgs {
 }
 export type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
 export type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
+export type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
+export type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
 export type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 export type SystemUpdateExperimentsResult = Experiments;
 export type SystemUpdateGeneralSettingsResult = AppSettings;
@@ -130,6 +134,14 @@ export interface SystemArea {
   installCliSkills(
     args: SystemInstallCliSkillsArgs,
   ): Promise<SystemInstallCliSkillsResult>;
+  /**
+   * Record the answer to the launch-time question about installing the CLI
+   * skills for agents outside Patcher; `accept` also installs them onto the
+   * primary machine. Refused inside a turn, like `installCliSkills`.
+   */
+  setupCliSkills(
+    args: SystemCliSkillsSetupArgs,
+  ): Promise<SystemCliSkillsSetupResult>;
   reloadConfig(): Promise<SystemReloadConfigResult>;
   transcribeVoice(
     args: SystemVoiceTranscriptionArgs,
@@ -271,6 +283,11 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async installCliSkills(input) {
       return transport.readJson(
         transport.api.v1.system["cli-skills"].install.$post({ json: input }),
+      );
+    },
+    async setupCliSkills(input) {
+      return transport.readJson(
+        transport.api.v1.system["cli-skills"].setup.$post({ json: input }),
       );
     },
     async reloadConfig() {

@@ -1,6 +1,13 @@
-import { listHosts, listNonDestroyedHostsByIds } from "@patcher/db";
+import {
+  getOutsideAgentSetup,
+  listHosts,
+  listNonDestroyedHostsByIds,
+  setOutsideAgentSetup,
+} from "@patcher/db";
 import type {
   CliSkillMachineStatus,
+  SystemCliSkillsSetupRequest,
+  SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
   SystemInstallCliSkillsResponse,
 } from "@patcher/server-contract";
@@ -12,6 +19,10 @@ import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 import { callHostOnlineRpc } from "../hosts/online-rpc.js";
+import {
+  requirePrimaryHostId,
+  resolvePrimaryHostId,
+} from "../hosts/primary-host.js";
 import { resolveServerOwnedSkillCatalogEntries } from "./injected-skills.js";
 
 /**
@@ -156,6 +167,7 @@ export async function readGlobalCliSkillStatus(
       }
     }),
   );
+  recordAcceptedWhenPrimaryHasCopies(deps, machines);
   return { machines };
 }
 
@@ -222,5 +234,116 @@ export async function installGlobalCliSkills(
       }
     }),
   );
+  recordAcceptedWhenPrimaryInstalled(deps, results);
+  // Every window showing a machine's skill status learns it may have changed,
+  // not only the one that asked for the install: the app re-reads the status on
+  // `config-changed`, which also carries an answer recorded just above.
+  deps.hub.notifySystem(["config-changed"]);
   return { results };
+}
+
+/**
+ * Pressing Install — in Settings, at a terminal, or in the launch-time question —
+ * is saying yes to it, so a successful install on the primary machine records
+ * the answer too (#141). The install's own broadcast announces it.
+ */
+function recordAcceptedWhenPrimaryInstalled(
+  deps: GlobalSkillInstallDeps,
+  results: InstallGlobalCliSkillsResult["results"],
+): void {
+  const primaryHostId = resolvePrimaryHostId(deps);
+  const installedOnPrimary = results.some(
+    (entry) => entry.ok && entry.hostId === primaryHostId,
+  );
+  if (!installedOnPrimary || getOutsideAgentSetup(deps.db) === "accepted") {
+    return;
+  }
+  setOutsideAgentSetup(deps.db, "accepted");
+}
+
+/**
+ * An install whose primary machine already holds the skills has answered the
+ * launch-time question (#141): somebody installed them. Recorded rather than
+ * merely not asked, so removing the copies later does not bring the question
+ * back.
+ *
+ * Recorded by whichever status read of the primary machine first gets an
+ * answer — the connect-time check below, or the window's own read before it
+ * decides whether to ask — so a connect-time read that timed out is made good
+ * by the next one rather than lost. `unknown` records nothing, and `missing`
+ * is the case the question is for.
+ */
+function recordAcceptedWhenPrimaryHasCopies(
+  deps: GlobalSkillInstallDeps,
+  machines: SystemCliSkillsStatusResponse["machines"],
+): void {
+  const primaryHostId = resolvePrimaryHostId(deps);
+  const primary = machines.find((machine) => machine.hostId === primaryHostId);
+  if (primary?.status !== "installed" && primary?.status !== "outdated") {
+    return;
+  }
+  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
+  setOutsideAgentSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+/**
+ * The check made when the primary machine's daemon connects, since the copies
+ * are on that machine and nothing else can say whether they are there. Only
+ * while unanswered, so a settled install costs no daemon call per connect.
+ */
+export async function acceptWhenPrimaryHostHasCliSkills(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string },
+): Promise<void> {
+  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
+  if (args.hostId !== resolvePrimaryHostId(deps)) return;
+  await readGlobalCliSkillStatus(deps, { hostIds: [args.hostId] });
+}
+
+export function scheduleExistingCliSkillsAcceptance(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string },
+): void {
+  void acceptWhenPrimaryHostHasCliSkills(deps, args).catch((error) => {
+    deps.logger.warn(
+      { hostId: args.hostId, err: error },
+      "Could not check the primary machine for existing Patcher CLI skills",
+    );
+  });
+}
+
+/**
+ * The person's answer to the launch-time question (#141).
+ *
+ * `accept` records the answer **before** installing. An install can fail — the
+ * machine dropped off, a root is not writable — and recording afterwards would
+ * put the same question back in front of them on every launch until it
+ * succeeded. The per-machine outcome goes back to the window to show, and
+ * Settings → Skills is where they try again.
+ */
+export async function answerCliSkillsSetup(
+  deps: GlobalSkillInstallDeps,
+  args: SystemCliSkillsSetupRequest,
+): Promise<SystemCliSkillsSetupResponse> {
+  // The first answer stands. Two windows can both be showing the question, and
+  // a late click in one must not undo what the other already answered; a
+  // change of mind later goes through Settings → Skills. Checked and written
+  // with no await between them, so two requests cannot both pass the check.
+  const current = getOutsideAgentSetup(deps.db);
+  if (current !== "unasked") {
+    return { outsideAgentSetup: current, install: null };
+  }
+  if (args.answer === "decline") {
+    setOutsideAgentSetup(deps.db, "declined");
+    deps.hub.notifySystem(["config-changed"]);
+    return { outsideAgentSetup: "declined", install: null };
+  }
+  const primaryHostId = requirePrimaryHostId(deps);
+  setOutsideAgentSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+  const install = await installGlobalCliSkills(deps, {
+    hostIds: [primaryHostId],
+  });
+  return { outsideAgentSetup: "accepted", install };
 }

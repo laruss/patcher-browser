@@ -7499,6 +7499,11 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         linux: "linux";
         wsl: "wsl";
     }>>;
+    outsideAgentSetup: z$1.ZodEnum<{
+        accepted: "accepted";
+        unasked: "unasked";
+        declined: "declined";
+    }>;
     voiceTranscriptionEnabled: z$1.ZodBoolean;
     dataDir: z$1.ZodString;
 }, z$1.core.$strip>;
@@ -7800,6 +7805,43 @@ declare const systemInstallCliSkillsResponseSchema: z$1.ZodObject<{
     }, z$1.core.$strip>], "ok">>;
 }, z$1.core.$strip>;
 type SystemInstallCliSkillsResponse = z$1.infer<typeof systemInstallCliSkillsResponseSchema>;
+/**
+ * The person's answer to the launch-time question about installing Patcher's
+ * skills for agents outside Patcher (#141). `accept` installs onto the primary
+ * machine as well as recording the answer.
+ */
+declare const systemCliSkillsSetupRequestSchema: z$1.ZodObject<{
+    answer: z$1.ZodEnum<{
+        accept: "accept";
+        decline: "decline";
+    }>;
+}, z$1.core.$strip>;
+type SystemCliSkillsSetupRequest = z$1.infer<typeof systemCliSkillsSetupRequestSchema>;
+/** The answer as recorded, and the install's per-machine outcome on `accept`. */
+declare const systemCliSkillsSetupResponseSchema: z$1.ZodObject<{
+    outsideAgentSetup: z$1.ZodEnum<{
+        accepted: "accepted";
+        unasked: "unasked";
+        declined: "declined";
+    }>;
+    install: z$1.ZodNullable<z$1.ZodObject<{
+        results: z$1.ZodArray<z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
+            ok: z$1.ZodLiteral<true>;
+            hostId: z$1.ZodString;
+            hostName: z$1.ZodString;
+            installations: z$1.ZodArray<z$1.ZodObject<{
+                name: z$1.ZodString;
+                path: z$1.ZodString;
+            }, z$1.core.$strip>>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            ok: z$1.ZodLiteral<false>;
+            hostId: z$1.ZodString;
+            hostName: z$1.ZodString;
+            errorMessage: z$1.ZodString;
+        }, z$1.core.$strip>], "ok">>;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemCliSkillsSetupResponse = z$1.infer<typeof systemCliSkillsSetupResponseSchema>;
 type SystemConfigReloadResponse = z$1.infer<typeof systemConfigReloadResponseSchema>;
 
 declare const terminalSessionSchema: z$1.ZodObject<{
@@ -13200,6 +13242,8 @@ interface SystemCliSkillsStatusArgs {
 }
 type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
 type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
+type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
+type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
 type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 type SystemUpdateExperimentsResult = Experiments;
 type SystemUpdateGeneralSettingsResult = AppSettings;
@@ -13236,6 +13280,12 @@ interface SystemArea {
     /** Per-machine install state of Patcher's built-in CLI skills. */
     cliSkillsStatus(args?: SystemCliSkillsStatusArgs): Promise<SystemCliSkillsStatusResult>;
     installCliSkills(args: SystemInstallCliSkillsArgs): Promise<SystemInstallCliSkillsResult>;
+    /**
+     * Record the answer to the launch-time question about installing the CLI
+     * skills for agents outside Patcher; `accept` also installs them onto the
+     * primary machine. Refused inside a turn, like `installCliSkills`.
+     */
+    setupCliSkills(args: SystemCliSkillsSetupArgs): Promise<SystemCliSkillsSetupResult>;
     reloadConfig(): Promise<SystemReloadConfigResult>;
     transcribeVoice(args: SystemVoiceTranscriptionArgs): Promise<SystemVoiceTranscriptionResult>;
     updateExperiments(args: Experiments): Promise<SystemUpdateExperimentsResult>;

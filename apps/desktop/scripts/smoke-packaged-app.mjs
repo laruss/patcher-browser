@@ -176,6 +176,7 @@ async function startSmokeServer({ dataDir, expectedDesktopVersion }) {
         },
         hostDaemonPort: 38987,
         primaryHostPlatform: null,
+        outsideAgentSetup: "unasked",
         voiceTranscriptionEnabled: false,
       });
       return;

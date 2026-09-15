@@ -75,6 +75,7 @@ function systemConfig(): SystemConfigResponse {
     serverUrl: "http://localhost:38986",
     primaryHostId: "host_primary",
     primaryHostPlatform: "darwin",
+    outsideAgentSetup: "unasked",
     voiceTranscriptionEnabled: false,
     dataDir: "/tmp/patcher-test",
   };

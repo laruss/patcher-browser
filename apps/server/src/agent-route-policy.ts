@@ -15,6 +15,11 @@
  *   sandbox. All three were already meant to be app-only — deliberately absent
  *   from the SDK and the CLI — and this is what makes that true of an agent
  *   that calls the route directly.
+ * - **Patcher's skills in the user's global agent roots** (#141). The install
+ *   writes into `~/.agents/skills` and `~/.claude/skills`, outside the sandbox,
+ *   and every agent on the machine loads what lands there; the answer to the
+ *   launch-time question about it is the person's. The prefix, for the reason
+ *   `/settings` is one: the next write under it is closed on arrival.
  * - **The app's own settings.** `PUT /settings/general` takes the whole
  *   settings object, and three of its fields are the boundary the turn is
  *   running inside: whether a sandboxed turn's traffic is confined to a list
@@ -133,6 +138,14 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
   {
     path: "/hosts/join-codes",
     reason: "enrolling a machine into this install is the owner's to do",
+  },
+  {
+    // The prefix, so the install, the launch-time answer (#141) and whatever
+    // is added under it next are closed together. A GET stays open: a turn may
+    // read whether the skills are installed.
+    path: "/system/cli-skills",
+    reason:
+      "it writes Patcher's skills into the user's home, outside this turn's sandbox, where every agent on the machine loads them, and records the person's own answer about that",
   },
   {
     // The prompt is refused from inside a turn in `routes/threads/interactions.ts`;

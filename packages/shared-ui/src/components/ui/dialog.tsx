@@ -193,10 +193,17 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 type DialogContentProps = React.ComponentPropsWithoutRef<
   typeof DialogPrimitive.Content
->;
+> & {
+  /**
+   * False keeps the compact drawer from closing on a swipe, a tap outside or
+   * Escape, which a Radix `onInteractOutside` cannot reach there — the drawer
+   * branch strips it. For a dialog whose closing is itself an answer.
+   */
+  dismissible?: boolean;
+};
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ className, children, dismissible, ...props }, ref) => {
     const { isCompactViewport, open, onOpenChange } = useResponsiveDialog();
     useBrowserDimmingModal(open);
     // Unconditional (rules of hooks — the compact branch returns early); the
@@ -206,7 +213,11 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     if (isCompactViewport) {
       const domProps = stripRadixContentProps(props);
       return (
-        <ResponsiveDrawerShell open={open} onOpenChange={onOpenChange}>
+        <ResponsiveDrawerShell
+          open={open}
+          onOpenChange={onOpenChange}
+          dismissible={dismissible}
+        >
           <div
             ref={ref}
             className={cn(

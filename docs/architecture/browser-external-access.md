@@ -250,6 +250,34 @@ the same reason it was removed at all: it lives outside the data directory, so
 the rename never reached it, and it tells agents to run a binary this fork does
 not ship.
 
+**The install itself is asked for, once (#141).** Daemon startup writes the shim
+and prunes `bb-cli`; it installs nothing, so for as long as installing was a
+button in Settings → Skills, an agent asked to use Patcher found neither skill
+and went searching the disk — measured on a machine with the packaged app, it
+found a source checkout and ran `bun run patcher` from it. So the app asks when
+it opens on a primary machine that holds none of the skills: install them into
+both roots there, or not now. Either answer is recorded in
+`app_settings.outside_agent_setup` and never asked again, and the first answer
+wins over a second window's; a successful install on the primary machine from
+anywhere — the question, the Settings button, the CLI — records a yes, and so
+does any status read that finds a copy already there (at daemon connect, or the
+window's own read before it asks). That last one is a write a turn can cause by
+reading the status, which the route policy otherwise leaves open to it; what it
+records is a fact about the disk, not a choice made for the person.
+
+One install location is not followed: Claude Code's skills move with
+`CLAUDE_CONFIG_DIR`, which skill discovery honours
+(`command-handlers/list-commands.ts`), while the install writes
+`~/.claude/skills` regardless. Pre-existing, and most likely moot for the
+daemon, whose environment is launchd's rather than a shell's. Not a field of the general settings object, which every
+window writes back whole and would put `unasked` back; and not a step in
+first-run onboarding, which is behind an experiment that is off by default.
+
+The install is refused to a turn (`/system/cli-skills` in
+`agent-route-policy.ts`) and to plugins (`null` in the plugin API map): it writes
+into the user's home outside any sandbox, into roots every agent on the machine
+loads, which is the argument that already closed provider-CLI installs.
+
 ### Advice a level can afford
 
 **No refusal for want of a tab recommends work the caller's level forbids.** The
@@ -1157,5 +1185,5 @@ of it.
 
 That pass is also what found the two defects the tests could not: a refusal
 quoting `patcher browser-tools`, a command that does not exist, as the obvious
-next thing to try; and the shim, skill install and `bb-cli` prune all firing
-correctly on a real daemon start.
+next thing to try; and the shim and the `bb-cli` prune both firing correctly on
+a real daemon start. (That start installs no skills — see "And the skill".)

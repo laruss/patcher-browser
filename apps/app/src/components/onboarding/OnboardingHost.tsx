@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { DiscoveredRepo } from "@patcher/host-daemon-contract";
-import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { useUpdateGeneralSettings } from "@/hooks/mutations/settings-mutations";
+import {
+  useCliSkillsStatus,
+  useSystemConfig,
+} from "@/hooks/queries/system-queries";
+import {
+  useSetupCliSkills,
+  useUpdateGeneralSettings,
+} from "@/hooks/mutations/settings-mutations";
 import { useCreateProject } from "@/hooks/mutations/project-mutations";
 import { usePrimaryHost } from "@/hooks/queries/host-queries";
 import { useHostProviderCliStatus } from "@/hooks/queries/system-queries";
@@ -13,6 +19,7 @@ import {
   useProviderCliInstallRunner,
 } from "@/components/provider-cli/provider-cli-install";
 import { providerCliJobKey } from "@/components/provider-cli/provider-cli-install-store";
+import { reportInstallResults } from "@/components/settings/cli-skills-install-results";
 import { sdk } from "@/lib/sdk";
 
 /**
@@ -44,6 +51,7 @@ import {
   type OnboardingAgentState,
   type OnboardingUiEvent,
 } from "./OnboardingFlow";
+import { OutsideAgentSetupDialog } from "./OutsideAgentSetupDialog";
 
 /**
  * Decides whether first-run onboarding is showing, and owns its side effects:
@@ -54,10 +62,17 @@ import {
  * `onboardingCompletedAt` timestamp gate the flow. Whether an agent is actually
  * usable is answered live by the agents query, so dismissing onboarding never
  * claims the machine is configured.
+ *
+ * It also owns the one question asked after it (#141): whether to install
+ * Patcher's skills for agents outside Patcher. Here rather than beside it, so
+ * the rule that the two never stack is one predicate in one component. That
+ * question is not gated on the experiment — onboarding is off by default, and
+ * an install that never saw it still has agents that cannot find Patcher.
  */
 export function OnboardingHost() {
   const configQuery = useSystemConfig();
   const updateSettings = useUpdateGeneralSettings();
+  const setupCliSkills = useSetupCliSkills();
   const createProject = useCreateProject();
   const primaryHost = usePrimaryHost();
   const navigationQuery = useSidebarNavigation();
@@ -84,6 +99,41 @@ export function OnboardingHost() {
     // app start, forever, for users who finished onboarding long ago.
     enabled: shouldShow,
   });
+
+  // Asked only of an install that has not answered, once its primary machine
+  // is connected — the install is a live call to that machine's daemon — and
+  // only when that machine holds none of the skills. The read names the one
+  // machine: every enrolled machine would cost a daemon call each, and a slow
+  // one would hold the question back for the others.
+  //
+  // The server's own primary machine, not the one `usePrimaryHost` falls back
+  // to when the server named none: a yes installs where the server says, and
+  // with no machine named the install refuses.
+  const serverPrimaryHostId = configQuery.data?.primaryHostId ?? null;
+  const mayAskOutsideAgentSetup =
+    !shouldShow &&
+    configQuery.data?.outsideAgentSetup === "unasked" &&
+    serverPrimaryHostId !== null &&
+    primaryHostId === serverPrimaryHostId &&
+    primaryHost?.status === "connected";
+  const primaryCliSkillsQuery = useCliSkillsStatus({
+    enabled: mayAskOutsideAgentSetup,
+    hostIds: primaryHostId === null ? [] : [primaryHostId],
+    // `unknown` is a daemon that did not answer in time, not an answer.
+    retryUnknown: true,
+  });
+  const primaryCliSkillsStatus = primaryCliSkillsQuery.data?.machines.find(
+    (machine) => machine.hostId === primaryHostId,
+  )?.status;
+  // Kept up while the answer is being sent: the server records it and says
+  // `config-changed` before an accept's install has run, so the config refetch
+  // lands first and would take the question away mid-install. `isSuccess`
+  // keeps it away once the answer has landed, whatever the caches say.
+  const showOutsideAgentSetup =
+    setupCliSkills.isPending ||
+    (mayAskOutsideAgentSetup &&
+      primaryCliSkillsStatus === "missing" &&
+      !setupCliSkills.isSuccess);
 
   const projects = navigationQuery.data?.projects;
 
@@ -199,15 +249,38 @@ export function OnboardingHost() {
     [settings, updateSettings],
   );
 
-  if (!shouldShow) return null;
+  const answerOutsideAgentSetup = (answer: "accept" | "decline") => {
+    setupCliSkills.mutate(
+      { answer },
+      {
+        onSuccess: (result) => {
+          if (result.install !== null) reportInstallResults(result.install);
+        },
+      },
+    );
+  };
+
+  if (shouldShow) {
+    return (
+      <OnboardingFlow
+        installing={installingProviders}
+        onAddProjects={addProjects}
+        onClose={close}
+        onEvent={report}
+        onInstallAgent={installAgent}
+      />
+    );
+  }
+
+  if (!showOutsideAgentSetup || primaryHost === null) return null;
 
   return (
-    <OnboardingFlow
-      installing={installingProviders}
-      onAddProjects={addProjects}
-      onClose={close}
-      onEvent={report}
-      onInstallAgent={installAgent}
+    <OutsideAgentSetupDialog
+      open
+      hostName={primaryHost.name}
+      pending={setupCliSkills.isPending}
+      onAccept={() => answerOutsideAgentSetup("accept")}
+      onDecline={() => answerOutsideAgentSetup("decline")}
     />
   );
 }

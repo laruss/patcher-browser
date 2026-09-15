@@ -8,6 +8,7 @@ import {
 import type {
   SystemBrowserAccessRequestDecideRequest,
   SystemBrowserExternalAccessRequest,
+  SystemCliSkillsSetupRequest,
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
@@ -17,6 +18,7 @@ import {
 } from "../cache-owners/browser-access-grant-cache-owner";
 import { invalidatePluginList } from "../cache-owners/plugin-cache-owner";
 import {
+  invalidateCliSkillsStatus,
   invalidateGeneralSettingsDependencies,
   invalidateSystemConfig,
 } from "../cache-owners/system-cache-effects";
@@ -182,8 +184,9 @@ export function useUpdateKeyboardSettings() {
 
 /**
  * Copy Patcher's built-in CLI skills into the chosen machines' global agent skill
- * roots so agents outside Patcher can drive it. Purely a filesystem action on those
- * machines — nothing in the system config changes, so nothing is invalidated.
+ * roots so agents outside Patcher can drive it. A successful install on the primary
+ * machine also records a yes to the launch-time question (#141); the server's
+ * `config-changed` refreshes the config for that, so nothing is invalidated here.
  */
 export function useInstallCliSkills() {
   return useMutation({
@@ -192,6 +195,30 @@ export function useInstallCliSkills() {
     },
     mutationFn: (args: SystemInstallCliSkillsRequest) =>
       sdk.system.installCliSkills(args),
+  });
+}
+
+/**
+ * Answer the launch-time question about installing the CLI skills for agents
+ * outside Patcher (#141). The answer arrives in the system config, and an
+ * accept changes what the skills status says, so both are refreshed here; other
+ * windows hear the server's `config-changed`.
+ */
+export function useSetupCliSkills() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to set up the Patcher skills for other agents.",
+    },
+    mutationFn: (args: SystemCliSkillsSetupRequest) =>
+      sdk.system.setupCliSkills(args),
+    // Settled rather than succeeded: an accept is recorded before its install
+    // runs, so a request that fails afterwards has still changed the answer.
+    onSettled: () => {
+      invalidateSystemConfig({ queryClient });
+      invalidateCliSkillsStatus({ queryClient });
+    },
   });
 }
 

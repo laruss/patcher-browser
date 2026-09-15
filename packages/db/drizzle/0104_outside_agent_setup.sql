@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `outside_agent_setup` text DEFAULT 'unasked' NOT NULL;

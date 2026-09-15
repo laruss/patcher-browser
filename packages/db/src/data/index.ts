@@ -205,8 +205,10 @@ export type {
 export {
   getAppKeybindingOverrides,
   getAppSettings,
+  getOutsideAgentSetup,
   setAppKeybindingOverrides,
   setAppSettings,
+  setOutsideAgentSetup,
 } from "./app-settings.js";
 export { getStoredThreadTabs, replaceStoredThreadTabs } from "./thread-tabs.js";
 export type {

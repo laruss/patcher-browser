@@ -182,12 +182,36 @@ export function useSystemConfig(options?: QueryOptions) {
  * enrolled machine's daemon, so it is fetched on demand (the settings section)
  * rather than kept fresh in the background.
  */
-export function useCliSkillsStatus(options?: QueryOptions) {
+export function useCliSkillsStatus(
+  options?: QueryOptions & {
+    /**
+     * Ask only these machines. The machines are part of the key, so a narrow
+     * read never overwrites the Settings section's read of every machine.
+     */
+    hostIds?: readonly string[];
+    /**
+     * Ask again while a machine answers `unknown` — a daemon that did not
+     * reply in time — instead of holding that until the window regains focus.
+     */
+    retryUnknown?: boolean;
+  },
+) {
+  const hostIds = options?.hostIds;
+  const retryUnknown = options?.retryUnknown ?? false;
   return useQuery<SystemCliSkillsStatusResponse>({
-    queryKey: systemCliSkillsQueryKey(),
-    queryFn: ({ signal }) => sdk.system.cliSkillsStatus({ signal }),
+    queryKey: systemCliSkillsQueryKey(hostIds),
+    queryFn: ({ signal }) =>
+      sdk.system.cliSkillsStatus({
+        signal,
+        ...(hostIds === undefined ? {} : { hostIds }),
+      }),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
+    refetchInterval: (query) =>
+      retryUnknown &&
+      query.state.data?.machines.some((machine) => machine.status === "unknown")
+        ? 10_000
+        : false,
   });
 }
 

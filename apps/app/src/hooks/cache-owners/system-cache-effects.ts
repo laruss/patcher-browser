@@ -9,6 +9,7 @@ import {
   allEnvironmentWorkStatusQueryKeyPrefix,
   allHostQueryKeyPrefix,
   allProjectPathsQueryKeyPrefix,
+  allSystemCliSkillsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
   allSystemProvidersQueryKeyPrefix,
   allTerminalsQueryKeyPrefix,
@@ -139,6 +140,15 @@ export function invalidateSystemConfig({ queryClient }: QueryClientArg): void {
   queryClient.invalidateQueries({ queryKey: systemConfigQueryKey() });
 }
 
+/** Every read of the CLI skills' install state, whichever machines it asked. */
+export function invalidateCliSkillsStatus({
+  queryClient,
+}: QueryClientArg): void {
+  queryClient.invalidateQueries({
+    queryKey: allSystemCliSkillsQueryKeyPrefix(),
+  });
+}
+
 /** Refresh provider/model catalogs after a provider CLI install or update. */
 export function invalidateSystemExecutionOptions({
   hostId,
@@ -203,5 +213,9 @@ function getServerReconnectInvalidationQueryKeys(): QueryKey[] {
     // Held in the server's memory, so a restart empties it and no event says
     // so: without this a window keeps showing a question nobody can answer.
     browserAccessRequestsQueryKey(),
+    // Settings, experiments and the launch-time answer (#141) change through
+    // `config-changed`, which a disconnected window misses — and a stale
+    // `unasked` would keep a question up that another window already answered.
+    systemConfigQueryKey(),
   ];
 }
