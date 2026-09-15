@@ -7,6 +7,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import type { BrowserAccessGrantLevel } from "@patcher/domain";
 
 /**
  * A stable path to this install's `patcher`, for a caller that is not a turn.
@@ -204,4 +205,40 @@ export async function writeCliShim(
   } catch (error) {
     return { outcome: "failed", error };
   }
+}
+
+/**
+ * The argv that issues a browser access grant, for a message that suggests one.
+ *
+ * Built once rather than written into each sentence, because a sentence
+ * suggested one that did not run: `grant --level browse` with no label, which
+ * `grant <label>` refuses (#134). The CLI's own agent-access test feeds this to
+ * the command's definition, so the two cannot drift apart unnoticed. The label
+ * goes after `--`, because a label may start with a dash and would otherwise be
+ * read as an option.
+ */
+export function agentAccessGrantArgv(
+  label: string,
+  level: BrowserAccessGrantLevel,
+): string[] {
+  return ["agent-access", "grant", "--level", level, "--", label];
+}
+
+/**
+ * A command run through this install's shim, as one line to paste.
+ *
+ * The absolute path rather than `patcher`, because `patcher` is usually not on
+ * PATH — which is why the shim exists — and "command not found" is not a
+ * command that runs as written either. A word is quoted only when it needs it,
+ * so the common line stays readable.
+ */
+export function renderCliShimCommand(
+  shimPath: string,
+  argv: readonly string[],
+): string {
+  return [shimPath, ...argv]
+    .map((word) =>
+      /^[A-Za-z0-9_@%+=:,./-]+$/u.test(word) ? word : shellQuote(word),
+    )
+    .join(" ");
 }

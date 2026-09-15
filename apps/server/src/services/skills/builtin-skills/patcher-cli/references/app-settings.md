@@ -47,9 +47,12 @@ credential that outlives the turn, so a turn gets a 403 there.
   agent, which reaches `patcher browser` and no other part of this API; the
   setting above opens the browser to every process that can read the app key.
   Its levels are the ramp above without `off`, which belongs to the setting.
-- `--for claude-code` and `--for codex` run that agent's own `mcp add`, so the
-  credential lands in its configuration instead of a file. `--for shell` (the
-  default) prints `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` to export.
+- The key is written to a `0600` file under the data dir of the machine the
+  command runs on, and printed only with
+  `--print-key`. `--for claude-code` and `--for codex` run that agent's own
+  `mcp add` with that file's path, and say to restart the agent. `--for shell`
+  (the default) prints one line to export, `PATCHER_AGENT_KEY_FILE`, and the
+  shim to call, which already knows the server.
 - `list` shows every grant — live, paused and revoked — with when each was last
   used. `revoke <id>` ends one, and `pause <id>` / `resume <id>` stop and restart
   one without ending it: a paused grant refuses every request and stays a valid

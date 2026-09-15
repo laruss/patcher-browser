@@ -4,7 +4,6 @@ import {
 } from "@patcher/config/app-key";
 import { resolveAppApiKey } from "@patcher/config/app-key-file";
 import { toOptionalString } from "@patcher/config/strings";
-import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import {
   createNodePatcherSdk,
@@ -16,6 +15,10 @@ import {
   PATCHER_THREAD_ID_HEADER,
   PATCHER_THREAD_KEY_HEADER,
 } from "@patcher/server-contract";
+import {
+  resolveAgentAccessKey,
+  type AgentAccessKeySource,
+} from "./agent-access-key-source.js";
 import { resolveContextThreadId } from "./context-env.js";
 
 /**
@@ -54,19 +57,26 @@ function cachedThreadApiKey(): string | undefined {
 /**
  * The key that says this is an agent outside Patcher, holding a browser grant.
  *
- * Present only where a person put it: an MCP server's `env`, a shell that
- * exported it, a shim written by `patcher agent-access grant`. Like the thread
- * key it *replaces* the app key rather than joining it — a process that has
- * been handed a credential for the browser must not go and read the master one
- * off disk, or the narrower credential would have bought nothing.
+ * Present only where a person put it: an MCP server's `env` or a shell that
+ * exported it, as the key or as the file `patcher agent-access grant` wrote it
+ * to. Like the thread key it *replaces* the app key rather than joining it — a
+ * process that has been handed a credential for the browser must not go and
+ * read the master one off disk, or the narrower credential would have bought
+ * nothing. That holds for a key file this process could not read, too; see
+ * `agent-access-key-source.ts`.
  *
  * A caller that sets both this and a thread key is inside a turn and is
  * something else's agent at the same time, which is not a case Patcher creates.
  * The thread key wins below, because it is the identity this install issued for
  * work it is watching.
+ *
+ * Resolved once per process, like the app key: the file does not change under
+ * a running command, and every request would otherwise read it again.
  */
-function cachedAgentAccessKey(): string | undefined {
-  return toOptionalString(process.env[PATCHER_AGENT_KEY_ENV]);
+let agentAccessKey: AgentAccessKeySource | null = null;
+function cachedAgentAccessKey(): AgentAccessKeySource {
+  if (agentAccessKey === null) agentAccessKey = resolveAgentAccessKey();
+  return agentAccessKey;
 }
 
 /**
@@ -81,7 +91,7 @@ function cachedAgentAccessKey(): string | undefined {
  */
 function cliSocketAppKey(): string | undefined {
   return cachedThreadApiKey() === undefined &&
-    cachedAgentAccessKey() === undefined
+    cachedAgentAccessKey().kind === "none"
     ? cachedAppApiKey()
     : undefined;
 }
@@ -115,7 +125,8 @@ export function cliFetch(
 ): Promise<Response> {
   const threadId = declaredThreadId();
   const threadKey = cachedThreadApiKey();
-  const agentKey = threadKey === undefined ? cachedAgentAccessKey() : undefined;
+  const agent = threadKey === undefined ? cachedAgentAccessKey() : undefined;
+  const agentKey = agent?.kind === "key" ? agent.key : undefined;
   const key = cliSocketAppKey();
   if (
     threadId === undefined &&

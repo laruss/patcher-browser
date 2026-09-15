@@ -1,3 +1,7 @@
+import {
+  agentAccessGrantArgv,
+  renderCliShimCommand,
+} from "@patcher/config/cli-shim";
 import type { BrowserCommand, BrowserCommandValue } from "@patcher/domain";
 import { describe, expect, it } from "vitest";
 import { createBrowserBridge } from "../../../src/services/browser/browser-bridge.js";
@@ -45,6 +49,9 @@ const OPEN_TAB: BrowserCommand = {
 
 const TABS_VALUE: BrowserCommandValue = { type: "tabs", tabs: [] };
 
+/** Where the route says this install's shim is; `patcher` is not on PATH. */
+const SHIM = "/Users/someone/.patcher/bin/patcher";
+
 /** A hub that answers immediately, and counts what it was asked to send. */
 function createCountingHub(): {
   hub: Parameters<typeof createBrowserBridge>[0]["hub"];
@@ -82,7 +89,7 @@ describe("browser access for callers outside Patcher", () => {
 
   it("refuses everything while the level is off", () => {
     runAsExternalBrowserCaller(
-      { level: "off", pluginId: "browser-tools" },
+      { level: "off", pluginId: "browser-tools", cliShim: SHIM },
       () => {
         for (const command of [LIST_TABS, CLICK, READ_COOKIES]) {
           expect(browserExternalAccessRefusal(command)).not.toBeNull();
@@ -93,20 +100,53 @@ describe("browser access for callers outside Patcher", () => {
 
   it("names the level, the command that changes it and that nothing happened", () => {
     const refusal = runAsExternalBrowserCaller(
-      { level: "read", pluginId: "browser-tools" },
+      { level: "read", pluginId: "browser-tools", cliShim: SHIM },
       () => browserExternalAccessRefusal(CLICK),
     );
     expect(refusal).toContain("page.interact");
     // The exact command a person can run, not a gesture at the settings: the
     // reader is usually a model relaying this to somebody else.
-    expect(refusal).toContain("patcher settings browser-access interact");
+    expect(refusal).toContain(`${SHIM} settings browser-access interact`);
     expect(refusal).toContain("Settings → General → Agents outside Patcher");
     expect(refusal).toContain("Nothing happened");
+    // The grant is named first and whole, with the level it needs: this used
+    // to offer the setting with a level and the grant with none (#134). The
+    // same builder is what apps/cli parses with the command's own definition,
+    // so this is not a string somebody could let drift from the CLI.
+    const grant = renderCliShimCommand(
+      SHIM,
+      agentAccessGrantArgv("<your name>", "interact"),
+    );
+    expect(refusal).toContain(grant);
+    expect(refusal?.indexOf(grant)).toBeLessThan(
+      refusal?.indexOf("settings browser-access") ?? -1,
+    );
+  });
+
+  it("gives a grant holder a wider grant and a revoke that both run as written", () => {
+    // It suggested `patcher agent-access grant --level interact`, which
+    // `grant <label>` refuses, and `patcher`, which is usually not on PATH.
+    const refusal = runAsExternalBrowserCaller(
+      {
+        level: "read",
+        pluginId: "browser-tools",
+        grant: { id: "bag_1", label: "Claude Code" },
+        cliShim: SHIM,
+      },
+      () => browserExternalAccessRefusal(CLICK),
+    );
+    expect(refusal).toContain(
+      renderCliShimCommand(
+        SHIM,
+        agentAccessGrantArgv("Claude Code", "interact"),
+      ),
+    );
+    expect(refusal).toContain(`${SHIM} agent-access revoke bag_1`);
   });
 
   it("admits reading but not acting at the reading level", () => {
     runAsExternalBrowserCaller(
-      { level: "read", pluginId: "browser-tools" },
+      { level: "read", pluginId: "browser-tools", cliShim: SHIM },
       () => {
         expect(browserExternalAccessRefusal(LIST_TABS)).toBeNull();
         expect(browserExternalAccessRefusal(CLICK)).not.toBeNull();
@@ -121,7 +161,7 @@ describe("browser access for callers outside Patcher", () => {
     // question at this level: what it buys is the tab, which is how an agent
     // reaches a page the person is not in.
     runAsExternalBrowserCaller(
-      { level: "browse", pluginId: "browser-tools" },
+      { level: "browse", pluginId: "browser-tools", cliShim: SHIM },
       () => {
         expect(browserExternalAccessRefusal(LIST_TABS)).toBeNull();
         expect(browserExternalAccessRefusal(OPEN_TAB)).toBeNull();
@@ -137,7 +177,7 @@ describe("browser access for callers outside Patcher", () => {
     // told to ask for the rung rather than for the level that can also click
     // and type as them.
     const refusal = runAsExternalBrowserCaller(
-      { level: "read", pluginId: "browser-tools" },
+      { level: "read", pluginId: "browser-tools", cliShim: SHIM },
       () => browserExternalAccessRefusal(OPEN_TAB),
     );
     expect(refusal).toContain("tabs.modify");
@@ -146,7 +186,7 @@ describe("browser access for callers outside Patcher", () => {
 
   it("admits acting but not the user's logins at the acting level", () => {
     runAsExternalBrowserCaller(
-      { level: "interact", pluginId: "browser-tools" },
+      { level: "interact", pluginId: "browser-tools", cliShim: SHIM },
       () => {
         expect(browserExternalAccessRefusal(CLICK)).toBeNull();
         expect(browserExternalAccessRefusal(READ_COOKIES)).not.toBeNull();
@@ -156,7 +196,7 @@ describe("browser access for callers outside Patcher", () => {
 
   it("admits everything at the top level", () => {
     runAsExternalBrowserCaller(
-      { level: "full", pluginId: "browser-tools" },
+      { level: "full", pluginId: "browser-tools", cliShim: SHIM },
       () => {
         for (const command of [LIST_TABS, CLICK, READ_COOKIES]) {
           expect(browserExternalAccessRefusal(command)).toBeNull();
@@ -169,7 +209,7 @@ describe("browser access for callers outside Patcher", () => {
     // The whole design rests on this: the route establishes the scope and the
     // browser call happens many awaits later, inside plugin code.
     const seen = await runAsExternalBrowserCaller(
-      { level: "read", pluginId: "browser-tools" },
+      { level: "read", pluginId: "browser-tools", cliShim: SHIM },
       async () => {
         await Promise.resolve();
         await new Promise((resolve) => setTimeout(resolve, 1));
@@ -186,7 +226,7 @@ describe("browser access for callers outside Patcher", () => {
       const bridge = createBrowserBridge({ hub });
       await expect(
         runAsExternalBrowserCaller(
-          { level: "read", pluginId: "browser-tools" },
+          { level: "read", pluginId: "browser-tools", cliShim: SHIM },
           () => bridge.call({ command: CLICK }),
         ),
       ).rejects.toMatchObject({
@@ -202,7 +242,7 @@ describe("browser access for callers outside Patcher", () => {
       const { hub, sent } = createCountingHub();
       const bridge = createBrowserBridge({ hub });
       const value = await runAsExternalBrowserCaller(
-        { level: "read", pluginId: "browser-tools" },
+        { level: "read", pluginId: "browser-tools", cliShim: SHIM },
         () => bridge.call({ command: LIST_TABS }),
       );
       expect(value).toEqual(TABS_VALUE);

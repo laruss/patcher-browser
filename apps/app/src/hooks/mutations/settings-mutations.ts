@@ -89,10 +89,11 @@ export function useSetBrowserExternalAccess() {
 /**
  * Take back one agent's browser credential.
  *
- * Revoking only. Issuing a grant answers with a credential that has to be
- * pasted into an agent's configuration, and `patcher agent-access grant --for
- * claude-code` writes that configuration in one command — a panel that showed
- * the string instead would be a worse version of the same act. Taking one back
+ * Revoking only. Issuing a grant answers with a credential that has to reach
+ * an agent, and `patcher agent-access grant` delivers it in one command — a
+ * `0600` file, whose path `--for claude-code` writes into that agent's
+ * configuration — so a panel that showed the string instead would be a worse
+ * version of the same act. Taking one back
  * is the half that belongs here, because it is the half somebody does in a
  * hurry.
  */

@@ -1,5 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
+  agentAccessGrantArgv,
+  renderCliShimCommand,
+} from "@patcher/config/cli-shim";
+import {
   browserExternalAccessAllows,
   lowestBrowserExternalAccessLevelFor,
   type BrowserCommand,
@@ -100,6 +104,16 @@ export interface BrowserExternalCallerScope {
    * at the wrong one costs a round trip through a person.
    */
   grant?: { id: string; label: string };
+  /**
+   * This install's `patcher` shim, `<dataDir>/bin/patcher`, for the refusal to
+   * print commands that run as written.
+   *
+   * An absolute path because `patcher` is usually not on PATH for the person
+   * the refusal sends the reader to (#134). Required, so the compiler proves
+   * the route fills it in; the handoff to an installed plugin carries the whole
+   * scope, so it arrives there too.
+   */
+  cliShim: string;
 }
 
 /**
@@ -176,12 +190,18 @@ export function browserExternalAccessRefusal(
   const permission = permissionForBrowserCommand(command);
   if (browserExternalAccessAllows(scope.level, permission)) return null;
   const needed = lowestBrowserExternalAccessLevelFor(permission);
+  // Each command whole — the shim's path, a label, the level — and built by
+  // the same function the CLI's test parses, because the sentence this
+  // replaced suggested a `grant` with no label, which does not run (#134).
+  const run = (argv: readonly string[]) =>
+    `\`${renderCliShimCommand(scope.cliShim, argv)}\``;
   if (scope.grant !== undefined) {
     return (
       `The browser access grant "${scope.grant.label}" (${scope.grant.id}) allows "${scope.level}", ` +
       `and this command needs "${permission}". Nothing happened. The person at this machine can ` +
-      `issue a wider grant with \`patcher agent-access grant --level ${needed}\`, and revoke this one ` +
-      `in Patcher's Settings → General → Agents outside Patcher. Ask them rather than retrying: this ` +
+      `issue a wider grant with ${run(agentAccessGrantArgv(scope.grant.label, needed))}, and revoke ` +
+      `this one with ${run(["agent-access", "revoke", scope.grant.id])} or in Patcher's ` +
+      `Settings → General → Agents outside Patcher. Ask them rather than retrying: this ` +
       `is a decision, not a transient failure.`
     );
   }
@@ -189,14 +209,20 @@ export function browserExternalAccessRefusal(
     scope.level === "off"
       ? "this install does not let agents outside Patcher drive the browser at all"
       : `this install allows them "${scope.level}"`;
+  // The grant first, with its level, because it is the answer to recommend:
+  // this used to name the setting with a level and the grant with none, so
+  // the better path was the one given with less to go on. An app-key caller
+  // has no name here, so the label is the placeholder the patcher-browser
+  // skill already uses, and the sentence says to replace it.
   return (
     `The "${scope.pluginId}" plugin, driven from a terminal outside Patcher, ran a ` +
     `browser command needing "${permission}", and ${current}. ` +
-    `Nothing happened. The person at this machine can allow it in Patcher's ` +
-    `Settings → General → Agents outside Patcher, or by running \`patcher settings browser-access ${needed}\` ` +
-    `in their own terminal. A narrower answer than the setting is \`patcher agent-access grant\`, which ` +
-    `hands one agent a credential for the browser alone. Ask them rather than retrying: this is a ` +
-    `decision, not a transient failure.`
+    `Nothing happened. The person at this machine can issue you a credential for the browser ` +
+    `alone with ${run(agentAccessGrantArgv("<your name>", needed))}, with your name in place of ` +
+    `\`<your name>\`. The broader answer opens the browser to every process on this machine that ` +
+    `can read Patcher's key: Patcher's Settings → General → Agents outside Patcher, or ` +
+    `${run(["settings", "browser-access", needed])} in their own terminal. Ask them rather than ` +
+    `retrying: this is a decision, not a transient failure.`
   );
 }
 

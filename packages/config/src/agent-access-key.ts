@@ -15,17 +15,20 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * a credential that opens the browser and nothing else, that a person issued on
  * purpose, and that they can see in a list and take back.
  *
- * **Derived, so nothing stores it.** `pa1.<grantId>.<HMAC(appKey, …grantId)>`,
+ * **Derived, so the server stores nothing.** `pa1.<grantId>.<HMAC(appKey, …grantId)>`,
  * the same construction a thread credential uses one module over. The server
  * needs no table of live keys and no way to leak one: given the grant id in the
  * credential it re-derives what the credential must be and compares. Losing the
  * app key file rotates every grant at once, which is the correct behaviour for
- * a key derived from it.
+ * a key derived from it. What *is* written down is the delivery: `patcher
+ * agent-access grant` puts the key in a `0600` file for the agent it was issued
+ * to, and hands over that file's path rather than printing the key (#134) —
+ * nothing the server reads back.
  *
  * **Its lifetime is the grant row**, exactly as a terminal credential's is the
  * terminal. That is the property a stamped deadline could not have given: an
- * agent handed one of these keeps the *string* forever — it is in its MCP
- * config or its shell — and what stops it is a row a person can revoke from
+ * agent handed one of these keeps the *string* forever — in that file, or in
+ * its MCP config or its shell — and what stops it is a row a person can revoke from
  * Settings, after which the next request is refused. Nothing to expire, nothing
  * to refresh, nothing an agent can extend for itself.
  *
@@ -53,6 +56,15 @@ const AGENT_ACCESS_CREDENTIAL_PREFIX = "pa1";
 
 /** The environment variable an agent outside Patcher receives the key in. */
 export const PATCHER_AGENT_KEY_ENV = "PATCHER_AGENT_KEY";
+
+/**
+ * A file holding that key, for a shell that should not carry the key itself.
+ *
+ * `patcher agent-access grant` writes one and hands over this path, so the key
+ * stays out of the terminal it was issued in — and out of the transcript of an
+ * agent that ran it (#134). `PATCHER_AGENT_KEY` wins when both are set.
+ */
+export const PATCHER_AGENT_KEY_FILE_ENV = "PATCHER_AGENT_KEY_FILE";
 
 export interface DeriveAgentAccessKeyArgs {
   appApiKey: string;

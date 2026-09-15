@@ -173,7 +173,7 @@ export function permissionsForBrowserExternalAccess(
 /** The lowest level that would admit `permission`, for a refusal to name. */
 export function lowestBrowserExternalAccessLevelFor(
   permission: BrowserCommandPermission,
-): BrowserExternalAccessLevel {
+): BrowserAccessGrantLevel {
   return LOWEST_LEVEL_FOR_PERMISSION[permission];
 }
 

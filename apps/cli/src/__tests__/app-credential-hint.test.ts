@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
-import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
+import {
+  PATCHER_AGENT_KEY_ENV,
+  PATCHER_AGENT_KEY_FILE_ENV,
+} from "@patcher/config/agent-access-key";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import { describeRefusedCredential } from "../app-credential-hint.js";
 
@@ -62,6 +65,22 @@ describe("describeRefusedCredential", () => {
     // And it does not claim a boundary nothing enforces: the key carries no
     // deadline, so it is not refused when the turn ends.
     expect(hint).not.toContain("turn that issued it has ended");
+  });
+
+  it("names a key file it could not read, and does not send it after the app key", () => {
+    const hint = describeRefusedCredential({
+      env: {
+        [PATCHER_AGENT_KEY_FILE_ENV]: "/nowhere/bag_x.key",
+        NODE_ENV: "production",
+      },
+      homeDir: "/Users/someone",
+    });
+
+    // The server saw no credential at all, so this is the only place that can
+    // say which file was missing (#134).
+    expect(hint).toContain("/nowhere/bag_x.key");
+    expect(hint).toContain("could not be read");
+    expect(hint).not.toContain(PATCHER_APP_KEY_FILE_NAME);
   });
 
   it("names the grant, and does not send it after the app key", () => {

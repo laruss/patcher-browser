@@ -140,6 +140,14 @@ describe("the CLI a turn reaches through the MCP tool", () => {
     expect(mcpToolArgvRefusal(["thread", "list"], GRANT_ENV)).toContain(
       "browser access grant",
     );
+    // A server handed the key's file is a grant's too — `agent-access grant`
+    // writes that into the agent's config now — and so is one whose file is
+    // not there: a mistyped path must not open the whole tool (#134).
+    expect(
+      mcpToolArgvRefusal(["thread", "list"], {
+        PATCHER_AGENT_KEY_FILE: "/nowhere/bag_x.key",
+      }),
+    ).toContain("browser access grant");
   });
 
   it("is served by the modules that can touch this machine, and no others", async () => {
@@ -155,6 +163,9 @@ describe("the CLI a turn reaches through the MCP tool", () => {
 
     expect(files.length).toBeGreaterThan(20);
     expect(touching.flat().sort()).toEqual([
+      // Not a command: reads the key file a grant was handed in, when
+      // `PATCHER_AGENT_KEY_FILE` names one, and nothing else.
+      "agent-access-key-source.ts",
       // Runs the *agent's* own `mcp add`, so it never edits their config file
       // itself, and looks for the CLI shim to point that config at. Refused
       // through the tool, like every other module here.

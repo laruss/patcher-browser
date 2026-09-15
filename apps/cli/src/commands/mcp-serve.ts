@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
 import { Command } from "commander";
+import { resolveAgentAccessKey } from "../agent-access-key-source.js";
 
 /**
  * This CLI, offered to a turn as an MCP tool instead of a shell command.
@@ -103,12 +103,14 @@ const MCP_TOOL_GRANT_COMMANDS: readonly string[] = ["browser"];
  *
  * Read from the environment the parent put the server in, not from a flag: the
  * same `patcher mcp-serve` command is written into Claude Code's or Codex's
- * config either way, and what differs is the credential beside it.
+ * config either way, and what differs is the credential beside it — the key,
+ * or the file it was written to. A key file that cannot be read still counts,
+ * for the reason `agent-access-key-source.ts` gives.
  */
 function servingBrowserAccessGrant(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return (env[PATCHER_AGENT_KEY_ENV] ?? "").trim().length > 0;
+  return resolveAgentAccessKey(env).kind !== "none";
 }
 
 const MCP_TOOL_COMMANDS: readonly string[] = [
