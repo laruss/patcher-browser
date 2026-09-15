@@ -266,6 +266,28 @@ describe("patcher browser CLI", () => {
     expect(inside.stdout).not.toContain("Your access");
   });
 
+  it("lists the levels, by the names --level takes, for a caller that has none", async () => {
+    // At `off` the reader has to ask a person for a level, and nothing it had
+    // been shown said what the levels are (#134).
+    const host = createHost();
+
+    const off = await host.harness.runCli(["status"], {
+      caller: { kind: "outside", level: "off" },
+    });
+    expect(off.stdout).toContain(
+      "browse — read pages, and open tabs of your own to read",
+    );
+    expect(off.stdout).toContain("full — everything, including your logins");
+    expect(off.stdout).not.toContain("  off — ");
+
+    // Only there: a caller with a level is told what a command needs by the
+    // refusal for that command.
+    const read = await host.harness.runCli(["status"], {
+      caller: { kind: "outside", level: "read" },
+    });
+    expect(read.stdout).not.toContain("lowest first");
+  });
+
   it("says the user has not allowed this, rather than reporting a window", async () => {
     const host = createHost();
     // What the server sends a caller from outside Patcher whose level does not

@@ -268,10 +268,14 @@ file. Same levels, very different blast radius. So name the grant, and
 mention the setting only if they ask for something simpler.
 
 If the user runs it with `--for claude-code` or `--for codex` it configures that
-agent directly and there is nothing for you to paste. Otherwise it prints two
-environment variables; you need `PATCHER_SERVER_URL` and `PATCHER_AGENT_KEY` in
-your shell, and then `patcher browser` works and every other Patcher API this
-CLI calls is refused.
+agent directly and there is nothing for you to paste; the server shows up in a
+session started after that, so they restart you first. Otherwise it writes your
+key to a file and prints one line, `export PATCHER_AGENT_KEY_FILE=<path>`. With
+that in your shell, call Patcher through the shim path it names, which already
+knows the server — a `patcher` from anywhere else needs `PATCHER_SERVER_URL` as
+well — and then `patcher browser` works and every other Patcher API this CLI
+calls is refused. The key stays out of that output on purpose: `--print-key`
+would put it in the terminal, and so in your transcript, and you do not need it.
 
 **Do not run either command yourself and call it done.** From a plain terminal
 both take effect immediately — the server cannot tell your shell from the user's

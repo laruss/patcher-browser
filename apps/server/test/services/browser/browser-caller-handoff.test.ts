@@ -33,6 +33,7 @@ const SCOPE: BrowserExternalCallerScope = {
   level: "read",
   pluginId: "probe",
   grant: { id: "grant_1", label: "Claude Code" },
+  cliShim: "/Users/someone/.patcher/bin/patcher",
 };
 
 /** What the far side would see, if it asked. */

@@ -1396,9 +1396,11 @@ for the holder to refresh. Two ways to end it, for two different moments:
 agent that should stop right now — the credential stays valid, so resuming is a
 click rather than a re-issue and a re-run of the agent's `mcp add`. The refusal
 the holder reads says which of the two happened. `--for claude-code` and `--for codex` run that
-agent's own `mcp add`, so Patcher never parses or rewrites their configuration —
-though the credential does end up in it, and in `ps` while that command runs,
-which is the same readability the app key file already has.
+agent's own `mcp add`, so Patcher never parses or rewrites their configuration.
+What lands in it, and in `ps` while that command runs, is the path of a `0600`
+file holding the key rather than the key; `--for shell` hands over the same path,
+so the key is not printed into a terminal an agent may be reading unless
+`--print-key` asks for it.
 
 Two things a grant does not fence, and both are `patcher browser`'s own doing
 rather than the credential's. Its commands read and write files where you point

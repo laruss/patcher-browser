@@ -9,11 +9,13 @@ import { toOptionalString } from "@patcher/config/strings";
 import {
   parseAgentAccessCredential,
   PATCHER_AGENT_KEY_ENV,
+  PATCHER_AGENT_KEY_FILE_ENV,
 } from "@patcher/config/agent-access-key";
 import {
   parseThreadCredential,
   PATCHER_THREAD_KEY_ENV,
 } from "@patcher/config/thread-api-key";
+import { resolveAgentAccessKey } from "./agent-access-key-source.js";
 
 /**
  * What to say when the server refuses this CLI with a 401.
@@ -92,20 +94,31 @@ export function describeRefusedCredential(
         : "It is this turn's credential: accepted while the turn is running, so a refusal most likely means the turn has ended.";
     return `This shell carries a thread credential (${PATCHER_THREAD_KEY_ENV}), not the app key. It proves this thread and is charged this thread's limits, and it does not open routes that are the app's alone. ${lifetime} Nothing to fix here from inside the turn.`;
   }
-  const agentKey = toOptionalString(env[PATCHER_AGENT_KEY_ENV]);
-  if (agentKey !== undefined) {
+  const agent = resolveAgentAccessKey(env);
+  if (agent.kind === "unreadable") {
+    // Not sent after the app key either: a shell pointed at a grant's key file
+    // was handed the narrow credential, and a path that does not resolve is no
+    // reason to go and find the wide one. The server saw no credential at
+    // all, so this is the only place that can say which file was missing.
+    return `This shell names a browser access grant's key file (${PATCHER_AGENT_KEY_FILE_ENV}=${agent.file}), and it could not be read: ${agent.reason}. No credential was presented, and the app key was not looked for, because a shell handed a grant does not fall back to it. Check the path; if the file is gone, ask the person who issued the grant for a new one with \`patcher agent-access grant\`.`;
+  }
+  if (agent.kind === "key") {
     // An agent outside Patcher, holding a grant. Like the thread credential
     // above, "go read the key file" is advice that would undo the narrower
     // credential if followed — and unlike it, the server's own 401 already
     // says which of the three things went wrong (paused, revoked, or gone), so
     // this line says what the credential *is* and leaves the diagnosis to the
     // server.
-    const claim = parseAgentAccessCredential(agentKey);
+    const where =
+      agent.file === undefined
+        ? PATCHER_AGENT_KEY_ENV
+        : `${PATCHER_AGENT_KEY_FILE_ENV}, ${agent.file}`;
+    const claim = parseAgentAccessCredential(agent.key);
     const named =
       claim === undefined
-        ? `The value in ${PATCHER_AGENT_KEY_ENV} is not shaped like a grant credential, so it was not presented as one`
+        ? `The value in ${where} is not shaped like a grant credential, so it was not presented as one`
         : `It is grant ${claim.grantId}`;
-    return `This shell carries a browser access grant (${PATCHER_AGENT_KEY_ENV}), not the app key. It reaches \`patcher browser\` and no other Patcher API, and it lasts until the person who issued it pauses or revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` — a paused grant they can resume, a revoked one they replace.`;
+    return `This shell carries a browser access grant (${where}), not the app key. It reaches \`patcher browser\` and no other Patcher API, and it lasts until the person who issued it pauses or revokes it. ${named}. Nothing to fix here: ask them to check \`patcher agent-access list\` — a paused grant they can resume, a revoked one they replace.`;
   }
   const fromEnv = toOptionalString(env.PATCHER_APP_KEY);
   if (fromEnv !== undefined) {

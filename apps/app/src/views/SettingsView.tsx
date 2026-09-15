@@ -1089,10 +1089,11 @@ function describeGrantState(grant: SystemBrowserAccessGrant): string {
  * The credentials this install has handed to agents that are not Patcher's.
  *
  * Read and revoke, and deliberately not issue. Issuing answers with a string
- * that has to reach an agent's configuration, and `patcher agent-access grant
- * --for claude-code` puts it there in one command — a panel that printed the
- * string instead would be a worse way to do the same thing, and would put a
- * live credential on screen for no one's benefit. Revoking is the half that
+ * that has to reach an agent, and `patcher agent-access grant` delivers it in
+ * one command — into a `0600` file whose path `--for claude-code` writes into
+ * that agent's configuration — so a panel that printed the string instead
+ * would be a worse way to do the same thing, and would put a live credential
+ * on screen for no one's benefit. Revoking is the half that
  * belongs here, because it is the half somebody does in a hurry and the whole
  * reason a grant is a row rather than a token with an expiry.
  *

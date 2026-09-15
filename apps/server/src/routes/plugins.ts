@@ -6,6 +6,7 @@ import type { Context, Hono } from "hono";
 import type { PluginCliCaller } from "@patcher/plugin-sdk";
 import { z } from "zod";
 import { getAppSettings } from "@patcher/db";
+import { resolveCliShimPath } from "@patcher/config/cli-shim";
 import type { ServerRuntimeConfig } from "../types.js";
 import { getAgentThreadId } from "../agent-thread-scope.js";
 import { getPluginApiId } from "../plugin-api-identity-context.js";
@@ -207,7 +208,10 @@ import {
 
 /** The slice of server deps the "local" auth checks need (origin allowlist). */
 export interface PluginRoutesDeps {
-  config: Pick<ServerRuntimeConfig, "serverPort" | "appUrl" | "devAppPort">;
+  config: Pick<
+    ServerRuntimeConfig,
+    "serverPort" | "appUrl" | "devAppPort" | "dataDir"
+  >;
   db: import("@patcher/db").DbConnection;
   pendingInteractions?: PluginConsentDeps["pendingInteractions"];
 }
@@ -939,11 +943,13 @@ export function registerPluginRoutes(
             level: grantCaller.level,
             pluginId,
             grant: { id: grantCaller.grantId, label: grantCaller.label },
+            cliShim: resolveCliShimPath(deps.config.dataDir),
           }
         : outsideLevel !== undefined
           ? {
               level: outsideLevel,
               pluginId,
+              cliShim: resolveCliShimPath(deps.config.dataDir),
             }
           : undefined;
     // Told to the command as well as charged against it, so `patcher browser

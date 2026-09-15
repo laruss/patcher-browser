@@ -310,14 +310,18 @@ A **browser access grant** is the fourth caller identity, beside a plugin
 (`plugin-api-identity.ts`), a turn (`thread-identity.ts`) and the app
 (`app-identity.ts`).
 
-### Derived, so nothing stores it
+### Derived, so the server stores nothing
 
 `pa1.<grantId>.<HMAC(appKey, "patcher-agent-access:v1:" + grantId)>`, the same
 construction a thread credential uses one module over (`agent-access-key.ts` in
 `@patcher/config`). The server needs no table of live keys and has none to leak:
 given the id in the credential it re-derives what the credential must be and
 compares in constant time. Losing the app key file rotates every grant at once,
-which is the correct behaviour for a key derived from it.
+which is the correct behaviour for a key derived from it. The one place a key is
+written down is its delivery: `patcher agent-access grant` puts it in a `0600`
+file for the agent it is for and hands over that path (see
+[Getting it to the agent](#getting-it-to-the-agent)) — a file the server never
+reads.
 
 The id rides in the clear, unlike the terminal id in `thread-api-key.ts`, which
 is base64url'd because it comes from elsewhere and has no charset anything pins.
@@ -389,6 +393,18 @@ The shape this is built for is the setting left `off` and one grant issued to th
 agent that needs it. `routes/plugins.ts` picks which of the two applies from the
 caller, and the refusal names whichever one the reader can actually get changed.
 
+Whichever it names, it names as a command that runs as written: the shim's
+absolute path, since `patcher` is usually not on PATH, with a label and the level
+the command needed — and for a grant, the `revoke` beside it. The refusal for a
+caller with no grant offers the grant first, with `<your name>` for the label it
+cannot know, and the setting second. The sentence before offered the setting
+with a level and a `grant` with no label, which `grant <label>` refuses (#134).
+Both commands come from `agentAccessGrantArgv` in `cli-shim.ts`, and the CLI's
+own test feeds that to the command's definition, so a suggestion that stops
+parsing fails a test rather than a person. `patcher browser status` at `off`
+lists the levels by name once, because nothing else the reader was shown says
+what they are.
+
 ### Only the app and a person's own terminal can mint one
 
 - **A turn cannot**, and this is the one place the grant route and the level
@@ -444,20 +460,35 @@ than discovered.
 
 ### Getting it to the agent
 
-`patcher agent-access grant <label> [--level] [--for]`. `--for shell` prints the
-two environment variables. `--for claude-code` and `--for codex` run **that
-agent's own** `mcp add` — never editing their config files here, because
+`patcher agent-access grant <label> [--level] [--for] [--print-key]`. The key is
+written to `<dataDir>/agent-keys/<grantId>.key`, `0600`, and what is handed over
+is that file's path in `PATCHER_AGENT_KEY_FILE` — the key goes to stdout only
+when `--print-key` asks for it, `--json` included. It used to be printed, and
+walked through on 2026-09-14 from an agent's own session, that put it in the
+agent's transcript and its session log (#134). The CLI reads the file when
+`PATCHER_AGENT_KEY` is unset, and a file that is named and cannot be read still
+counts as holding a grant: it presents nothing rather than falling back to the
+app key, and its 401 says which file. If the file cannot be written once the
+grant is minted, the grant is revoked on the spot, so nothing live is left that
+nobody holds.
+
+`--for shell` prints that one export and names the shim to call, which carries
+the server URL itself. `--for claude-code` and `--for codex` run **that agent's
+own** `mcp add` — never editing their config files here, because
 `~/.claude.json` is rewritten by a running Claude Code and `~/.codex/config.toml`
 is a hand-kept file with comments in it that a TOML round-trip would silently
 reformat. Both ship a command for this, so the safe path is also the short one;
 when the binary is not on PATH the command is printed for the person to run, and
-nothing is half-done because nothing was written.
+nothing is half-done because nothing was written. Either way it ends by saying
+to restart that agent, because the server shows up in a session started after
+it.
 
-One thing that path costs, said rather than hidden: the credential goes to those
-commands as an argv, so it is visible in `ps` for as long as the call runs. It
-is not a new exposure — the config file it lands in, and the app key file beside
-it, are readable by the same processes — but it is a window that a `--env-file`
-would not have, and neither vendor offers one.
+What those commands receive is the key file's path, not the key, so neither
+their argv — printed, and visible in `ps` while it runs — nor the config it lands
+in carries the credential. Until #134 both did: not a new exposure, since the app
+key file beside it is readable by the same processes, but a window a
+`--env-file` would not have had, and neither vendor offers one. A config written
+before then holds `PATCHER_AGENT_KEY` and keeps working.
 
 The MCP server it points at is the CLI shim from the phase before
 (`<dataDir>/bin/patcher mcp-serve`) — a stable absolute path that survives an
@@ -828,7 +859,15 @@ Named here rather than left to be rediscovered.
   `mcp-tool-surface.test.ts` — the CLI half: a grant is presented, the app key is
   not presented beside it, a thread credential wins over one, the 401 hint names
   the grant, and `mcp-serve` in grant mode refuses every command the program has
-  and admits `browser`.
+  and admits `browser`. A key in `PATCHER_AGENT_KEY_FILE` is presented, the
+  variable wins over it, and a file that cannot be read presents no app key, is
+  named by the hint, and still puts `mcp-serve` in grant mode.
+- `apps/cli/src/__tests__/command-output/agent-access.test.ts` — the key lands in
+  a `0600` file and not on stdout, `--json` included, unless `--print-key`; a key
+  file that cannot be written revokes the grant; `--for claude-code` is handed
+  the file's path and never the key, and told to restart; and every grant command
+  a refusal suggests parses with the command's own definition, a label that looks
+  like an option included.
 - `apps/server/test/security/agent-access.test.ts` — over a real socket with no
   app key on it: the two routes answer, six others 403 with the offer in the
   message, another plugin's CLI is refused, the grant cannot mint a second grant
@@ -846,7 +885,8 @@ Named here rather than left to be rediscovered.
   list.
 - `plugins/browser-tools/src/cli.test.ts` — `status` reports the refusal instead
   of the window count, exits non-zero, and tells a caller from outside how far it
-  reaches — while saying nothing at all to a caller inside Patcher.
+  reaches — at `off`, with the levels by name — while saying nothing at all to a
+  caller inside Patcher.
 - `apps/server/test/services/browser-command-issuer.test.ts` — read off a
   stand-in browser host's socket rather than off the bridge, because the field
   has to survive the route, the ambient scope, the bridge and the hub, and the
@@ -954,10 +994,10 @@ the indicator appears in the chrome with the label a person typed, that Pause
 stops the next command with the paused reason, and that Resume puts it back:
 
 ```bash
-patcher agent-access grant "Claude Code" --level read
-PATCHER_AGENT_KEY=<the key> patcher browser status   # names the grant and "read pages"
-PATCHER_AGENT_KEY=<the key> patcher browser text     # indicator appears; then click Pause
-PATCHER_AGENT_KEY=<the key> patcher browser text     # 401, "is paused", not "was revoked"
+patcher agent-access grant "Claude Code" --level read   # prints the key's file, not the key
+PATCHER_AGENT_KEY_FILE=<that file> patcher browser status   # names the grant and "read pages"
+PATCHER_AGENT_KEY_FILE=<that file> patcher browser text     # indicator appears; then click Pause
+PATCHER_AGENT_KEY_FILE=<that file> patcher browser text     # 401, "is paused", not "was revoked"
 patcher agent-access resume <id>
 ```
 

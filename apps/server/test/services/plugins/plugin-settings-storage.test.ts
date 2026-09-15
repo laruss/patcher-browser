@@ -238,7 +238,11 @@ describe("plugin settings + storage", () => {
     it("serves schema+values over the routes; PUT validates with 400s", async () => {
       await installConfigurable();
       const app = new Hono();
-      registerPluginRoutes(app, { config: { serverPort: 3334 }, db }, service);
+      registerPluginRoutes(
+        app,
+        { config: { serverPort: 3334, dataDir: "/tmp/patcher-data" }, db },
+        service,
+      );
 
       const got = await app.request("/plugins/configurable/settings");
       expect(got.status).toBe(200);

@@ -126,7 +126,11 @@ describe("plugin update service and routes", () => {
     });
     await service.install(`git:${repo}@main`);
     app = new Hono();
-    registerPluginRoutes(app, { config: { serverPort: 3334 }, db }, service);
+    registerPluginRoutes(
+      app,
+      { config: { serverPort: 3334, dataDir: "/tmp/patcher-data" }, db },
+      service,
+    );
     // Same budget as the tests below, and for the same reason: this hook is a
     // real `git init`, three commits and a plugin install from that repo, and
     // vitest's 10s hook default was never chosen with that in mind.

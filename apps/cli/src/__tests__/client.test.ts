@@ -1,6 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PATCHER_APP_KEY_HEADER } from "@patcher/config/app-key";
-import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
+import {
+  PATCHER_AGENT_KEY_ENV,
+  PATCHER_AGENT_KEY_FILE_ENV,
+} from "@patcher/config/agent-access-key";
 import { PATCHER_THREAD_KEY_ENV } from "@patcher/config/thread-api-key";
 import {
   PATCHER_AGENT_KEY_HEADER,
@@ -188,5 +194,64 @@ describe("cliFetch", () => {
 
     expect(headers.get(PATCHER_THREAD_KEY_HEADER)).toBe("derived-thread-key");
     expect(headers.has(PATCHER_AGENT_KEY_HEADER)).toBe(false);
+  });
+
+  describe("a grant's key in a file", () => {
+    // What `patcher agent-access grant` hands over now, so the key itself is
+    // not printed into a terminal an agent may be reading (#134).
+    let dir: string;
+
+    beforeEach(async () => {
+      dir = await mkdtemp(join(tmpdir(), "patcher-agent-key-"));
+      vi.stubEnv("PATCHER_THREAD_ID", "");
+      vi.stubEnv(PATCHER_THREAD_KEY_ENV, "");
+      vi.stubEnv(PATCHER_AGENT_KEY_ENV, "");
+    });
+
+    afterEach(async () => {
+      await rm(dir, { recursive: true, force: true });
+    });
+
+    it("presents the key from the file when the variable is unset", async () => {
+      const file = join(dir, "bag_x.key");
+      await writeFile(file, "pa1.bag_x.mac\n");
+      vi.stubEnv(PATCHER_AGENT_KEY_FILE_ENV, file);
+
+      const headers = await captureHeadersWithFreshModule();
+
+      expect(headers.get(PATCHER_AGENT_KEY_HEADER)).toBe("pa1.bag_x.mac");
+    });
+
+    it("lets the variable win when both are set", async () => {
+      const file = join(dir, "bag_file.key");
+      await writeFile(file, "pa1.bag_file.mac\n");
+      vi.stubEnv(PATCHER_AGENT_KEY_FILE_ENV, file);
+      vi.stubEnv(PATCHER_AGENT_KEY_ENV, "pa1.bag_env.mac");
+
+      const headers = await captureHeadersWithFreshModule();
+
+      expect(headers.get(PATCHER_AGENT_KEY_HEADER)).toBe("pa1.bag_env.mac");
+    });
+
+    it("presents no app key when the file cannot be read", async () => {
+      // A mistyped path must not turn a shell handed a grant into one holding
+      // the app key. Set deliberately, so the absence is the decision.
+      vi.stubEnv(PATCHER_AGENT_KEY_FILE_ENV, join(dir, "missing.key"));
+      vi.stubEnv("PATCHER_APP_KEY", "the-app-key");
+      vi.resetModules();
+      const fetchMock = vi.fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) =>
+          new Response("ok"),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const { cliFetch: freshCliFetch } = await import("../client.js");
+
+      await freshCliFetch("http://127.0.0.1:38986/api/v1/threads");
+
+      // No header was added at all, so there may be no init to read.
+      const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+      expect(headers.has(PATCHER_APP_KEY_HEADER)).toBe(false);
+      expect(headers.has(PATCHER_AGENT_KEY_HEADER)).toBe(false);
+    });
   });
 });

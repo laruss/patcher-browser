@@ -41,7 +41,28 @@ export function describeBrowserCliCaller(
   // enabled it already read.
   if (caller === undefined) return null;
   const words = LEVEL_WORDS[caller.level] ?? caller.level;
-  return caller.kind === "grant"
-    ? `Your access: ${words}, through the browser access grant "${caller.label}" (${caller.grantId}).`
-    : `Your access: ${words}, from this install's setting for agents outside Patcher.`;
+  if (caller.kind === "grant") {
+    return `Your access: ${words}, through the browser access grant "${caller.label}" (${caller.grantId}).`;
+  }
+  const access = `Your access: ${words}, from this install's setting for agents outside Patcher.`;
+  return caller.level === "off" ? `${access}\n${describeLevels()}` : access;
+}
+
+/**
+ * The ladder, once, for a caller that has nothing yet.
+ *
+ * At `off` the reader has to ask a person for a level, and nothing it was shown
+ * says what the levels are: no command's `--help` names one, and a refusal
+ * names only the level its own command needed (#134). The names are printed
+ * because they are what `--level` takes. Built from `LEVEL_WORDS`, so there is
+ * no second copy to go stale — and lowest first only because that is the order
+ * its keys are written in, which the type does not enforce.
+ */
+function describeLevels(): string {
+  return [
+    "The levels a person can give you, lowest first:",
+    ...Object.entries(LEVEL_WORDS)
+      .filter(([level]) => level !== "off")
+      .map(([level, words]) => `  ${level} — ${words}`),
+  ].join("\n");
 }

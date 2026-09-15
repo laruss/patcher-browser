@@ -1,7 +1,11 @@
 import { execFile } from "node:child_process";
-import { access, constants } from "node:fs/promises";
+import { access, constants, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
-import { PATCHER_AGENT_KEY_ENV } from "@patcher/config/agent-access-key";
+import {
+  PATCHER_AGENT_KEY_ENV,
+  PATCHER_AGENT_KEY_FILE_ENV,
+} from "@patcher/config/agent-access-key";
 import { resolveCliShimPath } from "@patcher/config/cli-shim";
 import {
   BROWSER_ACCESS_GRANT_LEVELS,
@@ -38,6 +42,18 @@ const execFileAsync = promisify(execFile);
 const MCP_SERVER_NAME = "patcher-browser";
 
 /**
+ * Where a grant's key is written, under the data dir, one file per grant.
+ *
+ * Written rather than printed (#134). Printed, the key goes wherever that
+ * terminal's output goes — and when an agent ran the command, that is its
+ * transcript and its session log. The file is `0600`, beside the app key the
+ * server keeps in the same directory, so it is readable by exactly the
+ * processes that could already read that; an agent's config holding the key
+ * itself was the same exposure, and a transcript is a wider one.
+ */
+const AGENT_KEY_DIR_NAME = "agent-keys";
+
+/**
  * The agents this can configure for you, and the one that means "just tell me".
  *
  * Claude Code and Codex are configured by running *their* `mcp add`, not by
@@ -54,6 +70,7 @@ interface GrantOptions {
   level?: string;
   for?: string;
   json?: boolean;
+  printKey?: boolean;
 }
 
 function parseLevel(value: string | undefined): BrowserAccessGrantLevel {
@@ -112,6 +129,8 @@ async function resolveMcpServerCommand(
 interface McpInstallPlan {
   /** The binary whose own command writes its own config. */
   agentBinary: string;
+  /** What a person calls it, for the step after. */
+  agentName: string;
   /** Its argv, ready to run and ready to print. */
   argv: string[];
   /** What undoes it, printed either way. */
@@ -121,15 +140,19 @@ interface McpInstallPlan {
 function buildMcpInstallPlan(
   target: Exclude<GrantTarget, "shell">,
   server: { command: string; args: string[] },
-  env: { serverUrl: string; key: string },
+  env: { serverUrl: string; keyFile: string },
 ): McpInstallPlan {
+  // The key's file rather than the key (#134): this argv is printed, it is
+  // visible in `ps` while the command runs, and it lands in a config file that
+  // belongs to somebody else's program. A path is a secret in none of those.
   const envPairs = [
-    `${PATCHER_AGENT_KEY_ENV}=${env.key}`,
+    `${PATCHER_AGENT_KEY_FILE_ENV}=${env.keyFile}`,
     `PATCHER_SERVER_URL=${env.serverUrl}`,
   ];
   if (target === "claude-code") {
     return {
       agentBinary: "claude",
+      agentName: "Claude Code",
       argv: [
         "mcp",
         "add",
@@ -146,6 +169,7 @@ function buildMcpInstallPlan(
   }
   return {
     agentBinary: "codex",
+    agentName: "Codex",
     argv: [
       "mcp",
       "add",
@@ -159,24 +183,53 @@ function buildMcpInstallPlan(
   };
 }
 
-/** A shell-safe rendering of a command, for printing rather than for running. */
-function quoteArgv(binary: string, argv: readonly string[]): string {
-  return [binary, ...argv]
-    .map((part) =>
-      /^[A-Za-z0-9_@%+=:,./-]+$/u.test(part)
-        ? part
-        : `'${part.replace(/'/gu, `'\\''`)}'`,
-    )
-    .join(" ");
+/** One shell word, quoted only when it needs it. */
+function quoteWord(part: string): string {
+  return /^[A-Za-z0-9_@%+=:,./-]+$/u.test(part)
+    ? part
+    : `'${part.replace(/'/gu, `'\\''`)}'`;
 }
 
-function printShellDelivery(serverUrl: string, key: string): void {
+/** A shell-safe rendering of a command, for printing rather than for running. */
+function quoteArgv(binary: string, argv: readonly string[]): string {
+  return [binary, ...argv].map(quoteWord).join(" ");
+}
+
+/**
+ * What to hand an agent in a shell: the key's file, and a Patcher it can run.
+ *
+ * `patcher` is usually not on PATH, so the command is named whole: the shim
+ * when this install has one, or this CLI's own entry point when it does not —
+ * the same fallback its MCP config would get. The shim exports the server URL
+ * itself (`cli-shim.ts`), so an agent calling it needs the key and nothing
+ * else, which this used to leave unsaid while asking for both variables.
+ */
+function printShellDelivery(args: {
+  serverUrl: string;
+  keyFile: string;
+  invocation: string;
+  viaShim: boolean;
+}): void {
+  const keyLine = `  export ${PATCHER_AGENT_KEY_FILE_ENV}=${quoteWord(args.keyFile)}`;
+  const urlExport = `export PATCHER_SERVER_URL=${quoteWord(args.serverUrl)}`;
   console.log("");
-  console.log("Give the agent these two, and nothing else:");
-  console.log(`  export PATCHER_SERVER_URL='${serverUrl}'`);
-  console.log(`  export ${PATCHER_AGENT_KEY_ENV}='${key}'`);
+  if (args.viaShim) {
+    console.log("Give the agent this, and nothing else:");
+    console.log(keyLine);
+    console.log(
+      `and have it run Patcher as ${args.invocation}, which already points at this install's server. A \`patcher\` from anywhere else needs \`${urlExport}\` as well.`,
+    );
+  } else {
+    console.log("Give the agent these two, and nothing else:");
+    console.log(`  ${urlExport}`);
+    console.log(keyLine);
+    console.log(`and have it run Patcher as ${args.invocation}.`);
+  }
   console.log(
-    "In a shell with those, `patcher browser` works and every other Patcher API this CLI calls is refused.",
+    "The key is in that file rather than on this screen, so it stays out of this terminal's scrollback and out of the transcript of an agent that ran this command. `--print-key` prints it too.",
+  );
+  console.log(
+    "With that, `patcher browser` works and every other Patcher API this CLI calls is refused.",
   );
 }
 
@@ -207,10 +260,15 @@ function printMcpInstallOutcome(
   outcome: McpInstallOutcome | null,
 ): void {
   const printed = quoteArgv(plan.agentBinary, plan.argv);
+  // Said either way, because nothing else says it: the server is written into
+  // the agent's config, and a session that was already running is not where
+  // it shows up (#134).
+  const restart = `Restart ${plan.agentName} before asking it to browse: the \`${MCP_SERVER_NAME}\` server is there in sessions started after this.`;
   console.log("");
   if (outcome?.configured === true) {
     console.log(`Added the \`${MCP_SERVER_NAME}\` MCP server:`);
     console.log(`  ${printed}`);
+    console.log(restart);
     console.log(`Undo it with \`${plan.undo}\`.`);
     return;
   }
@@ -219,6 +277,7 @@ function printMcpInstallOutcome(
   );
   console.log("Run this yourself, in a shell where that binary is on PATH:");
   console.log(`  ${printed}`);
+  console.log(restart);
 }
 
 function printGrantTable(grants: readonly SystemBrowserAccessGrant[]): void {
@@ -281,20 +340,43 @@ export function registerAgentAccessCommands(
       "shell",
     )
     .option("--json", "Print machine-readable JSON output")
+    .option(
+      "--print-key",
+      "Print the key itself as well. It is written to a file either way; printed, it lands in this terminal's output, and in the transcript of an agent that ran this",
+    )
     .action(
       action(async (label: string, opts: GrantOptions) => {
         const level = parseLevel(opts.level);
         const target = parseTarget(opts.for);
         const sdk = createCliPatcherSdk(getUrl());
-        // Before minting, not after. The credential is printed once and cannot
-        // be asked for again, so a failure here after the row existed would
-        // leave a live grant nobody holds — and `config` is only ever a read.
+        // Before minting, not after. The credential is handed over once and
+        // cannot be asked for again, so a failure here after the row existed
+        // would leave a live grant nobody holds — and `config` is only ever a
+        // read. The key's directory is made here too, so a data dir this
+        // cannot write to fails while there is nothing to take back.
         const config = await sdk.system.config();
         const server = await resolveMcpServerCommand(config.dataDir);
+        const keyDir = join(config.dataDir, AGENT_KEY_DIR_NAME);
+        await mkdir(keyDir, { recursive: true, mode: 0o700 });
         const result = await sdk.system.createBrowserAccessGrant({
           label,
           level,
         });
+        const keyFile = join(keyDir, `${result.grant.id}.key`);
+        try {
+          // `wx`: a file already there is an error, not a key to write over.
+          await writeFile(keyFile, `${result.key}\n`, {
+            mode: 0o600,
+            flag: "wx",
+          });
+        } catch (error) {
+          // Taken back rather than left: the key is shown nowhere else, so a
+          // grant whose file was never written is a credential nobody holds.
+          await sdk.system.revokeBrowserAccessGrant(result.grant.id);
+          throw new Error(
+            `Could not write the key to ${keyFile} (${error instanceof Error ? error.message : String(error)}), so grant ${result.grant.id} was revoked straight away. Nobody holds a live credential from this.`,
+          );
+        }
         // `--for` is an act on this machine, not a way of printing the answer,
         // so `--json` does not skip it: a caller that asked for JSON *and* for
         // Codex to be configured asked for both.
@@ -303,11 +385,23 @@ export function registerAgentAccessCommands(
             ? null
             : buildMcpInstallPlan(target, server, {
                 serverUrl: config.serverUrl,
-                key: result.key,
+                keyFile,
               });
         const installed =
           delivery === null ? null : await runMcpInstall(delivery);
-        if (outputJson(opts, { ...result, ...(installed ?? {}) })) return;
+        // The key only when asked for, in JSON as on the screen: both are
+        // stdout, and stdout is what lands in a transcript.
+        if (
+          outputJson(opts, {
+            grant: result.grant,
+            browserToolsEnabled: result.browserToolsEnabled,
+            keyFile,
+            ...(opts.printKey === true ? { key: result.key } : {}),
+            ...(installed ?? {}),
+          })
+        ) {
+          return;
+        }
         console.log(
           `Issued "${result.grant.label}" (${result.grant.id}) at level ${level}: ${permissionsForBrowserExternalAccess(level).join(", ")}.`,
         );
@@ -321,9 +415,25 @@ export function registerAgentAccessCommands(
             : "The browser-tools plugin is not serving `patcher browser`, so nothing can use this grant yet. Check `patcher plugin list`.",
         );
         if (delivery === null) {
-          printShellDelivery(config.serverUrl, result.key);
+          printShellDelivery({
+            serverUrl: config.serverUrl,
+            keyFile,
+            // The MCP server's command without its `mcp-serve`, which is how
+            // this CLI is run from a shell.
+            invocation: quoteArgv(server.command, server.args.slice(0, -1)),
+            viaShim: server.command === resolveCliShimPath(config.dataDir),
+          });
         } else {
           printMcpInstallOutcome(delivery, installed);
+        }
+        if (opts.printKey === true) {
+          console.log("");
+          console.log(
+            `The key itself, as asked; \`${PATCHER_AGENT_KEY_ENV}\` works in place of the file:`,
+          );
+          console.log(
+            `  export ${PATCHER_AGENT_KEY_ENV}=${quoteWord(result.key)}`,
+          );
         }
         console.log("");
         console.log(
