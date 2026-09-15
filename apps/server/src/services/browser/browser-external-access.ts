@@ -220,8 +220,8 @@ export function browserExternalAccessRefusal(
     `The "${scope.pluginId}" plugin, driven from a terminal outside Patcher, ran a ` +
     `browser command needing "${permission}", and ${current}. ` +
     `Nothing happened. Ask the person at this machine for a credential for the browser alone ` +
-    `by running ${run(agentAccessRequestArgv("<your name>", needed))} yourself, with your name in ` +
-    `place of \`<your name>\` and \`--reason\` saying what you need it for: it asks them in ` +
+    `by running ${run(agentAccessRequestArgv("<your name>", needed, "<what you need it for>"))} ` +
+    `yourself, with your name and your reason in place of the two placeholders: it asks them in ` +
     `Patcher's window and waits for their answer. Do not run \`agent-access grant\` or ` +
     `\`settings browser-access\` yourself — from this shell they take effect with nobody asked. ` +
     `Those are the person's: ${run(agentAccessGrantArgv("<your name>", needed))} issues the same ` +

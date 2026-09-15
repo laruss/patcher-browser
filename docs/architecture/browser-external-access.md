@@ -399,7 +399,9 @@ the command needed — and for a grant, the `revoke` beside it. The refusal for 
 caller with no grant offers `agent-access request` first, as the one command the
 reader may run itself (see [Asking in the window](#asking-in-the-window)), then
 says not to run `grant` or the setting from that shell and names both as the
-person's, with `<your name>` for the label it cannot know. The sentence before
+person's, with `<your name>` for the label it cannot know — and, for the request,
+`--reason "<what you need it for>"` already in place before the `--`, because a
+reason appended to the end of the line would be read as more label. The sentence before
 #134 offered the setting with a level and a `grant` with no label, which
 `grant <label>` refuses. The commands come from `agentAccessRequestArgv` and
 `agentAccessGrantArgv` in `cli-shim.ts`, and the CLI's own test feeds both to the

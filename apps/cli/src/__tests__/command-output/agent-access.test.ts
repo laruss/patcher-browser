@@ -462,15 +462,25 @@ describe("patcher agent-access request", () => {
     outcomes = [approved("read")];
     const labels = ["Claude Code", "it's mine", "<your name>", "-x", "--level"];
 
+    // With the reason the refusal fills in as well: the label follows `--`, so
+    // a reason the reader appended itself would not have parsed.
+    const reason = "<what you need it for>";
     for (const level of BROWSER_ACCESS_GRANT_LEVELS) {
       for (const label of labels) {
         await runCommand(agentAccessRequestArgv(label, level), register);
+        await runCommand(
+          agentAccessRequestArgv(label, level, reason),
+          register,
+        );
       }
     }
 
     expect(asked).toEqual(
       BROWSER_ACCESS_GRANT_LEVELS.flatMap((level) =>
-        labels.map((label) => ({ label, level })),
+        labels.flatMap((label) => [
+          { label, level },
+          { label, level, reason },
+        ]),
       ),
     );
   });

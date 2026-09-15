@@ -278,6 +278,8 @@ export function createBrowserAccessRequests(deps: BrowserAccessRequestsDeps) {
       // this grant any more.
       if (entries.get(id) !== entry) {
         deps.revokeGrant(grant.id);
+        // The expiry already told the windows, before this grant existed.
+        deps.changed();
         throw missing(id);
       }
       entry.state = { kind: "approved", grantId: grant.id };

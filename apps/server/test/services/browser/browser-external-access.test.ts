@@ -117,7 +117,11 @@ describe("browser access for callers outside Patcher", () => {
     // named after the warning not to run them from this shell.
     const request = renderCliShimCommand(
       SHIM,
-      agentAccessRequestArgv("<your name>", "interact"),
+      agentAccessRequestArgv(
+        "<your name>",
+        "interact",
+        "<what you need it for>",
+      ),
     );
     const grant = renderCliShimCommand(
       SHIM,

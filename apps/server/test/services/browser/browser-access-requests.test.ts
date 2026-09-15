@@ -111,6 +111,11 @@ describe("browser access requests", () => {
 
     await expect(deciding).rejects.toMatchObject({ status: 404 });
     expect(deps.revokeGrant).toHaveBeenCalledWith("bag_1");
+    // Told after the revoke too: the expiry's notice went out before this grant
+    // existed, so a grants list read on it would never show the row.
+    expect(Math.max(...deps.changed.mock.invocationCallOrder)).toBeGreaterThan(
+      deps.revokeGrant.mock.invocationCallOrder[0] ?? Infinity,
+    );
   });
 
   it("hands over nothing for a grant revoked before it was collected", async () => {
