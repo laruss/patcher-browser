@@ -42,6 +42,18 @@ describe("OutsideAgentSetupDialog", () => {
     expect(props.onDecline).toHaveBeenCalledTimes(1);
   });
 
+  it("answers nothing when the person clicks outside it", async () => {
+    const props = renderDialog();
+    // Radix arms its outside-pointer listener a tick after it opens.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
+
+    expect(props.onDecline).not.toHaveBeenCalled();
+    expect(props.onAccept).not.toHaveBeenCalled();
+  });
+
   it("takes Escape as not now, so closing it is an answer", () => {
     const props = renderDialog();
 

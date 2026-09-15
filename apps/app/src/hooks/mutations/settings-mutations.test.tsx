@@ -136,6 +136,21 @@ describe("CLI skills setup mutation", () => {
       true,
     );
   });
+
+  it("refreshes the config when the request fails too, since an accept is recorded before its install", async () => {
+    const { queryClient, wrapper } = createQueryClientTestHarness();
+    const configKey = systemConfigQueryKey();
+    queryClient.setQueryData(configKey, systemConfig());
+    vi.mocked(sdk.system.setupCliSkills).mockRejectedValue(
+      new Error("The built-in Patcher CLI skill is unavailable on this server"),
+    );
+    const { result } = renderHook(() => useSetupCliSkills(), { wrapper });
+
+    act(() => result.current.mutate({ answer: "accept" }));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(queryClient.getQueryState(configKey)?.isInvalidated).toBe(true);
+  });
 });
 
 describe("keyboard settings mutation", () => {

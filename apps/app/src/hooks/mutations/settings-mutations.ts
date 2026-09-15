@@ -213,7 +213,9 @@ export function useSetupCliSkills() {
     },
     mutationFn: (args: SystemCliSkillsSetupRequest) =>
       sdk.system.setupCliSkills(args),
-    onSuccess: () => {
+    // Settled rather than succeeded: an accept is recorded before its install
+    // runs, so a request that fails afterwards has still changed the answer.
+    onSettled: () => {
       invalidateSystemConfig({ queryClient });
       invalidateCliSkillsStatus({ queryClient });
     },

@@ -167,6 +167,7 @@ export async function readGlobalCliSkillStatus(
       }
     }),
   );
+  recordAcceptedWhenPrimaryHasCopies(deps, machines);
   return { machines };
 }
 
@@ -262,11 +263,32 @@ function recordAcceptedWhenPrimaryInstalled(
  * An install whose primary machine already holds the skills has answered the
  * launch-time question (#141): somebody installed them. Recorded rather than
  * merely not asked, so removing the copies later does not bring the question
- * back. Checked when the primary machine's daemon connects, because the copies
- * are on that machine and nothing else can say whether they are there.
+ * back.
  *
- * Only while unanswered, so a settled install costs no daemon call; and read
- * again after the call, because the person may answer while it is out.
+ * Recorded by whichever status read of the primary machine first gets an
+ * answer — the connect-time check below, or the window's own read before it
+ * decides whether to ask — so a connect-time read that timed out is made good
+ * by the next one rather than lost. `unknown` records nothing, and `missing`
+ * is the case the question is for.
+ */
+function recordAcceptedWhenPrimaryHasCopies(
+  deps: GlobalSkillInstallDeps,
+  machines: SystemCliSkillsStatusResponse["machines"],
+): void {
+  const primaryHostId = resolvePrimaryHostId(deps);
+  const primary = machines.find((machine) => machine.hostId === primaryHostId);
+  if (primary?.status !== "installed" && primary?.status !== "outdated") {
+    return;
+  }
+  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
+  setOutsideAgentSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+/**
+ * The check made when the primary machine's daemon connects, since the copies
+ * are on that machine and nothing else can say whether they are there. Only
+ * while unanswered, so a settled install costs no daemon call per connect.
  */
 export async function acceptWhenPrimaryHostHasCliSkills(
   deps: GlobalSkillInstallDeps,
@@ -274,14 +296,7 @@ export async function acceptWhenPrimaryHostHasCliSkills(
 ): Promise<void> {
   if (getOutsideAgentSetup(deps.db) !== "unasked") return;
   if (args.hostId !== resolvePrimaryHostId(deps)) return;
-  const { machines } = await readGlobalCliSkillStatus(deps, {
-    hostIds: [args.hostId],
-  });
-  const status = machines[0]?.status;
-  if (status !== "installed" && status !== "outdated") return;
-  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
-  setOutsideAgentSetup(deps.db, "accepted");
-  deps.hub.notifySystem(["config-changed"]);
+  await readGlobalCliSkillStatus(deps, { hostIds: [args.hostId] });
 }
 
 export function scheduleExistingCliSkillsAcceptance(

@@ -16,6 +16,12 @@ import { seedHost, seedHostSession, seedPrimaryHost } from "../helpers/seed.js";
 import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
 import { acceptWhenPrimaryHostHasCliSkills } from "../../src/services/skills/global-skill-install.js";
 
+/**
+ * The launch-time question about installing Patcher's skills for agents
+ * outside Patcher (#141), and the other ways it gets answered: a successful
+ * install on the primary machine, and a status read that finds a copy there.
+ */
+
 /** A machine that answers the status read with one copy of `patcher-cli`. */
 function respondWithSkillStatus(
   harness: TestAppHarness,
@@ -43,12 +49,6 @@ function respondWithSkillStatus(
     },
   });
 }
-
-/**
- * The launch-time question about installing Patcher's skills for agents
- * outside Patcher (#141), and the one other way it gets answered: a successful
- * install on the primary machine.
- */
 
 async function writeBuiltinCliSkill(harness: TestAppHarness): Promise<void> {
   const skillDirectory = join(
@@ -346,6 +346,46 @@ describe("the question about agents outside Patcher", () => {
         hostId: studio.host.id,
       });
       expect(studioResponder.requests).toHaveLength(0);
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
+    });
+  });
+
+  it("is answered yes by a status read that finds a copy on the primary machine, and only that machine", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
+      const studio = seedHostSession(harness.deps, { id: "host-studio" });
+      seedPrimaryHost(harness.deps, laptop.host.id);
+      for (const { host, session } of [laptop, studio]) {
+        respondWithSkillStatus(harness, host.id, session.id, "b".repeat(64));
+      }
+
+      await harness.app.request(
+        "/api/v1/system/cli-skills?hostIds=host-studio",
+      );
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
+
+      // The window's own read, made good for a connect-time check that timed out.
+      await harness.app.request(
+        "/api/v1/system/cli-skills?hostIds=host-laptop",
+      );
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
+    });
+  });
+
+  it("records nothing from a read that could not reach the primary machine", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const host = seedHost(harness.deps, { id: "host-offline" });
+      seedPrimaryHost(harness.deps, host.id);
+
+      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+        hostId: host.id,
+      });
+      await harness.app.request(
+        "/api/v1/system/cli-skills?hostIds=host-offline",
+      );
+
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
     });
   });
