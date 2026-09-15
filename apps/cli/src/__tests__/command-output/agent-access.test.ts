@@ -372,6 +372,9 @@ describe("patcher agent-access request", () => {
     expect((await readFile(keyFile, "utf8")).trim()).toBe(`pa1.bag_1.${MAC}`);
     expect((await stat(keyFile)).mode & 0o777).toBe(0o600);
     expect(printed()).toContain("Patcher's window");
+    // `request` has no `--print-key`, so it must not point at one — found on a
+    // packaged build, where the line shared with `grant` said it did.
+    expect(printed()).not.toContain("--print-key");
     expect(printed()).toContain(`export PATCHER_AGENT_KEY_FILE=${keyFile}`);
     expect(printed()).not.toContain(MAC);
   });

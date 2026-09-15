@@ -254,6 +254,8 @@ function printShellDelivery(args: {
   keyFile: string;
   invocation: string;
   viaShim: boolean;
+  /** Only `grant` has `--print-key`; `request` is run by the agent itself. */
+  offersPrintKey: boolean;
 }): void {
   const keyLine = `  export ${PATCHER_AGENT_KEY_FILE_ENV}=${quoteWord(args.keyFile)}`;
   const urlExport = `export PATCHER_SERVER_URL=${quoteWord(args.serverUrl)}`;
@@ -271,7 +273,7 @@ function printShellDelivery(args: {
     console.log(`and have it run Patcher as ${args.invocation}.`);
   }
   console.log(
-    "The key is in that file rather than on this screen, so it stays out of this terminal's scrollback and out of the transcript of an agent that ran this command. `--print-key` prints it too.",
+    `The key is in that file rather than on this screen, so it stays out of this terminal's scrollback and out of the transcript of an agent that ran this command.${args.offersPrintKey ? " `--print-key` prints it too." : ""}`,
   );
   console.log(
     "With that, `patcher browser` works and every other Patcher API this CLI calls is refused.",
@@ -441,6 +443,7 @@ async function deliverGrant(
         prepared.server.args.slice(0, -1),
       ),
       viaShim: prepared.server.command === resolveCliShimPath(prepared.dataDir),
+      offersPrintKey: opts.asked === undefined,
     });
   } else {
     printMcpInstallOutcome(delivery, installed);
