@@ -5,7 +5,10 @@ import path from "node:path";
 import { resolveDataDirSkillsRootPath } from "@patcher/config/skill-storage-paths";
 import type { AgentRuntimeSkillRoot } from "@patcher/agent-runtime";
 import type { HostDaemonInjectedSkillSource } from "@patcher/host-daemon-contract";
-import type { HostDaemonSkillTree } from "@patcher/host-daemon-contract";
+import {
+  isIgnoredSkillTreeFile,
+  type HostDaemonSkillTree,
+} from "@patcher/host-daemon-contract";
 import type { FetchSkillTree } from "./skill-trees.js";
 
 const STAGING_ROOT_SEGMENTS = ["runtime", "global-skills"] as const;
@@ -693,10 +696,11 @@ export async function hashInstalledSkillDirectory(args: {
     });
     return hashStoredTreeFiles(
       tree.files
-        // Finder writes one into any folder somebody merely opens. Counted, it
-        // would make a copy nobody changed read as changed, and a changed copy
-        // is one Patcher never updates again.
-        .filter((file) => path.basename(file.relativePath) !== ".DS_Store")
+        // A copy nobody changed that reads as changed is one Patcher never
+        // updates again.
+        .filter(
+          (file) => !isIgnoredSkillTreeFile(path.basename(file.relativePath)),
+        )
         .sort((left, right) =>
           compareStringsByCodePoint(left.relativePath, right.relativePath),
         ),

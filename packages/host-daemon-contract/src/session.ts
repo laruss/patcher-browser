@@ -866,6 +866,17 @@ export const hostDaemonSkillTreeSchema = z
   .strict();
 export type HostDaemonSkillTree = z.infer<typeof hostDaemonSkillTreeSchema>;
 
+/**
+ * A file no skill tree contains, on either side: the server leaves it out of the
+ * trees it hashes and serves, and the daemon out of an installed copy's hash.
+ * Finder writes `.DS_Store` into any folder somebody merely opens — a source
+ * checkout's built-in skills, or a copy in `~/.claude/skills`. Counted on one
+ * side only, an unchanged copy would never hash back to the tree installed.
+ */
+export function isIgnoredSkillTreeFile(fileName: string): boolean {
+  return fileName === ".DS_Store";
+}
+
 export type HostDaemonInternalSchema = {
   "/skills/tree/:hash": {
     /** Used by the daemon to pull a missing server-owned injected skill tree. */

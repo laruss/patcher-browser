@@ -153,6 +153,11 @@ describe("injected skill source discovery", () => {
     const baseline = readSkillTreeManifest(firstRoot).treeHash;
     expect(readSkillTreeManifest(secondRoot).treeHash).toBe(baseline);
 
+    // Finder's, not the skill's: the daemon leaves it out of an installed
+    // copy's hash, so a tree that counted it would never read back as itself.
+    await writeFile(path.join(secondRoot, "references", ".DS_Store"), "finder");
+    expect(readSkillTreeManifest(secondRoot).treeHash).toBe(baseline);
+
     await writeFile(secondReference, "changed bytes\n");
     expect(readSkillTreeManifest(secondRoot).treeHash).not.toBe(baseline);
     await writeFile(secondReference, "same bytes\n");

@@ -271,7 +271,7 @@ followed a skill written for an older CLI. Now each daemon records, in
 `<dataDir>/global-skills-installed.json`, the tree it wrote at each copy path,
 and when a machine connects the server updates the copies that still hold what
 that record says — only those, and only through a conditional install the daemon
-checks on disk just before the swap. A copy edited by hand, removed, installed
+checks against its record and on disk just before the swap. A copy edited by hand, removed, installed
 before the record existed, or written by another install sharing the home is
 left alone and shows in Settings as modified, partly installed or out of date;
 Install replaces it. That last case is the owner's machine: a release and a

@@ -676,11 +676,10 @@ describe("a conditional install", () => {
     ]);
   });
 
-  // The condition names a tree, not a path, so it cannot say "only the copy in
-  // this root". A copy the record does not list but that holds the recorded
-  // tree is replaced with the one that does: those bytes are a tree this
-  // install wrote, so nobody's edit is lost.
-  it("also replaces an unrecorded copy holding the same tree as the recorded one", async () => {
+  // The condition names a tree, not a path. Another install at the same version
+  // writes the same bytes, so equal bytes in the other root do not make that
+  // copy this install's; only its own record does.
+  it("leaves alone a copy this install did not record, though it holds the same tree", async () => {
     const dataDir = await makeTempDir();
     const homeDir = await makeTempDir();
     const previous = createTreePayload("patcher-cli", "previous");
@@ -711,7 +710,10 @@ describe("a conditional install", () => {
 
     expect(result.installations.map((entry) => entry.outcome)).toEqual([
       "written",
-      "written",
+      "skipped",
     ]);
+    await expect(
+      readFile(path.join(copyPaths(homeDir).claude, "SKILL.md"), "utf8"),
+    ).resolves.toContain("previous");
   });
 });

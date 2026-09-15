@@ -136,10 +136,16 @@ export function OnboardingHost() {
       primaryCliSkillsStatus === "missing" &&
       !setupCliSkills.isSuccess);
   // The note that Patcher kept those skills current (#142) waits for either of
-  // the two to leave the screen rather than landing on top of it.
+  // the two to leave the screen rather than landing on top of it — and while
+  // the read that decides whether to ask is still out, since the question may
+  // be about to open.
+  const mayStillAskOutsideAgentSetup =
+    mayAskOutsideAgentSetup &&
+    (primaryCliSkillsStatus === undefined ||
+      primaryCliSkillsStatus === "unknown");
   useCliSkillsUpdateToast({
     notices: configQuery.data?.cliSkillsUpdates,
-    paused: shouldShow || showOutsideAgentSetup,
+    paused: shouldShow || showOutsideAgentSetup || mayStillAskOutsideAgentSetup,
   });
 
   const projects = navigationQuery.data?.projects;

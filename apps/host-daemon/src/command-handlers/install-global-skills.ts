@@ -138,7 +138,7 @@ function runExclusively<T>(
   task: () => Promise<T>,
 ): Promise<T> {
   const previous = installTailByDataDir.get(dataDir) ?? Promise.resolve();
-  const run = previous.then(task, task);
+  const run = previous.then(task);
   const tail = run.catch(() => undefined);
   installTailByDataDir.set(dataDir, tail);
   void tail.then(() => {
@@ -272,22 +272,27 @@ async function replaceSkillDirectory(args: {
  * What a conditional install does with one copy, decided before the tree is
  * fetched so a skill with nothing to write costs no transfer.
  *
- * The condition is per skill, not per copy — no path crosses the wire — so a
- * copy in the other root that this install never recorded is replaced too when
- * it holds the same bytes as the recorded one. Those bytes are a tree this
- * install wrote, so that copy was never somebody else's edit.
+ * The condition names a tree, not a path — no path crosses the wire — so the
+ * record decides per copy which ones it covers: a copy is replaced only where
+ * this data directory recorded that tree. The other root can hold the same
+ * bytes without being this install's (another install at the same version),
+ * and that copy stays as it is. Adopting writes nothing, so a copy already
+ * holding the new tree is recorded whoever put it there.
  */
-async function planCopy(
-  skill: HostInstallGlobalSkill,
-  destinationPath: string,
-): Promise<"write" | "adopt" | "skip"> {
+async function planCopy(args: {
+  destinationPath: string;
+  record: ReadonlyMap<string, string>;
+  skill: HostInstallGlobalSkill;
+}): Promise<"write" | "adopt" | "skip"> {
+  const { destinationPath, record, skill } = args;
   if (skill.replaceOnlyIfTreeHash === undefined) return "write";
   const onDisk = await hashInstalledSkillDirectory({
     name: skill.name,
     skillDirectoryPath: destinationPath,
   });
   if (onDisk !== skill.replaceOnlyIfTreeHash) return "skip";
-  return onDisk === skill.treeHash ? "adopt" : "write";
+  if (onDisk === skill.treeHash) return "adopt";
+  return record.get(destinationPath) === onDisk ? "write" : "skip";
 }
 
 async function resolveSkillFilePath(args: {
@@ -316,8 +321,8 @@ async function resolveSkillFilePath(args: {
 /**
  * Install server-owned skill trees into every global agent skill root on this
  * host. Existing copies of the same skill name are replaced — or, for a skill
- * with `replaceOnlyIfTreeHash`, only those still holding that tree; unrelated
- * skills in those roots are untouched. Every copy written or adopted is
+ * with `replaceOnlyIfTreeHash`, only those this data directory recorded as that
+ * tree and that still hold it; unrelated skills in those roots are untouched. Every copy written or adopted is
  * recorded as this data directory's.
  */
 export async function installGlobalSkills(
@@ -348,7 +353,7 @@ export async function installGlobalSkills(
           globalSkillPaths(homeDir, skill.name).map(
             async (destinationPath) => ({
               destinationPath,
-              plan: await planCopy(skill, destinationPath),
+              plan: await planCopy({ destinationPath, record, skill }),
             }),
           ),
         );

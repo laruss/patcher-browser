@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import * as commands from "../src/commands.js";
-import * as common from "../src/common.js";
 import * as session from "../src/session.js";
 
 const { HOST_DAEMON_PROTOCOL_VERSION, hostDaemonCommandRegistry } = commands;
@@ -15,36 +14,60 @@ const WIRE_SNAPSHOT_DIRECTORY = path.join(
   "wire-snapshots",
 );
 
+function hashJson(value: unknown): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify(value, (_key, entry: unknown) =>
+        typeof entry === "function" ? "[function]" : entry,
+      ),
+    )
+    .digest("hex");
+}
+
 function hashJsonSchema(schema: z.ZodType): string {
-  const shapes = (["input", "output"] as const).map((io) =>
-    JSON.stringify(z.toJSONSchema(schema, { io, unrepresentable: "any" })),
+  return hashJson(
+    (["input", "output"] as const).map((io) =>
+      z.toJSONSchema(schema, { io, unrepresentable: "any" }),
+    ),
   );
-  return createHash("sha256").update(shapes.join("\n")).digest("hex");
+}
+
+/** A plain exported value two builds must agree on, like a subprotocol name. */
+function isWireConstant(name: string, value: unknown): boolean {
+  if (name === "HOST_DAEMON_PROTOCOL_VERSION") return false;
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    (Array.isArray(value) && value.every((item) => typeof item === "string"))
+  );
 }
 
 /**
- * One hash per schema that crosses the server ↔ daemon socket or its HTTP
- * routes: every command and its result, and every schema the three wire
- * modules export. Per schema rather than one hash for all, so a failure names
+ * One hash per part of the server ↔ daemon wire that exists at runtime: every
+ * command's schema, result schema and transport behaviour (retryable, how it
+ * travels, which lane), every schema the two wire modules export, and their
+ * plain constants. Per part rather than one hash for all, so a failure names
  * what moved.
  *
- * `unrepresentable: "any"` lets refinements and transforms through without a
- * shape, so a change to one of those alone is not caught here.
+ * What it cannot see: the internal HTTP routes, which are a type
+ * (`HostDaemonInternalSchema`) and leave nothing at runtime; and refinements and
+ * transforms, which `unrepresentable: "any"` lets through without a shape. A
+ * change to either still needs the bump by hand.
  */
 function fingerprintWire(): Record<string, string> {
   const fingerprints: Record<string, string> = {};
   for (const [type, descriptor] of Object.entries(hostDaemonCommandRegistry)) {
-    fingerprints[`command ${type}`] = hashJsonSchema(descriptor.schema);
-    fingerprints[`result ${type}`] = hashJsonSchema(descriptor.resultSchema);
+    const { schema, resultSchema, ...behaviour } = descriptor;
+    fingerprints[`command ${type}`] = hashJsonSchema(schema);
+    fingerprints[`result ${type}`] = hashJsonSchema(resultSchema);
+    fingerprints[`behaviour ${type}`] = hashJson(behaviour);
   }
-  for (const [moduleName, exports] of Object.entries({
-    commands,
-    common,
-    session,
-  })) {
+  for (const [moduleName, exports] of Object.entries({ commands, session })) {
     for (const [name, value] of Object.entries(exports)) {
       if (value instanceof z.ZodType) {
         fingerprints[`${moduleName}.${name}`] = hashJsonSchema(value);
+      } else if (isWireConstant(name, value)) {
+        fingerprints[`${moduleName}.${name}`] = hashJson(value);
       }
     }
   }
@@ -135,22 +158,24 @@ describe("host-daemon protocol version", () => {
   // global skill roots current (#142) without touching a copy somebody changed:
   // the status read says what this daemon last installed at each path
   // (`installedTreeHash`), an install can be told to replace a copy only while
-  // it still hashes to that (`replaceOnlyIfTreeHash`), and says per copy
-  // whether it did (`outcome`). A 117 daemon refuses the conditional install as
-  // malformed and answers the status read without the field a 118 server needs
-  // to tell its own copy from an edited one — so every connect would log a
-  // failed read, and nothing would ever be kept current.
+  // it is still that (`replaceOnlyIfTreeHash`), and says per copy whether it
+  // did (`outcome`). A 117 daemon refuses the conditional install as malformed
+  // and answers the status read without the field a 118 server needs to tell
+  // its own copy from an edited one — so every connect would log a failed
+  // read, and nothing would ever be kept current.
   it("uses protocol version 118 after an install learned to replace only its own unchanged copies", () => {
     expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(118);
   });
 
   // What the version above promises and a build does not check: the wire has
-  // not moved since the version was last bumped. A diff that changes a schema
-  // fails here; the fix is to bump the version, delete the old snapshot and let
-  // vitest write `v<new>.json` (`bun run test -- -u`). Rewriting the snapshot
-  // of a version that already shipped is exactly the mistake this exists to
-  // make visible — review the diff for a changed hash in a file whose name did
-  // not change.
+  // not moved since the version was last bumped. A diff that changes it fails
+  // here; the fix is to bump the version and replace `v<old>.json` with the
+  // `v<new>.json` vitest writes for a missing snapshot outside CI. Rewriting
+  // the snapshot of a version that already shipped (`-u`) is exactly the
+  // mistake this exists to make visible — review the diff for a changed hash in
+  // a file whose name did not change. The one false alarm: a zod upgrade that
+  // changes what `toJSONSchema` prints moves every hash without moving the
+  // wire, and is the one time rewriting in place is right.
   it("has not changed the wire since the version was bumped", async () => {
     await expect(
       `${JSON.stringify(fingerprintWire(), null, 2)}\n`,

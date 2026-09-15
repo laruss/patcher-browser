@@ -861,11 +861,12 @@ const hostInstallGlobalSkillSchema = z
     treeHash: z.string().regex(/^[a-f0-9]{64}$/u),
     entryPath: z.string().min(1),
     /**
-     * Replace a copy only while its bytes still hash to this, checked on disk
-     * just before the swap; any other copy is left as it is. What keeps an
-     * automatic update off a copy someone changed since the server looked. A
-     * copy that already matches `treeHash` is recorded as this install's without
-     * being rewritten. Absent: replace unconditionally (a person's Install).
+     * Replace a copy only where this daemon's data directory recorded installing
+     * this tree and the copy's bytes still hash to it, checked on disk just
+     * before the swap; any other copy is left as it is. What keeps an automatic
+     * update off a copy someone changed, or another install wrote. A copy that
+     * already matches `treeHash` is recorded as this install's without being
+     * rewritten. Absent: replace unconditionally (a person's Install).
      */
     replaceOnlyIfTreeHash: z
       .string()

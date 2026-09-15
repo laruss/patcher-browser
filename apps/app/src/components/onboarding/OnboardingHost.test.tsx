@@ -364,6 +364,40 @@ describe("the note that the skills were kept current", () => {
     });
   });
 
+  it("is held back while the read that decides whether to ask is still out", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsUpdates: updates }),
+    );
+    for (const status of [
+      { data: undefined },
+      primaryMachineStatus("unknown"),
+    ]) {
+      mocks.useCliSkillsStatus.mockReturnValue(status);
+
+      render(<OnboardingHost />);
+
+      expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+        notices: updates,
+        paused: true,
+      });
+      cleanup();
+    }
+  });
+
+  it("is let through once the read says there is nothing to ask", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsUpdates: updates }),
+    );
+    mocks.useCliSkillsStatus.mockReturnValue(primaryMachineStatus("installed"));
+
+    render(<OnboardingHost />);
+
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: false,
+    });
+  });
+
   it("is let through when neither is on screen", () => {
     mocks.useSystemConfig.mockReturnValue(
       systemConfig({
