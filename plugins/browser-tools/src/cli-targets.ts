@@ -43,14 +43,15 @@ const MINTED_TAB_ID = /^browser:[A-Za-z0-9_-]{21}:[^:]*$/u;
  *
  * A tab id is `browser:<nanoid>:none` — 30-odd characters an agent has to carry
  * through every command in a chain, and mistype once to act on the wrong thing
- * or nothing. So four spellings are accepted, and only the first costs nothing:
+ * or nothing. So five spellings are accepted, and only the first costs nothing:
  *
  * - a real tab id
+ * - its middle part, the nanoid between `browser:` and the environment
  * - `active` — the tab the person is looking at
  * - an index from the `tabs` listing, counting from 1
  * - a substring of the URL or title, when exactly one tab matches
  *
- * The last three need the tab list, which is one extra call. An id in the shape
+ * The last four need the tab list, which is one extra call. An id in the shape
  * this browser mints skips it, so the precise form stays the cheap one; anything
  * else is matched against the list, an exact id first.
  *
@@ -83,6 +84,14 @@ export async function resolveTabTarget(
   // look like a number or to appear in another tab's URL is still addressable
   // by the id the browser gave it.
   if (tabs.some((tab) => tab.tabId === target)) return { tabId: target };
+  // Then the middle of one, which is what a reader lifts out of
+  // `browser:<nanoid>:none` and answered "not open" (#133). Only of a minted
+  // id: a nanoid is unique, and the middle of anything else could be a word.
+  const minted = tabs.find(
+    (tab) =>
+      MINTED_TAB_ID.test(tab.tabId) && tab.tabId.split(":")[1] === target,
+  );
+  if (minted !== undefined) return { tabId: minted.tabId };
   const index = Number(target);
   if (Number.isInteger(index) && String(index) === target) {
     const tab = tabs[index - 1];
