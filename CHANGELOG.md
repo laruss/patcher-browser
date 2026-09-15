@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.1.1-alpha.5
+
+alpha.4 opened the browser to agents that are not Patcher's and gave the person
+the four things that make that safe to have. This one is what happened when an
+agent actually used them: walked through from an outside agent's own session,
+the grant printed its key into the agent's transcript, the refusals named
+commands that did not run as written, and the only way in was a command copied
+from the agent's reply into the person's terminal. So the agent now asks in the
+window, the key never reaches a screen, and every suggestion is a command that
+runs.
+
+Still macOS on Apple Silicon, still ad-hoc signed, and still without
+auto-update: the first launch needs one explicit approval in System Settings,
+and a newer alpha has to be downloaded rather than offered.
+
+### Asking in the window
+
+- **An agent asks, the person answers where they already are.**
+  `patcher agent-access request "<name>" --level <level> --reason "<why>"`,
+  run by the agent itself, raises a row under the tab strip and a list in
+  Settings → General → Agents outside Patcher: the program's name as it calls
+  itself, the level in the settings screen's words, and its reason as its own.
+  **Allow**, **Read pages only**, or **Deny**. Allow issues the ordinary grant
+  on the click, so it is in the list and revocable at once, and the waiting
+  command collects the key. A no refuses that name for ten minutes (#135).
+- **It adds no reach.** The command that asks holds the app key, which could
+  already issue a grant with nobody asked. What changes is that the supported
+  path puts the decision in front of the person before a credential exists. A
+  thread inside Patcher cannot ask, and neither can a grant, which cannot widen
+  itself.
+- **Refusals lead with the request**, as the one command an agent may run for
+  itself, and say not to run `grant` or the setting from its own shell.
+
+### The key stays off the screen
+
+- **A grant's key is written to a `0600` file** and what is handed over is its
+  path, `PATCHER_AGENT_KEY_FILE`. Printed, it went wherever the terminal's
+  output went — the transcript of an agent that ran the command.
+  `--for claude-code` and `--for codex` write the path, not the key, into that
+  agent's configuration and say to restart it (#134).
+- **Every suggested command runs as written**: through the shim's absolute
+  path, with a label and the level it needs, and checked by feeding it to the
+  command's own definition.
+
+### A rung between reading and acting
+
+- **`browse`**: reading, plus tabs of the agent's own — open, close, navigate —
+  and no clicking or typing. It chooses which signed-in page it reads, so it is
+  a bigger thing to ask for than its position suggests, and the tabs the person
+  opened stay theirs (#128).
+- **"Look, don't touch".** The handover row can lend a page to read without
+  handing over the browsing, and an agent can give a tab back with
+  `patcher browser release` — which now also ends the network mocks, emulation
+  and recording it left on the tab (#117).
+- **Advice a level can afford.** A `read` caller is no longer told to open a
+  tab it is forbidden to open, and a refusal for a tab that was just asked for
+  says so instead of sending the agent to ask (#116, #120).
+- **`scroll` costs what `interact` already has**, instead of the arbitrary
+  JavaScript permission only `full` admits (#115).
+
+### Fixes
+
+- **A driven tab keeps rendering**, so pointer and key input to a tab the
+  person is not looking at land instead of stalling for five seconds (#114,
+  #119).
+- **A screenshot of a tab that is not on screen says so** instead of stalling
+  on a picture Chromium will never paint (#132).
+- **`close`, `release` and `activate` name a tab the way `--tab` does** —
+  including the short id an agent lifts out of the listing (#133).
+- **A dialog on a tab whose Page domain failed to enable** is retried rather
+  than left on Chromium's native modal for the life of the tab (#111).
+- **The network log says what it carries**, and a successful request is no
+  longer shipped as the error `net::OK` (#121).
+
 ## 0.1.1-alpha.4
 
 alpha.3 was about what a sandboxed turn cannot reach. This one is about the
