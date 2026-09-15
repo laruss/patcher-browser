@@ -16,6 +16,11 @@ import type {
   SystemBrowserAccessGrantCreateRequest,
   SystemBrowserAccessGrantCreateResponse,
   SystemBrowserAccessGrantListResponse,
+  SystemBrowserAccessRequestCreateRequest,
+  SystemBrowserAccessRequestCreateResponse,
+  SystemBrowserAccessRequestDecideRequest,
+  SystemBrowserAccessRequestListResponse,
+  SystemBrowserAccessRequestOutcomeResponse,
   SystemBrowserExternalAccessRequest,
   SystemBrowserExternalAccessResponse,
   SystemCliSkillsStatusResponse,
@@ -81,6 +86,16 @@ export type SystemCreateBrowserAccessGrantArgs =
   SystemBrowserAccessGrantCreateRequest;
 export type SystemCreateBrowserAccessGrantResult =
   SystemBrowserAccessGrantCreateResponse;
+export type SystemBrowserAccessRequestsResult =
+  SystemBrowserAccessRequestListResponse;
+export type SystemRequestBrowserAccessArgs =
+  SystemBrowserAccessRequestCreateRequest;
+export type SystemRequestBrowserAccessResult =
+  SystemBrowserAccessRequestCreateResponse;
+export type SystemBrowserAccessRequestOutcomeResult =
+  SystemBrowserAccessRequestOutcomeResponse;
+export type SystemDecideBrowserAccessRequestArgs =
+  SystemBrowserAccessRequestDecideRequest;
 export type SystemBrowserExternalAccessArgs =
   SystemBrowserExternalAccessRequest;
 export type SystemBrowserExternalAccessResult =
@@ -163,6 +178,27 @@ export interface SystemArea {
   revokeBrowserAccessGrant(
     grantId: string,
   ): Promise<SystemBrowserAccessGrantsResult>;
+  /** Requests for a grant still waiting on the person, oldest first. */
+  browserAccessRequests(): Promise<SystemBrowserAccessRequestsResult>;
+  /**
+   * Ask the person, in Patcher's window, for a grant (#135).
+   *
+   * Asking again under a label that already has an open request, at the same
+   * level, answers with that request rather than raising a second one — so a
+   * caller whose wait was cut short picks up where it left off.
+   */
+  requestBrowserAccess(
+    args: SystemRequestBrowserAccessArgs,
+  ): Promise<SystemRequestBrowserAccessResult>;
+  /** Where a request stands. An approval's key is handed over once. */
+  browserAccessRequestOutcome(
+    requestId: string,
+  ): Promise<SystemBrowserAccessRequestOutcomeResult>;
+  /** Answer a request. Allowing mints the grant, at the level chosen. */
+  decideBrowserAccessRequest(
+    requestId: string,
+    args: SystemDecideBrowserAccessRequestArgs,
+  ): Promise<SystemBrowserAccessRequestsResult>;
   updateKeyboardSettings(
     args: AppKeybindingOverrides,
   ): Promise<SystemUpdateKeyboardSettingsResult>;
@@ -296,6 +332,31 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
       return transport.readJson(
         transport.api.v1.browser["access-grants"][":id"].$delete({
           param: { id: grantId },
+        }),
+      );
+    },
+    async browserAccessRequests() {
+      return transport.readJson(
+        transport.api.v1.browser["access-requests"].$get(),
+      );
+    },
+    async requestBrowserAccess(input) {
+      return transport.readJson(
+        transport.api.v1.browser["access-requests"].$post({ json: input }),
+      );
+    },
+    async browserAccessRequestOutcome(requestId) {
+      return transport.readJson(
+        transport.api.v1.browser["access-requests"][":id"].outcome.$post({
+          param: { id: requestId },
+        }),
+      );
+    },
+    async decideBrowserAccessRequest(requestId, input) {
+      return transport.readJson(
+        transport.api.v1.browser["access-requests"][":id"].decide.$post({
+          param: { id: requestId },
+          json: input,
         }),
       );
     },

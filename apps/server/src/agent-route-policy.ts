@@ -161,6 +161,15 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
       "who holds a credential for this machine's browser is the person's to decide: a grant keeps working after this turn ends, so minting one, and taking back one somebody else's agent is using, are both theirs. They can run `patcher agent-access` themselves — or you can ask for the install-wide level with `patcher settings browser-access`, which raises a prompt in this thread",
   },
   {
+    // The same credential by another road (#135): asking in the window ends,
+    // when the person allows it, in a grant the asker collects — and a turn
+    // collecting one would hold a browser key that outlives it. Answering is the
+    // person's too. A GET stays open: pending labels and levels, no credential.
+    path: "/browser/access-requests",
+    reason:
+      "asking for a browser access grant is for agents outside Patcher, and what it ends in is a credential that keeps working after this turn ends. Inside a thread, ask for the install-wide level with `patcher settings browser-access`, which raises a prompt here",
+  },
+  {
     // The prefix, not `/settings/general`: the route that carries the egress
     // switch, its host list and `codexNetworkDisabled` is the boundary the next
     // turn is built from, and naming only that route is how it stayed open. A

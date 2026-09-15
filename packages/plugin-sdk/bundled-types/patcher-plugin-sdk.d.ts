@@ -7659,6 +7659,120 @@ declare const systemBrowserAccessGrantListResponseSchema: z$1.ZodObject<{
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
 type SystemBrowserAccessGrantListResponse = z$1.infer<typeof systemBrowserAccessGrantListResponseSchema>;
+/**
+ * An agent outside Patcher asking the person for a grant, in the window (#135).
+ *
+ * The label is what the row says the program calls itself, and nothing
+ * verifies it — the same as a grant's. The reason is the agent's own words,
+ * shown as data, so it is capped rather than trusted.
+ */
+declare const systemBrowserAccessRequestCreateRequestSchema: z$1.ZodObject<{
+    label: z$1.ZodString;
+    level: z$1.ZodEnum<{
+        read: "read";
+        full: "full";
+        browse: "browse";
+        interact: "interact";
+    }>;
+    reason: z$1.ZodOptional<z$1.ZodString>;
+}, z$1.core.$strip>;
+type SystemBrowserAccessRequestCreateRequest = z$1.infer<typeof systemBrowserAccessRequestCreateRequestSchema>;
+declare const systemBrowserAccessRequestCreateResponseSchema: z$1.ZodObject<{
+    request: z$1.ZodObject<{
+        id: z$1.ZodString;
+        label: z$1.ZodString;
+        level: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            browse: "browse";
+            interact: "interact";
+        }>;
+        reason: z$1.ZodNullable<z$1.ZodString>;
+        createdAt: z$1.ZodNumber;
+        expiresAt: z$1.ZodNumber;
+    }, z$1.core.$strip>;
+}, z$1.core.$strip>;
+type SystemBrowserAccessRequestCreateResponse = z$1.infer<typeof systemBrowserAccessRequestCreateResponseSchema>;
+/**
+ * Where a request stands, for the program that asked.
+ *
+ * `approved` carries the key, and only once: collecting it ends the request.
+ * The grant itself was minted when the person pressed Allow, so it is already
+ * in their list, and its level is the one they chose — which can be lower than
+ * the one asked for.
+ */
+declare const systemBrowserAccessRequestOutcomeResponseSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
+    outcome: z$1.ZodLiteral<"pending">;
+    request: z$1.ZodObject<{
+        id: z$1.ZodString;
+        label: z$1.ZodString;
+        level: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            browse: "browse";
+            interact: "interact";
+        }>;
+        reason: z$1.ZodNullable<z$1.ZodString>;
+        createdAt: z$1.ZodNumber;
+        expiresAt: z$1.ZodNumber;
+    }, z$1.core.$strip>;
+}, z$1.core.$strip>, z$1.ZodObject<{
+    outcome: z$1.ZodLiteral<"denied">;
+}, z$1.core.$strip>, z$1.ZodObject<{
+    outcome: z$1.ZodLiteral<"approved">;
+    grant: z$1.ZodObject<{
+        id: z$1.ZodString;
+        label: z$1.ZodString;
+        level: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            browse: "browse";
+            interact: "interact";
+        }>;
+        createdAt: z$1.ZodNumber;
+        lastUsedAt: z$1.ZodNullable<z$1.ZodNumber>;
+        pausedAt: z$1.ZodNullable<z$1.ZodNumber>;
+        revokedAt: z$1.ZodNullable<z$1.ZodNumber>;
+    }, z$1.core.$strip>;
+    key: z$1.ZodString;
+    browserToolsEnabled: z$1.ZodBoolean;
+}, z$1.core.$strip>], "outcome">;
+type SystemBrowserAccessRequestOutcomeResponse = z$1.infer<typeof systemBrowserAccessRequestOutcomeResponseSchema>;
+/**
+ * The person's answer. `level` defaults to the level asked, and may be lower
+ * — "Read pages only" — but never higher: widening what was asked is a grant
+ * nobody requested.
+ */
+declare const systemBrowserAccessRequestDecideRequestSchema: z$1.ZodObject<{
+    decision: z$1.ZodEnum<{
+        deny: "deny";
+        allow: "allow";
+    }>;
+    level: z$1.ZodOptional<z$1.ZodEnum<{
+        read: "read";
+        full: "full";
+        browse: "browse";
+        interact: "interact";
+    }>>;
+}, z$1.core.$strip>;
+type SystemBrowserAccessRequestDecideRequest = z$1.infer<typeof systemBrowserAccessRequestDecideRequestSchema>;
+/** Pending requests, oldest first — the order the window answers them in. */
+declare const systemBrowserAccessRequestListResponseSchema: z$1.ZodObject<{
+    requests: z$1.ZodArray<z$1.ZodObject<{
+        id: z$1.ZodString;
+        label: z$1.ZodString;
+        level: z$1.ZodEnum<{
+            read: "read";
+            full: "full";
+            browse: "browse";
+            interact: "interact";
+        }>;
+        reason: z$1.ZodNullable<z$1.ZodString>;
+        createdAt: z$1.ZodNumber;
+        expiresAt: z$1.ZodNumber;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemBrowserAccessRequestListResponse = z$1.infer<typeof systemBrowserAccessRequestListResponseSchema>;
 /** The machines to copy the built-in Patcher CLI skills onto. */
 declare const systemInstallCliSkillsRequestSchema: z$1.ZodObject<{
     hostIds: z$1.ZodArray<z$1.ZodString>;
@@ -13092,6 +13206,11 @@ type SystemUpdateGeneralSettingsResult = AppSettings;
 type SystemBrowserAccessGrantsResult = SystemBrowserAccessGrantListResponse;
 type SystemCreateBrowserAccessGrantArgs = SystemBrowserAccessGrantCreateRequest;
 type SystemCreateBrowserAccessGrantResult = SystemBrowserAccessGrantCreateResponse;
+type SystemBrowserAccessRequestsResult = SystemBrowserAccessRequestListResponse;
+type SystemRequestBrowserAccessArgs = SystemBrowserAccessRequestCreateRequest;
+type SystemRequestBrowserAccessResult = SystemBrowserAccessRequestCreateResponse;
+type SystemBrowserAccessRequestOutcomeResult = SystemBrowserAccessRequestOutcomeResponse;
+type SystemDecideBrowserAccessRequestArgs = SystemBrowserAccessRequestDecideRequest;
 type SystemBrowserExternalAccessArgs = SystemBrowserExternalAccessRequest;
 type SystemBrowserExternalAccessResult = SystemBrowserExternalAccessResponse;
 type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
@@ -13152,6 +13271,20 @@ interface SystemArea {
     setBrowserAccessGrantPaused(grantId: string, paused: boolean): Promise<SystemBrowserAccessGrantsResult>;
     /** Take a grant back. The next request presenting it is refused. */
     revokeBrowserAccessGrant(grantId: string): Promise<SystemBrowserAccessGrantsResult>;
+    /** Requests for a grant still waiting on the person, oldest first. */
+    browserAccessRequests(): Promise<SystemBrowserAccessRequestsResult>;
+    /**
+     * Ask the person, in Patcher's window, for a grant (#135).
+     *
+     * Asking again under a label that already has an open request, at the same
+     * level, answers with that request rather than raising a second one — so a
+     * caller whose wait was cut short picks up where it left off.
+     */
+    requestBrowserAccess(args: SystemRequestBrowserAccessArgs): Promise<SystemRequestBrowserAccessResult>;
+    /** Where a request stands. An approval's key is handed over once. */
+    browserAccessRequestOutcome(requestId: string): Promise<SystemBrowserAccessRequestOutcomeResult>;
+    /** Answer a request. Allowing mints the grant, at the level chosen. */
+    decideBrowserAccessRequest(requestId: string, args: SystemDecideBrowserAccessRequestArgs): Promise<SystemBrowserAccessRequestsResult>;
     updateKeyboardSettings(args: AppKeybindingOverrides): Promise<SystemUpdateKeyboardSettingsResult>;
     /** Report one onboarding funnel event to anonymous telemetry. */
     onboardingEvent(args: OnboardingTelemetryEvent): Promise<{

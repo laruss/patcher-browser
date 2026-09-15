@@ -5,6 +5,7 @@ import {
   createBrowserAccessGrant,
   getAppSettings,
   getAppKeybindingOverrides,
+  getBrowserAccessGrant,
   getExperiments,
   getStoredFaviconColor,
   getStoredThemeId,
@@ -28,6 +29,7 @@ import {
   permissionsForBrowserExternalAccess,
   type AppKeybindingOverrides,
   type AppTheme,
+  type BrowserAccessGrantLevel,
 } from "@patcher/domain";
 import {
   publicApiRoutes,
@@ -74,6 +76,7 @@ import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
 // nothing. Defined beside the gate rather than here — the route policy for a
 // grant names the same plugin.
 import { BROWSER_TOOLS_PLUGIN_ID } from "../services/browser/browser-external-access.js";
+import { createBrowserAccessRequests } from "../services/browser/browser-access-requests.js";
 
 /**
  * Whether `patcher browser` would actually answer.
@@ -342,11 +345,19 @@ export function registerSystemRoutes(
     context.json({ grants: listBrowserAccessGrants(deps.db) }),
   );
 
-  post(routes.createBrowserAccessGrant, async (context, payload) => {
+  /** A grant, from a person's terminal or from their Allow in the window. */
+  async function issueBrowserAccessGrant(args: {
+    label: string;
+    level: BrowserAccessGrantLevel;
+  }) {
     if (!isBrowserToolsServing(pluginService)) {
       await pluginService.setEnabled(BROWSER_TOOLS_PLUGIN_ID, true);
     }
-    const grant = createBrowserAccessGrant(deps.db, {
+    return createBrowserAccessGrant(deps.db, args);
+  }
+
+  post(routes.createBrowserAccessGrant, async (context, payload) => {
+    const grant = await issueBrowserAccessGrant({
       label: payload.label,
       level: payload.level,
     });
@@ -403,6 +414,54 @@ export function registerSystemRoutes(
     // make that a second request in every client.
     return context.json({ grants: listBrowserAccessGrants(deps.db) });
   });
+
+  /**
+   * An agent outside Patcher asking for a grant, and the person answering in
+   * the window (#135). Why it is shaped the way it is:
+   * `browser-access-requests.ts`.
+   *
+   * The same callers as the grant routes above, by the same policies: the app
+   * key reaches all four, a turn is refused the three POSTs, a grant reaches
+   * none of them, a plugin is `null`. So "answering is the app's" is exact only
+   * in the sense minting is — an app-key holder can answer its own request,
+   * which is nothing it could not already do by minting.
+   */
+  const accessRequests = createBrowserAccessRequests({
+    issueGrant: issueBrowserAccessGrant,
+    getGrant: (id) => getBrowserAccessGrant(deps.db, id),
+    revokeGrant: (id) => {
+      revokeBrowserAccessGrant(deps.db, id);
+    },
+    changed: () => deps.hub.notifySystem(["config-changed"]),
+  });
+
+  get(routes.browserAccessRequests, (context) =>
+    context.json({ requests: accessRequests.list() }),
+  );
+
+  post(routes.requestBrowserAccess, (context, payload) =>
+    context.json({ request: accessRequests.create(payload) }),
+  );
+
+  post(routes.browserAccessRequestOutcome, (context) => {
+    const collected = accessRequests.collect(context.req.param("id"));
+    if (collected.outcome !== "approved") return context.json(collected);
+    return context.json({
+      outcome: "approved" as const,
+      grant: collected.grant,
+      key: deriveAgentAccessKey({
+        appApiKey: deps.appApiKey,
+        grantId: collected.grant.id,
+      }),
+      browserToolsEnabled: isBrowserToolsServing(pluginService),
+    });
+  });
+
+  post(routes.decideBrowserAccessRequest, async (context, payload) =>
+    context.json({
+      requests: await accessRequests.decide(context.req.param("id"), payload),
+    }),
+  );
 
   put(routes.keyboardSettings, (context, payload) => {
     setAppKeybindingOverrides(deps.db, payload);

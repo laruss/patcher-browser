@@ -82,10 +82,12 @@ describe("the CLI a turn reaches through the MCP tool", () => {
       // outlives the turn a thread key dies with — and the whole group is off
       // the tool rather than only the two mutations: a turn that can read the
       // list has learnt nothing it can use, and the person's own terminal is
-      // where this belongs.
+      // where this belongs. `request` with them: it ends in the same credential,
+      // writes its key to a file and can run an agent's `mcp add`.
       "agent-access grant",
       "agent-access list",
       "agent-access pause",
+      "agent-access request",
       "agent-access resume",
       "agent-access revoke",
       // Serving the tool from inside the tool.

@@ -6,11 +6,15 @@ import {
   type Experiments,
 } from "@patcher/domain";
 import type {
+  SystemBrowserAccessRequestDecideRequest,
   SystemBrowserExternalAccessRequest,
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
-import { setBrowserAccessGrants } from "../cache-owners/browser-access-grant-cache-owner";
+import {
+  reconcileAnsweredBrowserAccessRequest,
+  setBrowserAccessGrants,
+} from "../cache-owners/browser-access-grant-cache-owner";
 import { invalidatePluginList } from "../cache-owners/plugin-cache-owner";
 import {
   invalidateGeneralSettingsDependencies,
@@ -127,6 +131,27 @@ export function useSetBrowserAccessGrantPaused() {
       sdk.system.setBrowserAccessGrantPaused(args.grantId, args.paused),
     onSuccess: (grants) => {
       setBrowserAccessGrants({ grants, queryClient });
+    },
+  });
+}
+
+/**
+ * Answer an agent's request for browser access (#135). Allowing mints the
+ * grant on the server, at the level chosen, and the agent collects its key.
+ */
+export function useDecideBrowserAccessRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { errorMessage: "Failed to answer the browser access request." },
+    mutationFn: (
+      args: { requestId: string } & SystemBrowserAccessRequestDecideRequest,
+    ) => {
+      const { requestId, ...answer } = args;
+      return sdk.system.decideBrowserAccessRequest(requestId, answer);
+    },
+    onSuccess: (_requests, { requestId }) => {
+      reconcileAnsweredBrowserAccessRequest({ queryClient, requestId });
     },
   });
 }

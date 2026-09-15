@@ -18,7 +18,8 @@ route of its own with a consent prompt on it, so an agent inside a turn running
 it raises a question on its thread rather than getting a 403. See
 [Agents outside Patcher](#agents-outside-patcher) below.
 `patcher agent-access grant` is _not_ an exception — it answers with a
-credential that outlives the turn, so a turn gets a 403 there.
+credential that outlives the turn, so a turn gets a 403 there, and so does
+`patcher agent-access request`, which ends in the same credential.
 
 ## Agents outside Patcher
 
@@ -47,6 +48,12 @@ credential that outlives the turn, so a turn gets a 403 there.
   agent, which reaches `patcher browser` and no other part of this API; the
   setting above opens the browser to every process that can read the app key.
   Its levels are the ramp above without `off`, which belongs to the setting.
+- `request <label> --level <level> [--reason <text>]` is the one an agent
+  outside Patcher runs for itself: it asks the person in Patcher's window, waits
+  about a minute and a half for Allow, **Read pages only** or Deny, and on Allow
+  delivers the key the way `grant` does, without `--print-key`. No answer yet
+  means run it again — the same label and level resume the same question. A no
+  refuses that label for ten minutes. It is refused to a shell holding a grant.
 - The key is written to a `0600` file under the data dir of the machine the
   command runs on, and printed only with
   `--print-key`. `--for claude-code` and `--for codex` run that agent's own

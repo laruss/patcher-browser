@@ -315,6 +315,8 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // browser permissions it wants and is charged those, so a plugin minting a
   // grant would only ever be minting one for something that is not it.
   ["/browser/access-grants", null],
+  // The same credential, asked for in the window and collected here (#135).
+  ["/browser/access-requests", null],
   ["/browser/external-access", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],

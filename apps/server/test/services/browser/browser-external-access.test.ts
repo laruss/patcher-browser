@@ -1,5 +1,6 @@
 import {
   agentAccessGrantArgv,
+  agentAccessRequestArgv,
   renderCliShimCommand,
 } from "@patcher/config/cli-shim";
 import type { BrowserCommand, BrowserCommandValue } from "@patcher/domain";
@@ -109,17 +110,27 @@ describe("browser access for callers outside Patcher", () => {
     expect(refusal).toContain(`${SHIM} settings browser-access interact`);
     expect(refusal).toContain("Settings → General → Agents outside Patcher");
     expect(refusal).toContain("Nothing happened");
-    // The grant is named first and whole, with the level it needs: this used
-    // to offer the setting with a level and the grant with none (#134). The
-    // same builder is what apps/cli parses with the command's own definition,
-    // so this is not a string somebody could let drift from the CLI.
+    // Whole commands with the level they need, built by what apps/cli parses
+    // with the command's own definition, so neither can drift from the CLI.
+    // The request comes first: it is the one the reader may run itself, and
+    // it asks the person in the window (#135). The grant and the setting are
+    // named after the warning not to run them from this shell.
+    const request = renderCliShimCommand(
+      SHIM,
+      agentAccessRequestArgv(
+        "<your name>",
+        "interact",
+        "<what you need it for>",
+      ),
+    );
     const grant = renderCliShimCommand(
       SHIM,
       agentAccessGrantArgv("<your name>", "interact"),
     );
+    expect(refusal).toContain(request);
     expect(refusal).toContain(grant);
-    expect(refusal?.indexOf(grant)).toBeLessThan(
-      refusal?.indexOf("settings browser-access") ?? -1,
+    expect(refusal?.indexOf(request)).toBeLessThan(
+      refusal?.indexOf("Do not run `agent-access grant`") ?? -1,
     );
   });
 

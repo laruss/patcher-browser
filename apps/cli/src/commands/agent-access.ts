@@ -14,10 +14,12 @@ import {
 } from "@patcher/config/runtime";
 import {
   BROWSER_ACCESS_GRANT_LEVELS,
+  BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS,
   browserAccessGrantLevelSchema,
   permissionsForBrowserExternalAccess,
   type BrowserAccessGrantLevel,
 } from "@patcher/domain";
+import type { PatcherSdk } from "@patcher/sdk/node";
 import type { SystemBrowserAccessGrant } from "@patcher/server-contract";
 import { Command } from "commander";
 import { action } from "../action.js";
@@ -95,6 +97,26 @@ interface GrantOptions {
   json?: boolean;
   printKey?: boolean;
 }
+
+/** `--level` is required here: `read` is rarely enough, and `browse` is not a default. */
+interface RequestOptions {
+  level: string;
+  reason?: string;
+  for?: string;
+  json?: boolean;
+}
+
+/**
+ * How long `request` waits in one run, and how often it asks.
+ *
+ * Well under two minutes, because the caller is an agent's shell tool, and
+ * Claude Code's and Patcher's own MCP tool both stop a command at 120 seconds —
+ * killed mid-wait, it would report nothing at all. Polling rather than holding a
+ * request open, because the answer is a person's click and a second and a half
+ * is faster than they are.
+ */
+const REQUEST_WAIT_MS = 90_000;
+const REQUEST_POLL_MS = 1_500;
 
 function parseLevel(value: string | undefined): BrowserAccessGrantLevel {
   if (value === undefined) return "read";
@@ -232,6 +254,8 @@ function printShellDelivery(args: {
   keyFile: string;
   invocation: string;
   viaShim: boolean;
+  /** Only `grant` has `--print-key`; `request` is run by the agent itself. */
+  offersPrintKey: boolean;
 }): void {
   const keyLine = `  export ${PATCHER_AGENT_KEY_FILE_ENV}=${quoteWord(args.keyFile)}`;
   const urlExport = `export PATCHER_SERVER_URL=${quoteWord(args.serverUrl)}`;
@@ -249,7 +273,7 @@ function printShellDelivery(args: {
     console.log(`and have it run Patcher as ${args.invocation}.`);
   }
   console.log(
-    "The key is in that file rather than on this screen, so it stays out of this terminal's scrollback and out of the transcript of an agent that ran this command. `--print-key` prints it too.",
+    `The key is in that file rather than on this screen, so it stays out of this terminal's scrollback and out of the transcript of an agent that ran this command.${args.offersPrintKey ? " `--print-key` prints it too." : ""}`,
   );
   console.log(
     "With that, `patcher browser` works and every other Patcher API this CLI calls is refused.",
@@ -301,6 +325,140 @@ function printMcpInstallOutcome(
   console.log("Run this yourself, in a shell where that binary is on PATH:");
   console.log(`  ${printed}`);
   console.log(restart);
+}
+
+interface PreparedGrantDelivery {
+  serverUrl: string;
+  dataDir: string;
+  server: { command: string; args: string[] };
+  keyDir: string;
+}
+
+/**
+ * Everything delivery needs, found before a grant exists.
+ *
+ * Before minting, not after. The credential is handed over once and cannot be
+ * asked for again, so a failure here after the row existed would leave a live
+ * grant nobody holds — and `config` is only ever a read. The key's directory is
+ * made here too, so a data dir this cannot write to fails while there is
+ * nothing to take back.
+ */
+async function prepareGrantDelivery(
+  sdk: PatcherSdk,
+): Promise<PreparedGrantDelivery> {
+  const config = await sdk.system.config();
+  const server = await resolveMcpServerCommand(config.dataDir);
+  const keyDir = join(localDataDir(), AGENT_KEY_DIR_NAME);
+  await mkdir(keyDir, { recursive: true, mode: 0o700 });
+  return {
+    serverUrl: config.serverUrl,
+    dataDir: config.dataDir,
+    server,
+    keyDir,
+  };
+}
+
+interface IssuedGrant {
+  grant: SystemBrowserAccessGrant;
+  key: string;
+  browserToolsEnabled: boolean;
+}
+
+/**
+ * Hand a grant that now exists to the agent it is for: its key into a file,
+ * that agent's MCP config when `--for` names one, and what to do next.
+ *
+ * `asked` is the level a `request` asked for, which the person may have
+ * answered lower. `printKey` is `grant`'s alone: `request` is run by the agent
+ * itself, so a printed key would always land in its transcript (#134).
+ */
+async function deliverGrant(
+  sdk: PatcherSdk,
+  prepared: PreparedGrantDelivery,
+  issued: IssuedGrant,
+  target: GrantTarget,
+  opts: { json?: boolean; printKey?: boolean; asked?: BrowserAccessGrantLevel },
+): Promise<void> {
+  const { grant, key } = issued;
+  const keyFile = join(prepared.keyDir, `${grant.id}.key`);
+  try {
+    // `wx`: a file already there is an error, not a key to write over.
+    await writeFile(keyFile, `${key}\n`, { mode: 0o600, flag: "wx" });
+  } catch (error) {
+    // Taken back rather than left: the key is shown nowhere else, so a grant
+    // whose file was never written is a credential nobody holds.
+    await sdk.system.revokeBrowserAccessGrant(grant.id);
+    throw new Error(
+      `Could not write the key to ${keyFile} (${error instanceof Error ? error.message : String(error)}), so grant ${grant.id} was revoked straight away. Nobody holds a live credential from this.`,
+    );
+  }
+  // `--for` is an act on this machine, not a way of printing the answer, so
+  // `--json` does not skip it: a caller that asked for JSON *and* for Codex to
+  // be configured asked for both.
+  const delivery =
+    target === "shell"
+      ? null
+      : buildMcpInstallPlan(target, prepared.server, {
+          serverUrl: prepared.serverUrl,
+          keyFile,
+        });
+  const installed = delivery === null ? null : await runMcpInstall(delivery);
+  // The key only when asked for, in JSON as on the screen: both are stdout, and
+  // stdout is what lands in a transcript.
+  if (
+    outputJson(opts, {
+      grant,
+      browserToolsEnabled: issued.browserToolsEnabled,
+      keyFile,
+      ...(opts.printKey === true ? { key } : {}),
+      ...(installed ?? {}),
+    })
+  ) {
+    return;
+  }
+  if (opts.asked !== undefined && opts.asked !== grant.level) {
+    console.log(
+      `The person allowed "${grant.label}" at "${grant.level}", lower than the "${opts.asked}" asked for. A command needing more is still refused; that was their answer.`,
+    );
+  }
+  console.log(
+    `Issued "${grant.label}" (${grant.id}) at level ${grant.level}: ${permissionsForBrowserExternalAccess(grant.level).join(", ")}.`,
+  );
+  // Enabling the plugin is a side effect on everybody else's behalf: it hands
+  // every thread inside Patcher what `browser-tools` declares, which is more
+  // than this grant does. Said either way rather than only when it failed.
+  console.log(
+    issued.browserToolsEnabled
+      ? "The browser-tools plugin is on, so `patcher browser` is served — for threads inside Patcher too, with everything the plugin declares."
+      : "The browser-tools plugin is not serving `patcher browser`, so nothing can use this grant yet. Check `patcher plugin list`.",
+  );
+  if (delivery === null) {
+    printShellDelivery({
+      serverUrl: prepared.serverUrl,
+      keyFile,
+      // The MCP server's command without its `mcp-serve`, which is how this
+      // CLI is run from a shell.
+      invocation: quoteArgv(
+        prepared.server.command,
+        prepared.server.args.slice(0, -1),
+      ),
+      viaShim: prepared.server.command === resolveCliShimPath(prepared.dataDir),
+      offersPrintKey: opts.asked === undefined,
+    });
+  } else {
+    printMcpInstallOutcome(delivery, installed);
+  }
+  if (opts.printKey === true) {
+    console.log("");
+    console.log(
+      `The key itself, as asked; \`${PATCHER_AGENT_KEY_ENV}\` works in place of the file:`,
+    );
+    console.log(`  export ${PATCHER_AGENT_KEY_ENV}=${quoteWord(key)}`);
+  }
+  console.log("");
+  console.log(
+    `Take it back with \`patcher agent-access revoke ${grant.id}\`, or in Settings → General → Agents outside Patcher.`,
+  );
 }
 
 function printGrantTable(grants: readonly SystemBrowserAccessGrant[]): void {
@@ -372,96 +530,87 @@ export function registerAgentAccessCommands(
         const level = parseLevel(opts.level);
         const target = parseTarget(opts.for);
         const sdk = createCliPatcherSdk(getUrl());
-        // Before minting, not after. The credential is handed over once and
-        // cannot be asked for again, so a failure here after the row existed
-        // would leave a live grant nobody holds — and `config` is only ever a
-        // read. The key's directory is made here too, so a data dir this
-        // cannot write to fails while there is nothing to take back.
-        const config = await sdk.system.config();
-        const server = await resolveMcpServerCommand(config.dataDir);
-        const keyDir = join(localDataDir(), AGENT_KEY_DIR_NAME);
-        await mkdir(keyDir, { recursive: true, mode: 0o700 });
-        const result = await sdk.system.createBrowserAccessGrant({
+        const prepared = await prepareGrantDelivery(sdk);
+        const issued = await sdk.system.createBrowserAccessGrant({
           label,
           level,
         });
-        const keyFile = join(keyDir, `${result.grant.id}.key`);
-        try {
-          // `wx`: a file already there is an error, not a key to write over.
-          await writeFile(keyFile, `${result.key}\n`, {
-            mode: 0o600,
-            flag: "wx",
-          });
-        } catch (error) {
-          // Taken back rather than left: the key is shown nowhere else, so a
-          // grant whose file was never written is a credential nobody holds.
-          await sdk.system.revokeBrowserAccessGrant(result.grant.id);
-          throw new Error(
-            `Could not write the key to ${keyFile} (${error instanceof Error ? error.message : String(error)}), so grant ${result.grant.id} was revoked straight away. Nobody holds a live credential from this.`,
-          );
-        }
-        // `--for` is an act on this machine, not a way of printing the answer,
-        // so `--json` does not skip it: a caller that asked for JSON *and* for
-        // Codex to be configured asked for both.
-        const delivery =
-          target === "shell"
-            ? null
-            : buildMcpInstallPlan(target, server, {
-                serverUrl: config.serverUrl,
-                keyFile,
-              });
-        const installed =
-          delivery === null ? null : await runMcpInstall(delivery);
-        // The key only when asked for, in JSON as on the screen: both are
-        // stdout, and stdout is what lands in a transcript.
-        if (
-          outputJson(opts, {
-            grant: result.grant,
-            browserToolsEnabled: result.browserToolsEnabled,
-            keyFile,
-            ...(opts.printKey === true ? { key: result.key } : {}),
-            ...(installed ?? {}),
-          })
-        ) {
-          return;
-        }
-        console.log(
-          `Issued "${result.grant.label}" (${result.grant.id}) at level ${level}: ${permissionsForBrowserExternalAccess(level).join(", ")}.`,
-        );
-        // Enabling the plugin is a side effect on everybody else's behalf: it
-        // hands every thread inside Patcher what `browser-tools` declares,
-        // which is more than this grant does. Said either way rather than only
-        // when it failed.
-        console.log(
-          result.browserToolsEnabled
-            ? "The browser-tools plugin is on, so `patcher browser` is served — for threads inside Patcher too, with everything the plugin declares."
-            : "The browser-tools plugin is not serving `patcher browser`, so nothing can use this grant yet. Check `patcher plugin list`.",
-        );
-        if (delivery === null) {
-          printShellDelivery({
-            serverUrl: config.serverUrl,
-            keyFile,
-            // The MCP server's command without its `mcp-serve`, which is how
-            // this CLI is run from a shell.
-            invocation: quoteArgv(server.command, server.args.slice(0, -1)),
-            viaShim: server.command === resolveCliShimPath(config.dataDir),
-          });
-        } else {
-          printMcpInstallOutcome(delivery, installed);
-        }
-        if (opts.printKey === true) {
-          console.log("");
+        await deliverGrant(sdk, prepared, issued, target, opts);
+      }),
+    );
+
+  agentAccess
+    .command("request <label>")
+    .description(
+      "Ask the person, in Patcher's window, for a credential for one agent. The command an agent runs for itself",
+    )
+    .requiredOption(
+      "--level <level>",
+      `How far it needs to reach: ${BROWSER_ACCESS_GRANT_LEVELS.join(" | ")}`,
+    )
+    .option(
+      "--reason <text>",
+      "What it is needed for, shown to the person as written",
+    )
+    .option(
+      "--for <target>",
+      `Who it is for: ${GRANT_TARGETS.join(" | ")}. Anything but 'shell' writes that agent's own MCP config, through its own command`,
+      "shell",
+    )
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (label: string, opts: RequestOptions) => {
+        const level = parseLevel(opts.level);
+        const target = parseTarget(opts.for);
+        const sdk = createCliPatcherSdk(getUrl());
+        const prepared = await prepareGrantDelivery(sdk);
+        const { request } = await sdk.system.requestBrowserAccess({
+          label,
+          level,
+          ...(opts.reason === undefined ? {} : { reason: opts.reason }),
+        });
+        if (opts.json !== true) {
           console.log(
-            `The key itself, as asked; \`${PATCHER_AGENT_KEY_ENV}\` works in place of the file:`,
-          );
-          console.log(
-            `  export ${PATCHER_AGENT_KEY_ENV}=${quoteWord(result.key)}`,
+            `Asked the person at this machine, in Patcher's window — the row under its tabs, or Settings → General → Agents outside Patcher: "${request.label}" asks for "${BROWSER_EXTERNAL_ACCESS_DESCRIPTIONS[request.level].label}". Waiting up to ${REQUEST_WAIT_MS / 1000} seconds for their answer.`,
           );
         }
-        console.log("");
-        console.log(
-          `Take it back with \`patcher agent-access revoke ${result.grant.id}\`, or in Settings → General → Agents outside Patcher.`,
-        );
+        const deadline = Date.now() + REQUEST_WAIT_MS;
+        const stillWaiting = () =>
+          // Bounded well under an agent's own tool timeout, which would
+          // otherwise kill this mid-wait and report nothing (#135). The request
+          // stays open, and asking again resumes it.
+          new Error(
+            `No answer yet from the person at this machine, and nothing has been granted. The request is still open in Patcher's window until ${new Date(request.expiresAt).toISOString()}; run the same command again to keep waiting for it.`,
+          );
+        for (;;) {
+          // Raced against the deadline, so one poll that stalls — a server
+          // elsewhere on a bad network — cannot carry the wait past it.
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const outcome = await Promise.race([
+            sdk.system.browserAccessRequestOutcome(request.id),
+            new Promise<null>((resolve) => {
+              timer = setTimeout(
+                () => resolve(null),
+                Math.max(deadline - Date.now(), 0),
+              );
+            }),
+          ]).finally(() => clearTimeout(timer));
+          if (outcome === null) throw stillWaiting();
+          if (outcome.outcome === "denied") {
+            throw new Error(
+              `The person at this machine answered no to "${request.label}". Nothing was granted. Do not ask again, and do not run \`agent-access grant\` or \`settings browser-access\` instead: from this shell they take effect with nobody asked, and the answer was theirs to give. If you think they misread, say so to them in words.`,
+            );
+          }
+          if (outcome.outcome === "approved") {
+            await deliverGrant(sdk, prepared, outcome, target, {
+              json: opts.json,
+              asked: level,
+            });
+            return;
+          }
+          if (Date.now() >= deadline) throw stillWaiting();
+          await new Promise((resolve) => setTimeout(resolve, REQUEST_POLL_MS));
+        }
       }),
     );
 

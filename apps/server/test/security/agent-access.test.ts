@@ -135,6 +135,263 @@ async function runBrowserCli(
   return { status: response.status, body: await response.text() };
 }
 
+/** An active turn's headers, on a freshly seeded thread. */
+function seedTurnHeaders(running: RunningTestServer): Record<string, string> {
+  const { host } = seedHostSession(running.deps, { id: "host-request-turn" });
+  const { project } = seedProjectWithSource(running.deps, { hostId: host.id });
+  const environment = seedEnvironment(running.deps, {
+    hostId: host.id,
+    projectId: project.id,
+  });
+  const thread = seedThread(running.deps, {
+    projectId: project.id,
+    environmentId: environment.id,
+    status: "active",
+  });
+  return {
+    [PATCHER_THREAD_ID_HEADER]: thread.id,
+    [PATCHER_THREAD_KEY_HEADER]: deriveThreadTurnApiKey({
+      appApiKey: TEST_APP_API_KEY,
+      threadId: thread.id,
+    }),
+  };
+}
+
+/** A JSON POST under `/api/v1` with whatever credential `headers` carries. */
+function postJson(
+  running: RunningTestServer,
+  path: string,
+  headers: Record<string, string>,
+  body: unknown = {},
+): Promise<Response> {
+  return fetch(`${running.baseUrl}/api/v1${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+const APP = { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY };
+
+async function askAsApp(
+  running: RunningTestServer,
+  body: { label: string; level: BrowserAccessGrantLevel; reason?: string },
+): Promise<{ id: string }> {
+  const response = await postJson(
+    running,
+    "/browser/access-requests",
+    APP,
+    body,
+  );
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { request: { id: string } }).request;
+}
+
+/**
+ * Asking for a grant in the window (#135). The same callers as the grant routes
+ * and the same argument: what a request ends in is a credential, so a turn and
+ * a grant are refused it, and what the app key can do here it could already do
+ * by minting.
+ */
+describe("a request for browser access", () => {
+  it("is answered in the window, and hands the asker a working key once", async () => {
+    server = await startTestServer();
+    const request = await askAsApp(server, {
+      label: "Claude Code",
+      level: "interact",
+      reason: "fill in the form you opened",
+    });
+
+    const listed = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-requests`,
+      { headers: APP },
+    );
+    expect(await listed.json()).toMatchObject({
+      requests: [
+        {
+          id: request.id,
+          label: "Claude Code",
+          level: "interact",
+          reason: "fill in the form you opened",
+        },
+      ],
+    });
+    const waiting = await postJson(
+      server,
+      `/browser/access-requests/${request.id}/outcome`,
+      APP,
+    );
+    expect(await waiting.json()).toMatchObject({ outcome: "pending" });
+
+    // "Read pages only": lower than asked, which is the person's to choose.
+    const decided = await postJson(
+      server,
+      `/browser/access-requests/${request.id}/decide`,
+      APP,
+      { decision: "allow", level: "read" },
+    );
+    expect(await decided.json()).toEqual({ requests: [] });
+    // Minted on the click, so it is in the person's list before anyone
+    // collects it — revocable from the moment it exists.
+    expect(listBrowserAccessGrants(server.deps.db)).toMatchObject([
+      { label: "Claude Code", level: "read" },
+    ]);
+
+    const collected = await postJson(
+      server,
+      `/browser/access-requests/${request.id}/outcome`,
+      APP,
+    );
+    const body = (await collected.json()) as {
+      outcome: string;
+      key: string;
+      grant: { level: string };
+    };
+    expect(body).toMatchObject({
+      outcome: "approved",
+      grant: { level: "read" },
+    });
+    const contributions = await grantFetch(
+      server,
+      "/api/v1/plugins/contributions",
+      body.key,
+    );
+    expect(contributions.status).toBe(200);
+
+    const again = await postJson(
+      server,
+      `/browser/access-requests/${request.id}/outcome`,
+      APP,
+    );
+    expect(again.status).toBe(404);
+  });
+
+  it("cannot be asked, collected or answered from inside a turn, which can still read the list", async () => {
+    server = await startTestServer();
+    const turn = seedTurnHeaders(server);
+
+    const asked = await postJson(server, "/browser/access-requests", turn, {
+      label: "mine",
+      level: "full",
+    });
+    expect(asked.status).toBe(403);
+
+    const request = await askAsApp(server, {
+      label: "Claude Code",
+      level: "read",
+    });
+    for (const path of [
+      `/browser/access-requests/${request.id}/outcome`,
+      `/browser/access-requests/${request.id}/decide`,
+    ]) {
+      const response = await postJson(server, path, turn, {
+        decision: "allow",
+      });
+      expect([path, response.status]).toEqual([path, 403]);
+    }
+    expect(listBrowserAccessGrants(server.deps.db)).toEqual([]);
+
+    const list = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-requests`,
+      { headers: turn },
+    );
+    expect(list.status).toBe(200);
+  });
+
+  it("is not a way for a grant to ask for more", async () => {
+    server = await startTestServer();
+    const { key } = issueGrant(server, "read");
+
+    const response = await postJson(
+      server,
+      "/browser/access-requests",
+      { [AGENT_KEY_HEADER]: key },
+      { label: "Claude Code", level: "full" },
+    );
+
+    expect(response.status).toBe(403);
+    const list = await fetch(
+      `${server.baseUrl}/api/v1/browser/access-requests`,
+      { headers: APP },
+    );
+    expect(await list.json()).toEqual({ requests: [] });
+  });
+
+  it("is refused to a caller holding no credential", async () => {
+    server = await startTestServer();
+
+    const response = await postJson(
+      server,
+      "/browser/access-requests",
+      {},
+      {
+        label: "anyone",
+        level: "read",
+      },
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("resumes the open request for a label rather than raising a second", async () => {
+    // An agent's tool timeout cuts the CLI's wait short; running the same
+    // command again must pick the question back up, not ask it twice.
+    server = await startTestServer();
+    const first = await askAsApp(server, { label: "Codex", level: "browse" });
+    const second = await askAsApp(server, { label: "Codex", level: "browse" });
+    expect(second.id).toBe(first.id);
+
+    const wider = await postJson(server, "/browser/access-requests", APP, {
+      label: "Codex",
+      level: "full",
+    });
+    expect(wider.status).toBe(409);
+  });
+
+  it("refuses the same label for a while after the person says no", async () => {
+    server = await startTestServer();
+    const request = await askAsApp(server, { label: "Codex", level: "browse" });
+
+    await postJson(
+      server,
+      `/browser/access-requests/${request.id}/decide`,
+      APP,
+      { decision: "deny" },
+    );
+    const outcome = await postJson(
+      server,
+      `/browser/access-requests/${request.id}/outcome`,
+      APP,
+    );
+    expect(await outcome.json()).toEqual({ outcome: "denied" });
+
+    const again = await postJson(server, "/browser/access-requests", APP, {
+      label: "Codex",
+      level: "read",
+    });
+    expect(again.status).toBe(409);
+    expect(((await again.json()) as { message: string }).message).toContain(
+      "answered no",
+    );
+    expect(listBrowserAccessGrants(server.deps.db)).toEqual([]);
+  });
+
+  it("cannot be answered with more than was asked", async () => {
+    server = await startTestServer();
+    const request = await askAsApp(server, { label: "Codex", level: "read" });
+
+    const response = await postJson(
+      server,
+      `/browser/access-requests/${request.id}/decide`,
+      APP,
+      { decision: "allow", level: "full" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(listBrowserAccessGrants(server.deps.db)).toEqual([]);
+  });
+});
+
 describe("a browser access grant", () => {
   it("reaches the two routes it was issued for", async () => {
     server = await startTestServer();

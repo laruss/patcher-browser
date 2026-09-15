@@ -253,43 +253,58 @@ anything their logins reach, so it is a bigger thing to ask for than its
 position suggests. Asking for `full` to read a page is asking for the user's
 logins to answer a question that did not need them.
 
-**Ask for a grant, not for the setting.** There are two ways to open the browser
-to you, and they are not equivalent:
+**Ask for a grant, in Patcher's window.** From a terminal outside Patcher, run
+this yourself:
 
 ```bash
-patcher agent-access grant "<your name>" --level read
+patcher agent-access request "<your name>" --level browse --reason "<which page, and why>"
 ```
 
-That issues a credential for **you alone**. It runs `patcher browser` and
-reaches no other part of Patcher's API, the user sees it in Settings with when it
-was last used, and one click takes it back. The alternative — `patcher settings browser-access read` —
-opens the browser to *every* process on this machine that can read Patcher's key
-file. Same levels, very different blast radius. So name the grant, and
-mention the setting only if they ask for something simpler.
+It puts the question in front of the user in Patcher's window — a row under its
+tabs, and Settings → General → Agents outside Patcher — and waits for their
+answer. Nothing is granted until they press Allow, and they can answer with less
+(**Read pages only**) or with no. What they allow is a credential for **you
+alone**: it runs `patcher browser` and reaches no other part of Patcher's API,
+the user sees it in Settings with when it was last used, and one click takes it
+back. `--reason` is shown to them as your own words, so say which page and why.
 
-If the user runs it with `--for claude-code` or `--for codex` it configures that
-agent directly and there is nothing for you to paste; the server shows up in a
-session started after that, so they restart you first. Otherwise it writes your
-key to a file and prints one line, `export PATCHER_AGENT_KEY_FILE=<path>`. With
-that in your shell, call Patcher through the shim path it names, which already
-knows the server — a `patcher` from anywhere else needs `PATCHER_SERVER_URL` as
-well — and then `patcher browser` works and every other Patcher API this CLI
-calls is refused. The key stays out of that output on purpose: `--print-key`
-would put it in the terminal, and so in your transcript, and you do not need it.
+It waits about a minute and a half, inside a shell tool's timeout. If it says
+there is no answer yet, run the same command again: the same label and level
+pick the same question back up rather than asking twice. If the answer is no,
+stop — do not ask again, and do not reach for the two commands below.
 
-**Do not run either command yourself and call it done.** From a plain terminal
-both take effect immediately — the server cannot tell your shell from the user's
-own, so running one is you acting as them. Say which level you need and why, and
-let them run it or tell you to. Opening the browser to yourself, unasked, is the
-one outcome this must never produce.
+It works only from a shell that holds no grant. One with `PATCHER_AGENT_KEY_FILE`
+or `PATCHER_AGENT_KEY` set is refused, because a grant cannot ask to widen
+itself: ask the user in words for a wider one, and never unset those to get
+round it.
+
+**Do not run `patcher agent-access grant` or `patcher settings browser-access`
+yourself.** From a plain terminal both take effect immediately with nobody asked
+— the server cannot tell your shell from the user's own, so running one is you
+acting as them. They are the user's: `grant` issues the same credential from
+their own terminal, and the setting opens the browser to *every* process on this
+machine that can read Patcher's key file — same levels, very different blast
+radius. Opening the browser to yourself, unasked, is the one outcome this must
+never produce.
+
+Either way the key arrives in a file, not in the output. With `--for
+claude-code` or `--for codex` the command configures that agent directly and
+there is nothing to paste; the server shows up in a session started after that,
+so it needs a restart first. Otherwise it prints one line,
+`export PATCHER_AGENT_KEY_FILE=<path>`. With that in your shell, call Patcher
+through the shim path it names, which already knows the server — a `patcher`
+from anywhere else needs `PATCHER_SERVER_URL` as well — and then `patcher
+browser` works and every other Patcher API this CLI calls is refused. The key
+stays out of that output on purpose: `grant --print-key` would put it in the
+terminal, and so in your transcript, and you do not need it.
 
 If you are a thread inside Patcher, `patcher settings browser-access` raises a
 prompt on your thread and changes nothing unless the user allows it — the same
-shape the plugin toggle has. `patcher agent-access grant` is refused there
-outright: a grant keeps working after your turn ends, so minting one is the
-user's act and not yours. Do not run either to find out whether they would say
-yes: the prompt takes the thread's one interaction slot, and a refusal is an
-answer.
+shape the plugin toggle has. `patcher agent-access grant` and `request` are
+refused there outright: a grant keeps working after your turn ends, so a
+credential for one is the user's to hand to an agent outside Patcher, not a
+turn's to obtain. Do not run the setting to find out whether they would say yes:
+the prompt takes the thread's one interaction slot, and a refusal is an answer.
 
 **If your grant stops working**, the refusal says so, and says which of two
 things happened. **Paused** means somebody stopped you just now, most likely
@@ -309,8 +324,10 @@ your level allows. That is cheaper than finding out by being refused.
 ### Either way
 
 The refusal you get carries the permission it needed, the level that would admit
-it, and the exact command that changes it. Relay that rather than retrying the
-same call — retrying asks the same person the same question, or nobody at all.
+it, and the exact commands that change it — with no grant, the `request` above
+first, which is the one to run yourself. Run that, or relay the rest, rather than
+retrying the same call: retrying asks the same person the same question, or
+nobody at all.
 
 ## Do not substitute something worse
 

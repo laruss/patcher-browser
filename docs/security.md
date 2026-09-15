@@ -1402,6 +1402,18 @@ file holding the key rather than the key; `--for shell` hands over the same path
 so the key is not printed into a terminal an agent may be reading unless
 `--print-key` asks for it.
 
+An agent outside Patcher does not have to send the person to their terminal for
+one. `patcher agent-access request "<name>" --level <level>` puts the question
+in Patcher's window — the program's name as it calls itself, the level in the
+settings screen's words, its reason as its own — and the person answers
+**Allow**, **Read pages only** or **Deny**. Allow mints the ordinary grant on the
+click, so it is in the list and revocable at once; the waiting CLI collects the
+key into the same `0600` file. This adds no reach: the CLI asking holds the app
+key, which could mint a grant with no prompt at all. What it changes is that the
+supported path puts the decision in front of the person before a credential
+exists. A turn is refused it, and so is a grant, which cannot ask to widen
+itself.
+
 Two things a grant does not fence, and both are `patcher browser`'s own doing
 rather than the credential's. Its commands read and write files where you point
 them, on the machine the **server** runs on: `screenshot <path>`, `pdf`,

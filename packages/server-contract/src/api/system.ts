@@ -432,6 +432,90 @@ export type SystemBrowserAccessGrantListResponse = z.infer<
   typeof systemBrowserAccessGrantListResponseSchema
 >;
 
+/**
+ * An agent outside Patcher asking the person for a grant, in the window (#135).
+ *
+ * The label is what the row says the program calls itself, and nothing
+ * verifies it — the same as a grant's. The reason is the agent's own words,
+ * shown as data, so it is capped rather than trusted.
+ */
+export const systemBrowserAccessRequestCreateRequestSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  level: browserAccessGrantLevelSchema,
+  reason: z.string().trim().max(280).optional(),
+});
+export type SystemBrowserAccessRequestCreateRequest = z.infer<
+  typeof systemBrowserAccessRequestCreateRequestSchema
+>;
+
+/** One request as the window shows it. Never a credential. */
+export const systemBrowserAccessRequestSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  level: browserAccessGrantLevelSchema,
+  reason: z.string().nullable(),
+  createdAt: z.number(),
+  /** When it goes away unanswered. Held in memory, so a restart is sooner. */
+  expiresAt: z.number(),
+});
+export type SystemBrowserAccessRequest = z.infer<
+  typeof systemBrowserAccessRequestSchema
+>;
+
+export const systemBrowserAccessRequestCreateResponseSchema = z.object({
+  request: systemBrowserAccessRequestSchema,
+});
+export type SystemBrowserAccessRequestCreateResponse = z.infer<
+  typeof systemBrowserAccessRequestCreateResponseSchema
+>;
+
+/**
+ * Where a request stands, for the program that asked.
+ *
+ * `approved` carries the key, and only once: collecting it ends the request.
+ * The grant itself was minted when the person pressed Allow, so it is already
+ * in their list, and its level is the one they chose — which can be lower than
+ * the one asked for.
+ */
+export const systemBrowserAccessRequestOutcomeResponseSchema =
+  z.discriminatedUnion("outcome", [
+    z.object({
+      outcome: z.literal("pending"),
+      request: systemBrowserAccessRequestSchema,
+    }),
+    z.object({ outcome: z.literal("denied") }),
+    z.object({
+      outcome: z.literal("approved"),
+      grant: systemBrowserAccessGrantSchema,
+      key: z.string(),
+      browserToolsEnabled: z.boolean(),
+    }),
+  ]);
+export type SystemBrowserAccessRequestOutcomeResponse = z.infer<
+  typeof systemBrowserAccessRequestOutcomeResponseSchema
+>;
+
+/**
+ * The person's answer. `level` defaults to the level asked, and may be lower
+ * — "Read pages only" — but never higher: widening what was asked is a grant
+ * nobody requested.
+ */
+export const systemBrowserAccessRequestDecideRequestSchema = z.object({
+  decision: z.enum(["allow", "deny"]),
+  level: browserAccessGrantLevelSchema.optional(),
+});
+export type SystemBrowserAccessRequestDecideRequest = z.infer<
+  typeof systemBrowserAccessRequestDecideRequestSchema
+>;
+
+/** Pending requests, oldest first — the order the window answers them in. */
+export const systemBrowserAccessRequestListResponseSchema = z.object({
+  requests: z.array(systemBrowserAccessRequestSchema),
+});
+export type SystemBrowserAccessRequestListResponse = z.infer<
+  typeof systemBrowserAccessRequestListResponseSchema
+>;
+
 /** The machines to copy the built-in Patcher CLI skills onto. */
 export const systemInstallCliSkillsRequestSchema = z.object({
   hostIds: z.array(z.string().min(1)).min(1).max(64),

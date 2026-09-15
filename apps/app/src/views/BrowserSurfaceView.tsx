@@ -16,6 +16,7 @@ import type {
 import type { UpdateBrowserTabArgs } from "@/components/secondary-panel/useThreadFileTabs";
 import { BrowserDevToolsPanel } from "@/components/browser-surface/BrowserDevToolsPanel";
 import { BrowserFindBar } from "@/components/browser-surface/BrowserFindBar";
+import { BrowserAccessRequestBar } from "@/components/browser-surface/BrowserAccessRequestRow";
 import { BrowserDrivingIndicator } from "@/components/browser-surface/BrowserDrivingIndicator";
 import { BrowserSurfaceChrome } from "@/components/browser-surface/BrowserSurfaceChrome";
 import { BrowserSurfaceTabStrip } from "@/components/browser-surface/BrowserSurfaceTabStrip";
@@ -1086,6 +1087,10 @@ export function BrowserSurfaceView({
           Patcher screen that has taken a tab. Above the address bar for the same
           reason — it is not a fact about the page underneath it. */}
       <BrowserDrivingIndicator onOpenAppRoute={openAppRoute} />
+      {/* A program outside Patcher asking for the browser, beside the row that
+          says who is driving it and for the same reason: it is about the
+          window, and the person answers wherever they are (#135). */}
+      <BrowserAccessRequestBar />
       {/* No address bar over an app screen: Patcher's own screens are not pages to
           type a URL into, and an omnibox that could not describe what is below
           it would be chrome pretending to drive something. */}

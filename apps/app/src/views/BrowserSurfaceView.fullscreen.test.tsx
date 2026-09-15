@@ -38,6 +38,7 @@ const commandFixture = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/queries/system-queries", () => ({
+  useBrowserAccessRequests: () => ({ data: undefined }),
   useSystemConfig: () => ({
     data: {
       generalSettings: { showKeyboardHints: false },
