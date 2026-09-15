@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { access, constants, mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import {
@@ -7,6 +8,10 @@ import {
   PATCHER_AGENT_KEY_FILE_ENV,
 } from "@patcher/config/agent-access-key";
 import { resolveCliShimPath } from "@patcher/config/cli-shim";
+import {
+  parseDataDirEnvValue,
+  resolveProdDataDir,
+} from "@patcher/config/runtime";
 import {
   BROWSER_ACCESS_GRANT_LEVELS,
   browserAccessGrantLevelSchema,
@@ -42,16 +47,34 @@ const execFileAsync = promisify(execFile);
 const MCP_SERVER_NAME = "patcher-browser";
 
 /**
- * Where a grant's key is written, under the data dir, one file per grant.
+ * Where a grant's key is written, one file per grant, under this machine's data
+ * dir.
  *
  * Written rather than printed (#134). Printed, the key goes wherever that
  * terminal's output goes — and when an agent ran the command, that is its
- * transcript and its session log. The file is `0600`, beside the app key the
- * server keeps in the same directory, so it is readable by exactly the
- * processes that could already read that; an agent's config holding the key
- * itself was the same exposure, and a transcript is a wider one.
+ * transcript and its session log. The file is `0600`, and on the machine the
+ * server runs on it sits beside the app key the server keeps there, readable by
+ * exactly the processes that could already read that; an agent's config
+ * holding the key itself was the same exposure, and a transcript is a wider one.
  */
 const AGENT_KEY_DIR_NAME = "agent-keys";
+
+/**
+ * The data dir on the machine this CLI runs on, for the key file.
+ *
+ * Not the server's `config.dataDir`: the file is read by an agent running where
+ * this CLI runs, and a CLI pointed at a server on another machine would try to
+ * write into a path that exists only there. Resolved the way `plugin.ts` finds
+ * its toolchain cache — `PATCHER_DATA_DIR`, which the shim sets to its own
+ * install's, or the production default — so on the server's own machine it is
+ * the same directory.
+ */
+function localDataDir(): string {
+  const configured = process.env.PATCHER_DATA_DIR;
+  return configured === undefined || configured.trim().length === 0
+    ? resolveProdDataDir({ homeDir: homedir() })
+    : parseDataDirEnvValue({ homeDir: homedir(), rawDataDir: configured });
+}
 
 /**
  * The agents this can configure for you, and the one that means "just tell me".
@@ -356,7 +379,7 @@ export function registerAgentAccessCommands(
         // cannot write to fails while there is nothing to take back.
         const config = await sdk.system.config();
         const server = await resolveMcpServerCommand(config.dataDir);
-        const keyDir = join(config.dataDir, AGENT_KEY_DIR_NAME);
+        const keyDir = join(localDataDir(), AGENT_KEY_DIR_NAME);
         await mkdir(keyDir, { recursive: true, mode: 0o700 });
         const result = await sdk.system.createBrowserAccessGrant({
           label,

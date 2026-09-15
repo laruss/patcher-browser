@@ -47,7 +47,10 @@ describe("patcher agent-access grant", () => {
   const register: CommandRegistrar = (program) =>
     registerAgentAccessCommands(program, () => "http://server");
 
+  /** The server's data dir, as `system.config` reports it. */
   let dataDir: string;
+  /** This machine's, where the key file goes. */
+  let localDir: string;
   const posted: { label: string; level: string }[] = [];
   const revoke = vi.fn(async () => ({ grants: [] }));
 
@@ -59,6 +62,8 @@ describe("patcher agent-access grant", () => {
 
   beforeEach(async () => {
     dataDir = await mkdtemp(join(tmpdir(), "patcher-agent-access-"));
+    localDir = await mkdtemp(join(tmpdir(), "patcher-agent-access-local-"));
+    vi.stubEnv("PATCHER_DATA_DIR", localDir);
     posted.length = 0;
     revoke.mockClear();
     execFileMock.mockReset();
@@ -92,6 +97,7 @@ describe("patcher agent-access grant", () => {
 
   afterEach(async () => {
     await rm(dataDir, { recursive: true, force: true });
+    await rm(localDir, { recursive: true, force: true });
   });
 
   it("writes the key to a file only its owner reads, and prints the path instead", async () => {
@@ -105,9 +111,12 @@ describe("patcher agent-access grant", () => {
       register,
     );
 
-    const keyFile = join(dataDir, "agent-keys", "bag_1.key");
+    const keyFile = join(localDir, "agent-keys", "bag_1.key");
     expect((await readFile(keyFile, "utf8")).trim()).toBe(`pa1.bag_1.${MAC}`);
     expect((await stat(keyFile)).mode & 0o777).toBe(0o600);
+    // On this machine rather than under the server's data dir: a CLI pointed
+    // at a server elsewhere cannot write there, and its agent runs here.
+    await expect(stat(join(dataDir, "agent-keys"))).rejects.toThrow();
     expect(printed()).not.toContain(MAC);
     expect(printed()).toContain(`export PATCHER_AGENT_KEY_FILE=${keyFile}`);
     // The shim exports the server URL itself, so the agent is sent to it
@@ -143,15 +152,15 @@ describe("patcher agent-access grant", () => {
 
     expect(printed()).not.toContain(MAC);
     expect(JSON.parse(printed())).toMatchObject({
-      keyFile: join(dataDir, "agent-keys", "bag_1.key"),
+      keyFile: join(localDir, "agent-keys", "bag_1.key"),
     });
   });
 
   it("takes the grant back when its key cannot be written", async () => {
     // Shown nowhere else, the key of a grant whose file was never written is
     // a live credential nobody holds.
-    await mkdir(join(dataDir, "agent-keys"), { recursive: true });
-    await writeFile(join(dataDir, "agent-keys", "bag_1.key"), "not ours\n");
+    await mkdir(join(localDir, "agent-keys"), { recursive: true });
+    await writeFile(join(localDir, "agent-keys", "bag_1.key"), "not ours\n");
 
     await expect(
       runCommand(["agent-access", "grant", "Claude Code"], register),
@@ -185,7 +194,7 @@ describe("patcher agent-access grant", () => {
     expect(binary).toBe("claude");
     // The argv is printed, visible in `ps`, and written into their config.
     expect(argv).toContain(
-      `PATCHER_AGENT_KEY_FILE=${join(dataDir, "agent-keys", "bag_1.key")}`,
+      `PATCHER_AGENT_KEY_FILE=${join(localDir, "agent-keys", "bag_1.key")}`,
     );
     expect(argv.join(" ")).not.toContain(MAC);
     expect(printed()).not.toContain(MAC);

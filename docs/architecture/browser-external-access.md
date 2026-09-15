@@ -461,7 +461,9 @@ than discovered.
 ### Getting it to the agent
 
 `patcher agent-access grant <label> [--level] [--for] [--print-key]`. The key is
-written to `<dataDir>/agent-keys/<grantId>.key`, `0600`, and what is handed over
+written to `<dataDir>/agent-keys/<grantId>.key`, `0600` — the data dir of the
+machine the CLI runs on, where the agent reading it runs, which is the server's
+own unless the CLI was pointed at a server elsewhere — and what is handed over
 is that file's path in `PATCHER_AGENT_KEY_FILE` — the key goes to stdout only
 when `--print-key` asks for it, `--json` included. It used to be printed, and
 walked through on 2026-09-14 from an agent's own session, that put it in the
