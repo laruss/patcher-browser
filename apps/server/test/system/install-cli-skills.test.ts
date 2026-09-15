@@ -67,6 +67,7 @@ describe("install cli skills", () => {
                   {
                     name: "patcher-cli",
                     path: `/home/${host.id}/.agents/skills`,
+                    outcome: "written",
                   },
                 ],
               },
@@ -104,7 +105,11 @@ describe("install cli skills", () => {
           ok: true,
           result: {
             installations: [
-              { name: "patcher-cli", path: "/home/u/.agents/skills" },
+              {
+                name: "patcher-cli",
+                path: "/home/u/.agents/skills",
+                outcome: "written",
+              },
             ],
           },
         }),
@@ -153,16 +158,37 @@ describe("install cli skills", () => {
   it("maps each machine's reported hashes to a product status", async () => {
     await withTestHarness(async (harness) => {
       await writeBuiltinCliSkill(harness);
-      const current = seedHostSession(harness.deps, { id: "host-current" });
-      const stale = seedHostSession(harness.deps, { id: "host-stale" });
-      const empty = seedHostSession(harness.deps, { id: "host-empty" });
-      const expectedHash = expectedCliSkillTreeHash(harness);
-      const hashByHostId: Record<string, string | null> = {
-        "host-current": expectedHash,
-        "host-stale": "b".repeat(64),
-        "host-empty": null,
+      const current = expectedCliSkillTreeHash(harness);
+      const older = "b".repeat(64);
+      const edited = "c".repeat(64);
+      // Each machine's two copies, as [hash on disk, hash its install recorded].
+      const copiesByHostId: Record<
+        string,
+        readonly [string | null, string | null][]
+      > = {
+        "host-current": [
+          [current, current],
+          [current, null],
+        ],
+        "host-stale": [
+          [older, older],
+          [older, null],
+        ],
+        "host-edited": [
+          [edited, older],
+          [older, older],
+        ],
+        "host-partial": [
+          [current, current],
+          [null, current],
+        ],
+        "host-empty": [
+          [null, null],
+          [null, older],
+        ],
       };
-      for (const { host, session } of [current, stale, empty]) {
+      for (const hostId of Object.keys(copiesByHostId)) {
+        const { host, session } = seedHostSession(harness.deps, { id: hostId });
         registerHostRpcResponder(harness, {
           hostId: host.id,
           sessionId: session.id,
@@ -174,13 +200,14 @@ describe("install cli skills", () => {
             return {
               ok: true,
               result: {
-                entries: [
-                  {
+                entries: (copiesByHostId[host.id] ?? []).map(
+                  ([treeHash, installedTreeHash], index) => ({
                     name: "patcher-cli",
-                    path: `/home/${host.id}/.agents/skills/patcher-cli`,
-                    treeHash: hashByHostId[host.id] ?? null,
-                  },
-                ],
+                    path: `/home/${host.id}/root-${index}/patcher-cli`,
+                    treeHash,
+                    installedTreeHash,
+                  }),
+                ),
               },
             };
           },
@@ -199,6 +226,8 @@ describe("install cli skills", () => {
       ).toEqual({
         "host-current": "installed",
         "host-stale": "outdated",
+        "host-edited": "modified",
+        "host-partial": "incomplete",
         "host-empty": "missing",
       });
     });

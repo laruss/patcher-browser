@@ -28,14 +28,15 @@ export interface CliSkillsSettingsSectionContentProps {
 
 function installDescription(hasConnectedMachine: boolean): string {
   return hasConnectedMachine
-    ? "Install them into ~/.agents/skills and ~/.claude/skills so agents outside Patcher can use the Patcher CLI."
+    ? "Install them into ~/.agents/skills and ~/.claude/skills so agents outside Patcher can use the Patcher CLI. Patcher keeps the copies it installed up to date, and leaves a copy changed since alone until you install again."
     : "Connect a machine to install them into ~/.agents/skills and ~/.claude/skills.";
 }
 
 /**
  * One badge for the whole row. With several machines the interesting fact is
  * how many are current, so a mixed fleet reports the shortfall rather than
- * claiming either extreme.
+ * claiming either extreme. With none current, the state that needs a person
+ * wins: a modified copy is never updated on its own, then a missing one.
  */
 export function summarizeMachineStatuses(
   statuses: readonly CliSkillMachineStatus[],
@@ -51,9 +52,9 @@ export function summarizeMachineStatuses(
   if (installed > 0) {
     return `Installed on ${installed} of ${known.length} machines`;
   }
-  return known.some((status) => status === "outdated")
-    ? "Out of date"
-    : "Not installed";
+  if (known.includes("modified")) return "Modified";
+  if (known.includes("incomplete")) return "Partly installed";
+  return known.includes("outdated") ? "Out of date" : "Not installed";
 }
 
 export function CliSkillsSettingsSectionContent({

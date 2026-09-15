@@ -692,9 +692,14 @@ export async function hashInstalledSkillDirectory(args: {
       skillFilePath: path.join(args.skillDirectoryPath, SKILL_FILE_NAME),
     });
     return hashStoredTreeFiles(
-      [...tree.files].sort((left, right) =>
-        compareStringsByCodePoint(left.relativePath, right.relativePath),
-      ),
+      tree.files
+        // Finder writes one into any folder somebody merely opens. Counted, it
+        // would make a copy nobody changed read as changed, and a changed copy
+        // is one Patcher never updates again.
+        .filter((file) => path.basename(file.relativePath) !== ".DS_Store")
+        .sort((left, right) =>
+          compareStringsByCodePoint(left.relativePath, right.relativePath),
+        ),
     );
   } catch {
     return null;

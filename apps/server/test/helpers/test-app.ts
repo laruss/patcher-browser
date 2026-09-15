@@ -278,6 +278,7 @@ export async function createTestAppHarness(
     appVersion,
     appApiKey: TEST_APP_API_KEY,
     patcherAppManagedConfig,
+    cliSkillsUpdateNotices: new Map(),
     config,
     db,
     hub,

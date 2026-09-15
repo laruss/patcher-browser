@@ -68,6 +68,7 @@ function systemConfig(): SystemConfigResponse {
     primaryHostId: null,
     primaryHostPlatform: null,
     outsideAgentSetup: "unasked",
+    cliSkillsUpdates: [],
     voiceTranscriptionEnabled: false,
     dataDir: "/tmp/patcher-test",
   };

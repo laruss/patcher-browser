@@ -5,6 +5,7 @@ import {
 
 export interface LifecycleDedupers {
   environmentCleanupAdvance: AsyncDeduper<string, void>;
+  globalCliSkillsReconciliation: AsyncDeduper<string, void>;
   queuedMessageAutoSend: AsyncDeduper<string, void>;
   threadProvisionAdvance: AsyncDeduper<string, void>;
 }
@@ -12,6 +13,7 @@ export interface LifecycleDedupers {
 export function createLifecycleDedupers(): LifecycleDedupers {
   return {
     environmentCleanupAdvance: createAsyncDeduper<string, void>(),
+    globalCliSkillsReconciliation: createAsyncDeduper<string, void>(),
     queuedMessageAutoSend: createAsyncDeduper<string, void>(),
     threadProvisionAdvance: createAsyncDeduper<string, void>(),
   };

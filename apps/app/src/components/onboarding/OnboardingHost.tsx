@@ -52,6 +52,7 @@ import {
   type OnboardingUiEvent,
 } from "./OnboardingFlow";
 import { OutsideAgentSetupDialog } from "./OutsideAgentSetupDialog";
+import { useCliSkillsUpdateToast } from "./useCliSkillsUpdateToast";
 
 /**
  * Decides whether first-run onboarding is showing, and owns its side effects:
@@ -134,6 +135,12 @@ export function OnboardingHost() {
     (mayAskOutsideAgentSetup &&
       primaryCliSkillsStatus === "missing" &&
       !setupCliSkills.isSuccess);
+  // The note that Patcher kept those skills current (#142) waits for either of
+  // the two to leave the screen rather than landing on top of it.
+  useCliSkillsUpdateToast({
+    notices: configQuery.data?.cliSkillsUpdates,
+    paused: shouldShow || showOutsideAgentSetup,
+  });
 
   const projects = navigationQuery.data?.projects;
 

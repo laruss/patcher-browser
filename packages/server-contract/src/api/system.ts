@@ -234,6 +234,22 @@ export const systemConfigResponseSchema = z.object({
    * it, because that object is written back whole by every window.
    */
   outsideAgentSetup: outsideAgentSetupAnswerSchema,
+  /**
+   * Machines whose Patcher skills for agents outside Patcher this server
+   * updated on its own since it started (#142), latest per machine. `at` only
+   * grows, so a window shows each one once by remembering the largest it has
+   * shown. Defaulted so a desktop shell still parses an older server's config.
+   */
+  cliSkillsUpdates: z
+    .array(
+      z.object({
+        hostId: z.string(),
+        hostName: z.string(),
+        skills: z.array(z.string()),
+        at: z.number().int(),
+      }),
+    )
+    .default([]),
   voiceTranscriptionEnabled: z.boolean(),
   /** Absolute path of the active Patcher data directory (where ui/, theme/, the DB live). */
   dataDir: z.string(),
@@ -289,14 +305,21 @@ export const systemConfigReloadResponseSchema = z.object({
   ok: z.literal(true),
 });
 
+export type CliSkillsUpdateNotice =
+  SystemConfigResponse["cliSkillsUpdates"][number];
+
 /**
  * Whether a machine's copy of the built-in Patcher CLI skills matches what this
- * server would install. "unknown" covers a disconnected machine or one that
- * could not be asked.
+ * server would install. "outdated" is an older copy; "modified" has a copy
+ * changed since this install wrote it, which Patcher never updates on its own;
+ * "incomplete" is missing a copy in one root or of one skill. "unknown" covers
+ * a disconnected machine or one that could not be asked.
  */
 export const cliSkillMachineStatusSchema = z.enum([
   "installed",
   "outdated",
+  "modified",
+  "incomplete",
   "missing",
   "unknown",
 ]);

@@ -38,7 +38,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 117 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 118 as const;
 
 /**
  * The first protocol version whose daemon can install this server's artifact.
@@ -860,6 +860,17 @@ const hostInstallGlobalSkillSchema = z
     name: z.string().max(64).regex(INJECTED_SKILL_NAME_PATTERN),
     treeHash: z.string().regex(/^[a-f0-9]{64}$/u),
     entryPath: z.string().min(1),
+    /**
+     * Replace a copy only while its bytes still hash to this, checked on disk
+     * just before the swap; any other copy is left as it is. What keeps an
+     * automatic update off a copy someone changed since the server looked. A
+     * copy that already matches `treeHash` is recorded as this install's without
+     * being rewritten. Absent: replace unconditionally (a person's Install).
+     */
+    replaceOnlyIfTreeHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/u)
+      .optional(),
   })
   .strict();
 export type HostInstallGlobalSkill = z.infer<
@@ -1295,6 +1306,12 @@ const installGlobalSkillsResultSchema = z
         .object({
           name: z.string(),
           path: z.string(),
+          /**
+           * `written`: the tree was copied in. `adopted`: the copy already
+           * matched and was only recorded. `skipped`: a conditional replace
+           * found other bytes there and left them alone.
+           */
+          outcome: z.enum(["written", "adopted", "skipped"]),
         })
         .strict(),
     ),
@@ -1314,6 +1331,15 @@ const globalSkillsStatusResultSchema = z
           path: z.string(),
           /** Tree hash of the installed copy, or null when nothing is there. */
           treeHash: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/u)
+            .nullable(),
+          /**
+           * The tree hash this daemon's own data directory last installed at
+           * this path, or null when it never installed here. Equal to
+           * `treeHash` only while nobody has changed the copy since.
+           */
+          installedTreeHash: z
             .string()
             .regex(/^[a-f0-9]{64}$/u)
             .nullable(),

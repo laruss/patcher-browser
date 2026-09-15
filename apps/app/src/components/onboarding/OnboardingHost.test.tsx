@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   useProviderCliInstallRunner: vi.fn(),
   useSetupCliSkills: vi.fn(),
   useSidebarNavigation: vi.fn(),
+  useCliSkillsUpdateToast: vi.fn(),
   useSystemConfig: vi.fn(),
   useUpdateGeneralSettings: vi.fn(),
 }));
@@ -47,6 +48,9 @@ vi.mock("@/components/provider-cli/provider-cli-install-store", () => ({
 vi.mock("@/components/settings/cli-skills-install-results", () => ({
   reportInstallResults: mocks.reportInstallResults,
 }));
+vi.mock("./useCliSkillsUpdateToast", () => ({
+  useCliSkillsUpdateToast: mocks.useCliSkillsUpdateToast,
+}));
 vi.mock("./OnboardingFlow", () => ({
   OnboardingFlow: () => <div>Onboarding flow</div>,
 }));
@@ -71,6 +75,7 @@ vi.mock("./OutsideAgentSetupDialog", () => ({
 const QUESTION = "Setup question for Laptop";
 
 function systemConfig(args: {
+  cliSkillsUpdates?: { at: number; hostName: string }[];
   newOnboarding?: boolean;
   outsideAgentSetup?: "unasked" | "accepted" | "declined";
   primaryHostId?: string | null;
@@ -83,6 +88,7 @@ function systemConfig(args: {
       },
       generalSettings: defaultAppSettings,
       outsideAgentSetup: args.outsideAgentSetup ?? "unasked",
+      cliSkillsUpdates: args.cliSkillsUpdates ?? [],
       primaryHostId:
         args.primaryHostId === undefined ? "host-1" : args.primaryHostId,
     },
@@ -325,5 +331,52 @@ describe("the question about agents outside Patcher", () => {
     render(<OnboardingHost />);
 
     expect(screen.queryByText(QUESTION)).toBeNull();
+  });
+});
+
+describe("the note that the skills were kept current", () => {
+  const updates = [{ at: 10, hostName: "Laptop" }];
+
+  it("is held back while the question is up", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsUpdates: updates }),
+    );
+    mocks.useCliSkillsStatus.mockReturnValue(primaryMachineStatus("missing"));
+
+    render(<OnboardingHost />);
+
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: true,
+    });
+  });
+
+  it("is held back while onboarding is up", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsUpdates: updates, newOnboarding: true }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: true,
+    });
+  });
+
+  it("is let through when neither is on screen", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({
+        cliSkillsUpdates: updates,
+        outsideAgentSetup: "accepted",
+      }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: false,
+    });
   });
 });

@@ -223,6 +223,7 @@ export function registerSystemRoutes(
           ? null
           : deps.hub.getDaemonPlatformForHost(primaryHostId),
       outsideAgentSetup: getOutsideAgentSetup(deps.db),
+      cliSkillsUpdates: [...deps.cliSkillsUpdateNotices.values()],
       voiceTranscriptionEnabled: resolveVoiceTranscriptionEnabled(deps),
       dataDir: deps.config.dataDir,
     };

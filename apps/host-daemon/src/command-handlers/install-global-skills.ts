@@ -3,7 +3,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
-import type { HostDaemonOnlineRpcResult } from "@patcher/host-daemon-contract";
+import { z } from "zod";
+import type {
+  HostDaemonOnlineRpcResult,
+  HostInstallGlobalSkill,
+} from "@patcher/host-daemon-contract";
 import {
   CommandDispatchError,
   type CommandOf,
@@ -45,6 +49,22 @@ const RENAMED_GLOBAL_SKILL_NAMES: readonly string[] = [
   "bb-plugin-authoring",
 ];
 
+/**
+ * What this data directory installed into the global skill roots, by absolute
+ * copy path: the tree hash it wrote there. It is how a copy this install put in
+ * place and nobody changed since is told apart from one a person edited or
+ * another install on the same home wrote (#142) — a release and a source
+ * checkout share `~/.claude/skills` but never a data directory.
+ */
+const INSTALL_RECORD_FILE_NAME = "global-skills-installed.json";
+
+const TREE_HASH_PATTERN = /^[a-f0-9]{64}$/u;
+
+const installRecordSchema = z.object({
+  version: z.literal(1),
+  copies: z.record(z.string(), z.string().regex(TREE_HASH_PATTERN)),
+});
+
 export interface InstallGlobalSkillsOptions {
   dataDir: string;
   fetchSkillTree?: FetchSkillTree;
@@ -52,14 +72,81 @@ export interface InstallGlobalSkillsOptions {
 }
 
 export interface GlobalSkillsStatusOptions {
+  dataDir: string;
   /** Defaults to this host's home directory; injected by tests. */
   homeDir?: string;
 }
+
+type InstallOutcome =
+  HostDaemonOnlineRpcResult<"host.install_global_skills">["installations"][number]["outcome"];
 
 function globalSkillPaths(homeDir: string, name: string): string[] {
   return GLOBAL_SKILL_ROOT_SEGMENTS.map((segments) =>
     path.join(homeDir, ...segments, name),
   );
+}
+
+/**
+ * An unreadable record — never written, corrupted, or from a later format —
+ * reads as empty: nothing counts as this install's, so nothing is replaced
+ * without being asked, and the next Install writes a fresh one.
+ */
+async function readInstallRecord(
+  dataDir: string,
+): Promise<Map<string, string>> {
+  try {
+    const parsed = installRecordSchema.safeParse(
+      JSON.parse(
+        await fs.readFile(path.join(dataDir, INSTALL_RECORD_FILE_NAME), "utf8"),
+      ),
+    );
+    return new Map(parsed.success ? Object.entries(parsed.data.copies) : []);
+  } catch {
+    return new Map();
+  }
+}
+
+async function writeInstallRecord(
+  dataDir: string,
+  copies: ReadonlyMap<string, string>,
+): Promise<void> {
+  await fs.mkdir(dataDir, { recursive: true });
+  const recordPath = path.join(dataDir, INSTALL_RECORD_FILE_NAME);
+  const stagingPath = `${recordPath}.${process.pid}-${randomUUID()}.tmp`;
+  try {
+    await fs.writeFile(
+      stagingPath,
+      `${JSON.stringify({ version: 1, copies: Object.fromEntries(copies) }, null, 2)}\n`,
+    );
+    await fs.rename(stagingPath, recordPath);
+  } finally {
+    await fs.rm(stagingPath, { force: true });
+  }
+}
+
+const installTailByDataDir = new Map<string, Promise<unknown>>();
+
+/**
+ * One install at a time per data directory. The record is read, changed and
+ * written back, and a conditional replace checks a copy before swapping it, so
+ * two installs interleaving inside one daemon — a person's Install landing
+ * during a connect-time update — could otherwise lose a record entry or
+ * replace a copy the other just wrote.
+ */
+function runExclusively<T>(
+  dataDir: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = installTailByDataDir.get(dataDir) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const tail = run.catch(() => undefined);
+  installTailByDataDir.set(dataDir, tail);
+  void tail.then(() => {
+    if (installTailByDataDir.get(dataDir) === tail) {
+      installTailByDataDir.delete(dataDir);
+    }
+  });
+  return run;
 }
 
 /** The name a skill directory claims for itself, or null if it claims none. */
@@ -108,15 +195,17 @@ export async function pruneRenamedGlobalSkills(args: {
 }
 
 /**
- * Report the content hash of each installed copy in the global skill roots. The
- * server compares these against the tree hashes it would install to decide
- * whether a machine is up to date.
+ * Report the content hash of each installed copy in the global skill roots,
+ * beside the hash this data directory last installed there. The server compares
+ * these against the tree hashes it would install to decide whether a machine is
+ * up to date, and whether an out-of-date copy is still this install's to update.
  */
 export async function readGlobalSkillsStatus(
   command: CommandOf<"host.global_skills_status">,
   options: GlobalSkillsStatusOptions,
 ): Promise<HostDaemonOnlineRpcResult<"host.global_skills_status">> {
   const homeDir = options.homeDir ?? os.homedir();
+  const record = await readInstallRecord(options.dataDir);
   const entries = await Promise.all(
     command.names.flatMap((name) =>
       globalSkillPaths(homeDir, name).map(async (skillDirectoryPath) => ({
@@ -126,6 +215,7 @@ export async function readGlobalSkillsStatus(
           name,
           skillDirectoryPath,
         }),
+        installedTreeHash: record.get(skillDirectoryPath) ?? null,
       })),
     ),
   );
@@ -136,13 +226,18 @@ export async function readGlobalSkillsStatus(
  * Materialize the tree beside its destination and swap it in, so a failed copy
  * never leaves a half-written skill where an agent would read it. The previous
  * copy is removed only once the replacement is fully staged.
+ *
+ * With `replaceOnlyIfTreeHash`, the copy is hashed again after staging, right
+ * before it would be removed, so the window in which a change can slip past the
+ * check does not include the copy itself. Returns whether it replaced anything.
  */
 async function replaceSkillDirectory(args: {
   destinationPath: string;
   name: string;
+  replaceOnlyIfTreeHash: string | undefined;
   skillFilePath: string;
   sourceRootPath: string;
-}): Promise<void> {
+}): Promise<boolean> {
   const parentPath = path.dirname(args.destinationPath);
   await fs.mkdir(parentPath, { recursive: true });
   const stagingPath = path.join(
@@ -156,17 +251,74 @@ async function replaceSkillDirectory(args: {
       skillFilePath: args.skillFilePath,
       sourceRootPath: args.sourceRootPath,
     });
+    if (
+      args.replaceOnlyIfTreeHash !== undefined &&
+      (await hashInstalledSkillDirectory({
+        name: args.name,
+        skillDirectoryPath: args.destinationPath,
+      })) !== args.replaceOnlyIfTreeHash
+    ) {
+      return false;
+    }
     await fs.rm(args.destinationPath, { force: true, recursive: true });
     await fs.rename(stagingPath, args.destinationPath);
+    return true;
   } finally {
     await fs.rm(stagingPath, { force: true, recursive: true });
   }
 }
 
 /**
+ * What a conditional install does with one copy, decided before the tree is
+ * fetched so a skill with nothing to write costs no transfer.
+ *
+ * The condition is per skill, not per copy — no path crosses the wire — so a
+ * copy in the other root that this install never recorded is replaced too when
+ * it holds the same bytes as the recorded one. Those bytes are a tree this
+ * install wrote, so that copy was never somebody else's edit.
+ */
+async function planCopy(
+  skill: HostInstallGlobalSkill,
+  destinationPath: string,
+): Promise<"write" | "adopt" | "skip"> {
+  if (skill.replaceOnlyIfTreeHash === undefined) return "write";
+  const onDisk = await hashInstalledSkillDirectory({
+    name: skill.name,
+    skillDirectoryPath: destinationPath,
+  });
+  if (onDisk !== skill.replaceOnlyIfTreeHash) return "skip";
+  return onDisk === skill.treeHash ? "adopt" : "write";
+}
+
+async function resolveSkillFilePath(args: {
+  dataDir: string;
+  fetchSkillTree: FetchSkillTree;
+  skill: HostInstallGlobalSkill;
+}): Promise<{ skillFilePath: string; sourceRootPath: string }> {
+  const sourceRootPath = await ensureStoredSkillTree({
+    dataDir: args.dataDir,
+    fetchSkillTree: args.fetchSkillTree,
+    treeHash: args.skill.treeHash,
+  });
+  const skillFilePath = path.resolve(sourceRootPath, args.skill.entryPath);
+  if (
+    path.relative(sourceRootPath, skillFilePath).startsWith("..") ||
+    path.isAbsolute(path.relative(sourceRootPath, skillFilePath))
+  ) {
+    throw new CommandDispatchError(
+      "invalid_path",
+      `Skill entry path escapes its tree: ${args.skill.entryPath}`,
+    );
+  }
+  return { skillFilePath, sourceRootPath };
+}
+
+/**
  * Install server-owned skill trees into every global agent skill root on this
- * host. Existing copies of the same skill name are replaced; unrelated skills
- * in those roots are untouched.
+ * host. Existing copies of the same skill name are replaced — or, for a skill
+ * with `replaceOnlyIfTreeHash`, only those still holding that tree; unrelated
+ * skills in those roots are untouched. Every copy written or adopted is
+ * recorded as this data directory's.
  */
 export async function installGlobalSkills(
   command: CommandOf<"host.install_global_skills">,
@@ -180,38 +332,69 @@ export async function installGlobalSkills(
     );
   }
   const homeDir = options.homeDir ?? os.homedir();
-  const installations: { name: string; path: string }[] = [];
 
-  for (const skill of command.skills) {
-    const sourceRootPath = await ensureStoredSkillTree({
-      dataDir: options.dataDir,
-      fetchSkillTree,
-      treeHash: skill.treeHash,
-    });
-    const skillFilePath = path.resolve(sourceRootPath, skill.entryPath);
-    if (
-      path.relative(sourceRootPath, skillFilePath).startsWith("..") ||
-      path.isAbsolute(path.relative(sourceRootPath, skillFilePath))
-    ) {
-      throw new CommandDispatchError(
-        "invalid_path",
-        `Skill entry path escapes its tree: ${skill.entryPath}`,
-      );
+  return runExclusively(options.dataDir, async () => {
+    const record = await readInstallRecord(options.dataDir);
+    let recordChanged = false;
+    const installations: {
+      name: string;
+      outcome: InstallOutcome;
+      path: string;
+    }[] = [];
+
+    try {
+      for (const skill of command.skills) {
+        const copies = await Promise.all(
+          globalSkillPaths(homeDir, skill.name).map(
+            async (destinationPath) => ({
+              destinationPath,
+              plan: await planCopy(skill, destinationPath),
+            }),
+          ),
+        );
+        const source = copies.some((copy) => copy.plan === "write")
+          ? await resolveSkillFilePath({
+              dataDir: options.dataDir,
+              fetchSkillTree,
+              skill,
+            })
+          : null;
+        for (const { destinationPath, plan } of copies) {
+          let outcome: InstallOutcome = "skipped";
+          if (plan === "adopt") {
+            outcome = "adopted";
+          } else if (plan === "write" && source !== null) {
+            const replaced = await replaceSkillDirectory({
+              destinationPath,
+              name: skill.name,
+              replaceOnlyIfTreeHash: skill.replaceOnlyIfTreeHash,
+              ...source,
+            });
+            outcome = replaced ? "written" : "skipped";
+          }
+          if (outcome !== "skipped") {
+            record.set(destinationPath, skill.treeHash);
+            recordChanged = true;
+          }
+          installations.push({
+            name: skill.name,
+            path: destinationPath,
+            outcome,
+          });
+        }
+      }
+
+      // After the installs, so a machine that fails partway through still has
+      // the old copies to fall back on rather than neither.
+      await pruneRenamedGlobalSkills({ homeDir });
+    } finally {
+      // Also after a failure partway: the copies already swapped in are this
+      // install's, and an unrecorded one would never be updated again.
+      if (recordChanged) {
+        await writeInstallRecord(options.dataDir, record);
+      }
     }
-    for (const destinationPath of globalSkillPaths(homeDir, skill.name)) {
-      await replaceSkillDirectory({
-        destinationPath,
-        name: skill.name,
-        skillFilePath,
-        sourceRootPath,
-      });
-      installations.push({ name: skill.name, path: destinationPath });
-    }
-  }
 
-  // After the installs, so a machine that fails partway through still has the
-  // old copies to fall back on rather than neither.
-  await pruneRenamedGlobalSkills({ homeDir });
-
-  return { installations };
+    return { installations };
+  });
 }

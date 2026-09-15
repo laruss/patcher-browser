@@ -265,6 +265,23 @@ window's own read before it asks). That last one is a write a turn can cause by
 reading the status, which the route policy otherwise leaves open to it; what it
 records is a fact about the disk, not a choice made for the person.
 
+**And kept current without being asked again (#142).** An installed copy used to
+stay whatever it was installed as, so after an upgrade an agent outside Patcher
+followed a skill written for an older CLI. Now each daemon records, in
+`<dataDir>/global-skills-installed.json`, the tree it wrote at each copy path,
+and when a machine connects the server updates the copies that still hold what
+that record says — only those, and only through a conditional install the daemon
+checks on disk just before the swap. A copy edited by hand, removed, installed
+before the record existed, or written by another install sharing the home is
+left alone and shows in Settings as modified, partly installed or out of date;
+Install replaces it. That last case is the owner's machine: a release and a
+source checkout have separate data directories over one `~/.claude/skills`, so
+neither's copy is ever the other's own and they never take turns rewriting it.
+A write the window announces once, per machine, as a toast. The rule is
+"unchanged since this install wrote it", not "differs from this server's tree":
+the second rewrites a person's edit on every launch, and flips between the two
+builds on every connect of either.
+
 One install location is not followed: Claude Code's skills move with
 `CLAUDE_CONFIG_DIR`, which skill discovery honours
 (`command-handlers/list-commands.ts`), while the install writes

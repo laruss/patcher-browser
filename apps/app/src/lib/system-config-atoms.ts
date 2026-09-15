@@ -28,6 +28,7 @@ const unavailableSystemConfig: SystemConfigResponse = {
   primaryHostId: null,
   primaryHostPlatform: null,
   outsideAgentSetup: "unasked",
+  cliSkillsUpdates: [],
   voiceTranscriptionEnabled: false,
   dataDir: "",
 };

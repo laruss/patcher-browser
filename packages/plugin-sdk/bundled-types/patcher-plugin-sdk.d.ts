@@ -5325,11 +5325,17 @@ declare const hostDaemonCommandRegistry: {
             name: z$1.ZodString;
             treeHash: z$1.ZodString;
             entryPath: z$1.ZodString;
+            replaceOnlyIfTreeHash: z$1.ZodOptional<z$1.ZodString>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, z$1.ZodObject<{
         installations: z$1.ZodArray<z$1.ZodObject<{
             name: z$1.ZodString;
             path: z$1.ZodString;
+            outcome: z$1.ZodEnum<{
+                written: "written";
+                adopted: "adopted";
+                skipped: "skipped";
+            }>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, "onlineRpc", false>;
     "host.global_skills_status": HostDaemonCommandDescriptor<"host.global_skills_status", z$1.ZodObject<{
@@ -5340,6 +5346,7 @@ declare const hostDaemonCommandRegistry: {
             name: z$1.ZodString;
             path: z$1.ZodString;
             treeHash: z$1.ZodNullable<z$1.ZodString>;
+            installedTreeHash: z$1.ZodNullable<z$1.ZodString>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, "onlineRpc", true>;
     "host.list_branches": HostDaemonCommandDescriptor<"host.list_branches", z$1.ZodObject<{
@@ -6143,8 +6150,8 @@ declare const hostDaemonCommandRegistry: {
                     unknown: "unknown";
                     success: "success";
                     cancelled: "cancelled";
-                    failure: "failure";
                     skipped: "skipped";
+                    failure: "failure";
                     neutral: "neutral";
                     timed_out: "timed_out";
                     action_required: "action_required";
@@ -7504,6 +7511,12 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         unasked: "unasked";
         declined: "declined";
     }>;
+    cliSkillsUpdates: z$1.ZodDefault<z$1.ZodArray<z$1.ZodObject<{
+        hostId: z$1.ZodString;
+        hostName: z$1.ZodString;
+        skills: z$1.ZodArray<z$1.ZodString>;
+        at: z$1.ZodNumber;
+    }, z$1.core.$strip>>>;
     voiceTranscriptionEnabled: z$1.ZodBoolean;
     dataDir: z$1.ZodString;
 }, z$1.core.$strip>;
@@ -7561,8 +7574,10 @@ declare const systemCliSkillsStatusResponseSchema: z$1.ZodObject<{
         status: z$1.ZodEnum<{
             unknown: "unknown";
             missing: "missing";
+            modified: "modified";
             installed: "installed";
             outdated: "outdated";
+            incomplete: "incomplete";
         }>;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;

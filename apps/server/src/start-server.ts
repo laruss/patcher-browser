@@ -160,6 +160,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
       appVersion,
       appApiKey,
       patcherAppManagedConfig,
+      cliSkillsUpdateNotices: new Map(),
       config: runtimeConfig,
       db,
       hub,

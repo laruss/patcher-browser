@@ -141,6 +141,7 @@ async function startDesktopSmokeServer(
           hostDaemonPort: 38987,
           primaryHostPlatform: null,
           outsideAgentSetup: "unasked",
+          cliSkillsUpdates: [],
           voiceTranscriptionEnabled: false,
         });
         return;

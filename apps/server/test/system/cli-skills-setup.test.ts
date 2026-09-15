@@ -14,7 +14,7 @@ import {
 } from "../helpers/host-rpc.js";
 import { seedHost, seedHostSession, seedPrimaryHost } from "../helpers/seed.js";
 import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
-import { acceptWhenPrimaryHostHasCliSkills } from "../../src/services/skills/global-skill-install.js";
+import { reconcileGlobalCliSkills } from "../../src/services/skills/global-skill-reconcile.js";
 
 /**
  * The launch-time question about installing Patcher's skills for agents
@@ -42,6 +42,7 @@ function respondWithSkillStatus(
               name: "patcher-cli",
               path: `/home/${hostId}/.agents/skills/patcher-cli`,
               treeHash,
+              installedTreeHash: null,
             },
           ],
         },
@@ -74,7 +75,11 @@ const INSTALLED: HostRpcHandlerResult = {
   ok: true,
   result: {
     installations: [
-      { name: "patcher-cli", path: "/home/u/.agents/skills/patcher-cli" },
+      {
+        name: "patcher-cli",
+        path: "/home/u/.agents/skills/patcher-cli",
+        outcome: "written",
+      },
     ],
   },
 };
@@ -316,7 +321,7 @@ describe("the question about agents outside Patcher", () => {
       respondWithSkillStatus(harness, host.id, session.id, "b".repeat(64));
       const changes = recordSystemChanges(harness);
 
-      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+      await reconcileGlobalCliSkills(harness.deps, {
         hostId: host.id,
       });
 
@@ -333,7 +338,7 @@ describe("the question about agents outside Patcher", () => {
       respondWithSkillStatus(harness, host.id, session.id, null);
       const changes = recordSystemChanges(harness);
 
-      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+      await reconcileGlobalCliSkills(harness.deps, {
         hostId: host.id,
       });
 
@@ -342,7 +347,7 @@ describe("the question about agents outside Patcher", () => {
     });
   });
 
-  it("asks no machine once answered, and no machine but the primary", async () => {
+  it("takes an answer only from the primary machine's copies, and never replaces one given", async () => {
     await withTestHarness(async (harness) => {
       await writeBuiltinCliSkill(harness);
       const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
@@ -361,18 +366,20 @@ describe("the question about agents outside Patcher", () => {
         "b".repeat(64),
       );
 
+      // Every connect reads its machine now, to keep the copies current (#142);
+      // the read answers the question only for the primary, and only once.
       setOutsideAgentSetup(harness.deps.db, "declined");
-      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+      await reconcileGlobalCliSkills(harness.deps, {
         hostId: laptop.host.id,
       });
-      expect(laptopResponder.requests).toHaveLength(0);
+      expect(laptopResponder.requests).toHaveLength(1);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("declined");
 
       setOutsideAgentSetup(harness.deps.db, "unasked");
-      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+      await reconcileGlobalCliSkills(harness.deps, {
         hostId: studio.host.id,
       });
-      expect(studioResponder.requests).toHaveLength(0);
+      expect(studioResponder.requests).toHaveLength(1);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
     });
   });
@@ -406,7 +413,7 @@ describe("the question about agents outside Patcher", () => {
       const host = seedHost(harness.deps, { id: "host-offline" });
       seedPrimaryHost(harness.deps, host.id);
 
-      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+      await reconcileGlobalCliSkills(harness.deps, {
         hostId: host.id,
       });
       await harness.app.request(

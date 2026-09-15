@@ -290,6 +290,7 @@ async function startIntegrationServer(
     appVersion,
     appApiKey: INTEGRATION_APP_API_KEY,
     patcherAppManagedConfig,
+    cliSkillsUpdateNotices: new Map(),
     config,
     db,
     hub,
