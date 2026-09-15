@@ -61,6 +61,7 @@ export const SYSTEM_CONFIG_QUERY_KEY = "systemConfig";
 export const SYSTEM_EXECUTION_OPTIONS_QUERY_KEY = "systemExecutionOptions";
 export const SYSTEM_CLI_SKILLS_QUERY_KEY = "systemCliSkills";
 export const BROWSER_ACCESS_GRANTS_QUERY_KEY = "browserAccessGrants";
+export const BROWSER_ACCESS_REQUESTS_QUERY_KEY = "browserAccessRequests";
 export const SYSTEM_VERSION_QUERY_KEY = "systemVersion";
 export const HOST_PROVIDER_CLI_STATUS_QUERY_KEY = "hostProviderCliStatus";
 export const SYSTEM_USAGE_LIMITS_QUERY_KEY = "systemUsageLimits";
@@ -451,6 +452,9 @@ export type AllSystemProvidersQueryKeyPrefix = readonly [
 export type SystemConfigQueryKey = readonly [typeof SYSTEM_CONFIG_QUERY_KEY];
 export type BrowserAccessGrantsQueryKey = readonly [
   typeof BROWSER_ACCESS_GRANTS_QUERY_KEY,
+];
+export type BrowserAccessRequestsQueryKey = readonly [
+  typeof BROWSER_ACCESS_REQUESTS_QUERY_KEY,
 ];
 export type SystemCliSkillsQueryKey = readonly [
   typeof SYSTEM_CLI_SKILLS_QUERY_KEY,
@@ -1094,6 +1098,10 @@ export function systemCliSkillsQueryKey(): SystemCliSkillsQueryKey {
 
 export function browserAccessGrantsQueryKey(): BrowserAccessGrantsQueryKey {
   return [BROWSER_ACCESS_GRANTS_QUERY_KEY];
+}
+
+export function browserAccessRequestsQueryKey(): BrowserAccessRequestsQueryKey {
+  return [BROWSER_ACCESS_REQUESTS_QUERY_KEY];
 }
 
 export function systemConfigQueryKey(): SystemConfigQueryKey {

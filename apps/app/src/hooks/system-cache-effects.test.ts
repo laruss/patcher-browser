@@ -3,6 +3,7 @@ import { QueryObserver } from "@tanstack/react-query";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { createAppQueryClient } from "@/lib/query-client";
 import {
+  browserAccessRequestsQueryKey,
   environmentDiffFilesQueryKey,
   environmentDiffPatchQueryKey,
   hostsQueryKey,
@@ -209,6 +210,30 @@ describe("system cache effects", () => {
     invalidateRealtimeQueriesAfterServerReconnect({ queryClient });
 
     expect(queryClient.getQueryState(versionKey)?.isInvalidated).toBe(true);
+  });
+
+  // Held in the server's memory (#135): a restart empties the list and sends no
+  // event saying so, and a window left showing the old row offers a question
+  // nobody can answer any more.
+  it("re-reads the browser access requests after reconnect and after an early fetch", () => {
+    const queryClient = createCacheEffectQueryClient();
+    const requestsKey = browserAccessRequestsQueryKey();
+    const connectedAt = Date.now();
+    queryClient.setQueryData(
+      requestsKey,
+      { requests: [] },
+      { updatedAt: connectedAt - 500 },
+    );
+
+    invalidateRealtimeQueriesFetchedBeforeInitialConnect({
+      connectedAt,
+      queryClient,
+    });
+    expect(queryClient.getQueryState(requestsKey)?.isInvalidated).toBe(true);
+
+    queryClient.setQueryData(requestsKey, { requests: [] });
+    invalidateRealtimeQueriesAfterServerReconnect({ queryClient });
+    expect(queryClient.getQueryState(requestsKey)?.isInvalidated).toBe(true);
   });
 
   it("refetches active thread bundle queries together after reconnect", async () => {

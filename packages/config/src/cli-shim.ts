@@ -225,6 +225,18 @@ export function agentAccessGrantArgv(
 }
 
 /**
+ * The argv that asks the person for a grant in Patcher's window (#135) — the
+ * one a refusal tells its reader to run itself. Same shape as the grant's, and
+ * checked by the same test, for the same reasons.
+ */
+export function agentAccessRequestArgv(
+  label: string,
+  level: BrowserAccessGrantLevel,
+): string[] {
+  return ["agent-access", "request", "--level", level, "--", label];
+}
+
+/**
  * A command run through this install's shim, as one line to paste.
  *
  * The absolute path rather than `patcher`, because `patcher` is usually not on

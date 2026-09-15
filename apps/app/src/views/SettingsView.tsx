@@ -57,6 +57,7 @@ import { KeyboardSettingsSection } from "@/components/settings/KeyboardSettingsS
 import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsSection";
 import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedThreadsSettingsSection";
 import { CliSkillsSettingsSection } from "@/components/settings/CliSkillsSettingsSection";
+import { BrowserAccessRequestsSettingsControl } from "@/components/browser-surface/BrowserAccessRequestRow";
 import {
   useRevokeBrowserAccessGrant,
   useSetBrowserAccessGrantPaused,
@@ -1272,6 +1273,10 @@ export function GeneralSettingsSection({
             level={browserExternalAccess}
             onLevelChange={onBrowserExternalAccessChange}
           />
+        ) : null}
+
+        {desktopBrowserAvailable ? (
+          <BrowserAccessRequestsSettingsControl />
         ) : null}
 
         {desktopBrowserAvailable ? (

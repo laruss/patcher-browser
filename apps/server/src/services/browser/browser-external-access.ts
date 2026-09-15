@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
   agentAccessGrantArgv,
+  agentAccessRequestArgv,
   renderCliShimCommand,
 } from "@patcher/config/cli-shim";
 import {
@@ -209,20 +210,25 @@ export function browserExternalAccessRefusal(
     scope.level === "off"
       ? "this install does not let agents outside Patcher drive the browser at all"
       : `this install allows them "${scope.level}"`;
-  // The grant first, with its level, because it is the answer to recommend:
-  // this used to name the setting with a level and the grant with none, so
-  // the better path was the one given with less to go on. An app-key caller
-  // has no name here, so the label is the placeholder the patcher-browser
-  // skill already uses, and the sentence says to replace it.
+  // The request first, because it is the one command this reader may run
+  // itself: it asks the person in the window and changes nothing until they
+  // answer (#135). The grant and the setting are named after it as the
+  // person's own, and as what not to run — from this shell both take effect
+  // with nobody asked. An app-key caller has no name here, so the label is the
+  // placeholder the patcher-browser skill already uses.
   return (
     `The "${scope.pluginId}" plugin, driven from a terminal outside Patcher, ran a ` +
     `browser command needing "${permission}", and ${current}. ` +
-    `Nothing happened. The person at this machine can issue you a credential for the browser ` +
-    `alone with ${run(agentAccessGrantArgv("<your name>", needed))}, with your name in place of ` +
-    `\`<your name>\`. The broader answer opens the browser to every process on this machine that ` +
-    `can read Patcher's key: Patcher's Settings → General → Agents outside Patcher, or ` +
-    `${run(["settings", "browser-access", needed])} in their own terminal. Ask them rather than ` +
-    `retrying: this is a decision, not a transient failure.`
+    `Nothing happened. Ask the person at this machine for a credential for the browser alone ` +
+    `by running ${run(agentAccessRequestArgv("<your name>", needed))} yourself, with your name in ` +
+    `place of \`<your name>\` and \`--reason\` saying what you need it for: it asks them in ` +
+    `Patcher's window and waits for their answer. Do not run \`agent-access grant\` or ` +
+    `\`settings browser-access\` yourself — from this shell they take effect with nobody asked. ` +
+    `Those are the person's: ${run(agentAccessGrantArgv("<your name>", needed))} issues the same ` +
+    `credential from their own terminal, and the broader answer opens the browser to every ` +
+    `process on this machine that can read Patcher's key: Patcher's Settings → General → Agents ` +
+    `outside Patcher, or ${run(["settings", "browser-access", needed])}. This is a decision, not ` +
+    `a transient failure, so do not retry the command.`
   );
 }
 

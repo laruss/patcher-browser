@@ -77,6 +77,7 @@ import {
   hostsQueryKey,
   sidebarNavigationQueryKey,
   browserAccessGrantsQueryKey,
+  browserAccessRequestsQueryKey,
   systemConfigQueryKey,
   allSystemProvidersQueryKeyPrefix,
   threadDefaultExecutionOptionsQueryKey,
@@ -483,6 +484,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
     dirty: [
       dirtySystemConfigQueries, // Experiments gate UI surfaces; other windows re-read after a settings write.
       dirtyBrowserAccessGrantQueries,
+      dirtyBrowserAccessRequestQueries,
       dirtyAllThreadTimelineQueries, // General settings can change whether diagnostic provider rows are projected.
       dirtySystemProviderQueries,
       dirtySystemExecutionOptionQueries,
@@ -975,6 +977,16 @@ function dirtySystemConfigQueries(): QueryKey[] {
  */
 function dirtyBrowserAccessGrantQueries(): QueryKey[] {
   return [browserAccessGrantsQueryKey()];
+}
+
+/**
+ * Requests for a grant waiting on the person (#135), which arrive from a
+ * terminal and are answered from any window. Asking, answering and a request
+ * expiring each broadcast `config-changed`, so a row appears in each window and
+ * goes away in all of them once one answers.
+ */
+function dirtyBrowserAccessRequestQueries(): QueryKey[] {
+  return [browserAccessRequestsQueryKey()];
 }
 
 function dirtyAllThreadTimelineQueries(): QueryKey[] {

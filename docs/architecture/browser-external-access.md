@@ -396,12 +396,15 @@ caller, and the refusal names whichever one the reader can actually get changed.
 Whichever it names, it names as a command that runs as written: the shim's
 absolute path, since `patcher` is usually not on PATH, with a label and the level
 the command needed — and for a grant, the `revoke` beside it. The refusal for a
-caller with no grant offers the grant first, with `<your name>` for the label it
-cannot know, and the setting second. The sentence before offered the setting
-with a level and a `grant` with no label, which `grant <label>` refuses (#134).
-Both commands come from `agentAccessGrantArgv` in `cli-shim.ts`, and the CLI's
-own test feeds that to the command's definition, so a suggestion that stops
-parsing fails a test rather than a person. `patcher browser status` at `off`
+caller with no grant offers `agent-access request` first, as the one command the
+reader may run itself (see [Asking in the window](#asking-in-the-window)), then
+says not to run `grant` or the setting from that shell and names both as the
+person's, with `<your name>` for the label it cannot know. The sentence before
+#134 offered the setting with a level and a `grant` with no label, which
+`grant <label>` refuses. The commands come from `agentAccessRequestArgv` and
+`agentAccessGrantArgv` in `cli-shim.ts`, and the CLI's own test feeds both to the
+command's definition, so a suggestion that stops parsing fails a test rather
+than a person. `patcher browser status` at `off`
 lists the levels by name once, because nothing else the reader was shown says
 what they are.
 
@@ -426,6 +429,11 @@ That heading is exact rather than absolute, and the difference is the app key:
 anything holding it can mint a grant with no prompt, the same way it can write
 the setting. Which is the sentence under "What this does not close", said here
 so the list above is not read as a boundary it is not.
+
+The request routes below are held to the same three rules by the same three
+policies — `agent-route-policy.ts` refuses a turn the three POSTs, the grant
+allow-list admits none of them, and the plugin map has them `null` — because
+what a request ends in is the same credential.
 
 ### What a grant reaches that is not an API route
 
@@ -502,6 +510,87 @@ offers: one command, `browser`, with a description that says so. Without that it
 would advertise "Patcher's API commands" and then have the server refuse all but
 one of them with a paragraph about credentials — which is the failure mode that
 module was written against, since a model told only "no" tries the neighbour.
+
+### Asking in the window
+
+Everything above ends with a person typing a command an agent told them to,
+and — with `--for shell` — the key's path travelling back through that agent's
+reply. #135 moves the decision to where the person already is:
+`patcher agent-access request <label> --level <level> [--reason]`, run by the
+agent itself, raises a row under the tab strip — beside the driving indicator,
+the one row on screen for every desktop route — and a list in Settings → General
+→ Agents outside Patcher. *A program on this machine that calls itself "…" asks
+for browser access*, the level in the settings screen's words and its detail
+line, the reason as the program's own words, and **Allow**, **Read pages only**
+(above `read`) or **Deny**.
+
+**It adds no reach.** The CLI asking holds the app key, and the app key can
+already mint a grant with no prompt. What changes is that the supported path puts
+the decision in front of the person, attributed, before a credential exists —
+which is also why the refusal can now tell an agent to run something itself.
+
+Four routes under `/browser/access-requests`: `POST` asks, `GET` lists what is
+waiting, `POST /:id/decide` answers, and `POST /:id/outcome` is how the asker
+learns the answer. The outcome is a POST although it reads, because collecting
+an approval hands over a key and ends the request, and the turn policy leaves
+reads open.
+
+**Held in memory** (`browser-access-requests.ts`), because a request lives for
+minutes and the tab handover ask set the precedent of not persisting a question.
+A restart drops what is waiting; the asker is told the request is gone and asks
+again.
+
+**Allow mints; collecting only derives the key.** Minting at collection was the
+first design and review took it apart: between the click and the pickup the grant
+would be invisible in Settings and impossible to take back, the plugin would be
+turned on at the poller's moment rather than the person's, and two collections
+racing past an `await` could mint two grants. So the grant exists on the click,
+the entry records its id, collecting re-reads the row — a grant revoked in
+between is not handed over — and an approval nobody collects within the request's
+ten minutes is revoked, the same move `grant` makes when it cannot write the key
+file. A restart inside that window leaves a named grant that was never used,
+visible and revocable.
+
+**No pickup token**, though the issue proposed one. Everything that can reach the
+outcome route holds the app key and could mint its own grant under any label,
+so a token would guard nothing — and it would have made a wait cut short
+unrecoverable, since the token dies with the process that was killed.
+
+**The CLI polls, briefly.** Every second and a half, for ninety seconds, then it
+exits non-zero saying the request is still open and to run the same command
+again. The caller is an agent's shell tool, and Claude Code's and Patcher's own
+MCP tool both stop a command at 120 seconds; killed mid-wait, it would have
+reported nothing. Asking again under the same label at the same level answers
+with the open request rather than raising a second one, which is what makes the
+re-run a resume; the same label at another level is refused while one is open.
+Polling rather than holding a request open, because the answer is a person's
+click and nothing about loopback makes a poll expensive.
+
+**Limits**, because a looping agent must not fill the person's window: five open
+requests across the install, ten minutes each, and after a no that label is
+refused for ten minutes with a sentence saying the person already answered and
+not to route around it. The label is chosen by the asker, so a program that
+renames itself is not stopped by the cooldown; what it stops is the loop that
+needs no intent.
+
+**The row's buttons wake up 600 ms after it appears.** It arrives in the chrome
+and moves what is under the pointer, and a click meant for something else — or
+the second half of a double-click on the request before — must not answer it. The
+oldest request is shown with a count of the rest, so the row changes only when
+one is answered or expires.
+
+Asking, answering and a request expiring each broadcast `config-changed`, which
+the grants list already refreshes on — a poll and a collection change nothing
+the window shows, so they do not — and no `SystemChangeKind` was added and the server ↔ SPA socket
+(invariant 7 in `bb-migration.md`) is untouched. The cost is that asking,
+answering and expiring also re-read the other queries hanging on that kind in
+every window; bounded by the limits above.
+
+A grant holder cannot use this to widen itself — the allow-list admits none of
+these routes — and a shell holding a grant presents it instead of the app key,
+so `request` from there is a 403. The skill says to ask the person in words
+rather than unset the variable, and the refusal a grant holder reads still names
+`grant` as the person's.
 
 ## The window says who is driving
 
@@ -786,6 +875,25 @@ Named here rather than left to be rediscovered.
   a caller from outside Patcher, and installing the plugin is what agreed to
   them. Every user-facing description says this rather than promising the
   browser is shut to everything.
+- **A request's name is the asker's claim, and an app-key holder can answer its
+  own.** The row says "calls itself" and shows the reason as the program's words
+  because nothing verifies either. And `decide` is open to the app key, which
+  every CLI asking holds, so a program can approve its own request — nothing it
+  could not do by minting a grant directly, and the reason the answer is a
+  decision in the window rather than a boundary around it.
+- **A collection whose reply is lost leaves a grant nobody holds.** Collecting
+  an approval ends the request before the reply leaves, so a CLI killed in that
+  instant — or one whose reply never arrived — asks again as a new request, and
+  the grant the person allowed is not revoked by the expiry that covers an
+  approval nobody collected. It is a named grant that was never used, in the
+  person's list, which is the state a restart between Allow and collection
+  already leaves. Keeping collected answers around to hand over twice would trade
+  it for a re-run that finds the key file already written and revokes a grant that
+  is in use.
+- **An asked question reaches only an open window.** The row is in the app's
+  chrome and the list in its Settings; with no window open nobody sees it, and
+  the request expires unanswered after ten minutes. The CLI says where to look
+  rather than refusing to ask.
 - **The server cannot tell a person's terminal from an agent's.** Both are
   "no thread", so both are charged the level. The cost is real and small: the
   diagnostic path in [agent-browser-tools.md](agent-browser-tools.md)
@@ -869,7 +977,20 @@ Named here rather than left to be rediscovered.
   file that cannot be written revokes the grant; `--for claude-code` is handed
   the file's path and never the key, and told to restart; and every grant command
   a refusal suggests parses with the command's own definition, a label that looks
-  like an option included.
+  like an option included. For `request`: it waits, then writes the key to a file
+  and never prints it; a lower level is said; a no exits non-zero and says not to
+  go round it; the wait gives up well inside a 120-second tool timeout saying the
+  request is still open; `--level` is required; and every request command a
+  refusal suggests parses.
+- `apps/server/test/services/browser/browser-access-requests.test.ts` — on a fake
+  clock: an unanswered request goes away and tells the windows, an approval
+  nobody collected is revoked, a grant minted while its request expired is
+  revoked, a grant revoked before collection is not handed over, a second Allow
+  is refused, the install-wide cap, and the cooldown ending.
+- `apps/app/src/components/browser-surface/BrowserAccessRequestRow.test.tsx` — the
+  name as the program's own claim, the level's words, the reason as its words and
+  the count behind it; no click taken in the moment it appears; **Read pages
+  only** answers `read` and is not offered at `read`.
 - `apps/server/test/security/agent-access.test.ts` — over a real socket with no
   app key on it: the two routes answer, six others 403 with the offer in the
   message, another plugin's CLI is refused, the grant cannot mint a second grant
@@ -878,7 +999,12 @@ Named here rather than left to be rediscovered.
   turn cannot mint one while it can still read the list, and — the two that say
   the level is the grant's own — a `read` grant drives the browser while the
   install-wide setting is `off`, and a `read` grant is still refused
-  `page.credentials` while that setting is `full`.
+  `page.credentials` while that setting is `full`. And a request (#135): asked,
+  listed, answered with less, minted on the click, collected as a key that
+  reaches the plugin table, and a second collection 404; a turn refused asking,
+  collecting and answering while it can read the list; a grant refused asking; no
+  credential 401; the same label resumed and another level refused; a no refusing
+  the label; and an answer above what was asked refused.
 - `packages/config/test/cli-shim.test.ts` — executable, quotes a path with a
   space in it, unchanged on the next start, rewritten when the install moves, the
   execute bit restored, Windows skipped, failure reported rather than thrown.
@@ -1001,6 +1127,16 @@ PATCHER_AGENT_KEY_FILE=<that file> patcher browser status   # names the grant an
 PATCHER_AGENT_KEY_FILE=<that file> patcher browser text     # indicator appears; then click Pause
 PATCHER_AGENT_KEY_FILE=<that file> patcher browser text     # 401, "is paused", not "was revoked"
 patcher agent-access resume <id>
+```
+
+And asking in the window, which no test spans either — the row under the tabs in
+a real window, answered with a real click, collected by a CLI waiting on it:
+
+```bash
+patcher agent-access request "Claude Code" --level browse --reason "try it"   # row appears; press Allow
+PATCHER_AGENT_KEY_FILE=<the file it names> patcher browser open --background https://example.com   # works; indicator shows the label
+patcher agent-access request "Other" --level interact   # press Read pages only: "lower than the interact asked for"
+patcher agent-access request "Third" --level read       # press Deny; run it again: "answered no"
 ```
 
 `text` exits 1 both times it runs, and that is not the recipe failing: a `read`

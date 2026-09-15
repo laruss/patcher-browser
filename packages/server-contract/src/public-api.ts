@@ -168,6 +168,11 @@ import type {
   SystemBrowserAccessGrantPauseRequest,
   SystemBrowserAccessGrantCreateResponse,
   SystemBrowserAccessGrantListResponse,
+  SystemBrowserAccessRequestCreateRequest,
+  SystemBrowserAccessRequestCreateResponse,
+  SystemBrowserAccessRequestDecideRequest,
+  SystemBrowserAccessRequestListResponse,
+  SystemBrowserAccessRequestOutcomeResponse,
   SystemBrowserExternalAccessRequest,
   SystemBrowserExternalAccessResponse,
   SystemInstallCliSkillsRequest,
@@ -328,6 +333,8 @@ import {
   systemCliSkillsStatusQuerySchema,
   systemBrowserAccessGrantCreateRequestSchema,
   systemBrowserAccessGrantPauseRequestSchema,
+  systemBrowserAccessRequestCreateRequestSchema,
+  systemBrowserAccessRequestDecideRequestSchema,
   systemBrowserExternalAccessRequestSchema,
   systemInstallCliSkillsRequestSchema,
   timelineTurnSummaryDetailsQuerySchema,
@@ -1490,6 +1497,36 @@ export const publicApiRoutes = {
       method: "delete",
       request: noRequest<PathId>(),
       response: jsonResponse<SystemBrowserAccessGrantListResponse>(),
+    }),
+    browserAccessRequests: defineRoute({
+      path: "/browser/access-requests",
+      method: "get",
+      request: noRequest(),
+      response: jsonResponse<SystemBrowserAccessRequestListResponse>(),
+    }),
+    requestBrowserAccess: defineRoute({
+      path: "/browser/access-requests",
+      method: "post",
+      request: jsonRequest<EmptyInput, SystemBrowserAccessRequestCreateRequest>(
+        systemBrowserAccessRequestCreateRequestSchema,
+      ),
+      response: jsonResponse<SystemBrowserAccessRequestCreateResponse>(),
+    }),
+    // A POST although it answers a question: collecting an approval ends the
+    // request and hands over a key, and a turn's route policy leaves reads open.
+    browserAccessRequestOutcome: defineRoute({
+      path: "/browser/access-requests/:id/outcome",
+      method: "post",
+      request: noRequest<PathId>(),
+      response: jsonResponse<SystemBrowserAccessRequestOutcomeResponse>(),
+    }),
+    decideBrowserAccessRequest: defineRoute({
+      path: "/browser/access-requests/:id/decide",
+      method: "post",
+      request: jsonRequest<PathId, SystemBrowserAccessRequestDecideRequest>(
+        systemBrowserAccessRequestDecideRequestSchema,
+      ),
+      response: jsonResponse<SystemBrowserAccessRequestListResponse>(),
     }),
     installCliSkills: defineRoute({
       path: "/system/cli-skills/install",

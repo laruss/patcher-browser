@@ -6,6 +6,7 @@ import {
 import { toRecord } from "@patcher/core-ui";
 import type {
   SystemBrowserAccessGrantListResponse,
+  SystemBrowserAccessRequestListResponse,
   SystemCliSkillsStatusResponse,
   SystemConfigResponse,
   SystemExecutionOptionsResponse,
@@ -26,6 +27,7 @@ import {
 import { useSystemRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import {
   browserAccessGrantsQueryKey,
+  browserAccessRequestsQueryKey,
   hostProviderCliStatusQueryKey,
   systemCliSkillsQueryKey,
   onboardingAgentsQueryKey,
@@ -202,6 +204,23 @@ export function useBrowserAccessGrants(options?: QueryOptions) {
     queryFn: () => sdk.system.browserAccessGrants(),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Requests for a browser access grant waiting on the person (#135).
+ *
+ * Read by the row under the tab strip, which is on every desktop route, so it
+ * subscribes to system changes itself rather than trusting some other hook to
+ * have: a request nobody's window heard about is a question nobody is asked.
+ */
+export function useBrowserAccessRequests(options?: QueryOptions) {
+  const enabled = options?.enabled ?? true;
+  useSystemRealtimeSubscription({ enabled });
+  return useQuery<SystemBrowserAccessRequestListResponse>({
+    queryKey: browserAccessRequestsQueryKey(),
+    queryFn: () => sdk.system.browserAccessRequests(),
+    enabled,
   });
 }
 

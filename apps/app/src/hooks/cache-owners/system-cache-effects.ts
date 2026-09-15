@@ -23,6 +23,7 @@ import {
   allThreadStoragePathsQueryKeyPrefix,
   allThreadTimelineQueryKeyPrefix,
   allThreadTimelineTurnSummaryDetailsQueryKeyPrefix,
+  browserAccessRequestsQueryKey,
   hostPathExistenceQueryKeyPrefix,
   hostsQueryKey,
   projectsQueryKey,
@@ -199,5 +200,8 @@ function getServerReconnectInvalidationQueryKeys(): QueryKey[] {
     hostPathExistenceQueryKeyPrefix(),
     allSystemProvidersQueryKeyPrefix(),
     allSystemExecutionOptionsQueryKeyPrefix(),
+    // Held in the server's memory, so a restart empties it and no event says
+    // so: without this a window keeps showing a question nobody can answer.
+    browserAccessRequestsQueryKey(),
   ];
 }

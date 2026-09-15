@@ -10,6 +10,7 @@ import {
 import { createAppQueryClient } from "@/lib/query-client";
 import {
   archivedThreadsListQueryKey,
+  browserAccessRequestsQueryKey,
   environmentDiffFilesQueryKey,
   environmentDiffPatchQueryKey,
   environmentPullRequestQueryKey,
@@ -231,6 +232,24 @@ describe("createRealtimeCacheEffects", () => {
     expect(queryClient.getQueryState(configKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(timelineKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true);
+    effects.dispose();
+  });
+
+  it("re-reads the browser access requests when config changes", () => {
+    // Asking, answering and expiring broadcast `config-changed` (#135): a row
+    // appears in each window when an agent asks, and goes from all of them once
+    // one answers.
+    const { effects, queryClient } = createRealtimeEffectsTestContext();
+    const requestsKey = browserAccessRequestsQueryKey();
+    queryClient.setQueryData(requestsKey, { requests: [] });
+
+    effects.handleChanged({
+      type: "changed",
+      entity: "system",
+      changes: ["config-changed"],
+    });
+
+    expect(queryClient.getQueryState(requestsKey)?.isInvalidated).toBe(true);
     effects.dispose();
   });
 
