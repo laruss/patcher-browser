@@ -64,6 +64,7 @@ function systemConfig(): SystemConfigResponse {
     serverUrl: "http://localhost:38986",
     primaryHostId: null,
     primaryHostPlatform: null,
+    outsideAgentSetup: "unasked",
     voiceTranscriptionEnabled: false,
     dataDir: "/tmp/patcher-test",
   };

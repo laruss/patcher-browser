@@ -8,6 +8,7 @@ import {
 import type {
   SystemBrowserAccessRequestDecideRequest,
   SystemBrowserExternalAccessRequest,
+  SystemCliSkillsSetupRequest,
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
@@ -17,6 +18,7 @@ import {
 } from "../cache-owners/browser-access-grant-cache-owner";
 import { invalidatePluginList } from "../cache-owners/plugin-cache-owner";
 import {
+  invalidateCliSkillsStatus,
   invalidateGeneralSettingsDependencies,
   invalidateSystemConfig,
 } from "../cache-owners/system-cache-effects";
@@ -192,6 +194,28 @@ export function useInstallCliSkills() {
     },
     mutationFn: (args: SystemInstallCliSkillsRequest) =>
       sdk.system.installCliSkills(args),
+  });
+}
+
+/**
+ * Answer the launch-time question about installing the CLI skills for agents
+ * outside Patcher (#141). The answer arrives in the system config, and an
+ * accept changes what the skills status says, so both are refreshed here; other
+ * windows hear the server's `config-changed`.
+ */
+export function useSetupCliSkills() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to set up the Patcher skills for other agents.",
+    },
+    mutationFn: (args: SystemCliSkillsSetupRequest) =>
+      sdk.system.setupCliSkills(args),
+    onSuccess: () => {
+      invalidateSystemConfig({ queryClient });
+      invalidateCliSkillsStatus({ queryClient });
+    },
   });
 }
 

@@ -9,6 +9,7 @@ import {
   allEnvironmentWorkStatusQueryKeyPrefix,
   allHostQueryKeyPrefix,
   allProjectPathsQueryKeyPrefix,
+  allSystemCliSkillsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
   allSystemProvidersQueryKeyPrefix,
   allTerminalsQueryKeyPrefix,
@@ -137,6 +138,15 @@ export function invalidateRealtimeQueriesFetchedBeforeInitialConnect({
  */
 export function invalidateSystemConfig({ queryClient }: QueryClientArg): void {
   queryClient.invalidateQueries({ queryKey: systemConfigQueryKey() });
+}
+
+/** Every read of the CLI skills' install state, whichever machines it asked. */
+export function invalidateCliSkillsStatus({
+  queryClient,
+}: QueryClientArg): void {
+  queryClient.invalidateQueries({
+    queryKey: allSystemCliSkillsQueryKeyPrefix(),
+  });
 }
 
 /** Refresh provider/model catalogs after a provider CLI install or update. */

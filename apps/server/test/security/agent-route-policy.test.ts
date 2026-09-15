@@ -129,6 +129,31 @@ describe("agentRoutePolicyDenial", () => {
     ).not.toBeNull();
   });
 
+  it("refuses installing Patcher's skills into the user's home, and answering the question about it", () => {
+    for (const path of [
+      "/api/v1/system/cli-skills/install",
+      "/api/v1/system/cli-skills/setup",
+    ]) {
+      const denial = agentRoutePolicyDenial({ method: "POST", path });
+      expect(denial?.route).toBe("/system/cli-skills");
+      expect(denial?.message).toContain("outside this turn's sandbox");
+    }
+    // Whether they are installed is still a turn's to read, and the prefix
+    // reaches nothing else under /system.
+    expect(
+      agentRoutePolicyDenial({
+        method: "GET",
+        path: "/api/v1/system/cli-skills",
+      }),
+    ).toBeNull();
+    expect(
+      agentRoutePolicyDenial({
+        method: "POST",
+        path: "/api/v1/system/config/reload",
+      }),
+    ).toBeNull();
+  });
+
   it("refuses answering a setup-script question, and leaves reading one open", () => {
     // The consent prompt is refused inside a turn where it is raised; this route
     // is the same answer given later, from the project's settings. A turn that
@@ -337,6 +362,32 @@ describe("an agent mid-turn", () => {
 
     expect(response.status).toBe(403);
     expect(await response.text()).toContain("workspace sandbox");
+  });
+
+  it("is refused installing Patcher's skills into the person's home, and answering for them", async () => {
+    server = await startTestServer();
+    const threadId = seedThreadMidTurn(server.deps);
+
+    for (const [path, body] of [
+      ["/api/v1/system/cli-skills/install", { hostIds: ["host-agent-policy"] }],
+      ["/api/v1/system/cli-skills/setup", { answer: "accept" }],
+    ] as const) {
+      const response = await fetch(`${server.baseUrl}${path}`, {
+        method: "POST",
+        headers: agentHeaders(threadId),
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(403);
+      expect(await response.text()).toContain("outside this turn's sandbox");
+    }
+
+    const config = await fetch(`${server.baseUrl}/api/v1/system/config`, {
+      headers: { [PATCHER_APP_KEY_HEADER]: TEST_APP_API_KEY },
+    });
+    expect(
+      ((await config.json()) as { outsideAgentSetup: string })
+        .outsideAgentSetup,
+    ).toBe("unasked");
   });
 
   it("is refused a terminal that belongs to no turn", async () => {

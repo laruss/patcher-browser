@@ -343,6 +343,7 @@ type ExpectedSystemKey =
   | "revokeBrowserAccessGrant"
   | "setBrowserAccessGrantPaused"
   | "setBrowserExternalAccess"
+  | "setupCliSkills"
   | "transcribeVoice"
   | "updateExperiments"
   | "updateGeneralSettings"

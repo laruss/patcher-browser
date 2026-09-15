@@ -10,6 +10,7 @@ import {
   availableModelSchema,
   experimentsSchema,
   featureFlagsSchema,
+  outsideAgentSetupAnswerSchema,
   permissionModeSchema,
   pluginThemeMetaSchema,
   providerInfoSchema,
@@ -227,6 +228,12 @@ export const systemConfigResponseSchema = z.object({
    */
   primaryHostId: z.string().nullable(),
   primaryHostPlatform: hostPlatformSchema.nullable(),
+  /**
+   * The answer to installing Patcher's skills for agents outside Patcher,
+   * asked once on launch (#141). Beside `generalSettings` rather than inside
+   * it, because that object is written back whole by every window.
+   */
+  outsideAgentSetup: outsideAgentSetupAnswerSchema,
   voiceTranscriptionEnabled: z.boolean(),
   /** Absolute path of the active Patcher data directory (where ui/, theme/, the DB live). */
   dataDir: z.string(),
@@ -554,6 +561,27 @@ export const systemInstallCliSkillsResponseSchema = z.object({
 });
 export type SystemInstallCliSkillsResponse = z.infer<
   typeof systemInstallCliSkillsResponseSchema
+>;
+
+/**
+ * The person's answer to the launch-time question about installing Patcher's
+ * skills for agents outside Patcher (#141). `accept` installs onto the primary
+ * machine as well as recording the answer.
+ */
+export const systemCliSkillsSetupRequestSchema = z.object({
+  answer: z.enum(["accept", "decline"]),
+});
+export type SystemCliSkillsSetupRequest = z.infer<
+  typeof systemCliSkillsSetupRequestSchema
+>;
+
+/** The answer as recorded, and the install's per-machine outcome on `accept`. */
+export const systemCliSkillsSetupResponseSchema = z.object({
+  outsideAgentSetup: outsideAgentSetupAnswerSchema,
+  install: systemInstallCliSkillsResponseSchema.nullable(),
+});
+export type SystemCliSkillsSetupResponse = z.infer<
+  typeof systemCliSkillsSetupResponseSchema
 >;
 export type SystemConfigReloadResponse = z.infer<
   typeof systemConfigReloadResponseSchema

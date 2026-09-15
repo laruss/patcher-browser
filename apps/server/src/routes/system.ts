@@ -4,6 +4,7 @@ import { formatCustomAcpAgentProviderId } from "@patcher/config/patcher-app-mana
 import {
   createBrowserAccessGrant,
   getAppSettings,
+  getOutsideAgentSetup,
   getAppKeybindingOverrides,
   getBrowserAccessGrant,
   getExperiments,
@@ -63,6 +64,7 @@ import {
 } from "../services/system/custom-themes.js";
 import { schedulePrimaryHostCaffeinateReconciliation } from "../services/system/app-settings.js";
 import {
+  answerCliSkillsSetup,
   installGlobalCliSkills,
   listInstallableMachineIds,
   readGlobalCliSkillStatus,
@@ -220,6 +222,7 @@ export function registerSystemRoutes(
         primaryHostId === null
           ? null
           : deps.hub.getDaemonPlatformForHost(primaryHostId),
+      outsideAgentSetup: getOutsideAgentSetup(deps.db),
       voiceTranscriptionEnabled: resolveVoiceTranscriptionEnabled(deps),
       dataDir: deps.config.dataDir,
     };
@@ -543,6 +546,12 @@ export function registerSystemRoutes(
 
   post(routes.installCliSkills, async (context, body) =>
     context.json(await installGlobalCliSkills(deps, { hostIds: body.hostIds })),
+  );
+
+  // The launch-time question (#141). Closed to a turn and to plugins, like the
+  // install beside it; a failed install is deliberately not asked again.
+  post(routes.cliSkillsSetup, async (context, body) =>
+    context.json(await answerCliSkillsSetup(deps, { answer: body.answer })),
   );
 
   get(routes.providers, async (context, query) =>

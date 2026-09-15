@@ -221,6 +221,8 @@ export const appSettings = sqliteTable("app_settings", {
   browserExternalAccess: text("browser_external_access")
     .notNull()
     .default("off"),
+  /** `unasked` | `accepted` | `declined` — kept out of `setAppSettings` (#141). */
+  outsideAgentSetup: text("outside_agent_setup").notNull().default("unasked"),
   browserSearchEngineId: text("browser_search_engine_id")
     .notNull()
     .default(DEFAULT_BROWSER_SEARCH_ENGINE_ID),

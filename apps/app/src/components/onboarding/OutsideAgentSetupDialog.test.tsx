@@ -1,0 +1,73 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { OutsideAgentSetupDialog } from "./OutsideAgentSetupDialog";
+
+function renderDialog(overrides: { pending?: boolean } = {}) {
+  const props = {
+    hostName: "Laptop",
+    onAccept: vi.fn(),
+    onDecline: vi.fn(),
+    pending: overrides.pending ?? false,
+  };
+  render(<OutsideAgentSetupDialog open {...props} />);
+  return props;
+}
+
+afterEach(() => {
+  cleanup();
+});
+
+describe("OutsideAgentSetupDialog", () => {
+  it("says what goes where, and on which machine", () => {
+    renderDialog();
+
+    expect(
+      screen.getByText(
+        "Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on Laptop.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("You can do this later in Settings → Skills."),
+    ).toBeTruthy();
+  });
+
+  it("answers yes with Set up and no with Not now", () => {
+    const props = renderDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+
+    expect(props.onAccept).toHaveBeenCalledTimes(1);
+    expect(props.onDecline).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes Escape as not now, so closing it is an answer", () => {
+    const props = renderDialog();
+
+    fireEvent.keyDown(document.activeElement ?? document.body, {
+      key: "Escape",
+    });
+
+    expect(props.onDecline).toHaveBeenCalledTimes(1);
+    expect(props.onAccept).not.toHaveBeenCalled();
+  });
+
+  it("answers nothing while the install is running", () => {
+    const props = renderDialog({ pending: true });
+
+    expect(
+      (screen.getByRole("button", { name: "Setting up…" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Not now" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.keyDown(document.activeElement ?? document.body, {
+      key: "Escape",
+    });
+
+    expect(props.onDecline).not.toHaveBeenCalled();
+  });
+});

@@ -3,14 +3,13 @@ import type { Host } from "@patcher/domain";
 import type {
   CliSkillMachineStatus,
   SystemCliSkillsStatusResponse,
-  SystemInstallCliSkillsResponse,
 } from "@patcher/server-contract";
 import { Button } from "@patcher/shared-ui/button";
 import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section";
-import { appToast } from "@/components/ui/app-toast";
+import { reportInstallResults } from "@/components/settings/cli-skills-install-results";
 import { InstallCliSkillsDialog } from "@/components/settings/InstallCliSkillsDialog";
 import { useInstallCliSkills } from "@/hooks/mutations/settings-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
@@ -83,27 +82,6 @@ export function CliSkillsSettingsSectionContent({
       </SettingsWithControl>
     </SettingsSection>
   );
-}
-
-/**
- * Report the per-machine outcome. The route installs machines independently,
- * so a partial success is a real outcome and both halves get surfaced.
- */
-export function reportInstallResults(
-  result: SystemInstallCliSkillsResponse,
-): void {
-  const installed = result.results.filter((entry) => entry.ok);
-  const failed = result.results.filter((entry) => !entry.ok);
-  if (installed.length > 0) {
-    appToast.success(
-      `Installed the Patcher CLI skills on ${installed
-        .map((entry) => entry.hostName)
-        .join(", ")}`,
-    );
-  }
-  for (const entry of failed) {
-    appToast.error(`${entry.hostName}: ${entry.errorMessage}`);
-  }
 }
 
 function statusByHostId(

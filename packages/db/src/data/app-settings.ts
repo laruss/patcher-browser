@@ -3,10 +3,12 @@ import {
   appKeybindingOverridesSchema,
   browserExternalAccessLevelSchema,
   defaultAppSettings,
+  outsideAgentSetupAnswerSchema,
   providerEgressAllowedHostsSchema,
   type AppKeybindingOverrides,
   type AppSettings,
   type BrowserExternalAccessLevel,
+  type OutsideAgentSetupAnswer,
 } from "@patcher/domain";
 import type { DbConnection } from "../connection.js";
 import { appSettings } from "../schema.js";
@@ -128,6 +130,40 @@ export function setAppSettings(
         browserExternalAccess: settings.browserExternalAccess,
         updatedAt,
       },
+    })
+    .run();
+}
+
+/**
+ * The person's answer to installing Patcher's skills for agents outside Patcher
+ * (#141). No row, or text nobody can parse, is `unasked`.
+ *
+ * Its own getter and setter rather than a field of {@link AppSettings}, because
+ * `setAppSettings` is fed whole objects by every window — see
+ * `outsideAgentSetupAnswerSchema` for why that would undo the answer.
+ */
+export function getOutsideAgentSetup(db: DbConnection): OutsideAgentSetupAnswer {
+  const row = db
+    .select({ outsideAgentSetup: appSettings.outsideAgentSetup })
+    .from(appSettings)
+    .where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
+    .get();
+  const parsed = outsideAgentSetupAnswerSchema.safeParse(
+    row?.outsideAgentSetup,
+  );
+  return parsed.success ? parsed.data : "unasked";
+}
+
+export function setOutsideAgentSetup(
+  db: DbConnection,
+  answer: OutsideAgentSetupAnswer,
+): void {
+  const updatedAt = Date.now();
+  db.insert(appSettings)
+    .values({ id: APP_SETTINGS_ROW_ID, outsideAgentSetup: answer, updatedAt })
+    .onConflictDoUpdate({
+      target: appSettings.id,
+      set: { outsideAgentSetup: answer, updatedAt },
     })
     .run();
 }

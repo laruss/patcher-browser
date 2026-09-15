@@ -1,6 +1,13 @@
-import { listHosts, listNonDestroyedHostsByIds } from "@patcher/db";
+import {
+  getOutsideAgentSetup,
+  listHosts,
+  listNonDestroyedHostsByIds,
+  setOutsideAgentSetup,
+} from "@patcher/db";
 import type {
   CliSkillMachineStatus,
+  SystemCliSkillsSetupRequest,
+  SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
   SystemInstallCliSkillsResponse,
 } from "@patcher/server-contract";
@@ -12,6 +19,10 @@ import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 import { callHostOnlineRpc } from "../hosts/online-rpc.js";
+import {
+  requirePrimaryHostId,
+  resolvePrimaryHostId,
+} from "../hosts/primary-host.js";
 import { resolveServerOwnedSkillCatalogEntries } from "./injected-skills.js";
 
 /**
@@ -222,5 +233,54 @@ export async function installGlobalCliSkills(
       }
     }),
   );
+  recordAcceptedWhenPrimaryInstalled(deps, results);
   return { results };
+}
+
+/**
+ * Pressing Install — in Settings, at a terminal, or in the launch-time question —
+ * is saying yes to it, so a successful install on the primary machine records
+ * the answer too (#141). Only a change is broadcast: a reinstall of an install
+ * that already answered changes nothing a window shows.
+ */
+function recordAcceptedWhenPrimaryInstalled(
+  deps: GlobalSkillInstallDeps,
+  results: InstallGlobalCliSkillsResult["results"],
+): void {
+  const primaryHostId = resolvePrimaryHostId(deps);
+  const installedOnPrimary = results.some(
+    (entry) => entry.ok && entry.hostId === primaryHostId,
+  );
+  if (!installedOnPrimary || getOutsideAgentSetup(deps.db) === "accepted") {
+    return;
+  }
+  setOutsideAgentSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+/**
+ * The person's answer to the launch-time question (#141).
+ *
+ * `accept` records the answer **before** installing. An install can fail — the
+ * machine dropped off, a root is not writable — and recording afterwards would
+ * put the same question back in front of them on every launch until it
+ * succeeded. The per-machine outcome goes back to the window to show, and
+ * Settings → Skills is where they try again.
+ */
+export async function answerCliSkillsSetup(
+  deps: GlobalSkillInstallDeps,
+  args: SystemCliSkillsSetupRequest,
+): Promise<SystemCliSkillsSetupResponse> {
+  if (args.answer === "decline") {
+    setOutsideAgentSetup(deps.db, "declined");
+    deps.hub.notifySystem(["config-changed"]);
+    return { outsideAgentSetup: "declined", install: null };
+  }
+  const primaryHostId = requirePrimaryHostId(deps);
+  setOutsideAgentSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+  const install = await installGlobalCliSkills(deps, {
+    hostIds: [primaryHostId],
+  });
+  return { outsideAgentSetup: "accepted", install };
 }

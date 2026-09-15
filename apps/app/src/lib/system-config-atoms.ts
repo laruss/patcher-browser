@@ -27,6 +27,7 @@ const unavailableSystemConfig: SystemConfigResponse = {
   serverUrl: "",
   primaryHostId: null,
   primaryHostPlatform: null,
+  outsideAgentSetup: "unasked",
   voiceTranscriptionEnabled: false,
   dataDir: "",
 };

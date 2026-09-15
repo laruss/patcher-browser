@@ -456,7 +456,12 @@ export type BrowserAccessGrantsQueryKey = readonly [
 export type BrowserAccessRequestsQueryKey = readonly [
   typeof BROWSER_ACCESS_REQUESTS_QUERY_KEY,
 ];
+/** The machines asked, or null for every enrolled machine. */
 export type SystemCliSkillsQueryKey = readonly [
+  typeof SYSTEM_CLI_SKILLS_QUERY_KEY,
+  readonly string[] | null,
+];
+export type SystemCliSkillsQueryKeyPrefix = readonly [
   typeof SYSTEM_CLI_SKILLS_QUERY_KEY,
 ];
 export type SystemVersionQueryKey = readonly [typeof SYSTEM_VERSION_QUERY_KEY];
@@ -1092,7 +1097,13 @@ export function allSystemProvidersQueryKeyPrefix(): AllSystemProvidersQueryKeyPr
   return [SYSTEM_PROVIDERS_QUERY_KEY];
 }
 
-export function systemCliSkillsQueryKey(): SystemCliSkillsQueryKey {
+export function systemCliSkillsQueryKey(
+  hostIds?: readonly string[],
+): SystemCliSkillsQueryKey {
+  return [SYSTEM_CLI_SKILLS_QUERY_KEY, hostIds ?? null];
+}
+
+export function allSystemCliSkillsQueryKeyPrefix(): SystemCliSkillsQueryKeyPrefix {
   return [SYSTEM_CLI_SKILLS_QUERY_KEY];
 }
 

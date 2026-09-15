@@ -165,3 +165,22 @@ export const defaultAppSettings: AppSettings = {
   // Closed until the user opens it: see the schema for why that is the decision.
   browserExternalAccess: "off",
 };
+
+/**
+ * The person's answer to "install Patcher's skills for agents outside Patcher"
+ * (#141), asked once on launch.
+ *
+ * Deliberately not a field of {@link appSettingsSchema}: `PUT /settings/general`
+ * persists that object wholesale and every window writes back its cached copy,
+ * so a window that loaded before the answer would put `unasked` back and the
+ * question would return. It has its own column, its own route, and rides
+ * `SystemConfigResponse` beside the settings rather than inside them.
+ */
+export const outsideAgentSetupAnswerSchema = z.enum([
+  "unasked",
+  "accepted",
+  "declined",
+]);
+export type OutsideAgentSetupAnswer = z.infer<
+  typeof outsideAgentSetupAnswerSchema
+>;

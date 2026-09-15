@@ -318,6 +318,13 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // The same credential, asked for in the window and collected here (#135).
   ["/browser/access-requests", null],
   ["/browser/external-access", null],
+  // Writing Patcher's skills into the user's global agent roots, and the
+  // person's answer about doing so (#141): the files land outside any sandbox
+  // and are loaded by every agent on the machine, which is not a plugin's to
+  // arrange at any price. Named routes rather than the prefix, so reading the
+  // install status stays priced `workspace` under `/system`.
+  ["/system/cli-skills/install", null],
+  ["/system/cli-skills/setup", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],
   ["/skills-registry", ["workspace"]],

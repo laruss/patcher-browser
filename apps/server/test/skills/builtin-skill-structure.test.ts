@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveBuiltinSkillsRootPath } from "../../src/services/skills/builtin-skills-copy.js";
+import { GLOBAL_CLI_SKILL_NAMES } from "../../src/services/skills/global-skill-install.js";
 
 /**
  * Structural guard for every built-in skill: SKILL.md is loaded in full the
@@ -55,6 +56,21 @@ describe("built-in skill structure", () => {
   it("ships at least the skills the server depends on", () => {
     expect(skillNames).toContain("patcher-cli");
   });
+
+  // What the launch-time question and Settings → Skills install for agents
+  // outside Patcher (#141). The install picks these names out of the built-in
+  // catalog and skips one it cannot find, so a renamed skill would quietly
+  // install without it.
+  it.each(GLOBAL_CLI_SKILL_NAMES)(
+    "ships %s, which is installed for agents outside Patcher",
+    (name) => {
+      const entry = readFileSync(
+        path.join(builtinSkillsRootPath, name, "SKILL.md"),
+        "utf8",
+      );
+      expect(entry).toMatch(new RegExp(`^---\\n(?:.*\\n)*?name: ${name}\\n`));
+    },
+  );
 
   describe.each(skillNames)("%s", (skillName) => {
     const skillDir = path.join(builtinSkillsRootPath, skillName);

@@ -4,8 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publishedMigrationWhensByTag } from "../src/migration-history.js";
 import {
-  dropBrowserAccessGrantsTable,
-  dropBrowserExternalAccessColumn,
+  dropSchemaSince0101,
   dropProjectGitRemoteUrlColumn,
   dropBrowserSearchEngineIdColumn,
   dropCodexNetworkDisabledColumn,
@@ -360,8 +359,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropBrowserSearchEngineIdColumn(db);
   dropCodexNetworkDisabledColumn(db);
   dropProviderEgressColumns(db);
-  dropBrowserExternalAccessColumn(db);
-  dropBrowserAccessGrantsTable(db);
+  dropSchemaSince0101(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -1297,8 +1295,7 @@ describe("migrate", () => {
     dropBrowserSearchEngineIdColumn(db);
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
-    dropBrowserExternalAccessColumn(db);
-    dropBrowserAccessGrantsTable(db);
+    dropSchemaSince0101(db);
     dropNewOnboardingExperimentColumn(db);
     dropEnvironmentRetireRequestedAtColumn(db);
     dropTerminalSandboxedColumn(db);
@@ -1400,8 +1397,7 @@ describe("migrate", () => {
     dropTerminalSandboxedColumn(db);
     dropCodexNetworkDisabledColumn(db);
     dropProviderEgressColumns(db);
-    dropBrowserExternalAccessColumn(db);
-    dropBrowserAccessGrantsTable(db);
+    dropSchemaSince0101(db);
 
     migrate(db);
 
@@ -1669,8 +1665,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
-      dropBrowserExternalAccessColumn(db);
-      dropBrowserAccessGrantsTable(db);
+      dropSchemaSince0101(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2074,8 +2069,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
-      dropBrowserExternalAccessColumn(db);
-      dropBrowserAccessGrantsTable(db);
+      dropSchemaSince0101(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
@@ -2176,8 +2170,7 @@ describe("migrate", () => {
       dropBrowserSearchEngineIdColumn(db);
       dropCodexNetworkDisabledColumn(db);
       dropProviderEgressColumns(db);
-      dropBrowserExternalAccessColumn(db);
-      dropBrowserAccessGrantsTable(db);
+      dropSchemaSince0101(db);
       dropNewOnboardingExperimentColumn(db);
       dropHostMaxPermissionModeColumn(db);
       dropEnvironmentRetireRequestedAtColumn(db);
