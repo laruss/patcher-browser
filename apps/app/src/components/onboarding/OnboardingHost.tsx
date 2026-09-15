@@ -105,14 +105,22 @@ export function OnboardingHost() {
   // only when that machine holds none of the skills. The read names the one
   // machine: every enrolled machine would cost a daemon call each, and a slow
   // one would hold the question back for the others.
+  //
+  // The server's own primary machine, not the one `usePrimaryHost` falls back
+  // to when the server named none: a yes installs where the server says, and
+  // with no machine named the install refuses.
+  const serverPrimaryHostId = configQuery.data?.primaryHostId ?? null;
   const mayAskOutsideAgentSetup =
     !shouldShow &&
     configQuery.data?.outsideAgentSetup === "unasked" &&
-    primaryHostId !== null &&
+    serverPrimaryHostId !== null &&
+    primaryHostId === serverPrimaryHostId &&
     primaryHost?.status === "connected";
   const primaryCliSkillsQuery = useCliSkillsStatus({
     enabled: mayAskOutsideAgentSetup,
     hostIds: primaryHostId === null ? [] : [primaryHostId],
+    // `unknown` is a daemon that did not answer in time, not an answer.
+    retryUnknown: true,
   });
   const primaryCliSkillsStatus = primaryCliSkillsQuery.data?.machines.find(
     (machine) => machine.hostId === primaryHostId,

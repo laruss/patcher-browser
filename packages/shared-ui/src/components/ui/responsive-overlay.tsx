@@ -277,6 +277,11 @@ interface ResponsiveDrawerShellProps {
   repositionInputs?: boolean;
   /** Called when the DrawerContent element's own animation completes. */
   onContentAnimationEnd?: (open: boolean) => void;
+  /**
+   * False keeps Vaul from closing the drawer on a swipe, a tap outside or
+   * Escape; only the caller's own controls close it. Defaults to Vaul's `true`.
+   */
+  dismissible?: boolean;
   children: React.ReactNode;
 }
 
@@ -288,6 +293,7 @@ export function ResponsiveDrawerShell({
   handleOnly,
   repositionInputs,
   onContentAnimationEnd,
+  dismissible,
   children,
 }: ResponsiveDrawerShellProps) {
   const parentDrawerDepth = React.useContext(ResponsiveDrawerDepthContext);
@@ -348,6 +354,7 @@ export function ResponsiveDrawerShell({
     <Drawer
       open={open}
       onOpenChange={handleOpenChange}
+      dismissible={dismissible}
       handleOnly={handleOnly}
       nested={isNestedDrawer}
       repositionInputs={shouldRepositionInputs}

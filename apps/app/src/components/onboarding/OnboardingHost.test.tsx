@@ -73,6 +73,7 @@ const QUESTION = "Setup question for Laptop";
 function systemConfig(args: {
   newOnboarding?: boolean;
   outsideAgentSetup?: "unasked" | "accepted" | "declined";
+  primaryHostId?: string | null;
 }) {
   return {
     data: {
@@ -82,6 +83,8 @@ function systemConfig(args: {
       },
       generalSettings: defaultAppSettings,
       outsideAgentSetup: args.outsideAgentSetup ?? "unasked",
+      primaryHostId:
+        args.primaryHostId === undefined ? "host-1" : args.primaryHostId,
     },
   };
 }
@@ -170,6 +173,7 @@ describe("the question about agents outside Patcher", () => {
     expect(mocks.useCliSkillsStatus).toHaveBeenCalledWith({
       enabled: true,
       hostIds: ["host-1"],
+      retryUnknown: true,
     });
   });
 
@@ -186,6 +190,7 @@ describe("the question about agents outside Patcher", () => {
     expect(mocks.useCliSkillsStatus).toHaveBeenCalledWith({
       enabled: false,
       hostIds: ["host-1"],
+      retryUnknown: true,
     });
   });
 
@@ -202,6 +207,7 @@ describe("the question about agents outside Patcher", () => {
       expect(mocks.useCliSkillsStatus).toHaveBeenLastCalledWith({
         enabled: false,
         hostIds: ["host-1"],
+        retryUnknown: true,
       });
       cleanup();
     }
@@ -239,6 +245,7 @@ describe("the question about agents outside Patcher", () => {
     expect(mocks.useCliSkillsStatus).toHaveBeenCalledWith({
       enabled: false,
       hostIds: ["host-1"],
+      retryUnknown: true,
     });
   });
 
@@ -288,6 +295,22 @@ describe("the question about agents outside Patcher", () => {
     render(<OnboardingHost />);
 
     expect(screen.getByText(QUESTION)).toBeTruthy();
+  });
+
+  it("is not asked when the server names no primary machine, whatever the host list would guess", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ primaryHostId: null }),
+    );
+    mocks.useCliSkillsStatus.mockReturnValue(primaryMachineStatus("missing"));
+
+    render(<OnboardingHost />);
+
+    expect(screen.queryByText(QUESTION)).toBeNull();
+    expect(mocks.useCliSkillsStatus).toHaveBeenCalledWith({
+      enabled: false,
+      hostIds: ["host-1"],
+      retryUnknown: true,
+    });
   });
 
   it("goes away as soon as the answer lands, before the config catches up", () => {

@@ -65,6 +65,38 @@ describe("OutsideAgentSetupDialog", () => {
     expect(props.onAccept).not.toHaveBeenCalled();
   });
 
+  it("on a narrow window, answers nothing to a tap outside or Escape — only the buttons answer", async () => {
+    const matchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(max-width: 767px)",
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    try {
+      const props = renderDialog();
+      // The drawer, not the centred dialog: the path that strips
+      // `onInteractOutside`.
+      expect(document.querySelector("[data-vaul-drawer]")).not.toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      fireEvent.pointerDown(document.body);
+      fireEvent.keyDown(document.activeElement ?? document.body, {
+        key: "Escape",
+      });
+      expect(props.onDecline).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+      expect(props.onDecline).toHaveBeenCalledTimes(1);
+    } finally {
+      window.matchMedia = matchMedia;
+    }
+  });
+
   it("answers nothing while the install is running", () => {
     const props = renderDialog({ pending: true });
 

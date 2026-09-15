@@ -66,6 +66,7 @@ import {
   allThreadStorageFilePreviewQueryKeyPrefix,
   allThreadStorageFilesQueryKeyPrefix,
   allThreadStoragePathsQueryKeyPrefix,
+  allSystemCliSkillsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
   allThreadQueryKeyPrefix,
   allTerminalsQueryKeyPrefix,
@@ -483,6 +484,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
   "config-changed": {
     dirty: [
       dirtySystemConfigQueries, // Experiments gate UI surfaces; other windows re-read after a settings write.
+      dirtyCliSkillsStatusQueries, // An install from another window changes what a machine status says (#141).
       dirtyBrowserAccessGrantQueries,
       dirtyBrowserAccessRequestQueries,
       dirtyAllThreadTimelineQueries, // General settings can change whether diagnostic provider rows are projected.
@@ -965,6 +967,15 @@ function dirtyHostAvailabilityQueries(): QueryKey[] {
 
 function dirtySystemConfigQueries(): QueryKey[] {
   return [systemConfigQueryKey()];
+}
+
+/**
+ * What each machine holds of the CLI skills. The server announces every install
+ * with `config-changed`, so a Settings section open in another window does not
+ * keep showing the state from before it (#141).
+ */
+function dirtyCliSkillsStatusQueries(): QueryKey[] {
+  return [allSystemCliSkillsQueryKeyPrefix()];
 }
 
 /**

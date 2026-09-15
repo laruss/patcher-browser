@@ -73,7 +73,9 @@ export interface OutsideAgentSetupDialogProps extends OutsideAgentSetupDialogCon
  * Escape and the close button answer "Not now", so closing it is an answer
  * rather than a way to be asked again next launch. A click outside does
  * nothing: the dialog appears on its own, and a click meant for the app behind
- * it must not answer it.
+ * it must not answer it. On a narrow window it is a drawer, which would take a
+ * tap outside or a swipe down as closing, so there it does not close at all and
+ * the two buttons are the only answers.
  */
 export function OutsideAgentSetupDialog({
   open,
@@ -87,7 +89,10 @@ export function OutsideAgentSetupDialog({
         contentProps.onDecline();
       }}
     >
-      <DialogContent onInteractOutside={(event) => event.preventDefault()}>
+      <DialogContent
+        dismissible={false}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
         <OutsideAgentSetupDialogContent {...contentProps} />
       </DialogContent>
     </Dialog>

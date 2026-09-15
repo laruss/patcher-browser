@@ -273,11 +273,38 @@ describe("the question about agents outside Patcher", () => {
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
       expect(changes).toEqual(["config-changed"]);
 
-      // Installing again changes no answer, so nothing is broadcast.
+      // Installing again records no new answer, but what other windows show
+      // for the machine may have changed, so every install is announced.
       await harness.app.request(
         postJson("/system/cli-skills/install", { hostIds: ["host-laptop"] }),
       );
-      expect(changes).toEqual(["config-changed"]);
+      expect(changes).toEqual(["config-changed", "config-changed"]);
+    });
+  });
+
+  it("keeps the first answer when a second window answers late", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const { host, session } = seedHostSession(harness.deps);
+      seedPrimaryHost(harness.deps, host.id);
+      const responder = registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: () => INSTALLED,
+      });
+
+      await harness.app.request(
+        postJson("/system/cli-skills/setup", { answer: "decline" }),
+      );
+      const late = await harness.app.request(
+        postJson("/system/cli-skills/setup", { answer: "accept" }),
+      );
+
+      expect(
+        systemCliSkillsSetupResponseSchema.parse(await readJson(late)),
+      ).toEqual({ outsideAgentSetup: "declined", install: null });
+      expect(responder.requests).toHaveLength(0);
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("declined");
     });
   });
 

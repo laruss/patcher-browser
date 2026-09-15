@@ -235,14 +235,17 @@ export async function installGlobalCliSkills(
     }),
   );
   recordAcceptedWhenPrimaryInstalled(deps, results);
+  // Every window showing a machine's skill status learns it may have changed,
+  // not only the one that asked for the install: the app re-reads the status on
+  // `config-changed`, which also carries an answer recorded just above.
+  deps.hub.notifySystem(["config-changed"]);
   return { results };
 }
 
 /**
  * Pressing Install — in Settings, at a terminal, or in the launch-time question —
  * is saying yes to it, so a successful install on the primary machine records
- * the answer too (#141). Only a change is broadcast: a reinstall of an install
- * that already answered changes nothing a window shows.
+ * the answer too (#141). The install's own broadcast announces it.
  */
 function recordAcceptedWhenPrimaryInstalled(
   deps: GlobalSkillInstallDeps,
@@ -256,7 +259,6 @@ function recordAcceptedWhenPrimaryInstalled(
     return;
   }
   setOutsideAgentSetup(deps.db, "accepted");
-  deps.hub.notifySystem(["config-changed"]);
 }
 
 /**
@@ -324,6 +326,14 @@ export async function answerCliSkillsSetup(
   deps: GlobalSkillInstallDeps,
   args: SystemCliSkillsSetupRequest,
 ): Promise<SystemCliSkillsSetupResponse> {
+  // The first answer stands. Two windows can both be showing the question, and
+  // a late click in one must not undo what the other already answered; a
+  // change of mind later goes through Settings → Skills. Checked and written
+  // with no await between them, so two requests cannot both pass the check.
+  const current = getOutsideAgentSetup(deps.db);
+  if (current !== "unasked") {
+    return { outsideAgentSetup: current, install: null };
+  }
   if (args.answer === "decline") {
     setOutsideAgentSetup(deps.db, "declined");
     deps.hub.notifySystem(["config-changed"]);

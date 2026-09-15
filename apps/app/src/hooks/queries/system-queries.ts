@@ -189,9 +189,15 @@ export function useCliSkillsStatus(
      * read never overwrites the Settings section's read of every machine.
      */
     hostIds?: readonly string[];
+    /**
+     * Ask again while a machine answers `unknown` — a daemon that did not
+     * reply in time — instead of holding that until the window regains focus.
+     */
+    retryUnknown?: boolean;
   },
 ) {
   const hostIds = options?.hostIds;
+  const retryUnknown = options?.retryUnknown ?? false;
   return useQuery<SystemCliSkillsStatusResponse>({
     queryKey: systemCliSkillsQueryKey(hostIds),
     queryFn: ({ signal }) =>
@@ -201,6 +207,11 @@ export function useCliSkillsStatus(
       }),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
+    refetchInterval: (query) =>
+      retryUnknown &&
+      query.state.data?.machines.some((machine) => machine.status === "unknown")
+        ? 10_000
+        : false,
   });
 }
 
