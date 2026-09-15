@@ -35,6 +35,56 @@ describe("--tab active", () => {
   });
 });
 
+describe("--tab <the middle of an id>", () => {
+  const MINTED = "browser:mBzvl_Vk4OTrCNzR5SpTr:none";
+
+  it("names the tab whose id it is the middle of", async () => {
+    // The reported spelling: the listing prints the id between `browser:` and
+    // `:none`, and the part in between is the one that tells tabs apart.
+    const resolved = await resolveTabTarget(
+      browserWithTabs([
+        { tabId: "browser:V1StGXR8_Z5jdHi6B-myT:none", url: "https://a.test/" },
+        { tabId: MINTED, url: "https://x.com/cocktailpeanut" },
+      ]),
+      "mBzvl_Vk4OTrCNzR5SpTr",
+      {},
+    );
+
+    expect(resolved).toEqual({ tabId: MINTED });
+  });
+
+  it("wins over another tab's URL that happens to contain it", async () => {
+    const resolved = await resolveTabTarget(
+      browserWithTabs([
+        {
+          tabId: "browser:V1StGXR8_Z5jdHi6B-myT:none",
+          url: "https://docs.test/?id=mBzvl_Vk4OTrCNzR5SpTr",
+        },
+        { tabId: MINTED, url: "https://x.com/" },
+      ]),
+      "mBzvl_Vk4OTrCNzR5SpTr",
+      {},
+    );
+
+    expect(resolved).toEqual({ tabId: MINTED });
+  });
+
+  it("is only the middle of an id the browser minted", async () => {
+    // `tab-1` has no middle; `browser:1:none` is not a shape this browser
+    // mints, so `1` stays an index rather than naming it.
+    const resolved = await resolveTabTarget(
+      browserWithTabs([
+        { tabId: "tab-9", url: "https://first.test/" },
+        { tabId: "browser:1:none", url: "https://second.test/" },
+      ]),
+      "1",
+      {},
+    );
+
+    expect(resolved).toEqual({ tabId: "tab-9" });
+  });
+});
+
 describe("urlMatches", () => {
   it("matches a query string, which is a common thing to wait for", () => {
     // The defect: `?` used to switch the pattern into glob mode, and a glob is

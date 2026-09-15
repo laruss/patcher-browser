@@ -116,6 +116,9 @@ const SETTLE = ["--no-settle", "--idle-ms", "--poll-interval"] as const;
 const ACT = ["--tab", "--generation", "--json", ...SETTLE] as const;
 /** The same, for a command that changes the page without naming an element. */
 const NAV = ["--tab", "--json", ...SETTLE] as const;
+/** For the three commands that name their tab positionally rather than with `--tab` (#133). */
+const NAMED_LIKE_TAB =
+  "The tab is named as --tab names one: its id or the middle part of it, an index from `tabs`, a substring of its URL or title, or `active`.";
 
 interface BrowserCliCommand {
   name: string;
@@ -311,7 +314,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     usage: "patcher browser tabs [--json]",
     options: ["--json"],
     details: [
-      "The leading number is what --tab takes: `--tab 3` is the third tab listed.",
+      "The leading number is what --tab takes: `--tab 3` is the third tab listed. `close`, `release` and `activate` take it too.",
       '"cold" marks a tab with no live page — it cannot be read or stepped through history until it has been shown.',
       "\"owner:\" says whose a tab is when the browser can tell: `you` is yours to act on, `person` is the one the human is working in, `agent` is another agent's, and `shared` is the person's tab they have lent you a look at — reading it answers, acting in it does not. Open your own with `open --background <url>`; naming the person's is what asks them for it, in a row in their browser window, where they can lend it or hand it over.",
       "`url` and `title` answer for any tab, as this listing does. Ownership holds back acting, not seeing.",
@@ -335,6 +338,10 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     summary: "Close a browser tab",
     usage: "patcher browser close <tab-id> [--json]",
     options: ["--json"],
+    details: [
+      NAMED_LIKE_TAB,
+      "An index is a place in the list, and a close moves every tab after it up one: name tabs by id when closing several.",
+    ],
   },
   {
     name: "release",
@@ -342,6 +349,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     usage: "patcher browser release <tab-id> [--json]",
     options: ["--json"],
     details: [
+      NAMED_LIKE_TAB,
       "For a tab they handed you, one they lent you a look at, or one you opened and want to leave them. `close` was the only way to end a claim before, and it destroys the page.",
       "It also undoes what you set on the page — route mocks, offline mode, a running recording — so what you hand back behaves like their tab. On a page blocked by an unanswered dialog the undo waits for the answer; answer it first if you want the tab clean now.",
     ],
@@ -352,6 +360,7 @@ const BROWSER_CLI_COMMANDS: readonly BrowserCliCommand[] = [
     usage: "patcher browser activate <tab-id> [--json]",
     options: ["--json"],
     details: [
+      NAMED_LIKE_TAB,
       "This moves what the user is looking at. A tab only needs it to be readable if it has never been shown.",
     ],
   },
@@ -1509,9 +1518,10 @@ Navigating
   dialog <accept|dismiss>    Answer a JavaScript dialog blocking a page
 
 Naming a tab
-  --tab takes a tab id, an index from \`tabs\` (--tab 3), a substring of the URL
-  or title (--tab x.com), or "active" for the one the person is looking at.
-  Omit it for your own newest tab, which is where an unnamed command goes.
+  --tab takes a tab id or its middle part, an index from \`tabs\` (--tab 3), a
+  substring of the URL or title (--tab x.com), or "active" for the one the
+  person is looking at; close, release and activate take the same forms.
+  Omit --tab for your own newest tab, which is where an unnamed command goes.
 
 Options:
   --tab <t>            Act on this tab instead of your own newest one
@@ -1602,7 +1612,21 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
       // leaving the command hanging on a page that never loads.
       const options = { signal: context.signal };
 
-      const targeted = await resolveTabTarget(patcher, parsed.tabId, options);
+      // `close`, `release` and `activate` take their tab as a positional, in
+      // the forms `--tab` takes (#133); none of the three accepts `--tab`. A
+      // short name costs a listing, which fails the way any browser call does.
+      let targeted: Awaited<ReturnType<typeof resolveTabTarget>>;
+      try {
+        targeted = await resolveTabTarget(
+          patcher,
+          ["close", "release", "activate"].includes(command)
+            ? rest[0]
+            : parsed.tabId,
+          options,
+        );
+      } catch (error) {
+        return { exitCode: 1, stderr: `${explainBrowserError(error)}\n` };
+      }
       if ("error" in targeted) {
         return { exitCode: 2, stderr: `${targeted.error}\n` };
       }
@@ -2183,7 +2207,6 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
           }
 
           case "close": {
-            const tabId = rest[0];
             if (tabId === undefined) {
               return { exitCode: 2, stderr: "A tab id is required.\n" };
             }
@@ -2197,7 +2220,6 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
           }
 
           case "release": {
-            const tabId = rest[0];
             if (tabId === undefined) {
               return { exitCode: 2, stderr: "A tab id is required.\n" };
             }
@@ -2211,7 +2233,6 @@ export function registerBrowserToolsCli(patcher: PatcherPluginApi): void {
           }
 
           case "activate": {
-            const tabId = rest[0];
             if (tabId === undefined) {
               return { exitCode: 2, stderr: "A tab id is required.\n" };
             }

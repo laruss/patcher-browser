@@ -78,7 +78,9 @@ describe("patcher browser CLI", () => {
     // The command it sends, not just the sentence it prints: the fake models no
     // ownership, so a handler that called `activate` instead would print this
     // same hard-coded line and answer with the same tab.
+    // After the listing that `tab-1` costs, not being in the minted shape.
     expect(host.harness.inspection.browserCalls).toEqual([
+      { type: "tabs.list", args: {} },
       { type: "tabs.release", args: { tabId: "tab-1" } },
     ]);
     expect(result.stdout).toContain("Handed tab-1 back.");
@@ -131,9 +133,11 @@ describe("patcher browser CLI", () => {
     ).toEqual([
       "navigation.open",
       "tabs.open",
+      // `activate tab-2` and `--tab tab-1` are not tab ids in the shape this
+      // browser mints, so each is matched against the listing — the one round
+      // trip a shorthand costs.
+      "tabs.list",
       "tabs.activate",
-      // `--tab tab-1` is not a tab id in the shape this browser mints, so it is
-      // matched against the listing — the one round trip a shorthand costs.
       "tabs.list",
       "navigation.reload",
     ]);
@@ -1604,6 +1608,100 @@ describe("patcher browser CLI tab names", () => {
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("No open tab matches");
+  });
+});
+
+describe("patcher browser close, release and activate", () => {
+  // They handed what they were given straight to the browser, so the middle of
+  // an id — the part a reader lifts out of the listing — answered "That tab is
+  // not open" about a tab that was (#133). They name a tab as --tab does now.
+  const ISSUE_ID = "browser:mBzvl_Vk4OTrCNzR5SpTr:none";
+  const COMMANDS = {
+    close: "tabs.close",
+    release: "tabs.release",
+    activate: "tabs.activate",
+  } as const;
+
+  function createHostWithMintedTabs() {
+    const host = createHost();
+    host.harness.behavior.browser.setTabs([
+      { tabId: ISSUE_ID, url: "https://x.com/cocktailpeanut", title: "Peanut" },
+      { tabId: MINTED_ID, url: "https://docs.test/", title: "Docs" },
+    ]);
+    return host;
+  }
+
+  it.each(Object.entries(COMMANDS))(
+    "%s takes the middle of an id, an index and a substring",
+    async (command, type) => {
+      for (const target of ["mBzvl_Vk4OTrCNzR5SpTr", "1", "x.com"]) {
+        const host = createHostWithMintedTabs();
+
+        const result = await host.harness.runCli([command, target]);
+
+        expect(result.exitCode).toBe(0);
+        expect(host.harness.inspection.browserCalls).toEqual([
+          { type: "tabs.list", args: {} },
+          { type, args: { tabId: ISSUE_ID } },
+        ]);
+      }
+    },
+  );
+
+  it.each(Object.entries(COMMANDS))(
+    "%s refuses a substring two tabs match, and sends nothing",
+    async (command) => {
+      const host = createHostWithMintedTabs();
+
+      const result = await host.harness.runCli([command, "https"]);
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("2 tabs match");
+      expect(
+        host.harness.inspection.browserCalls.map((call) => call.type),
+      ).toEqual(["tabs.list"]);
+    },
+  );
+
+  it("closes the tab from the report by the middle of its id", async () => {
+    const host = createHostWithMintedTabs();
+
+    const result = await host.harness.runCli([
+      "close",
+      "mBzvl_Vk4OTrCNzR5SpTr",
+    ]);
+
+    expect(result.stdout).toContain(`Closed ${ISSUE_ID}.`);
+    expect(result.stdout).not.toContain("x.com");
+  });
+
+  it("explains a browser that fails the listing a short name costs", async () => {
+    // The three used to fail inside the command's own error handling; the
+    // listing now comes first, and has to fail the same way (found by review).
+    for (const argv of [
+      ["close", "1"],
+      ["url", "--tab", "2"],
+    ]) {
+      const host = createHostWithMintedTabs();
+      host.harness.behavior.browser.failNextCall("desktop_unavailable");
+
+      const result = await host.harness.runCli(argv);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "Browser control needs the Patcher desktop app",
+      );
+    }
+  });
+
+  it("sends a full id straight through, as it always did", async () => {
+    const host = createHostWithMintedTabs();
+
+    await host.harness.runCli(["close", ISSUE_ID]);
+
+    expect(host.harness.inspection.browserCalls).toEqual([
+      { type: "tabs.close", args: { tabId: ISSUE_ID } },
+    ]);
   });
 });
 
