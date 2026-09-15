@@ -274,6 +274,20 @@ describe("patcher agent-access request", () => {
    * command settles. The command does real file I/O before its first wait, so
    * one advance up front would fire before anything was waiting on it.
    */
+  /**
+   * The fake time at which the command printed that it is waiting, which is
+   * when its 90 seconds start. Measured from there rather than from the test's
+   * start: the file I/O before it is real, and `runOnFakeClock` keeps the clock
+   * moving through it — on a loaded CI runner, far enough to fail a bound that
+   * the command itself kept (measured: 160.5 s from the start, #139).
+   */
+  const recordWhenAsked = (): (() => number) => {
+    let at = Number.NaN;
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      if (String(args[0]).startsWith("Asked the person")) at = Date.now();
+    });
+    return () => at;
+  };
   const runOnFakeClock = async (argv: string[]): Promise<unknown> => {
     let settled = false;
     const run = runCommand(argv, register).finally(() => {
@@ -413,8 +427,8 @@ describe("patcher agent-access request", () => {
     // Claude Code's shell tool stops a command at 120 seconds; killed there,
     // this would have reported nothing at all.
     vi.useFakeTimers({ toFake: ["setTimeout", "Date"] });
+    const askedAt = recordWhenAsked();
 
-    const started = Date.now();
     await expect(
       runOnFakeClock([
         "agent-access",
@@ -425,7 +439,7 @@ describe("patcher agent-access request", () => {
       ]),
     ).rejects.toThrow("process.exit:1");
 
-    expect(Date.now() - started).toBeLessThan(120_000);
+    expect(Date.now() - askedAt()).toBeLessThan(120_000);
     expect(errored()).toContain("run the same command again");
     expect(printed()).not.toContain(MAC);
   });
@@ -435,8 +449,8 @@ describe("patcher agent-access request", () => {
     // in the air, not only the gaps between polls.
     vi.useFakeTimers({ toFake: ["setTimeout", "Date"] });
     outcomes = [() => new Promise<object>(() => {})];
+    const askedAt = recordWhenAsked();
 
-    const started = Date.now();
     await expect(
       runOnFakeClock([
         "agent-access",
@@ -447,7 +461,7 @@ describe("patcher agent-access request", () => {
       ]),
     ).rejects.toThrow("process.exit:1");
 
-    expect(Date.now() - started).toBeLessThan(120_000);
+    expect(Date.now() - askedAt()).toBeLessThan(120_000);
     expect(errored()).toContain("run the same command again");
   });
 
