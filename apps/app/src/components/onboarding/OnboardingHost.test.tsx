@@ -273,6 +273,23 @@ describe("the question about agents outside Patcher", () => {
     expect(mocks.reportInstallResults).toHaveBeenCalledWith(install);
   });
 
+  it("stays up while the answer is being sent, though the config already says it was answered", () => {
+    // The server records an accept and broadcasts before the install runs, so
+    // the refetched config says `accepted` while the request is still open.
+    mocks.useSetupCliSkills.mockReturnValue({
+      isPending: true,
+      isSuccess: false,
+      mutate: vi.fn(),
+    });
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ outsideAgentSetup: "accepted" }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(screen.getByText(QUESTION)).toBeTruthy();
+  });
+
   it("goes away as soon as the answer lands, before the config catches up", () => {
     mocks.useSetupCliSkills.mockReturnValue({
       isPending: false,

@@ -120,6 +120,7 @@ not write them.
   machines only when more than one is enrolled. The install is refused from
   inside a Patcher thread — it writes into the user's home, outside the
   sandbox — so ask the person to run it. Patcher also asks once, when the app
-  opens on a machine with none of these skills, whether to install them there.
+  opens and its primary machine has none of these skills, whether to install
+  them there.
 - `patcher skill cli-skills-status` reports per machine whether the installed copy is
   `installed`, `outdated`, `missing`, or `unknown` (disconnected or unreachable).

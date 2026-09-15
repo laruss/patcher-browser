@@ -184,8 +184,9 @@ export function useUpdateKeyboardSettings() {
 
 /**
  * Copy Patcher's built-in CLI skills into the chosen machines' global agent skill
- * roots so agents outside Patcher can drive it. Purely a filesystem action on those
- * machines — nothing in the system config changes, so nothing is invalidated.
+ * roots so agents outside Patcher can drive it. A successful install on the primary
+ * machine also records a yes to the launch-time question (#141); the server's
+ * `config-changed` refreshes the config for that, so nothing is invalidated here.
  */
 export function useInstallCliSkills() {
   return useMutation({

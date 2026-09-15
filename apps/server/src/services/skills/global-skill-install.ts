@@ -259,6 +259,44 @@ function recordAcceptedWhenPrimaryInstalled(
 }
 
 /**
+ * An install whose primary machine already holds the skills has answered the
+ * launch-time question (#141): somebody installed them. Recorded rather than
+ * merely not asked, so removing the copies later does not bring the question
+ * back. Checked when the primary machine's daemon connects, because the copies
+ * are on that machine and nothing else can say whether they are there.
+ *
+ * Only while unanswered, so a settled install costs no daemon call; and read
+ * again after the call, because the person may answer while it is out.
+ */
+export async function acceptWhenPrimaryHostHasCliSkills(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string },
+): Promise<void> {
+  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
+  if (args.hostId !== resolvePrimaryHostId(deps)) return;
+  const { machines } = await readGlobalCliSkillStatus(deps, {
+    hostIds: [args.hostId],
+  });
+  const status = machines[0]?.status;
+  if (status !== "installed" && status !== "outdated") return;
+  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
+  setOutsideAgentSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+export function scheduleExistingCliSkillsAcceptance(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string },
+): void {
+  void acceptWhenPrimaryHostHasCliSkills(deps, args).catch((error) => {
+    deps.logger.warn(
+      { hostId: args.hostId, err: error },
+      "Could not check the primary machine for existing Patcher CLI skills",
+    );
+  });
+}
+
+/**
  * The person's answer to the launch-time question (#141).
  *
  * `accept` records the answer **before** installing. An install can fail — the

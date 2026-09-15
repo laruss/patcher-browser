@@ -213,5 +213,9 @@ function getServerReconnectInvalidationQueryKeys(): QueryKey[] {
     // Held in the server's memory, so a restart empties it and no event says
     // so: without this a window keeps showing a question nobody can answer.
     browserAccessRequestsQueryKey(),
+    // Settings, experiments and the launch-time answer (#141) change through
+    // `config-changed`, which a disconnected window misses — and a stale
+    // `unasked` would keep a question up that another window already answered.
+    systemConfigQueryKey(),
   ];
 }

@@ -14,6 +14,35 @@ import {
 } from "../helpers/host-rpc.js";
 import { seedHost, seedHostSession, seedPrimaryHost } from "../helpers/seed.js";
 import { withTestHarness, type TestAppHarness } from "../helpers/test-app.js";
+import { acceptWhenPrimaryHostHasCliSkills } from "../../src/services/skills/global-skill-install.js";
+
+/** A machine that answers the status read with one copy of `patcher-cli`. */
+function respondWithSkillStatus(
+  harness: TestAppHarness,
+  hostId: string,
+  sessionId: string,
+  treeHash: string | null,
+) {
+  return registerHostRpcResponder(harness, {
+    hostId,
+    sessionId,
+    handle: (request) => {
+      expect(request.command.type).toBe("host.global_skills_status");
+      return {
+        ok: true,
+        result: {
+          entries: [
+            {
+              name: "patcher-cli",
+              path: `/home/${hostId}/.agents/skills/patcher-cli`,
+              treeHash,
+            },
+          ],
+        },
+      };
+    },
+  });
+}
 
 /**
  * The launch-time question about installing Patcher's skills for agents
@@ -185,6 +214,28 @@ describe("the question about agents outside Patcher", () => {
     });
   });
 
+  it("keeps the yes when the install cannot start at all", async () => {
+    await withTestHarness(async (harness) => {
+      // No built-in skill on this server, so the install refuses before any
+      // machine is asked — after the answer was recorded.
+      const { host, session } = seedHostSession(harness.deps);
+      seedPrimaryHost(harness.deps, host.id);
+      const responder = registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: () => INSTALLED,
+      });
+
+      const response = await harness.app.request(
+        postJson("/system/cli-skills/setup", { answer: "accept" }),
+      );
+
+      expect(response.status).toBe(500);
+      expect(responder.requests).toHaveLength(0);
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
+    });
+  });
+
   it("records nothing when there is no machine to install on", async () => {
     await withTestHarness(async (harness) => {
       const response = await harness.app.request(
@@ -227,6 +278,75 @@ describe("the question about agents outside Patcher", () => {
         postJson("/system/cli-skills/install", { hostIds: ["host-laptop"] }),
       );
       expect(changes).toEqual(["config-changed"]);
+    });
+  });
+
+  it("is answered yes for an install whose primary machine already has a copy", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const { host, session } = seedHostSession(harness.deps);
+      seedPrimaryHost(harness.deps, host.id);
+      respondWithSkillStatus(harness, host.id, session.id, "b".repeat(64));
+      const changes = recordSystemChanges(harness);
+
+      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+        hostId: host.id,
+      });
+
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
+      expect(changes).toEqual(["config-changed"]);
+    });
+  });
+
+  it("stays open when the primary machine has no copy", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const { host, session } = seedHostSession(harness.deps);
+      seedPrimaryHost(harness.deps, host.id);
+      respondWithSkillStatus(harness, host.id, session.id, null);
+      const changes = recordSystemChanges(harness);
+
+      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+        hostId: host.id,
+      });
+
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
+      expect(changes).toEqual([]);
+    });
+  });
+
+  it("asks no machine once answered, and no machine but the primary", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
+      const studio = seedHostSession(harness.deps, { id: "host-studio" });
+      seedPrimaryHost(harness.deps, laptop.host.id);
+      const laptopResponder = respondWithSkillStatus(
+        harness,
+        laptop.host.id,
+        laptop.session.id,
+        "b".repeat(64),
+      );
+      const studioResponder = respondWithSkillStatus(
+        harness,
+        studio.host.id,
+        studio.session.id,
+        "b".repeat(64),
+      );
+
+      setOutsideAgentSetup(harness.deps.db, "declined");
+      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+        hostId: laptop.host.id,
+      });
+      expect(laptopResponder.requests).toHaveLength(0);
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("declined");
+
+      setOutsideAgentSetup(harness.deps.db, "unasked");
+      await acceptWhenPrimaryHostHasCliSkills(harness.deps, {
+        hostId: studio.host.id,
+      });
+      expect(studioResponder.requests).toHaveLength(0);
+      expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
     });
   });
 

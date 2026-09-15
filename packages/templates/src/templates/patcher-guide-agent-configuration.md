@@ -77,7 +77,7 @@ Skills (.patcher/skills/):
   Installing is refused from inside a Patcher thread: it writes into the user's
   home, outside the thread's sandbox, where every agent on the machine loads it.
   Ask the person to press Install in Settings → Skills or to run the command in
-  their own terminal. Patcher also asks once, when the app opens on a machine
-  with none of these skills, whether to install them there.
+  their own terminal. Patcher also asks once, when the app opens and its primary
+  machine has none of these skills, whether to install them there.
 
   Use the skill-creator skill to author and iterate on skills.

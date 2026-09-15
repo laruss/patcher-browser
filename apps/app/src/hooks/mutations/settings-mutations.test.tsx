@@ -13,11 +13,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { sdk } from "@/lib/sdk";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import {
+  systemCliSkillsQueryKey,
   systemConfigQueryKey,
   threadTimelineQueryKey,
   threadTimelineTurnSummaryDetailsQueryKey,
 } from "../queries/query-keys";
 import {
+  useSetupCliSkills,
   useUpdateGeneralSettings,
   useUpdateKeyboardSettings,
 } from "./settings-mutations";
@@ -26,6 +28,7 @@ vi.mock("@/lib/sdk", () => {
   return {
     sdk: {
       system: {
+        setupCliSkills: vi.fn(),
         updateGeneralSettings: vi.fn(),
         updateKeyboardSettings: vi.fn(),
       },
@@ -104,6 +107,34 @@ describe("general settings mutation", () => {
     expect(queryClient.getQueryState(configKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(timelineKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("CLI skills setup mutation", () => {
+  it("refreshes the config and every read of the skills' state, whichever machines it asked", async () => {
+    const { queryClient, wrapper } = createQueryClientTestHarness();
+    const configKey = systemConfigQueryKey();
+    const everyMachineKey = systemCliSkillsQueryKey();
+    const primaryMachineKey = systemCliSkillsQueryKey(["host-1"]);
+    queryClient.setQueryData(configKey, systemConfig());
+    queryClient.setQueryData(everyMachineKey, { machines: [] });
+    queryClient.setQueryData(primaryMachineKey, { machines: [] });
+    vi.mocked(sdk.system.setupCliSkills).mockResolvedValue({
+      outsideAgentSetup: "declined",
+      install: null,
+    });
+    const { result } = renderHook(() => useSetupCliSkills(), { wrapper });
+
+    act(() => result.current.mutate({ answer: "decline" }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(queryClient.getQueryState(configKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(everyMachineKey)?.isInvalidated).toBe(
+      true,
+    );
+    expect(queryClient.getQueryState(primaryMachineKey)?.isInvalidated).toBe(
+      true,
+    );
   });
 });
 

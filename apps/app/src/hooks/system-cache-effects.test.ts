@@ -8,6 +8,7 @@ import {
   environmentDiffPatchQueryKey,
   hostsQueryKey,
   sidebarNavigationQueryKey,
+  systemConfigQueryKey,
   systemProvidersQueryKey,
   systemExecutionOptionsQueryKey,
   systemVersionQueryKey,
@@ -234,6 +235,19 @@ describe("system cache effects", () => {
     queryClient.setQueryData(requestsKey, { requests: [] });
     invalidateRealtimeQueriesAfterServerReconnect({ queryClient });
     expect(queryClient.getQueryState(requestsKey)?.isInvalidated).toBe(true);
+  });
+
+  // Settings and the launch-time answer (#141) arrive as `config-changed`,
+  // which a disconnected window never hears: a stale `unasked` would keep a
+  // question up that another window already answered.
+  it("re-reads the system config after reconnect", () => {
+    const queryClient = createCacheEffectQueryClient();
+    const configKey = systemConfigQueryKey();
+    queryClient.setQueryData(configKey, { outsideAgentSetup: "unasked" });
+
+    invalidateRealtimeQueriesAfterServerReconnect({ queryClient });
+
+    expect(queryClient.getQueryState(configKey)?.isInvalidated).toBe(true);
   });
 
   it("refetches active thread bundle queries together after reconnect", async () => {

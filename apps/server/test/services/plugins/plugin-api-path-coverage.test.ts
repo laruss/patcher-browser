@@ -85,6 +85,20 @@ describe("every mounted API path is classified", () => {
     expect(permissionsForApiPath("/system/cli-skills")).toEqual(["workspace"]);
   });
 
+  it("refuses every route mounted under /system/cli-skills/ to plugins, including the next one", () => {
+    // A turn is refused that whole prefix. Plugins are priced by named routes,
+    // so a write added under it would otherwise cost `workspace` via `/system`
+    // and pass the classification check above.
+    const underPrefix = paths.filter((path) =>
+      path.startsWith("/api/v1/system/cli-skills/"),
+    );
+
+    expect(underPrefix.length).toBeGreaterThanOrEqual(2);
+    expect(
+      underPrefix.filter((path) => permissionsForApiPath(path) !== null),
+    ).toEqual([]);
+  });
+
   // The two that cross areas — a path saying "workspace" while the effect is
   // on threads is exactly what a per-prefix map gets wrong by default.
   it("charges the cross-area routes both prices", () => {

@@ -117,12 +117,15 @@ export function OnboardingHost() {
   const primaryCliSkillsStatus = primaryCliSkillsQuery.data?.machines.find(
     (machine) => machine.hostId === primaryHostId,
   )?.status;
-  // `isSuccess` hides it the moment the answer lands, before the config
-  // refetch that makes the answer permanent has come back.
+  // Kept up while the answer is being sent: the server records it and says
+  // `config-changed` before an accept's install has run, so the config refetch
+  // lands first and would take the question away mid-install. `isSuccess`
+  // keeps it away once the answer has landed, whatever the caches say.
   const showOutsideAgentSetup =
-    mayAskOutsideAgentSetup &&
-    primaryCliSkillsStatus === "missing" &&
-    !setupCliSkills.isSuccess;
+    setupCliSkills.isPending ||
+    (mayAskOutsideAgentSetup &&
+      primaryCliSkillsStatus === "missing" &&
+      !setupCliSkills.isSuccess);
 
   const projects = navigationQuery.data?.projects;
 
