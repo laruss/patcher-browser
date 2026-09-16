@@ -156,6 +156,64 @@ function standInMachine(
   });
 }
 
+/**
+ * A daemon over one home, answering as `installGlobalSkills` would: each
+ * install applies to both roots, and a conditional one skips a copy that does
+ * not hold its condition, adopts one that already holds the tree, and writes
+ * only where the record says this install put that condition there. `home` is
+ * what is on disk by path, `record` what this install recorded.
+ */
+function daemonOverHome(
+  home: Map<string, string>,
+  record: Map<string, string>,
+): (request: HostDaemonOnlineRpcRequestMessage) => HostRpcHandlerResult {
+  const pathsOf = (name: string) =>
+    ROOT_PATHS.map((path) => path.replace("patcher-cli", name));
+  return (request) => {
+    const { command } = request;
+    if (command.type === "host.global_skills_status") {
+      return {
+        ok: true,
+        result: {
+          entries: command.names.flatMap((name) =>
+            pathsOf(name).map((path) => ({
+              name,
+              path,
+              treeHash: home.get(path) ?? null,
+              installedTreeHash: record.get(path) ?? null,
+            })),
+          ),
+        },
+      };
+    }
+    if (command.type !== "host.install_global_skills") {
+      throw new Error(`Unexpected command ${command.type}`);
+    }
+    const installations = command.skills.flatMap((skill) =>
+      pathsOf(skill.name).map((path) => {
+        const expected = skill.replaceOnlyIfTreeHash;
+        const onDisk = home.get(path);
+        const outcome =
+          expected === undefined
+            ? ("written" as const)
+            : onDisk !== expected
+              ? ("skipped" as const)
+              : onDisk === skill.treeHash
+                ? ("adopted" as const)
+                : record.get(path) === onDisk
+                  ? ("written" as const)
+                  : ("skipped" as const);
+        if (outcome !== "skipped") {
+          home.set(path, skill.treeHash);
+          record.set(path, skill.treeHash);
+        }
+        return { name: skill.name, path, outcome };
+      }),
+    );
+    return { ok: true, result: { installations } };
+  };
+}
+
 async function readUpdates(harness: TestAppHarness) {
   const response = await harness.app.request("/api/v1/system/config");
   return systemConfigResponseSchema.parse(await readJson(response))
@@ -265,6 +323,7 @@ describe("a machine connecting", () => {
           hostId: host.id,
           hostName: host.name,
           skills: ["patcher-cli"],
+          skippedCopies: [],
           at: expect.any(Number),
         },
       ]);
@@ -450,6 +509,108 @@ describe("a machine connecting", () => {
     });
   });
 
+  it("names the copy an update left as it was, beside the one it updated", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      setOutsideAgentSetup(harness.deps.db, "accepted");
+      const [agentsPath, claudePath] = ROOT_PATHS;
+      const { host, session } = seedHostSession(harness.deps);
+      sessionIdByHostId.set(host.id, session.id);
+      registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: daemonOverHome(
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, EDITED],
+          ]),
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, OLDER],
+          ]),
+        ),
+      });
+
+      await connect(harness.deps, host.id);
+
+      expect(await readUpdates(harness)).toEqual([
+        {
+          hostId: host.id,
+          hostName: host.name,
+          skills: ["patcher-cli"],
+          skippedCopies: [claudePath],
+          at: expect.any(Number),
+        },
+      ]);
+    });
+  });
+
+  // The daemon skips every copy that does not hold an install's condition, and
+  // each install is applied to both roots — so it also skips copies that were
+  // not left behind at all.
+  it("names no copy that was absent, already current, or updated by another install in the same run", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      setOutsideAgentSetup(harness.deps.db, "accepted");
+      const current = currentTreeHash(harness);
+      const [agentsPath, claudePath] = ROOT_PATHS;
+      const machines: Record<
+        string,
+        [Map<string, string>, Map<string, string>]
+      > = {
+        "host-absent": [
+          new Map([[agentsPath, OLDER]]),
+          new Map([[agentsPath, OLDER]]),
+        ],
+        "host-current": [
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, current],
+          ]),
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, current],
+          ]),
+        ],
+        "host-two-trees": [
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, OTHER_OLDER],
+          ]),
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, OTHER_OLDER],
+          ]),
+        ],
+        "host-adopted": [
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, current],
+          ]),
+          new Map([[agentsPath, OLDER]]),
+        ],
+      };
+      for (const [id, [home, record]] of Object.entries(machines)) {
+        const { host, session } = seedHostSession(harness.deps, { id });
+        sessionIdByHostId.set(host.id, session.id);
+        registerHostRpcResponder(harness, {
+          hostId: host.id,
+          sessionId: session.id,
+          handle: daemonOverHome(home, record),
+        });
+        await connect(harness.deps, host.id);
+      }
+
+      const updates = await readUpdates(harness);
+      expect(updates.map((update) => update.hostId).sort()).toEqual(
+        Object.keys(machines).sort(),
+      );
+      expect(updates.map((update) => update.skippedCopies)).toEqual(
+        updates.map(() => []),
+      );
+    });
+  });
+
   it("keeps the latest update per machine, each later than any before it", async () => {
     await withTestHarness(async (harness) => {
       await writeBuiltinCliSkill(harness);
@@ -532,45 +693,7 @@ describe("a release and a source checkout sharing one home", () => {
           const responder = registerHostRpcResponder(harness, {
             hostId: host.id,
             sessionId: session.id,
-            handle: (request) => {
-              const { command } = request;
-              if (command.type === "host.global_skills_status") {
-                return {
-                  ok: true,
-                  result: {
-                    entries: ROOT_PATHS.map((path) => ({
-                      name: "patcher-cli",
-                      path,
-                      treeHash: home.get(path) ?? null,
-                      installedTreeHash: record.get(path) ?? null,
-                    })),
-                  },
-                };
-              }
-              if (command.type !== "host.install_global_skills") {
-                throw new Error(`Unexpected command ${command.type}`);
-              }
-              const installations = command.skills.flatMap((skill) =>
-                ROOT_PATHS.map((path) => {
-                  const expected = skill.replaceOnlyIfTreeHash;
-                  if (expected !== undefined && home.get(path) !== expected) {
-                    return {
-                      name: skill.name,
-                      path,
-                      outcome: "skipped" as const,
-                    };
-                  }
-                  const outcome =
-                    expected === skill.treeHash
-                      ? ("adopted" as const)
-                      : ("written" as const);
-                  home.set(path, skill.treeHash);
-                  record.set(path, skill.treeHash);
-                  return { name: skill.name, path, outcome };
-                }),
-              );
-              return { ok: true, result: { installations } };
-            },
+            handle: daemonOverHome(home, record),
           });
           return { harness, hostId: host.id, responder };
         });

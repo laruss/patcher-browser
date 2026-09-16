@@ -10,12 +10,28 @@ vi.mock("@/components/ui/app-toast", () => ({
   appToast: { success: mocks.success },
 }));
 
-function notice(hostName: string, at: number): CliSkillsUpdateNotice {
-  return { hostId: `host-${hostName}`, hostName, skills: ["patcher-cli"], at };
+function notice(
+  hostName: string,
+  at: number,
+  skippedCopies: string[] = [],
+): CliSkillsUpdateNotice {
+  return {
+    hostId: `host-${hostName}`,
+    hostName,
+    skills: ["patcher-cli"],
+    skippedCopies,
+    at,
+  };
 }
 
+/** Each toast as its title, and its description when it has one. */
 function toasts(): string[] {
-  return mocks.success.mock.calls.map(([title]) => String(title));
+  return mocks.success.mock.calls.map(([title, options]) =>
+    [title, (options as { description?: unknown } | undefined)?.description]
+      .filter((part) => part !== undefined)
+      .map(String)
+      .join(" | "),
+  );
 }
 
 type Props = Parameters<typeof useCliSkillsUpdateToast>[0];
@@ -45,6 +61,24 @@ describe("the note that the skills for agents outside Patcher were updated", () 
 
     expect(toasts()).toEqual([
       "Updated the Patcher skills for agents outside Patcher on Laptop",
+    ]);
+  });
+
+  it("names the copies it left as they were, under the same line", () => {
+    renderToast({
+      notices: [
+        notice("Laptop", 10, ["/home/u/.claude/skills/patcher-cli"]),
+        notice("Studio", 20, [
+          "/home/u/.claude/skills/patcher-cli",
+          "/home/u/.claude/skills/patcher-plugin-authoring",
+        ]),
+      ],
+      paused: false,
+    });
+
+    expect(toasts()).toEqual([
+      "Updated the Patcher skills for agents outside Patcher on Laptop | Left /home/u/.claude/skills/patcher-cli as it was; Install in Settings → Skills replaces it.",
+      "Updated the Patcher skills for agents outside Patcher on Studio | Left /home/u/.claude/skills/patcher-cli, /home/u/.claude/skills/patcher-plugin-authoring as they were; Install in Settings → Skills replaces them.",
     ]);
   });
 

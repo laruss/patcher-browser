@@ -7567,6 +7567,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         hostId: z$1.ZodString;
         hostName: z$1.ZodString;
         skills: z$1.ZodArray<z$1.ZodString>;
+        skippedCopies: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
         at: z$1.ZodNumber;
     }, z$1.core.$strip>>>;
     cliSkillsOffer: z$1.ZodDefault<z$1.ZodNullable<z$1.ZodObject<{

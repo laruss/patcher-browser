@@ -268,6 +268,15 @@ export const systemConfigResponseSchema = z.object({
         hostId: z.string(),
         hostName: z.string(),
         skills: z.array(z.string()),
+        /**
+         * Copies of those skills the update left as they were, by path on that
+         * machine (#148): changed since this install wrote them, another
+         * install's, or lost to one mid-swap. Install in Settings replaces
+         * them. Defaulted for the desktop shell, which parses the config
+         * through this schema and may be attached to an older server; the
+         * window is served by the server that builds the notice.
+         */
+        skippedCopies: z.array(z.string()).default([]),
         at: z.number().int(),
       }),
     )
