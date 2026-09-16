@@ -33,7 +33,7 @@ describe("a daemon connecting", () => {
 
       expect(scheduleGlobalCliSkillsReconciliation).toHaveBeenCalledWith(
         harness.deps,
-        { hostId: host.id },
+        { hostId: host.id, sessionId: session.id },
       );
     });
   });

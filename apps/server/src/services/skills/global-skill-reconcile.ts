@@ -152,24 +152,25 @@ async function reconcileHost(
  * not only the primary: copies installed through the machine picker are
  * installed too, and the own-copy rule makes updating them safe everywhere.
  *
- * One at a time per machine, against reconnect storms. A connect that arrives
- * while a run against the machine's previous session is still going joins that
- * run; if it fails with the old session, this connect is not retried, and the
- * next one reconciles.
+ * One at a time per machine *session*, against reconnect storms. Keyed by the
+ * session rather than the machine because a reconnect replaces the session: the
+ * RPC of a run still out on the old socket is rejected when the new one
+ * registers, and joining that run would leave the machine that is now connected
+ * unreconciled until its next connect.
  */
 export function reconcileGlobalCliSkills(
   deps: GlobalSkillReconcileDeps,
-  args: { hostId: string },
+  args: { hostId: string; sessionId: string },
 ): Promise<void> {
   return deps.lifecycleDedupers.globalCliSkillsReconciliation.run(
-    args.hostId,
+    `${args.hostId}:${args.sessionId}`,
     () => reconcileHost(deps, args.hostId),
   );
 }
 
 export function scheduleGlobalCliSkillsReconciliation(
   deps: GlobalSkillReconcileDeps,
-  args: { hostId: string },
+  args: { hostId: string; sessionId: string },
 ): void {
   void reconcileGlobalCliSkills(deps, args).catch((error: unknown) => {
     deps.logger.warn(

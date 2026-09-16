@@ -29,6 +29,7 @@ function respondWithSkillStatus(
   sessionId: string,
   treeHash: string | null,
 ) {
+  sessionIdByHostId.set(hostId, sessionId);
   return registerHostRpcResponder(harness, {
     hostId,
     sessionId,
@@ -48,6 +49,17 @@ function respondWithSkillStatus(
         },
       };
     },
+  });
+}
+
+/** The session each machine answers on; a machine with no daemon has none. */
+const sessionIdByHostId = new Map<string, string>();
+
+/** A connect of the machine's current session, the way `onDaemonSocketOpen` starts one. */
+function connect(deps: TestAppHarness["deps"], hostId: string): Promise<void> {
+  return reconcileGlobalCliSkills(deps, {
+    hostId,
+    sessionId: sessionIdByHostId.get(hostId) ?? "session-gone",
   });
 }
 
@@ -321,9 +333,7 @@ describe("the question about agents outside Patcher", () => {
       respondWithSkillStatus(harness, host.id, session.id, "b".repeat(64));
       const changes = recordSystemChanges(harness);
 
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: host.id,
-      });
+      await connect(harness.deps, host.id);
 
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
       expect(changes).toEqual(["config-changed"]);
@@ -338,9 +348,7 @@ describe("the question about agents outside Patcher", () => {
       respondWithSkillStatus(harness, host.id, session.id, null);
       const changes = recordSystemChanges(harness);
 
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: host.id,
-      });
+      await connect(harness.deps, host.id);
 
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
       expect(changes).toEqual([]);
@@ -369,16 +377,12 @@ describe("the question about agents outside Patcher", () => {
       // Every connect reads its machine now, to keep the copies current (#142);
       // the read answers the question only for the primary, and only once.
       setOutsideAgentSetup(harness.deps.db, "declined");
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: laptop.host.id,
-      });
+      await connect(harness.deps, laptop.host.id);
       expect(laptopResponder.requests).toHaveLength(1);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("declined");
 
       setOutsideAgentSetup(harness.deps.db, "unasked");
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: studio.host.id,
-      });
+      await connect(harness.deps, studio.host.id);
       expect(studioResponder.requests).toHaveLength(1);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("unasked");
     });
@@ -413,9 +417,7 @@ describe("the question about agents outside Patcher", () => {
       const host = seedHost(harness.deps, { id: "host-offline" });
       seedPrimaryHost(harness.deps, host.id);
 
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: host.id,
-      });
+      await connect(harness.deps, host.id);
       await harness.app.request(
         "/api/v1/system/cli-skills?hostIds=host-offline",
       );

@@ -96,6 +96,17 @@ function sentInstalls(responder: HostRpcResponder): HostInstallGlobalSkill[][] {
   );
 }
 
+/** The session each stand-in machine answers on, as a connect would name it. */
+const sessionIdByHostId = new Map<string, string>();
+
+/** A connect of the machine's current session, the way `onDaemonSocketOpen` starts one. */
+function connect(deps: TestAppHarness["deps"], hostId: string): Promise<void> {
+  return reconcileGlobalCliSkills(deps, {
+    hostId,
+    sessionId: sessionIdByHostId.get(hostId) ?? "session-gone",
+  });
+}
+
 function commandTypes(responder: HostRpcResponder): string[] {
   return responder.requests.map((request) => request.command.type);
 }
@@ -128,6 +139,7 @@ function standInMachine(
     status?: "fails";
   },
 ): HostRpcResponder {
+  sessionIdByHostId.set(args.hostId, args.sessionId);
   return registerHostRpcResponder(harness, {
     hostId: args.hostId,
     sessionId: args.sessionId,
@@ -232,7 +244,7 @@ describe("a machine connecting", () => {
       });
       const changes = recordSystemChanges(harness);
 
-      await reconcileGlobalCliSkills(harness.deps, { hostId: host.id });
+      await connect(harness.deps, host.id);
 
       expect(commandTypes(machine)).toEqual([
         "host.global_skills_status",
@@ -285,7 +297,7 @@ describe("a machine connecting", () => {
       const changes = recordSystemChanges(harness);
 
       for (const { hostId } of machines) {
-        await reconcileGlobalCliSkills(harness.deps, { hostId });
+        await connect(harness.deps, hostId);
       }
 
       for (const { responder } of machines) {
@@ -308,13 +320,40 @@ describe("a machine connecting", () => {
         entries: copies([OLDER, OLDER], [OLDER, OLDER]),
       });
 
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: studio.host.id,
-      });
+      await connect(harness.deps, studio.host.id);
 
       expect(sentInstalls(studioMachine)).toHaveLength(1);
       expect((await readUpdates(harness)).map((u) => u.hostId)).toEqual([
         "host-studio",
+      ]);
+    });
+  });
+
+  // A reconnect replaces the session, and a run still out on the old socket is
+  // rejected when the new one registers — so the machine that is connected now
+  // would never be reconciled if the new connect joined that run.
+  it("reads the machine again when it comes back on a new session", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinCliSkill(harness);
+      const { host, session } = seedHostSession(harness.deps);
+      const machine = standInMachine(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        entries: copies([null, null], [null, null]),
+      });
+
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: host.id,
+        sessionId: "session-one",
+      });
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: host.id,
+        sessionId: "session-two",
+      });
+
+      expect(commandTypes(machine)).toEqual([
+        "host.global_skills_status",
+        "host.global_skills_status",
       ]);
     });
   });
@@ -330,8 +369,8 @@ describe("a machine connecting", () => {
       });
 
       await Promise.all([
-        reconcileGlobalCliSkills(harness.deps, { hostId: host.id }),
-        reconcileGlobalCliSkills(harness.deps, { hostId: host.id }),
+        connect(harness.deps, host.id),
+        connect(harness.deps, host.id),
       ]);
 
       expect(commandTypes(machine)).toEqual(["host.global_skills_status"]);
@@ -358,12 +397,8 @@ describe("a machine connecting", () => {
       });
       const changes = recordSystemChanges(harness);
 
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: unreadable.host.id,
-      });
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: failing.host.id,
-      });
+      await connect(harness.deps, unreadable.host.id);
+      await connect(harness.deps, failing.host.id);
 
       expect(commandTypes(unreadableMachine)).toEqual([
         "host.global_skills_status",
@@ -395,10 +430,8 @@ describe("a machine connecting", () => {
       });
       const changes = recordSystemChanges(harness);
 
-      await reconcileGlobalCliSkills(harness.deps, { hostId: raced.host.id });
-      await reconcileGlobalCliSkills(harness.deps, {
-        hostId: adopted.host.id,
-      });
+      await connect(harness.deps, raced.host.id);
+      await connect(harness.deps, adopted.host.id);
 
       expect(
         sentInstalls(adoptedMachine).map((skills) =>
@@ -421,7 +454,7 @@ describe("a machine connecting", () => {
           sessionId: session.id,
           entries: copies([OLDER, OLDER], [OLDER, OLDER]),
         });
-        await reconcileGlobalCliSkills(harness.deps, { hostId: host.id });
+        await connect(harness.deps, host.id);
       }
 
       const updates = await readUpdates(harness);
@@ -458,7 +491,7 @@ describe("a machine connecting", () => {
           ),
         });
 
-        await reconcileGlobalCliSkills(harness.deps, { hostId: host.id });
+        await connect(harness.deps, host.id);
 
         expect(sentInstalls(machine)).toEqual([
           skills.map((skill) => ({ ...skill, replaceOnlyIfTreeHash: OLDER })),
@@ -488,6 +521,7 @@ describe("a release and a source checkout sharing one home", () => {
         ].map(({ harness, id }) => {
           const record = new Map<string, string>();
           const { host, session } = seedHostSession(harness.deps, { id });
+          sessionIdByHostId.set(host.id, session.id);
           const responder = registerHostRpcResponder(harness, {
             hostId: host.id,
             sessionId: session.id,
@@ -544,10 +578,8 @@ describe("a release and a source checkout sharing one home", () => {
               body: JSON.stringify({ hostIds: [machine.hostId] }),
             }),
           );
-        const connect = (machine: typeof releaseMachine) =>
-          reconcileGlobalCliSkills(machine.harness.deps, {
-            hostId: machine.hostId,
-          });
+        const connectMachine = (machine: typeof releaseMachine) =>
+          connect(machine.harness.deps, machine.hostId);
         const installsSent = () =>
           [releaseMachine, checkoutMachine].map(
             (machine) => sentInstalls(machine.responder).length,
@@ -555,15 +587,15 @@ describe("a release and a source checkout sharing one home", () => {
 
         await pressInstall(releaseMachine);
         for (let round = 0; round < 3; round += 1) {
-          await connect(checkoutMachine);
-          await connect(releaseMachine);
+          await connectMachine(checkoutMachine);
+          await connectMachine(releaseMachine);
         }
         expect(installsSent()).toEqual([1, 0]);
 
         await pressInstall(checkoutMachine);
         for (let round = 0; round < 3; round += 1) {
-          await connect(releaseMachine);
-          await connect(checkoutMachine);
+          await connectMachine(releaseMachine);
+          await connectMachine(checkoutMachine);
         }
         expect(installsSent()).toEqual([1, 1]);
         expect(await readUpdates(release)).toEqual([]);

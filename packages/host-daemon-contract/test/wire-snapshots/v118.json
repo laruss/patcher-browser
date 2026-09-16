@@ -201,6 +201,7 @@
   "result workspace.squash_merge": "00270dc8a9a6429912cc2adb910ee78540ed6ce385b93ffcef9b28807e0dc8a4",
   "result workspace.status": "d1632bc119f4c74e311da7fef0dad0c461aa52dfc49cff3e81288652151f3673",
   "session.HOST_DAEMON_WEBSOCKET_PROTOCOL": "25d339b1840b1f318896007e7e4b0c61088041983a9b55c78138419152a727ff",
+  "session.SKILL_TREE_IGNORED_FILE_NAMES": "3590e80a90d569e07ff94f8972f227e401f0f7adeadfcb92f41f0e9439de889e",
   "session.hostDaemonActiveThreadSchema": "6dd22eee7faabcd53baa5309b5deaf64d164812563c53ba59a0c22f909a165ec",
   "session.hostDaemonDaemonWsMessageSchema": "8cf7f4c891f59db5cec0faeebec7cbaca76f996ef85caf3a8346d3bc515a2397",
   "session.hostDaemonEgressHostConsentRequestSchema": "433cf6f7c57a969926c0e9276d6aeeacf09b5f440cfa61c3cb48bd5507936d9c",

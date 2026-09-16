@@ -96,7 +96,10 @@ export function onDaemonSocketOpen(
   schedulePrimaryHostCaffeinateReconciliation(deps, {
     reason: "daemon-open",
   });
-  scheduleGlobalCliSkillsReconciliation(deps, { hostId: args.hostId });
+  scheduleGlobalCliSkillsReconciliation(deps, {
+    hostId: args.hostId,
+    sessionId: args.sessionId,
+  });
 }
 
 export function onDaemonSocketMessage(

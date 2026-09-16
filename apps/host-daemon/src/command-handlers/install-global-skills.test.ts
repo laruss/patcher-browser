@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import fsPromises from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostDaemonSkillTree } from "@patcher/host-daemon-contract";
 import {
@@ -20,6 +21,7 @@ import {
 const tempDirs: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })),
   );
@@ -634,6 +636,86 @@ describe("a conditional install", () => {
       "skipped",
     ]);
     expect(fetchSkillTree).not.toHaveBeenCalled();
+  });
+
+  // Two daemons over one home cannot share a lock, and a swap is a remove and
+  // a rename. Losing that race must leave the other install's copy alone and
+  // record nothing, rather than claim a copy this install no longer owns.
+  it("reports nothing replaced when another install swaps the same copy first", async () => {
+    const dataDir = await makeTempDir();
+    const homeDir = await makeTempDir();
+    const previous = createTreePayload("patcher-cli", "previous");
+    const next = createTreePayload("patcher-cli", "next");
+    const fetchSkillTree = fetchFrom(previous, next);
+    await installGlobalSkills(
+      installCommand([{ name: "patcher-cli", payload: previous }]),
+      { dataDir, fetchSkillTree, homeDir },
+    );
+    // The other install's copy lands first: this one's removal has nothing of
+    // its own to take, and its rename has nowhere to land.
+    vi.spyOn(fsPromises, "rm").mockImplementation(async (target, options) => {
+      if (String(target) === copyPaths(homeDir).agents) return;
+      await rm(target as string, options);
+    });
+
+    const result = await installGlobalSkills(
+      installCommand([
+        {
+          name: "patcher-cli",
+          payload: next,
+          replaceOnlyIfTreeHash: previous.treeHash,
+        },
+      ]),
+      { dataDir, fetchSkillTree, homeDir },
+    );
+
+    expect(result.installations[0]?.outcome).toBe("skipped");
+    await expect(
+      readFile(path.join(copyPaths(homeDir).agents, "SKILL.md"), "utf8"),
+    ).resolves.toContain("previous");
+    const status = await readGlobalSkillsStatus(statusCommand(), {
+      dataDir,
+      homeDir,
+    });
+    expect(status.entries[0]?.installedTreeHash).toBe(previous.treeHash);
+  });
+
+  it("records nothing when the copy is not this tree once the swap settles", async () => {
+    const dataDir = await makeTempDir();
+    const homeDir = await makeTempDir();
+    const previous = createTreePayload("patcher-cli", "previous");
+    const next = createTreePayload("patcher-cli", "next");
+    const fetchSkillTree = fetchFrom(previous, next);
+    await installGlobalSkills(
+      installCommand([{ name: "patcher-cli", payload: previous }]),
+      { dataDir, fetchSkillTree, homeDir },
+    );
+    const theirs = "---\nname: patcher-cli\ndescription: Theirs.\n---\n";
+    const realRename = fsPromises.rename.bind(fsPromises);
+    vi.spyOn(fsPromises, "rename").mockImplementation(async (from, to) => {
+      await realRename(from, to);
+      if (String(to) === copyPaths(homeDir).agents) {
+        await writeFile(path.join(String(to), "SKILL.md"), theirs);
+      }
+    });
+
+    const result = await installGlobalSkills(
+      installCommand([
+        {
+          name: "patcher-cli",
+          payload: next,
+          replaceOnlyIfTreeHash: previous.treeHash,
+        },
+      ]),
+      { dataDir, fetchSkillTree, homeDir },
+    );
+
+    expect(result.installations[0]?.outcome).toBe("skipped");
+    const status = await readGlobalSkillsStatus(statusCommand(), {
+      dataDir,
+      homeDir,
+    });
+    expect(status.entries[0]?.installedTreeHash).toBe(previous.treeHash);
   });
 
   it("adopts a copy that already holds the tree, without fetching or rewriting it", async () => {

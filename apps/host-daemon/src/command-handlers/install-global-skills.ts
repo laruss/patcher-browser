@@ -229,7 +229,13 @@ export async function readGlobalSkillsStatus(
  *
  * With `replaceOnlyIfTreeHash`, the copy is hashed again after staging, right
  * before it would be removed, so the window in which a change can slip past the
- * check does not include the copy itself. Returns whether it replaced anything.
+ * check does not include the copy itself. What remains of that window is the
+ * swap itself, which no two processes can share a lock for: a release and a
+ * source checkout are two daemons over one home, and each swap is a remove and
+ * a rename. So the conditional swap loses gracefully — a failed rename, or a
+ * copy that is not this tree once the dust settles, reports that nothing was
+ * replaced instead of recording a copy the other install now owns. Returns
+ * whether it replaced anything.
  */
 async function replaceSkillDirectory(args: {
   destinationPath: string;
@@ -237,6 +243,7 @@ async function replaceSkillDirectory(args: {
   replaceOnlyIfTreeHash: string | undefined;
   skillFilePath: string;
   sourceRootPath: string;
+  treeHash: string;
 }): Promise<boolean> {
   const parentPath = path.dirname(args.destinationPath);
   await fs.mkdir(parentPath, { recursive: true });
@@ -251,18 +258,28 @@ async function replaceSkillDirectory(args: {
       skillFilePath: args.skillFilePath,
       sourceRootPath: args.sourceRootPath,
     });
-    if (
-      args.replaceOnlyIfTreeHash !== undefined &&
-      (await hashInstalledSkillDirectory({
+    const installedTreeHash = async () =>
+      hashInstalledSkillDirectory({
         name: args.name,
         skillDirectoryPath: args.destinationPath,
-      })) !== args.replaceOnlyIfTreeHash
-    ) {
+      });
+    if (args.replaceOnlyIfTreeHash === undefined) {
+      await fs.rm(args.destinationPath, { force: true, recursive: true });
+      await fs.rename(stagingPath, args.destinationPath);
+      return true;
+    }
+    if ((await installedTreeHash()) !== args.replaceOnlyIfTreeHash) {
       return false;
     }
-    await fs.rm(args.destinationPath, { force: true, recursive: true });
-    await fs.rename(stagingPath, args.destinationPath);
-    return true;
+    try {
+      await fs.rm(args.destinationPath, { force: true, recursive: true });
+      await fs.rename(stagingPath, args.destinationPath);
+    } catch {
+      // Another install swapped the same copy in the meantime, so the rename
+      // has nowhere to land or lands on what they wrote.
+      return false;
+    }
+    return (await installedTreeHash()) === args.treeHash;
   } finally {
     await fs.rm(stagingPath, { force: true, recursive: true });
   }
@@ -373,6 +390,7 @@ export async function installGlobalSkills(
               destinationPath,
               name: skill.name,
               replaceOnlyIfTreeHash: skill.replaceOnlyIfTreeHash,
+              treeHash: skill.treeHash,
               ...source,
             });
             outcome = replaced ? "written" : "skipped";
