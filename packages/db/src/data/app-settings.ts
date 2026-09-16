@@ -3,6 +3,8 @@ import {
   appKeybindingOverridesSchema,
   browserExternalAccessLevelSchema,
   defaultAppSettings,
+  cliSkillsAnsweredSchema,
+  type CliSkillsAnswered,
   outsideAgentSetupAnswerSchema,
   providerEgressAllowedHostsSchema,
   type AppKeybindingOverrides,
@@ -164,6 +166,44 @@ export function setOutsideAgentSetup(
     .onConflictDoUpdate({
       target: appSettings.id,
       set: { outsideAgentSetup: answer, updatedAt },
+    })
+    .run();
+}
+
+/**
+ * The answers to skills for agents outside Patcher that shipped after the first
+ * yes (#142), by skill name. No row, or text nobody can parse, reads as no
+ * answers: the question comes back, which is the safe direction — the other one
+ * silently never offers a skill again.
+ */
+export function getAnsweredCliSkills(db: DbConnection): CliSkillsAnswered {
+  const row = db
+    .select({ cliSkillsAnswered: appSettings.cliSkillsAnswered })
+    .from(appSettings)
+    .where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
+    .get();
+  if (row === undefined) return {};
+  let stored: unknown;
+  try {
+    stored = JSON.parse(row.cliSkillsAnswered);
+  } catch {
+    return {};
+  }
+  const parsed = cliSkillsAnsweredSchema.safeParse(stored);
+  return parsed.success ? parsed.data : {};
+}
+
+export function setAnsweredCliSkills(
+  db: DbConnection,
+  answered: CliSkillsAnswered,
+): void {
+  const updatedAt = Date.now();
+  const cliSkillsAnswered = JSON.stringify(answered);
+  db.insert(appSettings)
+    .values({ id: APP_SETTINGS_ROW_ID, cliSkillsAnswered, updatedAt })
+    .onConflictDoUpdate({
+      target: appSettings.id,
+      set: { cliSkillsAnswered, updatedAt },
     })
     .run();
 }

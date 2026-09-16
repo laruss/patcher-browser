@@ -184,3 +184,19 @@ export const outsideAgentSetupAnswerSchema = z.enum([
 export type OutsideAgentSetupAnswer = z.infer<
   typeof outsideAgentSetupAnswerSchema
 >;
+
+/**
+ * What the person answered about each skill for agents outside Patcher that
+ * shipped after they first said yes (#142), by skill name.
+ *
+ * A name is asked about once. `accepted` outlives the question: a machine that
+ * was offline when it was answered, or whose install failed, installs that
+ * skill when it next connects. `declined` is never asked again, and Settings →
+ * Skills is where somebody changes their mind. Its own column for the same
+ * reason as {@link outsideAgentSetupAnswerSchema}.
+ */
+export const cliSkillsAnsweredSchema = z.record(
+  z.string(),
+  z.enum(["accepted", "declined"]),
+);
+export type CliSkillsAnswered = z.infer<typeof cliSkillsAnsweredSchema>;

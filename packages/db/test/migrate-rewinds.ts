@@ -196,6 +196,17 @@ export function dropOutsideAgentSetupColumn(db: DbConnection): void {
   }
 }
 
+export function dropCliSkillsAnsweredColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(app_settings)")
+    .all();
+  if (columns.some((column) => column.name === "cli_skills_answered")) {
+    db.$client
+      .prepare("ALTER TABLE app_settings DROP COLUMN cli_skills_answered")
+      .run();
+  }
+}
+
 /**
  * Everything from 0101 on, which every rewind to an earlier checkpoint names
  * together. One call rather than one per migration at each site, because those
@@ -206,6 +217,7 @@ export function dropSchemaSince0101(db: DbConnection): void {
   dropBrowserExternalAccessColumn(db);
   dropBrowserAccessGrantsTable(db);
   dropOutsideAgentSetupColumn(db);
+  dropCliSkillsAnsweredColumn(db);
 }
 
 export function dropOnboardingCompletedAtColumn(db: DbConnection): void {
