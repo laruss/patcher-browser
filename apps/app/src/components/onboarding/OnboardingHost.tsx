@@ -191,9 +191,12 @@ export function OnboardingHost() {
       !showCliSkillsOffer &&
       primaryCliCommand?.state === "missing" &&
       !setupCliCommand.isSuccess);
+  // Only until the read first answers. Unlike #141's read, `unknown` is not
+  // retried: besides a daemon slow to answer, it is a login shell the daemon
+  // could not read, which lasts, and waiting on it would hold the note back —
+  // or poll that machine — for as long as the window is open.
   const mayStillAskCliCommandSetup =
-    mayAskCliCommandSetup &&
-    (primaryCliCommand === null || primaryCliCommand.state === "unknown");
+    mayAskCliCommandSetup && primaryCliCommandQuery.data === undefined;
   // The note that Patcher kept those skills current (#142) waits for whichever
   // of them is on screen to leave, rather than landing on top of it.
   useCliSkillsUpdateToast({

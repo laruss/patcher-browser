@@ -120,7 +120,8 @@ directory when it starts — `~/.patcher/bin/patcher` for the desktop app and an
 source checkout (`PATCHER_DATA_DIR` moves it).
 
 **Settings → Skills can place the bare command for you**, and the app
-offers it once at launch when it was never asked. It puts a `patcher`
+asks once at launch if you said yes to its skills but were never asked about
+the command. It puts a `patcher`
 symlink in the first of `~/.local/bin` and `~/bin` that your **login shell
 already has on its PATH**, pointing at that shim. Nothing is added to your PATH
 and no shell profile is edited, so if neither directory is on it the row says

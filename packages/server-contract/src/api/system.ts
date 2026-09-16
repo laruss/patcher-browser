@@ -249,9 +249,11 @@ export const systemConfigResponseSchema = z.object({
   /**
    * The answer to putting a bare `patcher` on the person's PATH (#147), which
    * has its own question for an install whose skills answer was recorded from
-   * the disk rather than given. Defaulted to `declined` so a desktop shell
-   * attached to an older server, which has no route to take the answer, never
-   * asks it.
+   * the disk rather than given. Defaulted to `declined` for the desktop shell,
+   * which parses the config through this schema and may be attached to an
+   * older server with no route to take the answer. The window reads the config
+   * unparsed, so there it is the check for `unasked` that keeps the question
+   * away from such a server.
    */
   cliCommandSetup: outsideAgentSetupAnswerSchema.default("declined"),
   /**

@@ -307,11 +307,13 @@ anywhere but Settings. So the command's answer is its own,
 skills answer is a yes, nobody has answered for the command, and the primary
 machine's read says `missing`, the one state where Set up can place a link.
 Any install of the command on the primary machine records a yes first (Settings,
-the CLI, #141's accept), before anything is awaited, so a window refetching its
+an SDK caller, #141's accept), before anything is awaited, so a window refetching its
 config mid-install never sees the question's conditions. And a read that finds
-the command anything but `missing` records one too, by the rule above: a
-machine answering `not_on_path` would otherwise be read for a question it can
-never get on every launch. A no to #141 followed by an install of the skills
+the command `installed`, `occupied`, `shadowed` or `not_on_path` records one
+too, by the rule above: a machine answering `not_on_path` would otherwise be
+read for a question it can never get on every launch. `unknown`, `unsupported`
+and a read-side `failed` (a shim the next daemon start rewrites) record
+nothing. A no to #141 followed by an install of the skills
 from Settings is a yes to them, so that install is asked about the command next.
 
 **And kept current without being asked again (#142).** An installed copy used to

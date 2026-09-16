@@ -1,11 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  getCliCommandSetup,
-  getOutsideAgentSetup,
-  setCliCommandSetup,
-} from "@patcher/db";
+import { getCliCommandSetup, getOutsideAgentSetup } from "@patcher/db";
 import type { CliCommandState } from "@patcher/server-contract";
 import { systemCliCommandSetupResponseSchema } from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
@@ -71,6 +67,17 @@ async function readAnswerFromConfig(harness: TestAppHarness): Promise<unknown> {
     await harness.app.request("/api/v1/system/config"),
   )) as { cliCommandSetup?: unknown };
   return config.cliCommandSetup;
+}
+
+/** The system change kinds broadcast while the harness runs. */
+function recordSystemChanges(harness: TestAppHarness): string[] {
+  const changes: string[] = [];
+  const notifySystem = harness.hub.notifySystem.bind(harness.hub);
+  harness.hub.notifySystem = (kinds) => {
+    changes.push(...kinds);
+    notifySystem(kinds);
+  };
+  return changes;
 }
 
 async function writeBuiltinCliSkill(harness: TestAppHarness): Promise<void> {
@@ -225,7 +232,7 @@ describe("the question about the patcher command", () => {
     });
   });
 
-  it("keeps the first answer when a second window answers late", async () => {
+  it("keeps the first answer when two windows answer at once", async () => {
     await withRelease(async (harness) => {
       const { host, session } = seedHostSession(harness.deps);
       seedPrimaryHost(harness.deps, host.id);
@@ -234,18 +241,25 @@ describe("the question about the patcher command", () => {
         sessionId: session.id,
         handle: () => PLACED,
       });
-      setCliCommandSetup(harness.deps.db, "declined");
 
-      const body = systemCliCommandSetupResponseSchema.parse(
-        await readJson(
-          await harness.app.request(
-            postJson("/system/cli-command/setup", { answer: "accept" }),
+      // Sent together: the accept is still waiting on its daemon when the
+      // decline arrives, which is when a check and a write with an await
+      // between them would let the decline through.
+      const [accepted, declined] = await Promise.all(
+        [
+          postJson("/system/cli-command/setup", { answer: "accept" }),
+          postJson("/system/cli-command/setup", { answer: "decline" }),
+        ].map(async (request) =>
+          systemCliCommandSetupResponseSchema.parse(
+            await readJson(await harness.app.request(request)),
           ),
         ),
       );
 
-      expect(body).toEqual({ cliCommandSetup: "declined", cliCommand: null });
-      expect(responder.requests).toHaveLength(0);
+      expect(accepted?.cliCommandSetup).toBe("accepted");
+      expect(declined).toEqual({ cliCommandSetup: "accepted", cliCommand: null });
+      expect(getCliCommandSetup(harness.deps.db)).toBe("accepted");
+      expect(responder.requests).toHaveLength(1);
     });
   });
 
@@ -254,11 +268,15 @@ describe("the question about the patcher command", () => {
       const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
       const studio = seedHostSession(harness.deps, { id: "host-studio" });
       seedPrimaryHost(harness.deps, laptop.host.id);
+      const answerWhenAsked: string[] = [];
       for (const { host, session } of [laptop, studio]) {
         registerHostRpcResponder(harness, {
           hostId: host.id,
           sessionId: session.id,
-          handle: () => PLACED,
+          handle: () => {
+            answerWhenAsked.push(getCliCommandSetup(harness.deps.db));
+            return commandResult("not_on_path", false);
+          },
         });
       }
 
@@ -267,9 +285,12 @@ describe("the question about the patcher command", () => {
       );
       expect(getCliCommandSetup(harness.deps.db)).toBe("unasked");
 
-      // Settings → Skills, which names no machine.
+      // Settings → Skills, which names no machine. Recorded and announced
+      // before the daemon is asked, although nothing on the disk moves.
+      const changes = recordSystemChanges(harness);
       await harness.app.request(postJson("/system/cli-command/install", {}));
-      expect(getCliCommandSetup(harness.deps.db)).toBe("accepted");
+      expect(answerWhenAsked).toEqual(["unasked", "accepted"]);
+      expect(changes).toEqual(["config-changed"]);
     });
   });
 
@@ -278,11 +299,15 @@ describe("the question about the patcher command", () => {
       await writeBuiltinCliSkill(harness);
       const { host, session } = seedHostSession(harness.deps);
       seedPrimaryHost(harness.deps, host.id);
+      const answerWhenLinking: string[] = [];
       registerHostRpcResponder(harness, {
         hostId: host.id,
         sessionId: session.id,
-        handle: (request) =>
-          request.command.type === "host.install_cli_command"
+        handle: (request) => {
+          if (request.command.type === "host.install_cli_command") {
+            answerWhenLinking.push(getCliCommandSetup(harness.deps.db));
+          }
+          return request.command.type === "host.install_cli_command"
             ? PLACED
             : {
                 ok: true,
@@ -295,30 +320,49 @@ describe("the question about the patcher command", () => {
                     },
                   ],
                 },
-              },
+              };
+        },
       });
 
       await harness.app.request(
         postJson("/system/cli-skills/setup", { answer: "accept" }),
       );
 
-      expect(getCliCommandSetup(harness.deps.db)).toBe("accepted");
+      // Already recorded while the link was being placed: #141's accept
+      // broadcasts its own answer first, and a window refetching on that must
+      // not find the skills answered and the command not.
+      expect(answerWhenLinking).toEqual(["accepted"]);
     });
   });
 
   it("is answered yes by a read that leaves the question nothing to do, and by no other read", async () => {
     await withRelease(async (harness) => {
-      const { host, session } = seedHostSession(harness.deps);
-      seedPrimaryHost(harness.deps, host.id);
+      const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
+      const studio = seedHostSession(harness.deps, { id: "host-studio" });
+      seedPrimaryHost(harness.deps, laptop.host.id);
       let state: CliCommandState = "missing";
       registerHostRpcResponder(harness, {
-        hostId: host.id,
-        sessionId: session.id,
+        hostId: laptop.host.id,
+        sessionId: laptop.session.id,
         handle: () => commandResult(state, false),
       });
+      registerHostRpcResponder(harness, {
+        hostId: studio.host.id,
+        sessionId: studio.session.id,
+        handle: () => commandResult("installed", false),
+      });
 
-      await harness.app.request("/api/v1/system/cli-command");
+      // Another machine's state says nothing about the one they type on.
+      await harness.app.request("/api/v1/system/cli-command?hostIds=host-studio");
       expect(getCliCommandSetup(harness.deps.db)).toBe("unasked");
+
+      // A shim that is not runnable yet: the next daemon start rewrites it,
+      // and the link can be placed then.
+      for (const unanswered of ["missing", "failed"] as const) {
+        state = unanswered;
+        await harness.app.request("/api/v1/system/cli-command");
+        expect(getCliCommandSetup(harness.deps.db)).toBe("unasked");
+      }
 
       // Nowhere to put it: the question could only fail, and without an answer
       // this machine would be read for it on every launch.

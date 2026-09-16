@@ -38,7 +38,7 @@ export function CliCommandSetupDialogContent({
       <DialogHeader>
         <DialogTitle>Run patcher from any terminal?</DialogTitle>
         <DialogDescription>
-          {`Patcher can link its patcher command into ${linkPath ?? "a directory on your PATH"} on ${hostName}.`}
+          {`Patcher can put its patcher command on your PATH on ${hostName}, as a link at ${linkPath ?? "a directory your shell reads"}.`}
         </DialogDescription>
       </DialogHeader>
 

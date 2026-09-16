@@ -34,7 +34,7 @@ describe("the answer about the patcher command", () => {
     expect(getCliCommandSetup(db)).toBe("unasked");
   });
 
-  it("is unasked on a row written before the question existed", () => {
+  it("is unasked on a row written without it", () => {
     db.$client
       .prepare(
         "INSERT INTO app_settings (id, updated_at) VALUES ('current', 1)",

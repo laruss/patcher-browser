@@ -196,9 +196,11 @@ function recordCliCommandAccepted(deps: CliCommandInstallDeps): void {
  * question (#147) could do for it. The question asks only on `missing`, so
  * without this a machine answering `not_on_path` would pay for this read on
  * every launch, forever, and a link somebody made by hand would bring the
- * question the day they remove it. `occupied`, `shadowed`, `not_on_path` and
- * `failed` are the person's to settle in Settings; `unknown` and `unsupported`
- * are not answers about the disk.
+ * question the day they remove it. `occupied`, `shadowed` and `not_on_path`
+ * are the person's to settle in Settings. `unknown` and `unsupported` are not
+ * answers about the disk, and neither is a read-side `failed`: that is this
+ * install's shim not being runnable, which the next daemon start rewrites, and
+ * the link could be placed then.
  */
 export async function readCliCommandStatus(
   deps: CliCommandInstallDeps,
@@ -213,6 +215,7 @@ export async function readCliCommandStatus(
   if (
     primary !== undefined &&
     primary.state !== "missing" &&
+    primary.state !== "failed" &&
     primary.state !== "unknown" &&
     primary.state !== "unsupported"
   ) {
@@ -225,7 +228,7 @@ export async function readCliCommandStatus(
  * Place the link on each machine asked.
  *
  * Asking for it on the primary machine is saying yes to it (#147) — from
- * Settings, from the SDK, or through #141's accept — so the answer is recorded
+ * Settings, an SDK caller, or #141's accept — so the answer is recorded
  * first, before anything is awaited: a place that could not be linked must not
  * put the launch-time question back, and a window refetching its config on the
  * broadcast #141's accept sends just before calling this must already read the
@@ -236,9 +239,11 @@ export async function installCliCommand(
   args: { hostIds?: readonly string[] },
 ): Promise<SystemInstallCliCommandResponse> {
   const hostIds = resolveHostIds(deps, args.hostIds);
+  const primaryHostId = resolvePrimaryHostId(deps);
   if (
     !deps.config.isDevelopment &&
-    hostIds.includes(resolvePrimaryHostId(deps) ?? "")
+    primaryHostId !== null &&
+    hostIds.includes(primaryHostId)
   ) {
     recordCliCommandAccepted(deps);
   }

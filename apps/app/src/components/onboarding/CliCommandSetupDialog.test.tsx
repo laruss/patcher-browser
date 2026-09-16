@@ -19,17 +19,13 @@ afterEach(() => {
   cleanup();
 });
 
-/**
- * How it closes is the shell's, and is tested once on #141's question; what is
- * this question's own is what it says and which button answers what.
- */
 describe("CliCommandSetupDialog", () => {
   it("says where the link goes, and on which machine", () => {
     renderDialog();
 
     expect(
       screen.getByText(
-        "Patcher can link its patcher command into /Users/k/.local/bin/patcher on Laptop.",
+        "Patcher can put its patcher command on your PATH on Laptop, as a link at /Users/k/.local/bin/patcher.",
       ),
     ).toBeTruthy();
     expect(
@@ -47,17 +43,13 @@ describe("CliCommandSetupDialog", () => {
     expect(props.onDecline).toHaveBeenCalledTimes(1);
   });
 
-  it("answers nothing while the link is being placed", () => {
-    const props = renderDialog({ pending: true });
+  it("offers no answer while the link is being placed", () => {
+    renderDialog({ pending: true });
 
-    expect(
-      (screen.getByRole("button", { name: "Setting up…" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
-    fireEvent.keyDown(document.activeElement ?? document.body, {
-      key: "Escape",
-    });
-
-    expect(props.onDecline).not.toHaveBeenCalled();
+    for (const name of ["Setting up…", "Not now"]) {
+      expect(
+        (screen.getByRole("button", { name }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+    }
   });
 });

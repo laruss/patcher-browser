@@ -774,6 +774,15 @@ describe("the question about the patcher command", () => {
       });
       cleanup();
     }
+
+    // `unknown` is an answer the question will not follow, and it can last —
+    // a login shell the daemon cannot read — so it does not hold the note.
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("unknown"));
+    render(<OnboardingHost />);
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: false,
+    });
   });
 
   it("sends the answer, and says what linking answered only when it tried", () => {
