@@ -37,6 +37,7 @@ import {
   type HostDaemonAcpLaunchSpec,
   type HostDaemonSettledCommandType,
 } from "../src/index.js";
+import { CLI_COMMAND_RESULT } from "./cli-command-fixture.js";
 
 const CLIENT_REQUEST_ID = "creq_23456789ab";
 const ACP_LAUNCH_SPEC: HostDaemonAcpLaunchSpec = {
@@ -271,10 +272,9 @@ const ONLINE_RPC_RESPONSE_RESULT_FIXTURES: OnlineRpcResponseResultFixtures = {
       },
     ],
   },
-  "host.caffeinate": {
-    enabled: true,
-    supported: true,
-  },
+  "host.cli_command_status": CLI_COMMAND_RESULT,
+  "host.install_cli_command": CLI_COMMAND_RESULT,
+  "host.caffeinate": { enabled: true, supported: true },
   "host.list_branches": {
     branches: ["main"],
     branchesTruncated: false,
@@ -1182,9 +1182,9 @@ describe("host-daemon command schemas", () => {
       env: {},
     };
 
-    expect(normalizeHostDaemonAcpLaunchSpec({ ...spec, stateDirs: [] })).toEqual(
-      { ...spec, stateDirs: [] },
-    );
+    expect(
+      normalizeHostDaemonAcpLaunchSpec({ ...spec, stateDirs: [] }),
+    ).toEqual({ ...spec, stateDirs: [] });
     expect(normalizeHostDaemonAcpLaunchSpec(spec)).not.toHaveProperty(
       "stateDirs",
     );

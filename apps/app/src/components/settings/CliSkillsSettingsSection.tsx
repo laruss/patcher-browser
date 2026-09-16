@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Host } from "@patcher/domain";
 import type {
   CliSkillMachineStatus,
@@ -9,6 +9,7 @@ import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section";
+import { CliCommandSettingsRow } from "@/components/settings/CliCommandSettingsRow";
 import { reportInstallResults } from "@/components/settings/cli-skills-install-results";
 import { InstallCliSkillsDialog } from "@/components/settings/InstallCliSkillsDialog";
 import { useInstallCliSkills } from "@/hooks/mutations/settings-mutations";
@@ -18,6 +19,8 @@ import { useCliSkillsStatus } from "@/hooks/queries/system-queries";
 const CLI_SKILLS_SETTING_LABEL = "Patcher CLI skills";
 
 export interface CliSkillsSettingsSectionContentProps {
+  /** Rendered under the skills row, inside the same section (#143). */
+  children?: ReactNode;
   /** False while no machine is connected, so nothing could receive the files. */
   hasConnectedMachine: boolean;
   onOpenPicker: () => void;
@@ -58,6 +61,7 @@ export function summarizeMachineStatuses(
 }
 
 export function CliSkillsSettingsSectionContent({
+  children,
   hasConnectedMachine,
   onOpenPicker,
   pending,
@@ -81,6 +85,7 @@ export function CliSkillsSettingsSectionContent({
           {pending ? "Installing…" : "Install"}
         </Button>
       </SettingsWithControl>
+      {children}
     </SettingsSection>
   );
 }
@@ -114,7 +119,9 @@ export function CliSkillsSettingsSection() {
         pending={installCliSkills.isPending}
         statusBadge={summarizeMachineStatuses([...statuses.values()])}
         onOpenPicker={() => setPickerOpen(true)}
-      />
+      >
+        <CliCommandSettingsRow />
+      </CliSkillsSettingsSectionContent>
       <InstallCliSkillsDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}

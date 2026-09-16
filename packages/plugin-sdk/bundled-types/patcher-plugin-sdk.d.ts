@@ -5349,6 +5349,52 @@ declare const hostDaemonCommandRegistry: {
             installedTreeHash: z$1.ZodNullable<z$1.ZodString>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, "onlineRpc", true>;
+    "host.cli_command_status": HostDaemonCommandDescriptor<"host.cli_command_status", z$1.ZodObject<{
+        type: z$1.ZodLiteral<"host.cli_command_status">;
+    }, z$1.core.$strict>, z$1.ZodObject<{
+        state: z$1.ZodEnum<{
+            unknown: "unknown";
+            failed: "failed";
+            installed: "installed";
+            missing: "missing";
+            occupied: "occupied";
+            shadowed: "shadowed";
+            not_on_path: "not_on_path";
+            unsupported: "unsupported";
+        }>;
+        linkPath: z$1.ZodNullable<z$1.ZodString>;
+        existingPath: z$1.ZodNullable<z$1.ZodString>;
+        existingTarget: z$1.ZodNullable<z$1.ZodString>;
+        shimDirectory: z$1.ZodString;
+        reason: z$1.ZodNullable<z$1.ZodEnum<{
+            windows: "windows";
+        }>>;
+        message: z$1.ZodNullable<z$1.ZodString>;
+        changed: z$1.ZodBoolean;
+    }, z$1.core.$strict>, "onlineRpc", true>;
+    "host.install_cli_command": HostDaemonCommandDescriptor<"host.install_cli_command", z$1.ZodObject<{
+        type: z$1.ZodLiteral<"host.install_cli_command">;
+    }, z$1.core.$strict>, z$1.ZodObject<{
+        state: z$1.ZodEnum<{
+            unknown: "unknown";
+            failed: "failed";
+            installed: "installed";
+            missing: "missing";
+            occupied: "occupied";
+            shadowed: "shadowed";
+            not_on_path: "not_on_path";
+            unsupported: "unsupported";
+        }>;
+        linkPath: z$1.ZodNullable<z$1.ZodString>;
+        existingPath: z$1.ZodNullable<z$1.ZodString>;
+        existingTarget: z$1.ZodNullable<z$1.ZodString>;
+        shimDirectory: z$1.ZodString;
+        reason: z$1.ZodNullable<z$1.ZodEnum<{
+            windows: "windows";
+        }>>;
+        message: z$1.ZodNullable<z$1.ZodString>;
+        changed: z$1.ZodBoolean;
+    }, z$1.core.$strict>, "onlineRpc", false>;
     "host.list_branches": HostDaemonCommandDescriptor<"host.list_branches", z$1.ZodObject<{
         type: z$1.ZodLiteral<"host.list_branches">;
         path: z$1.ZodString;
@@ -5406,9 +5452,9 @@ declare const hostDaemonCommandRegistry: {
         selectedBranch: z$1.ZodNullable<z$1.ZodObject<{
             name: z$1.ZodString;
             kind: z$1.ZodEnum<{
+                missing: "missing";
                 local: "local";
                 remote: "remote";
-                missing: "missing";
             }>;
         }, z$1.core.$strip>>;
     }, z$1.core.$strip>, "onlineRpc", true>;
@@ -7506,6 +7552,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         linux: "linux";
         wsl: "wsl";
     }>>;
+    cliCommandSupported: z$1.ZodDefault<z$1.ZodBoolean>;
     outsideAgentSetup: z$1.ZodEnum<{
         accepted: "accepted";
         unasked: "unasked";
@@ -7590,6 +7637,68 @@ declare const systemCliSkillsStatusResponseSchema: z$1.ZodObject<{
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
 type SystemCliSkillsStatusResponse = z$1.infer<typeof systemCliSkillsStatusResponseSchema>;
+declare const systemCliCommandStatusResponseSchema: z$1.ZodObject<{
+    machines: z$1.ZodArray<z$1.ZodObject<{
+        hostId: z$1.ZodString;
+        hostName: z$1.ZodString;
+        state: z$1.ZodCatch<z$1.ZodEnum<{
+            unknown: "unknown";
+            failed: "failed";
+            missing: "missing";
+            installed: "installed";
+            occupied: "occupied";
+            shadowed: "shadowed";
+            not_on_path: "not_on_path";
+            unsupported: "unsupported";
+        }>>;
+        linkPath: z$1.ZodNullable<z$1.ZodString>;
+        existingPath: z$1.ZodNullable<z$1.ZodString>;
+        existingTarget: z$1.ZodNullable<z$1.ZodString>;
+        shimDirectory: z$1.ZodNullable<z$1.ZodString>;
+        reason: z$1.ZodNullable<z$1.ZodEnum<{
+            windows: "windows";
+            "dev-install": "dev-install";
+        }>>;
+        message: z$1.ZodNullable<z$1.ZodString>;
+        changed: z$1.ZodBoolean;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemCliCommandStatusResponse = z$1.infer<typeof systemCliCommandStatusResponseSchema>;
+declare const systemInstallCliCommandRequestSchema: z$1.ZodObject<{
+    hostIds: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
+}, z$1.core.$strip>;
+type SystemInstallCliCommandRequest = z$1.infer<typeof systemInstallCliCommandRequestSchema>;
+/**
+ * One entry per machine asked, so a machine that is offline or refuses fails on
+ * its own without taking the others down.
+ */
+declare const systemInstallCliCommandResponseSchema: z$1.ZodObject<{
+    machines: z$1.ZodArray<z$1.ZodObject<{
+        hostId: z$1.ZodString;
+        hostName: z$1.ZodString;
+        state: z$1.ZodCatch<z$1.ZodEnum<{
+            unknown: "unknown";
+            failed: "failed";
+            missing: "missing";
+            installed: "installed";
+            occupied: "occupied";
+            shadowed: "shadowed";
+            not_on_path: "not_on_path";
+            unsupported: "unsupported";
+        }>>;
+        linkPath: z$1.ZodNullable<z$1.ZodString>;
+        existingPath: z$1.ZodNullable<z$1.ZodString>;
+        existingTarget: z$1.ZodNullable<z$1.ZodString>;
+        shimDirectory: z$1.ZodNullable<z$1.ZodString>;
+        reason: z$1.ZodNullable<z$1.ZodEnum<{
+            windows: "windows";
+            "dev-install": "dev-install";
+        }>>;
+        message: z$1.ZodNullable<z$1.ZodString>;
+        changed: z$1.ZodBoolean;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemInstallCliCommandResponse = z$1.infer<typeof systemInstallCliCommandResponseSchema>;
 /**
  * How far agents outside Patcher may drive the browser, as a request.
  *
@@ -7896,6 +8005,30 @@ declare const systemCliSkillsSetupResponseSchema: z$1.ZodObject<{
             hostName: z$1.ZodString;
             errorMessage: z$1.ZodString;
         }, z$1.core.$strip>], "ok">>;
+    }, z$1.core.$strip>>;
+    cliCommand: z$1.ZodNullable<z$1.ZodObject<{
+        hostId: z$1.ZodString;
+        hostName: z$1.ZodString;
+        state: z$1.ZodCatch<z$1.ZodEnum<{
+            unknown: "unknown";
+            failed: "failed";
+            missing: "missing";
+            installed: "installed";
+            occupied: "occupied";
+            shadowed: "shadowed";
+            not_on_path: "not_on_path";
+            unsupported: "unsupported";
+        }>>;
+        linkPath: z$1.ZodNullable<z$1.ZodString>;
+        existingPath: z$1.ZodNullable<z$1.ZodString>;
+        existingTarget: z$1.ZodNullable<z$1.ZodString>;
+        shimDirectory: z$1.ZodNullable<z$1.ZodString>;
+        reason: z$1.ZodNullable<z$1.ZodEnum<{
+            windows: "windows";
+            "dev-install": "dev-install";
+        }>>;
+        message: z$1.ZodNullable<z$1.ZodString>;
+        changed: z$1.ZodBoolean;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
 type SystemCliSkillsSetupResponse = z$1.infer<typeof systemCliSkillsSetupResponseSchema>;
@@ -13299,6 +13432,14 @@ interface SystemCliSkillsStatusArgs {
 }
 type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
 type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
+interface SystemCliCommandStatusArgs {
+    /** Omit for the primary machine. */
+    hostIds?: readonly string[];
+    signal?: AbortSignal;
+}
+type SystemCliCommandStatusResult = SystemCliCommandStatusResponse;
+type SystemInstallCliCommandArgs = SystemInstallCliCommandRequest;
+type SystemInstallCliCommandResult = SystemInstallCliCommandResponse;
 type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
 type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
 type SystemCliSkillsOfferArgs = SystemCliSkillsOfferRequest;
@@ -13339,6 +13480,14 @@ interface SystemArea {
     /** Per-machine install state of Patcher's built-in CLI skills. */
     cliSkillsStatus(args?: SystemCliSkillsStatusArgs): Promise<SystemCliSkillsStatusResult>;
     installCliSkills(args: SystemInstallCliSkillsArgs): Promise<SystemInstallCliSkillsResult>;
+    /** Where a bare `patcher` stands on each machine asked, or the primary one. */
+    cliCommandStatus(args?: SystemCliCommandStatusArgs): Promise<SystemCliCommandStatusResult>;
+    /**
+     * Put a `patcher` on the person's PATH, by linking this install's shim into a
+     * directory their login shell already reads. Refused inside a turn, like
+     * `installCliSkills`.
+     */
+    installCliCommand(args?: SystemInstallCliCommandArgs): Promise<SystemInstallCliCommandResult>;
     /**
      * Record the answer to the launch-time question about installing the CLI
      * skills for agents outside Patcher; `accept` also installs them onto the

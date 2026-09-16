@@ -165,8 +165,17 @@ describe("host-daemon protocol version", () => {
   // and answers the status read without the field a 118 server needs to tell
   // its own copy from an edited one — so every connect would log a failed
   // read, and nothing would ever be kept current.
-  it("uses protocol version 118 after an install learned to replace only its own unchanged copies", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(118);
+  //
+  // 119 put a bare `patcher` on the person's PATH (#143): a status read saying
+  // where the command stands on that host, and an install placing one symlink
+  // into a directory the login shell already has on its PATH. A 118 daemon
+  // knows neither command type and answers both as malformed, so the Settings
+  // row would sit at "unknown" on a machine whose daemon had not updated yet
+  // and pressing Install would report a transport failure rather than a
+  // sentence about that machine. The version is what asks that daemon to
+  // update before either is tried.
+  it("uses protocol version 119 after the daemon learned to put `patcher` on PATH", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(119);
   });
 
   // What the version above promises and a build does not check: the wire has

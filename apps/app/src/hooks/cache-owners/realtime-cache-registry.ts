@@ -66,6 +66,7 @@ import {
   allThreadStorageFilePreviewQueryKeyPrefix,
   allThreadStorageFilesQueryKeyPrefix,
   allThreadStoragePathsQueryKeyPrefix,
+  allSystemCliCommandQueryKeyPrefix,
   allSystemCliSkillsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
   allThreadQueryKeyPrefix,
@@ -463,6 +464,7 @@ const HOST_CONNECTION_DIRTY_HANDLERS = [
   dirtyProjectListQueries, // Project source availability depends on host connectivity.
   dirtySystemProviderQueries, // Host-backed provider runtimes can appear/disappear.
   dirtySystemExecutionOptionQueries, // Execution options include host/provider availability.
+  dirtySystemConfigQueries, // `primaryHostPlatform` and `cliCommandSupported` are read off the live daemon session, so a config fetched before the daemon connected says the wrong thing until this (#143).
 ] satisfies readonly RealtimeDirtyHandler<HostRealtimeDirtyContext>[];
 
 export const REALTIME_HOST_CHANGE_REGISTRY = {
@@ -485,6 +487,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
     dirty: [
       dirtySystemConfigQueries, // Experiments gate UI surfaces; other windows re-read after a settings write.
       dirtyCliSkillsStatusQueries, // An install from another window changes what a machine status says (#141).
+      dirtyCliCommandStatusQueries, // And so does one that puts `patcher` on PATH (#143).
       dirtyBrowserAccessGrantQueries,
       dirtyBrowserAccessRequestQueries,
       dirtyAllThreadTimelineQueries, // General settings can change whether diagnostic provider rows are projected.
@@ -976,6 +979,10 @@ function dirtySystemConfigQueries(): QueryKey[] {
  */
 function dirtyCliSkillsStatusQueries(): QueryKey[] {
   return [allSystemCliSkillsQueryKeyPrefix()];
+}
+
+function dirtyCliCommandStatusQueries(): QueryKey[] {
+  return [allSystemCliCommandQueryKeyPrefix()];
 }
 
 /**

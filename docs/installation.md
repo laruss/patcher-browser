@@ -117,8 +117,18 @@ the launcher, the CLI, the Node SDK, provider credentials, and configuration.
 Whichever way you installed, the host daemon writes a shim under its data
 directory when it starts — `~/.patcher/bin/patcher` for the desktop app and an
 `npx patcher-app` install, and `~/.patcher-dev/<checkout>/bin/patcher` for a
-source checkout (`PATCHER_DATA_DIR` moves it). Nothing edits your shell profile,
-so add it yourself if you want the bare command:
+source checkout (`PATCHER_DATA_DIR` moves it).
+
+**Settings → Skills can place the bare command for you.** It puts a `patcher`
+symlink in the first of `~/.local/bin` and `~/bin` that your **login shell
+already has on its PATH**, pointing at that shim. Nothing is added to your PATH
+and no shell profile is edited, so if neither directory is on it the row says
+so and shows the line below instead. It never replaces a `patcher` somebody
+else put there, and it tells you when one earlier on your PATH would win the
+lookup anyway. A source checkout never places it: the release owns the bare
+command, and a checkout keeps `bun run patcher`.
+
+To do it yourself instead, add the shim's directory to your PATH:
 
 ```bash
 export PATH="$HOME/.patcher/bin:$PATH"
@@ -129,7 +139,7 @@ anything you have already exported — so a checkout's shim reaches the checkout
 server rather than the default port, and you can still point a shell at another
 install. It does not carry the app key: the CLI reads that out of the data
 directory as it always has. Which is also its one limit — on a machine you
-*enrolled* into a Patcher running elsewhere, the data directory holds that
+_enrolled_ into a Patcher running elsewhere, the data directory holds that
 machine's own credentials but no app key, so the shim reaches the server and is
 refused with a 401. Export `PATCHER_APP_KEY` from the machine running the server
 to use it there.

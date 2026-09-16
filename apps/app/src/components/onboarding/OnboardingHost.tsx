@@ -21,6 +21,7 @@ import {
   useProviderCliInstallRunner,
 } from "@/components/provider-cli/provider-cli-install";
 import { providerCliJobKey } from "@/components/provider-cli/provider-cli-install-store";
+import { reportCliCommandResult } from "@/components/settings/cli-command-result";
 import { reportInstallResults } from "@/components/settings/cli-skills-install-results";
 import { sdk } from "@/lib/sdk";
 
@@ -318,6 +319,13 @@ export function OnboardingHost() {
       {
         onSuccess: (result) => {
           if (result.install !== null) reportInstallResults(result.install);
+          // The same yes also put `patcher` on their PATH (#143). Said here
+          // rather than left for Settings, because the answer they most need —
+          // the export line, when no directory of theirs is on PATH — is only
+          // useful while they are thinking about it.
+          if (result.cliCommand !== null) {
+            reportCliCommandResult(result.cliCommand);
+          }
         },
       },
     );
@@ -365,6 +373,7 @@ export function OnboardingHost() {
     <OutsideAgentSetupDialog
       open
       hostName={primaryHost.name}
+      showsCliCommand={configQuery.data?.cliCommandSupported === true}
       pending={setupCliSkills.isPending}
       onAccept={() => answerOutsideAgentSetup("accept")}
       onDecline={() => answerOutsideAgentSetup("decline")}

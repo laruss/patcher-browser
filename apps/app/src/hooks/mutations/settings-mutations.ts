@@ -10,6 +10,7 @@ import type {
   SystemBrowserExternalAccessRequest,
   SystemCliSkillsOfferRequest,
   SystemCliSkillsSetupRequest,
+  SystemInstallCliCommandRequest,
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
 import { sdk } from "@/lib/sdk";
@@ -19,6 +20,7 @@ import {
 } from "../cache-owners/browser-access-grant-cache-owner";
 import { invalidatePluginList } from "../cache-owners/plugin-cache-owner";
 import {
+  invalidateCliCommandStatus,
   invalidateCliSkillsStatus,
   invalidateGeneralSettingsDependencies,
   invalidateSystemConfig,
@@ -189,6 +191,24 @@ export function useUpdateKeyboardSettings() {
  * machine also records a yes to the launch-time question (#141); the server's
  * `config-changed` refreshes the config for that, so nothing is invalidated here.
  */
+export function useInstallCliCommand() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to put `patcher` on PATH.",
+    },
+    mutationFn: (args: SystemInstallCliCommandRequest) =>
+      sdk.system.installCliCommand(args),
+    // The server announces a change to other windows, but only when the disk
+    // actually moved; this window's own row refreshes either way, because
+    // "occupied" and "not on PATH" are answers it should show at once.
+    onSettled: () => {
+      invalidateCliCommandStatus({ queryClient });
+    },
+  });
+}
+
 export function useInstallCliSkills() {
   return useMutation({
     meta: {

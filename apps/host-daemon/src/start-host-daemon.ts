@@ -200,7 +200,9 @@ export async function startHostDaemon(
       target: {
         serverUrl,
         dataDir,
-        ...(localApiConfig === null ? {} : { hostDaemonPort: localApiConfig.port }),
+        ...(localApiConfig === null
+          ? {}
+          : { hostDaemonPort: localApiConfig.port }),
       },
     });
 
@@ -252,15 +254,24 @@ export async function startHostDaemon(
       );
       hostWatcher = createHostWatcher();
     }
+    // The login shell's own PATH, kept beside the composed environment rather
+    // than left to be recomputed by whoever needs it. The composed one cannot
+    // answer "is `~/.local/bin` on this person's PATH": it has this install's
+    // CLI directory prepended, and it falls back to the daemon's own
+    // `process.env.PATH`, which under launchd is not a shell's PATH at all.
+    // Null means the login shell could not be read — a thing to report, not to
+    // guess past. Refreshed with the composed value, under the same TTL.
+    let userShellPath: string | null = null;
     const resolveRuntimeShellEnv = async () => {
       // Re-read every time rather than once: the key file appears when the
       // server first starts, which may be after this daemon did.
       const appApiKey = resolveAppApiKey({ dataDir });
+      userShellPath = await resolveUserShellPath();
       return prepareRuntimeShellEnv({
         patcherExecutableDirectory,
         patcherExecutablePath,
         hostDaemonPort: localApiConfig?.port,
-        inheritedPath: (await resolveUserShellPath()) ?? process.env.PATH,
+        inheritedPath: userShellPath ?? process.env.PATH,
         serverUrl,
         ...(appApiKey === undefined ? {} : { appApiKey }),
       });
@@ -269,6 +280,7 @@ export async function startHostDaemon(
     const runtimeShellEnvResolvedAtMs = Date.now();
     app = await createHostDaemonApp({
       dataDir,
+      getUserShellPath: () => userShellPath,
       serverUrl,
       hostKey,
       autoUpdate: options.autoUpdate,

@@ -67,6 +67,7 @@ function systemConfig(): SystemConfigResponse {
     serverUrl: "http://localhost:38986",
     primaryHostId: null,
     primaryHostPlatform: null,
+    cliCommandSupported: false,
     outsideAgentSetup: "unasked",
     cliSkillsUpdates: [],
     cliSkillsOffer: null,
@@ -124,6 +125,7 @@ describe("CLI skills setup mutation", () => {
     vi.mocked(sdk.system.setupCliSkills).mockResolvedValue({
       outsideAgentSetup: "declined",
       install: null,
+      cliCommand: null,
     });
     const { result } = renderHook(() => useSetupCliSkills(), { wrapper });
 

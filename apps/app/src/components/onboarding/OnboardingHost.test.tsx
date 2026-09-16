@@ -307,10 +307,12 @@ describe("the question about agents outside Patcher", () => {
     mutate.mock.calls[0]?.[1]?.onSuccess?.({
       outsideAgentSetup: "accepted",
       install,
+      cliCommand: null,
     });
     mutate.mock.calls[1]?.[1]?.onSuccess?.({
       outsideAgentSetup: "declined",
       install: null,
+      cliCommand: null,
     });
     expect(mocks.reportInstallResults).toHaveBeenCalledTimes(1);
     expect(mocks.reportInstallResults).toHaveBeenCalledWith(install);

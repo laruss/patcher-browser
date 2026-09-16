@@ -34,6 +34,7 @@ function systemConfig(): SystemConfigResponse {
     serverUrl: "http://localhost:38986",
     primaryHostId: null,
     primaryHostPlatform: null,
+    cliCommandSupported: false,
     outsideAgentSetup: "unasked",
     cliSkillsUpdates: [],
     cliSkillsOffer: null,

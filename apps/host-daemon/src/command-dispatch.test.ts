@@ -318,6 +318,40 @@ async function runSuccessfulClaudeCodeUpdateVerification(args: {
   return { events, getProviderCliStatusForProvider, result };
 }
 
+describe("dispatchOnlineRpcCommand and the login shell's PATH", () => {
+  it("hands the `patcher` command handler the PATH it was given", async () => {
+    const dataDir = await makeTempDir("patcher-cli-command-dispatch-");
+    await fs.mkdir(path.join(dataDir, "bin"), { recursive: true });
+    await fs.writeFile(path.join(dataDir, "bin", "patcher"), "#!/bin/sh\n", {
+      mode: 0o755,
+    });
+    const manager = new RuntimeManager({
+      createRuntime: () => createRuntime(),
+      provisionWorkspace: async () => createWorkspace(),
+    });
+
+    const result = await dispatchOnlineRpcCommand(
+      { type: "host.cli_command_status" },
+      {
+        dataDir,
+        eventSink: { emit: vi.fn(), flush: vi.fn(async () => undefined) },
+        fetchProjectAttachment: async () => {
+          throw new Error("Unexpected project attachment fetch");
+        },
+        getUserShellPath: async () => "/usr/bin:/bin",
+        runtimeManager: manager,
+        threadStorageRootPath: "/tmp/patcher-thread-storage",
+      },
+    );
+
+    // The getter is threaded from the daemon's startup measurement through the
+    // app, the router and this table. Drop any link of that chain and every
+    // answer becomes `unknown` for ever, which nothing else here would catch:
+    // the handler's own tests pass the PATH in directly.
+    expect(result.state).toBe("not_on_path");
+  });
+});
+
 describe("dispatchCommand", () => {
   it("flushes buffered events before reporting thread.stop success", async () => {
     const runtime = createRuntime();

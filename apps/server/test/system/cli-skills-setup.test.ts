@@ -139,7 +139,11 @@ describe("the question about agents outside Patcher", () => {
       expect(response.status).toBe(200);
       expect(
         systemCliSkillsSetupResponseSchema.parse(await readJson(response)),
-      ).toEqual({ outsideAgentSetup: "declined", install: null });
+      ).toEqual({
+        outsideAgentSetup: "declined",
+        install: null,
+        cliCommand: null,
+      });
       expect(responder.requests).toHaveLength(0);
       expect(changes).toContain("config-changed");
       expect(await readAnswerFromConfig(harness)).toBe("declined");
@@ -147,7 +151,10 @@ describe("the question about agents outside Patcher", () => {
   });
 
   it("installs onto the primary machine and no other, and records a yes", async () => {
-    await withTestHarness(async (harness) => {
+    // A release install: only one of those owns the bare `patcher`, so the
+    // second half of this yes (#143) is skipped outright on a checkout, which
+    // is what the harness is by default.
+    await withTestHarness({ isDevelopment: false }, async (harness) => {
       await writeBuiltinCliSkill(harness);
       const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
       const studio = seedHostSession(harness.deps, { id: "host-studio" });
@@ -173,10 +180,18 @@ describe("the question about agents outside Patcher", () => {
       expect(
         body.install?.results.map((entry) => [entry.hostId, entry.ok]),
       ).toEqual([["host-laptop", true]]);
+      // The same yes also asks for a bare `patcher` on that machine (#143),
+      // and asks the primary machine only for both. The command goes first:
+      // the skills install is the one that can throw, and a link ordered after
+      // it would never be placed on a server with nothing to publish.
       expect(laptopResponder?.requests.map((r) => r.command.type)).toEqual([
+        "host.install_cli_command",
         "host.install_global_skills",
       ]);
       expect(studioResponder?.requests).toHaveLength(0);
+      // The command's outcome rides back with the answer, so an `occupied` or
+      // a `not_on_path` is said when it happens rather than found in Settings.
+      expect(body.cliCommand?.hostId).toBe("host-laptop");
       expect(await readAnswerFromConfig(harness)).toBe("accepted");
     });
   });
@@ -232,7 +247,9 @@ describe("the question about agents outside Patcher", () => {
   });
 
   it("keeps the yes when the install cannot start at all", async () => {
-    await withTestHarness(async (harness) => {
+    // A release, so the `patcher` link is genuinely attempted rather than
+    // answered `dev-install` without the daemon being asked.
+    await withTestHarness({ isDevelopment: false }, async (harness) => {
       // No built-in skill on this server, so the install refuses before any
       // machine is asked — after the answer was recorded.
       const { host, session } = seedHostSession(harness.deps);
@@ -248,7 +265,12 @@ describe("the question about agents outside Patcher", () => {
       );
 
       expect(response.status).toBe(500);
-      expect(responder.requests).toHaveLength(0);
+      // The `patcher` link is still attempted (#143): the skills install is
+      // what throws here, the answer is already recorded, and a link ordered
+      // after it would never be placed and never asked about again.
+      expect(responder.requests.map((r) => r.command.type)).toEqual([
+        "host.install_cli_command",
+      ]);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
     });
   });
@@ -319,7 +341,11 @@ describe("the question about agents outside Patcher", () => {
 
       expect(
         systemCliSkillsSetupResponseSchema.parse(await readJson(late)),
-      ).toEqual({ outsideAgentSetup: "declined", install: null });
+      ).toEqual({
+        outsideAgentSetup: "declined",
+        install: null,
+        cliCommand: null,
+      });
       expect(responder.requests).toHaveLength(0);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("declined");
     });

@@ -28,6 +28,7 @@ import {
   requirePrimaryHostId,
   resolvePrimaryHostId,
 } from "../hosts/primary-host.js";
+import { installCliCommand } from "./cli-command-install.js";
 import { resolveServerOwnedSkillCatalogEntries } from "./injected-skills.js";
 
 /**
@@ -535,18 +536,37 @@ export async function answerCliSkillsSetup(
   // with no await between them, so two requests cannot both pass the check.
   const current = getOutsideAgentSetup(deps.db);
   if (current !== "unasked") {
-    return { outsideAgentSetup: current, install: null };
+    return { outsideAgentSetup: current, install: null, cliCommand: null };
   }
   if (args.answer === "decline") {
     setOutsideAgentSetup(deps.db, "declined");
     deps.hub.notifySystem(["config-changed"]);
-    return { outsideAgentSetup: "declined", install: null };
+    return { outsideAgentSetup: "declined", install: null, cliCommand: null };
   }
   const primaryHostId = requirePrimaryHostId(deps);
   setOutsideAgentSetup(deps.db, "accepted");
   deps.hub.notifySystem(["config-changed"]);
+  // The same yes also puts a bare `patcher` on their PATH (#143), which the
+  // question now says in as many words. Before the skills install rather than
+  // after it: that one throws when this server has nothing to publish, and the
+  // answer is recorded by then, so a link ordered after it would never be
+  // attempted and the question is never asked again. Whatever this answers — a
+  // name already taken, no directory to use — is carried back to be said
+  // rather than thrown.
+  const cliCommand = await installCliCommand(deps, {
+    hostIds: [primaryHostId],
+  }).then(
+    (result) => result.machines[0] ?? null,
+    (error: unknown) => {
+      deps.logger.warn(
+        { hostId: primaryHostId, err: error },
+        "Failed to put `patcher` on PATH while answering the launch-time question",
+      );
+      return null;
+    },
+  );
   const install = await installGlobalCliSkills(deps, {
     hostIds: [primaryHostId],
   });
-  return { outsideAgentSetup: "accepted", install };
+  return { outsideAgentSetup: "accepted", install, cliCommand };
 }

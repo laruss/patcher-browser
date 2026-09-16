@@ -13,6 +13,13 @@ export interface OutsideAgentSetupDialogContentProps {
   onAccept: () => void;
   onDecline: () => void;
   pending: boolean;
+  /**
+   * Whether this yes will also put a bare `patcher` on their PATH (#143).
+   * False on Windows, where no shim is written, and on a source checkout,
+   * which never owns the bare command — promising it there and then silently
+   * doing nothing is worse than not mentioning it.
+   */
+  showsCliCommand: boolean;
 }
 
 /**
@@ -28,13 +35,18 @@ export function OutsideAgentSetupDialogContent({
   onAccept,
   onDecline,
   pending,
+  showsCliCommand,
 }: OutsideAgentSetupDialogContentProps) {
   return (
     <>
       <DialogHeader>
         <DialogTitle>Let other agents use Patcher?</DialogTitle>
         <DialogDescription>
-          {`Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on ${hostName}.`}
+          {`Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on ${hostName}${
+            showsCliCommand
+              ? ", and put its patcher command on your PATH."
+              : "."
+          }`}
         </DialogDescription>
       </DialogHeader>
 
@@ -44,6 +56,14 @@ export function OutsideAgentSetupDialogContent({
           every session, so they can reach Patcher and its browser from their
           own terminal.
         </p>
+        {showsCliCommand ? (
+          <p>
+            The command is a link in ~/.local/bin or ~/bin — whichever your
+            login shell already reads — so patcher runs from any terminal. Your
+            shell profile is not changed, and a patcher already there is left
+            alone.
+          </p>
+        ) : null}
         <p>You can do this later in Settings → Skills.</p>
       </div>
 

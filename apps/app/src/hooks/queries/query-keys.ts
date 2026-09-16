@@ -60,6 +60,7 @@ export const SYSTEM_PROVIDERS_QUERY_KEY = "systemProviders";
 export const SYSTEM_CONFIG_QUERY_KEY = "systemConfig";
 export const SYSTEM_EXECUTION_OPTIONS_QUERY_KEY = "systemExecutionOptions";
 export const SYSTEM_CLI_SKILLS_QUERY_KEY = "systemCliSkills";
+export const SYSTEM_CLI_COMMAND_QUERY_KEY = "systemCliCommand";
 export const BROWSER_ACCESS_GRANTS_QUERY_KEY = "browserAccessGrants";
 export const BROWSER_ACCESS_REQUESTS_QUERY_KEY = "browserAccessRequests";
 export const SYSTEM_VERSION_QUERY_KEY = "systemVersion";
@@ -463,6 +464,14 @@ export type SystemCliSkillsQueryKey = readonly [
 ];
 export type SystemCliSkillsQueryKeyPrefix = readonly [
   typeof SYSTEM_CLI_SKILLS_QUERY_KEY,
+];
+/** The machines asked, or null for the primary one. */
+export type SystemCliCommandQueryKey = readonly [
+  typeof SYSTEM_CLI_COMMAND_QUERY_KEY,
+  readonly string[] | null,
+];
+export type SystemCliCommandQueryKeyPrefix = readonly [
+  typeof SYSTEM_CLI_COMMAND_QUERY_KEY,
 ];
 export type SystemVersionQueryKey = readonly [typeof SYSTEM_VERSION_QUERY_KEY];
 export type HostProviderCliStatusQueryKey = readonly [
@@ -1105,6 +1114,16 @@ export function systemCliSkillsQueryKey(
 
 export function allSystemCliSkillsQueryKeyPrefix(): SystemCliSkillsQueryKeyPrefix {
   return [SYSTEM_CLI_SKILLS_QUERY_KEY];
+}
+
+export function systemCliCommandQueryKey(
+  hostIds?: readonly string[],
+): SystemCliCommandQueryKey {
+  return [SYSTEM_CLI_COMMAND_QUERY_KEY, hostIds ?? null];
+}
+
+export function allSystemCliCommandQueryKeyPrefix(): SystemCliCommandQueryKeyPrefix {
+  return [SYSTEM_CLI_COMMAND_QUERY_KEY];
 }
 
 export function browserAccessGrantsQueryKey(): BrowserAccessGrantsQueryKey {
