@@ -86,11 +86,15 @@ function nextNoticeAt(deps: GlobalSkillReconcileDeps): number {
  * this server's tree (#148): the ones a person should hear about beside the
  * update, since Settings is the only other place that says so.
  *
- * Not every `skipped` is one. Each conditional install is applied to both
- * roots, and the daemon skips any copy that does not hash to its condition —
- * so it also skips a root that is absent, one already holding this tree, and
- * one another install in the same run wrote or adopted (two roots at two
- * trees this install wrote are two conditions, each skipping the other root).
+ * Not every `skipped` is one. Each condition of the request is applied to both
+ * roots, and the daemon skips any copy that does not hash to it — so it also
+ * skips a root that is absent, one already holding this tree, and one another
+ * condition of the same request wrote or adopted (two roots at two trees this
+ * install wrote are two conditions, each skipping the other root).
+ *
+ * Judged against the read the plan was made from, not a second one: a copy
+ * changed in the moment between that read and the install can be misnamed
+ * once, and Settings reads it afresh.
  */
 function copiesLeftBehind(args: {
   entries: HostGlobalSkillsStatusResult["entries"];

@@ -514,12 +514,12 @@ describe("a machine connecting", () => {
       await writeBuiltinCliSkill(harness);
       setOutsideAgentSetup(harness.deps.db, "accepted");
       const [agentsPath, claudePath] = ROOT_PATHS;
-      const { host, session } = seedHostSession(harness.deps);
-      sessionIdByHostId.set(host.id, session.id);
-      registerHostRpcResponder(harness, {
-        hostId: host.id,
-        sessionId: session.id,
-        handle: daemonOverHome(
+      const machines: Record<
+        string,
+        [Map<string, string>, Map<string, string>]
+      > = {
+        // Edited by hand since this install wrote it.
+        "host-edited": [
           new Map([
             [agentsPath, OLDER],
             [claudePath, EDITED],
@@ -528,27 +528,42 @@ describe("a machine connecting", () => {
             [agentsPath, OLDER],
             [claudePath, OLDER],
           ]),
-        ),
-      });
-
-      await connect(harness.deps, host.id);
-
-      expect(await readUpdates(harness)).toEqual([
-        {
+        ],
+        // The same bytes this install wrote beside it, but not written by it.
+        "host-not-ours": [
+          new Map([
+            [agentsPath, OLDER],
+            [claudePath, OLDER],
+          ]),
+          new Map([[agentsPath, OLDER]]),
+        ],
+      };
+      for (const [id, [home, record]] of Object.entries(machines)) {
+        const { host, session } = seedHostSession(harness.deps, { id });
+        sessionIdByHostId.set(host.id, session.id);
+        registerHostRpcResponder(harness, {
           hostId: host.id,
-          hostName: host.name,
-          skills: ["patcher-cli"],
-          skippedCopies: [claudePath],
-          at: expect.any(Number),
-        },
+          sessionId: session.id,
+          handle: daemonOverHome(home, record),
+        });
+        await connect(harness.deps, host.id);
+      }
+
+      expect(
+        (await readUpdates(harness))
+          .map((update) => [update.hostId, update.skills, update.skippedCopies])
+          .sort(),
+      ).toEqual([
+        ["host-edited", ["patcher-cli"], [claudePath]],
+        ["host-not-ours", ["patcher-cli"], [claudePath]],
       ]);
     });
   });
 
-  // The daemon skips every copy that does not hold an install's condition, and
-  // each install is applied to both roots — so it also skips copies that were
-  // not left behind at all.
-  it("names no copy that was absent, already current, or updated by another install in the same run", async () => {
+  // The daemon skips every copy that does not hold a condition, and each
+  // condition is applied to both roots — so it also skips copies that were not
+  // left behind at all.
+  it("names no copy that was absent, already current, or updated under another condition of the same request", async () => {
     await withTestHarness(async (harness) => {
       await writeBuiltinCliSkill(harness);
       setOutsideAgentSetup(harness.deps.db, "accepted");
@@ -601,12 +616,14 @@ describe("a machine connecting", () => {
         await connect(harness.deps, host.id);
       }
 
-      const updates = await readUpdates(harness);
-      expect(updates.map((update) => update.hostId).sort()).toEqual(
-        Object.keys(machines).sort(),
-      );
-      expect(updates.map((update) => update.skippedCopies)).toEqual(
-        updates.map(() => []),
+      expect(
+        (await readUpdates(harness))
+          .map((update) => [update.hostId, update.skippedCopies])
+          .sort(),
+      ).toEqual(
+        Object.keys(machines)
+          .map((id) => [id, []])
+          .sort(),
       );
     });
   });
