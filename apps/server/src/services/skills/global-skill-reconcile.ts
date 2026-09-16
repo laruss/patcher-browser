@@ -117,10 +117,21 @@ async function reconcileHost(
   // are there are this install's and current — an unconditional install writes
   // both roots, and a copy somebody changed is not ours to overwrite.
   const answered = getAnsweredCliSkills(deps.db);
+  // The same machine the question would have been put about: one this install
+  // put Patcher's skills on. An accept elsewhere is not a licence to install
+  // into the home of a machine that was never in any question.
+  const ownsOthers = entries.some(
+    (entry) => entry.treeHash !== null && entry.installedTreeHash !== null,
+  );
   const acceptedButMissing = skills.filter((skill) => {
-    if (answered[skill.name] !== "accepted") return false;
+    if (answered[skill.name] !== "accepted" || !ownsOthers) return false;
     const copies = entries.filter((entry) => entry.name === skill.name);
-    if (!copies.some((copy) => copy.treeHash === null)) return false;
+    const absent = copies.filter((copy) => copy.treeHash === null);
+    if (absent.length === 0) return false;
+    // Never written here, rather than removed: a copy somebody deleted keeps
+    // its entry in the machine's record, and deleting one is not an invitation
+    // to put it back on every connect for good.
+    if (absent.some((copy) => copy.installedTreeHash !== null)) return false;
     return copies
       .filter((copy) => copy.treeHash !== null)
       .every(

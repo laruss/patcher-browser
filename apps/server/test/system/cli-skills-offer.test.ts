@@ -1,16 +1,15 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  getAnsweredCliSkills,
-  setAnsweredCliSkills,
-  updateHost,
-} from "@patcher/db";
+import { getAnsweredCliSkills, setAnsweredCliSkills } from "@patcher/db";
 import type {
   HostDaemonOnlineRpcRequestMessage,
   HostGlobalSkillsStatusResult,
 } from "@patcher/host-daemon-contract";
-import { systemConfigResponseSchema } from "@patcher/server-contract";
+import {
+  systemCliSkillsOfferResponseSchema,
+  systemConfigResponseSchema,
+} from "@patcher/server-contract";
 import { readJson } from "../helpers/json.js";
 import {
   registerHostRpcResponder,
@@ -78,7 +77,12 @@ function machineMissingTheNewSkill(harness: TestAppHarness): Entries {
 
 function standInMachine(
   harness: TestAppHarness,
-  args: { hostId: string; sessionId: string; entries: Entries },
+  args: {
+    hostId: string;
+    sessionId: string;
+    entries: Entries;
+    install?: "fails";
+  },
 ): HostRpcResponder {
   return registerHostRpcResponder(harness, {
     hostId: args.hostId,
@@ -89,6 +93,13 @@ function standInMachine(
       }
       if (request.command.type !== "host.install_global_skills") {
         throw new Error(`Unexpected command ${request.command.type}`);
+      }
+      if (args.install === "fails") {
+        return {
+          ok: false,
+          errorCode: "install_failed",
+          errorMessage: "disk is full",
+        };
       }
       return {
         ok: true,
@@ -124,6 +135,16 @@ function installedSkillNames(responder: HostRpcResponder): string[] {
       ? request.command.skills.map((skill) => skill.name)
       : [],
   );
+}
+
+function recordSystemChanges(harness: TestAppHarness): string[] {
+  const changes: string[] = [];
+  const notifySystem = harness.hub.notifySystem.bind(harness.hub);
+  harness.hub.notifySystem = (kinds) => {
+    changes.push(...kinds);
+    notifySystem(kinds);
+  };
+  return changes;
 }
 
 async function readOffer(harness: TestAppHarness) {
@@ -502,9 +523,18 @@ describe("machines that are missing different skills", () => {
         });
       }
 
-      updateHost(harness.deps.db, harness.deps.hub, "host-laptop", {
-        destroyedAt: Date.now(),
-      });
+      const changes = recordSystemChanges(harness);
+      // Disconnected first, as a machine being removed has been.
+      machines[0]?.responder.unregister();
+      const removed = await harness.app.request(
+        new Request("http://test/api/v1/hosts/host-laptop", {
+          method: "DELETE",
+        }),
+      );
+      expect(removed.status).toBe(200);
+      // The window holding this machine hears about it at once, rather than
+      // keeping a question naming a machine that is gone.
+      expect(changes).toContain("config-changed");
 
       const offer = await readOffer(harness);
       expect(offer?.skills).toEqual(["patcher-cli"]);
@@ -658,6 +688,180 @@ describe("an accepted skill that only half arrived", () => {
       });
 
       expect(installedSkillNames(machine)).toEqual([]);
+    });
+  });
+});
+
+describe("what an accepted skill does not do", () => {
+  function machineWith(harness: TestAppHarness, browser: Entries): Entries {
+    const cli = treeHashes(harness)["patcher-cli"] ?? OWNED;
+    return [...copies("patcher-cli", [cli, cli]), ...browser];
+  }
+
+  // The record keeps a deleted copy's entry, which is what tells "removed"
+  // from "never had". Without that, an accept would put it back on every
+  // connect, for good.
+  it("does not put back a copy the person deleted", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinSkills(harness);
+      setAnsweredCliSkills(harness.deps.db, { "patcher-browser": "accepted" });
+      const browser = treeHashes(harness)["patcher-browser"] ?? OWNED;
+      const { host, session } = seedHostSession(harness.deps);
+      const machine = standInMachine(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        entries: machineWith(
+          harness,
+          copies("patcher-browser", [null, browser]),
+        ),
+      });
+
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: host.id,
+        sessionId: session.id,
+      });
+
+      expect(installedSkillNames(machine)).toEqual([]);
+    });
+  });
+
+  it("does not put back one root of two the person deleted", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinSkills(harness);
+      setAnsweredCliSkills(harness.deps.db, { "patcher-browser": "accepted" });
+      const browser = treeHashes(harness)["patcher-browser"] ?? OWNED;
+      const { host, session } = seedHostSession(harness.deps);
+      const machine = standInMachine(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        entries: machineWith(harness, [
+          {
+            name: "patcher-browser",
+            path: "/home/u/.agents/skills/patcher-browser",
+            treeHash: browser,
+            installedTreeHash: browser,
+          },
+          {
+            name: "patcher-browser",
+            path: "/home/u/.claude/skills/patcher-browser",
+            treeHash: null,
+            installedTreeHash: browser,
+          },
+        ]),
+      });
+
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: host.id,
+        sessionId: session.id,
+      });
+
+      expect(installedSkillNames(machine)).toEqual([]);
+    });
+  });
+
+  // The answer is about Patcher's skills on the machines that have them. A
+  // machine holding none of them was in no question.
+  it("does not reach a machine that has none of Patcher's skills", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinSkills(harness);
+      setAnsweredCliSkills(harness.deps.db, { "patcher-browser": "accepted" });
+      const { host, session } = seedHostSession(harness.deps);
+      const machine = standInMachine(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        entries: [
+          ...copies("patcher-cli", [null, null]),
+          ...copies("patcher-browser", [null, null]),
+        ],
+      });
+
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: host.id,
+        sessionId: session.id,
+      });
+
+      expect(installedSkillNames(machine)).toEqual([]);
+    });
+  });
+});
+
+describe("answering for more than one machine", () => {
+  // Machines install independently, so one refusing is a result rather than a
+  // failure of the answer: the others still get the skill, and the answer
+  // stands so the question does not come back on the next launch.
+  it("reports each machine, and keeps the answer when one refuses", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinSkills(harness);
+      const machines = ["host-laptop", "host-studio"].map((id, index) => {
+        const { host, session } = seedHostSession(harness.deps, { id });
+        return {
+          host,
+          session,
+          responder: standInMachine(harness, {
+            hostId: host.id,
+            sessionId: session.id,
+            entries: machineMissingTheNewSkill(harness),
+            ...(index === 0 ? { install: "fails" as const } : {}),
+          }),
+        };
+      });
+      for (const machine of machines) {
+        await reconcileGlobalCliSkills(harness.deps, {
+          hostId: machine.host.id,
+          sessionId: machine.session.id,
+        });
+      }
+
+      const response = await harness.app.request(answer("accept"));
+
+      expect(response.status).toBe(200);
+      const body = systemCliSkillsOfferResponseSchema.parse(
+        await readJson(response),
+      );
+      expect(
+        body.install?.results.map((entry) => [entry.hostId, entry.ok]),
+      ).toEqual([
+        ["host-laptop", false],
+        ["host-studio", true],
+      ]);
+      expect(getAnsweredCliSkills(harness.deps.db)).toEqual({
+        "patcher-browser": "accepted",
+      });
+      expect(await readOffer(harness)).toBeNull();
+    });
+  });
+
+  // The answer is by skill, not by machine: the same rule that installs an
+  // accepted skill on a machine that was offline when it was answered.
+  it("answers for a machine that offers a shown skill and appeared late", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinSkills(harness);
+      const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
+      const laptopMachine = standInMachine(harness, {
+        hostId: laptop.host.id,
+        sessionId: laptop.session.id,
+        entries: machineMissingTheNewSkill(harness),
+      });
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: laptop.host.id,
+        sessionId: laptop.session.id,
+      });
+      // Drawn while only the laptop was offering.
+      const studio = seedHostSession(harness.deps, { id: "host-studio" });
+      const studioMachine = standInMachine(harness, {
+        hostId: studio.host.id,
+        sessionId: studio.session.id,
+        entries: machineMissingTheNewSkill(harness),
+      });
+      await reconcileGlobalCliSkills(harness.deps, {
+        hostId: studio.host.id,
+        sessionId: studio.session.id,
+      });
+
+      await harness.app.request(answer("accept"));
+
+      expect(installedSkillNames(laptopMachine)).toEqual(["patcher-browser"]);
+      expect(installedSkillNames(studioMachine)).toEqual(["patcher-browser"]);
     });
   });
 });

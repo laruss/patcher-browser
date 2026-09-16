@@ -153,14 +153,13 @@ export function noteNewCliSkills(
     hostId: string;
     skills: readonly HostInstallGlobalSkill[];
   },
-): string[] {
+): void {
   const newNames = findNewCliSkills(args);
   const current = deps.cliSkillsOffers.get(args.hostId) ?? [];
-  if (current.join("\u0000") === newNames.join("\u0000")) return newNames;
+  if (current.join("\u0000") === newNames.join("\u0000")) return;
   if (newNames.length === 0) deps.cliSkillsOffers.delete(args.hostId);
   else deps.cliSkillsOffers.set(args.hostId, newNames);
   deps.hub.notifySystem(["config-changed"]);
-  return newNames;
 }
 
 /** Drop names an install has just put in place, so nothing asks about them. */
@@ -176,8 +175,9 @@ export function clearOfferedSkills(
 }
 
 /**
- * What the window asks about, if anything: the skills no machine has that
- * nobody has answered for yet, and the machines they would be installed on.
+ * What the window asks about, if anything: per machine, the skills it has never
+ * had that nobody has answered for yet. Machines that have been removed are
+ * dropped first, so their names do not become somebody else's install.
  */
 export function resolveCliSkillsOffer(
   deps: GlobalSkillInstallDeps,
@@ -438,8 +438,11 @@ export function recordAcceptedWhenPrimaryHasCopies(
  * The person's answer about the skills that shipped after they first said yes
  * (#142).
  *
- * The server answers the offer it holds rather than one the window names, so a
- * second window clicking late settles nothing new. Recorded before the install
+ * The window names the skills it drew and the server answers those of them it
+ * still holds, so a second window clicking late settles nothing new. The answer
+ * is by skill, not by machine: a machine that offers a skill being answered is
+ * answered for too, which is the same rule that installs an accepted skill on a
+ * machine that was offline at the time. Recorded before the install
  * runs, for #141's reason: an install that fails must not put the question back
  * on every launch. An accept outlives this call — a machine that was offline
  * installs the skill when it next connects.
@@ -481,15 +484,36 @@ export async function answerCliSkillsOffer(
   if (args.answer === "decline") return { answered, install: null };
   // Per machine, with that machine's own names: the machine that offered only
   // one of them must not be sent the other, which it may have and have edited.
-  const results: InstallGlobalCliSkillsResult["results"] = [];
-  for (const machine of machines) {
-    const installed = await installGlobalCliSkills(deps, {
-      hostIds: [machine.hostId],
-      skillNames: machine.skills,
-    });
-    results.push(...installed.results);
-  }
-  return { answered, install: { results } };
+  // Side by side, because each waits on its own daemon, and one machine that
+  // has gone takes only its own entry down — the answer is already recorded.
+  const installs = await Promise.all(
+    machines.map(async (machine) => {
+      try {
+        const installed = await installGlobalCliSkills(deps, {
+          hostIds: [machine.hostId],
+          skillNames: machine.skills,
+        });
+        return installed.results;
+      } catch (error) {
+        // A daemon that refuses comes back as a failed result rather than a
+        // throw; what reaches here is the machine being removed between the
+        // offer and its turn, which no test can stage from outside a request.
+        deps.logger.warn(
+          { hostId: machine.hostId, err: error },
+          "Could not install a newly shipped Patcher CLI skill on a machine",
+        );
+        return [
+          {
+            ok: false as const,
+            hostId: machine.hostId,
+            hostName: machine.hostName,
+            errorMessage: installFailureMessage(error),
+          },
+        ];
+      }
+    }),
+  );
+  return { answered, install: { results: installs.flat() } };
 }
 
 /**

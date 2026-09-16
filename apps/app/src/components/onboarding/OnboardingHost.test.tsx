@@ -541,20 +541,55 @@ describe("the question about a newly shipped skill", () => {
     expect(mocks.reportInstallResults).toHaveBeenCalledWith(install);
   });
 
+  // The server records the answer and says `config-changed` before the install
+  // runs, so the offer is already gone while it is still installing. Resetting
+  // a request that is still out would detach it: the question would close
+  // mid-install and its per-machine outcome would never be reported.
   it("stays up while the answer is being sent, though the config already dropped it", () => {
+    const reset = vi.fn();
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsOffer: offer, outsideAgentSetup: "accepted" }),
+    );
+    const view = render(<OnboardingHost />);
+    expect(screen.getByText(NEW_SKILL_QUESTION)).toBeTruthy();
+
     mocks.useAnswerCliSkillsOffer.mockReturnValue({
       isPending: true,
       isSuccess: false,
       mutate: vi.fn(),
-      reset: vi.fn(),
+      reset,
     });
     mocks.useSystemConfig.mockReturnValue(
       systemConfig({ cliSkillsOffer: null, outsideAgentSetup: "accepted" }),
     );
+    view.rerender(<OnboardingHost />);
+
+    expect(screen.getByText(NEW_SKILL_QUESTION)).toBeTruthy();
+    expect(reset).not.toHaveBeenCalled();
+  });
+
+  it("forgets a settled answer once it no longer describes what is offered", () => {
+    const reset = vi.fn();
+    mocks.useAnswerCliSkillsOffer.mockReturnValue({
+      data: { answered: ["patcher-notes"], install: null },
+      isPending: false,
+      isSuccess: true,
+      mutate: vi.fn(),
+      reset,
+    });
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({
+        cliSkillsOffer: {
+          skills: ["patcher-tasks"],
+          machines: [{ hostName: "Laptop" }],
+        },
+        outsideAgentSetup: "accepted",
+      }),
+    );
 
     render(<OnboardingHost />);
 
-    expect(screen.queryByText(NEW_SKILL_QUESTION)).toBeNull();
+    expect(reset).toHaveBeenCalled();
   });
 
   it("goes away as soon as the answer lands", () => {
