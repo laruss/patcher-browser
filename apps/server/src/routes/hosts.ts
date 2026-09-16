@@ -170,6 +170,11 @@ export function registerHostRoutes(app: Hono, deps: AppDeps): void {
       handleHostRemoved(deps, { hostId, sessionId });
     }
     updateHost(deps.db, deps.hub, hostId, { destroyedAt: Date.now() });
+    // The question about newly shipped skills names machines (#142); a window
+    // holding this one must not keep offering to install on it.
+    if (deps.cliSkillsOffers.delete(hostId)) {
+      deps.hub.notifySystem(["config-changed"]);
+    }
     return context.json({ ok: true });
   });
 

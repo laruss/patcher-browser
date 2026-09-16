@@ -736,6 +736,13 @@
       "when": 1789484971111,
       "tag": "0104_outside_agent_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "6",
+      "when": 1789544768369,
+      "tag": "0105_cli_skills_answered",
+      "breakpoints": true
     }
   ]
 }

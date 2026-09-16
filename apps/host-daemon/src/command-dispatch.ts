@@ -652,8 +652,8 @@ const onlineRpcHandlers: OnlineRpcHandlerMap = {
   "host.delete_skill": deleteHostSkill,
   "host.write_skill": writeHostSkill,
   "host.install_global_skills": installGlobalSkills,
-  "host.global_skills_status": async (command) =>
-    readGlobalSkillsStatus(command, {}),
+  "host.global_skills_status": async (command, options) =>
+    readGlobalSkillsStatus(command, { dataDir: options.dataDir }),
   "host.list_branches": listHostBranches,
   "host.file_metadata": async (command, options) =>
     guardCredentialPaths(command, options, readHostFileMetadata),

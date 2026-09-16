@@ -1,12 +1,11 @@
 import { Button } from "@patcher/shared-ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@patcher/shared-ui/dialog";
+import { OnboardingQuestionDialog } from "./OnboardingQuestionDialog";
 
 export interface OutsideAgentSetupDialogContentProps {
   /** The machine the skills would be installed on: the primary host. */
@@ -69,32 +68,18 @@ export interface OutsideAgentSetupDialogProps extends OutsideAgentSetupDialogCon
   open: boolean;
 }
 
-/**
- * Escape and the close button answer "Not now", so closing it is an answer
- * rather than a way to be asked again next launch. A click outside does
- * nothing: the dialog appears on its own, and a click meant for the app behind
- * it must not answer it. On a narrow window it is a drawer, which would take a
- * tap outside or a swipe down as closing, so there it does not close at all and
- * the two buttons are the only answers.
- */
+/** The #141 question in the shell every launch-time question shares. */
 export function OutsideAgentSetupDialog({
   open,
   ...contentProps
 }: OutsideAgentSetupDialogProps) {
   return (
-    <Dialog
+    <OnboardingQuestionDialog
       open={open}
-      onOpenChange={(next) => {
-        if (next || contentProps.pending) return;
-        contentProps.onDecline();
-      }}
+      pending={contentProps.pending}
+      onDecline={contentProps.onDecline}
     >
-      <DialogContent
-        dismissible={false}
-        onInteractOutside={(event) => event.preventDefault()}
-      >
-        <OutsideAgentSetupDialogContent {...contentProps} />
-      </DialogContent>
-    </Dialog>
+      <OutsideAgentSetupDialogContent {...contentProps} />
+    </OnboardingQuestionDialog>
   );
 }

@@ -223,6 +223,12 @@ export const appSettings = sqliteTable("app_settings", {
     .default("off"),
   /** `unasked` | `accepted` | `declined` — kept out of `setAppSettings` (#141). */
   outsideAgentSetup: text("outside_agent_setup").notNull().default("unasked"),
+  /**
+   * `{ [skillName]: "accepted" | "declined" }` — the answer to each skill for
+   * agents outside Patcher that shipped after the person first said yes (#142).
+   * Kept out of `setAppSettings` for the same reason as the answer above.
+   */
+  cliSkillsAnswered: text("cli_skills_answered").notNull().default("{}"),
   browserSearchEngineId: text("browser_search_engine_id")
     .notNull()
     .default(DEFAULT_BROWSER_SEARCH_ENGINE_ID),

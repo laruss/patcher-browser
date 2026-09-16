@@ -70,6 +70,8 @@ function systemConfig(): SystemConfigResponse {
     primaryHostId: "host_primary",
     primaryHostPlatform: "darwin",
     outsideAgentSetup: "unasked",
+    cliSkillsUpdates: [],
+    cliSkillsOffer: null,
     voiceTranscriptionEnabled: false,
     dataDir: "/tmp/patcher-test",
   };

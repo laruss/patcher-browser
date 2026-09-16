@@ -5325,11 +5325,17 @@ declare const hostDaemonCommandRegistry: {
             name: z$1.ZodString;
             treeHash: z$1.ZodString;
             entryPath: z$1.ZodString;
+            replaceOnlyIfTreeHash: z$1.ZodOptional<z$1.ZodString>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, z$1.ZodObject<{
         installations: z$1.ZodArray<z$1.ZodObject<{
             name: z$1.ZodString;
             path: z$1.ZodString;
+            outcome: z$1.ZodEnum<{
+                written: "written";
+                adopted: "adopted";
+                skipped: "skipped";
+            }>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, "onlineRpc", false>;
     "host.global_skills_status": HostDaemonCommandDescriptor<"host.global_skills_status", z$1.ZodObject<{
@@ -5340,6 +5346,7 @@ declare const hostDaemonCommandRegistry: {
             name: z$1.ZodString;
             path: z$1.ZodString;
             treeHash: z$1.ZodNullable<z$1.ZodString>;
+            installedTreeHash: z$1.ZodNullable<z$1.ZodString>;
         }, z$1.core.$strict>>;
     }, z$1.core.$strict>, "onlineRpc", true>;
     "host.list_branches": HostDaemonCommandDescriptor<"host.list_branches", z$1.ZodObject<{
@@ -6143,8 +6150,8 @@ declare const hostDaemonCommandRegistry: {
                     unknown: "unknown";
                     success: "success";
                     cancelled: "cancelled";
-                    failure: "failure";
                     skipped: "skipped";
+                    failure: "failure";
                     neutral: "neutral";
                     timed_out: "timed_out";
                     action_required: "action_required";
@@ -7504,6 +7511,20 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         unasked: "unasked";
         declined: "declined";
     }>;
+    cliSkillsUpdates: z$1.ZodDefault<z$1.ZodArray<z$1.ZodObject<{
+        hostId: z$1.ZodString;
+        hostName: z$1.ZodString;
+        skills: z$1.ZodArray<z$1.ZodString>;
+        at: z$1.ZodNumber;
+    }, z$1.core.$strip>>>;
+    cliSkillsOffer: z$1.ZodDefault<z$1.ZodNullable<z$1.ZodObject<{
+        skills: z$1.ZodArray<z$1.ZodString>;
+        machines: z$1.ZodArray<z$1.ZodObject<{
+            hostId: z$1.ZodString;
+            hostName: z$1.ZodString;
+            skills: z$1.ZodArray<z$1.ZodString>;
+        }, z$1.core.$strip>>;
+    }, z$1.core.$strip>>>;
     voiceTranscriptionEnabled: z$1.ZodBoolean;
     dataDir: z$1.ZodString;
 }, z$1.core.$strip>;
@@ -7561,8 +7582,10 @@ declare const systemCliSkillsStatusResponseSchema: z$1.ZodObject<{
         status: z$1.ZodEnum<{
             unknown: "unknown";
             missing: "missing";
+            modified: "modified";
             installed: "installed";
             outdated: "outdated";
+            incomplete: "incomplete";
         }>;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
@@ -7805,6 +7828,40 @@ declare const systemInstallCliSkillsResponseSchema: z$1.ZodObject<{
     }, z$1.core.$strip>], "ok">>;
 }, z$1.core.$strip>;
 type SystemInstallCliSkillsResponse = z$1.infer<typeof systemInstallCliSkillsResponseSchema>;
+/**
+ * The person's answer to a skill that shipped after they first said yes (#142).
+ * The window answers the offer it was shown; the server answers the offer it
+ * holds, so a late click from a second window records nothing new.
+ */
+declare const systemCliSkillsOfferRequestSchema: z$1.ZodObject<{
+    answer: z$1.ZodEnum<{
+        accept: "accept";
+        decline: "decline";
+    }>;
+    skills: z$1.ZodArray<z$1.ZodString>;
+}, z$1.core.$strip>;
+type SystemCliSkillsOfferRequest = z$1.infer<typeof systemCliSkillsOfferRequestSchema>;
+/** The names this answer settled, and the install an accept ran. */
+declare const systemCliSkillsOfferResponseSchema: z$1.ZodObject<{
+    answered: z$1.ZodArray<z$1.ZodString>;
+    install: z$1.ZodNullable<z$1.ZodObject<{
+        results: z$1.ZodArray<z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
+            ok: z$1.ZodLiteral<true>;
+            hostId: z$1.ZodString;
+            hostName: z$1.ZodString;
+            installations: z$1.ZodArray<z$1.ZodObject<{
+                name: z$1.ZodString;
+                path: z$1.ZodString;
+            }, z$1.core.$strip>>;
+        }, z$1.core.$strip>, z$1.ZodObject<{
+            ok: z$1.ZodLiteral<false>;
+            hostId: z$1.ZodString;
+            hostName: z$1.ZodString;
+            errorMessage: z$1.ZodString;
+        }, z$1.core.$strip>], "ok">>;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemCliSkillsOfferResponse = z$1.infer<typeof systemCliSkillsOfferResponseSchema>;
 /**
  * The person's answer to the launch-time question about installing Patcher's
  * skills for agents outside Patcher (#141). `accept` installs onto the primary
@@ -13244,6 +13301,8 @@ type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
 type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
 type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
+type SystemCliSkillsOfferArgs = SystemCliSkillsOfferRequest;
+type SystemCliSkillsOfferResult = SystemCliSkillsOfferResponse;
 type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 type SystemUpdateExperimentsResult = Experiments;
 type SystemUpdateGeneralSettingsResult = AppSettings;
@@ -13286,6 +13345,12 @@ interface SystemArea {
      * primary machine. Refused inside a turn, like `installCliSkills`.
      */
     setupCliSkills(args: SystemCliSkillsSetupArgs): Promise<SystemCliSkillsSetupResult>;
+    /**
+     * Answer for a skill that shipped after the CLI skills were first installed
+     * (#142); `accept` installs it on the machines that are missing it. Refused
+     * inside a turn, like `installCliSkills`.
+     */
+    answerCliSkillsOffer(args: SystemCliSkillsOfferArgs): Promise<SystemCliSkillsOfferResult>;
     reloadConfig(): Promise<SystemReloadConfigResult>;
     transcribeVoice(args: SystemVoiceTranscriptionArgs): Promise<SystemVoiceTranscriptionResult>;
     updateExperiments(args: Experiments): Promise<SystemUpdateExperimentsResult>;

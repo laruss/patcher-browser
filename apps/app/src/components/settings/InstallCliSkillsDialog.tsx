@@ -24,6 +24,8 @@ export interface InstallCliSkillsDialogContentProps {
 const MACHINE_STATUS_LABELS: Record<CliSkillMachineStatus, string | null> = {
   installed: "Installed",
   outdated: "Out of date",
+  modified: "Modified",
+  incomplete: "Partly installed",
   missing: "Not installed",
   unknown: null,
 };

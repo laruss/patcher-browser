@@ -258,12 +258,17 @@ const ONLINE_RPC_RESPONSE_RESULT_FIXTURES: OnlineRpcResponseResultFixtures = {
         name: "patcher-cli",
         path: "/home/user/.agents/skills/patcher-cli",
         treeHash: "c".repeat(64),
+        installedTreeHash: null,
       },
     ],
   },
   "host.install_global_skills": {
     installations: [
-      { name: "patcher-cli", path: "/home/user/.agents/skills/patcher-cli" },
+      {
+        name: "patcher-cli",
+        path: "/home/user/.agents/skills/patcher-cli",
+        outcome: "written",
+      },
     ],
   },
   "host.caffeinate": {
@@ -1072,84 +1077,6 @@ describe("host-daemon local schemas", () => {
 });
 
 describe("host-daemon command schemas", () => {
-  // Three bumps from the inherited 106, and only the first changed a message
-  // shape.
-  //
-  // 107 removed the cloud: the `connect-tunnel.ensure-identity` online RPC and
-  // the `connect-shares.replace` daemon message are gone, and `session.open`
-  // no longer accepts `connectMachineId` or `hasMachineCredential`. A pre-107
-  // daemon still sends those fields, which the current schema rejects — the
-  // version gate is what stops it reaching payload validation at all.
-  //
-  // 108 renamed the daemon's environment contract. The daemon builds the agent
-  // shell itself: it injects the thread-context variables, strips inherited
-  // ones by prefix, and puts the CLI shim on PATH. A pre-rename daemon
-  // injects `BB_*` and a `bb` shim, so a thread the server started would run
-  // agents that cannot see their own thread id.
-  //
-  // 109 renamed the WebSocket subprotocol (see session.ts). A 108 daemon would
-  // pass the version check and then be refused the socket with a 400 it has no
-  // way to read, so the version is what turns that into "Needs update".
-  //
-  // Nothing on the wire changed for 108 and 109, which is why the version has
-  // to say it — enrolled machines must update rather than connect and quietly
-  // break.
-  //
-  // 110 added `/session/env-setup-script-consent`: the daemon asks the server
-  // before it runs a repository's own `.patcher-env-setup.sh`. A 109 daemon has
-  // no such call, so it would run that script with nobody asked — the version
-  // is what stops it opening a session against a server that expects to be
-  // asked.
-  //
-  // 111 added `sandbox` to `terminal.open`: a terminal an agent asked for runs
-  // inside the boundary its turn runs in. A 110 daemon ignores the field and
-  // would open an unconfined shell for a sandboxed turn — silently, which is
-  // the one outcome this whole boundary exists to remove.
-  //
-  // 112 added `localApiKey` to session open: the daemon's loopback API takes a
-  // credential the daemon mints for itself instead of the app key. A 111 daemon
-  // sends none, so the server would have nothing to give the app and opening a
-  // file in an editor would fail on every machine — the version is what makes
-  // the two halves arrive together.
-  //
-  // 113 added `options.providerNetworkRestricted`: an install can take the
-  // network from a sandboxed Codex turn's own commands. A 112 daemon ignores the
-  // field and builds the profile with the network open — so the app would say a
-  // turn is confined while it is not, which is the silence the bump exists to
-  // prevent.
-  //
-  // 114 added `acpLaunchSpec.stateDirs`: where an ACP agent writes its own
-  // state, which is what a sandboxed turn has to grant back so the agent can
-  // start. A 113 daemon drops the field, so every launch-spec agent looks
-  // unmeasured to it and its sandboxed turns run the provider unconfined — the
-  // warning would be accurate about the daemon and wrong about Patcher, which
-  // is exactly the silence the field exists to remove.
-  //
-  // 115 added `acpLaunchSpec.egressHosts` and the two `options.providerEgress*`
-  // fields: which hosts an agent needs, and whether this turn is confined to
-  // them. A 114 daemon drops all three and leaves the network open, so the app
-  // would say a turn's egress is confined while nothing confines it — the same
-  // silence as 113, one boundary along.
-  //
-  // 116 added `/session/egress-host-consent`: the daemon asks before a
-  // network-confined turn reaches a host that is on nobody's list, instead of
-  // refusing it outright. A 115 server has no such route, so every question a
-  // 116 daemon puts would come back as a transport failure and be reported to
-  // the agent as "asking you failed" — the version is what makes the two
-  // halves of a prompt arrive together.
-  //
-  // 117 changed what a thread credential *is*. It used to be one bare digest
-  // with no deadline in it, good for as long as the app key; it is now two —
-  // a turn's, accepted while its thread has a turn running, and a terminal's,
-  // accepted while that terminal is open — and each says which it is so the
-  // server knows which state decides. A 116 daemon injects the old shape,
-  // which a 117 server cannot accept and must not guess at, so every `patcher`
-  // call from inside a turn would answer 401. The version is what makes the
-  // two halves arrive together.
-  it("uses protocol version 117 after a thread credential gained a lifetime", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(117);
-  });
-
   // The subprotocol is agreed between two processes by string, so no build
   // notices it changing, and the rename audit cannot see a `bb` that became a
   // `patcher`. Pinned as the value: a diff that renames it lands here.

@@ -4,7 +4,10 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import matter from "gray-matter";
 import { resolveDataDirSkillsRootPath } from "@patcher/config/skill-storage-paths";
-import type { HostDaemonInjectedSkillSource } from "@patcher/host-daemon-contract";
+import {
+  isIgnoredSkillTreeFile,
+  type HostDaemonInjectedSkillSource,
+} from "@patcher/host-daemon-contract";
 import { z } from "zod";
 import type { ServerLogger } from "../../types.js";
 import { REGISTRY_SKILL_PROVENANCE_FILE_NAME } from "./registry-skill-provenance.js";
@@ -245,6 +248,9 @@ function collectSkillTreeEntries(
     }
     if (!stat.isFile()) {
       throw new Error(`Skill tree entry is not a regular file: ${entryPath}`);
+    }
+    if (isIgnoredSkillTreeFile(entry.name)) {
+      continue;
     }
     entries.push({
       bytes: fs.readFileSync(entryPath),

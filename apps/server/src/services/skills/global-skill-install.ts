@@ -1,11 +1,16 @@
 import {
+  getAnsweredCliSkills,
   getOutsideAgentSetup,
   listHosts,
   listNonDestroyedHostsByIds,
+  setAnsweredCliSkills,
   setOutsideAgentSetup,
 } from "@patcher/db";
 import type {
   CliSkillMachineStatus,
+  CliSkillsOffer,
+  SystemCliSkillsOfferRequest,
+  SystemCliSkillsOfferResponse,
   SystemCliSkillsSetupRequest,
   SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
@@ -56,8 +61,9 @@ export function listInstallableMachineIds(
 
 export type InstallGlobalCliSkillsResult = SystemInstallCliSkillsResponse;
 
-type GlobalSkillInstallDeps = Pick<
+export type GlobalSkillInstallDeps = Pick<
   AppDeps,
+  | "cliSkillsOffers"
   | "config"
   | "db"
   | "hub"
@@ -70,6 +76,8 @@ type GlobalSkillInstallDeps = Pick<
 
 export interface InstallGlobalCliSkillsArgs {
   hostIds: readonly string[];
+  /** Only these skills, for an install answering an offer (#142). */
+  skillNames?: readonly string[];
 }
 
 /**
@@ -77,7 +85,7 @@ export interface InstallGlobalCliSkillsArgs {
  * each tree hash with the skill tree registry, which is what lets a daemon
  * pull the tree bytes back over the internal skill-tree route.
  */
-function resolveGlobalCliSkills(
+export function resolveGlobalCliSkills(
   deps: GlobalSkillInstallDeps,
 ): HostInstallGlobalSkill[] {
   return resolveServerOwnedSkillCatalogEntries({
@@ -101,11 +109,110 @@ function resolveGlobalCliSkills(
 }
 
 /**
+ * A skill this machine has never had, on an install that put the others there
+ * (#142) — a skill that shipped after the person said yes once, which is worth
+ * asking about rather than installing unasked or leaving out for good.
+ *
+ * "Never had" is both hashes null: a copy somebody removed keeps its entry in
+ * the machine's record, and removing a skill is not an invitation to offer it
+ * back. "The others are ours" needs a copy that is present and that this
+ * install once wrote — once, not unchanged since: a copy the person has edited
+ * still means they said yes to Patcher's skills on this machine.
+ */
+export function findNewCliSkills(args: {
+  entries: HostGlobalSkillsStatusResult["entries"];
+  skills: readonly HostInstallGlobalSkill[];
+}): string[] {
+  const ownsOthers = args.entries.some(
+    (entry) => entry.treeHash !== null && entry.installedTreeHash !== null,
+  );
+  if (!ownsOthers) return [];
+  return args.skills
+    .filter((skill) => {
+      const copies = args.entries.filter((entry) => entry.name === skill.name);
+      return (
+        copies.length > 0 &&
+        copies.every(
+          (copy) => copy.treeHash === null && copy.installedTreeHash === null,
+        )
+      );
+    })
+    .map((skill) => skill.name);
+}
+
+/**
+ * Keep the machine's offer in step with what it just reported. Every status
+ * read passes through here — the one a connect makes and the one a settings
+ * page makes — so a read that timed out is made good by the next, and an
+ * install from anywhere is noticed without waiting for a reconnect.
+ */
+export function noteNewCliSkills(
+  deps: GlobalSkillInstallDeps,
+  args: {
+    entries: HostGlobalSkillsStatusResult["entries"];
+    hostId: string;
+    skills: readonly HostInstallGlobalSkill[];
+  },
+): void {
+  const newNames = findNewCliSkills(args);
+  const current = deps.cliSkillsOffers.get(args.hostId) ?? [];
+  if (current.join("\u0000") === newNames.join("\u0000")) return;
+  if (newNames.length === 0) deps.cliSkillsOffers.delete(args.hostId);
+  else deps.cliSkillsOffers.set(args.hostId, newNames);
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+/** Drop names an install has just put in place, so nothing asks about them. */
+export function clearOfferedSkills(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string; skillNames: readonly string[] },
+): void {
+  const current = deps.cliSkillsOffers.get(args.hostId);
+  if (current === undefined) return;
+  const left = current.filter((name) => !args.skillNames.includes(name));
+  if (left.length === 0) deps.cliSkillsOffers.delete(args.hostId);
+  else deps.cliSkillsOffers.set(args.hostId, left);
+}
+
+/**
+ * What the window asks about, if anything: per machine, the skills it has never
+ * had that nobody has answered for yet. Machines that have been removed are
+ * dropped first, so their names do not become somebody else's install.
+ */
+export function resolveCliSkillsOffer(
+  deps: GlobalSkillInstallDeps,
+): CliSkillsOffer | null {
+  const answered = getAnsweredCliSkills(deps.db);
+  // Machines first, so a machine that has been removed takes its names with
+  // it rather than leaving them to be installed on somebody else.
+  const offered = listNonDestroyedHostsByIds(deps.db, [
+    ...deps.cliSkillsOffers.keys(),
+  ]).flatMap((host) => {
+    const names = (deps.cliSkillsOffers.get(host.id) ?? [])
+      .filter((name) => answered[name] === undefined)
+      .sort();
+    return names.length === 0 ? [] : [{ host, names }];
+  });
+  if (offered.length === 0) return null;
+  return {
+    skills: [...new Set(offered.flatMap((entry) => entry.names))].sort(),
+    machines: offered.map(({ host, names }) => ({
+      hostId: host.id,
+      hostName: host.name,
+      skills: names,
+    })),
+  };
+}
+
+/**
  * Compare what a machine has installed against what this server would install.
  * Every expected copy must match for "installed"; nothing present at all is
- * "missing"; anything in between (stale bytes, one root only) is "outdated".
+ * "missing". Of the rest, a copy changed since this install wrote it makes the
+ * machine "modified" — the one case an automatic update never touches, so it
+ * is named first — then a copy absent beside present ones "incomplete", and
+ * anything else, an older copy, "outdated".
  */
-function resolveMachineSkillStatus(args: {
+export function resolveMachineSkillStatus(args: {
   entries: HostGlobalSkillsStatusResult["entries"];
   skills: readonly HostInstallGlobalSkill[];
 }): CliSkillMachineStatus {
@@ -115,14 +222,40 @@ function resolveMachineSkillStatus(args: {
   const relevant = args.entries.filter((entry) =>
     expectedByName.has(entry.name),
   );
-  if (relevant.length === 0 || relevant.every((e) => e.treeHash === null)) {
-    return "missing";
+  const present = relevant.filter((entry) => entry.treeHash !== null);
+  if (present.length === 0) return "missing";
+  const isCurrent = (entry: (typeof relevant)[number]) =>
+    entry.treeHash === expectedByName.get(entry.name);
+  if (present.length === relevant.length && relevant.every(isCurrent)) {
+    return "installed";
   }
-  return relevant.every(
-    (entry) => entry.treeHash === expectedByName.get(entry.name),
-  )
-    ? "installed"
-    : "outdated";
+  const changedSinceInstalled = present.some(
+    (entry) =>
+      !isCurrent(entry) &&
+      entry.installedTreeHash !== null &&
+      entry.treeHash !== entry.installedTreeHash,
+  );
+  if (changedSinceInstalled) return "modified";
+  return present.length < relevant.length ? "incomplete" : "outdated";
+}
+
+/**
+ * Ask one machine for the raw state of its copies. Throws when the machine
+ * cannot answer; callers decide whether that is "unknown" or nothing to do.
+ */
+export async function readMachineSkillEntries(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string; skills: readonly HostInstallGlobalSkill[] },
+): Promise<HostGlobalSkillsStatusResult["entries"]> {
+  const result = await callHostOnlineRpc(deps, {
+    hostId: args.hostId,
+    timeoutMs: STATUS_TIMEOUT_MS,
+    command: {
+      type: "host.global_skills_status",
+      names: args.skills.map((skill) => skill.name),
+    },
+  });
+  return result.entries;
 }
 
 /**
@@ -143,20 +276,14 @@ export async function readGlobalCliSkillStatus(
         return { ...base, status: "unknown" as const };
       }
       try {
-        const result = await callHostOnlineRpc(deps, {
+        const entries = await readMachineSkillEntries(deps, {
           hostId: host.id,
-          timeoutMs: STATUS_TIMEOUT_MS,
-          command: {
-            type: "host.global_skills_status",
-            names: skills.map((skill) => skill.name),
-          },
+          skills,
         });
+        noteNewCliSkills(deps, { entries, hostId: host.id, skills });
         return {
           ...base,
-          status: resolveMachineSkillStatus({
-            entries: result.entries,
-            skills,
-          }),
+          status: resolveMachineSkillStatus({ entries, skills }),
         };
       } catch (error) {
         deps.logger.debug(
@@ -205,6 +332,14 @@ export async function installGlobalCliSkills(
       "The built-in Patcher CLI skill is unavailable on this server",
     );
   }
+  // An answer names skills this server resolved a moment ago, so an empty
+  // selection means they are gone from under it — nothing to install, rather
+  // than an install of everything.
+  const selected =
+    args.skillNames === undefined
+      ? skills
+      : skills.filter((skill) => args.skillNames?.includes(skill.name));
+  if (selected.length === 0) return { results: [] };
 
   const results = await Promise.all(
     hosts.map(async (host) => {
@@ -212,13 +347,21 @@ export async function installGlobalCliSkills(
         const result = await callHostOnlineRpc(deps, {
           hostId: host.id,
           timeoutMs: COMMAND_TIMEOUT_MS,
-          command: { type: "host.install_global_skills", skills },
+          command: { type: "host.install_global_skills", skills: selected },
+        });
+        clearOfferedSkills(deps, {
+          hostId: host.id,
+          skillNames: selected.map((skill) => skill.name),
         });
         return {
           ok: true as const,
           hostId: host.id,
           hostName: host.name,
-          installations: [...result.installations],
+          installations: result.installations.flatMap((installation) =>
+            installation.outcome === "skipped"
+              ? []
+              : [{ name: installation.name, path: installation.path }],
+          ),
         };
       } catch (error) {
         deps.logger.warn(
@@ -268,18 +411,22 @@ function recordAcceptedWhenPrimaryInstalled(
  * back.
  *
  * Recorded by whichever status read of the primary machine first gets an
- * answer — the connect-time check below, or the window's own read before it
- * decides whether to ask — so a connect-time read that timed out is made good
- * by the next one rather than lost. `unknown` records nothing, and `missing`
- * is the case the question is for.
+ * answer — the connect-time read, or the window's own read before it decides
+ * whether to ask — so a connect-time read that timed out is made good by the
+ * next one rather than lost. `unknown` records nothing, and `missing` is the
+ * case the question is for.
  */
-function recordAcceptedWhenPrimaryHasCopies(
+export function recordAcceptedWhenPrimaryHasCopies(
   deps: GlobalSkillInstallDeps,
   machines: SystemCliSkillsStatusResponse["machines"],
 ): void {
   const primaryHostId = resolvePrimaryHostId(deps);
   const primary = machines.find((machine) => machine.hostId === primaryHostId);
-  if (primary?.status !== "installed" && primary?.status !== "outdated") {
+  if (
+    primary === undefined ||
+    primary.status === "missing" ||
+    primary.status === "unknown"
+  ) {
     return;
   }
   if (getOutsideAgentSetup(deps.db) !== "unasked") return;
@@ -288,29 +435,85 @@ function recordAcceptedWhenPrimaryHasCopies(
 }
 
 /**
- * The check made when the primary machine's daemon connects, since the copies
- * are on that machine and nothing else can say whether they are there. Only
- * while unanswered, so a settled install costs no daemon call per connect.
+ * The person's answer about the skills that shipped after they first said yes
+ * (#142).
+ *
+ * The window names the skills it drew and the server answers those of them it
+ * still holds, so a second window clicking late settles nothing new. The answer
+ * is by skill, not by machine: a machine that offers a skill being answered is
+ * answered for too, which is the same rule that installs an accepted skill on a
+ * machine that was offline at the time. Recorded before the install
+ * runs, for #141's reason: an install that fails must not put the question back
+ * on every launch. An accept outlives this call — a machine that was offline
+ * installs the skill when it next connects.
  */
-export async function acceptWhenPrimaryHostHasCliSkills(
+export async function answerCliSkillsOffer(
   deps: GlobalSkillInstallDeps,
-  args: { hostId: string },
-): Promise<void> {
-  if (getOutsideAgentSetup(deps.db) !== "unasked") return;
-  if (args.hostId !== resolvePrimaryHostId(deps)) return;
-  await readGlobalCliSkillStatus(deps, { hostIds: [args.hostId] });
-}
-
-export function scheduleExistingCliSkillsAcceptance(
-  deps: GlobalSkillInstallDeps,
-  args: { hostId: string },
-): void {
-  void acceptWhenPrimaryHostHasCliSkills(deps, args).catch((error) => {
-    deps.logger.warn(
-      { hostId: args.hostId, err: error },
-      "Could not check the primary machine for existing Patcher CLI skills",
-    );
+  args: SystemCliSkillsOfferRequest,
+): Promise<SystemCliSkillsOfferResponse> {
+  const offer = resolveCliSkillsOffer(deps);
+  if (offer === null) return { answered: [], install: null };
+  // Only the skills the window showed, and only where they are still offered:
+  // a skill that turned up after the question was drawn is not answered for,
+  // and a second window clicking late finds its names already settled.
+  const shown = new Set(args.skills);
+  const machines = offer.machines
+    .map((machine) => ({
+      ...machine,
+      skills: machine.skills.filter((name) => shown.has(name)),
+    }))
+    .filter((machine) => machine.skills.length > 0);
+  const answered = [
+    ...new Set(machines.flatMap((machine) => machine.skills)),
+  ].sort();
+  if (answered.length === 0) return { answered: [], install: null };
+  const value = args.answer === "accept" ? "accepted" : "declined";
+  setAnsweredCliSkills(deps.db, {
+    ...getAnsweredCliSkills(deps.db),
+    ...Object.fromEntries(answered.map((name) => [name, value] as const)),
   });
+  for (const machine of machines) {
+    clearOfferedSkills(deps, {
+      hostId: machine.hostId,
+      skillNames: machine.skills,
+    });
+  }
+  // Before the install, which can take as long as a machine takes to answer:
+  // the other windows' question is settled now, not when the files land.
+  deps.hub.notifySystem(["config-changed"]);
+  if (args.answer === "decline") return { answered, install: null };
+  // Per machine, with that machine's own names: the machine that offered only
+  // one of them must not be sent the other, which it may have and have edited.
+  // Side by side, because each waits on its own daemon, and one machine that
+  // has gone takes only its own entry down — the answer is already recorded.
+  const installs = await Promise.all(
+    machines.map(async (machine) => {
+      try {
+        const installed = await installGlobalCliSkills(deps, {
+          hostIds: [machine.hostId],
+          skillNames: machine.skills,
+        });
+        return installed.results;
+      } catch (error) {
+        // A daemon that refuses comes back as a failed result rather than a
+        // throw; what reaches here is the machine being removed between the
+        // offer and its turn.
+        deps.logger.warn(
+          { hostId: machine.hostId, err: error },
+          "Could not install a newly shipped Patcher CLI skill on a machine",
+        );
+        return [
+          {
+            ok: false as const,
+            hostId: machine.hostId,
+            hostName: machine.hostName,
+            errorMessage: installFailureMessage(error),
+          },
+        ];
+      }
+    }),
+  );
+  return { answered, install: { results: installs.flat() } };
 }
 
 /**

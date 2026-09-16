@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `cli_skills_answered` text DEFAULT '{}' NOT NULL;

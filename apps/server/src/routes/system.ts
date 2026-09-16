@@ -64,10 +64,12 @@ import {
 } from "../services/system/custom-themes.js";
 import { schedulePrimaryHostCaffeinateReconciliation } from "../services/system/app-settings.js";
 import {
+  answerCliSkillsOffer,
   answerCliSkillsSetup,
   installGlobalCliSkills,
   listInstallableMachineIds,
   readGlobalCliSkillStatus,
+  resolveCliSkillsOffer,
 } from "../services/skills/global-skill-install.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../services/system/app-keybindings.js";
 import { declaresThread, requirePluginConsent } from "./plugin-consent.js";
@@ -223,6 +225,8 @@ export function registerSystemRoutes(
           ? null
           : deps.hub.getDaemonPlatformForHost(primaryHostId),
       outsideAgentSetup: getOutsideAgentSetup(deps.db),
+      cliSkillsUpdates: [...deps.cliSkillsUpdateNotices.values()],
+      cliSkillsOffer: resolveCliSkillsOffer(deps),
       voiceTranscriptionEnabled: resolveVoiceTranscriptionEnabled(deps),
       dataDir: deps.config.dataDir,
     };
@@ -548,8 +552,11 @@ export function registerSystemRoutes(
     context.json(await installGlobalCliSkills(deps, { hostIds: body.hostIds })),
   );
 
-  // The launch-time question (#141). Closed to a turn and to plugins, like the
+  // The questions Patcher puts at launch (#141, #142). Closed to a turn and to plugins, like the
   // install beside it; a failed install is deliberately not asked again.
+  post(routes.cliSkillsOffer, async (context, body) =>
+    context.json(await answerCliSkillsOffer(deps, body)),
+  );
   post(routes.cliSkillsSetup, async (context, body) =>
     context.json(await answerCliSkillsSetup(deps, { answer: body.answer })),
   );

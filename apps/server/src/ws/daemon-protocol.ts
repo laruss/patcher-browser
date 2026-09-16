@@ -8,7 +8,7 @@ import { verifyAuthenticatedDaemon } from "../internal/auth.js";
 import type { AppDeps } from "../types.js";
 import { runtimeErrorLogFields } from "../services/lib/error-log-fields.js";
 import { schedulePrimaryHostCaffeinateReconciliation } from "../services/system/app-settings.js";
-import { scheduleExistingCliSkillsAcceptance } from "../services/skills/global-skill-install.js";
+import { scheduleGlobalCliSkillsReconciliation } from "../services/skills/global-skill-reconcile.js";
 import {
   getInactiveSessionLogFields,
   requireAuthorizedOpenSession,
@@ -70,6 +70,8 @@ export async function validateDaemonWebSocket(
 export function onDaemonSocketOpen(
   deps: Pick<
     AppDeps,
+    | "cliSkillsOffers"
+    | "cliSkillsUpdateNotices"
     | "config"
     | "db"
     | "hub"
@@ -95,7 +97,10 @@ export function onDaemonSocketOpen(
   schedulePrimaryHostCaffeinateReconciliation(deps, {
     reason: "daemon-open",
   });
-  scheduleExistingCliSkillsAcceptance(deps, { hostId: args.hostId });
+  scheduleGlobalCliSkillsReconciliation(deps, {
+    hostId: args.hostId,
+    sessionId: args.sessionId,
+  });
 }
 
 export function onDaemonSocketMessage(

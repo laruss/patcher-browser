@@ -71,8 +71,20 @@ Skills (.patcher/skills/):
   command reports each machine's outcome and exits non-zero if any failed. The
   install replaces a previously installed copy of the same skill and leaves
   other skills alone. `patcher skill cli-skills-status` reports whether each machine
-  is installed, out of date, missing, or unknown (disconnected or unreachable);
-  the settings row shows the same as a badge.
+  is installed, out of date, modified (a copy changed since Patcher installed
+  it), incomplete (a copy or a skill missing), missing, or unknown
+  (disconnected or unreachable); the settings row shows the same as a badge.
+
+  When a machine connects, Patcher updates the copies it installed there that
+  nobody has changed since, and the app says so. A copy edited by hand,
+  removed, or written by another Patcher install on the same home is left alone
+  until the person installs again.
+
+  A skill added in a later release, which a machine holding the others has
+  never had, is asked about once in the app instead of being installed unasked.
+  The answer is kept per skill name: a machine that was offline when it was
+  accepted installs that skill when it next connects, and a no is not asked
+  again.
 
   Installing is refused from inside a Patcher thread: it writes into the user's
   home, outside the thread's sandbox, where every agent on the machine loads it.

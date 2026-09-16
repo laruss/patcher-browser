@@ -73,6 +73,25 @@ describe("summarizeMachineStatuses", () => {
     expect(summarizeMachineStatuses(["installed"])).toBe("Installed");
     expect(summarizeMachineStatuses(["outdated"])).toBe("Out of date");
     expect(summarizeMachineStatuses(["missing"])).toBe("Not installed");
+    expect(summarizeMachineStatuses(["modified"])).toBe("Modified");
+    expect(summarizeMachineStatuses(["incomplete"])).toBe("Partly installed");
+  });
+
+  it("names what needs a person first when no machine is current", () => {
+    expect(
+      summarizeMachineStatuses([
+        "missing",
+        "outdated",
+        "incomplete",
+        "modified",
+      ]),
+    ).toBe("Modified");
+    expect(
+      summarizeMachineStatuses(["missing", "outdated", "incomplete"]),
+    ).toBe("Partly installed");
+    expect(summarizeMachineStatuses(["missing", "outdated"])).toBe(
+      "Out of date",
+    );
   });
 
   it("counts a mixed fleet instead of claiming either extreme", () => {

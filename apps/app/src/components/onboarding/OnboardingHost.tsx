@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { DiscoveredRepo } from "@patcher/host-daemon-contract";
+import type { CliSkillsOffer } from "@patcher/server-contract";
 import {
   useCliSkillsStatus,
   useSystemConfig,
 } from "@/hooks/queries/system-queries";
 import {
+  useAnswerCliSkillsOffer,
   useSetupCliSkills,
   useUpdateGeneralSettings,
 } from "@/hooks/mutations/settings-mutations";
@@ -51,7 +53,9 @@ import {
   type OnboardingAgentState,
   type OnboardingUiEvent,
 } from "./OnboardingFlow";
+import { NewCliSkillsDialog } from "./NewCliSkillsDialog";
 import { OutsideAgentSetupDialog } from "./OutsideAgentSetupDialog";
+import { useCliSkillsUpdateToast } from "./useCliSkillsUpdateToast";
 
 /**
  * Decides whether first-run onboarding is showing, and owns its side effects:
@@ -73,6 +77,7 @@ export function OnboardingHost() {
   const configQuery = useSystemConfig();
   const updateSettings = useUpdateGeneralSettings();
   const setupCliSkills = useSetupCliSkills();
+  const answerCliSkillsOffer = useAnswerCliSkillsOffer();
   const createProject = useCreateProject();
   const primaryHost = usePrimaryHost();
   const navigationQuery = useSidebarNavigation();
@@ -134,6 +139,34 @@ export function OnboardingHost() {
     (mayAskOutsideAgentSetup &&
       primaryCliSkillsStatus === "missing" &&
       !setupCliSkills.isSuccess);
+  // True while the read that decides whether to ask #141's question is still
+  // out: that question may be about to open, and nothing else should take the
+  // screen first.
+  const mayStillAskOutsideAgentSetup =
+    mayAskOutsideAgentSetup &&
+    (primaryCliSkillsStatus === undefined ||
+      primaryCliSkillsStatus === "unknown");
+  // A skill this version added that a machine holding the others has never had
+  // (#142). Behind the launch-time question and its read: one question at a
+  // time, and a machine with none of the skills is the other question's.
+  const cliSkillsOffer = configQuery.data?.cliSkillsOffer ?? null;
+  const showCliSkillsOffer =
+    answerCliSkillsOffer.isPending ||
+    (!shouldShow &&
+      !showOutsideAgentSetup &&
+      !mayStillAskOutsideAgentSetup &&
+      cliSkillsOffer !== null &&
+      !answerCliSkillsOffer.isSuccess);
+  // The note that Patcher kept those skills current (#142) waits for whichever
+  // of them is on screen to leave, rather than landing on top of it.
+  useCliSkillsUpdateToast({
+    notices: configQuery.data?.cliSkillsUpdates,
+    paused:
+      shouldShow ||
+      showOutsideAgentSetup ||
+      mayStillAskOutsideAgentSetup ||
+      showCliSkillsOffer,
+  });
 
   const projects = navigationQuery.data?.projects;
 
@@ -165,6 +198,36 @@ export function OnboardingHost() {
     },
     [cliStatusQuery.data, installRunner, primaryHostId],
   );
+
+  // A later release can ship another skill, and this page may outlive the
+  // upgrade: without forgetting the last answer, the next question would never
+  // be drawn until the window is reloaded. Never while one is still being
+  // sent, though — resetting then detaches the request, which closes the
+  // question mid-install and loses the per-machine outcome it would report.
+  const resetAnswer = answerCliSkillsOffer.reset;
+  const settledSkills = answerCliSkillsOffer.data?.answered;
+  const answerSettled = answerCliSkillsOffer.isSuccess;
+  useEffect(() => {
+    if (!answerSettled) return;
+    const settled = settledSkills ?? [];
+    const offered = cliSkillsOffer?.skills ?? [];
+    if (
+      offered.length === 0 ||
+      offered.some((name) => !settled.includes(name))
+    ) {
+      resetAnswer();
+    }
+  }, [answerSettled, cliSkillsOffer, resetAnswer, settledSkills]);
+  // The server records an answer and says `config-changed` before the install
+  // runs, so the offer is gone while the question should still be on screen
+  // saying what it is doing — the same reason #141's question stays up.
+  const lastOffer = useRef<CliSkillsOffer | null>(null);
+  useEffect(() => {
+    if (cliSkillsOffer !== null) lastOffer.current = cliSkillsOffer;
+  }, [cliSkillsOffer]);
+  const shownOffer =
+    cliSkillsOffer ??
+    (answerCliSkillsOffer.isPending ? lastOffer.current : null);
 
   // Stamp when the flow actually opens, so a re-trigger hours into a session
   // does not report the whole session as its duration.
@@ -260,6 +323,18 @@ export function OnboardingHost() {
     );
   };
 
+  const answerOffer = (answer: "accept" | "decline") => {
+    if (cliSkillsOffer === null) return;
+    answerCliSkillsOffer.mutate(
+      { answer, skills: cliSkillsOffer.skills },
+      {
+        onSuccess: (result) => {
+          if (result.install !== null) reportInstallResults(result.install);
+        },
+      },
+    );
+  };
+
   if (shouldShow) {
     return (
       <OnboardingFlow
@@ -268,6 +343,18 @@ export function OnboardingHost() {
         onClose={close}
         onEvent={report}
         onInstallAgent={installAgent}
+      />
+    );
+  }
+
+  if (showCliSkillsOffer && shownOffer !== null) {
+    return (
+      <NewCliSkillsDialog
+        open
+        offer={shownOffer}
+        pending={answerCliSkillsOffer.isPending}
+        onAccept={() => answerOffer("accept")}
+        onDecline={() => answerOffer("decline")}
       />
     );
   }

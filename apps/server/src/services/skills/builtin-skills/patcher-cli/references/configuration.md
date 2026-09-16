@@ -121,6 +121,14 @@ not write them.
   inside a Patcher thread — it writes into the user's home, outside the
   sandbox — so ask the person to run it. Patcher also asks once, when the app
   opens and its primary machine has none of these skills, whether to install
-  them there.
+  them there. When a machine connects, Patcher updates the copies it installed
+  there that nobody has changed since, and says so in the app; a copy edited by
+  hand, removed, or written by another Patcher install is left alone until the
+  person installs again. A skill that ships later, and that a machine with the
+  others has never had, is asked about once in the app rather than installed
+  unasked; the answer holds for every machine, so one that was offline gets an
+  accepted skill when it next connects.
 - `patcher skill cli-skills-status` reports per machine whether the installed copy is
-  `installed`, `outdated`, `missing`, or `unknown` (disconnected or unreachable).
+  `installed`, `outdated`, `modified` (a copy changed since Patcher installed
+  it), `incomplete` (a copy missing from one root or one skill missing),
+  `missing`, or `unknown` (disconnected or unreachable).

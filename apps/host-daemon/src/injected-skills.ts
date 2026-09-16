@@ -5,7 +5,10 @@ import path from "node:path";
 import { resolveDataDirSkillsRootPath } from "@patcher/config/skill-storage-paths";
 import type { AgentRuntimeSkillRoot } from "@patcher/agent-runtime";
 import type { HostDaemonInjectedSkillSource } from "@patcher/host-daemon-contract";
-import type { HostDaemonSkillTree } from "@patcher/host-daemon-contract";
+import {
+  isIgnoredSkillTreeFile,
+  type HostDaemonSkillTree,
+} from "@patcher/host-daemon-contract";
 import type { FetchSkillTree } from "./skill-trees.js";
 
 const STAGING_ROOT_SEGMENTS = ["runtime", "global-skills"] as const;
@@ -692,9 +695,15 @@ export async function hashInstalledSkillDirectory(args: {
       skillFilePath: path.join(args.skillDirectoryPath, SKILL_FILE_NAME),
     });
     return hashStoredTreeFiles(
-      [...tree.files].sort((left, right) =>
-        compareStringsByCodePoint(left.relativePath, right.relativePath),
-      ),
+      tree.files
+        // A copy nobody changed that reads as changed is one Patcher never
+        // updates again.
+        .filter(
+          (file) => !isIgnoredSkillTreeFile(path.basename(file.relativePath)),
+        )
+        .sort((left, right) =>
+          compareStringsByCodePoint(left.relativePath, right.relativePath),
+        ),
     );
   } catch {
     return null;

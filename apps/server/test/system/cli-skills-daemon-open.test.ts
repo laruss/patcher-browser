@@ -1,26 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
-import { scheduleExistingCliSkillsAcceptance } from "../../src/services/skills/global-skill-install.js";
+import { scheduleGlobalCliSkillsReconciliation } from "../../src/services/skills/global-skill-reconcile.js";
 import { onDaemonSocketOpen } from "../../src/ws/daemon-protocol.js";
 import { seedHostSession } from "../helpers/seed.js";
 import { withTestHarness } from "../helpers/test-app.js";
 
 vi.mock(
-  "../../src/services/skills/global-skill-install.js",
+  "../../src/services/skills/global-skill-reconcile.js",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("../../src/services/skills/global-skill-install.js")
+      typeof import("../../src/services/skills/global-skill-reconcile.js")
     >()),
-    scheduleExistingCliSkillsAcceptance: vi.fn(),
+    scheduleGlobalCliSkillsReconciliation: vi.fn(),
   }),
 );
 
 /**
- * The wiring half of recording existing copies as a yes (#141): the check
- * itself is tested in `cli-skills-setup.test.ts`, and without this a daemon
- * connect that stopped calling it would leave every one of those green.
+ * The wiring half of keeping a machine's Patcher skills current (#142) and of
+ * recording copies already there as a yes (#141): what a connect does is tested
+ * in `cli-skills-reconcile.test.ts` and `cli-skills-setup.test.ts`, and without
+ * this a daemon connect that stopped starting it would leave all of those green.
  */
 describe("a daemon connecting", () => {
-  it("has its machine checked for skills installed before the question existed", async () => {
+  it("has its machine's skills for agents outside Patcher reconciled", async () => {
     await withTestHarness(async (harness) => {
       const { host, session } = seedHostSession(harness.deps);
 
@@ -30,9 +31,9 @@ describe("a daemon connecting", () => {
         socket: { close: vi.fn(), send: vi.fn() },
       });
 
-      expect(scheduleExistingCliSkillsAcceptance).toHaveBeenCalledWith(
+      expect(scheduleGlobalCliSkillsReconciliation).toHaveBeenCalledWith(
         harness.deps,
-        { hostId: host.id },
+        { hostId: host.id, sessionId: session.id },
       );
     });
   });

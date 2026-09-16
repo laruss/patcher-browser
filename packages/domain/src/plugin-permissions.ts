@@ -324,6 +324,7 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // arrange at any price. Named routes rather than the prefix, so reading the
   // install status stays priced `workspace` under `/system`.
   ["/system/cli-skills/install", null],
+  ["/system/cli-skills/offer", null],
   ["/system/cli-skills/setup", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],

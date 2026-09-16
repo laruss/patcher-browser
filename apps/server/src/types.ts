@@ -4,6 +4,7 @@ import type {
 } from "@patcher/config/patcher-app-managed-config";
 import type { AppSurface } from "@patcher/config/app-surface";
 import type { DbConnection } from "@patcher/db";
+import type { CliSkillsUpdateNotice } from "@patcher/server-contract";
 import type { FeatureFlags, ProviderNativeSkillRoots } from "@patcher/domain";
 import type { Logger } from "@patcher/logger";
 import type { PendingInteractionLifecycle } from "./services/interactions/pending-interactions.js";
@@ -49,6 +50,17 @@ export interface ServerRuntimeConfig {
 }
 
 export interface AppDeps {
+  /**
+   * Machines whose CLI skills were updated on connect (#142), by host id. In
+   * memory: it is news for the windows of this server's lifetime only.
+   */
+  cliSkillsUpdateNotices: Map<string, CliSkillsUpdateNotice>;
+  /**
+   * Skills that shipped after this install put the others on a machine and are
+   * not there yet, by host id (#142). In memory: it is derived from what the
+   * machines report, and the answer that outlives it is in the database.
+   */
+  cliSkillsOffers: Map<string, string[]>;
   config: ServerRuntimeConfig;
   db: DbConnection;
   hub: NotificationHub;

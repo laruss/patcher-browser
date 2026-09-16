@@ -79,7 +79,7 @@ const PINNED_OVER_LIMIT = {
   "packages/db/test/migrate.test.ts": 4535,
   "packages/db/test/data/events.test.ts": 4455,
   "packages/agent-runtime/src/claude-code/bridge/__tests__/bridge.test.ts": 4324,
-  "packages/host-daemon-contract/test/contract.test.ts": 3847,
+  "packages/host-daemon-contract/test/contract.test.ts": 3774,
   "packages/plugin-sdk/src/testing/fake-plugin-host.ts": 3430,
   "packages/patcher-app/src/launcher.ts": 3499,
   "apps/server/src/services/plugins/plugin-service.ts": 3466,
