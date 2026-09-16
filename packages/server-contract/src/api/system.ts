@@ -259,7 +259,14 @@ export const systemConfigResponseSchema = z.object({
   cliSkillsOffer: z
     .object({
       skills: z.array(z.string()),
-      machines: z.array(z.object({ hostId: z.string(), hostName: z.string() })),
+      machines: z.array(
+        z.object({
+          hostId: z.string(),
+          hostName: z.string(),
+          /** What this machine is missing, which is not always all of them. */
+          skills: z.array(z.string()),
+        }),
+      ),
     })
     .nullable()
     .default(null),
@@ -610,6 +617,12 @@ export type SystemInstallCliSkillsResponse = z.infer<
  */
 export const systemCliSkillsOfferRequestSchema = z.object({
   answer: z.enum(["accept", "decline"]),
+  /**
+   * The skills the window showed. The server answers the intersection with what
+   * it holds now, so a click cannot settle a skill that appeared after the
+   * question was drawn, and a late click from a second window settles nothing.
+   */
+  skills: z.array(z.string()).min(1),
 });
 export type SystemCliSkillsOfferRequest = z.infer<
   typeof systemCliSkillsOfferRequestSchema

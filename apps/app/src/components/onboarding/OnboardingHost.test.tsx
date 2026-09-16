@@ -150,6 +150,7 @@ beforeEach(() => {
     isPending: false,
     isSuccess: false,
     mutate: vi.fn(),
+    reset: vi.fn(),
   });
   mocks.useSidebarNavigation.mockReturnValue({ data: { projects: [] } });
   mocks.useUpdateGeneralSettings.mockReturnValue({ mutate: vi.fn() });
@@ -511,6 +512,7 @@ describe("the question about a newly shipped skill", () => {
       isPending: false,
       isSuccess: false,
       mutate,
+      reset: vi.fn(),
     });
     mocks.useSystemConfig.mockReturnValue(
       systemConfig({ cliSkillsOffer: offer, outsideAgentSetup: "accepted" }),
@@ -521,9 +523,11 @@ describe("the question about a newly shipped skill", () => {
     fireEvent.click(screen.getByRole("button", { name: "Install it" }));
     fireEvent.click(screen.getByRole("button", { name: "Leave it" }));
 
+    // The names the window showed ride along, so the server cannot settle a
+    // skill that appeared after the question was drawn.
     expect(mutate.mock.calls.map(([args]) => args)).toEqual([
-      { answer: "accept" },
-      { answer: "decline" },
+      { answer: "accept", skills: ["patcher-notes"] },
+      { answer: "decline", skills: ["patcher-notes"] },
     ]);
     mutate.mock.calls[0]?.[1]?.onSuccess?.({
       answered: ["patcher-notes"],
@@ -537,11 +541,28 @@ describe("the question about a newly shipped skill", () => {
     expect(mocks.reportInstallResults).toHaveBeenCalledWith(install);
   });
 
+  it("stays up while the answer is being sent, though the config already dropped it", () => {
+    mocks.useAnswerCliSkillsOffer.mockReturnValue({
+      isPending: true,
+      isSuccess: false,
+      mutate: vi.fn(),
+      reset: vi.fn(),
+    });
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsOffer: null, outsideAgentSetup: "accepted" }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(screen.queryByText(NEW_SKILL_QUESTION)).toBeNull();
+  });
+
   it("goes away as soon as the answer lands", () => {
     mocks.useAnswerCliSkillsOffer.mockReturnValue({
       isPending: false,
       isSuccess: true,
       mutate: vi.fn(),
+      reset: vi.fn(),
     });
     mocks.useSystemConfig.mockReturnValue(
       systemConfig({ cliSkillsOffer: offer, outsideAgentSetup: "accepted" }),

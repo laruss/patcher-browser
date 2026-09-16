@@ -108,13 +108,6 @@ export function resolveGlobalCliSkills(
   );
 }
 
-function copiesOfSkill(
-  entries: HostGlobalSkillsStatusResult["entries"],
-  name: string,
-): HostGlobalSkillsStatusResult["entries"] {
-  return entries.filter((entry) => entry.name === name);
-}
-
 /**
  * A skill this machine has never had, on an install that put the others there
  * (#142) — a skill that shipped after the person said yes once, which is worth
@@ -122,8 +115,9 @@ function copiesOfSkill(
  *
  * "Never had" is both hashes null: a copy somebody removed keeps its entry in
  * the machine's record, and removing a skill is not an invitation to offer it
- * back. "The others are ours" needs a copy that is both present and this
- * install's, for the same reason.
+ * back. "The others are ours" needs a copy that is present and that this
+ * install once wrote — once, not unchanged since: a copy the person has edited
+ * still means they said yes to Patcher's skills on this machine.
  */
 export function findNewCliSkills(args: {
   entries: HostGlobalSkillsStatusResult["entries"];
@@ -135,7 +129,7 @@ export function findNewCliSkills(args: {
   if (!ownsOthers) return [];
   return args.skills
     .filter((skill) => {
-      const copies = copiesOfSkill(args.entries, skill.name);
+      const copies = args.entries.filter((entry) => entry.name === skill.name);
       return (
         copies.length > 0 &&
         copies.every(
@@ -159,17 +153,18 @@ export function noteNewCliSkills(
     hostId: string;
     skills: readonly HostInstallGlobalSkill[];
   },
-): void {
+): string[] {
   const newNames = findNewCliSkills(args);
   const current = deps.cliSkillsOffers.get(args.hostId) ?? [];
-  if (current.join("\u0000") === newNames.join("\u0000")) return;
+  if (current.join("\u0000") === newNames.join("\u0000")) return newNames;
   if (newNames.length === 0) deps.cliSkillsOffers.delete(args.hostId);
   else deps.cliSkillsOffers.set(args.hostId, newNames);
   deps.hub.notifySystem(["config-changed"]);
+  return newNames;
 }
 
 /** Drop names an install has just put in place, so nothing asks about them. */
-function clearOfferedSkills(
+export function clearOfferedSkills(
   deps: GlobalSkillInstallDeps,
   args: { hostId: string; skillNames: readonly string[] },
 ): void {
@@ -188,21 +183,24 @@ export function resolveCliSkillsOffer(
   deps: GlobalSkillInstallDeps,
 ): CliSkillsOffer | null {
   const answered = getAnsweredCliSkills(deps.db);
-  const unanswered = [...deps.cliSkillsOffers.entries()]
-    .map(
-      ([hostId, names]) =>
-        [hostId, names.filter((name) => answered[name] === undefined)] as const,
-    )
-    .filter(([, names]) => names.length > 0);
-  if (unanswered.length === 0) return null;
-  const hosts = listNonDestroyedHostsByIds(
-    deps.db,
-    unanswered.map(([hostId]) => hostId),
-  );
-  if (hosts.length === 0) return null;
+  // Machines first, so a machine that has been removed takes its names with
+  // it rather than leaving them to be installed on somebody else.
+  const offered = listNonDestroyedHostsByIds(deps.db, [
+    ...deps.cliSkillsOffers.keys(),
+  ]).flatMap((host) => {
+    const names = (deps.cliSkillsOffers.get(host.id) ?? [])
+      .filter((name) => answered[name] === undefined)
+      .sort();
+    return names.length === 0 ? [] : [{ host, names }];
+  });
+  if (offered.length === 0) return null;
   return {
-    skills: [...new Set(unanswered.flatMap(([, names]) => names))].sort(),
-    machines: hosts.map((host) => ({ hostId: host.id, hostName: host.name })),
+    skills: [...new Set(offered.flatMap((entry) => entry.names))].sort(),
+    machines: offered.map(({ host, names }) => ({
+      hostId: host.id,
+      hostName: host.name,
+      skills: names,
+    })),
   };
 }
 
@@ -452,26 +450,46 @@ export async function answerCliSkillsOffer(
 ): Promise<SystemCliSkillsOfferResponse> {
   const offer = resolveCliSkillsOffer(deps);
   if (offer === null) return { answered: [], install: null };
-  const answer = args.answer === "accept" ? "accepted" : "declined";
+  // Only the skills the window showed, and only where they are still offered:
+  // a machine that connected while the question was on screen is not answered
+  // for, and a second window clicking late finds its names already settled.
+  const shown = new Set(args.skills);
+  const machines = offer.machines
+    .map((machine) => ({
+      ...machine,
+      skills: machine.skills.filter((name) => shown.has(name)),
+    }))
+    .filter((machine) => machine.skills.length > 0);
+  const answered = [
+    ...new Set(machines.flatMap((machine) => machine.skills)),
+  ].sort();
+  if (answered.length === 0) return { answered: [], install: null };
+  const value = args.answer === "accept" ? "accepted" : "declined";
   setAnsweredCliSkills(deps.db, {
     ...getAnsweredCliSkills(deps.db),
-    ...Object.fromEntries(offer.skills.map((name) => [name, answer] as const)),
+    ...Object.fromEntries(answered.map((name) => [name, value] as const)),
   });
-  // Snapshotted before the offer is cleared: these are the machines the person
-  // was shown.
-  const hostIds = offer.machines.map((machine) => machine.hostId);
-  for (const hostId of hostIds) {
-    clearOfferedSkills(deps, { hostId, skillNames: offer.skills });
+  for (const machine of machines) {
+    clearOfferedSkills(deps, {
+      hostId: machine.hostId,
+      skillNames: machine.skills,
+    });
   }
-  if (args.answer === "decline") {
-    deps.hub.notifySystem(["config-changed"]);
-    return { answered: offer.skills, install: null };
+  // Before the install, which can take as long as a machine takes to answer:
+  // the other windows' question is settled now, not when the files land.
+  deps.hub.notifySystem(["config-changed"]);
+  if (args.answer === "decline") return { answered, install: null };
+  // Per machine, with that machine's own names: the machine that offered only
+  // one of them must not be sent the other, which it may have and have edited.
+  const results: InstallGlobalCliSkillsResult["results"] = [];
+  for (const machine of machines) {
+    const installed = await installGlobalCliSkills(deps, {
+      hostIds: [machine.hostId],
+      skillNames: machine.skills,
+    });
+    results.push(...installed.results);
   }
-  const install = await installGlobalCliSkills(deps, {
-    hostIds,
-    skillNames: offer.skills,
-  });
-  return { answered: offer.skills, install };
+  return { answered, install: { results } };
 }
 
 /**

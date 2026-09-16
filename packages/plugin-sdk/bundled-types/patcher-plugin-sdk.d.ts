@@ -7522,6 +7522,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         machines: z$1.ZodArray<z$1.ZodObject<{
             hostId: z$1.ZodString;
             hostName: z$1.ZodString;
+            skills: z$1.ZodArray<z$1.ZodString>;
         }, z$1.core.$strip>>;
     }, z$1.core.$strip>>>;
     voiceTranscriptionEnabled: z$1.ZodBoolean;
@@ -7837,6 +7838,7 @@ declare const systemCliSkillsOfferRequestSchema: z$1.ZodObject<{
         accept: "accept";
         decline: "decline";
     }>;
+    skills: z$1.ZodArray<z$1.ZodString>;
 }, z$1.core.$strip>;
 type SystemCliSkillsOfferRequest = z$1.infer<typeof systemCliSkillsOfferRequestSchema>;
 /** The names this answer settled, and the install an accept ran. */

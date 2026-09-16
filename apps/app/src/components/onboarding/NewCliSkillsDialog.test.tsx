@@ -15,7 +15,9 @@ function renderContent(
       open
       offer={{
         skills: ["patcher-notes"],
-        machines: [{ hostId: "host-1", hostName: "Laptop" }],
+        machines: [
+          { hostId: "host-1", hostName: "Laptop", skills: ["patcher-notes"] },
+        ],
       }}
       onAccept={() => undefined}
       onDecline={() => undefined}
@@ -41,8 +43,16 @@ describe("NewCliSkillsDialog", () => {
       offer: {
         skills: ["patcher-notes", "patcher-tasks"],
         machines: [
-          { hostId: "host-1", hostName: "Laptop" },
-          { hostId: "host-2", hostName: "Studio" },
+          {
+            hostId: "host-1",
+            hostName: "Laptop",
+            skills: ["patcher-notes", "patcher-tasks"],
+          },
+          {
+            hostId: "host-2",
+            hostName: "Studio",
+            skills: ["patcher-notes", "patcher-tasks"],
+          },
         ],
       },
     });

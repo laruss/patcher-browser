@@ -552,10 +552,10 @@ export function registerSystemRoutes(
     context.json(await installGlobalCliSkills(deps, { hostIds: body.hostIds })),
   );
 
-  // The launch-time question (#141). Closed to a turn and to plugins, like the
+  // The questions Patcher puts at launch (#141, #142). Closed to a turn and to plugins, like the
   // install beside it; a failed install is deliberately not asked again.
   post(routes.cliSkillsOffer, async (context, body) =>
-    context.json(await answerCliSkillsOffer(deps, { answer: body.answer })),
+    context.json(await answerCliSkillsOffer(deps, body)),
   );
   post(routes.cliSkillsSetup, async (context, body) =>
     context.json(await answerCliSkillsSetup(deps, { answer: body.answer })),

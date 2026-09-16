@@ -198,6 +198,14 @@ export function OnboardingHost() {
     [cliStatusQuery.data, installRunner, primaryHostId],
   );
 
+  // A later release can ship another skill, and this page may outlive the
+  // upgrade: without forgetting the last answer, the next question would never
+  // be drawn until the window is reloaded.
+  const resetAnswer = answerCliSkillsOffer.reset;
+  useEffect(() => {
+    if (cliSkillsOffer === null) resetAnswer();
+  }, [cliSkillsOffer, resetAnswer]);
+
   // Stamp when the flow actually opens, so a re-trigger hours into a session
   // does not report the whole session as its duration.
   useEffect(() => {
@@ -293,8 +301,9 @@ export function OnboardingHost() {
   };
 
   const answerOffer = (answer: "accept" | "decline") => {
+    if (cliSkillsOffer === null) return;
     answerCliSkillsOffer.mutate(
-      { answer },
+      { answer, skills: cliSkillsOffer.skills },
       {
         onSuccess: (result) => {
           if (result.install !== null) reportInstallResults(result.install);

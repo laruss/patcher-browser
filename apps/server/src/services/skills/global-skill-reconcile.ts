@@ -7,7 +7,7 @@ import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import type { AppDeps } from "../../types.js";
 import { callHostOnlineRpc } from "../hosts/online-rpc.js";
 import {
-  findNewCliSkills,
+  clearOfferedSkills,
   noteNewCliSkills,
   readMachineSkillEntries,
   recordAcceptedWhenPrimaryHasCopies,
@@ -111,14 +111,24 @@ async function reconcileHost(
 
   noteNewCliSkills(deps, { entries, hostId, skills });
   // A skill the person accepted while this machine was away, or whose install
-  // failed then: the answer outlives the question, so the machine acts on it
-  // when it connects rather than sitting at "Partly installed" for good.
+  // failed then, or that reached one root and not the other: the answer
+  // outlives the question, so the machine acts on it when it connects rather
+  // than sitting at "Partly installed" for good. Only while the copies that
+  // are there are this install's and current — an unconditional install writes
+  // both roots, and a copy somebody changed is not ours to overwrite.
   const answered = getAnsweredCliSkills(deps.db);
-  const acceptedButMissing = skills.filter(
-    (skill) =>
-      answered[skill.name] === "accepted" &&
-      findNewCliSkills({ entries, skills: [skill] }).length > 0,
-  );
+  const acceptedButMissing = skills.filter((skill) => {
+    if (answered[skill.name] !== "accepted") return false;
+    const copies = entries.filter((entry) => entry.name === skill.name);
+    if (!copies.some((copy) => copy.treeHash === null)) return false;
+    return copies
+      .filter((copy) => copy.treeHash !== null)
+      .every(
+        (copy) =>
+          copy.treeHash === skill.treeHash &&
+          copy.installedTreeHash === skill.treeHash,
+      );
+  });
   const plan = [
     ...planCliSkillsUpdate({ entries, skills }),
     ...acceptedButMissing,
@@ -146,6 +156,12 @@ async function reconcileHost(
       ),
     ),
   ];
+  // What the catch-up just put there is no longer missing, whatever the next
+  // status read says.
+  clearOfferedSkills(deps, {
+    hostId,
+    skillNames: acceptedButMissing.map((skill) => skill.name),
+  });
   // Adopting changes nothing a person or an agent would notice.
   if (updated.length === 0) return;
   deps.cliSkillsUpdateNotices.set(hostId, {
