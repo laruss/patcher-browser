@@ -8,6 +8,7 @@ import {
 import type {
   SystemBrowserAccessRequestDecideRequest,
   SystemBrowserExternalAccessRequest,
+  SystemCliSkillsOfferRequest,
   SystemCliSkillsSetupRequest,
   SystemInstallCliSkillsRequest,
 } from "@patcher/server-contract";
@@ -215,6 +216,30 @@ export function useSetupCliSkills() {
       sdk.system.setupCliSkills(args),
     // Settled rather than succeeded: an accept is recorded before its install
     // runs, so a request that fails afterwards has still changed the answer.
+    onSettled: () => {
+      invalidateSystemConfig({ queryClient });
+      invalidateCliSkillsStatus({ queryClient });
+    },
+  });
+}
+
+/**
+ * Answer the question about a skill that shipped after the CLI skills were
+ * first installed (#142). Like the launch-time question, the answer arrives in
+ * the system config and an accept changes what the skills status says, so both
+ * are refreshed; other windows hear the server's `config-changed`.
+ */
+export function useAnswerCliSkillsOffer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to install the new Patcher skill for other agents.",
+    },
+    mutationFn: (args: SystemCliSkillsOfferRequest) =>
+      sdk.system.answerCliSkillsOffer(args),
+    // Settled rather than succeeded: the answer is recorded before the install
+    // runs, so a request that fails afterwards has still settled it.
     onSettled: () => {
       invalidateSystemConfig({ queryClient });
       invalidateCliSkillsStatus({ queryClient });

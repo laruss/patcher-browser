@@ -250,6 +250,19 @@ export const systemConfigResponseSchema = z.object({
       }),
     )
     .default([]),
+  /**
+   * A skill for agents outside Patcher that shipped after this install put the
+   * others in place, and is on no machine yet (#142). Null when there is
+   * nothing to ask about. Defaulted so a desktop shell still parses an older
+   * server's config.
+   */
+  cliSkillsOffer: z
+    .object({
+      skills: z.array(z.string()),
+      machines: z.array(z.object({ hostId: z.string(), hostName: z.string() })),
+    })
+    .nullable()
+    .default(null),
   voiceTranscriptionEnabled: z.boolean(),
   /** Absolute path of the active Patcher data directory (where ui/, theme/, the DB live). */
   dataDir: z.string(),
@@ -304,6 +317,10 @@ export type SystemVersionQuery = z.infer<typeof systemVersionQuerySchema>;
 export const systemConfigReloadResponseSchema = z.object({
   ok: z.literal(true),
 });
+
+export type CliSkillsOffer = NonNullable<
+  SystemConfigResponse["cliSkillsOffer"]
+>;
 
 export type CliSkillsUpdateNotice =
   SystemConfigResponse["cliSkillsUpdates"][number];
@@ -584,6 +601,27 @@ export const systemInstallCliSkillsResponseSchema = z.object({
 });
 export type SystemInstallCliSkillsResponse = z.infer<
   typeof systemInstallCliSkillsResponseSchema
+>;
+
+/**
+ * The person's answer to a skill that shipped after they first said yes (#142).
+ * The window answers the offer it was shown; the server answers the offer it
+ * holds, so a late click from a second window records nothing new.
+ */
+export const systemCliSkillsOfferRequestSchema = z.object({
+  answer: z.enum(["accept", "decline"]),
+});
+export type SystemCliSkillsOfferRequest = z.infer<
+  typeof systemCliSkillsOfferRequestSchema
+>;
+
+/** The names this answer settled, and the install an accept ran. */
+export const systemCliSkillsOfferResponseSchema = z.object({
+  answered: z.array(z.string()),
+  install: systemInstallCliSkillsResponseSchema.nullable(),
+});
+export type SystemCliSkillsOfferResponse = z.infer<
+  typeof systemCliSkillsOfferResponseSchema
 >;
 
 /**

@@ -70,6 +70,7 @@ export async function validateDaemonWebSocket(
 export function onDaemonSocketOpen(
   deps: Pick<
     AppDeps,
+    | "cliSkillsOffers"
     | "cliSkillsUpdateNotices"
     | "config"
     | "db"

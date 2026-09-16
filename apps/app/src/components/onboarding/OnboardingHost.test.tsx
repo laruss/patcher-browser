@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingHost } from "./OnboardingHost";
 
 const mocks = vi.hoisted(() => ({
+  useAnswerCliSkillsOffer: vi.fn(),
   reportInstallResults: vi.fn(),
   useCliSkillsStatus: vi.fn(),
   useCreateProject: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/hooks/queries/system-queries", () => ({
   useSystemConfig: mocks.useSystemConfig,
 }));
 vi.mock("@/hooks/mutations/settings-mutations", () => ({
+  useAnswerCliSkillsOffer: mocks.useAnswerCliSkillsOffer,
   useSetupCliSkills: mocks.useSetupCliSkills,
   useUpdateGeneralSettings: mocks.useUpdateGeneralSettings,
 }));
@@ -54,6 +56,23 @@ vi.mock("./useCliSkillsUpdateToast", () => ({
 vi.mock("./OnboardingFlow", () => ({
   OnboardingFlow: () => <div>Onboarding flow</div>,
 }));
+vi.mock("./NewCliSkillsDialog", () => ({
+  NewCliSkillsDialog: (props: {
+    offer: { skills: string[] };
+    onAccept: () => void;
+    onDecline: () => void;
+  }) => (
+    <div>
+      <span>{`New skill question for ${props.offer.skills.join(", ")}`}</span>
+      <button type="button" onClick={props.onAccept}>
+        Install it
+      </button>
+      <button type="button" onClick={props.onDecline}>
+        Leave it
+      </button>
+    </div>
+  ),
+}));
 vi.mock("./OutsideAgentSetupDialog", () => ({
   OutsideAgentSetupDialog: (props: {
     hostName: string;
@@ -75,6 +94,10 @@ vi.mock("./OutsideAgentSetupDialog", () => ({
 const QUESTION = "Setup question for Laptop";
 
 function systemConfig(args: {
+  cliSkillsOffer?: {
+    skills: string[];
+    machines: { hostName: string }[];
+  } | null;
   cliSkillsUpdates?: { at: number; hostName: string }[];
   newOnboarding?: boolean;
   outsideAgentSetup?: "unasked" | "accepted" | "declined";
@@ -89,6 +112,7 @@ function systemConfig(args: {
       generalSettings: defaultAppSettings,
       outsideAgentSetup: args.outsideAgentSetup ?? "unasked",
       cliSkillsUpdates: args.cliSkillsUpdates ?? [],
+      cliSkillsOffer: args.cliSkillsOffer ?? null,
       primaryHostId:
         args.primaryHostId === undefined ? "host-1" : args.primaryHostId,
     },
@@ -118,6 +142,11 @@ beforeEach(() => {
     startInstall: vi.fn(),
   });
   mocks.useSetupCliSkills.mockReturnValue({
+    isPending: false,
+    isSuccess: false,
+    mutate: vi.fn(),
+  });
+  mocks.useAnswerCliSkillsOffer.mockReturnValue({
     isPending: false,
     isSuccess: false,
     mutate: vi.fn(),
@@ -412,5 +441,114 @@ describe("the note that the skills were kept current", () => {
       notices: updates,
       paused: false,
     });
+  });
+});
+
+describe("the question about a newly shipped skill", () => {
+  const offer = {
+    skills: ["patcher-notes"],
+    machines: [{ hostName: "Laptop" }],
+  };
+  const NEW_SKILL_QUESTION = "New skill question for patcher-notes";
+
+  it("is asked once nothing else is on screen", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsOffer: offer, outsideAgentSetup: "accepted" }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(screen.getByText(NEW_SKILL_QUESTION)).toBeTruthy();
+  });
+
+  it("waits behind onboarding and behind the launch-time question", () => {
+    mocks.useCliSkillsStatus.mockReturnValue(primaryMachineStatus("missing"));
+    for (const config of [
+      systemConfig({ cliSkillsOffer: offer, newOnboarding: true }),
+      systemConfig({ cliSkillsOffer: offer }),
+    ]) {
+      mocks.useSystemConfig.mockReturnValue(config);
+
+      render(<OnboardingHost />);
+
+      expect(screen.queryByText(NEW_SKILL_QUESTION)).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("waits while the read that decides the launch-time question is still out", () => {
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsOffer: offer }),
+    );
+    mocks.useCliSkillsStatus.mockReturnValue({ data: undefined });
+
+    render(<OnboardingHost />);
+
+    expect(screen.queryByText(NEW_SKILL_QUESTION)).toBeNull();
+  });
+
+  it("holds the note about updated skills back while it is up", () => {
+    const updates = [{ at: 10, hostName: "Laptop" }];
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({
+        cliSkillsOffer: offer,
+        cliSkillsUpdates: updates,
+        outsideAgentSetup: "accepted",
+      }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: true,
+    });
+  });
+
+  it("sends the answer, and reports an install only when there was one", () => {
+    const mutate = vi.fn();
+    mocks.useAnswerCliSkillsOffer.mockReturnValue({
+      isPending: false,
+      isSuccess: false,
+      mutate,
+    });
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsOffer: offer, outsideAgentSetup: "accepted" }),
+    );
+    const install = { results: [] };
+
+    render(<OnboardingHost />);
+    fireEvent.click(screen.getByRole("button", { name: "Install it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Leave it" }));
+
+    expect(mutate.mock.calls.map(([args]) => args)).toEqual([
+      { answer: "accept" },
+      { answer: "decline" },
+    ]);
+    mutate.mock.calls[0]?.[1]?.onSuccess?.({
+      answered: ["patcher-notes"],
+      install,
+    });
+    mutate.mock.calls[1]?.[1]?.onSuccess?.({
+      answered: ["patcher-notes"],
+      install: null,
+    });
+    expect(mocks.reportInstallResults).toHaveBeenCalledTimes(1);
+    expect(mocks.reportInstallResults).toHaveBeenCalledWith(install);
+  });
+
+  it("goes away as soon as the answer lands", () => {
+    mocks.useAnswerCliSkillsOffer.mockReturnValue({
+      isPending: false,
+      isSuccess: true,
+      mutate: vi.fn(),
+    });
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ cliSkillsOffer: offer, outsideAgentSetup: "accepted" }),
+    );
+
+    render(<OnboardingHost />);
+
+    expect(screen.queryByText(NEW_SKILL_QUESTION)).toBeNull();
   });
 });

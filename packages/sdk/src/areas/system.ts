@@ -23,7 +23,9 @@ import type {
   SystemBrowserAccessRequestOutcomeResponse,
   SystemBrowserExternalAccessRequest,
   SystemBrowserExternalAccessResponse,
+  SystemCliSkillsOfferRequest,
   SystemCliSkillsSetupRequest,
+  SystemCliSkillsOfferResponse,
   SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
   SystemInstallCliSkillsRequest,
@@ -81,6 +83,10 @@ export type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
 export type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 export type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
 export type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
+
+export type SystemCliSkillsOfferArgs = SystemCliSkillsOfferRequest;
+
+export type SystemCliSkillsOfferResult = SystemCliSkillsOfferResponse;
 export type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 export type SystemUpdateExperimentsResult = Experiments;
 export type SystemUpdateGeneralSettingsResult = AppSettings;
@@ -142,6 +148,14 @@ export interface SystemArea {
   setupCliSkills(
     args: SystemCliSkillsSetupArgs,
   ): Promise<SystemCliSkillsSetupResult>;
+  /**
+   * Answer for a skill that shipped after the CLI skills were first installed
+   * (#142); `accept` installs it on the machines that are missing it. Refused
+   * inside a turn, like `installCliSkills`.
+   */
+  answerCliSkillsOffer(
+    args: SystemCliSkillsOfferArgs,
+  ): Promise<SystemCliSkillsOfferResult>;
   reloadConfig(): Promise<SystemReloadConfigResult>;
   transcribeVoice(
     args: SystemVoiceTranscriptionArgs,
@@ -288,6 +302,11 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async setupCliSkills(input) {
       return transport.readJson(
         transport.api.v1.system["cli-skills"].setup.$post({ json: input }),
+      );
+    },
+    async answerCliSkillsOffer(input) {
+      return transport.readJson(
+        transport.api.v1.system["cli-skills"].offer.$post({ json: input }),
       );
     },
     async reloadConfig() {

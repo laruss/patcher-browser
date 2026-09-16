@@ -1,11 +1,16 @@
 import {
+  getAnsweredCliSkills,
   getOutsideAgentSetup,
   listHosts,
   listNonDestroyedHostsByIds,
+  setAnsweredCliSkills,
   setOutsideAgentSetup,
 } from "@patcher/db";
 import type {
   CliSkillMachineStatus,
+  CliSkillsOffer,
+  SystemCliSkillsOfferRequest,
+  SystemCliSkillsOfferResponse,
   SystemCliSkillsSetupRequest,
   SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
@@ -58,6 +63,7 @@ export type InstallGlobalCliSkillsResult = SystemInstallCliSkillsResponse;
 
 export type GlobalSkillInstallDeps = Pick<
   AppDeps,
+  | "cliSkillsOffers"
   | "config"
   | "db"
   | "hub"
@@ -70,6 +76,8 @@ export type GlobalSkillInstallDeps = Pick<
 
 export interface InstallGlobalCliSkillsArgs {
   hostIds: readonly string[];
+  /** Only these skills, for an install answering an offer (#142). */
+  skillNames?: readonly string[];
 }
 
 /**
@@ -98,6 +106,104 @@ export function resolveGlobalCliSkills(
         ]
       : [],
   );
+}
+
+function copiesOfSkill(
+  entries: HostGlobalSkillsStatusResult["entries"],
+  name: string,
+): HostGlobalSkillsStatusResult["entries"] {
+  return entries.filter((entry) => entry.name === name);
+}
+
+/**
+ * A skill this machine has never had, on an install that put the others there
+ * (#142) — a skill that shipped after the person said yes once, which is worth
+ * asking about rather than installing unasked or leaving out for good.
+ *
+ * "Never had" is both hashes null: a copy somebody removed keeps its entry in
+ * the machine's record, and removing a skill is not an invitation to offer it
+ * back. "The others are ours" needs a copy that is both present and this
+ * install's, for the same reason.
+ */
+export function findNewCliSkills(args: {
+  entries: HostGlobalSkillsStatusResult["entries"];
+  skills: readonly HostInstallGlobalSkill[];
+}): string[] {
+  const ownsOthers = args.entries.some(
+    (entry) => entry.treeHash !== null && entry.installedTreeHash !== null,
+  );
+  if (!ownsOthers) return [];
+  return args.skills
+    .filter((skill) => {
+      const copies = copiesOfSkill(args.entries, skill.name);
+      return (
+        copies.length > 0 &&
+        copies.every(
+          (copy) => copy.treeHash === null && copy.installedTreeHash === null,
+        )
+      );
+    })
+    .map((skill) => skill.name);
+}
+
+/**
+ * Keep the machine's offer in step with what it just reported. Every status
+ * read passes through here — the one a connect makes and the one a settings
+ * page makes — so a read that timed out is made good by the next, and an
+ * install from anywhere is noticed without waiting for a reconnect.
+ */
+export function noteNewCliSkills(
+  deps: GlobalSkillInstallDeps,
+  args: {
+    entries: HostGlobalSkillsStatusResult["entries"];
+    hostId: string;
+    skills: readonly HostInstallGlobalSkill[];
+  },
+): void {
+  const newNames = findNewCliSkills(args);
+  const current = deps.cliSkillsOffers.get(args.hostId) ?? [];
+  if (current.join("\u0000") === newNames.join("\u0000")) return;
+  if (newNames.length === 0) deps.cliSkillsOffers.delete(args.hostId);
+  else deps.cliSkillsOffers.set(args.hostId, newNames);
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+/** Drop names an install has just put in place, so nothing asks about them. */
+function clearOfferedSkills(
+  deps: GlobalSkillInstallDeps,
+  args: { hostId: string; skillNames: readonly string[] },
+): void {
+  const current = deps.cliSkillsOffers.get(args.hostId);
+  if (current === undefined) return;
+  const left = current.filter((name) => !args.skillNames.includes(name));
+  if (left.length === 0) deps.cliSkillsOffers.delete(args.hostId);
+  else deps.cliSkillsOffers.set(args.hostId, left);
+}
+
+/**
+ * What the window asks about, if anything: the skills no machine has that
+ * nobody has answered for yet, and the machines they would be installed on.
+ */
+export function resolveCliSkillsOffer(
+  deps: GlobalSkillInstallDeps,
+): CliSkillsOffer | null {
+  const answered = getAnsweredCliSkills(deps.db);
+  const unanswered = [...deps.cliSkillsOffers.entries()]
+    .map(
+      ([hostId, names]) =>
+        [hostId, names.filter((name) => answered[name] === undefined)] as const,
+    )
+    .filter(([, names]) => names.length > 0);
+  if (unanswered.length === 0) return null;
+  const hosts = listNonDestroyedHostsByIds(
+    deps.db,
+    unanswered.map(([hostId]) => hostId),
+  );
+  if (hosts.length === 0) return null;
+  return {
+    skills: [...new Set(unanswered.flatMap(([, names]) => names))].sort(),
+    machines: hosts.map((host) => ({ hostId: host.id, hostName: host.name })),
+  };
 }
 
 /**
@@ -176,6 +282,7 @@ export async function readGlobalCliSkillStatus(
           hostId: host.id,
           skills,
         });
+        noteNewCliSkills(deps, { entries, hostId: host.id, skills });
         return {
           ...base,
           status: resolveMachineSkillStatus({ entries, skills }),
@@ -227,6 +334,14 @@ export async function installGlobalCliSkills(
       "The built-in Patcher CLI skill is unavailable on this server",
     );
   }
+  // An answer names skills this server resolved a moment ago, so an empty
+  // selection means they are gone from under it — nothing to install, rather
+  // than an install of everything.
+  const selected =
+    args.skillNames === undefined
+      ? skills
+      : skills.filter((skill) => args.skillNames?.includes(skill.name));
+  if (selected.length === 0) return { results: [] };
 
   const results = await Promise.all(
     hosts.map(async (host) => {
@@ -234,7 +349,11 @@ export async function installGlobalCliSkills(
         const result = await callHostOnlineRpc(deps, {
           hostId: host.id,
           timeoutMs: COMMAND_TIMEOUT_MS,
-          command: { type: "host.install_global_skills", skills },
+          command: { type: "host.install_global_skills", skills: selected },
+        });
+        clearOfferedSkills(deps, {
+          hostId: host.id,
+          skillNames: selected.map((skill) => skill.name),
         });
         return {
           ok: true as const,
@@ -315,6 +434,44 @@ export function recordAcceptedWhenPrimaryHasCopies(
   if (getOutsideAgentSetup(deps.db) !== "unasked") return;
   setOutsideAgentSetup(deps.db, "accepted");
   deps.hub.notifySystem(["config-changed"]);
+}
+
+/**
+ * The person's answer about the skills that shipped after they first said yes
+ * (#142).
+ *
+ * The server answers the offer it holds rather than one the window names, so a
+ * second window clicking late settles nothing new. Recorded before the install
+ * runs, for #141's reason: an install that fails must not put the question back
+ * on every launch. An accept outlives this call — a machine that was offline
+ * installs the skill when it next connects.
+ */
+export async function answerCliSkillsOffer(
+  deps: GlobalSkillInstallDeps,
+  args: SystemCliSkillsOfferRequest,
+): Promise<SystemCliSkillsOfferResponse> {
+  const offer = resolveCliSkillsOffer(deps);
+  if (offer === null) return { answered: [], install: null };
+  const answer = args.answer === "accept" ? "accepted" : "declined";
+  setAnsweredCliSkills(deps.db, {
+    ...getAnsweredCliSkills(deps.db),
+    ...Object.fromEntries(offer.skills.map((name) => [name, answer] as const)),
+  });
+  // Snapshotted before the offer is cleared: these are the machines the person
+  // was shown.
+  const hostIds = offer.machines.map((machine) => machine.hostId);
+  for (const hostId of hostIds) {
+    clearOfferedSkills(deps, { hostId, skillNames: offer.skills });
+  }
+  if (args.answer === "decline") {
+    deps.hub.notifySystem(["config-changed"]);
+    return { answered: offer.skills, install: null };
+  }
+  const install = await installGlobalCliSkills(deps, {
+    hostIds,
+    skillNames: offer.skills,
+  });
+  return { answered: offer.skills, install };
 }
 
 /**

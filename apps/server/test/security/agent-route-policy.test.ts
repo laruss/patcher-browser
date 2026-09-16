@@ -132,6 +132,7 @@ describe("agentRoutePolicyDenial", () => {
   it("refuses installing Patcher's skills into the user's home, and answering the question about it", () => {
     for (const path of [
       "/api/v1/system/cli-skills/install",
+      "/api/v1/system/cli-skills/offer",
       "/api/v1/system/cli-skills/setup",
     ]) {
       const denial = agentRoutePolicyDenial({ method: "POST", path });
@@ -370,6 +371,7 @@ describe("an agent mid-turn", () => {
 
     for (const [path, body] of [
       ["/api/v1/system/cli-skills/install", { hostIds: ["host-agent-policy"] }],
+      ["/api/v1/system/cli-skills/offer", { answer: "accept" }],
       ["/api/v1/system/cli-skills/setup", { answer: "accept" }],
     ] as const) {
       const response = await fetch(`${server.baseUrl}${path}`, {

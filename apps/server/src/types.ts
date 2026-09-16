@@ -55,6 +55,12 @@ export interface AppDeps {
    * memory: it is news for the windows of this server's lifetime only.
    */
   cliSkillsUpdateNotices: Map<string, CliSkillsUpdateNotice>;
+  /**
+   * Skills that shipped after this install put the others on a machine and are
+   * not there yet, by host id (#142). In memory: it is derived from what the
+   * machines report, and the answer that outlives it is in the database.
+   */
+  cliSkillsOffers: Map<string, string[]>;
   config: ServerRuntimeConfig;
   db: DbConnection;
   hub: NotificationHub;

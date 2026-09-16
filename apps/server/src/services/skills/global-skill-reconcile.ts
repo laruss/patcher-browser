@@ -1,4 +1,4 @@
-import { listNonDestroyedHostsByIds } from "@patcher/db";
+import { getAnsweredCliSkills, listNonDestroyedHostsByIds } from "@patcher/db";
 import type {
   HostGlobalSkillsStatusResult,
   HostInstallGlobalSkill,
@@ -7,6 +7,8 @@ import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import type { AppDeps } from "../../types.js";
 import { callHostOnlineRpc } from "../hosts/online-rpc.js";
 import {
+  findNewCliSkills,
+  noteNewCliSkills,
   readMachineSkillEntries,
   recordAcceptedWhenPrimaryHasCopies,
   resolveGlobalCliSkills,
@@ -107,7 +109,20 @@ async function reconcileHost(
     },
   ]);
 
-  const plan = planCliSkillsUpdate({ entries, skills });
+  noteNewCliSkills(deps, { entries, hostId, skills });
+  // A skill the person accepted while this machine was away, or whose install
+  // failed then: the answer outlives the question, so the machine acts on it
+  // when it connects rather than sitting at "Partly installed" for good.
+  const answered = getAnsweredCliSkills(deps.db);
+  const acceptedButMissing = skills.filter(
+    (skill) =>
+      answered[skill.name] === "accepted" &&
+      findNewCliSkills({ entries, skills: [skill] }).length > 0,
+  );
+  const plan = [
+    ...planCliSkillsUpdate({ entries, skills }),
+    ...acceptedButMissing,
+  ];
   if (plan.length === 0) return;
   let installations;
   try {

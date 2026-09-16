@@ -80,6 +80,12 @@ Skills (.patcher/skills/):
   removed, or written by another Patcher install on the same home is left alone
   until the person installs again.
 
+  A skill added in a later release, which a machine holding the others has
+  never had, is asked about once in the app instead of being installed unasked.
+  The answer is kept per skill name: a machine that was offline when it was
+  accepted installs that skill when it next connects, and a no is not asked
+  again.
+
   Installing is refused from inside a Patcher thread: it writes into the user's
   home, outside the thread's sandbox, where every agent on the machine loads it.
   Ask the person to press Install in Settings → Skills or to run the command in

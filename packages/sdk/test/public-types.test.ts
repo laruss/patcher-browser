@@ -344,6 +344,7 @@ type ExpectedSystemKey =
   | "setBrowserAccessGrantPaused"
   | "setBrowserExternalAccess"
   | "setupCliSkills"
+  | "answerCliSkillsOffer"
   | "transcribeVoice"
   | "updateExperiments"
   | "updateGeneralSettings"

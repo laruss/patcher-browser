@@ -177,6 +177,8 @@ import type {
   SystemBrowserExternalAccessResponse,
   SystemInstallCliSkillsRequest,
   SystemInstallCliSkillsResponse,
+  SystemCliSkillsOfferRequest,
+  SystemCliSkillsOfferResponse,
   SystemCliSkillsSetupRequest,
   SystemCliSkillsSetupResponse,
   SystemExecutionOptionsQuery,
@@ -339,6 +341,7 @@ import {
   systemBrowserAccessRequestDecideRequestSchema,
   systemBrowserExternalAccessRequestSchema,
   systemInstallCliSkillsRequestSchema,
+  systemCliSkillsOfferRequestSchema,
   systemCliSkillsSetupRequestSchema,
   timelineTurnSummaryDetailsQuerySchema,
   updateEnvironmentRequestSchema,
@@ -1538,6 +1541,14 @@ export const publicApiRoutes = {
         systemInstallCliSkillsRequestSchema,
       ),
       response: jsonResponse<SystemInstallCliSkillsResponse>(),
+    }),
+    cliSkillsOffer: defineRoute({
+      path: "/system/cli-skills/offer",
+      method: "post",
+      request: jsonRequest<EmptyInput, SystemCliSkillsOfferRequest>(
+        systemCliSkillsOfferRequestSchema,
+      ),
+      response: jsonResponse<SystemCliSkillsOfferResponse>(),
     }),
     cliSkillsSetup: defineRoute({
       path: "/system/cli-skills/setup",

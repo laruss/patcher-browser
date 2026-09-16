@@ -282,6 +282,19 @@ A write the window announces once, per machine, as a toast. The rule is
 the second rewrites a person's edit on every launch, and flips between the two
 builds on every connect of either.
 
+**A skill that ships later is asked about, not assumed.** Its name is new to
+`GLOBAL_CLI_SKILL_NAMES`, so no machine has a copy and none is "ours" to
+update: without a question it would never arrive, and every machine would read
+"Partly installed" until somebody pressed Install — which replaces every skill,
+including one they had edited. So a machine that holds this install's other
+skills and has never had the new one raises an offer, the window asks once, and
+the answer is kept per skill name in `app_settings.cli_skills_answered`. "Never
+had" is both hashes null: a copy somebody removed keeps its entry in the
+machine's record, and removing a skill is not an invitation to offer it back. An
+accept outlives the question — a machine that was offline installs that skill
+when it next connects — which is what keeps the answer one question rather than
+one per machine.
+
 One install location is not followed: Claude Code's skills move with
 `CLAUDE_CONFIG_DIR`, which skill discovery honours
 (`command-handlers/list-commands.ts`), while the install writes
