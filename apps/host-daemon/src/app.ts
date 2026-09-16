@@ -762,7 +762,14 @@ export async function createHostDaemonApp(
       }),
     caffeinateManager,
     threadStorageRootPath,
-    getUserShellPath: options.getUserShellPath,
+    // Through the refresh gate rather than straight off the startup value: the
+    // raw PATH is re-measured with the composed environment, under its TTL, so
+    // a profile edited a moment ago is seen without a login shell being spawned
+    // on every read.
+    getUserShellPath: async () => {
+      await refreshRuntimeShellEnv();
+      return options.getUserShellPath?.() ?? null;
+    },
     logger: options.logger,
     eventSink: {
       emit: (event) => eventSink.emit(event),

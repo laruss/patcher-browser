@@ -69,6 +69,7 @@ function systemConfig(): SystemConfigResponse {
     serverUrl: "http://localhost:38986",
     primaryHostId: "host_primary",
     primaryHostPlatform: "darwin",
+    cliCommandSupported: false,
     outsideAgentSetup: "unasked",
     cliSkillsUpdates: [],
     cliSkillsOffer: null,

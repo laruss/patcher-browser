@@ -3,12 +3,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OutsideAgentSetupDialog } from "./OutsideAgentSetupDialog";
 
-function renderDialog(overrides: { pending?: boolean } = {}) {
+function renderDialog(
+  overrides: { pending?: boolean; showsCliCommand?: boolean } = {},
+) {
   const props = {
     hostName: "Laptop",
     onAccept: vi.fn(),
     onDecline: vi.fn(),
     pending: overrides.pending ?? false,
+    showsCliCommand: overrides.showsCliCommand ?? true,
   };
   render(<OutsideAgentSetupDialog open {...props} />);
   return props;
@@ -30,6 +33,19 @@ describe("OutsideAgentSetupDialog", () => {
     expect(
       screen.getByText("You can do this later in Settings → Skills."),
     ).toBeTruthy();
+  });
+
+  it("promises no command where this yes will not place one", () => {
+    // Windows, or a source checkout: the server answers `unsupported`, so the
+    // sentence would be an offer nothing acts on.
+    renderDialog({ showsCliCommand: false });
+
+    expect(
+      screen.getByText(
+        "Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on Laptop.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/link in ~\/\.local\/bin/u)).toBeNull();
   });
 
   it("answers yes with Set up and no with Not now", () => {

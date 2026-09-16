@@ -263,6 +263,79 @@ describe("the `patcher` command on PATH", () => {
     expect(await exists(path.join(host.localBin, "patcher"))).toBe(false);
   });
 
+  it("places the link past an earlier patcher a shell would not run", async () => {
+    const host = await makeHost();
+    const earlier = path.join(host.homeDir, "earlier-bin");
+    await mkdir(path.join(earlier, "patcher"), { recursive: true });
+
+    const result = await installCliCommand(
+      options(host, [earlier, host.localBin]),
+    );
+
+    // A directory named `patcher` is skipped by the lookup, so it wins nothing
+    // and must not refuse the install.
+    expect(result.state).toBe("installed");
+    await expect(readlink(path.join(host.localBin, "patcher"))).resolves.toBe(
+      host.shimPath,
+    );
+  });
+
+  it("places the link past an earlier patcher with no execute bit", async () => {
+    const host = await makeHost();
+    const earlier = path.join(host.homeDir, "earlier-bin");
+    await mkdir(earlier, { recursive: true });
+    await writeFile(path.join(earlier, "patcher"), "not executable\n", {
+      mode: 0o644,
+    });
+
+    const result = await installCliCommand(
+      options(host, [earlier, host.localBin]),
+    );
+
+    expect(result.state).toBe("installed");
+  });
+
+  it("places the link past an earlier patcher that is a dead link", async () => {
+    const host = await makeHost();
+    const earlier = path.join(host.homeDir, "earlier-bin");
+    await mkdir(earlier, { recursive: true });
+    await symlink("/nowhere/patcher", path.join(earlier, "patcher"));
+
+    const result = await installCliCommand(
+      options(host, [earlier, host.localBin]),
+    );
+
+    expect(result.state).toBe("installed");
+  });
+
+  it("does not call its own link installed while the shim is missing", async () => {
+    const host = await makeHost({ withShim: false });
+    await mkdir(host.localBin, { recursive: true });
+    await symlink(host.shimPath, path.join(host.localBin, "patcher"));
+
+    const result = await readCliCommandStatus(options(host, [host.localBin]));
+
+    // `patcher` would be found and then fail, which is worse than not being
+    // found at all — so the row must not say it runs.
+    expect(result.state).toBe("failed");
+    expect(result.message).toContain(host.shimPath);
+  });
+
+  it("says the command already runs when its own shim directory is on PATH", async () => {
+    const host = await makeHost();
+
+    // The documented fallback, followed by hand: neither candidate directory
+    // is on PATH, and `patcher` works anyway.
+    const result = await installCliCommand(
+      options(host, ["/usr/bin", path.join(host.dataDir, "bin")]),
+    );
+
+    expect(result.state).toBe("installed");
+    expect(result.changed).toBe(false);
+    expect(result.existingPath).toBe(host.shimPath);
+    expect(await exists(path.join(host.localBin, "patcher"))).toBe(false);
+  });
+
   it("reads without writing", async () => {
     const host = await makeHost();
     const result = await readCliCommandStatus(options(host, [host.localBin]));

@@ -115,9 +115,12 @@ describe("the patcher command on PATH", () => {
 
       const response = await harness.app.request("/api/v1/system/cli-command");
 
-      const body = systemCliCommandStatusResponseSchema.parse(
-        await readJson(response),
-      );
+      // Read raw rather than through the schema: its `.catch("unknown")` is
+      // there so a window held across an upgrade survives an unknown state,
+      // and parsing first would let a server that omitted the field pass.
+      const body = (await readJson(response)) as {
+        machines: { state: unknown }[];
+      };
       expect(body.machines[0]?.state).toBe("unknown");
     });
   });
@@ -171,6 +174,49 @@ describe("the patcher command on PATH", () => {
       // The row in this window shows it; there is nothing for another window
       // to re-read, because nothing about the machine changed.
       expect(changes).not.toContain("config-changed");
+    });
+  });
+
+  it("tells the window the launch-time question may promise a command", async () => {
+    await withRelease(async (harness) => {
+      const { host, session } = seedHostSession(harness.deps);
+      seedPrimaryHost(harness.deps, host.id);
+      // Recorded before the daemon registers: that is the order session open
+      // uses, and `registerDaemon` reads the platform as it goes.
+      harness.hub.recordDaemonSessionPlatform(session.id, "darwin");
+      registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: () => PLACED,
+      });
+
+      const config = (await readJson(
+        await harness.app.request("/api/v1/system/config"),
+      )) as { cliCommandSupported: boolean };
+
+      expect(config.cliCommandSupported).toBe(true);
+    });
+  });
+
+  it("tells the window to promise nothing from a source checkout", async () => {
+    await withTestHarness(async (harness) => {
+      const { host, session } = seedHostSession(harness.deps);
+      seedPrimaryHost(harness.deps, host.id);
+      harness.hub.recordDaemonSessionPlatform(session.id, "darwin");
+      registerHostRpcResponder(harness, {
+        hostId: host.id,
+        sessionId: session.id,
+        handle: () => PLACED,
+      });
+
+      const config = (await readJson(
+        await harness.app.request("/api/v1/system/config"),
+      )) as { cliCommandSupported: boolean };
+
+      // Read raw: the field is `.default(false)` so an older window survives a
+      // config without it, and parsing first would hide a server that stopped
+      // sending it.
+      expect(config.cliCommandSupported).toBe(false);
     });
   });
 

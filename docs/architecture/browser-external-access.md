@@ -222,12 +222,15 @@ Two rules are what keep this from being a footgun. It **never replaces a
 `patcher` it did not place** — a file, a directory or a link into somewhere
 else is reported and left, because from the outside a deliberate link cannot be
 told from a leftover; the single exception is a link that does not resolve and
-has this product's own shim shape, which serves nobody and which this feature
-is what creates (move a data directory and the link dangles). And it **checks
-who wins the lookup**: an `npm i -g patcher-app` puts a `patcher` in a directory
-that usually sits ahead of `~/.local/bin`, so placing a link and reporting
-success would be a claim rather than a measurement. That case is `shadowed`,
-nothing is written, and the row names the path that answers instead.
+points at one of the two default data directories, which serves nobody and
+which this feature is what creates (delete a checkout and the link dangles).
+And it **checks who wins the lookup**: an `npm i -g patcher-app` puts a
+`patcher` in a directory that usually sits ahead of `~/.local/bin`, so placing a
+link and reporting success would be a claim rather than a measurement. That case
+is `shadowed`, nothing is written, and the row names the path that answers
+instead. What counts as winning is what a shell would run — a regular file with
+an execute bit, links followed — so a dead link or a directory of that name
+refuses nothing.
 
 Who may own the bare command is the server's to decide, not the daemon's
 (invariant 3). A source checkout may not: it shares a home with the release

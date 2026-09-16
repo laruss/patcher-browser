@@ -546,12 +546,11 @@ export async function answerCliSkillsSetup(
   const primaryHostId = requirePrimaryHostId(deps);
   setOutsideAgentSetup(deps.db, "accepted");
   deps.hub.notifySystem(["config-changed"]);
-  const install = await installGlobalCliSkills(deps, {
-    hostIds: [primaryHostId],
-  });
   // The same yes also puts a bare `patcher` on their PATH (#143), which the
-  // question now says in as many words. A separate call, and one that cannot
-  // undo the skills install that already happened: whatever it answers — a
+  // question now says in as many words. Before the skills install rather than
+  // after it: that one throws when this server has nothing to publish, and the
+  // answer is recorded by then, so a link ordered after it would never be
+  // attempted and the question is never asked again. Whatever this answers — a
   // name already taken, no directory to use — is carried back to be said
   // rather than thrown.
   const cliCommand = await installCliCommand(deps, {
@@ -566,5 +565,8 @@ export async function answerCliSkillsSetup(
       return null;
     },
   );
+  const install = await installGlobalCliSkills(deps, {
+    hostIds: [primaryHostId],
+  });
   return { outsideAgentSetup: "accepted", install, cliCommand };
 }

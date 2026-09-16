@@ -12813,6 +12813,7 @@ declare const systemConfigResponseSchema: z$1.ZodObject<
         wsl: "wsl";
       }>
     >;
+    cliCommandSupported: z$1.ZodDefault<z$1.ZodBoolean>;
     outsideAgentSetup: z$1.ZodEnum<{
       accepted: "accepted";
       unasked: "unasked";
@@ -13526,6 +13527,39 @@ declare const systemCliSkillsSetupResponseSchema: z$1.ZodObject<
               "ok"
             >
           >;
+        },
+        z$1.core.$strip
+      >
+    >;
+    cliCommand: z$1.ZodNullable<
+      z$1.ZodObject<
+        {
+          hostId: z$1.ZodString;
+          hostName: z$1.ZodString;
+          state: z$1.ZodCatch<
+            z$1.ZodEnum<{
+              unknown: "unknown";
+              failed: "failed";
+              missing: "missing";
+              installed: "installed";
+              occupied: "occupied";
+              shadowed: "shadowed";
+              not_on_path: "not_on_path";
+              unsupported: "unsupported";
+            }>
+          >;
+          linkPath: z$1.ZodNullable<z$1.ZodString>;
+          existingPath: z$1.ZodNullable<z$1.ZodString>;
+          existingTarget: z$1.ZodNullable<z$1.ZodString>;
+          shimDirectory: z$1.ZodNullable<z$1.ZodString>;
+          reason: z$1.ZodNullable<
+            z$1.ZodEnum<{
+              windows: "windows";
+              "dev-install": "dev-install";
+            }>
+          >;
+          message: z$1.ZodNullable<z$1.ZodString>;
+          changed: z$1.ZodBoolean;
         },
         z$1.core.$strip
       >

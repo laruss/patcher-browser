@@ -373,6 +373,7 @@ export function OnboardingHost() {
     <OutsideAgentSetupDialog
       open
       hostName={primaryHost.name}
+      showsCliCommand={configQuery.data?.cliCommandSupported === true}
       pending={setupCliSkills.isPending}
       onAccept={() => answerOutsideAgentSetup("accept")}
       onDecline={() => answerOutsideAgentSetup("decline")}

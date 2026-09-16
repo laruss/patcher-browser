@@ -181,12 +181,17 @@ describe("the question about agents outside Patcher", () => {
         body.install?.results.map((entry) => [entry.hostId, entry.ok]),
       ).toEqual([["host-laptop", true]]);
       // The same yes also asks for a bare `patcher` on that machine (#143),
-      // and asks the primary machine only for both.
+      // and asks the primary machine only for both. The command goes first:
+      // the skills install is the one that can throw, and a link ordered after
+      // it would never be placed on a server with nothing to publish.
       expect(laptopResponder?.requests.map((r) => r.command.type)).toEqual([
-        "host.install_global_skills",
         "host.install_cli_command",
+        "host.install_global_skills",
       ]);
       expect(studioResponder?.requests).toHaveLength(0);
+      // The command's outcome rides back with the answer, so an `occupied` or
+      // a `not_on_path` is said when it happens rather than found in Settings.
+      expect(body.cliCommand?.hostId).toBe("host-laptop");
       expect(await readAnswerFromConfig(harness)).toBe("accepted");
     });
   });
@@ -242,7 +247,9 @@ describe("the question about agents outside Patcher", () => {
   });
 
   it("keeps the yes when the install cannot start at all", async () => {
-    await withTestHarness(async (harness) => {
+    // A release, so the `patcher` link is genuinely attempted rather than
+    // answered `dev-install` without the daemon being asked.
+    await withTestHarness({ isDevelopment: false }, async (harness) => {
       // No built-in skill on this server, so the install refuses before any
       // machine is asked — after the answer was recorded.
       const { host, session } = seedHostSession(harness.deps);
@@ -258,7 +265,12 @@ describe("the question about agents outside Patcher", () => {
       );
 
       expect(response.status).toBe(500);
-      expect(responder.requests).toHaveLength(0);
+      // The `patcher` link is still attempted (#143): the skills install is
+      // what throws here, the answer is already recorded, and a link ordered
+      // after it would never be placed and never asked about again.
+      expect(responder.requests.map((r) => r.command.type)).toEqual([
+        "host.install_cli_command",
+      ]);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("accepted");
     });
   });

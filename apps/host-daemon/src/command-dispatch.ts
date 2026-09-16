@@ -661,12 +661,12 @@ const onlineRpcHandlers: OnlineRpcHandlerMap = {
   "host.cli_command_status": async (_command, options) =>
     readCliCommandStatus({
       dataDir: options.dataDir,
-      userShellPath: options.getUserShellPath?.() ?? null,
+      userShellPath: (await options.getUserShellPath?.()) ?? null,
     }),
   "host.install_cli_command": async (_command, options) =>
     installCliCommand({
       dataDir: options.dataDir,
-      userShellPath: options.getUserShellPath?.() ?? null,
+      userShellPath: (await options.getUserShellPath?.()) ?? null,
     }),
   "host.list_branches": listHostBranches,
   "host.file_metadata": async (command, options) =>

@@ -229,6 +229,18 @@ export const systemConfigResponseSchema = z.object({
   primaryHostId: z.string().nullable(),
   primaryHostPlatform: hostPlatformSchema.nullable(),
   /**
+   * Whether a yes to the launch-time question will also put a bare `patcher`
+   * on this person's PATH (#143). False where no shim is written — Windows —
+   * and on a source checkout, which never owns the bare command. The window
+   * uses it to avoid promising what nothing will do; which install may own
+   * that name is product policy, so the server is what decides it.
+   *
+   * Defaulted rather than required: a window from an older build reads the
+   * config through this schema too, and a missing field should leave the
+   * sentence out rather than fail the whole read.
+   */
+  cliCommandSupported: z.boolean().default(false),
+  /**
    * The answer to installing Patcher's skills for agents outside Patcher,
    * asked once on launch (#141). Beside `generalSettings` rather than inside
    * it, because that object is written back whole by every window.

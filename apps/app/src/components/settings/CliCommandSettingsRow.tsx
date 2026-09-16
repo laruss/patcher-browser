@@ -1,6 +1,7 @@
 import type { CliCommandMachine } from "@patcher/server-contract";
 import { Button } from "@patcher/shared-ui/button";
 import { SettingsWithControl } from "@/components/ui/settings-section";
+import { reportCliCommandResult } from "@/components/settings/cli-command-result";
 import { useInstallCliCommand } from "@/hooks/mutations/settings-mutations";
 import { useCliCommandStatus } from "@/hooks/queries/system-queries";
 
@@ -103,7 +104,22 @@ export function CliCommandSettingsRow() {
     <CliCommandSettingsRowContent
       machine={machine}
       pending={installCliCommand.isPending}
-      onInstall={() => installCliCommand.mutate({})}
+      onInstall={() =>
+        installCliCommand.mutate(
+          {},
+          {
+            // The status read cannot reproduce what the write answered — it
+            // never attempts one — so without this a `failed` or an `occupied`
+            // vanishes on the refetch and the row goes back to offering the
+            // button with nothing said.
+            onSuccess: (result) => {
+              for (const asked of result.machines) {
+                reportCliCommandResult(asked);
+              }
+            },
+          },
+        )
+      }
     />
   );
 }

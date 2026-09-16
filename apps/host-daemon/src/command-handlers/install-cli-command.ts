@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   lstat,
   mkdir,
@@ -45,10 +46,13 @@ import type { HostCliCommandResult } from "@patcher/host-daemon-contract";
  * A file, a directory, or a link into something else stays, and the state says
  * so: a link somebody tied on purpose outranks this convenience, and from the
  * outside a deliberate one cannot be told from a leftover. The single exception
- * is a link that **does not resolve** and whose target has this product's shim
- * shape — that one serves nobody, and this feature is what creates it (move a
- * data directory, delete a checkout, and the link we placed dangles). Without
- * that exception the person is left with a dead command and no button.
+ * is a link that **does not resolve** and whose target has one of this
+ * product's two default data-directory shapes — that one serves nobody, and
+ * this feature is what creates it (delete a checkout and the link we placed
+ * dangles). Without that exception the person is left with a dead command and
+ * no button. A dangling link into a data directory moved with
+ * `PATCHER_DATA_DIR` is not matched and stays `occupied`: the shape is the only
+ * evidence there is of whose link it was, and a custom path has none.
  *
  * **Nothing removes it.** Uninstalling Patcher leaves the link dangling, the
  * same way it leaves the data directory. Worth knowing before adding a cleanup
@@ -95,13 +99,13 @@ function normalizeDirectory(entry: string): string {
   return path.resolve(entry);
 }
 
-/** The PATH entries in order, dropping the empty ones POSIX reads as the working directory. */
-function pathEntries(
-  userShellPath: string,
-  platform: NodeJS.Platform,
-): string[] {
+/**
+ * The PATH entries in order, dropping the empty ones POSIX reads as the working
+ * directory. Only ever a POSIX PATH: Windows is answered before this is called.
+ */
+function pathEntries(userShellPath: string): string[] {
   return userShellPath
-    .split(platform === "win32" ? ";" : ":")
+    .split(":")
     .filter((entry) => entry.length > 0)
     .map(normalizeDirectory);
 }
@@ -189,16 +193,31 @@ function resolvePlacement(args: {
  * would keep answering with that one. Reported, never resolved — reordering
  * somebody's PATH is not this program's business either.
  */
+async function findRunnableCommand(
+  entries: readonly string[],
+): Promise<{ path: string; target: string | null } | null> {
+  for (const entry of entries) {
+    const candidate = path.join(entry, PATCHER_CLI_SHIM_FILE_NAME);
+    // What a shell would actually run, not merely what exists: links are
+    // followed, and a directory, a dangling link or a file with no execute bit
+    // is skipped by the lookup. Treating one of those as the winner would
+    // refuse the install over something that answers nothing — which is the
+    // opposite of what this check is for.
+    const target = await stat(candidate).catch(() => null);
+    if (target === null || !target.isFile() || (target.mode & 0o111) === 0) {
+      continue;
+    }
+    const found = await readEntry(candidate);
+    return { path: candidate, target: found?.target ?? null };
+  }
+  return null;
+}
+
+/** The `patcher` that would answer ahead of the directory this would write to. */
 async function findShadow(
   placement: Placement,
 ): Promise<{ path: string; target: string | null } | null> {
-  for (const entry of placement.entries.slice(0, placement.index)) {
-    const candidate = path.join(entry, PATCHER_CLI_SHIM_FILE_NAME);
-    const found = await readEntry(candidate);
-    if (found === null) continue;
-    return { path: candidate, target: found.target };
-  }
-  return null;
+  return findRunnableCommand(placement.entries.slice(0, placement.index));
 }
 
 function baseResult(shimDirectory: string): HostCliCommandResult {
@@ -239,14 +258,38 @@ async function resolveCliCommand(
   if (options.userShellPath === null) {
     return { ...result, state: "unknown" };
   }
+  if (!(await resolves(shimPath))) {
+    // A data directory too locked down for `writeCliShim` has no shim, and
+    // every answer below would be about a link to a file that is not there:
+    // `patcher` would be found and then fail. Asked before anything else,
+    // because a link this install already placed is in exactly that state and
+    // calling it `installed` is the lie this is here to prevent.
+    return {
+      ...result,
+      state: "failed",
+      message: `This install's ${PATCHER_CLI_SHIM_FILE_NAME} shim is not at ${shimPath}.`,
+    };
+  }
 
-  const placement = resolvePlacement({
-    entries: pathEntries(options.userShellPath, platform),
-    homeDir,
-  });
+  const entries = pathEntries(options.userShellPath);
+  const placement = resolvePlacement({ entries, homeDir });
   if (placement === null) {
-    // Neither directory is on PATH. The answer is the line to add, which the
-    // caller composes from `shimDirectory` — that works with no link at all.
+    // Neither candidate directory is on PATH — but before saying so, look at
+    // what `patcher` already answers. Somebody who followed the documented
+    // fallback and put `<dataDir>/bin` on PATH themselves already has the
+    // command, and telling them again to add a line they have added is the
+    // kind of claim this file exists to avoid.
+    const runnable = await findRunnableCommand(entries);
+    if (runnable !== null && (await samePath(runnable.path, shimPath))) {
+      return {
+        ...result,
+        state: "installed",
+        existingPath: runnable.path,
+        existingTarget: runnable.target,
+      };
+    }
+    // The answer is the line to add, which the caller composes from
+    // `shimDirectory` — that works with no link at all.
     return { ...result, state: "not_on_path" };
   }
 
@@ -304,9 +347,9 @@ async function resolveCliCommand(
   }
 
   if (!write) {
-    // Nothing is in the way. A dangling link of ours counts as nothing: it is
-    // reported through `existingPath` so the window can say what Install will
-    // replace, rather than through a state that would claim it still works.
+    // Nothing is in the way. A dangling link of ours counts as nothing, and is
+    // reported through `existingPath` rather than through a state that would
+    // claim it still works.
     return {
       ...result,
       state: "missing",
@@ -316,31 +359,42 @@ async function resolveCliCommand(
     };
   }
 
-  if (!(await resolves(shimPath))) {
-    // A data directory too locked down for `writeCliShim` has no shim, and a
-    // link to one that is not there is worse than no link: `patcher` would be
-    // found and then fail. Caught here rather than discovered by the person.
-    return {
-      ...result,
-      state: "failed",
-      linkPath,
-      message: `This install's ${PATCHER_CLI_SHIM_FILE_NAME} shim is not at ${shimPath}.`,
-    };
-  }
-
   try {
     await mkdir(placement.directory, { recursive: true });
-    // Staged and renamed rather than unlinked and recreated: `rename` over an
-    // existing name is atomic, so a shell looking one up sees the old link or
-    // the new one and never a moment with neither.
-    const staging = `${linkPath}.${process.pid}.tmp`;
-    try {
-      await symlink(shimPath, staging);
-      await rename(staging, linkPath);
-    } finally {
-      await rm(staging, { force: true });
+    if (existing === null) {
+      // Nothing was there when it was looked at. A plain `symlink` refuses
+      // with `EEXIST` if something arrived in between, which is the answer
+      // this wants: a name this install did not place is never replaced, and a
+      // staged `rename` would have overwritten it without noticing.
+      await symlink(shimPath, linkPath);
+    } else {
+      // Replacing our own dangling link. Staged and renamed rather than
+      // unlinked and recreated: `rename` over an existing name is atomic, so a
+      // shell looking one up sees the old link or the new one and never a
+      // moment with neither.
+      // A nonce, not just the pid: two installs handled at once by this same
+      // daemon would otherwise share the name, and the `finally` of one would
+      // delete the other's staging entry and fail a caller that asked for
+      // exactly what it got.
+      const staging = `${linkPath}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
+      try {
+        await symlink(shimPath, staging);
+        await rename(staging, linkPath);
+      } finally {
+        await rm(staging, { force: true });
+      }
     }
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      const raced = await readEntry(linkPath);
+      return {
+        ...result,
+        state: "occupied",
+        linkPath,
+        existingPath: linkPath,
+        existingTarget: raced?.target ?? null,
+      };
+    }
     return {
       ...result,
       state: "failed",

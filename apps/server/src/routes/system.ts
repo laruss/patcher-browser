@@ -205,6 +205,10 @@ export function registerSystemRoutes(
       pluginService.listKeybindingContributions(),
     );
     const primaryHostId = resolvePrimaryHostId(deps);
+    const primaryHostPlatform =
+      primaryHostId === null
+        ? null
+        : deps.hub.getDaemonPlatformForHost(primaryHostId);
     return {
       generalSettings: getAppSettings(deps.db),
       keybindings: applyAppKeybindingOverrides(
@@ -224,10 +228,18 @@ export function registerSystemRoutes(
       hostDaemonPort: deps.config.hostDaemonPort,
       serverUrl,
       primaryHostId,
-      primaryHostPlatform:
-        primaryHostId === null
-          ? null
-          : deps.hub.getDaemonPlatformForHost(primaryHostId),
+      primaryHostPlatform,
+      // The two cases where the launch-time question must not promise a bare
+      // `patcher` (#143): Windows, where no shim is written for a link to
+      // point at, and a source checkout, which never owns that name. The
+      // platform enum has no `win32` — a Windows daemon reports `unknown` —
+      // so this asks for the platforms a shim *is* written on rather than
+      // excluding one that cannot be named.
+      cliCommandSupported:
+        !deps.config.isDevelopment &&
+        (primaryHostPlatform === "darwin" ||
+          primaryHostPlatform === "linux" ||
+          primaryHostPlatform === "wsl"),
       outsideAgentSetup: getOutsideAgentSetup(deps.db),
       cliSkillsUpdates: [...deps.cliSkillsUpdateNotices.values()],
       cliSkillsOffer: resolveCliSkillsOffer(deps),

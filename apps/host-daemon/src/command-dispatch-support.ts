@@ -83,12 +83,17 @@ export interface CommandDispatchOptions {
   }) => Promise<HostDaemonEnvSetupScriptConsentResponse>;
   caffeinateManager?: CaffeinateManager;
   /**
-   * The login shell's PATH as the daemon last measured it, or null when it
-   * could not be read. Optional because a daemon standing up without one has
-   * nothing to report; absent and null mean the same thing to a caller, which
-   * is "do not claim anything about this person's PATH".
+   * The login shell's PATH, re-measured if the daemon's cached copy has aged
+   * out, or null when it could not be read. Optional because a daemon standing
+   * up without one has nothing to report; absent and null mean the same thing
+   * to a caller, which is "do not claim anything about this person's PATH".
+   *
+   * Asynchronous because it goes through the same TTL as the composed shell
+   * environment. Without that, a person told to put `~/.local/bin` on their
+   * PATH would add it, press the button, and be told again that it is not
+   * there — until the daemon happened to restart.
    */
-  getUserShellPath?: () => string | null;
+  getUserShellPath?: () => Promise<string | null>;
   threadStorageRootPath: string;
 }
 
