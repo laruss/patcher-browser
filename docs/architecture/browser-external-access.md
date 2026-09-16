@@ -328,7 +328,9 @@ left alone and shows in Settings as modified, partly installed or out of date;
 Install replaces it. That last case is the owner's machine: a release and a
 source checkout have separate data directories over one `~/.claude/skills`, so
 neither's copy is ever the other's own and they never take turns rewriting it.
-A write the window announces once, per machine, as a toast. The rule is
+A write the window announces once, per machine, as a toast, naming under it
+any copy the update left as it was (#148): the person who edited one would
+otherwise hear only that the skills were updated. The rule is
 "unchanged since this install wrote it", not "differs from this server's tree":
 the second rewrites a person's edit on every launch, and flips between the two
 builds on every connect of either.

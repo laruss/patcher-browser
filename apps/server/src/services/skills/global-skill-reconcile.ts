@@ -2,6 +2,7 @@ import { getAnsweredCliSkills, listNonDestroyedHostsByIds } from "@patcher/db";
 import type {
   HostGlobalSkillsStatusResult,
   HostInstallGlobalSkill,
+  HostInstallGlobalSkillsResult,
 } from "@patcher/host-daemon-contract";
 import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import type { AppDeps } from "../../types.js";
@@ -78,6 +79,56 @@ function nextNoticeAt(deps: GlobalSkillReconcileDeps): number {
     ...[...deps.cliSkillsUpdateNotices.values()].map((notice) => notice.at),
   );
   return Math.max(Date.now(), latest + 1);
+}
+
+/**
+ * The copies an update left as they were, still holding something other than
+ * this server's tree (#148): the ones a person should hear about beside the
+ * update, since Settings is the only other place that says so.
+ *
+ * Not every `skipped` is one. Each condition of the request is applied to both
+ * roots, and the daemon skips any copy that does not hash to it — so it also
+ * skips a root that is absent, one already holding this tree, and one another
+ * condition of the same request wrote or adopted (two roots at two trees this
+ * install wrote are two conditions, each skipping the other root).
+ *
+ * Judged against the read the plan was made from, not a second one: a copy
+ * changed in the moment between that read and the install can be misnamed
+ * once, and Settings reads it afresh.
+ */
+function copiesLeftBehind(args: {
+  entries: HostGlobalSkillsStatusResult["entries"];
+  installations: HostInstallGlobalSkillsResult["installations"];
+  skills: readonly HostInstallGlobalSkill[];
+}): string[] {
+  const touchedPaths = new Set(
+    args.installations.flatMap((installation) =>
+      installation.outcome === "skipped" ? [] : [installation.path],
+    ),
+  );
+  return [
+    ...new Set(
+      args.installations.flatMap((installation) => {
+        if (
+          installation.outcome !== "skipped" ||
+          touchedPaths.has(installation.path)
+        ) {
+          return [];
+        }
+        const treeHash = args.entries.find(
+          (entry) => entry.path === installation.path,
+        )?.treeHash;
+        const shipped = args.skills.find(
+          (skill) => skill.name === installation.name,
+        )?.treeHash;
+        return treeHash === null ||
+          treeHash === undefined ||
+          treeHash === shipped
+          ? []
+          : [installation.path];
+      }),
+    ),
+  ];
 }
 
 async function reconcileHost(
@@ -175,14 +226,16 @@ async function reconcileHost(
   });
   // Adopting changes nothing a person or an agent would notice.
   if (updated.length === 0) return;
+  const skippedCopies = copiesLeftBehind({ entries, installations, skills });
   deps.cliSkillsUpdateNotices.set(hostId, {
     hostId,
     hostName: host.name,
     skills: updated,
+    skippedCopies,
     at: nextNoticeAt(deps),
   });
   deps.logger.info(
-    { hostId, skills: updated },
+    { hostId, skills: updated, skippedCopies },
     "Updated the Patcher CLI skills on a machine that connected",
   );
   deps.hub.notifySystem(["config-changed"]);
