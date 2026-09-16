@@ -52,7 +52,9 @@ function isWireConstant(name: string, value: unknown): boolean {
  * What it cannot see: the internal HTTP routes, which are a type
  * (`HostDaemonInternalSchema`) and leave nothing at runtime; and refinements and
  * transforms, which `unrepresentable: "any"` lets through without a shape. A
- * change to either still needs the bump by hand.
+ * change to either still needs the bump by hand. What it sees but the wire does
+ * not: `.describe()` text and the order of enum members, either of which moves
+ * a hash without moving the wire.
  */
 function fingerprintWire(): Record<string, string> {
   const fingerprints: Record<string, string> = {};

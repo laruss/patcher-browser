@@ -651,8 +651,8 @@ describe("a conditional install", () => {
       installCommand([{ name: "patcher-cli", payload: previous }]),
       { dataDir, fetchSkillTree, homeDir },
     );
-    // The other install's copy lands first: this one's removal has nothing of
-    // its own to take, and its rename has nowhere to land.
+    // The other install's rename lands between this one's remove and its own
+    // rename, so this one's rename finds a copy in the way.
     vi.spyOn(fsPromises, "rm").mockImplementation(async (target, options) => {
       if (String(target) === copyPaths(homeDir).agents) return;
       await rm(target as string, options);
@@ -716,6 +716,59 @@ describe("a conditional install", () => {
       homeDir,
     });
     expect(status.entries[0]?.installedTreeHash).toBe(previous.treeHash);
+  });
+
+  // What the server sends for a machine it is both updating and adopting: one
+  // condition per tree, in one command, sharing the tree it fetches once.
+  it("takes a write and an adopt for one skill in a single command", async () => {
+    const dataDir = await makeTempDir();
+    const homeDir = await makeTempDir();
+    const previous = createTreePayload("patcher-cli", "previous");
+    const next = createTreePayload("patcher-cli", "next");
+    await installGlobalSkills(
+      installCommand([{ name: "patcher-cli", payload: previous }]),
+      { dataDir, fetchSkillTree: fetchFrom(previous), homeDir },
+    );
+    const fetchSkillTree = fetchFrom(next);
+
+    const result = await installGlobalSkills(
+      {
+        type: "host.install_global_skills",
+        skills: [
+          {
+            name: "patcher-cli",
+            treeHash: next.treeHash,
+            entryPath: "SKILL.md",
+            replaceOnlyIfTreeHash: previous.treeHash,
+          },
+          {
+            name: "patcher-cli",
+            treeHash: next.treeHash,
+            entryPath: "SKILL.md",
+            replaceOnlyIfTreeHash: next.treeHash,
+          },
+        ],
+      },
+      { dataDir, fetchSkillTree, homeDir },
+    );
+
+    // The first condition replaces both copies; the second finds them already
+    // at that tree and only records them, without fetching again.
+    expect(result.installations.map((entry) => entry.outcome)).toEqual([
+      "written",
+      "written",
+      "adopted",
+      "adopted",
+    ]);
+    expect(fetchSkillTree).toHaveBeenCalledTimes(1);
+    const status = await readGlobalSkillsStatus(statusCommand(), {
+      dataDir,
+      homeDir,
+    });
+    expect(status.entries.map((entry) => entry.installedTreeHash)).toEqual([
+      next.treeHash,
+      next.treeHash,
+    ]);
   });
 
   it("adopts a copy that already holds the tree, without fetching or rewriting it", async () => {

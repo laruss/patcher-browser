@@ -258,7 +258,7 @@ async function replaceSkillDirectory(args: {
       skillFilePath: args.skillFilePath,
       sourceRootPath: args.sourceRootPath,
     });
-    const installedTreeHash = async () =>
+    const destinationTreeHash = async () =>
       hashInstalledSkillDirectory({
         name: args.name,
         skillDirectoryPath: args.destinationPath,
@@ -268,21 +268,40 @@ async function replaceSkillDirectory(args: {
       await fs.rename(stagingPath, args.destinationPath);
       return true;
     }
-    if ((await installedTreeHash()) !== args.replaceOnlyIfTreeHash) {
+    if ((await destinationTreeHash()) !== args.replaceOnlyIfTreeHash) {
       return false;
     }
     try {
       await fs.rm(args.destinationPath, { force: true, recursive: true });
       await fs.rename(stagingPath, args.destinationPath);
-    } catch {
-      // Another install swapped the same copy in the meantime, so the rename
-      // has nowhere to land or lands on what they wrote.
+    } catch (error) {
+      // Only the shapes a contested swap takes: another install's copy is in
+      // the way, or gone from under this one. A root that cannot be written at
+      // all is a real failure the person should see reported, not something to
+      // retry in silence on every connect.
+      if (!isContestedSwapError(error)) throw error;
       return false;
     }
-    return (await installedTreeHash()) === args.treeHash;
+    return (await destinationTreeHash()) === args.treeHash;
   } finally {
     await fs.rm(stagingPath, { force: true, recursive: true });
   }
+}
+
+const CONTESTED_SWAP_ERROR_CODES: readonly string[] = [
+  "ENOTEMPTY",
+  "EEXIST",
+  "ENOENT",
+  "ENOTDIR",
+];
+
+function isContestedSwapError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    CONTESTED_SWAP_ERROR_CODES.includes(error.code)
+  );
 }
 
 /**
@@ -338,8 +357,9 @@ async function resolveSkillFilePath(args: {
 /**
  * Install server-owned skill trees into every global agent skill root on this
  * host. Existing copies of the same skill name are replaced — or, for a skill
- * with `replaceOnlyIfTreeHash`, only those this data directory recorded as that
- * tree and that still hold it; unrelated skills in those roots are untouched. Every copy written or adopted is
+ * with `replaceOnlyIfTreeHash`, only those this data directory recorded as
+ * that tree and that still hold it; unrelated skills in those roots are
+ * untouched. Every copy written or adopted is
  * recorded as this data directory's.
  */
 export async function installGlobalSkills(

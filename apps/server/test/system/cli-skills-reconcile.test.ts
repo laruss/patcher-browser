@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { setOutsideAgentSetup } from "@patcher/db";
 import type {
   HostDaemonOnlineRpcRequestMessage,
@@ -329,31 +329,38 @@ describe("a machine connecting", () => {
     });
   });
 
-  // A reconnect replaces the session, and a run still out on the old socket is
-  // rejected when the new one registers — so the machine that is connected now
-  // would never be reconciled if the new connect joined that run.
-  it("reads the machine again when it comes back on a new session", async () => {
+  // A reconnect replaces the session, and the run started for the old one has
+  // its RPC rejected the moment the new socket registers. So the work is
+  // deduplicated per session and not per machine: keyed by machine, the new
+  // connect would join that doomed run and the machine that is connected now
+  // would never be read at all. Asserted on the key itself, because which of
+  // the two sockets a rejected run had already reached is a race.
+  it("deduplicates a connect per daemon session, not per machine", async () => {
     await withTestHarness(async (harness) => {
       await writeBuiltinCliSkill(harness);
       const { host, session } = seedHostSession(harness.deps);
-      const machine = standInMachine(harness, {
+      standInMachine(harness, {
         hostId: host.id,
         sessionId: session.id,
         entries: copies([null, null], [null, null]),
       });
+      const run = vi.spyOn(
+        harness.deps.lifecycleDedupers.globalCliSkillsReconciliation,
+        "run",
+      );
 
       await reconcileGlobalCliSkills(harness.deps, {
         hostId: host.id,
-        sessionId: "session-one",
+        sessionId: session.id,
       });
       await reconcileGlobalCliSkills(harness.deps, {
         hostId: host.id,
         sessionId: "session-two",
       });
 
-      expect(commandTypes(machine)).toEqual([
-        "host.global_skills_status",
-        "host.global_skills_status",
+      expect(run.mock.calls.map(([key]) => key)).toEqual([
+        `${host.id}:${session.id}`,
+        `${host.id}:session-two`,
       ]);
     });
   });

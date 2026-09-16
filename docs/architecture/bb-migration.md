@@ -175,6 +175,9 @@ removed both, along with `plugins/connect`, `packages/connect-db`,
    compatibility: enrolled machines may still run an older daemon, and the
    version mismatch is what triggers their update. Without a bump an old daemon
    connects and then enters an `invalid-message` reconnect loop.
+   `packages/host-daemon-contract/test/protocol-version.test.ts` snapshots every
+   command, result and exported wire constant under the current version, so a
+   change without a bump fails a test rather than a machine.
 2. **Browser IPC schemas are wire-frozen.** The desktop shell attaches to any
    healthy server with no version handshake, so renderer and main process come
    from different builds. Adding a required field to a `.strict()` browser
