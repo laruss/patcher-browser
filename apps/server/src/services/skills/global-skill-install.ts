@@ -454,8 +454,8 @@ export async function answerCliSkillsOffer(
   const offer = resolveCliSkillsOffer(deps);
   if (offer === null) return { answered: [], install: null };
   // Only the skills the window showed, and only where they are still offered:
-  // a machine that connected while the question was on screen is not answered
-  // for, and a second window clicking late finds its names already settled.
+  // a skill that turned up after the question was drawn is not answered for,
+  // and a second window clicking late finds its names already settled.
   const shown = new Set(args.skills);
   const machines = offer.machines
     .map((machine) => ({
@@ -497,7 +497,7 @@ export async function answerCliSkillsOffer(
       } catch (error) {
         // A daemon that refuses comes back as a failed result rather than a
         // throw; what reaches here is the machine being removed between the
-        // offer and its turn, which no test can stage from outside a request.
+        // offer and its turn.
         deps.logger.warn(
           { hostId: machine.hostId, err: error },
           "Could not install a newly shipped Patcher CLI skill on a machine",

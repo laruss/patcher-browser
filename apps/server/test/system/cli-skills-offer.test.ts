@@ -1,7 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getAnsweredCliSkills, setAnsweredCliSkills } from "@patcher/db";
+import {
+  getAnsweredCliSkills,
+  setAnsweredCliSkills,
+  updateHost,
+} from "@patcher/db";
 import type {
   HostDaemonOnlineRpcRequestMessage,
   HostGlobalSkillsStatusResult,
@@ -828,6 +832,62 @@ describe("answering for more than one machine", () => {
         "patcher-browser": "accepted",
       });
       expect(await readOffer(harness)).toBeNull();
+    });
+  });
+
+  // The offer is fixed before the first machine is asked, so a machine removed
+  // while the installs are running fails on its own rather than taking the
+  // others down with it — the answer is already recorded either way.
+  it("keeps the other machines when one is removed mid-answer", async () => {
+    await withTestHarness(async (harness) => {
+      await writeBuiltinSkills(harness);
+      const machines = ["host-laptop", "host-studio"].map((id) => {
+        const { host, session } = seedHostSession(harness.deps, { id });
+        return {
+          host,
+          session,
+          responder: standInMachine(harness, {
+            hostId: host.id,
+            sessionId: session.id,
+            entries: machineMissingTheNewSkill(harness),
+          }),
+        };
+      });
+      for (const machine of machines) {
+        await reconcileGlobalCliSkills(harness.deps, {
+          hostId: machine.host.id,
+          sessionId: machine.session.id,
+        });
+      }
+      // The answer broadcasts before it installs; the machine goes in that gap.
+      let removed = false;
+      const notifySystem = harness.hub.notifySystem.bind(harness.hub);
+      harness.hub.notifySystem = (kinds) => {
+        notifySystem(kinds);
+        if (removed || !kinds.includes("config-changed")) return;
+        removed = true;
+        updateHost(harness.deps.db, harness.deps.hub, "host-laptop", {
+          destroyedAt: Date.now(),
+        });
+      };
+
+      const response = await harness.app.request(answer("accept"));
+
+      expect(response.status).toBe(200);
+      const body = systemCliSkillsOfferResponseSchema.parse(
+        await readJson(response),
+      );
+      expect(
+        body.install?.results.map((entry) => [entry.hostId, entry.ok]),
+      ).toEqual([
+        ["host-laptop", false],
+        ["host-studio", true],
+      ]);
+      // It failed before any RPC, rather than the daemon refusing it.
+      expect(installedSkillNames(machines[0]!.responder)).toEqual([]);
+      expect(getAnsweredCliSkills(harness.deps.db)).toEqual({
+        "patcher-browser": "accepted",
+      });
     });
   });
 
