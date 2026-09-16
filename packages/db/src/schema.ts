@@ -229,6 +229,12 @@ export const appSettings = sqliteTable("app_settings", {
    * Kept out of `setAppSettings` for the same reason as the answer above.
    */
   cliSkillsAnswered: text("cli_skills_answered").notNull().default("{}"),
+  /**
+   * `unasked` | `accepted` | `declined` — the answer to putting a bare `patcher`
+   * on the person's PATH (#147), which an install that adopted the skills
+   * above never gave. Kept out of `setAppSettings` for the same reason.
+   */
+  cliCommandSetup: text("cli_command_setup").notNull().default("unasked"),
   browserSearchEngineId: text("browser_search_engine_id")
     .notNull()
     .default(DEFAULT_BROWSER_SEARCH_ENGINE_ID),

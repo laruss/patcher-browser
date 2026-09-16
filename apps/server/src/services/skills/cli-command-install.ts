@@ -1,6 +1,12 @@
-import { listNonDestroyedHostsByIds } from "@patcher/db";
+import {
+  getCliCommandSetup,
+  listNonDestroyedHostsByIds,
+  setCliCommandSetup,
+} from "@patcher/db";
 import type {
   CliCommandMachine,
+  SystemCliCommandSetupRequest,
+  SystemCliCommandSetupResponse,
   SystemCliCommandStatusResponse,
   SystemInstallCliCommandResponse,
 } from "@patcher/server-contract";
@@ -9,7 +15,10 @@ import { COMMAND_TIMEOUT_MS } from "../../constants.js";
 import { ApiError } from "../../errors.js";
 import type { AppDeps } from "../../types.js";
 import { callHostOnlineRpc } from "../hosts/online-rpc.js";
-import { requirePrimaryHostId } from "../hosts/primary-host.js";
+import {
+  requirePrimaryHostId,
+  resolvePrimaryHostId,
+} from "../hosts/primary-host.js";
 
 /**
  * A bare `patcher`, on the machine the person types on (#143).
@@ -168,32 +177,118 @@ async function askEachMachine(
   );
 }
 
-/** Where a bare `patcher` stands on each machine asked. Writes nothing. */
+/**
+ * Record a yes to the bare command (#147) unless somebody already answered.
+ * Announced, because a window deciding whether to ask reads it from the config.
+ */
+function recordCliCommandAccepted(deps: CliCommandInstallDeps): void {
+  if (getCliCommandSetup(deps.db) !== "unasked") return;
+  setCliCommandSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+}
+
+/**
+ * Where a bare `patcher` stands on each machine asked. Writes nothing to the
+ * disk.
+ *
+ * It can record an answer, though, by #141's rule for the skills: a primary
+ * machine whose command is anything but `missing` has nothing the launch-time
+ * question (#147) could do for it. The question asks only on `missing`, so
+ * without this a machine answering `not_on_path` would pay for this read on
+ * every launch, forever, and a link somebody made by hand would bring the
+ * question the day they remove it. `occupied`, `shadowed`, `not_on_path` and
+ * `failed` are the person's to settle in Settings; `unknown` and `unsupported`
+ * are not answers about the disk.
+ */
 export async function readCliCommandStatus(
   deps: CliCommandInstallDeps,
   args: { hostIds?: readonly string[] },
 ): Promise<SystemCliCommandStatusResponse> {
-  return {
-    machines: await askEachMachine(deps, {
-      hostIds: resolveHostIds(deps, args.hostIds),
-      write: false,
-    }),
-  };
+  const machines = await askEachMachine(deps, {
+    hostIds: resolveHostIds(deps, args.hostIds),
+    write: false,
+  });
+  const primaryHostId = resolvePrimaryHostId(deps);
+  const primary = machines.find((machine) => machine.hostId === primaryHostId);
+  if (
+    primary !== undefined &&
+    primary.state !== "missing" &&
+    primary.state !== "unknown" &&
+    primary.state !== "unsupported"
+  ) {
+    recordCliCommandAccepted(deps);
+  }
+  return { machines };
 }
 
-/** Place the link on each machine asked. */
+/**
+ * Place the link on each machine asked.
+ *
+ * Asking for it on the primary machine is saying yes to it (#147) — from
+ * Settings, from the SDK, or through #141's accept — so the answer is recorded
+ * first, before anything is awaited: a place that could not be linked must not
+ * put the launch-time question back, and a window refetching its config on the
+ * broadcast #141's accept sends just before calling this must already read the
+ * answer. Not on a source checkout, where nothing is asked at all.
+ */
 export async function installCliCommand(
   deps: CliCommandInstallDeps,
   args: { hostIds?: readonly string[] },
 ): Promise<SystemInstallCliCommandResponse> {
-  const machines = await askEachMachine(deps, {
-    hostIds: resolveHostIds(deps, args.hostIds),
-    write: true,
-  });
+  const hostIds = resolveHostIds(deps, args.hostIds);
+  if (
+    !deps.config.isDevelopment &&
+    hostIds.includes(resolvePrimaryHostId(deps) ?? "")
+  ) {
+    recordCliCommandAccepted(deps);
+  }
+  const machines = await askEachMachine(deps, { hostIds, write: true });
   if (machines.some((machine) => machine.changed)) {
     // Only when the disk moved: a second window's row is showing the old
     // answer, and nothing else tells it otherwise.
     deps.hub.notifySystem(["config-changed"]);
   }
   return { machines };
+}
+
+/**
+ * The person's answer to the launch-time question about the bare `patcher`
+ * command (#147), asked of an install that holds the skills but whose yes to
+ * them was read off the disk, and so never carried the command with it.
+ *
+ * The first answer stands, for #141's reason: checked and written with no
+ * await between them, so a late click in a second window settles nothing.
+ * `accept` records before linking — `installCliCommand` would record too, but
+ * the check here is what makes the answer the first one — and what linking
+ * answered goes back to be said, an `occupied` or a `not_on_path` included.
+ */
+export async function answerCliCommandSetup(
+  deps: CliCommandInstallDeps,
+  args: SystemCliCommandSetupRequest,
+): Promise<SystemCliCommandSetupResponse> {
+  const current = getCliCommandSetup(deps.db);
+  if (current !== "unasked") {
+    return { cliCommandSetup: current, cliCommand: null };
+  }
+  if (args.answer === "decline") {
+    setCliCommandSetup(deps.db, "declined");
+    deps.hub.notifySystem(["config-changed"]);
+    return { cliCommandSetup: "declined", cliCommand: null };
+  }
+  const primaryHostId = requirePrimaryHostId(deps);
+  setCliCommandSetup(deps.db, "accepted");
+  deps.hub.notifySystem(["config-changed"]);
+  const cliCommand = await installCliCommand(deps, {
+    hostIds: [primaryHostId],
+  }).then(
+    (result) => result.machines[0] ?? null,
+    (error: unknown) => {
+      deps.logger.warn(
+        { hostId: primaryHostId, err: error },
+        "Failed to put `patcher` on PATH while answering the launch-time question",
+      );
+      return null;
+    },
+  );
+  return { cliCommandSetup: "accepted", cliCommand };
 }

@@ -77,6 +77,7 @@ function systemConfig(): SystemConfigResponse {
     primaryHostPlatform: "darwin",
     cliCommandSupported: false,
     outsideAgentSetup: "unasked",
+    cliCommandSetup: "unasked",
     cliSkillsUpdates: [],
     cliSkillsOffer: null,
     voiceTranscriptionEnabled: false,

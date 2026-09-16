@@ -4,6 +4,7 @@ import { formatCustomAcpAgentProviderId } from "@patcher/config/patcher-app-mana
 import {
   createBrowserAccessGrant,
   getAppSettings,
+  getCliCommandSetup,
   getOutsideAgentSetup,
   getAppKeybindingOverrides,
   getBrowserAccessGrant,
@@ -72,6 +73,7 @@ import {
   resolveCliSkillsOffer,
 } from "../services/skills/global-skill-install.js";
 import {
+  answerCliCommandSetup,
   installCliCommand,
   readCliCommandStatus,
 } from "../services/skills/cli-command-install.js";
@@ -241,6 +243,7 @@ export function registerSystemRoutes(
           primaryHostPlatform === "linux" ||
           primaryHostPlatform === "wsl"),
       outsideAgentSetup: getOutsideAgentSetup(deps.db),
+      cliCommandSetup: getCliCommandSetup(deps.db),
       cliSkillsUpdates: [...deps.cliSkillsUpdateNotices.values()],
       cliSkillsOffer: resolveCliSkillsOffer(deps),
       voiceTranscriptionEnabled: resolveVoiceTranscriptionEnabled(deps),
@@ -592,13 +595,16 @@ export function registerSystemRoutes(
     ),
   );
 
-  // The questions Patcher puts at launch (#141, #142). Closed to a turn and to plugins, like the
-  // install beside it; a failed install is deliberately not asked again.
+  // The questions Patcher puts at launch (#141, #142, #147). Closed to a turn and to plugins, like
+  // the installs beside them; a failed install is deliberately not asked again.
   post(routes.cliSkillsOffer, async (context, body) =>
     context.json(await answerCliSkillsOffer(deps, body)),
   );
   post(routes.cliSkillsSetup, async (context, body) =>
     context.json(await answerCliSkillsSetup(deps, { answer: body.answer })),
+  );
+  post(routes.cliCommandSetup, async (context, body) =>
+    context.json(await answerCliCommandSetup(deps, { answer: body.answer })),
   );
 
   get(routes.providers, async (context, query) =>

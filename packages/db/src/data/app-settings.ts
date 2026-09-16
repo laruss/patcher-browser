@@ -208,6 +208,38 @@ export function setAnsweredCliSkills(
     .run();
 }
 
+/**
+ * The person's answer to putting a bare `patcher` on their PATH (#147). No
+ * row, or text nobody can parse, is `unasked`.
+ *
+ * Its own answer rather than a reading of {@link getOutsideAgentSetup}: that
+ * one is also recorded when a status read finds the skills already installed,
+ * and an install that got its yes that way was never asked about the command.
+ */
+export function getCliCommandSetup(db: DbConnection): OutsideAgentSetupAnswer {
+  const row = db
+    .select({ cliCommandSetup: appSettings.cliCommandSetup })
+    .from(appSettings)
+    .where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
+    .get();
+  const parsed = outsideAgentSetupAnswerSchema.safeParse(row?.cliCommandSetup);
+  return parsed.success ? parsed.data : "unasked";
+}
+
+export function setCliCommandSetup(
+  db: DbConnection,
+  answer: OutsideAgentSetupAnswer,
+): void {
+  const updatedAt = Date.now();
+  db.insert(appSettings)
+    .values({ id: APP_SETTINGS_ROW_ID, cliCommandSetup: answer, updatedAt })
+    .onConflictDoUpdate({
+      target: appSettings.id,
+      set: { cliCommandSetup: answer, updatedAt },
+    })
+    .run();
+}
+
 export function getAppKeybindingOverrides(
   db: DbConnection,
 ): AppKeybindingOverrides {

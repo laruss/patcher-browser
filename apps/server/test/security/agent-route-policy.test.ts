@@ -155,6 +155,24 @@ describe("agentRoutePolicyDenial", () => {
     ).toBeNull();
   });
 
+  it("refuses putting `patcher` on the user's PATH, and answering the question about it", () => {
+    for (const path of [
+      "/api/v1/system/cli-command/install",
+      "/api/v1/system/cli-command/setup",
+    ]) {
+      const denial = agentRoutePolicyDenial({ method: "POST", path });
+      expect(denial?.route).toBe("/system/cli-command");
+      expect(denial?.message).toContain("outside this turn's sandbox");
+    }
+    // Where the command stands is still a turn's to read.
+    expect(
+      agentRoutePolicyDenial({
+        method: "GET",
+        path: "/api/v1/system/cli-command",
+      }),
+    ).toBeNull();
+  });
+
   it("refuses answering a setup-script question, and leaves reading one open", () => {
     // The consent prompt is refused inside a turn where it is raised; this route
     // is the same answer given later, from the project's settings. A turn that

@@ -29,6 +29,7 @@ const unavailableSystemConfig: SystemConfigResponse = {
   primaryHostPlatform: null,
   cliCommandSupported: false,
   outsideAgentSetup: "unasked",
+  cliCommandSetup: "declined",
   cliSkillsUpdates: [],
   cliSkillsOffer: null,
   voiceTranscriptionEnabled: false,

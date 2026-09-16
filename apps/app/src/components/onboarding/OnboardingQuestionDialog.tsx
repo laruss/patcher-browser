@@ -11,7 +11,7 @@ export interface OnboardingQuestionDialogProps {
 
 /**
  * The shell shared by the questions Patcher puts to a person at launch (#141,
- * #142), which are alike in how they may be closed.
+ * #142, #147), which are alike in how they may be closed.
  *
  * Escape and the close button answer "Not now", so closing one is an answer
  * rather than a way to be asked again next launch. A click outside does
