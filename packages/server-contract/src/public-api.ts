@@ -168,6 +168,8 @@ import type {
   SystemCliCommandStatusResponse,
   SystemInstallCliCommandRequest,
   SystemInstallCliCommandResponse,
+  SystemCliCommandSetupRequest,
+  SystemCliCommandSetupResponse,
   SystemBrowserAccessGrantCreateRequest,
   SystemBrowserAccessGrantPauseRequest,
   SystemBrowserAccessGrantCreateResponse,
@@ -341,6 +343,7 @@ import {
   systemCliSkillsStatusQuerySchema,
   systemCliCommandStatusQuerySchema,
   systemInstallCliCommandRequestSchema,
+  systemCliCommandSetupRequestSchema,
   systemBrowserAccessGrantCreateRequestSchema,
   systemBrowserAccessGrantPauseRequestSchema,
   systemBrowserAccessRequestCreateRequestSchema,
@@ -1489,6 +1492,14 @@ export const publicApiRoutes = {
         systemInstallCliCommandRequestSchema,
       ),
       response: jsonResponse<SystemInstallCliCommandResponse>(),
+    }),
+    cliCommandSetup: defineRoute({
+      path: "/system/cli-command/setup",
+      method: "post",
+      request: jsonRequest<EmptyInput, SystemCliCommandSetupRequest>(
+        systemCliCommandSetupRequestSchema,
+      ),
+      response: jsonResponse<SystemCliCommandSetupResponse>(),
     }),
     browserExternalAccess: defineRoute({
       path: "/browser/external-access",

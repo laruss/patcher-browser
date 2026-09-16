@@ -175,6 +175,9 @@ export const defaultAppSettings: AppSettings = {
  * so a window that loaded before the answer would put `unasked` back and the
  * question would return. It has its own column, its own route, and rides
  * `SystemConfigResponse` beside the settings rather than inside them.
+ *
+ * The answer about the bare `patcher` command (#147) takes the same three
+ * values in a column of its own.
  */
 export const outsideAgentSetupAnswerSchema = z.enum([
   "unasked",

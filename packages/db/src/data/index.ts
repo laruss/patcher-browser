@@ -206,10 +206,12 @@ export {
   getAppKeybindingOverrides,
   getAppSettings,
   getAnsweredCliSkills,
+  getCliCommandSetup,
   getOutsideAgentSetup,
   setAppKeybindingOverrides,
   setAppSettings,
   setAnsweredCliSkills,
+  setCliCommandSetup,
   setOutsideAgentSetup,
 } from "./app-settings.js";
 export { getStoredThreadTabs, replaceStoredThreadTabs } from "./thread-tabs.js";

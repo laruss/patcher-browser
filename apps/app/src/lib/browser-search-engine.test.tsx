@@ -58,6 +58,7 @@ function systemConfig(browserSearchEngineId: string): SystemConfigResponse {
     primaryHostPlatform: null,
     cliCommandSupported: false,
     outsideAgentSetup: "unasked",
+    cliCommandSetup: "unasked",
     cliSkillsUpdates: [],
     cliSkillsOffer: null,
     voiceTranscriptionEnabled: false,

@@ -29,6 +29,8 @@ import type {
   SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
   SystemCliCommandStatusResponse,
+  SystemCliCommandSetupRequest,
+  SystemCliCommandSetupResponse,
   SystemInstallCliCommandRequest,
   SystemInstallCliCommandResponse,
   SystemInstallCliSkillsRequest,
@@ -92,6 +94,8 @@ export interface SystemCliCommandStatusArgs {
 export type SystemCliCommandStatusResult = SystemCliCommandStatusResponse;
 export type SystemInstallCliCommandArgs = SystemInstallCliCommandRequest;
 export type SystemInstallCliCommandResult = SystemInstallCliCommandResponse;
+export type SystemCliCommandSetupArgs = SystemCliCommandSetupRequest;
+export type SystemCliCommandSetupResult = SystemCliCommandSetupResponse;
 export type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
 export type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
 
@@ -163,6 +167,14 @@ export interface SystemArea {
   installCliCommand(
     args?: SystemInstallCliCommandArgs,
   ): Promise<SystemInstallCliCommandResult>;
+  /**
+   * Record the answer to the launch-time question about the bare `patcher`
+   * command (#147); `accept` also links it on the primary machine. Refused
+   * inside a turn, like `installCliCommand`.
+   */
+  setupCliCommand(
+    args: SystemCliCommandSetupArgs,
+  ): Promise<SystemCliCommandSetupResult>;
   /**
    * Record the answer to the launch-time question about installing the CLI
    * skills for agents outside Patcher; `accept` also installs them onto the
@@ -338,6 +350,11 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async installCliCommand(input = {}) {
       return transport.readJson(
         transport.api.v1.system["cli-command"].install.$post({ json: input }),
+      );
+    },
+    async setupCliCommand(input) {
+      return transport.readJson(
+        transport.api.v1.system["cli-command"].setup.$post({ json: input }),
       );
     },
     async setupCliSkills(input) {

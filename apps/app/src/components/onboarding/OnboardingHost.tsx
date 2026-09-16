@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef } from "react";
 import type { DiscoveredRepo } from "@patcher/host-daemon-contract";
 import type { CliSkillsOffer } from "@patcher/server-contract";
 import {
+  useCliCommandStatus,
   useCliSkillsStatus,
   useSystemConfig,
 } from "@/hooks/queries/system-queries";
 import {
   useAnswerCliSkillsOffer,
+  useSetupCliCommand,
   useSetupCliSkills,
   useUpdateGeneralSettings,
 } from "@/hooks/mutations/settings-mutations";
@@ -54,6 +56,7 @@ import {
   type OnboardingAgentState,
   type OnboardingUiEvent,
 } from "./OnboardingFlow";
+import { CliCommandSetupDialog } from "./CliCommandSetupDialog";
 import { NewCliSkillsDialog } from "./NewCliSkillsDialog";
 import { OutsideAgentSetupDialog } from "./OutsideAgentSetupDialog";
 import { useCliSkillsUpdateToast } from "./useCliSkillsUpdateToast";
@@ -68,17 +71,20 @@ import { useCliSkillsUpdateToast } from "./useCliSkillsUpdateToast";
  * usable is answered live by the agents query, so dismissing onboarding never
  * claims the machine is configured.
  *
- * It also owns the one question asked after it (#141): whether to install
- * Patcher's skills for agents outside Patcher. Here rather than beside it, so
- * the rule that the two never stack is one predicate in one component. That
- * question is not gated on the experiment — onboarding is off by default, and
- * an install that never saw it still has agents that cannot find Patcher.
+ * It also owns the questions asked after it: whether to install Patcher's
+ * skills for agents outside Patcher (#141), a skill that shipped since (#142),
+ * and the bare `patcher` command for an install never asked about it (#147).
+ * Here rather than beside it, so the rule that they never stack is one set of
+ * predicates in one component. Those questions are not gated on the
+ * experiment — onboarding is off by default, and an install that never saw it
+ * still has agents that cannot find Patcher.
  */
 export function OnboardingHost() {
   const configQuery = useSystemConfig();
   const updateSettings = useUpdateGeneralSettings();
   const setupCliSkills = useSetupCliSkills();
   const answerCliSkillsOffer = useAnswerCliSkillsOffer();
+  const setupCliCommand = useSetupCliCommand();
   const createProject = useCreateProject();
   const primaryHost = usePrimaryHost();
   const navigationQuery = useSidebarNavigation();
@@ -158,6 +164,39 @@ export function OnboardingHost() {
       !mayStillAskOutsideAgentSetup &&
       cliSkillsOffer !== null &&
       !answerCliSkillsOffer.isSuccess);
+  // The bare `patcher` command (#147), for an install whose yes to the skills
+  // was read off the disk and so never carried the command with it. Only while
+  // nobody has answered for the command: any install of it answers, and so
+  // does a read that finds it anything but `missing`, so this read does not
+  // repeat on every launch. Last in line — behind both skills questions.
+  const mayAskCliCommandSetup =
+    !shouldShow &&
+    configQuery.data?.outsideAgentSetup === "accepted" &&
+    configQuery.data?.cliCommandSetup === "unasked" &&
+    configQuery.data?.cliCommandSupported === true &&
+    serverPrimaryHostId !== null &&
+    primaryHostId === serverPrimaryHostId &&
+    primaryHost?.status === "connected";
+  const primaryCliCommandQuery = useCliCommandStatus({
+    enabled: mayAskCliCommandSetup,
+  });
+  const primaryCliCommand = primaryCliCommandQuery.data?.machines[0] ?? null;
+  // No kept copy of the machine is needed while the answer is sent: the config
+  // refetch only disables the read, and a disabled query keeps its data.
+  const showCliCommandSetup =
+    setupCliCommand.isPending ||
+    (mayAskCliCommandSetup &&
+      !showOutsideAgentSetup &&
+      !mayStillAskOutsideAgentSetup &&
+      !showCliSkillsOffer &&
+      primaryCliCommand?.state === "missing" &&
+      !setupCliCommand.isSuccess);
+  // Only until the read first answers. Unlike #141's read, `unknown` is not
+  // retried: besides a daemon slow to answer, it is a login shell the daemon
+  // could not read, which lasts, and waiting on it would hold the note back —
+  // or poll that machine — for as long as the window is open.
+  const mayStillAskCliCommandSetup =
+    mayAskCliCommandSetup && primaryCliCommandQuery.data === undefined;
   // The note that Patcher kept those skills current (#142) waits for whichever
   // of them is on screen to leave, rather than landing on top of it.
   useCliSkillsUpdateToast({
@@ -166,7 +205,9 @@ export function OnboardingHost() {
       shouldShow ||
       showOutsideAgentSetup ||
       mayStillAskOutsideAgentSetup ||
-      showCliSkillsOffer,
+      showCliSkillsOffer ||
+      showCliCommandSetup ||
+      mayStillAskCliCommandSetup,
   });
 
   const projects = navigationQuery.data?.projects;
@@ -331,6 +372,19 @@ export function OnboardingHost() {
     );
   };
 
+  const answerCliCommandSetup = (answer: "accept" | "decline") => {
+    setupCliCommand.mutate(
+      { answer },
+      {
+        onSuccess: (result) => {
+          if (result.cliCommand !== null) {
+            reportCliCommandResult(result.cliCommand);
+          }
+        },
+      },
+    );
+  };
+
   const answerOffer = (answer: "accept" | "decline") => {
     if (cliSkillsOffer === null) return;
     answerCliSkillsOffer.mutate(
@@ -363,6 +417,19 @@ export function OnboardingHost() {
         pending={answerCliSkillsOffer.isPending}
         onAccept={() => answerOffer("accept")}
         onDecline={() => answerOffer("decline")}
+      />
+    );
+  }
+
+  if (showCliCommandSetup && primaryHost !== null) {
+    return (
+      <CliCommandSetupDialog
+        open
+        hostName={primaryHost.name}
+        linkPath={primaryCliCommand?.linkPath ?? null}
+        pending={setupCliCommand.isPending}
+        onAccept={() => answerCliCommandSetup("accept")}
+        onDecline={() => answerCliCommandSetup("decline")}
       />
     );
   }

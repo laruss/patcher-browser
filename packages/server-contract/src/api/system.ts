@@ -247,6 +247,16 @@ export const systemConfigResponseSchema = z.object({
    */
   outsideAgentSetup: outsideAgentSetupAnswerSchema,
   /**
+   * The answer to putting a bare `patcher` on the person's PATH (#147), which
+   * has its own question for an install whose skills answer was recorded from
+   * the disk rather than given. Defaulted to `declined` for the desktop shell,
+   * which parses the config through this schema and may be attached to an
+   * older server with no route to take the answer. The window reads the config
+   * unparsed, so there it is the check for `unasked` that keeps the question
+   * away from such a server.
+   */
+  cliCommandSetup: outsideAgentSetupAnswerSchema.default("declined"),
+  /**
    * Machines whose Patcher skills for agents outside Patcher this server
    * updated on its own since it started (#142), latest per machine. `at` only
    * grows, so a window shows each one once by remembering the largest it has
@@ -767,4 +777,26 @@ export type SystemCliSkillsSetupResponse = z.infer<
 >;
 export type SystemConfigReloadResponse = z.infer<
   typeof systemConfigReloadResponseSchema
+>;
+
+/**
+ * The person's answer to the launch-time question about the bare `patcher`
+ * command (#147), asked of an install that holds the skills but was never asked
+ * about the command.
+ */
+export const systemCliCommandSetupRequestSchema = z.object({
+  answer: z.enum(["accept", "decline"]),
+});
+export type SystemCliCommandSetupRequest = z.infer<
+  typeof systemCliCommandSetupRequestSchema
+>;
+
+export const systemCliCommandSetupResponseSchema = z.object({
+  /** The recorded answer — the first one, when another window got there first. */
+  cliCommandSetup: outsideAgentSetupAnswerSchema,
+  /** How placing the link went on the primary machine; null unless this call tried. */
+  cliCommand: cliCommandMachineSchema.nullable(),
+});
+export type SystemCliCommandSetupResponse = z.infer<
+  typeof systemCliCommandSetupResponseSchema
 >;

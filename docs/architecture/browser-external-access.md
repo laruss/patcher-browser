@@ -299,6 +299,23 @@ window's own read before it asks). That last one is a write a turn can cause by
 reading the status, which the route policy otherwise leaves open to it; what it
 records is a fact about the disk, not a choice made for the person.
 
+**The command gets its own answer (#147).** #143 folded the bare `patcher` into
+that question's yes, and a yes read off the disk has no accept to fold it into:
+an install whose machine already held the skills was never offered the command
+anywhere but Settings. So the command's answer is its own,
+`app_settings.cli_command_setup`, and so is its question — asked only when the
+skills answer is a yes, nobody has answered for the command, and the primary
+machine's read says `missing`, the one state where Set up can place a link.
+Any install of the command on the primary machine records a yes first (Settings,
+an SDK caller, #141's accept), before anything is awaited, so a window refetching its
+config mid-install never sees the question's conditions. And a read that finds
+the command `installed`, `occupied`, `shadowed` or `not_on_path` records one
+too, by the rule above: a machine answering `not_on_path` would otherwise be
+read for a question it can never get on every launch. `unknown`, `unsupported`
+and a read-side `failed` (a shim the next daemon start rewrites) record
+nothing. A no to #141 followed by an install of the skills
+from Settings is a yes to them, so that install is asked about the command next.
+
 **And kept current without being asked again (#142).** An installed copy used to
 stay whatever it was installed as, so after an upgrade an agent outside Patcher
 followed a skill written for an older CLI. Now each daemon records, in

@@ -7558,6 +7558,11 @@ declare const systemConfigResponseSchema: z$1.ZodObject<{
         unasked: "unasked";
         declined: "declined";
     }>;
+    cliCommandSetup: z$1.ZodDefault<z$1.ZodEnum<{
+        accepted: "accepted";
+        unasked: "unasked";
+        declined: "declined";
+    }>>;
     cliSkillsUpdates: z$1.ZodDefault<z$1.ZodArray<z$1.ZodObject<{
         hostId: z$1.ZodString;
         hostName: z$1.ZodString;
@@ -8033,6 +8038,50 @@ declare const systemCliSkillsSetupResponseSchema: z$1.ZodObject<{
 }, z$1.core.$strip>;
 type SystemCliSkillsSetupResponse = z$1.infer<typeof systemCliSkillsSetupResponseSchema>;
 type SystemConfigReloadResponse = z$1.infer<typeof systemConfigReloadResponseSchema>;
+/**
+ * The person's answer to the launch-time question about the bare `patcher`
+ * command (#147), asked of an install that holds the skills but was never asked
+ * about the command.
+ */
+declare const systemCliCommandSetupRequestSchema: z$1.ZodObject<{
+    answer: z$1.ZodEnum<{
+        accept: "accept";
+        decline: "decline";
+    }>;
+}, z$1.core.$strip>;
+type SystemCliCommandSetupRequest = z$1.infer<typeof systemCliCommandSetupRequestSchema>;
+declare const systemCliCommandSetupResponseSchema: z$1.ZodObject<{
+    cliCommandSetup: z$1.ZodEnum<{
+        accepted: "accepted";
+        unasked: "unasked";
+        declined: "declined";
+    }>;
+    cliCommand: z$1.ZodNullable<z$1.ZodObject<{
+        hostId: z$1.ZodString;
+        hostName: z$1.ZodString;
+        state: z$1.ZodCatch<z$1.ZodEnum<{
+            unknown: "unknown";
+            failed: "failed";
+            missing: "missing";
+            installed: "installed";
+            occupied: "occupied";
+            shadowed: "shadowed";
+            not_on_path: "not_on_path";
+            unsupported: "unsupported";
+        }>>;
+        linkPath: z$1.ZodNullable<z$1.ZodString>;
+        existingPath: z$1.ZodNullable<z$1.ZodString>;
+        existingTarget: z$1.ZodNullable<z$1.ZodString>;
+        shimDirectory: z$1.ZodNullable<z$1.ZodString>;
+        reason: z$1.ZodNullable<z$1.ZodEnum<{
+            windows: "windows";
+            "dev-install": "dev-install";
+        }>>;
+        message: z$1.ZodNullable<z$1.ZodString>;
+        changed: z$1.ZodBoolean;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type SystemCliCommandSetupResponse = z$1.infer<typeof systemCliCommandSetupResponseSchema>;
 
 declare const terminalSessionSchema: z$1.ZodObject<{
     id: z$1.ZodString;
@@ -13440,6 +13489,8 @@ interface SystemCliCommandStatusArgs {
 type SystemCliCommandStatusResult = SystemCliCommandStatusResponse;
 type SystemInstallCliCommandArgs = SystemInstallCliCommandRequest;
 type SystemInstallCliCommandResult = SystemInstallCliCommandResponse;
+type SystemCliCommandSetupArgs = SystemCliCommandSetupRequest;
+type SystemCliCommandSetupResult = SystemCliCommandSetupResponse;
 type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
 type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
 type SystemCliSkillsOfferArgs = SystemCliSkillsOfferRequest;
@@ -13488,6 +13539,12 @@ interface SystemArea {
      * `installCliSkills`.
      */
     installCliCommand(args?: SystemInstallCliCommandArgs): Promise<SystemInstallCliCommandResult>;
+    /**
+     * Record the answer to the launch-time question about the bare `patcher`
+     * command (#147); `accept` also links it on the primary machine. Refused
+     * inside a turn, like `installCliCommand`.
+     */
+    setupCliCommand(args: SystemCliCommandSetupArgs): Promise<SystemCliCommandSetupResult>;
     /**
      * Record the answer to the launch-time question about installing the CLI
      * skills for agents outside Patcher; `accept` also installs them onto the

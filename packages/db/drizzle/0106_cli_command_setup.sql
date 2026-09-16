@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `cli_command_setup` text DEFAULT 'unasked' NOT NULL;

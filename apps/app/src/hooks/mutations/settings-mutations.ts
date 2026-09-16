@@ -8,6 +8,7 @@ import {
 import type {
   SystemBrowserAccessRequestDecideRequest,
   SystemBrowserExternalAccessRequest,
+  SystemCliCommandSetupRequest,
   SystemCliSkillsOfferRequest,
   SystemCliSkillsSetupRequest,
   SystemInstallCliCommandRequest,
@@ -239,6 +240,30 @@ export function useSetupCliSkills() {
     onSettled: () => {
       invalidateSystemConfig({ queryClient });
       invalidateCliSkillsStatus({ queryClient });
+    },
+  });
+}
+
+/**
+ * Answer the launch-time question about the bare `patcher` command (#147). The
+ * answer arrives in the system config, and an accept changes where the command
+ * stands, so both are refreshed; other windows hear the server's
+ * `config-changed`.
+ */
+export function useSetupCliCommand() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: {
+      errorMessage: "Failed to put `patcher` on PATH.",
+    },
+    mutationFn: (args: SystemCliCommandSetupRequest) =>
+      sdk.system.setupCliCommand(args),
+    // Settled rather than succeeded: an accept is recorded before the link is
+    // placed, so a request that fails afterwards has still changed the answer.
+    onSettled: () => {
+      invalidateSystemConfig({ queryClient });
+      invalidateCliCommandStatus({ queryClient });
     },
   });
 }

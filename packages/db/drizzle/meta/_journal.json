@@ -743,6 +743,13 @@
       "when": 1789544768369,
       "tag": "0105_cli_skills_answered",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "6",
+      "when": 1789581567902,
+      "tag": "0106_cli_command_setup",
+      "breakpoints": true
     }
   ]
 }

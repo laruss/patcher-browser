@@ -85,6 +85,17 @@ describe("every mounted API path is classified", () => {
     expect(permissionsForApiPath("/system/cli-skills")).toEqual(["workspace"]);
   });
 
+  it("refuses putting `patcher` on the user's PATH, and still prices reading where it stands", () => {
+    for (const path of [
+      "/system/cli-command/install",
+      "/system/cli-command/setup",
+    ]) {
+      expect(isApiPathClassifiedForPlugins(path)).toBe(true);
+      expect(permissionsForApiPath(path)).toBeNull();
+    }
+    expect(permissionsForApiPath("/system/cli-command")).toEqual(["workspace"]);
+  });
+
   it("refuses every route mounted under /system/cli-skills/ to plugins, including the next one", () => {
     // A turn is refused that whole prefix. Plugins are priced by named routes,
     // so a write added under it would otherwise cost `workspace` via `/system`

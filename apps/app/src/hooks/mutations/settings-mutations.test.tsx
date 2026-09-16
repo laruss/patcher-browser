@@ -13,12 +13,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { sdk } from "@/lib/sdk";
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import {
+  systemCliCommandQueryKey,
   systemCliSkillsQueryKey,
   systemConfigQueryKey,
   threadTimelineQueryKey,
   threadTimelineTurnSummaryDetailsQueryKey,
 } from "../queries/query-keys";
 import {
+  useSetupCliCommand,
   useSetupCliSkills,
   useUpdateGeneralSettings,
   useUpdateKeyboardSettings,
@@ -28,6 +30,7 @@ vi.mock("@/lib/sdk", () => {
   return {
     sdk: {
       system: {
+        setupCliCommand: vi.fn(),
         setupCliSkills: vi.fn(),
         updateGeneralSettings: vi.fn(),
         updateKeyboardSettings: vi.fn(),
@@ -69,6 +72,7 @@ function systemConfig(): SystemConfigResponse {
     primaryHostPlatform: null,
     cliCommandSupported: false,
     outsideAgentSetup: "unasked",
+    cliCommandSetup: "unasked",
     cliSkillsUpdates: [],
     cliSkillsOffer: null,
     voiceTranscriptionEnabled: false,
@@ -217,5 +221,27 @@ describe("keyboard settings mutation", () => {
     );
     expect(restored?.keybindingOverrides).toEqual([]);
     expect(restored?.keybindings).toEqual(defaultKeybindings);
+  });
+});
+
+describe("patcher command setup mutation", () => {
+  it("refreshes the config and the command's state, even when the request fails", async () => {
+    const { queryClient, wrapper } = createQueryClientTestHarness();
+    const configKey = systemConfigQueryKey();
+    const commandKey = systemCliCommandQueryKey();
+    queryClient.setQueryData(configKey, systemConfig());
+    queryClient.setQueryData(commandKey, { machines: [] });
+    // An accept is recorded before the link is placed, so a failure after it
+    // has still changed what the config says.
+    vi.mocked(sdk.system.setupCliCommand).mockRejectedValue(
+      new Error("daemon went away"),
+    );
+    const { result } = renderHook(() => useSetupCliCommand(), { wrapper });
+
+    act(() => result.current.mutate({ answer: "accept" }));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(queryClient.getQueryState(configKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(commandKey)?.isInvalidated).toBe(true);
   });
 });

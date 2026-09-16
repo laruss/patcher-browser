@@ -416,6 +416,10 @@ function recordAcceptedWhenPrimaryInstalled(
  * whether to ask — so a connect-time read that timed out is made good by the
  * next one rather than lost. `unknown` records nothing, and `missing` is the
  * case the question is for.
+ *
+ * It answers for the skills and nothing else. #143 folded the bare `patcher`
+ * into the question's accept, and an adoption has no accept to fold it into,
+ * so the command keeps an answer of its own and a question of its own (#147).
  */
 export function recordAcceptedWhenPrimaryHasCopies(
   deps: GlobalSkillInstallDeps,

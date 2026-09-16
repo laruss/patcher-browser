@@ -6,12 +6,15 @@ import { OnboardingHost } from "./OnboardingHost";
 
 const mocks = vi.hoisted(() => ({
   useAnswerCliSkillsOffer: vi.fn(),
+  reportCliCommandResult: vi.fn(),
   reportInstallResults: vi.fn(),
+  useCliCommandStatus: vi.fn(),
   useCliSkillsStatus: vi.fn(),
   useCreateProject: vi.fn(),
   useHostProviderCliStatus: vi.fn(),
   usePrimaryHost: vi.fn(),
   useProviderCliInstallRunner: vi.fn(),
+  useSetupCliCommand: vi.fn(),
   useSetupCliSkills: vi.fn(),
   useSidebarNavigation: vi.fn(),
   useCliSkillsUpdateToast: vi.fn(),
@@ -20,12 +23,14 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/queries/system-queries", () => ({
+  useCliCommandStatus: mocks.useCliCommandStatus,
   useCliSkillsStatus: mocks.useCliSkillsStatus,
   useHostProviderCliStatus: mocks.useHostProviderCliStatus,
   useSystemConfig: mocks.useSystemConfig,
 }));
 vi.mock("@/hooks/mutations/settings-mutations", () => ({
   useAnswerCliSkillsOffer: mocks.useAnswerCliSkillsOffer,
+  useSetupCliCommand: mocks.useSetupCliCommand,
   useSetupCliSkills: mocks.useSetupCliSkills,
   useUpdateGeneralSettings: mocks.useUpdateGeneralSettings,
 }));
@@ -46,6 +51,9 @@ vi.mock("@/components/provider-cli/provider-cli-install", () => ({
 }));
 vi.mock("@/components/provider-cli/provider-cli-install-store", () => ({
   providerCliJobKey: vi.fn(() => "job"),
+}));
+vi.mock("@/components/settings/cli-command-result", () => ({
+  reportCliCommandResult: mocks.reportCliCommandResult,
 }));
 vi.mock("@/components/settings/cli-skills-install-results", () => ({
   reportInstallResults: mocks.reportInstallResults,
@@ -69,6 +77,24 @@ vi.mock("./NewCliSkillsDialog", () => ({
       </button>
       <button type="button" onClick={props.onDecline}>
         Leave it
+      </button>
+    </div>
+  ),
+}));
+vi.mock("./CliCommandSetupDialog", () => ({
+  CliCommandSetupDialog: (props: {
+    hostName: string;
+    linkPath: string | null;
+    onAccept: () => void;
+    onDecline: () => void;
+  }) => (
+    <div>
+      <span>{`Command question for ${props.linkPath} on ${props.hostName}`}</span>
+      <button type="button" onClick={props.onAccept}>
+        Link it
+      </button>
+      <button type="button" onClick={props.onDecline}>
+        Skip it
       </button>
     </div>
   ),
@@ -99,6 +125,8 @@ function systemConfig(args: {
     machines: { hostName: string }[];
   } | null;
   cliSkillsUpdates?: { at: number; hostName: string }[];
+  cliCommandSetup?: "unasked" | "accepted" | "declined";
+  cliCommandSupported?: boolean;
   newOnboarding?: boolean;
   outsideAgentSetup?: "unasked" | "accepted" | "declined";
   primaryHostId?: string | null;
@@ -111,6 +139,8 @@ function systemConfig(args: {
       },
       generalSettings: defaultAppSettings,
       outsideAgentSetup: args.outsideAgentSetup ?? "unasked",
+      cliCommandSetup: args.cliCommandSetup ?? "unasked",
+      cliCommandSupported: args.cliCommandSupported ?? true,
       cliSkillsUpdates: args.cliSkillsUpdates ?? [],
       cliSkillsOffer: args.cliSkillsOffer ?? null,
       primaryHostId:
@@ -128,6 +158,7 @@ function primaryMachineStatus(
 }
 
 beforeEach(() => {
+  mocks.useCliCommandStatus.mockReturnValue({ data: undefined });
   mocks.useCliSkillsStatus.mockReturnValue({ data: undefined });
   mocks.useCreateProject.mockReturnValue({ mutateAsync: vi.fn() });
   mocks.useHostProviderCliStatus.mockReturnValue({ data: undefined });
@@ -142,6 +173,11 @@ beforeEach(() => {
     startInstall: vi.fn(),
   });
   mocks.useSetupCliSkills.mockReturnValue({
+    isPending: false,
+    isSuccess: false,
+    mutate: vi.fn(),
+  });
+  mocks.useSetupCliCommand.mockReturnValue({
     isPending: false,
     isSuccess: false,
     mutate: vi.fn(),
@@ -435,6 +471,7 @@ describe("the note that the skills were kept current", () => {
       systemConfig({
         cliSkillsUpdates: updates,
         outsideAgentSetup: "accepted",
+        cliCommandSetup: "accepted",
       }),
     );
 
@@ -608,5 +645,200 @@ describe("the question about a newly shipped skill", () => {
     render(<OnboardingHost />);
 
     expect(screen.queryByText(NEW_SKILL_QUESTION)).toBeNull();
+  });
+});
+
+describe("the question about the patcher command", () => {
+  const COMMAND_QUESTION =
+    "Command question for /home/u/.local/bin/patcher on Laptop";
+
+  function primaryCommand(
+    state: "installed" | "missing" | "not_on_path" | "occupied" | "unknown",
+  ) {
+    return {
+      data: {
+        machines: [
+          {
+            hostId: "host-1",
+            hostName: "Laptop",
+            state,
+            linkPath: "/home/u/.local/bin/patcher",
+          },
+        ],
+      },
+    };
+  }
+
+  /** An install whose skills answer is in, and whose command answer is not. */
+  const adopted = { outsideAgentSetup: "accepted" as const };
+
+  it("is asked when the skills are answered for, the command is not, and it is missing", () => {
+    mocks.useSystemConfig.mockReturnValue(systemConfig(adopted));
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("missing"));
+
+    render(<OnboardingHost />);
+
+    expect(screen.getByText(COMMAND_QUESTION)).toBeTruthy();
+    expect(mocks.useCliCommandStatus).toHaveBeenLastCalledWith({
+      enabled: true,
+    });
+  });
+
+  it("is not asked where the link is not missing, or where that is not known yet", () => {
+    mocks.useSystemConfig.mockReturnValue(systemConfig(adopted));
+    for (const status of [
+      primaryCommand("installed"),
+      primaryCommand("not_on_path"),
+      primaryCommand("occupied"),
+      primaryCommand("unknown"),
+      { data: undefined },
+    ]) {
+      mocks.useCliCommandStatus.mockReturnValue(status);
+
+      render(<OnboardingHost />);
+
+      expect(screen.queryByText(COMMAND_QUESTION)).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("reads nothing and asks nothing once answered, before the skills are, or where no command is placed", () => {
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("missing"));
+    for (const config of [
+      { ...adopted, cliCommandSetup: "accepted" as const },
+      { ...adopted, cliCommandSetup: "declined" as const },
+      { outsideAgentSetup: "declined" as const },
+      { ...adopted, cliCommandSupported: false },
+    ]) {
+      mocks.useSystemConfig.mockReturnValue(systemConfig(config));
+
+      render(<OnboardingHost />);
+
+      expect(screen.queryByText(COMMAND_QUESTION)).toBeNull();
+      expect(mocks.useCliCommandStatus).toHaveBeenLastCalledWith({
+        enabled: false,
+      });
+      cleanup();
+    }
+  });
+
+  it("is not asked over #141's question or #142's offer", () => {
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("missing"));
+
+    // #141's answer is still being sent, with the config already saying yes.
+    mocks.useSystemConfig.mockReturnValue(systemConfig(adopted));
+    mocks.useSetupCliSkills.mockReturnValue({
+      isPending: true,
+      isSuccess: false,
+      mutate: vi.fn(),
+    });
+    render(<OnboardingHost />);
+    expect(screen.getByText(QUESTION)).toBeTruthy();
+    expect(screen.queryByText(COMMAND_QUESTION)).toBeNull();
+    cleanup();
+
+    mocks.useSetupCliSkills.mockReturnValue({
+      isPending: false,
+      isSuccess: false,
+      mutate: vi.fn(),
+    });
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({
+        ...adopted,
+        cliSkillsOffer: {
+          skills: ["patcher-browser"],
+          machines: [{ hostName: "Laptop" }],
+        },
+      }),
+    );
+    render(<OnboardingHost />);
+    expect(
+      screen.getByText("New skill question for patcher-browser"),
+    ).toBeTruthy();
+    expect(screen.queryByText(COMMAND_QUESTION)).toBeNull();
+  });
+
+  it("holds the note about updated skills back while it is up, or while its read is out", () => {
+    const updates = [{ at: 10, hostName: "Laptop" }];
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ ...adopted, cliSkillsUpdates: updates }),
+    );
+    for (const status of [primaryCommand("missing"), { data: undefined }]) {
+      mocks.useCliCommandStatus.mockReturnValue(status);
+
+      render(<OnboardingHost />);
+
+      expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+        notices: updates,
+        paused: true,
+      });
+      cleanup();
+    }
+
+    // `unknown` is an answer the question will not follow, and it can last —
+    // a login shell the daemon cannot read — so it does not hold the note.
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("unknown"));
+    render(<OnboardingHost />);
+    expect(mocks.useCliSkillsUpdateToast).toHaveBeenLastCalledWith({
+      notices: updates,
+      paused: false,
+    });
+  });
+
+  it("sends the answer, and says what linking answered only when it tried", () => {
+    const mutate = vi.fn();
+    mocks.useSetupCliCommand.mockReturnValue({
+      isPending: false,
+      isSuccess: false,
+      mutate,
+    });
+    mocks.useSystemConfig.mockReturnValue(systemConfig(adopted));
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("missing"));
+    const cliCommand = { state: "not_on_path" };
+
+    render(<OnboardingHost />);
+    fireEvent.click(screen.getByRole("button", { name: "Link it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip it" }));
+
+    expect(mutate.mock.calls.map(([args]) => args)).toEqual([
+      { answer: "accept" },
+      { answer: "decline" },
+    ]);
+    mutate.mock.calls[0]?.[1]?.onSuccess?.({
+      cliCommandSetup: "accepted",
+      cliCommand,
+    });
+    mutate.mock.calls[1]?.[1]?.onSuccess?.({
+      cliCommandSetup: "declined",
+      cliCommand: null,
+    });
+    expect(mocks.reportCliCommandResult).toHaveBeenCalledTimes(1);
+    expect(mocks.reportCliCommandResult).toHaveBeenCalledWith(cliCommand);
+  });
+
+  it("stays up while the answer is being sent, and goes once it lands", () => {
+    // The server records the yes and broadcasts before linking, so the config
+    // already says `accepted` while the request is open.
+    mocks.useSystemConfig.mockReturnValue(
+      systemConfig({ ...adopted, cliCommandSetup: "accepted" }),
+    );
+    mocks.useCliCommandStatus.mockReturnValue(primaryCommand("missing"));
+    mocks.useSetupCliCommand.mockReturnValue({
+      isPending: true,
+      isSuccess: false,
+      mutate: vi.fn(),
+    });
+    render(<OnboardingHost />);
+    expect(screen.getByText(COMMAND_QUESTION)).toBeTruthy();
+    cleanup();
+
+    mocks.useSystemConfig.mockReturnValue(systemConfig(adopted));
+    mocks.useSetupCliCommand.mockReturnValue({
+      isPending: false,
+      isSuccess: true,
+      mutate: vi.fn(),
+    });
+    render(<OnboardingHost />);
+    expect(screen.queryByText(COMMAND_QUESTION)).toBeNull();
   });
 });

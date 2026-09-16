@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setCliCommandSetup } from "@patcher/db";
 import {
   systemCliCommandStatusResponseSchema,
   systemInstallCliCommandResponseSchema,
@@ -156,6 +157,9 @@ describe("the patcher command on PATH", () => {
     await withRelease(async (harness) => {
       const { host, session } = seedHostSession(harness.deps);
       seedPrimaryHost(harness.deps, host.id);
+      // Answered already, or this install would announce recording the answer
+      // (#147), which is its own news and not what this is about.
+      setCliCommandSetup(harness.deps.db, "accepted");
       registerHostRpcResponder(harness, {
         hostId: host.id,
         sessionId: session.id,
