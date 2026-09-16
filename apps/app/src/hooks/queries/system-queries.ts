@@ -7,6 +7,7 @@ import { toRecord } from "@patcher/core-ui";
 import type {
   SystemBrowserAccessGrantListResponse,
   SystemBrowserAccessRequestListResponse,
+  SystemCliCommandStatusResponse,
   SystemCliSkillsStatusResponse,
   SystemConfigResponse,
   SystemExecutionOptionsResponse,
@@ -29,6 +30,7 @@ import {
   browserAccessGrantsQueryKey,
   browserAccessRequestsQueryKey,
   hostProviderCliStatusQueryKey,
+  systemCliCommandQueryKey,
   systemCliSkillsQueryKey,
   onboardingAgentsQueryKey,
   onboardingReposQueryKey,
@@ -174,6 +176,30 @@ export function useSystemConfig(options?: QueryOptions) {
     queryFn: ({ signal }) => sdk.system.config({ signal }),
     enabled,
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Where a bare `patcher` stands on each machine (#143). Asked on demand like
+ * the skills status beside it: the read reaches a daemon, which reads the
+ * login shell's PATH it measured at startup.
+ */
+export function useCliCommandStatus(
+  options?: QueryOptions & {
+    /** Ask only these machines. Omitted means the primary one. */
+    hostIds?: readonly string[];
+  },
+) {
+  const hostIds = options?.hostIds;
+  return useQuery<SystemCliCommandStatusResponse>({
+    queryKey: systemCliCommandQueryKey(hostIds),
+    queryFn: ({ signal }) =>
+      sdk.system.cliCommandStatus({
+        signal,
+        ...(hostIds === undefined ? {} : { hostIds }),
+      }),
+    enabled: options?.enabled ?? true,
+    staleTime: 30_000,
   });
 }
 

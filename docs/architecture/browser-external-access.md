@@ -2,7 +2,7 @@
 
 `patcher browser` drives the user's real, signed-in browsing session. Until this
 landed, the only thing standing in front of it was the `browser-tools` plugin
-toggle — and that toggle answers a question about *Patcher's own agents*, while
+toggle — and that toggle answers a question about _Patcher's own agents_, while
 the command it gates can be run by anything on the machine.
 
 This document is about the other caller: Claude Code, Codex, a script, a person
@@ -24,8 +24,8 @@ Three facts, each fine on its own:
   thread, which is what lets `plugin-consent.ts` raise a prompt when an agent
   asks to enable a plugin.
 
-Put together: an agent *inside* Patcher asking to turn the browser on raises a
-question in its thread, and an agent *outside* Patcher — with no thread to
+Put together: an agent _inside_ Patcher asking to turn the browser on raises a
+question in its thread, and an agent _outside_ Patcher — with no thread to
 declare — was treated as the app and asked nobody. It read the key file, enabled
 the plugin without a prompt, and drove the browser. Measured on 2026-09-05: a
 foreign shell reached `patcher plugin enable browser-tools` with no interaction
@@ -40,13 +40,13 @@ walk around it, the one that was not there.
 
 `browserExternalAccess` in `appSettingsSchema`, `off` by default:
 
-| Level      | What a caller outside Patcher may do                                         |
-| ---------- | ---------------------------------------------------------------------------- |
-| `off`      | Nothing.                                                                     |
-| `read`     | `tabs.read`, `page.read`, `network.observe`                                  |
-| `browse`   | plus `tabs.modify`                                                           |
-| `interact` | plus `page.interact`                                                         |
-| `full`     | plus `page.credentials`, `page.inject`, `network.intercept`, `page.record`   |
+| Level      | What a caller outside Patcher may do                                       |
+| ---------- | -------------------------------------------------------------------------- |
+| `off`      | Nothing.                                                                   |
+| `read`     | `tabs.read`, `page.read`, `network.observe`                                |
+| `browse`   | plus `tabs.modify`                                                         |
+| `interact` | plus `page.interact`                                                       |
+| `full`     | plus `page.credentials`, `page.inject`, `network.intercept`, `page.record` |
 
 The levels are groups of permissions the browser commands **already** cost, so
 this adds no second vocabulary: `permissionForBrowserCommand` in
@@ -61,8 +61,8 @@ copying the cookies for it are not the same act. One is on their screen already;
 the other is a login that can leave the machine. A single "allow the browser"
 would have had to price itself at the higher of the two, which means either
 refusing the common case or granting the rare one by default. That is the same
-argument `patcher.sites` makes about *where* a plugin reaches, applied to *how
-far*.
+argument `patcher.sites` makes about _where_ a plugin reaches, applied to _how
+far_.
 
 ### The rung between reading and acting
 
@@ -79,7 +79,7 @@ thing to hand over for a job people were already doing at the larger one.
 **The objection, and where it lands.** `tabs.modify` is not the power to change
 something — ownership keeps this level off every tab the person opened
 (`resolveTab`, and [browser-tab-ownership.md](browser-tab-ownership.md)) — it is
-the power to *choose which signed-in page gets read*. Cookies belong to the
+the power to _choose which signed-in page gets read_. Cookies belong to the
 session and not to a tab, so an agent that can name an address can read the mail,
 the bank, the admin console. That is real, and it is an argument about the
 sentence the person reads rather than about whether the step exists: `read` keeps
@@ -104,9 +104,9 @@ was. Both are in the level's own sentence rather than in a promise it cannot
 keep.
 
 **A grant may be issued at it**, because grant levels are derived from the ramp
-rather than listed again. And nothing about a *lent* tab moves:
+rather than listed again. And nothing about a _lent_ tab moves:
 `LOOK_CLAIM_ADMITS` still draws `read`'s line, which is what the person is saying
-yes to about one tab — though what lending is *worth* changes, since a caller
+yes to about one tab — though what lending is _worth_ changes, since a caller
 that can open its own tab is being lent the page's live state rather than access
 to the page at all.
 
@@ -164,7 +164,7 @@ nothing is written unless the user says yes.
 It also enables `browser-tools` — **but only when nobody is being asked**, and
 that asymmetry is the thing review caught. A person choosing a level in Settings,
 or at their own terminal, plainly means both, because a level with nothing
-serving it is a setting that silently does nothing. A *turn* asking is a
+serving it is a setting that silently does nothing. A _turn_ asking is a
 different question with a different beneficiary: the prompt describes what agents
 outside Patcher may do and says in as many words that this thread is unaffected,
 while enabling the plugin hands **that thread** everything the plugin declares —
@@ -190,12 +190,12 @@ no prompt; there is no permission that should let one widen this.
 A gate is no use to a caller that cannot find the command. Measured from a shell
 with no `PATCHER_*` in its environment, there were four steps and help on none:
 
-| Step                  | What it did                                    | What it does now                                                  |
-| --------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
-| Find the binary       | `which patcher` → nothing                      | The daemon writes `<dataDir>/bin/patcher` at startup              |
-| Find the server       | already good                                   | unchanged                                                          |
-| Get past the 401      | already good — names both env vars and the file | unchanged                                                          |
-| `patcher browser`     | `unknown command 'browser'`                    | names the plugins that are off, and how to look at one            |
+| Step              | What it did                                     | What it does now                                       |
+| ----------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| Find the binary   | `which patcher` → nothing                       | The daemon writes `<dataDir>/bin/patcher` at startup   |
+| Find the server   | already good                                    | unchanged                                              |
+| Get past the 401  | already good — names both env vars and the file | unchanged                                              |
+| `patcher browser` | `unknown command 'browser'`                     | names the plugins that are off, and how to look at one |
 
 The shim is a short `sh` script that `exec`s the real binary. Not a copy, which
 goes stale on the next upgrade; not a symlink, because `import.meta.url` is
@@ -204,6 +204,37 @@ release script to exactly that disagreement. It is **not** a PATH entry: writing
 into somebody's shell rc file is not this program's business, so the line is
 shown rather than written — and an agent handed the absolute path needs no PATH
 at all, which is the case it exists for.
+
+**And now the bare word works too, without that changing (#143).** The shim is
+still not a PATH entry and nothing edits a profile. What Settings can do is put
+a symlink named `patcher` in the first of `~/.local/bin` and `~/bin` that the
+person's **login shell already has on its PATH** — a directory their shell
+reads anyway, so the only thing that moves is what is in it. Neither on PATH is
+not a failure: it is `not_on_path`, and the answer is the export line, which is
+what this section already recommended.
+
+A symlink is safe _to the shim_ and would not have been to the CLI. The
+disagreement above is about the JS entry; the shim is `sh` that `exec`s an
+absolute path and reads nothing about its own location, so a link to it
+inherits none of it. The target is written absolute for the same reason.
+
+Two rules are what keep this from being a footgun. It **never replaces a
+`patcher` it did not place** — a file, a directory or a link into somewhere
+else is reported and left, because from the outside a deliberate link cannot be
+told from a leftover; the single exception is a link that does not resolve and
+has this product's own shim shape, which serves nobody and which this feature
+is what creates (move a data directory and the link dangles). And it **checks
+who wins the lookup**: an `npm i -g patcher-app` puts a `patcher` in a directory
+that usually sits ahead of `~/.local/bin`, so placing a link and reporting
+success would be a claim rather than a measurement. That case is `shadowed`,
+nothing is written, and the row names the path that answers instead.
+
+Who may own the bare command is the server's to decide, not the daemon's
+(invariant 3). A source checkout may not: it shares a home with the release
+built beside it, so letting both write `~/.local/bin/patcher` would make the
+word mean whichever started last, and the checkout already has `bun run patcher`
+and its own shim path. The daemon answers only host facts, so it would place a
+link perfectly well — which is exactly why the server does not ask it to.
 
 **It also carries the install it belongs to, and the first version did not.** A
 shim that only `exec`s hands the CLI whatever environment the caller had, which
@@ -227,7 +258,7 @@ than one answer means more than one install rather than picking.
 than the obvious one. `browser-tools` provides `patcher browser`, and the CLI's
 lookup matched the unknown command against plugin **ids**. Making it match the
 command name is not possible: a disabled plugin's factory never ran, so it has
-registered no CLI command and *the server does not know the name either*. So the
+registered no CLI command and _the server does not know the name either_. So the
 message answers the question it can — which plugins are off, and that a plugin's
 command is served only while its plugin is enabled.
 
@@ -311,12 +342,12 @@ loads, which is the argument that already closed provider-CLI installs.
 ### Advice a level can afford
 
 **No refusal for want of a tab recommends work the caller's level forbids.** The
-five that decide *whose* tab a command lands on, which is where the defect was —
+five that decide _whose_ tab a command lands on, which is where the defect was —
 not every refusal in the browser; `tab_not_live` still says "Activate it" to
 everybody, and "What this does not close" says why. It is one sentence and it was
 broken in all five places, because the level that exists to read pages cannot
 reach a page on its own: every page read resolves a tab first, a caller outside
-Patcher has no default tab but its own, and *opening* one of its own costs
+Patcher has no default tab but its own, and _opening_ one of its own costs
 `tabs.modify`, which `read` does not admit — it started at `interact`, and since
 #128 it starts at `browse`. (Being handed one costs nothing, and that is the
 route below.) So the window's answer for want of a
@@ -324,7 +355,7 @@ tab ended by telling a `read` caller to open one, and `patcher browser open` the
 told it the level does not allow that. Measured against the packaged
 0.1.1-alpha.4 and reproduced in `tab-ownership.test.ts` (#120).
 
-The route that level *does* have arrived with #116 and #117 and is what the
+The route that level _does_ have arrived with #116 and #117 and is what the
 sentences now name: **naming one of the person's tabs is what asks them for it**,
 and they can hand it over or lend a look at it — reading answers on a lent tab,
 and `tabs.release` gives it back at `tabs.read`, so the lending is not one-way.
@@ -393,14 +424,14 @@ would rather have.
 
 Accepted while the grant exists, `revokedAt` is null and `pausedAt` is null. That
 is the property a stamped expiry could not have given: the agent keeps the
-*string* forever — it is in its MCP config — and what stops it is a person
+_string_ forever — it is in its MCP config — and what stops it is a person
 clicking, after which the very next request is refused. Nothing to expire,
 nothing to refresh, nothing an agent can extend for itself. It is the same shape
 a terminal credential's lifetime has, chosen for the same reason.
 
 **Two ways to stop, because they are two different decisions.** Revoking ends a
 credential somebody should not hold any more. Pausing is what a person does while
-*watching* an agent do the wrong thing: the browser comes back now, the
+_watching_ an agent do the wrong thing: the browser comes back now, the
 credential stays valid, and resuming is one click rather than a new grant and a
 re-run of `claude mcp add` in the agent's own configuration. The refusals say
 which of the two happened, because "ask them to resume it" and "ask them for a
@@ -410,7 +441,7 @@ person's time. A revoked grant cannot be paused or resumed — the route answers
 
 Revoked rather than deleted, so the list can say what was taken back and when,
 and so the id is never reissued. `lastUsedAt` is written on the way through the
-request gate — including on a *refused* request, since the question it answers is
+request gate — including on a _refused_ request, since the question it answers is
 "is anything still using this" — at a minute's resolution, because a screenshot
 loop is dozens of requests a second and none of them is a different answer.
 
@@ -420,13 +451,13 @@ loop is dozens of requests a second and none of them is a different answer.
 `agent-route-policy.ts` next door is a deny list. That module argues for its own
 shape and the argument inverts cleanly: there a forgotten entry is a 403 in front
 of a person mid-task, and the caller is a turn the user started and is watching.
-Here the caller is a program the user allowed to touch *the browser*, nothing
+Here the caller is a program the user allowed to touch _the browser_, nothing
 else was ever part of the offer, and a forgotten entry means a grant holder is
 told to go use the app key it can already read.
 
-| Route | Why |
-| --- | --- |
-| `GET /plugins/contributions` | Without it `patcher browser` is not a command: the CLI reads the plugin CLI table before it can route the argv. |
+| Route                             | Why                                                                                                                                                                                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /plugins/contributions`      | Without it `patcher browser` is not a command: the CLI reads the plugin CLI table before it can route the argv.                                                                                                                                |
 | `POST /plugins/browser-tools/cli` | The command. Spelled with the plugin id rather than `/plugins/:id/cli`, because that route runs plugin code — a plugin with `shell` or `files` and a command of its own would otherwise be reachable with a credential issued for the browser. |
 
 `GET /plugins` is deliberately out, though the CLI asks for it when a command is
@@ -472,7 +503,7 @@ what they are.
 
 - **A turn cannot**, and this is the one place the grant route and the level
   route differ. The level route raises a consent prompt inside a turn, because
-  the answer is about *other* agents and costs the asking thread nothing. This
+  the answer is about _other_ agents and costs the asking thread nothing. This
   route answers with a credential, and a credential is not a setting: a thread
   key stops working when the turn ends and a grant does not, so a turn that could
   call it would have minted itself a browser credential that outlives its own.
@@ -500,12 +531,12 @@ what a request ends in is the same credential.
 The allow-list is about `/api/v1`. Two things sit inside the one route it
 admits, and both are `patcher browser`'s own doing:
 
-- **Files, at paths the caller names, on the machine the *server* runs on.**
+- **Files, at paths the caller names, on the machine the _server_ runs on.**
   `screenshot <path>`, `pdf`, `state-save`, `state-load`, `upload`. For an agent
   in a shell on the same machine that is nothing new — it has its own
   filesystem — but it is not "the browser", and on a remote server it is that
   machine's filesystem rather than the caller's. Review found `state-load`
-  reading the file *before* the first charged command, which made it an unpriced
+  reading the file _before_ the first charged command, which made it an unpriced
   existence-and-parse oracle for a caller allowed only `read`; it now charges
   first, so the refusal still means nothing happened.
 - **State that belongs to the session or the origin, not to a tab.** Cookies,
@@ -518,8 +549,8 @@ runs Homebrew on the server's machine and sends no browser command, so the gate 
 which charges browser commands — never saw it: measured on 2026-09-05, a `read`
 grant ran it to completion with the install-wide level at `off`, a line away from
 a `tabs` that was refused. It is now refused to every caller from outside
-Patcher, at any level, because no point on a ramp about the user's *browsing
-session* should admit installing software. A thread inside Patcher still has it,
+Patcher, at any level, because no point on a ramp about the user's _browsing
+session_ should admit installing software. A thread inside Patcher still has it,
 gated by the plugin toggle as before, and a person at their own terminal installs
 ffmpeg the way they install anything else — which the refusal says.
 `browser-tools-surface.test.ts` runs every command in the plugin's own table and
@@ -579,8 +610,8 @@ reply. #135 moves the decision to where the person already is:
 `patcher agent-access request <label> --level <level> [--reason]`, run by the
 agent itself, raises a row under the tab strip — beside the driving indicator,
 the one row on screen for every desktop route — and a list in Settings → General
-→ Agents outside Patcher. *A program on this machine that calls itself "…" asks
-for browser access*, the level in the settings screen's words and its detail
+→ Agents outside Patcher. _A program on this machine that calls itself "…" asks
+for browser access_, the level in the settings screen's words and its detail
 line, the reason as the program's own words, and **Allow**, **Read pages only**
 (above `read`) or **Deny**.
 
@@ -658,7 +689,6 @@ rather than unset the variable, and the refusal a grant holder reads still names
 > an agent outside Patcher off the page the person is reading:
 > [browser-tab-ownership.md](browser-tab-ownership.md).
 
-
 A gate that decides and then forgets leaves the person it was protecting with
 nothing on screen. Electron draws no "a program is controlling this browser"
 banner, a native `WebContentsView` cannot be decorated from the page side, and a
@@ -670,7 +700,7 @@ it is answering at the route, and the socket that carries the command is forty
 call sites away, so the caller rides the same `AsyncLocalStorage` shape the
 access scope uses (`browser-command-issuer.ts`) and the bridge attaches it to
 `browser-command-request`. Three answers — a `thread`, a `grant` with the label
-and level a person gave it, and an `outside` that names nobody — and *absent*,
+and level a person gave it, and an `outside` that names nobody — and _absent_,
 which is
 usually the app's own browsing and must stay silent. A caller holding the app key
 gets `outside` with the level it is charged and nothing else, because that is
@@ -700,7 +730,7 @@ Both halves of "who is this" — the level a caller is charged and the name the
 window is shown — ride an `AsyncLocalStorage`, and neither survives a pipe. An
 installed plugin runs in its own process: the host sends it a `cli` request, the
 plugin's code calls `patcher.browser`, and that arrives back at the host as a
-*channel message*, in an async context with nothing of the request that started
+_channel message_, in an async context with nothing of the request that started
 it. So for as long as that was where it stopped, a third-party plugin with
 browser permissions and a CLI command of its own was a door the setting did not
 close, and its commands reached the window anonymous.
@@ -723,11 +753,11 @@ and the channel passes an `origin` on **only if it names a request that channel
 still has in flight** — so a settled call, an id from another channel and an
 invented string are the same thing from here, and all three read as
 unattributed, which is exactly the behaviour that predates this. "Another
-channel" is what that check separates, and separate *plugins* only because they
+channel" is what that check separates, and separate _plugins_ only because they
 are separate processes; the qualifier is under "What this does not close".
 
 **What it deliberately does not settle.** Every id the host mints for a plugin is
-visible inside that plugin's process, so *any* of its work — not only another of
+visible inside that plugin's process, so _any_ of its work — not only another of
 its served calls, but a background service, an HTTP route, a timer — can quote
 any id the host has in flight for it and be charged and named as that caller. The
 in-flight check bounds which ids those are; what it cannot bound is how long a
@@ -746,7 +776,7 @@ stamped from an `AsyncLocalStorage` entered around the plugin's handler — whic
 reaches further than the handler's own lifetime, because Node binds the store to
 async work created inside it: a promise the command started keeps the id after
 the command returned, and is attributed while the host still has that call in
-flight. What carries no origin is work whose *invoking* async resource was created
+flight. What carries no origin is work whose _invoking_ async resource was created
 outside the served call — a `setInterval` started in the factory, a queue pump
 ticking on its own — and any frame arriving after its call settled. The line sits
 where Node draws it rather than where the code was written: a queue built in the
@@ -761,7 +791,7 @@ and the two callers differ:
 - one a **turn** invokes now acts as that thread. It may still use the person's
   tab and still falls back to the one in front — that is the turn row of the
   ownership table, unchanged — but it prefers a tab of its own and can no longer
-  touch *another agent's*, which it previously reached both by inheriting
+  touch _another agent's_, which it previously reached both by inheriting
   whatever was active and by naming that tab's id, neither of which was checked
   while it had no issuer;
 - one invoked from **outside** gets its own tabs only, and is refused the
@@ -779,23 +809,23 @@ list implying the rest is handled.
 
 **Under the tab strip, which is what makes it the window's row rather than a
 page's.** On desktop the browser surface holds the whole main area for every
-route — Patcher's own screens open *in a tab* and the agent screens in the side
+route — Patcher's own screens open _in a tab_ and the agent screens in the side
 panel — so the page chrome below the strip (the address bar and everything with
 it) is not rendered at all while a person is in Settings, on an extensions page
 or in a plugin's panel. The indicator lived in that chrome and went away with
-it, in a case the whole thing exists for. (A thread is *not* one of those: it
+it, in a case the whole thing exists for. (A thread is _not_ one of those: it
 paints in the side panel, so the chrome stays mounted beside it. This sentence
 said otherwise until #117; the corrected version was already in
 [browser-tab-ownership.md](browser-tab-ownership.md).) The strip is the one row on screen for every desktop route, so that
 is where it goes; the handover prompt stays below the address bar, because that
-one *is* about the tab in front of you.
+one _is_ about the tab in front of you.
 
 **And the fact reaches the app's other windows.** The command is sent to one
 socket, because it must be performed once and answered once, so the window
 serving it was the only one that learned anybody was driving — a second window
 showed nothing, and the only trace was a line in the server log. The hub now
 also sends a `browser-driving` signal, `started` and `settled`, to every
-*other* registered browser host: the app's own windows, which is exactly the set
+_other_ registered browser host: the app's own windows, which is exactly the set
 that registers there (a plugin is refused that registration, so the grant's
 label goes nowhere it was not already going). Those windows feed it into the
 same tracker their own commands would, so the linger and the handover between
@@ -804,7 +834,7 @@ two drivers have one implementation rather than two that drift, and they say
 tab must not send a person looking for it. Never sent to the window performing
 the command, which is what keeps one window from counting a command twice.
 
-The audience is resolved by *excluding* the performer rather than by counting
+The audience is resolved by _excluding_ the performer rather than by counting
 windows, and the difference is load-bearing: on the path where the serving
 window's socket goes away, its registration is already out of the map, so
 "fewer than two windows" would skip the settle that a still-open sibling needs
@@ -813,7 +843,7 @@ to take its indicator down.
 **The `requestId` on the signal is what the window's bookkeeping is keyed on**,
 and both reasons are the same shape. A window that registers — or reconnects —
 part-way through a command is in the audience for that command's `settled`
-without ever having heard its `started`; and *one caller* can have a command in
+without ever having heard its `started`; and _one caller_ can have a command in
 this window and another in a different one at the same time — this window was
 the primary, its socket blipped, the next command went to the window that got
 promoted while the first command carried on here. Counting per caller collapses
@@ -822,7 +852,7 @@ commands share one "where", so the row says "in another window" about a tab in
 this one. Keyed by command, an end with no beginning is nothing to end, and each
 command carries its own place.
 
-On a reconnect the window forgets what it was *mirroring* — a settle sent while
+On a reconnect the window forgets what it was _mirroring_ — a settle sent while
 the socket was down is never resent — while keeping what it is performing
 itself, because that settles locally whatever the socket did. Clearing both
 would be the same lie from the other side: no row while a tab is visibly being
@@ -835,7 +865,7 @@ recorder's private function moved to `@patcher/domain` and both use it, so what
 a person reads in the chrome and what a trace says about that command cannot
 disagree. Keys are named and their values are not: a cookie write is
 `cookies-set 3`, a `localStorage` write names the items and not their contents.
-Typed text *is* kept, because a record that will not say what was filled in is
+Typed text _is_ kept, because a record that will not say what was filled in is
 not a record of what happened. Commands whose rendering is empty — a snapshot,
 a read of the whole page — fall back to naming the command, which is the whole
 of what happened.
@@ -903,7 +933,7 @@ Named here rather than left to be rediscovered.
   read it.** The key is a `0600` file readable by any process running as the
   user, so that setting is a default rather than a boundary — which is why the
   grant above exists and why the recommended shape leaves the setting `off`. What
-  a grant does *not* do is make the app key unreadable: an agent that goes
+  a grant does _not_ do is make the app key unreadable: an agent that goes
   looking can still find it and be the app, the same sentence `thread-api-key.ts`
   writes about itself. What changes is that the supported path is the narrow one,
   so reaching past the browser is a deliberate act rather than the way the
@@ -911,9 +941,9 @@ Named here rather than left to be rediscovered.
 - **A plugin can still name any of its own in-flight calls, and can keep one
   open.** The caller crosses as an id the host minted and the channel refuses one
   it does not have in flight, so nothing an outsider holds can forge one — but a
-  plugin sees every id the host has open for *it*, and decides when to answer.
+  plugin sees every id the host has open for _it_, and decides when to answer.
   "Across the plugin boundary" above says why that is not a way in. One plugin
-  cannot reach another's *because the channels are separate processes*: two
+  cannot reach another's _because the channels are separate processes_: two
   plugins sharing one (`SHARED_PLACEMENT`) can write frames on each other's
   channel keys, and are one trust domain for that reason and several others
   ([`plugin-supervisor.ts`](../../apps/server/src/services/plugins/plugin-supervisor.ts)
@@ -922,7 +952,7 @@ Named here rather than left to be rediscovered.
 - **A plugin's browser work off the served call's stack is still uncharged.**
   Same paragraph: the id is stamped from an ambient scope, so work invoked from
   a resource created outside that call — a `setInterval` from the factory, a
-  pump ticking on its own — carries none. Where the code was *written* decides
+  pump ticking on its own — carries none. Where the code was _written_ decides
   nothing; a job the handler schedules is on the stack wherever its queue came
   from. What is closed is the case that
   needed no malice and no unusual code: a plugin's CLI command awaiting its own
@@ -959,7 +989,7 @@ Named here rather than left to be rediscovered.
   diagnostic path in [agent-browser-tools.md](agent-browser-tools.md)
   (`bun run patcher:dev browser tabs`) needs the setting on, and
   `patcher settings browser-access` from a plain terminal takes effect with no
-  prompt, because a person at their own terminal *is* the user.
+  prompt, because a person at their own terminal _is_ the user.
 - **The indicator is only visible where the app is.** It is a row of the app's
   own chrome in every window now, but it is still inside the app: a person with
   Patcher behind another application, or minimised, sees nothing until they come
@@ -969,7 +999,7 @@ Named here rather than left to be rediscovered.
   surface off `/browser`, so there is nothing there to draw a window row in.
 - **The record is one window's memory, not an audit log.** It says who, what
   and how it went now, and the caller's own trace is still the better log: this
-  one is what *this window* heard, so a window that was closed or whose socket
+  one is what _this window_ heard, so a window that was closed or whose socket
   was down has a hole there, it is held in memory (a reload starts an empty
   list), it keeps no screenshots — a picture per command is megabytes held
   forever in a renderer — and it records no read sizes, so "it read the page"
@@ -1006,7 +1036,7 @@ Named here rather than left to be rediscovered.
   scopes come back together or not at all, an id the host never minted finds
   nothing, two callers of one plugin stay apart, and a settled call is forgotten.
 - `apps/server/test/services/plugins/plugin-channel.test.ts` — a frame sent while
-  serving names the *exact* call it came out of and two concurrent calls each
+  serving names the _exact_ call it came out of and two concurrent calls each
   get their own id (not merely different ones — review caught that a swap would
   have passed); a frame sent outside any call names none; an origin whose call
   has settled, and one another channel minted, are both dropped; the record
@@ -1080,7 +1110,7 @@ Named here rather than left to be rediscovered.
   has to survive the route, the ambient scope, the bridge and the hub, and the
   schema makes omitting it valid at every step: a grant's command names the
   grant, a turn's names the thread, an app-key caller's names nobody and carries
-  the level it is charged, and a `threadId` in the request *body* does not change
+  the level it is charged, and a `threadId` in the request _body_ does not change
   the answer.
 - `apps/server/test/services/browser/browser-bridge.test.ts` — the app's own
   browsing carries no issuer at all, and the field is absent rather than null.
@@ -1101,21 +1131,21 @@ Named here rather than left to be rediscovered.
   subscription a non-serving window's whole indicator hangs on: a signal from
   another window is shown as being elsewhere, each phase's own command id
   reaches the tracker, a reconnect stops the row claiming a command that ended
-  while the socket was down *and* keeps one this window is still performing
+  while the socket was down _and_ keeps one this window is still performing
   (its executor stubbed to never answer, which is the state the rule is about),
   and unmounting stops both listeners. Plus the record's two feeders, each of
   which can be wired wrong invisibly: a command this window performs is written
-  down as *this window* renders it, a settle's outcome is taken off the frame
+  down as _this window_ renders it, a settle's outcome is taken off the frame
   rather than guessed, no answer is recorded as no answer, and a reconnect ends
   the other window's open rows while leaving this window's running. And how a
-  command *this* window performed ends, which no frame can stand in for since
+  command _this_ window performed ends, which no frame can stand in for since
   the server tells the performer nothing: a refusal keeps its own code, a
   success reads done, and a bug in the executor is recorded as the
   `invalid_command` the agent is sent.
 - `apps/app/src/views/BrowserSurfaceView.test.tsx` — the placement, in the state
   that used to lose it: with a Patcher screen holding the tab there is no
   address bar, and the row is on screen anyway.
-- `apps/server/test/app/hub-browser-command.test.ts` — *two* other windows are
+- `apps/server/test/app/hub-browser-command.test.ts` — _two_ other windows are
   told and the performer is not (one watcher would accept a loop that stopped
   after the first), one start and one settle rather than a last frame that
   happens to be right, a command with nobody to name is not announced, a send
@@ -1140,7 +1170,7 @@ Named here rather than left to be rediscovered.
   including the two places the strict and lenient schemas disagree on purpose: a
   frame missing the command or the outcome is still shown for who is driving
   rather than dropped, and so is one where a newer server has added a field
-  *inside* either of them — which a strict nested schema would have rejected
+  _inside_ either of them — which a strict nested schema would have rejected
   whole, leaving a `settled` nobody else can deliver and an indicator on until
   the next reconnect.
 - `packages/domain/test/browser-command-description.test.ts` — the words both

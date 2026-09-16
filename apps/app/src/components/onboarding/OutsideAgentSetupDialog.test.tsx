@@ -24,7 +24,7 @@ describe("OutsideAgentSetupDialog", () => {
 
     expect(
       screen.getByText(
-        "Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on Laptop.",
+        "Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on Laptop, and put its patcher command on your PATH.",
       ),
     ).toBeTruthy();
     expect(

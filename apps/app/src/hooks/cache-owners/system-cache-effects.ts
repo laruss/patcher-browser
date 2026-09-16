@@ -9,6 +9,7 @@ import {
   allEnvironmentWorkStatusQueryKeyPrefix,
   allHostQueryKeyPrefix,
   allProjectPathsQueryKeyPrefix,
+  allSystemCliCommandQueryKeyPrefix,
   allSystemCliSkillsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
   allSystemProvidersQueryKeyPrefix,
@@ -146,6 +147,14 @@ export function invalidateCliSkillsStatus({
 }: QueryClientArg): void {
   queryClient.invalidateQueries({
     queryKey: allSystemCliSkillsQueryKeyPrefix(),
+  });
+}
+
+export function invalidateCliCommandStatus({
+  queryClient,
+}: QueryClientArg): void {
+  queryClient.invalidateQueries({
+    queryKey: allSystemCliCommandQueryKeyPrefix(),
   });
 }
 

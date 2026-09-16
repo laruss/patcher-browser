@@ -326,6 +326,7 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   ["/system/cli-skills/install", null],
   ["/system/cli-skills/offer", null],
   ["/system/cli-skills/setup", null],
+  ["/system/cli-command/install", null],
   ["/system", ["workspace"]],
   ["/settings", ["workspace"]],
   ["/skills-registry", ["workspace"]],

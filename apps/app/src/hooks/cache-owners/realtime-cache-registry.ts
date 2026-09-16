@@ -66,6 +66,7 @@ import {
   allThreadStorageFilePreviewQueryKeyPrefix,
   allThreadStorageFilesQueryKeyPrefix,
   allThreadStoragePathsQueryKeyPrefix,
+  allSystemCliCommandQueryKeyPrefix,
   allSystemCliSkillsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
   allThreadQueryKeyPrefix,
@@ -485,6 +486,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
     dirty: [
       dirtySystemConfigQueries, // Experiments gate UI surfaces; other windows re-read after a settings write.
       dirtyCliSkillsStatusQueries, // An install from another window changes what a machine status says (#141).
+      dirtyCliCommandStatusQueries, // And so does one that puts `patcher` on PATH (#143).
       dirtyBrowserAccessGrantQueries,
       dirtyBrowserAccessRequestQueries,
       dirtyAllThreadTimelineQueries, // General settings can change whether diagnostic provider rows are projected.
@@ -976,6 +978,10 @@ function dirtySystemConfigQueries(): QueryKey[] {
  */
 function dirtyCliSkillsStatusQueries(): QueryKey[] {
   return [allSystemCliSkillsQueryKeyPrefix()];
+}
+
+function dirtyCliCommandStatusQueries(): QueryKey[] {
+  return [allSystemCliCommandQueryKeyPrefix()];
 }
 
 /**

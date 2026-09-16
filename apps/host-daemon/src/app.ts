@@ -127,6 +127,12 @@ export interface CreateHostDaemonAppOptions {
   caffeinateManager?: CaffeinateManager;
   runtimeShellEnv?: AgentRuntimeOptions["shellEnv"];
   runtimeShellEnvResolvedAtMs?: number;
+  /**
+   * The login shell's PATH as last measured, or null when it could not be
+   * read. Separate from the composed shell environment, which prepends this
+   * install's CLI directory and falls back to the daemon's own environment.
+   */
+  getUserShellPath?: () => string | null;
   resolveRuntimeShellEnv?: () => Promise<
     NonNullable<AgentRuntimeOptions["shellEnv"]>
   >;
@@ -756,6 +762,7 @@ export async function createHostDaemonApp(
       }),
     caffeinateManager,
     threadStorageRootPath,
+    getUserShellPath: options.getUserShellPath,
     logger: options.logger,
     eventSink: {
       emit: (event) => eventSink.emit(event),

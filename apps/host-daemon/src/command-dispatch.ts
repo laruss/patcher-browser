@@ -31,6 +31,10 @@ import {
   installGlobalSkills,
   readGlobalSkillsStatus,
 } from "./command-handlers/install-global-skills.js";
+import {
+  installCliCommand,
+  readCliCommandStatus,
+} from "./command-handlers/install-cli-command.js";
 import { listHostCommands } from "./command-handlers/list-commands.js";
 import {
   deleteHostSkill,
@@ -654,6 +658,16 @@ const onlineRpcHandlers: OnlineRpcHandlerMap = {
   "host.install_global_skills": installGlobalSkills,
   "host.global_skills_status": async (command, options) =>
     readGlobalSkillsStatus(command, { dataDir: options.dataDir }),
+  "host.cli_command_status": async (_command, options) =>
+    readCliCommandStatus({
+      dataDir: options.dataDir,
+      userShellPath: options.getUserShellPath?.() ?? null,
+    }),
+  "host.install_cli_command": async (_command, options) =>
+    installCliCommand({
+      dataDir: options.dataDir,
+      userShellPath: options.getUserShellPath?.() ?? null,
+    }),
   "host.list_branches": listHostBranches,
   "host.file_metadata": async (command, options) =>
     guardCredentialPaths(command, options, readHostFileMetadata),

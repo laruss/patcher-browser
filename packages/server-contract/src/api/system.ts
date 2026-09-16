@@ -371,6 +371,94 @@ export type SystemCliSkillsStatusResponse = z.infer<
 >;
 
 /**
+ * Where a bare `patcher` stands on a machine (#143).
+ *
+ * `installed` is a measurement rather than a claim: it means a `patcher` the
+ * person's shell actually finds runs this install. `shadowed` is the case that
+ * makes the difference — a link could go in, but an earlier PATH entry already
+ * answers with something else, so putting one there would change nothing.
+ * `unsupported` is Windows, where no shim is written, or a source checkout,
+ * which never owns the bare command.
+ *
+ * Parsed with a fallback because this crosses the server ↔ window boundary,
+ * which has no handshake: a window held open across an upgrade that adds a
+ * state reads it as `unknown` and shows the neutral sentence, rather than
+ * failing the whole read.
+ */
+export const cliCommandStateSchema = z
+  .enum([
+    "installed",
+    "missing",
+    "occupied",
+    "shadowed",
+    "not_on_path",
+    "unsupported",
+    "unknown",
+    "failed",
+  ])
+  .catch("unknown");
+export type CliCommandState = z.infer<typeof cliCommandStateSchema>;
+
+export const cliCommandMachineSchema = z.object({
+  hostId: z.string(),
+  hostName: z.string(),
+  state: cliCommandStateSchema,
+  /** Where this install's link is, or would go. */
+  linkPath: z.string().nullable(),
+  /** The `patcher` already answering, when one is. */
+  existingPath: z.string().nullable(),
+  /** Where `existingPath` points, when it is a symlink. */
+  existingTarget: z.string().nullable(),
+  /** `<dataDir>/bin`, which is the directory the export line names. */
+  shimDirectory: z.string().nullable(),
+  /** Why `unsupported`. */
+  reason: z.enum(["windows", "dev-install"]).nullable(),
+  /** What went wrong, for `failed`. */
+  message: z.string().nullable(),
+  /** Whether the call that returned this changed the disk. */
+  changed: z.boolean(),
+});
+export type CliCommandMachine = z.infer<typeof cliCommandMachineSchema>;
+
+/**
+ * Which machines to ask about. Omitted means the primary one — the machine the
+ * person is typing on, which is the only one a bare command helps. The field
+ * exists so widening this later is not a change to the contract.
+ */
+export const systemCliCommandStatusQuerySchema = z.object({
+  /** Comma-separated machine ids; omit for the primary machine. */
+  hostIds: z.string().optional(),
+});
+export type SystemCliCommandStatusQuery = z.infer<
+  typeof systemCliCommandStatusQuerySchema
+>;
+
+export const systemCliCommandStatusResponseSchema = z.object({
+  machines: z.array(cliCommandMachineSchema),
+});
+export type SystemCliCommandStatusResponse = z.infer<
+  typeof systemCliCommandStatusResponseSchema
+>;
+
+export const systemInstallCliCommandRequestSchema = z.object({
+  hostIds: z.array(z.string().min(1)).min(1).max(64).optional(),
+});
+export type SystemInstallCliCommandRequest = z.infer<
+  typeof systemInstallCliCommandRequestSchema
+>;
+
+/**
+ * One entry per machine asked, so a machine that is offline or refuses fails on
+ * its own without taking the others down.
+ */
+export const systemInstallCliCommandResponseSchema = z.object({
+  machines: z.array(cliCommandMachineSchema),
+});
+export type SystemInstallCliCommandResponse = z.infer<
+  typeof systemInstallCliCommandResponseSchema
+>;
+
+/**
  * How far agents outside Patcher may drive the browser, as a request.
  *
  * Its own route rather than a field written through `PUT /settings/general`,
@@ -653,6 +741,14 @@ export type SystemCliSkillsSetupRequest = z.infer<
 export const systemCliSkillsSetupResponseSchema = z.object({
   outsideAgentSetup: outsideAgentSetupAnswerSchema,
   install: systemInstallCliSkillsResponseSchema.nullable(),
+  /**
+   * What the same yes did about a bare `patcher` on the primary machine
+   * (#143), or null when nothing was attempted. Carried back so an `occupied`
+   * or a `not_on_path` is said at the moment it happens — `not_on_path` is
+   * exactly the case where the person needs the export line — rather than
+   * waiting to be discovered in Settings.
+   */
+  cliCommand: cliCommandMachineSchema.nullable(),
 });
 export type SystemCliSkillsSetupResponse = z.infer<
   typeof systemCliSkillsSetupResponseSchema

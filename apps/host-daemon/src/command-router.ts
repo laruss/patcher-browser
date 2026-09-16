@@ -112,6 +112,7 @@ export interface CommandRouterOptions {
   resolveInteractiveRequest?: CommandDispatchOptions["resolveInteractiveRequest"];
   requestEnvSetupScriptConsent?: CommandDispatchOptions["requestEnvSetupScriptConsent"];
   caffeinateManager?: CommandDispatchOptions["caffeinateManager"];
+  getUserShellPath?: CommandDispatchOptions["getUserShellPath"];
   threadStorageRootPath: string;
   logger: CommandRouterLogger;
 }
@@ -325,6 +326,7 @@ export class CommandRouter {
       resolveInteractiveRequest: this.options.resolveInteractiveRequest,
       requestEnvSetupScriptConsent: this.options.requestEnvSetupScriptConsent,
       caffeinateManager: this.options.caffeinateManager,
+      getUserShellPath: this.options.getUserShellPath,
       threadStorageRootPath: this.options.threadStorageRootPath,
     };
   }

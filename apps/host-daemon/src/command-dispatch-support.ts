@@ -82,6 +82,13 @@ export interface CommandDispatchOptions {
     signal?: AbortSignal;
   }) => Promise<HostDaemonEnvSetupScriptConsentResponse>;
   caffeinateManager?: CaffeinateManager;
+  /**
+   * The login shell's PATH as the daemon last measured it, or null when it
+   * could not be read. Optional because a daemon standing up without one has
+   * nothing to report; absent and null mean the same thing to a caller, which
+   * is "do not claim anything about this person's PATH".
+   */
+  getUserShellPath?: () => string | null;
   threadStorageRootPath: string;
 }
 

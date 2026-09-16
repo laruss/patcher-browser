@@ -34,7 +34,7 @@ export function OutsideAgentSetupDialogContent({
       <DialogHeader>
         <DialogTitle>Let other agents use Patcher?</DialogTitle>
         <DialogDescription>
-          {`Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on ${hostName}.`}
+          {`Patcher can install its skills, patcher-cli and patcher-browser, into ~/.agents/skills and ~/.claude/skills on ${hostName}, and put its patcher command on your PATH.`}
         </DialogDescription>
       </DialogHeader>
 
@@ -43,6 +43,11 @@ export function OutsideAgentSetupDialogContent({
           Claude Code, Codex, Cursor and other agents load skills from there in
           every session, so they can reach Patcher and its browser from their
           own terminal.
+        </p>
+        <p>
+          The command is a link in ~/.local/bin or ~/bin — whichever your login
+          shell already reads — so patcher runs from any terminal. Your shell
+          profile is not changed, and a patcher already there is left alone.
         </p>
         <p>You can do this later in Settings → Skills.</p>
       </div>

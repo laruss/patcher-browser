@@ -28,6 +28,9 @@ import type {
   SystemCliSkillsOfferResponse,
   SystemCliSkillsSetupResponse,
   SystemCliSkillsStatusResponse,
+  SystemCliCommandStatusResponse,
+  SystemInstallCliCommandRequest,
+  SystemInstallCliCommandResponse,
   SystemInstallCliSkillsRequest,
   SystemInstallCliSkillsResponse,
   OnboardingAgentOverview,
@@ -81,6 +84,14 @@ export interface SystemCliSkillsStatusArgs {
 }
 export type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
 export type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
+export interface SystemCliCommandStatusArgs {
+  /** Omit for the primary machine. */
+  hostIds?: readonly string[];
+  signal?: AbortSignal;
+}
+export type SystemCliCommandStatusResult = SystemCliCommandStatusResponse;
+export type SystemInstallCliCommandArgs = SystemInstallCliCommandRequest;
+export type SystemInstallCliCommandResult = SystemInstallCliCommandResponse;
 export type SystemCliSkillsSetupArgs = SystemCliSkillsSetupRequest;
 export type SystemCliSkillsSetupResult = SystemCliSkillsSetupResponse;
 
@@ -140,6 +151,18 @@ export interface SystemArea {
   installCliSkills(
     args: SystemInstallCliSkillsArgs,
   ): Promise<SystemInstallCliSkillsResult>;
+  /** Where a bare `patcher` stands on each machine asked, or the primary one. */
+  cliCommandStatus(
+    args?: SystemCliCommandStatusArgs,
+  ): Promise<SystemCliCommandStatusResult>;
+  /**
+   * Put a `patcher` on the person's PATH, by linking this install's shim into a
+   * directory their login shell already reads. Refused inside a turn, like
+   * `installCliSkills`.
+   */
+  installCliCommand(
+    args?: SystemInstallCliCommandArgs,
+  ): Promise<SystemInstallCliCommandResult>;
   /**
    * Record the answer to the launch-time question about installing the CLI
    * skills for agents outside Patcher; `accept` also installs them onto the
@@ -297,6 +320,24 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async installCliSkills(input) {
       return transport.readJson(
         transport.api.v1.system["cli-skills"].install.$post({ json: input }),
+      );
+    },
+    async cliCommandStatus(input = {}) {
+      return transport.readJson(
+        transport.api.v1.system["cli-command"].$get(
+          {
+            query:
+              input.hostIds === undefined
+                ? {}
+                : { hostIds: input.hostIds.join(",") },
+          },
+          ...signalRequestArgs(input.signal),
+        ),
+      );
+    },
+    async installCliCommand(input = {}) {
+      return transport.readJson(
+        transport.api.v1.system["cli-command"].install.$post({ json: input }),
       );
     },
     async setupCliSkills(input) {

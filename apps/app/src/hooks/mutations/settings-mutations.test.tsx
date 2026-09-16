@@ -124,6 +124,7 @@ describe("CLI skills setup mutation", () => {
     vi.mocked(sdk.system.setupCliSkills).mockResolvedValue({
       outsideAgentSetup: "declined",
       install: null,
+      cliCommand: null,
     });
     const { result } = renderHook(() => useSetupCliSkills(), { wrapper });
 

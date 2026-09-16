@@ -139,7 +139,11 @@ describe("the question about agents outside Patcher", () => {
       expect(response.status).toBe(200);
       expect(
         systemCliSkillsSetupResponseSchema.parse(await readJson(response)),
-      ).toEqual({ outsideAgentSetup: "declined", install: null });
+      ).toEqual({
+        outsideAgentSetup: "declined",
+        install: null,
+        cliCommand: null,
+      });
       expect(responder.requests).toHaveLength(0);
       expect(changes).toContain("config-changed");
       expect(await readAnswerFromConfig(harness)).toBe("declined");
@@ -147,7 +151,10 @@ describe("the question about agents outside Patcher", () => {
   });
 
   it("installs onto the primary machine and no other, and records a yes", async () => {
-    await withTestHarness(async (harness) => {
+    // A release install: only one of those owns the bare `patcher`, so the
+    // second half of this yes (#143) is skipped outright on a checkout, which
+    // is what the harness is by default.
+    await withTestHarness({ isDevelopment: false }, async (harness) => {
       await writeBuiltinCliSkill(harness);
       const laptop = seedHostSession(harness.deps, { id: "host-laptop" });
       const studio = seedHostSession(harness.deps, { id: "host-studio" });
@@ -173,8 +180,11 @@ describe("the question about agents outside Patcher", () => {
       expect(
         body.install?.results.map((entry) => [entry.hostId, entry.ok]),
       ).toEqual([["host-laptop", true]]);
+      // The same yes also asks for a bare `patcher` on that machine (#143),
+      // and asks the primary machine only for both.
       expect(laptopResponder?.requests.map((r) => r.command.type)).toEqual([
         "host.install_global_skills",
+        "host.install_cli_command",
       ]);
       expect(studioResponder?.requests).toHaveLength(0);
       expect(await readAnswerFromConfig(harness)).toBe("accepted");
@@ -319,7 +329,11 @@ describe("the question about agents outside Patcher", () => {
 
       expect(
         systemCliSkillsSetupResponseSchema.parse(await readJson(late)),
-      ).toEqual({ outsideAgentSetup: "declined", install: null });
+      ).toEqual({
+        outsideAgentSetup: "declined",
+        install: null,
+        cliCommand: null,
+      });
       expect(responder.requests).toHaveLength(0);
       expect(getOutsideAgentSetup(harness.deps.db)).toBe("declined");
     });

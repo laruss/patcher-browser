@@ -148,6 +148,13 @@ const DENIED_AGENT_ROUTES: readonly DeniedAgentRoute[] = [
       "it writes Patcher's skills into the user's home, outside this turn's sandbox, where every agent on the machine loads them, and records the person's own answer about that",
   },
   {
+    // Same shape as the skills above: the prefix, with the GET left open so a
+    // turn may read whether the command is there.
+    path: "/system/cli-command",
+    reason:
+      "it puts a `patcher` on the user's PATH by writing into their home, outside this turn's sandbox, where every shell on the machine picks it up",
+  },
+  {
     // The prompt is refused from inside a turn in `routes/threads/interactions.ts`;
     // these are the same answer given out of band, and a turn that could give it
     // would be allowing its own committed script to run on the host, outside the

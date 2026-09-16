@@ -71,6 +71,10 @@ import {
   readGlobalCliSkillStatus,
   resolveCliSkillsOffer,
 } from "../services/skills/global-skill-install.js";
+import {
+  installCliCommand,
+  readCliCommandStatus,
+} from "../services/skills/cli-command-install.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../services/system/app-keybindings.js";
 import { declaresThread, requirePluginConsent } from "./plugin-consent.js";
 import { resolvePrimaryHostId } from "../services/hosts/primary-host.js";
@@ -550,6 +554,30 @@ export function registerSystemRoutes(
 
   post(routes.installCliSkills, async (context, body) =>
     context.json(await installGlobalCliSkills(deps, { hostIds: body.hostIds })),
+  );
+
+  // A bare `patcher` on PATH (#143). Omitting the machines means the primary
+  // one, which is the machine a person types on.
+  get(routes.cliCommandStatus, async (context, query) =>
+    context.json(
+      await readCliCommandStatus(deps, {
+        ...(query.hostIds === undefined
+          ? {}
+          : {
+              hostIds: query.hostIds
+                .split(",")
+                .filter((hostId) => hostId.length > 0),
+            }),
+      }),
+    ),
+  );
+
+  post(routes.installCliCommand, async (context, body) =>
+    context.json(
+      await installCliCommand(deps, {
+        ...(body.hostIds === undefined ? {} : { hostIds: body.hostIds }),
+      }),
+    ),
   );
 
   // The questions Patcher puts at launch (#141, #142). Closed to a turn and to plugins, like the

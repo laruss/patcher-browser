@@ -38,7 +38,7 @@ import {
   providerCliStatusResponseSchema,
 } from "./local.js";
 
-export const HOST_DAEMON_PROTOCOL_VERSION = 118 as const;
+export const HOST_DAEMON_PROTOCOL_VERSION = 119 as const;
 
 /**
  * The first protocol version whose daemon can install this server's artifact.
@@ -902,6 +902,34 @@ const hostGlobalSkillsStatusCommandSchema = z
   .strict();
 
 /**
+ * Where a bare `patcher` stands on this host, and putting one there.
+ *
+ * The command is a symlink named `patcher` in a directory the person's login
+ * shell already has on its PATH, pointing at `<dataDir>/bin/patcher` — the shim
+ * this daemon writes at every start. `cli-shim.ts` rejected a symlink for the
+ * **JS entry**, because `import.meta.url` is symlink-resolved while
+ * `process.argv[1]` is not; the shim is `sh` that `exec`s an absolute path and
+ * reads nothing about its own location, so a link to it carries none of that
+ * disagreement.
+ *
+ * Neither command takes an argument: which directories are candidates, and what
+ * may be replaced, are host facts this daemon reads for itself. Whether a
+ * source checkout may own the bare command is product policy and stays on the
+ * server (invariant 3), which simply does not ask.
+ */
+const hostCliCommandStatusCommandSchema = z
+  .object({
+    type: z.literal("host.cli_command_status"),
+  })
+  .strict();
+
+const hostInstallCliCommandCommandSchema = z
+  .object({
+    type: z.literal("host.install_cli_command"),
+  })
+  .strict();
+
+/**
  * List a bounded page of git branches at an absolute host path. Path-only
  * sibling of `host.list_files`. Does not require an environment row, does not
  * provision anything, and does not create daemon-side workspace state.
@@ -1352,6 +1380,67 @@ const globalSkillsStatusResultSchema = z
 export type HostGlobalSkillsStatusResult = z.infer<
   typeof globalSkillsStatusResultSchema
 >;
+
+/**
+ * What a bare `patcher` does on this host. One shape for both commands: the
+ * install returns the state it left behind, so the window has the same sentence
+ * to show either way.
+ *
+ * - `installed` — a `patcher` on PATH runs this install's shim.
+ * - `missing` — nothing is in the way; a link can be placed.
+ * - `occupied` — something else already holds the name in the directory this
+ *   would use, and it is left alone. A link somebody tied by hand outranks the
+ *   convenience, and a live one cannot be told from a deliberate one.
+ * - `shadowed` — the link could be placed, but an earlier PATH entry already
+ *   answers `patcher` with something that is not this install, so placing it
+ *   would change nothing. Reported rather than written, which is what keeps
+ *   `installed` a measurement rather than a claim.
+ * - `not_on_path` — neither candidate directory is on the login shell's PATH.
+ * - `unsupported` — Windows, where the shim itself is never written.
+ * - `unknown` — the login shell's PATH could not be read. Nothing is claimed
+ *   and nothing is written, rather than answering out of the daemon's own
+ *   environment, which under launchd is not a shell's PATH at all.
+ * - `failed` — placement was attempted and the filesystem refused.
+ */
+const cliCommandStateSchema = z.enum([
+  "installed",
+  "missing",
+  "occupied",
+  "shadowed",
+  "not_on_path",
+  "unsupported",
+  "unknown",
+  "failed",
+]);
+export type HostCliCommandState = z.infer<typeof cliCommandStateSchema>;
+
+const cliCommandResultSchema = z
+  .object({
+    state: cliCommandStateSchema,
+    /** `<directory>/patcher`: where this install's link is, or would go. */
+    linkPath: z.string().nullable(),
+    /**
+     * The `patcher` already answering, when one is: `linkPath` itself for
+     * `occupied`, and an earlier PATH entry's for `shadowed` or for an
+     * `installed` this daemon did not place.
+     */
+    existingPath: z.string().nullable(),
+    /** Where `existingPath` points, when it is a symlink. */
+    existingTarget: z.string().nullable(),
+    /**
+     * `<dataDir>/bin` — the directory to put on PATH by hand, which is the
+     * answer when no candidate directory is already there.
+     */
+    shimDirectory: z.string(),
+    /** Why `unsupported`. */
+    reason: z.enum(["windows"]).nullable(),
+    /** What the filesystem said, for `failed`. */
+    message: z.string().nullable(),
+    /** Whether this call changed the disk. Always false for the status read. */
+    changed: z.boolean(),
+  })
+  .strict();
+export type HostCliCommandResult = z.infer<typeof cliCommandResultSchema>;
 
 const writeSkillResultSchema = z.discriminatedUnion("outcome", [
   z.object({
@@ -1939,6 +2028,28 @@ export const hostDaemonCommandRegistry = {
     resultSchema: globalSkillsStatusResultSchema,
     transport: "onlineRpc",
     retryable: true,
+    flushEventsBeforeResult: false,
+    envLane: null,
+  }),
+  // Reads the login shell's PATH and the candidate directories; writes nothing.
+  "host.cli_command_status": defineHostDaemonCommandDescriptor({
+    type: "host.cli_command_status",
+    schema: hostCliCommandStatusCommandSchema,
+    resultSchema: cliCommandResultSchema,
+    transport: "onlineRpc",
+    retryable: true,
+    flushEventsBeforeResult: false,
+    envLane: null,
+  }),
+  // One symlink into the user's home, outside any sandbox. Placing it is
+  // idempotent, but it is still a write, so it never silently retries — the
+  // same rule the skills install beside it follows.
+  "host.install_cli_command": defineHostDaemonCommandDescriptor({
+    type: "host.install_cli_command",
+    schema: hostInstallCliCommandCommandSchema,
+    resultSchema: cliCommandResultSchema,
+    transport: "onlineRpc",
+    retryable: false,
     flushEventsBeforeResult: false,
     envLane: null,
   }),
