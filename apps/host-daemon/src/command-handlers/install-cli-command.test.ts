@@ -336,6 +336,63 @@ describe("the `patcher` command on PATH", () => {
     expect(await exists(path.join(host.localBin, "patcher"))).toBe(false);
   });
 
+  it("refuses a shim a shell could not run", async () => {
+    const host = await makeHost({ withShim: false });
+    // Something is at the shim path, but it is not a command.
+    await mkdir(host.shimPath, { recursive: true });
+
+    const result = await installCliCommand(options(host, [host.localBin]));
+
+    expect(result.state).toBe("failed");
+    expect(await exists(path.join(host.localBin, "patcher"))).toBe(false);
+  });
+
+  it("leaves a link of its own written relative to where it sits", async () => {
+    const host = await makeHost();
+    await mkdir(host.localBin, { recursive: true });
+    const linkPath = path.join(host.localBin, "patcher");
+    // Same command, different spelling: this runs the same shim.
+    const relative = path.relative(host.localBin, host.shimPath);
+    await symlink(relative, linkPath);
+
+    const result = await installCliCommand(options(host, [host.localBin]));
+
+    expect(result.state).toBe("installed");
+    expect(result.changed).toBe(false);
+    await expect(readlink(linkPath)).resolves.toBe(relative);
+  });
+
+  it("calls it installed when its own shim wins from an earlier entry", async () => {
+    const host = await makeHost();
+    await mkdir(host.localBin, { recursive: true });
+    // Someone else holds the candidate name, but the shell never gets there.
+    await writeFile(path.join(host.localBin, "patcher"), "#!/bin/sh\n", {
+      mode: 0o755,
+    });
+
+    const result = await installCliCommand(
+      options(host, [path.join(host.dataDir, "bin"), host.localBin]),
+    );
+
+    expect(result.state).toBe("installed");
+    expect(result.existingPath).toBe(host.shimPath);
+  });
+
+  it("does not warn one of two installs about the other", async () => {
+    const host = await makeHost();
+    const args = options(host, [host.localBin]);
+
+    const [first, second] = await Promise.all([
+      installCliCommand(args),
+      installCliCommand(args),
+    ]);
+
+    // Whichever order they interleave in, both asked for the same link and got
+    // it; "name taken" would be a warning about itself.
+    expect(first?.state).toBe("installed");
+    expect(second?.state).toBe("installed");
+  });
+
   it("reads without writing", async () => {
     const host = await makeHost();
     const result = await readCliCommandStatus(options(host, [host.localBin]));

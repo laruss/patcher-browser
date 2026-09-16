@@ -149,6 +149,17 @@ async function resolves(entryPath: string): Promise<boolean> {
   return (await stat(entryPath).catch(() => null)) !== null;
 }
 
+/**
+ * Whether a shell would run this path: a regular file with an execute bit,
+ * links followed. Existing is not enough — a directory of that name, or a file
+ * restored from a backup without its mode, is found by a lookup and then not
+ * run, which is the difference between `installed` and a command that fails.
+ */
+async function isRunnableFile(entryPath: string): Promise<boolean> {
+  const target = await stat(entryPath).catch(() => null);
+  return target !== null && target.isFile() && (target.mode & 0o111) !== 0;
+}
+
 /** Whether two paths are the same file once links are followed. */
 async function samePath(left: string, right: string): Promise<boolean> {
   const [leftReal, rightReal] = await Promise.all([
@@ -198,15 +209,11 @@ async function findRunnableCommand(
 ): Promise<{ path: string; target: string | null } | null> {
   for (const entry of entries) {
     const candidate = path.join(entry, PATCHER_CLI_SHIM_FILE_NAME);
-    // What a shell would actually run, not merely what exists: links are
-    // followed, and a directory, a dangling link or a file with no execute bit
-    // is skipped by the lookup. Treating one of those as the winner would
-    // refuse the install over something that answers nothing — which is the
-    // opposite of what this check is for.
-    const target = await stat(candidate).catch(() => null);
-    if (target === null || !target.isFile() || (target.mode & 0o111) === 0) {
-      continue;
-    }
+    // What a shell would actually run, not merely what exists: a directory, a
+    // dangling link or a file with no execute bit is skipped by the lookup.
+    // Treating one of those as the winner would refuse the install over
+    // something that answers nothing — the opposite of what this is for.
+    if (!(await isRunnableFile(candidate))) continue;
     const found = await readEntry(candidate);
     return { path: candidate, target: found?.target ?? null };
   }
@@ -258,16 +265,16 @@ async function resolveCliCommand(
   if (options.userShellPath === null) {
     return { ...result, state: "unknown" };
   }
-  if (!(await resolves(shimPath))) {
-    // A data directory too locked down for `writeCliShim` has no shim, and
-    // every answer below would be about a link to a file that is not there:
-    // `patcher` would be found and then fail. Asked before anything else,
-    // because a link this install already placed is in exactly that state and
-    // calling it `installed` is the lie this is here to prevent.
+  if (!(await isRunnableFile(shimPath))) {
+    // A data directory too locked down for `writeCliShim` has no shim — or has
+    // something there a shell cannot run — and every answer below would be
+    // about a link to it: `patcher` would be found and then fail. Asked before
+    // anything else, because a link this install already placed is in exactly
+    // that state and calling it `installed` is the lie this is here to prevent.
     return {
       ...result,
       state: "failed",
-      message: `This install's ${PATCHER_CLI_SHIM_FILE_NAME} shim is not at ${shimPath}.`,
+      message: `This install's ${PATCHER_CLI_SHIM_FILE_NAME} shim is not runnable at ${shimPath}.`,
     };
   }
 
@@ -296,12 +303,31 @@ async function resolveCliCommand(
   const linkPath = placement.linkPath;
   const existing = await readEntry(linkPath);
   const isOurs =
-    existing?.isSymbolicLink === true && existing.target === shimPath;
+    existing?.isSymbolicLink === true &&
+    // Not only the link text: one written relative, or through a home that is
+    // itself a link, runs this install just as well and is ours to leave alone.
+    (existing.target === shimPath || (await samePath(linkPath, shimPath)));
   const isDanglingPatcherLink =
     existing?.isSymbolicLink === true &&
     existing.target !== null &&
     isPatcherShimShape(existing.target, homeDir) &&
     !(await resolves(linkPath));
+
+  const shadow = await findShadow(placement);
+  if (shadow !== null && (await samePath(shadow.path, shimPath))) {
+    // An earlier entry already answers with this install's own shim — the
+    // person put `<dataDir>/bin` on PATH themselves. The command works whatever
+    // sits in the candidate directory, so this is `installed` rather than a
+    // complaint about a name there would be no need to write. Asked before the
+    // candidate is judged, because the shell asks in that order too.
+    return {
+      ...result,
+      state: "installed",
+      linkPath,
+      existingPath: shadow.path,
+      existingTarget: shadow.target,
+    };
+  }
 
   if (existing !== null && !isOurs && !isDanglingPatcherLink) {
     return {
@@ -313,20 +339,7 @@ async function resolveCliCommand(
     };
   }
 
-  const shadow = await findShadow(placement);
   if (shadow !== null) {
-    // An earlier entry answers `patcher`. If it is this install's own shim —
-    // the person put `<dataDir>/bin` on PATH themselves — the command already
-    // works and there is nothing to do.
-    if (await samePath(shadow.path, shimPath)) {
-      return {
-        ...result,
-        state: "installed",
-        linkPath,
-        existingPath: shadow.path,
-        existingTarget: shadow.target,
-      };
-    }
     return {
       ...result,
       state: "shadowed",
@@ -387,6 +400,18 @@ async function resolveCliCommand(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
       const raced = await readEntry(linkPath);
+      if (raced?.target === shimPath || (await samePath(linkPath, shimPath))) {
+        // Another install won the race with exactly the link this one wanted.
+        // Two windows pressing Install at once both asked for this, and telling
+        // the slower one its name is taken would be a warning about itself.
+        return {
+          ...result,
+          state: "installed",
+          linkPath,
+          existingPath: linkPath,
+          existingTarget: raced?.target ?? shimPath,
+        };
+      }
       return {
         ...result,
         state: "occupied",
