@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.1.1-alpha.6
+
+alpha.5 put an agent outside Patcher in front of the person when it asks for the
+browser. This one gets it that far in the first place. The skills that teach
+such an agent to use Patcher were installed only by a button in Settings →
+Skills. Once installed, they stayed whatever version they were installed as, and
+the `patcher` they told the agent to run was on nobody's PATH. So an agent asked
+to use Patcher searched the disk, or followed a skill written for an older CLI,
+or ran a command the shell could not find. Now the app asks, keeps what it
+installed current, and puts the command where a shell finds it.
+
+Still macOS on Apple Silicon, still ad-hoc signed, and still without
+auto-update: the first launch needs one explicit approval in System Settings,
+and a newer alpha has to be downloaded rather than offered. This release raises
+the host daemon protocol (117 → 119), so every enrolled machine's daemon updates
+itself when it connects.
+
+### The skills for agents outside Patcher
+
+- **Asked once, at launch.** "Let other agents use Patcher?" appears when the app
+  opens on a primary machine that holds none of the skills. It installs
+  `patcher-cli` and `patcher-browser` into `~/.agents/skills` and
+  `~/.claude/skills`, or does nothing. Either answer is kept. A machine that
+  already has the skills counts as a yes, so removing them later does not bring
+  the question back. The question never lands on top of onboarding, and on a
+  narrow window it cannot be dismissed by a stray tap (#141).
+- **Kept current without being asked again.** Each daemon records the version it
+  wrote at each copy. When a machine connects, the server updates the copies
+  that still hold that version, and the window says so once per machine. A copy
+  edited by hand, removed, or written by another install sharing the home (a
+  release beside a source checkout) is left alone. Settings shows it as
+  modified, partly installed or out of date, and Install replaces it (#142).
+- **A skill that ships later is asked about, not assumed.** A machine holding
+  the others is offered the new one once, and the answer is kept per skill. A
+  yes reaches a machine that was offline when it was given (#142).
+- **The update names the copy it left behind.** When an update passes over a
+  copy somebody changed, the note lists that copy's path and says Install in
+  Settings → Skills replaces it. Without that, the person heard only that the
+  skills were updated (#148).
+
+### `patcher` on the PATH
+
+- **A bare `patcher`, without editing a shell profile.** Settings → Skills (and a
+  yes to the launch question) places a symlink named `patcher` in the first of
+  `~/.local/bin` and `~/bin` that the login shell already has on its PATH,
+  pointing at the shim this install writes. No rc-file edits, no
+  `/usr/local/bin`, no sudo. If neither directory is on PATH, the row gives the
+  line to add instead (#143).
+- **It reports what a shell would actually run.** It never replaces a `patcher`
+  it did not place. If another `patcher` comes first on PATH (say, from
+  `npm i -g patcher-app`), it writes nothing and names that one. A source
+  checkout never takes the command from the release built beside it (#143).
+- **Asked about on its own**, once, if the skills were already there when this
+  version arrived. Those installs never saw the question that sets the command
+  up with them (#147).
+
 ## 0.1.1-alpha.5
 
 alpha.4 opened the browser to agents that are not Patcher's and gave the person
