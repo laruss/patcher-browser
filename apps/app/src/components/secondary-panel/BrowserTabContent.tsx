@@ -1,3 +1,4 @@
+import { BrowserCredentialRequests } from "@/components/browser-surface/BrowserCredentialRequests";
 import {
   useCallback,
   useEffect,
@@ -996,6 +997,7 @@ export function BrowserTabContent({
           reloadShortcut={reloadShortcut}
         />
       ) : null}
+      <BrowserCredentialRequests tabId={tabId} browser={desktopBrowser} />
       <div ref={contentRef} className="relative min-h-0 flex-1">
         {hasPageLoadError ? (
           <BrowserPageLoadError

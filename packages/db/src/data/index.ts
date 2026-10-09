@@ -1,3 +1,4 @@
+export * from "./protected-credentials.js";
 export {
   createBrowserAccessGrant,
   getBrowserAccessGrant,

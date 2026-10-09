@@ -384,7 +384,10 @@ describe("desktop build", () => {
     );
     expect(securityPreload).toContain('require("electron")');
     expect(securityPreload).not.toContain("exposeInMainWorld");
-    expect(securityPreload).not.toContain("exposeInIsolatedWorld");
+    expect(securityPreload).toContain("var CREDENTIAL_WORLD_ID = 1741;");
+    expect(securityPreload).toMatch(
+      /exposeInIsolatedWorld\(\s*CREDENTIAL_WORLD_ID/u,
+    );
     await expect(
       access(
         resolve(

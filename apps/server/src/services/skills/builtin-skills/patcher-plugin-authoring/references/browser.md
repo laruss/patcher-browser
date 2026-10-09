@@ -58,6 +58,30 @@ source identity, permissions or sites requires new confirmation. See the
 for the supported scope. Native enforcement is outside the fake host's behavior
 simulation.
 
+## Protected credential operations
+
+SDK 1.2.0 adds `patcher.browser.credentials.list({ tabId })` and `request`.
+Require `credentials.manage`, runtime site access and an exact-origin grant.
+Save takes `{ operation: "save", tabId, accountId }`; Update/Fill/Delete take
+`{ operation, tabId, reference: { id, version } }`. Records belong to your
+plugin/source/origin. List and Save/Update return metadata; Fill/Delete return
+status. No password, selector, origin override, approved flag or getter exists.
+
+A proposal awaits the person's Review in core chrome and a native confirmation,
+with the sealed per-action Touch ID policy. Never auto-request on page load or
+retry a cancelled/denied/unsupported/busy result. Agents are refused, including
+child/SDK HTTP delegation; every authenticated deputy needs its own grant and
+permission, and legacy callers cannot borrow a manager's authority. Use
+`{ signal }` as the second argument to cancel pending work.
+
+The first version supports one visible enabled password input and at most one
+username/email field in a main-frame HTTPS form, same-origin action only. It
+rejects hidden/readonly, ambiguous, signup/change-password, iframe and closed
+shadow flows. Fill rechecks exact nodes and does not submit or retry. Once filled,
+the password is readable by the site and permitted page scripts. Keep only
+references/metadata in plugin storage. The fake host refuses native vault work.
+See the [SDK README](../../../../../../../../packages/plugin-sdk/README.md#protected-browser-credentials).
+
 ## patcher.browser — omnibox suggestions in the browser surface
 
 ```ts

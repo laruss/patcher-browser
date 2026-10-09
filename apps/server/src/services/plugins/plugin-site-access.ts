@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { currentCredentialPluginCallers } from "../browser/credential-plugin-caller.js";
 import {
   browserCommandSchema,
   permissionForBrowserCommand,
@@ -472,7 +473,41 @@ export function createPluginSiteAccess(args: {
         ),
       ).token;
   }
+  async function credentialLease(
+    id: string,
+    tabId: string,
+    inputSignal?: AbortSignal,
+  ) {
+    const scope = owners([
+      ...currentCredentialPluginCallers(),
+      ...currentPluginSiteCallers(),
+      id,
+    ]);
+    for (const owner of scope)
+      if (
+        !stateFor(owner.pluginId).policy.permissions.includes(
+          "credentials.manage",
+        )
+      )
+        return refuse();
+    const signal = AbortSignal.any([
+      ...scope.map((owner) => stateFor(owner.pluginId).controller.signal),
+      ...(inputSignal ? [inputSignal] : []),
+    ]);
+    const lease = leaseSchema.parse(
+      await request("site.context", { owners: scope, tabId }, signal),
+    );
+    return {
+      ...lease,
+      signal,
+      check: () => request("site.check", { token: lease.token }, signal),
+      close: () => {
+        void request("site.release", { token: lease.token }).catch(() => {});
+      },
+    };
+  }
   return {
+    credentialLease,
     register,
     disable,
     remove,

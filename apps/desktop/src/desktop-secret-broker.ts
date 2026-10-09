@@ -49,6 +49,7 @@ export function createDesktopSecretBroker(
   stream: Duplex,
   backend: DesktopKeyBackend,
   sites?: import("./desktop-site-authority.js").DesktopSiteAuthority,
+  credentials?: import("./desktop-credential-vault.js").CredentialVault,
 ) {
   let allowed = true;
   let server = false;
@@ -56,6 +57,11 @@ export function createDesktopSecretBroker(
   let lastStatus = unavailable("unavailable");
   const peer = new PrivateSecretChannel(stream, {
     request(method, payload, signal) {
+      if (method.startsWith("credential.")) {
+        if (!server || !allowed || !backend.available() || !credentials)
+          throw new SecretStorageError("unavailable");
+        return credentials.request(method, payload, signal);
+      }
       if (method.startsWith("site.")) {
         if (!server || sites === undefined)
           throw new SecretStorageError("unavailable");
@@ -109,7 +115,11 @@ export function createDesktopSecretBroker(
     notice(name, value) {
       if (name === "server") {
         server = value;
-        if (!value) sites?.reset();
+        if (value) credentials?.availability(allowed && backend.available());
+        if (!value) {
+          sites?.reset();
+          credentials?.close();
+        }
       }
     },
     close() {
@@ -117,10 +127,12 @@ export function createDesktopSecretBroker(
       allowed = false;
       epoch++;
       sites?.disconnect();
+      credentials?.close();
     },
   });
   function availability(value: boolean) {
     allowed = value;
+    credentials?.availability(value && server && backend.available());
     epoch++;
     peer.notify("availability", value && backend.available());
   }
@@ -165,6 +177,7 @@ export function createDesktopSecretBroker(
   return {
     availability,
     action,
+    ...(credentials === undefined ? {} : { credentials }),
     ...(sites === undefined ? {} : { sites }),
     close: () => peer.close(),
   };

@@ -20,6 +20,8 @@ const METHODS = [
   "site.policy",
   "site.confirm",
   "site.context",
+  "credential.context",
+  "credential.operation",
   "site.prepare",
   "site.auth",
   "site.redeem",

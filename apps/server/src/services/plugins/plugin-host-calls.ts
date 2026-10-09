@@ -341,6 +341,18 @@ export const PLUGIN_HOST_CALLS = {
     synchronousHostState: true,
     note: "Synchronous, because a plugin reads it from `patcher.agents.configure()` which cannot await. The plugin process holds a pushed copy rather than asking. Safe to be stale: it reports only whether a browser window is connected, and every command through it already fails with BrowserHostUnavailableError when one is not.",
   },
+  "browser.credentials.list": {
+    category: "call",
+    argsCross: true,
+    resultCrosses: true,
+    cancellable: true,
+  },
+  "browser.credentials.request": {
+    category: "call",
+    argsCross: true,
+    resultCrosses: true,
+    cancellable: true,
+  },
   "browser.<command>": {
     category: "call",
     argsCross: true,
@@ -370,10 +382,19 @@ export const PLUGIN_HOST_CALLS = {
   },
 } as const satisfies Record<string, PluginHostCallShape>;
 
-export type PluginHostCallPath = keyof typeof PLUGIN_HOST_CALLS;
+// Private SDK HTTP attribution transport; not members of the public patcher object.
+export type PluginHostCallPath =
+  | keyof typeof PLUGIN_HOST_CALLS
+  | "internal.credentialHttpCreate"
+  | "internal.credentialHttpRelease";
 
 /** One entry, widened so its optional members are readable. */
 export function hostCallShape(path: PluginHostCallPath): PluginHostCallShape {
+  if (
+    path === "internal.credentialHttpCreate" ||
+    path === "internal.credentialHttpRelease"
+  )
+    return { category: "call", argsCross: true, resultCrosses: true };
   return PLUGIN_HOST_CALLS[path];
 }
 
@@ -384,8 +405,7 @@ export function hostCallShape(path: PluginHostCallPath): PluginHostCallShape {
 export function unresolvedHostCallPaths(): PluginHostCallPath[] {
   return (Object.keys(PLUGIN_HOST_CALLS) as PluginHostCallPath[]).filter(
     (path) =>
-      !PLUGIN_HOST_CALLS[path].argsCross ||
-      !PLUGIN_HOST_CALLS[path].resultCrosses,
+      !hostCallShape(path).argsCross || !hostCallShape(path).resultCrosses,
   );
 }
 

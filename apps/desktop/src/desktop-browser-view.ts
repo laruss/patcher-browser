@@ -1,7 +1,8 @@
+import { resolveBrowserSiteTarget } from "./desktop-browser-site-target.js";
+import { redactCredentialNodes } from "./desktop-credential-redaction.js";
 import { createDesktopPageContributions } from "./desktop-page-contributions.js";
 import { randomUUID } from "node:crypto";
 import { assertBrowserSiteOperation } from "./browser-site-operation.js";
-import { pluginSiteOrigin } from "@patcher/domain/plugin-site-access";
 import { type ScopedPageCall } from "@patcher/desktop-contract";
 import type {
   DesktopSiteAuthority,
@@ -632,6 +633,8 @@ export interface DesktopBrowserHostWindow {
   contentView: DesktopBrowserHostContentView;
   getContentBounds(): DesktopBrowserHostContentBounds;
   isDestroyed(): boolean;
+  isFocused?(): boolean;
+  isMinimized?(): boolean;
   /** Whether the window is in the OS's own full screen right now. */
   isFullScreen(): boolean;
   /**
@@ -3831,7 +3834,12 @@ export function createDesktopBrowserViewManager(
       const response = await session.send<{ nodes?: AxNode[] }>(
         "Accessibility.getFullAXTree",
       );
-      const nodes = response.nodes ?? [];
+      const nodes = await redactCredentialNodes(
+        session,
+        response.nodes ?? [],
+        entry,
+        entry.runtimeDocumentId,
+      );
 
       // Scoping narrows what is rendered, not what Chromium sends: the tree
       // arrives whole either way, because `Accessibility.getPartialAXTree`
@@ -4048,51 +4056,14 @@ export function createDesktopBrowserViewManager(
     return entry.runtimeDocumentId;
   }
   function resolveSiteTarget(tabId: string): SiteTarget | null {
-    const found = [...entries.values()].filter(
-      (entry) =>
-        entry.tabId === tabId &&
-        !entry.view.webContents.isDestroyed() &&
-        !entry.hostWindow.isDestroyed(),
-    );
-    if (found.length !== 1) return null;
-    const entry = found[0]!;
-    const current = () => {
-      if (
-        entry.view.webContents.isDestroyed() ||
-        entry.hostWindow.isDestroyed() ||
-        entriesByWebContentsId.get(entry.view.webContents.id) !== entry
-      )
-        return null;
-      const url = entry.view.webContents.getURL(),
-        origin = pluginSiteOrigin(url),
-        documentId = documentForEntry(entry);
-      return origin === null || documentId === null
-        ? null
-        : { tabId, url, origin, documentId };
-    };
-    const context = current();
-    return context === null
-      ? null
-      : {
-          context,
-          current,
-          hostWebContentsId: entry.hostWindow.webContents.id,
-          authPrompt: () => {
-            const pending = entry.pagePrompt;
-            return pending?.details.kind === "auth" && pending.nativeAuth
-              ? {
-                  id: pending.details.id,
-                  host: pending.details.host,
-                  insecure: pending.details.insecure,
-                  ...pending.nativeAuth,
-                  urls: [
-                    ...(entry.pendingAuth?.requestUrls ??
-                      new Set([pending.nativeAuth.url])),
-                  ],
-                }
-              : null;
-          },
-        };
+    return resolveBrowserSiteTarget({
+      tabId,
+      entries: entries.values(),
+      exists: (entry) =>
+        entriesByWebContentsId.get(entry.view.webContents.id) === entry,
+      send: (entry, method, params) =>
+        ensureCdpSession(entry).send(method, params),
+    });
   }
   return {
     resolveSiteTarget,

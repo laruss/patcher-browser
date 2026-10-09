@@ -1,3 +1,4 @@
+import { preloadCredentials } from "./preload-credentials.js";
 import {
   SITE_ACCESS_CHANNELS,
   scopedPageCallSchema,
@@ -365,6 +366,7 @@ function browserViewBoundsAtWindowScale(
 }
 
 const patcherBrowserApi: PatcherDesktopBrowserApi = {
+  ...preloadCredentials(),
   attach(request): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_ATTACH_CHANNEL, {
       ...request,

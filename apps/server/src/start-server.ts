@@ -195,6 +195,7 @@ export async function runServer(
     {
       secretStore: secrets.store,
       requestSite: secrets.requestSite,
+      requestCredentials: secrets.requestCredentials,
       // Where installed plugins run. Without this the server loads every
       // plugin into itself, which is what it did until the policy existed.
       runPluginOutOfProcess: pluginProcessPolicy({

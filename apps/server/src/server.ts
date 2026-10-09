@@ -1,3 +1,10 @@
+import { runAsCredentialAgent } from "./services/browser/credential-agent-scope.js";
+import {
+  CREDENTIAL_CALLER_HEADER,
+  runAsCredentialHttpCaller,
+  runWithCredentialPluginCallers,
+} from "./services/browser/credential-plugin-caller.js";
+import { createProtectedCredentials } from "./services/plugins/protected-credentials.js";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { readFile, stat } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
@@ -152,6 +159,9 @@ function normalizeInternalAuthPath(path: string): string {
 
 interface CreateAppOptions {
   secretStore?: import("@patcher/secret-storage").PluginSecretStore;
+  requestCredentials?: Parameters<
+    typeof createProtectedCredentials
+  >[0]["request"];
   requestSite?: ReturnType<
     typeof import("./services/plugins/desktop-secret-storage.js").createDesktopSecretStorage
   >["requestSite"];
@@ -478,7 +488,13 @@ export function createApp(
   });
   const browserBridge = createBrowserBridge({ hub: deps.hub, siteAccess });
   siteAccess.setBridge(browserBridge);
+  const protectedCredentials = createProtectedCredentials({
+    db: deps.db,
+    sites: siteAccess,
+    request: options?.requestCredentials,
+  });
   const pluginService = createPluginService({
+    protectedCredentials,
     siteAccess,
     ...(options?.secretStore === undefined
       ? {}
@@ -562,7 +578,7 @@ export function createApp(
           throw new ApiError(403, "forbidden", terminalDenial.message);
         }
         setAgentThreadId(context, threadId);
-        return next();
+        return runAsCredentialAgent(next);
       }
       // The fourth kind of caller: an agent that is not Patcher's, holding a
       // grant a person issued for the browser.
@@ -601,7 +617,7 @@ export function createApp(
           throw new ApiError(403, "forbidden", grantDenial);
         }
         setAgentAccessCaller(context, agentAccess.caller);
-        return next();
+        return runAsCredentialAgent(next);
       }
       // Two exceptions, and they have to be: a plugin's own HTTP routes are
       // meant to be callable by a third party, and its frontend assets are
@@ -615,7 +631,9 @@ export function createApp(
       ) {
         return unauthorizedResponse();
       }
-      return next();
+      return appIdentity.verify(context.req)
+        ? next()
+        : runAsCredentialAgent(next);
     }
     const required = permissionsForApiPath(context.req.path);
     const problem = pluginService.apiPermissionProblem(pluginId, required);
@@ -627,9 +645,16 @@ export function createApp(
     // own is the thread header a plugin never sends. See
     // `plugin-api-identity-context.ts`.
     setPluginApiId(context, pluginId);
-    return siteAccess.isRuntime(pluginId)
-      ? runWithPluginSiteCallers([pluginId], next)
-      : next();
+    return runAsCredentialHttpCaller(
+      pluginId,
+      context.req.header(CREDENTIAL_CALLER_HEADER),
+      () =>
+        runWithCredentialPluginCallers([pluginId], () =>
+          siteAccess.isRuntime(pluginId)
+            ? runWithPluginSiteCallers([pluginId], next)
+            : next(),
+        ),
+    );
   });
   const publicApi = new Hono();
   const pluginCatalogService = createPluginCatalogService({

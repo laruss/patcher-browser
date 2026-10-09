@@ -1,3 +1,8 @@
+import {
+  createCredentialHttpCaller,
+  releaseCredentialHttpCaller,
+} from "../browser/credential-plugin-caller.js";
+import { runAsCredentialAgent } from "../browser/credential-agent-scope.js";
 import { realpathSync, type FSWatcher } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -403,6 +408,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         fetch: createPluginApiFetch({
           pluginId,
           key,
+          credentialCaller: {
+            create: async () => createCredentialHttpCaller(pluginId),
+            release: async (token) =>
+              releaseCredentialHttpCaller(pluginId, token),
+          },
           fetch: createRequestTimeoutFetch({
             timeoutMs: DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
           }),
@@ -797,7 +807,9 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         throw new Error("Runtime site access is unavailable");
       const work = () =>
         invokeWrapped(id, describeCallback(call), () =>
-          run(call.payload, signal),
+          call.kind === "agentTool"
+            ? runAsCredentialAgent(() => run(call.payload, signal))
+            : run(call.payload, signal),
         );
       const outcome =
         deps.siteAccess === undefined
@@ -1340,6 +1352,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
               deps.browserBridge!.call(args),
             )
           : deps.browserBridge.call(args);
+      },
+      requestCredentials: (method, args, signal) => {
+        if (disposingPluginIds.has(row.id) || !deps.protectedCredentials)
+          throw new Error("Protected credentials unavailable");
+        return deps.protectedCredentials.call(row.id)(method, args, signal);
       },
       getBrowserHostStatus: () =>
         deps.browserBridge?.status() ?? {

@@ -103,6 +103,14 @@ export function createDesktopSecretStorage(dataDir: string, stream?: Duplex) {
         throw error;
       }
     },
+    requestCredentials: async (
+      method: "credential.context" | "credential.operation",
+      payload: unknown,
+      signal?: AbortSignal,
+    ) => {
+      if (!channel) throw new SecretStorageError("unavailable");
+      return channel.request(method, payload, { signal, timeoutMs: 120_000 });
+    },
     setRetry: (callback: () => Promise<void>) => {
       retry = callback;
     },

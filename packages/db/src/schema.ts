@@ -1,3 +1,4 @@
+export * from "./schema-protected-credentials.js";
 import {
   check,
   index,

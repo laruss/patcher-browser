@@ -1,3 +1,11 @@
+import {
+  credentialAgentCaller,
+  runAsCredentialAgent,
+} from "./credential-agent-scope.js";
+import {
+  currentCredentialPluginCallers,
+  runWithCredentialPluginCallers,
+} from "./credential-plugin-caller.js";
 import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
   currentPluginSiteCallers,
@@ -84,6 +92,8 @@ import {
  */
 
 export interface BrowserCallerHandoff {
+  credentialAgent?: true;
+  credentialPlugins?: readonly string[];
   siteCallers?: readonly string[];
   /** The level an outside caller is charged, when there is one. */
   scope?: BrowserExternalCallerScope;
@@ -110,13 +120,23 @@ const inFlight = new Map<string, BrowserCallerHandoff>();
  * that are actually somebody's rather than of all of them.
  */
 export function rememberBrowserCaller(callId: string): () => void {
+  const credentialAgent = credentialAgentCaller();
+  const credentialPlugins = currentCredentialPluginCallers();
   const scope = currentExternalBrowserCaller();
   const issuer = currentBrowserCommandIssuer();
   const siteCallers = currentPluginSiteCallers();
-  if (scope === undefined && issuer === undefined && siteCallers.length === 0) {
+  if (
+    !credentialAgent &&
+    credentialPlugins.length === 0 &&
+    scope === undefined &&
+    issuer === undefined &&
+    siteCallers.length === 0
+  ) {
     return () => {};
   }
   inFlight.set(callId, {
+    ...(credentialAgent ? { credentialAgent: true as const } : {}),
+    ...(credentialPlugins.length ? { credentialPlugins } : {}),
     ...(siteCallers.length === 0 ? {} : { siteCallers }),
     ...(scope === undefined ? {} : { scope }),
     ...(issuer === undefined ? {} : { issuer }),
@@ -140,11 +160,17 @@ export function runAsRememberedBrowserCaller<T>(
 ): T {
   const remembered = origin === undefined ? undefined : inFlight.get(origin);
   if (remembered === undefined) return fn();
+  const original = fn;
+  if (remembered.credentialAgent) fn = () => runAsCredentialAgent(original);
+  const credentialScoped =
+    remembered.credentialPlugins === undefined
+      ? fn
+      : () => runWithCredentialPluginCallers(remembered.credentialPlugins!, fn);
   const { scope, issuer, siteCallers } = remembered;
   const scoped =
     siteCallers === undefined
-      ? fn
-      : () => runWithPluginSiteCallers(siteCallers, fn);
+      ? credentialScoped
+      : () => runWithPluginSiteCallers(siteCallers, credentialScoped);
   const named =
     issuer === undefined
       ? scoped

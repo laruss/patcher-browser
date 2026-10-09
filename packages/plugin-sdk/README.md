@@ -83,7 +83,57 @@ Revoke cancels pending capabilities and blocks new backend calls. Previously
 injected JavaScript can remain in the page: Patcher reports pending cleanup and
 provides an explicit Reload page action, preserving filled forms until the user
 chooses it. Scripts registered or newly allowed on an open page run on its next
-load. This does not add password capture/fill or Touch ID release APIs.
+load. Protected credential operations have their own scope below.
+
+## Protected browser credentials
+
+SDK 1.2.0 adds `patcher.browser.credentials`. Declare minimum SDK 1.2.0,
+`patcher.siteAccess: "runtime"`, a matching `patcher.sites` ceiling and
+`credentials.manage`. The person must grant the exact origin first.
+
+`list({ tabId })` returns account metadata and opaque `{ id, version }` references
+for your plugin/source and the live origin. `request` proposes an operation in
+core browser chrome; it awaits the person's Review and native confirmation.
+
+```ts
+const saved = await patcher.browser.credentials.request({
+  operation: "save",
+  tabId,
+  accountId: "primary",
+});
+// From a later user action, after choosing one of list({ tabId })'s accounts:
+const filled = await patcher.browser.credentials.request({
+  operation: "fill",
+  tabId,
+  reference: { id: account.id, version: account.version },
+});
+```
+
+Update/Delete use the same reference shape. Save/Update return metadata;
+Fill/Delete return status only. Handle `cancelled`, `denied`, `unavailable`,
+`unsupported` and `busy`; never retry automatically. Pass `{ signal }` as the
+second argument to cancel a request. There is no password parameter, getter,
+selector, approved flag, origin override, reveal, export or clipboard API.
+
+Only the owned desktop server and current core chrome can approve. Each action
+uses the sealed policy chosen at Save: Require Touch ID fails closed when
+unavailable/cancelled; Confirm every action is an explicit separate choice.
+Agents and external callers are refused, including calls through child/SDK
+HTTP delegation. Every authenticated deputy needs its own runtime permission
+and site grant; legacy deputies cannot use another manager's authority.
+
+The MVP accepts one visible enabled password input and at most one username/email
+input in a main-frame HTTPS form with same-origin action. Hidden/readonly,
+ambiguous, signup/password-change, iframe and closed-shadow forms are unsupported.
+Exact nodes are rechecked before capture/fill; both values are assigned before
+page events. Fill neither submits nor retries after node replacement. Once in
+the DOM, the site and permitted page scripts can read the password.
+
+Requests expire within 120 seconds; parent call deadlines can cancel earlier.
+Navigation, hide, lock, revoke, disable and broker disconnect cancel them. Encrypted records remain after disable/uninstall;
+reinstall requires the same owner/source identity and fresh grants. Missing OS
+key never recreates a vault over existing ciphertext. Headless/remote/old hosts
+refuse this capability; the testing fake host does not simulate native approval.
 
 ## External plugin tests
 

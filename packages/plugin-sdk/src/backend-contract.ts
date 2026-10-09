@@ -1,3 +1,10 @@
+export type {
+  PluginBrowserCredentials,
+  CredentialMetadata,
+  CredentialRequestArgs,
+  CredentialResult,
+  CredentialProtection,
+} from "@patcher/domain/protected-credentials";
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
 import type * as z from "zod";
@@ -2430,6 +2437,7 @@ export interface PluginBrowser {
    * factories run. Call them from handlers, tools and services, never at load
    * time, and expect `BrowserHostUnavailableError` when nothing is connected.
    */
+  readonly credentials: import("@patcher/domain/protected-credentials").PluginBrowserCredentials;
   readonly tabs: PluginBrowserTabs;
   readonly page: PluginBrowserPage;
   readonly navigation: PluginBrowserNavigation;

@@ -19,7 +19,7 @@
 
 import { createRequire } from "node:module";
 import { Hono } from "hono";
-import type { PluginPermission } from "@patcher/domain";
+import type { JsonValue, PluginPermission } from "@patcher/domain";
 import type { PatcherSdk } from "@patcher/sdk";
 import type {
   AppKeybindingOverrides,
@@ -365,6 +365,12 @@ export function createPluginChildRuntime(
           fetch: createPluginApiFetch({
             pluginId: config.pluginId,
             key: config.apiKey,
+            credentialCaller: {
+              create: async () =>
+                (await call("internal.credentialHttpCreate", null)) as string,
+              release: (token) =>
+                call("internal.credentialHttpRelease", { token }),
+            },
             fetch: patcherSdk.createRequestTimeoutFetch({
               timeoutMs: patcherSdk.DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
             }),
@@ -415,6 +421,8 @@ export function createPluginChildRuntime(
           },
           args.signal,
         ) as never,
+      requestCredentials: (method, args, signal) =>
+        call(`browser.credentials.${method}`, args as JsonValue, signal),
       requestBrowserCommand: (args) =>
         call(
           "browser.<command>",

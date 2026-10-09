@@ -1,3 +1,7 @@
+import {
+  createNativeCredentialVault,
+  registerCredentialIpc,
+} from "./desktop-credential-ipc.js";
 import { SITE_ACCESS_CHANNELS } from "@patcher/desktop-contract";
 import {
   createNativeSiteAuthority,
@@ -1632,11 +1636,19 @@ async function startOwnedRuntime(
       processExecPath: process.execPath,
     }),
   });
+  const siteAuthority = createNativeSiteAuthority(
+    () => desktopBrowserViewManager,
+  );
   const runtime: DesktopRuntime = {
     secretStorage: createDesktopSecretBroker(
       patcherProcess.childProcess.stdio[3] as Duplex,
       desktopKeyBackend,
-      createNativeSiteAuthority(() => desktopBrowserViewManager),
+      siteAuthority,
+      createNativeCredentialVault(
+        siteAuthority,
+        desktopKeyBackend,
+        args.userDataPath,
+      ),
     ),
     patcherProcess,
     ownership: "spawned",
@@ -2129,7 +2141,11 @@ async function runDesktopApp(): Promise<void> {
     authorize: authorizeApplicationIpc,
   });
   desktopBrowserViewManager = createDesktopBrowserViewManager({
-    onBrowserViewVisibilityChanged: secureKeyboard.browserViewChanged,
+    onBrowserViewVisibilityChanged: (contents, host, visible) => {
+      secureKeyboard.browserViewChanged(contents, host, visible);
+      if (!visible)
+        currentRuntime?.secretStorage?.credentials?.cancelView(contents.id);
+    },
     pageScriptPreloadPath: resolvedPageScriptPreloadPath,
     siteAuthority: () => currentRuntime?.secretStorage?.sites,
     onSiteCleanupChanged: () => {
@@ -2196,6 +2212,10 @@ async function runDesktopApp(): Promise<void> {
   registerDesktopSiteIpc({
     manager: desktopBrowserViewManager,
     current: () => currentRuntime?.secretStorage?.sites,
+    authorize: authorizeApplicationIpc,
+  });
+  registerCredentialIpc({
+    current: () => currentRuntime?.secretStorage?.credentials,
     authorize: authorizeApplicationIpc,
   });
   registerDesktopBrowserIpc(desktopBrowserViewManager);

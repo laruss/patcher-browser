@@ -1,3 +1,4 @@
+import type { ProtectedCredentialBrowserApi } from "./credentials.js";
 import type { RuntimeSiteBrowserApi } from "./site-access.js";
 import { z } from "zod";
 
@@ -2545,7 +2546,8 @@ export type PatcherDesktopBrowserSnapshotHandler = (
 ) => void;
 export type PatcherDesktopBrowserUnsubscribe = () => void;
 
-export interface PatcherDesktopBrowserApi extends RuntimeSiteBrowserApi {
+export interface PatcherDesktopBrowserApi
+  extends RuntimeSiteBrowserApi, ProtectedCredentialBrowserApi {
   /** Create (or reuse) and show the view for `tabId`, loading `url` if non-empty. */
   attach(request: PatcherDesktopBrowserAttachRequest): void;
   /** Destroy the view for `tabId` (tears down its `webContents`). */

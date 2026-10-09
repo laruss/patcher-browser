@@ -87,8 +87,45 @@ cannot fall back to plaintext afterward. Downgrade is unsupported; new launchers
 and servers reject unknown storage versions before opening the database. Old
 binaries cannot be forced to honor that guard. Existing backups may contain
 plaintext, and ciphertext copied without the OS key is not a portable backup.
-Interactive password release remains a later phase in the
+Interactive password operations use a separate vault described below; see the
 [browser account security plan](architecture/browser-account-security-plan.md).
+
+## Protected browser credentials
+
+The local owned desktop server stores sealed credential records; Electron main
+holds a separate OS-wrapped key. Ordinary settings unwrap cannot open it.
+`credentials.manage` (SDK 1.2.0) requires a live runtime exact-origin grant;
+all authenticated deputies are checked, including legacy callers. Agent identity
+survives child calls and the host-owned SDK HTTP correlation. Installed Node
+plugins remain trusted local code; arbitrary custom networking/queues do not
+carry an implicit user identity, and this is not a process sandbox.
+
+Each Save/Update/Fill/Delete starts as an inert request in core chrome. A fresh
+native gesture opens the native confirmation. The policy chosen at first Save
+is sealed: Require Touch ID always requires a successful native prompt; the
+separate Confirm every action mode requires confirmation without biometrics.
+There is no session unlock, plaintext getter, reveal/export or clipboard API.
+The app renderer, plugin backend and agent tools receive metadata/status only.
+
+A dedicated main-frame isolated world pins the form's exact nodes. Queued Fill
+contains only a one-use token. A synchronous private bridge asks main to check
+sender/document, visibility, grants, backend and cancellation immediately before
+release; processed cancellation refuses a late token. Both field assignments
+precede page events, with no submit or retry after DOM replacement. A revoke
+processed after release cannot recall a password already delivered to the DOM.
+The site and permitted scripts can read filled passwords. AX snapshots redact
+password values without suppressing verified ordinary usernames.
+
+Requests expire within 120 seconds; parent call deadlines can cancel earlier.
+Navigation/hide/lock/revoke/disable/disconnect cancel pending work; an unabortable biometric prompt retains
+its slot until actual settlement. Key/identity files are synced before ciphertext
+is returned for SQL commit. Missing/corrupt keys fail closed without silent
+replacement; encrypted records survive disable/uninstall. This uses application
+checks around `safeStorage` and `promptTouchID`, not a native Keychain
+user-presence ACL, and does not protect against compromised main/server or
+another arbitrary process running as the same user. Physical Touch ID acceptance
+still needs a manual hardware check; native smoke exercises real OS encryption
+with a fixture biometric adapter. Native platform passkeys remain a later phase.
 
 ## Runtime browser grants
 

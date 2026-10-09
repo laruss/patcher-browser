@@ -23,6 +23,13 @@ export interface SiteTarget {
   context: DesktopSiteContext;
   hostWebContentsId: number;
   current(): DesktopSiteContext | null;
+  credentials?: {
+    webContentsId: number;
+    rememberPassword(id: number): void;
+    interactive(): boolean;
+    send(method: string, params: Record<string, unknown>): Promise<unknown>;
+    execute(code: string): Promise<unknown>;
+  };
   authPrompt?(): {
     id: string;
     url: string;
@@ -379,6 +386,36 @@ export function createDesktopSiteAuthority(args: {
     known,
     allows,
     consume,
+    consumeCredentialContext(token: string, owner: string) {
+      const ticket = tickets.get(token);
+      if (
+        !ticket ||
+        ticket.used ||
+        ticket.kind !== "context" ||
+        !ticket.owners.some((one) => one.pluginId === owner)
+      )
+        return refuse();
+      assert(ticket);
+      for (const one of ticket.owners)
+        if (
+          !policies
+            .get(one.pluginId)
+            ?.permissions.includes("credentials.manage")
+        )
+          return refuse();
+      ticket.used = true;
+      ticket.expires += 60_000;
+      return {
+        target: ticket.target,
+        name: policies.get(owner)!.name,
+        signal: ticket.controller.signal,
+        assert: () => assert(ticket),
+        close: () => {
+          ticket.controller.abort();
+          tickets.delete(token);
+        },
+      };
+    },
     setContributions,
     scripts: () =>
       contributions.scripts.filter(

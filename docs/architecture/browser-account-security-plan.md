@@ -1,11 +1,12 @@
 # Browser account security: план реализации
 
-Статус: Phases 1–5 реализованы, проверены и прошли независимое ревью.
+Статус: Phases 1–6 реализованы, проверены и прошли независимое ревью.
 Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 — `caf119792`.
 Phase 3 закоммичена и отправлена: `43f8616ea`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 4 закоммичена и запушена: `ef1883a2e`. Sol xhigh: 3 раунда, итог без P1/P2.
-Phase 5 не закоммичена. Sol xhigh: 3 раунда, итог без P1/P2.
-Phases 6–8 — план. Исходный план проверен по исходникам на `c263e6cab`,
+Phase 5 закоммичена и запушена: `d21f9405e`. Sol xhigh: 3 раунда, итог без P1/P2.
+Phase 6 не закоммичена. Sol xhigh: 3 раунда, итог без P1/P2.
+Phases 7–8 — план. Исходный план проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -556,7 +557,7 @@ keychain denial, disconnected shell, перенос data dir без ключа. 
 
 ## Phase 5 — runtime site grants и видимые permissions
 
-**Статус реализации.** Реализована, ожидает команды на commit/push.
+**Статус реализации.** Реализована, коммит `d21f9405e` запушен.
 Независимое ревью `gpt-6.1-sol`, `xhigh`: 3 раунда, итог без P1/P2.
 
 SDK 1.1.0 закрепляет opt-in `patcher.siteAccess: "runtime"` и minimum SDK 1.1.0.
@@ -681,6 +682,64 @@ Navigation/revoke во время ожидания, plugin disable/reload/update
 JS до reload показано честно. Существующие legacy site plugins не ломаются.
 
 ## Phase 6 — core операции с паролем и проверка человека
+
+**Статус реализации.** Core primitives реализованы, без commit/push. Sol xhigh:
+3 раунда, итог без P1/P2; reviewer независимо проверил 37 server и 34 desktop
+tests. SDK 1.2.0 добавляет `browser.credentials.list({ tabId })` и `request`: Save принимает
+account ID, Update/Fill/Delete — opaque `{ id, version }`. Отдельная permission
+`credentials.manage` требует `siteAccess: "runtime"`, exact-origin grant и live
+HTTPS main frame. Password, selector, owner, origin override и `approved` не
+принимаются. Fake host не имитирует native vault.
+
+Запрос создаёт inert pending row в core browser chrome, а не OS prompt.
+Review требует свежего native mouse/keyboard gesture и отдельного native dialog.
+При первом Save человек выбирает Require Touch ID либо Confirm every action;
+запечатанная policy применяется также к Update/Delete, без автоматического
+fallback. Каждый запрос живёт максимум 120 секунд, один на tab, максимум 16;
+частота ограничена одним proposal в секунду на host. Старый SPA без optional UI
+не считается готовым к approval. Нет session unlock, reveal/export/clipboard.
+
+Main держит отдельный OS-wrapped AES-256-GCM key; SQLite содержит authenticated
+ciphertext и metadata, связанные с owner/source/origin/account/version/policy.
+Key и initialized marker синхронизируются вместе с directories до возврата
+ciphertext. Потеря/повреждение key или несовпадение persisted vault identity —
+отказ, без silent re-key. Server применяет compare-and-swap версию после повторной
+проверки lease; disable/uninstall сохраняют encrypted records. Ordinary settings
+unwrap отвергает этот namespace.
+
+Credential helper живёт только в main-frame isolated world 1741. Обычный page
+world, plugin worlds и app renderer не видят его bridge. Он удерживает точные
+DOM nodes; queued execution содержит только одноразовый token. После синхронной
+DOM-проверки helper вызывает main через private synchronous IPC; main повторно
+проверяет actual sender/document, foreground, backend, grant и cancellation,
+потребляет token и только тогда открывает key для Fill. Main consume — точка
+разрешения: уже обработанные revoke/cancel запрещают release; более поздняя
+отмена не может отозвать значение, уже переданное в DOM. Username и password
+присваиваются native setters до любых page events. Нет auto-submit, retry или
+заполнения новой формы после DOM swap. Capture возвращает пароль только main,
+где он шифруется; UI/plugin/tool transport получает metadata/status.
+
+Stalled preparation/fill отменяются без удержания pending channel; late token
+недействителен, cleanup ограничен 250 ms. Agent/grant callers запрещены, scope
+сохраняется через child channel и SDK HTTP. Полная цепочка authenticated deputies
+включает legacy plugins, которым vault access не предоставляется. Snapshot
+редактирует password values и их AX descendants; проверенная username остаётся.
+Это не скрывает уже заполненный пароль от сайта или разрешённого evaluate.
+
+Проверки: реальный forked plugin; actual HTTP с forked manager/deputy и исходным
+thread scope; authenticated legacy deputy и forged caller token не доходят до
+broker. Native Electron 41.7/macOS smoke использует настоящий `safeStorage`:
+Save/restart, private-world isolation, AX redaction, hidden/disabled/ambiguous/
+iframe/action/node-swap отказ, event reentrancy, late queued Fill после cancel,
+Update version/policy и Delete. Touch ID adapter в smoke заменён fixture;
+физические success/cancel на датчике требуют ручной проверки и не заявляются
+как пройденные. Unit matrix покрывает unavailable/error/late biometric success,
+replay, lease loss, key loss и filesystem sync failure. Signed native passkeys
+остаются Phase 8.
+
+Финальные проверки: server 241 files / 2223 tests, desktop 63 files / 803 tests;
+общие typecheck и lint, форматирование изменённого кода, 7 native smoke groups.
+macOS arm64 package собран с ad-hoc подписью; запуск packaged app проверен.
 
 **Проблема.** Ordinary secret store выдаёт значение plugin backend без участия
 человека. Это нужно для API token, но не подходит для «вставить мой пароль на сайт».

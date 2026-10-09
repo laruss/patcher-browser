@@ -95,6 +95,15 @@ export const pluginPatcherManifestSchema = z
   })
   .strict()
   .superRefine((patcher, context) => {
+    if (
+      patcher.permissions?.includes("credentials.manage") &&
+      patcher.siteAccess !== "runtime"
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["siteAccess"],
+        message: "credentials.manage requires runtime site access",
+      });
     if (patcher.sites === undefined) return;
     if (patcher.sites.length > PLUGIN_SITE_PATTERN_MAX_COUNT) {
       context.addIssue({

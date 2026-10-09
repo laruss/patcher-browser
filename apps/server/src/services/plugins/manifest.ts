@@ -162,6 +162,17 @@ export async function readPluginManifest(
         "runtime site access requires engines.patcherPluginSdk with minimum >=1.1.0",
       );
   }
+  if (patcher.permissions?.includes("credentials.manage")) {
+    const minimum = semver.minVersion(engines?.patcherPluginSdk ?? "");
+    if (
+      patcher.siteAccess !== "runtime" ||
+      minimum === null ||
+      semver.lt(minimum, "1.2.0")
+    )
+      throw new Error(
+        "credentials.manage requires runtime site access and SDK minimum >=1.2.0",
+      );
+  }
   const serverEntry = resolveEntry(rootDir, patcher.server, "patcher.server");
   try {
     await stat(serverEntry);

@@ -24,6 +24,7 @@
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "smoke:plugin-site-access": "bun run build && node scripts/smoke-plugin-site-access.mjs",
+    "smoke:protected-credentials": "node scripts/smoke-protected-credentials.mjs",
     "smoke:plugin-secret-storage": "node scripts/smoke-plugin-secret-storage.mjs"
   },
   "dependencies": {

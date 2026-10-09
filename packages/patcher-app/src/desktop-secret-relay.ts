@@ -18,7 +18,10 @@ export class DesktopSecretRelay {
         if (server === undefined) throw new SecretStorageError("unavailable");
         return server.request(method, payload, {
           signal,
-          timeoutMs: method === "activate" ? 120_000 : 30_000,
+          timeoutMs:
+            method === "activate" || method.startsWith("credential.")
+              ? 120_000
+              : 30_000,
         });
       },
       notice: (name, value) => {
@@ -41,7 +44,10 @@ export class DesktopSecretRelay {
     }
     const server = new PrivateSecretChannel(stream, {
       request: (method, payload, signal) =>
-        this.parent.request(method, payload, { signal }),
+        this.parent.request(method, payload, {
+          signal,
+          timeoutMs: method.startsWith("credential.") ? 120_000 : 30_000,
+        }),
       close: () => {
         if (this.server === server) {
           this.server = undefined;

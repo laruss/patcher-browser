@@ -105,6 +105,42 @@ async function stack() {
   return { broker, storage, restart };
 }
 describe("desktop-owned settings channel", () => {
+  it("ordinary background unwrap cannot open a protected credential key", async () => {
+    const [main, child] = pair(),
+      os = backend();
+    const broker = createDesktopSecretBroker(main, os),
+      server = new PrivateSecretChannel(child);
+    cleanup.push(() => {
+      broker.close();
+      server.close();
+    });
+    const vaultId = randomUUID();
+    const wrappedKey = os
+      .encrypt(
+        JSON.stringify({
+          format: 1,
+          purpose: "protected-credentials",
+          vaultId,
+          key: randomBytes(32).toString("base64"),
+        }),
+      )
+      .toString("base64");
+    await expect(
+      server.request("unwrap", { version: 1, storeId: vaultId, wrappedKey }),
+    ).rejects.toMatchObject({ code: "corrupt" });
+    const ordinary = {
+      storeId: randomUUID(),
+      key: randomBytes(32).toString("base64"),
+    };
+    const settingsKey = await server.request("wrap", ordinary);
+    await expect(
+      server.request("unwrap", {
+        version: 1,
+        storeId: ordinary.storeId,
+        wrappedKey: settingsKey,
+      }),
+    ).resolves.toBe(ordinary.key);
+  });
   it("keeps site policy independent of Keychain lock and resets it when the owned server disconnects", async () => {
     const [main, child] = pair();
     const authority = createDesktopSiteAuthority({

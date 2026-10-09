@@ -1,3 +1,4 @@
+export * from "./credentials.js";
 export * from "./browser.js";
 export * from "./info.js";
 export * from "./secret-storage.js";

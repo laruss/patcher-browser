@@ -97,6 +97,11 @@
       "source": "./src/browser-command-scroll.ts",
       "types": "./src/browser-command-scroll.ts",
       "default": "./src/browser-command-scroll.ts"
+    },
+    "./protected-credentials": {
+      "source": "./src/protected-credentials.ts",
+      "types": "./src/protected-credentials.ts",
+      "default": "./src/protected-credentials.ts"
     }
   },
   "types": "./src/index.ts",

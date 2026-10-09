@@ -33,26 +33,27 @@ Reading order is the order in which they block each other.
 
 The implementation sequence is in
 [browser-account-security-plan.md](architecture/browser-account-security-plan.md).
-Phases 1–5 are implemented: safe settings metadata, WebAuthn compatibility,
-Secure Keyboard Entry, opt-in encrypted plugin settings and runtime site grants.
-Password capture, a separate vault, human-approved fill and Touch ID release
-remain ahead in Phases 6–7; native platform passkeys remain Phase 8.
+Phases 1–6 are implemented: safe settings metadata, WebAuthn compatibility,
+Secure Keyboard Entry, opt-in encrypted plugin settings, runtime site grants and
+protected core credential operations. The opt-in manager UX remains Phase 7;
+native platform passkeys remain Phase 8. Physical vault Touch ID acceptance still
+needs a manual hardware check.
 
 - **A password manager.** Reverses a Non-Goal, deliberately:
   [PROJECT_PLAN.md](PROJECT_PLAN.md) §19 rules out a _sophisticated_ one, and that
   still stands — no sync, no sharing, no breach monitoring. What is missing is the plain thing. Patcher prompts for **HTTP
   authentication** today and lets a plugin answer one
   (`patcher.browser.registerAuthProvider`), which is the rare case; a **form login**,
-  which is nearly every case, has nowhere to be saved from, nothing to fill it,
-  and no "save this password?" at all. Chromium's own manager is not in Electron,
+  which is nearly every case, still needs the opt-in manager UI. Core now exposes
+  protected capture/fill primitives for that UI. Chromium's own manager is not in Electron,
   so it is not a switch to flip.
 
   The sorting test now answers differently than it would have last week: after
   Phase 9 Stage B a plugin **can** fill a form, on sites it declared. Phases 4–5
-  now provide encrypted ordinary token settings and runtime site consent. A
-  password manager still needs a separate vault that keeps passwords out of
-  plugin backend memory and core capture/fill operations that require a person's
-  approval, with a defined Touch ID policy. The manager itself can then be a
+  now provide encrypted ordinary token settings and runtime site consent.
+  Phase 6 now supplies a separate vault that keeps passwords out of plugin backend
+  memory and core capture/fill operations that require a person's approval, with
+  a sealed per-action Touch ID policy. The manager itself can then be a
   plugin — which is also how it stays out of the way of somebody who wants 1Password
   instead.
 
@@ -67,12 +68,12 @@ remain ahead in Phases 6–7; native platform passkeys remain Phase 8.
 
 - **The machine's own locks: Touch ID, and a keyboard nobody else can read.**
   Both measured present. Secure Keyboard Entry is implemented in Phase 3; the
-  Touch ID gate is still ahead:
+  vault Touch ID gate is implemented in Phase 6, with physical hardware acceptance pending:
   - `systemPreferences.canPromptTouchID()` → **true**, and `promptTouchID` is
-    there. So "release this password" / "unlock the vault" / "approve this agent
-    action" can cost a fingerprint rather than nothing. What has to be decided is
-    what a _failed_ or _unavailable_ prompt means — a fallback nobody thought about
-    is how a biometric gate becomes theatre.
+    there. Protected credential actions can require a fresh successful fingerprint.
+    Cancel/error/unavailable refuses Require Touch ID without fallback; Confirm
+    every action is a separate explicit mode. There is no session unlock or agent
+    approval API in this phase.
   - `app.setSecureKeyboardEntryEnabled` → present. Chrome turns this on while a
     password field has focus, which stops other processes on the machine from
     logging the keystrokes. Patcher now enables it for foreground password fields

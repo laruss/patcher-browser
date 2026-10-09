@@ -757,6 +757,13 @@
       "when": 1791564050296,
       "tag": "0107_plugin_site_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "6",
+      "when": 1791572005577,
+      "tag": "0108_unique_jackal",
+      "breakpoints": true
     }
   ]
 }
