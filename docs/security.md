@@ -57,9 +57,37 @@ existence without reading secret contents; an access or I/O error is not
 reported as an unset value. The plugin backend still receives its own effective
 secret values and defaults through `settings.get()` and `onChange`.
 
-Those files are still plaintext with `0600` permissions. This protects the
-metadata path, not the stored secret from another process running as you.
-OS-backed encryption and interactive password release are later phases in the
+Legacy secret settings remain plaintext with `0600` permissions until explicitly
+enabled in desktop Settings → Security and confirmed in a native dialog. For a
+local server started by this macOS desktop app, ordinary `secret:true` string
+settings can use AES-256-GCM with a random data key wrapped by Electron
+`safeStorage` and the OS Keychain. Each record is bound to its store, namespace,
+plugin ID and setting key. Metadata requires no unwrap or plaintext read.
+
+Only the owned server receives a private inherited pipe through the launcher;
+the host daemon and plugin children do not receive this key capability. Plugins
+still receive their own ordinary tokens through `settings.get()`. Lock, suspend,
+runtime switch, or broker disconnect clears the server's cached key and rejects
+new decrypts. Already delivered JavaScript strings and plugin tokens cannot be
+revoked. Browser passwords, plugin KV/database contents, app keys, machine auth,
+and the reserved plugin HTTP token are outside this storage.
+
+Activation migrates disabled and errored plugins too. Ciphertext is synced,
+renamed, read back and verified before removing its source; startup resumes an
+interrupted migration. Unknown entries are preserved and counted. Deletion
+markers record the identity of any legacy source so recovery removes only the
+original file; a new file from an older binary remains a conflict. Settings
+updates roll back ciphertext on a lock/error before committing ordinary SQL
+values or notifying listeners. This does not promise crash atomicity across a
+whole multi-setting update.
+
+Encrypted settings require the desktop broker and its original Keychain key.
+Headless/remote/attached servers retain legacy behavior before activation and
+cannot fall back to plaintext afterward. Downgrade is unsupported; new launchers
+and servers reject unknown storage versions before opening the database. Old
+binaries cannot be forced to honor that guard. Existing backups may contain
+plaintext, and ciphertext copied without the OS key is not a portable backup.
+Interactive password release remains a later phase in the
 [browser account security plan](architecture/browser-account-security-plan.md).
 
 ## What the permission declaration is actually for

@@ -1,3 +1,9 @@
+import type { Duplex } from "node:stream";
+import { createDesktopSecretBroker } from "./desktop-secret-broker.js";
+import {
+  desktopKeyBackend,
+  registerDesktopSecretIpc,
+} from "./desktop-secret-ipc.js";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -185,6 +191,7 @@ const FOREIGN_RUNTIME_KILL_TIMEOUT_MS = 3_000;
 const REMOTE_SYSTEM_CONFIG_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 interface DesktopRuntime {
+  secretStorage?: ReturnType<typeof createDesktopSecretBroker>;
   patcherProcess: PatcherAppProcess | null;
   ownership: RuntimeOwnership;
   serverUrl: string;
@@ -835,6 +842,8 @@ function refreshApplicationMenu(): void {
 }
 
 function setCurrentRuntime(runtime: DesktopRuntime | null): void {
+  if (currentRuntime?.secretStorage !== runtime?.secretStorage)
+    currentRuntime?.secretStorage?.close();
   currentRuntime = runtime;
   if (runtime === null) {
     stopSystemConfigSync();
@@ -1604,6 +1613,7 @@ async function startOwnedRuntime(
   args: StartOwnedRuntimeArgs,
 ): Promise<DesktopRuntime | null> {
   const patcherProcess = startPatcherAppProcess({
+    secretChannel: true,
     bridgePath: args.bridgePath,
     cwd: homedir(),
     env: {
@@ -1618,6 +1628,10 @@ async function startOwnedRuntime(
     }),
   });
   const runtime: DesktopRuntime = {
+    secretStorage: createDesktopSecretBroker(
+      patcherProcess.childProcess.stdio[3] as Duplex,
+      desktopKeyBackend,
+    ),
     patcherProcess,
     ownership: "spawned",
     serverUrl: args.serverUrl,
@@ -2086,6 +2100,25 @@ async function runDesktopApp(): Promise<void> {
     sendDesktopInfoChanged();
   });
   registerDesktopUpdateIpc();
+  registerDesktopSecretIpc({
+    current: () => currentRuntime?.secretStorage,
+    authorize: (event) => {
+      if (
+        !applicationWindowWebContentsIds.has(event.sender.id) ||
+        event.senderFrame !== event.sender.mainFrame
+      )
+        return false;
+      try {
+        return (
+          currentRuntime !== null &&
+          new URL(event.senderFrame.url).origin ===
+            new URL(currentRuntime.serverUrl).origin
+        );
+      } catch {
+        return false;
+      }
+    },
+  });
   desktopBrowserViewManager = createDesktopBrowserViewManager({
     onBrowserViewVisibilityChanged: secureKeyboard.browserViewChanged,
     pageScriptPreloadPath: resolvedPageScriptPreloadPath,

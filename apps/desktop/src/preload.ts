@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import { appCommandIdSchema } from "@patcher/domain";
 import {
+  DESKTOP_SECRET_STORAGE_CHANNELS,
+  desktopSecretStorageStatusSchema,
+} from "@patcher/desktop-contract";
+import {
   patcherDesktopBrowserCaptureFullPageResultSchema,
   patcherDesktopBrowserDownloadActionResultSchema,
   patcherDesktopBrowserContextMenuInvokeSchema,
@@ -775,6 +779,20 @@ async function invokeDefaultBrowserStatus(
 }
 
 const patcherDesktopApi: PatcherDesktopApi = {
+  secretStorage: {
+    status: async () =>
+      desktopSecretStorageStatusSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_SECRET_STORAGE_CHANNELS.status),
+      ),
+    activate: async () =>
+      desktopSecretStorageStatusSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_SECRET_STORAGE_CHANNELS.activate),
+      ),
+    unlock: async () =>
+      desktopSecretStorageStatusSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_SECRET_STORAGE_CHANNELS.unlock),
+      ),
+  },
   browser: patcherBrowserApi,
   ...(windowKey === undefined || windowKey.length === 0 ? {} : { windowKey }),
   get lastCheckedAt() {

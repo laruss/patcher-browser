@@ -40,6 +40,7 @@ import {
 import { runAsRememberedBrowserCaller } from "../browser/browser-caller-handoff.js";
 import type { PluginHostCallPath } from "./plugin-host-calls.js";
 import { createPluginPermissionGate } from "./plugin-permission-gate.js";
+import { registerSettingDescriptors } from "./plugin-setting-descriptors.js";
 
 export type PluginHostCapabilities = Parameters<typeof createPluginApi>[0];
 
@@ -212,8 +213,19 @@ export function createPluginHostCallServer(
         // — its factory declared them — and the host resolves values for
         // whichever set it is handed, exactly as the in-process handle closes
         // over its own.
+        if (
+          args.descriptors === null ||
+          typeof args.descriptors !== "object" ||
+          Array.isArray(args.descriptors) ||
+          Object.keys(args.descriptors).length > 256
+        ) {
+          throw new Error("Invalid setting descriptors");
+        }
         return (await capabilities.readSettingsValues(
-          args.descriptors as never,
+          registerSettingDescriptors(
+            {},
+            args.descriptors as Record<string, unknown>,
+          ),
         )) as JsonValue;
       case "ui.requestInput":
         // Validated here as well as in the plugin's own process, for the same

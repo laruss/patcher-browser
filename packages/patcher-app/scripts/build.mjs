@@ -41,6 +41,7 @@ const entrypoints = [
   ["patcher", "patcher.js"],
   ["patcher-server", "patcher-server.js"],
   ["patcher-host-daemon", "patcher-host-daemon.js"],
+  ["patcher-desktop", "patcher-desktop.js"],
 ];
 
 for (const [sourceName, outputName] of entrypoints) {

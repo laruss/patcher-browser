@@ -15,6 +15,8 @@ export interface StartPatcherAppProcessArgs {
   env: NodeJS.ProcessEnv;
   logLineLimit: number;
   runtime: PatcherAppProcessRuntime;
+  /** Only the desktop-specific entrypoint receives a private secret pipe. */
+  secretChannel?: boolean;
 }
 
 export interface PatcherAppProcess {
@@ -202,7 +204,9 @@ export function startPatcherAppProcess(
       env: args.env,
       runtimeMode: args.runtime.mode,
     }),
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: args.secretChannel
+      ? ["ignore", "pipe", "pipe", "pipe"]
+      : ["ignore", "pipe", "pipe"],
   });
   const pid = childProcess.pid;
   if (pid === undefined) {

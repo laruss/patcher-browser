@@ -11,6 +11,10 @@ import type {
   PluginSettingValue,
 } from "@patcher/plugin-sdk";
 import { deleteSecretFile, writeSecretFile } from "@patcher/secret-storage";
+import type {
+  PluginSecretAccess,
+  PluginSecretStore,
+} from "@patcher/secret-storage";
 
 // The descriptor types are part of the backend plugin contract in
 // @patcher/plugin-sdk; re-exported so server code keeps one import site. Descriptor
@@ -62,6 +66,8 @@ export interface PluginSettingsStoreArgs {
   dataDir: string;
   pluginId: string;
   descriptors: PluginSettingDescriptors;
+  secretStore?: PluginSecretStore;
+  secretAccess?: PluginSecretAccess;
 }
 
 function readStoredSettingValue(
@@ -96,9 +102,13 @@ export async function readPluginSettingsValues(
   const values: Record<string, PluginSettingValue | undefined> = {};
   for (const [key, descriptor] of Object.entries(args.descriptors)) {
     if (isSecret(descriptor)) {
-      values[key] =
-        (await readSecret(args.dataDir, args.pluginId, key)) ??
-        descriptor.default;
+      const access =
+        args.secretAccess ?? args.secretStore?.forPlugin(args.pluginId);
+      const value =
+        access === undefined
+          ? await readSecret(args.dataDir, args.pluginId, key)
+          : await access.get(key);
+      values[key] = value ?? descriptor.default;
       continue;
     }
     values[key] = readStoredSettingValue(descriptor, stored[key]);
@@ -116,7 +126,9 @@ export function validatePluginSettingsUpdate(
 ): string[] {
   const errors: string[] = [];
   for (const [key, value] of Object.entries(values)) {
-    const descriptor = descriptors[key];
+    const descriptor = Object.hasOwn(descriptors, key)
+      ? descriptors[key]
+      : undefined;
     if (!descriptor) {
       errors.push(`unknown setting "${key}"`);
       continue;
@@ -143,13 +155,32 @@ export function validatePluginSettingsUpdate(
 
 /** Persist a pre-validated update: secrets to files, the rest to plugin_settings. */
 export async function writePluginSettingsUpdate(
-  args: PluginSettingsStoreArgs & { values: Record<string, unknown> },
-): Promise<void> {
+  args: PluginSettingsStoreArgs & {
+    values: Record<string, unknown>;
+    deferOrdinaryWrites?: boolean;
+  },
+): Promise<Record<string, string | null>> {
+  const access =
+    args.secretAccess ?? args.secretStore?.forPlugin(args.pluginId);
+  if (
+    Object.entries(args.values).some(([key]) => {
+      const descriptor = args.descriptors[key];
+      return descriptor !== undefined && isSecret(descriptor);
+    })
+  )
+    await access?.assertWritable();
   const rowUpdates: Record<string, string | null> = {};
   for (const [key, value] of Object.entries(args.values)) {
-    const descriptor = args.descriptors[key];
+    const descriptor = Object.hasOwn(args.descriptors, key)
+      ? args.descriptors[key]
+      : undefined;
     if (!descriptor) continue;
     if (isSecret(descriptor)) {
+      if (access !== undefined) {
+        if (value === null) await access.delete(key);
+        else await access.set(key, value as string);
+        continue;
+      }
       const path = secretFilePath(args.dataDir, args.pluginId, key);
       if (value === null) await deleteSecretFile(path);
       else await writeSecretFile(path, value as string);
@@ -157,9 +188,10 @@ export async function writePluginSettingsUpdate(
     }
     rowUpdates[key] = value === null ? null : JSON.stringify(value);
   }
-  if (Object.keys(rowUpdates).length > 0) {
+  if (!args.deferOrdinaryWrites && Object.keys(rowUpdates).length > 0) {
     setPluginSettingsValues(args.db, args.pluginId, rowUpdates);
   }
+  return rowUpdates;
 }
 
 export interface PluginSettingsView {
@@ -178,6 +210,13 @@ export async function buildPluginSettingsView(
     const publicDescriptor = { ...descriptor };
     if (isSecret(descriptor)) {
       delete publicDescriptor.default;
+      const access =
+        args.secretAccess ?? args.secretStore?.forPlugin(args.pluginId);
+      if (access !== undefined) {
+        values[key] = { set: await access.has(key) };
+        schema[key] = publicDescriptor;
+        continue;
+      }
       try {
         await stat(secretFilePath(args.dataDir, args.pluginId, key));
         values[key] = { set: true };

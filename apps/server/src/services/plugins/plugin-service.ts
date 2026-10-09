@@ -92,13 +92,9 @@ import { readBrowserExternalLinkDecision } from "./plugin-external-link.js";
 import { isResponseLike } from "./plugin-http-message.js";
 import { rpcBoundaryError, runRpcCall } from "./plugin-rpc-call.js";
 import { readPluginLogTail } from "./plugin-log.js";
+import { createPluginSettingsMethods } from "./plugin-settings-methods.js";
 import {
-  buildPluginSettingsView,
   pluginSecretsDir,
-  readPluginSettingsValues,
-  validatePluginSettingsUpdate,
-  writePluginSettingsUpdate,
-  PluginSettingsValidationError,
   type PluginSettingsView,
 } from "./plugin-settings.js";
 import { createPluginActivation } from "./plugin-activation.js";
@@ -1490,6 +1486,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     isPackagedBuiltinAppEntry,
     loadAll,
     loaded,
+    blockedSettings,
     loadOne,
     brandingAssets,
     setDevBuildProblem,
@@ -1861,8 +1858,11 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
             ...((loadedPlugin?.manifest ?? identity?.manifest)?.sites ?? []),
           ],
           hasSettings:
-            loadedPlugin !== undefined &&
-            Object.keys(loadedPlugin.handle.settings.descriptors).length > 0,
+            Object.keys(
+              loadedPlugin?.handle.settings.descriptors ??
+                blockedSettings.get(row.id) ??
+                {},
+            ).length > 0,
           app: appBundles.get(row.id)?.state ?? { hasApp: false, bundle: null },
           // Rich logos come from the live runtime for an exposed plugin, else
           // from the static-identity cache.
@@ -2059,6 +2059,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     async remove(id) {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
         const row = getInstalledPlugin(deps.db, id);
+        await deps.secretStore?.deletePlugin(id);
+        blockedSettings.delete(id);
         await withLifecycleLock(id, () => disposeOne(id));
         statuses.delete(id);
         handlerStats.delete(id);
@@ -2187,69 +2189,23 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       };
     },
 
-    async getSettings(id) {
-      const plugin = loaded.get(id);
-      if (!plugin) return undefined;
-      return buildPluginSettingsView({
-        db: deps.db,
-        dataDir: deps.dataDir,
-        pluginId: id,
-        descriptors: plugin.handle.settings.descriptors,
-      });
-    },
-
-    async updateSettings(id, values) {
-      const plugin = loaded.get(id);
-      if (!plugin) return undefined;
-      const storeArgs = {
-        db: deps.db,
-        dataDir: deps.dataDir,
-        pluginId: id,
-        descriptors: plugin.handle.settings.descriptors,
-      };
-      const errors = validatePluginSettingsUpdate(
-        storeArgs.descriptors,
-        values,
-      );
-      if (errors.length > 0) {
-        throw new PluginSettingsValidationError(errors.join("; "));
-      }
-      const prev = await readPluginSettingsValues(storeArgs);
-      await writePluginSettingsUpdate({ ...storeArgs, values });
-      const next = await readPluginSettingsValues(storeArgs);
-      if (JSON.stringify(next) !== JSON.stringify(prev)) {
-        for (const listener of plugin.handle.settings.listeners) {
-          try {
-            listener(next, prev);
-          } catch (error) {
-            logger.warn(
-              `plugin ${id} settings onChange listener failed: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-        // Effective values changed: broadcast so every open page's settings
-        // queries (plugin-sdk useSettings included) refetch instead of
-        // serving the pre-save snapshot until stale time.
-        notifyPluginsChanged();
-        // A plugin stuck on needs-configuration is waiting for exactly this
-        // save — reload it so the new values take effect without a manual
-        // `patcher plugin reload` (the NeedsConfigurationError contract documents
-        // this). Healthy plugins are NOT reloaded: they read settings lazily
-        // via settings.get(), and restarting live services on every toggle
-        // would be disruptive.
-        if (statuses.get(id)?.status === "needs-configuration") {
-          const row = getInstalledPlugin(deps.db, id);
-          if (row) {
-            await withLifecycleLock(id, async () => {
-              await disposeOne(id);
-              await loadOne(row);
-            });
-            notifyPluginsChanged();
-          }
-        }
-      }
-      return buildPluginSettingsView(storeArgs);
-    },
+    ...createPluginSettingsMethods({
+      deps,
+      loaded,
+      blockedSettings,
+      withLock: (run) =>
+        withPluginOperationLock(REGISTRATION_MUTATION_KEY, run),
+      status: (id) => statuses.get(id)?.status,
+      notify: notifyPluginsChanged,
+      reload: async (id) => {
+        const row = getInstalledPlugin(deps.db, id);
+        if (row)
+          await withLifecycleLock(id, async () => {
+            await disposeOne(id);
+            await loadOne(row);
+          });
+      },
+    }),
 
     getHttpRoute(id, method, path) {
       const normalizedMethod = method.toUpperCase();

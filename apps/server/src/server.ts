@@ -149,6 +149,7 @@ function normalizeInternalAuthPath(path: string): string {
 }
 
 interface CreateAppOptions {
+  secretStore?: import("@patcher/secret-storage").PluginSecretStore;
   patcherAppArtifactService?: PatcherAppArtifactService;
   /**
    * Which plugins run in a plugin process rather than in the server. Omitted
@@ -466,6 +467,9 @@ export function createApp(
     return next();
   });
   const pluginService = createPluginService({
+    ...(options?.secretStore === undefined
+      ? {}
+      : { secretStore: options.secretStore }),
     db: deps.db,
     ...(options?.runPluginOutOfProcess === undefined
       ? {}

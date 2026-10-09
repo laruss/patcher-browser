@@ -9,7 +9,7 @@ import { startHttpListener } from "../../src/start-server.js";
 const testDir = dirname(fileURLToPath(import.meta.url));
 
 async function readServerEntrypoint(): Promise<string> {
-  return readFile(resolve(testDir, "../../src/index.ts"), "utf8");
+  return readFile(resolve(testDir, "../../src/server-entry.ts"), "utf8");
 }
 
 async function readServerPackageJson(): Promise<string> {

@@ -7,7 +7,13 @@ import { isLoopbackHostname } from "@patcher/config/loopback";
 import { toOptionalString } from "@patcher/config/strings";
 import { createLogger } from "@patcher/logger";
 import { PATCHER_APP_KEY_FILE_NAME } from "@patcher/config/app-key";
-import { readOrCreateSecretFile } from "@patcher/secret-storage";
+import {
+  assertSecretStorageFormat,
+  readOrCreateSecretFile,
+  secretStorageCode,
+} from "@patcher/secret-storage";
+import type { Duplex } from "node:stream";
+import { createDesktopSecretStorage } from "./services/plugins/desktop-secret-storage.js";
 import { initDb } from "./db.js";
 import { createApp } from "./server.js";
 import { PendingInteractionLifecycle } from "./services/interactions/pending-interactions.js";
@@ -47,7 +53,19 @@ export function startHttpListener(args: StartHttpListenerArgs) {
   });
 }
 
-export async function runServer(serverConfig: ServerConfig): Promise<void> {
+export async function runServer(
+  serverConfig: ServerConfig,
+  secretStream?: Duplex,
+): Promise<void> {
+  await assertSecretStorageFormat(serverConfig.PATCHER_DATA_DIR);
+  const secrets = createDesktopSecretStorage(
+    serverConfig.PATCHER_DATA_DIR,
+    secretStream,
+  );
+  await secrets.store.initialize().catch((error: unknown) => {
+    if (secretStorageCode(error) !== "cancelled")
+      secrets.store.lock(secretStorageCode(error));
+  });
   const logger = createLogger({
     component: "server",
     dataDir: serverConfig.PATCHER_DATA_DIR,
@@ -175,6 +193,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
       watchInterests,
     },
     {
+      secretStore: secrets.store,
       // Where installed plugins run. Without this the server loads every
       // plugin into itself, which is what it did until the policy existed.
       runPluginOutOfProcess: pluginProcessPolicy({
@@ -184,6 +203,12 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     },
   );
   const eventLoopStallMonitor = startEventLoopStallMonitor({ logger });
+  secrets.setRetry(async () => {
+    for (const plugin of pluginService.list()) {
+      if (plugin.status === "needs-configuration" && plugin.enabled)
+        await pluginService.reload(plugin.id);
+    }
+  });
 
   const sweepDeps = {
     config: runtimeConfig,
@@ -247,6 +272,7 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
       return shutdownPromise;
     }
     shutdownPromise = (async () => {
+      secrets.close();
       eventLoopStallMonitor.stop();
       clearInterval(sweepInterval);
       // Before waiting on in-flight requests: a request parked on a consent

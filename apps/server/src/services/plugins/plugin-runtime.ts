@@ -26,7 +26,12 @@ import {
   pluginApiHeaders,
 } from "./plugin-api-identity.js";
 import { linkCancellation } from "./plugin-cancellation.js";
-import { readPluginSettingsValues } from "./plugin-settings.js";
+import { SecretStorageError } from "@patcher/secret-storage";
+import type { PluginSettingDescriptors } from "@patcher/plugin-sdk";
+import {
+  readPluginSettingsValues,
+  registerSettingDescriptors,
+} from "./plugin-settings.js";
 import { pluginExternalsAlias } from "./plugin-externals-alias.js";
 import { rememberBrowserCaller } from "../browser/browser-caller-handoff.js";
 import { createPluginHostCallServer } from "./plugin-host-call-server.js";
@@ -68,6 +73,7 @@ import { readPluginManifest, type PluginManifest } from "./manifest.js";
 import {
   createPluginApi,
   isNeedsConfigurationError,
+  NeedsConfigurationError,
   type PatcherPluginApi,
   type PluginApiHandle,
   type PluginThreadEventName,
@@ -355,6 +361,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   // needs-configuration messages reported during the current load; cleared
   // on the next load so a reconfigured plugin comes back as running.
   const needsConfiguration = new Map<string, string>();
+  const blockedSettings = new Map<string, PluginSettingDescriptors>();
   // Agent-tool registration problems (cross-plugin name collisions): the
   // plugin keeps running, but the dropped registration is surfaced as its
   // status detail. Cleared on the next load.
@@ -1169,6 +1176,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   async function loadOne(row: InstalledPluginRow): Promise<void> {
     // Refresh identity first so even a disabled/incompatible/errored plugin
     // keeps its name, icon, and logo in the list.
+    blockedSettings.delete(row.id);
     await populateIdentity(row);
     if (!row.enabled) {
       setStatus(row.id, "disabled");
@@ -1257,13 +1265,28 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         },
         list: async (prefix) => listPluginKvKeys(deps.db, row.id, prefix),
       },
-      readSettingsValues: (descriptors) =>
-        readPluginSettingsValues({
-          db: deps.db,
-          dataDir: deps.dataDir,
-          pluginId: row.id,
-          descriptors,
-        }),
+      readSettingsValues: async (descriptors) => {
+        const validated = registerSettingDescriptors({}, descriptors);
+        try {
+          return await readPluginSettingsValues({
+            db: deps.db,
+            dataDir: deps.dataDir,
+            pluginId: row.id,
+            descriptors: validated,
+            ...(deps.secretStore === undefined
+              ? {}
+              : { secretStore: deps.secretStore }),
+          });
+        } catch (error) {
+          if (!(error instanceof SecretStorageError)) throw error;
+          blockedSettings.set(row.id, {
+            ...blockedSettings.get(row.id),
+            ...validated,
+          });
+          reportNeedsConfiguration(row.id, error.message);
+          throw new NeedsConfigurationError(error.message);
+        }
+      },
       dataDir: deps.dataDir,
       getSdk: () => sdkFor(row.id),
       getLoopbackBaseUrl: () => boundLoopbackBaseUrl,
@@ -1332,7 +1355,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           // boundary was bought for — and let it choose that by lying about
           // what it registered.
           const detail = error instanceof Error ? error.message : String(error);
-          failBeforeFactory("error", detail);
+          failBeforeFactory(
+            isNeedsConfigurationError(error) ? "needs-configuration" : "error",
+            detail,
+          );
           logger.warn(`plugin ${row.id} failed to load: ${detail}`);
           return;
         }
@@ -1405,7 +1431,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         if (previous !== undefined) {
           setStatus(row.id, "running", `reload failed: ${message}`);
         } else {
-          setStatus(row.id, "error", message);
+          setStatus(
+            row.id,
+            isNeedsConfigurationError(error) ? "needs-configuration" : "error",
+            message,
+          );
         }
         logger.warn(
           `plugin ${row.id} failed to load: ${statuses.get(row.id)?.detail}`,
@@ -1897,6 +1927,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       // is the floor for those. This one is the process working fine and
       // saying something the host will not adopt, so there is no floor to fall
       // to: `load` turns it into the plugin's load error.
+      if (blockedSettings.has(row.id))
+        throw new NeedsConfigurationError(
+          needsConfiguration.get(row.id) ?? "Plugin secret storage unavailable",
+        );
       if (error instanceof PluginRegistrationRefusedError) throw error;
       return fallBackToServer(
         row.id,
@@ -1958,6 +1992,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     loadOne,
     brandingAssets,
     needsConfiguration,
+    blockedSettings,
     setDevBuildProblem,
     setStatus,
     sourceKind,

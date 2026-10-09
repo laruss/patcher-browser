@@ -1,9 +1,10 @@
 # Browser account security: план реализации
 
-Статус: Phases 1–3 реализованы, проверены и прошли независимое ревью.
+Статус: Phases 1–4 реализованы, проверены и прошли независимое ревью.
 Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 — `caf119792`.
-Phase 3 готова; без коммита. Sol xhigh: 3 раунда, итог без P1/P2.
-Phases 4–8 — план. План проверен по исходникам на `c263e6cab`,
+Phase 3 закоммичена и отправлена: `43f8616ea`. Sol xhigh: 3 раунда, итог без P1/P2.
+Phase 4 без коммита и push. Sol xhigh: 3 раунда, итог без P1/P2.
+Phases 5–8 — план. План проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -291,7 +292,7 @@ load, первая inline script страницы, native non-public-key calls. 
 
 **Статус реализации.** Controller и core isolated preload реализованы;
 Sol xhigh завершил три раунда независимого ревью; пять P2 исправлены,
-финальное ревью без оставшихся P1/P2. Фаза без коммита.
+финальное ревью без оставшихся P1/P2. Фаза отправлена: `43f8616ea`.
 На pinned Electron 41.7.0 нативный setter/getter
 подтверждены, OS flag измерен в отдельном Electron smoke. Unit lifecycle tests (11)
 и desktop typecheck проходят; полный desktop suite: 54 files / 724 tests.
@@ -370,6 +371,45 @@ boolean report и trusted UI. Не использовать существующ
 полей в IPC/logs. Любой завершённый test оставляет secure input выключенным.
 
 ## Phase 4 — encrypted plugin settings и миграция
+
+**Статус реализации.** Реализована, без коммита и push. Sol xhigh завершил
+три раунда независимого ревью; итог без оставшихся P1/P2.
+
+Settings → Security показывает режим и предлагает явное включение с native
+confirmation. Main оборачивает случайный data key через `safeStorage`; сервер
+использует AES-256-GCM с отдельным nonce и owner-bound AAD. Capability проходит
+по private FD через owned launcher в сервер, с новым каналом после restart;
+daemon и plugin children её не наследуют. Browser IPC payloads и daemon wire
+protocol не изменены. Lock/suspend/disconnect очищают cached key; отмена OS
+запроса не оставляет хранилище заблокированным навсегда.
+
+Миграция проверяет ciphertext до удаления исходника, возобновляется после crash,
+обходит отключённые/ошибочные plugins и сохраняет неизвестные entries. Tombstone
+привязан к identity исходного legacy файла: новый файл от старого бинарника
+остаётся конфликтом. Существующие допустимые setting keys, включая 255 символов,
+поддерживаются. Empty/tombstone-only plugin можно удалить при locked backend.
+
+Settings metadata остаётся доступной без decrypt. Фабрика с закрытым encrypted
+token получает needs-configuration; обычные settings без secret values можно
+менять при locked backend. Для secret updates сервер сохраняет encrypted
+before-images, пишет и проверяет все secrets, затем синхронно фиксирует SQL и
+уведомляет listeners. Lock/error до SQL возвращает ciphertext; ошибка rollback
+закрывает store как corrupt. Это не обещает crash atomicity всей пачки settings.
+Update/remove сериализованы, чтобы конкурентный PUT не воскресил удалённый plugin.
+
+Проверки: store suite — 28 tests; server plugins, app identity и startup —
+72 files / 694 tests; desktop — 56 files / 731 tests; launcher — 68 tests;
+settings UI/navigation — 9 tests; desktop contracts — 15 tests. Typecheck всех
+затронутых packages, app lint, file-size lint и format checks проходят. Дополнительный
+lint затронутых source files выявляет существующие server fs-import ограничения;
+новых lint findings нет. File-size pins уменьшены:
+`plugin-service.ts` 3466 → 3422, `launcher.ts` 3499 → 3491.
+
+`bun run --cwd apps/desktop smoke:plugin-secret-storage` проверяет настоящий
+macOS `safeStorage`: encrypt → restart Electron main + launcher + server →
+decrypt, lock/unlock и отсутствие sentinel в новых data files/env. Ad-hoc
+package собран; `smoke:packaged` и app boot smoke проходят. Проверка Keychain
+identity в распространяемой Developer ID сборке остаётся ручной release-проверкой.
 
 **Проблема.** Node-сервер хранит secrets plaintext и не имеет собственного
 OS backend. Глобально заменить `readOrCreateSecretFile` нельзя: app key нужен,

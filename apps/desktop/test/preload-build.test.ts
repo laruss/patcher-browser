@@ -362,7 +362,9 @@ describe("desktop build", () => {
     expect(preloadSource).not.toContain("getDesktopVersion(process.env");
 
     // The bridge must stay ESM — it pulls patcher-app via the package's ESM entry.
-    expect(bridgeSource).toContain('import "patcher-app/dist/patcher-app.js"');
+    expect(bridgeSource).toContain(
+      'import "patcher-app/dist/patcher-desktop.js"',
+    );
 
     const securitySource = await readFile(
       resolve(

@@ -22,7 +22,8 @@
     "smoke:secure-keyboard": "bun run build && node scripts/smoke-secure-keyboard.mjs",
     "start": "bun run package && node scripts/run-packaged-app.mjs",
     "test": "vitest run --config vitest.config.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke:plugin-secret-storage": "node scripts/smoke-plugin-secret-storage.mjs"
   },
   "dependencies": {
     "patcher-app": "workspace:*",
@@ -35,6 +36,7 @@
     "@patcher/desktop-contract": "workspace:*",
     "@patcher/domain": "workspace:*",
     "@patcher/server-contract": "workspace:*",
+    "@patcher/secret-storage": "workspace:*",
     "@patcher/tsconfig": "workspace:*",
     "@types/node": "^24.9.0",
     "@types/semver": "^7.7.0",

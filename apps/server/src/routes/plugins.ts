@@ -1,3 +1,4 @@
+import { SecretStorageError } from "@patcher/secret-storage";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
@@ -1264,6 +1265,12 @@ export function registerPluginRoutes(
       if (!view) return context.json(NOT_RUNNING, 404);
       return context.json({ ok: true, ...view });
     } catch (error) {
+      if (error instanceof SecretStorageError) {
+        return context.json(
+          { ok: false, error: error.message },
+          error.code === "locked" ? 423 : error.code === "conflict" ? 409 : 503,
+        );
+      }
       if (error instanceof PluginSettingsValidationError) {
         return context.json({ ok: false, error: error.message }, 400);
       }
