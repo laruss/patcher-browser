@@ -87,7 +87,12 @@ the password manager are still ahead.
     knows when a page's focused field is a password one.
 
 - **Passkeys, and the way the page hangs without them.** The measurement that
-  worries me most. In a browsed page, on a secure origin: `PublicKeyCredential`
+  led to Phase 2 of the account security plan. Its compatibility adapter is now
+  implemented: unavailable platform/conditional flows reject, and ordinary
+  public-key requests have a deadline that cancels the native ceremony. This
+  covers main pages, iframes and popups; actual platform passkeys remain Phase 8.
+  The native measurements below describe the session without that adapter.
+  In a browsed page, on a secure origin: `PublicKeyCredential`
   and `navigator.credentials` **exist**, and
   `isConditionalMediationAvailable()` answers **true** — so a site is told
   WebAuthn is available — while

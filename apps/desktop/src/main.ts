@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -126,6 +126,7 @@ import {
 } from "./desktop-window-command-ipc.js";
 import {
   createDesktopBrowserViewManager,
+  PATCHER_BROWSER_PARTITION,
   type DesktopBrowserViewManager,
 } from "./desktop-browser-view.js";
 import { createBrowserPdfTextExtractor } from "./desktop-browser-pdf-process.js";
@@ -1974,6 +1975,13 @@ async function runDesktopApp(): Promise<void> {
     paths,
   });
   const bridgePath = resolveDesktopBridgePath({ paths });
+  // Chromium content scripts cover subframes without enabling Node in them.
+  // The extension is unpacked beside the bridge in packaged builds.
+  await session
+    .fromPartition(PATCHER_BROWSER_PARTITION)
+    .extensions.loadExtension(
+      join(dirname(bridgePath), "browser-security-extension"),
+    );
   const resolvedLogViewerPreloadPath = join(
     paths.appPath,
     "dist",

@@ -274,6 +274,7 @@ describe("electron-builder signing config", () => {
     const config = electronBuilderConfigSchema.parse(JSON.parse(configText));
 
     expect(config.asarUnpack).toContain("dist/patcher-app-bridge.mjs");
+    expect(config.asarUnpack).toContain("dist/browser-security-extension/**");
     expect(config.asarUnpack).not.toContain("dist/patcher-app-bridge.js");
   });
 

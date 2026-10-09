@@ -4,7 +4,11 @@
   "artifactName": "${productName}-${version}-${arch}.${ext}",
   "afterPack": "scripts/prepare-native-modules.cjs",
   "asar": true,
-  "asarUnpack": ["dist/patcher-app-bridge.mjs", "node_modules/**"],
+  "asarUnpack": [
+    "dist/patcher-app-bridge.mjs",
+    "dist/browser-security-extension/**",
+    "node_modules/**"
+  ],
   "directories": {
     "buildResources": "assets",
     "output": "release"

@@ -1365,6 +1365,16 @@ prompt is raised, an unknown thread or one already holding a question is a
 
 ## The browser runs your real sessions
 
+**WebAuthn has a compatibility adapter while native passkey UI is unavailable.**
+An explicit platform registration is refused when Chromium reports no platform
+authenticator; conditional mediation is reported unavailable. Ordinary security
+key requests still reach native WebAuthn, with a deadline that aborts the underlying
+request and preserves caller cancellation. The browser's built-in content script
+runs at document start in page frames and popups, without Electron APIs or a
+Patcher bridge. Its purpose is a predictable fallback for sign-in pages; a page
+can change code in its own JavaScript realm. Native Touch ID passkeys are a later
+phase of the [account security plan](architecture/browser-account-security-plan.md).
+
 Browsing happens in a persistent Chromium session with your real cookies and
 logins. A plugin that declares a site and registers a page script runs on that
 site while you are signed in to it. That is what makes plugins useful and it is

@@ -1,4 +1,4 @@
-import { readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { build } from "esbuild";
 import { resolveDesktopReleaseChannel } from "./desktop-release-channel.mjs";
@@ -21,6 +21,12 @@ function readPackageVersion(packageJsonText) {
 }
 
 await rm(distDir, { force: true, recursive: true });
+const browserSecurityDir = resolve(distDir, "browser-security-extension");
+await mkdir(browserSecurityDir, { recursive: true });
+await copyFile(
+  resolve(packageRoot, "assets", "browser-security-extension", "manifest.json"),
+  resolve(browserSecurityDir, "manifest.json"),
+);
 
 const desktopVersion = readPackageVersion(
   await readFile(packageJsonPath, "utf8"),
@@ -42,6 +48,18 @@ const commonOptions = {
 };
 
 await Promise.all([
+  build({
+    bundle: true,
+    legalComments: "none",
+    platform: "browser",
+    target: "chrome146",
+    format: "iife",
+    sourcemap: true,
+    entryPoints: [
+      resolve(packageRoot, "src", "browser-security-content-script.ts"),
+    ],
+    outfile: resolve(browserSecurityDir, "policy.js"),
+  }),
   build({
     ...commonOptions,
     entryPoints: [resolve(packageRoot, "src", "main.ts")],

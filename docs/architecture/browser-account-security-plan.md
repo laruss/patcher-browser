@@ -1,7 +1,8 @@
 # Browser account security: план реализации
 
-Статус: Phase 1 реализована, проверена и прошла независимое ревью.
-Остальные фазы — план. План проверен по исходникам на `c263e6cab`,
+Статус: Phases 1–2 реализованы, проверены и прошли независимое ревью.
+Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 готова к коммиту.
+Phases 3–8 — план. План проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -79,16 +80,16 @@ authenticator сюда не входят.
 
 ## Порядок и зависимости
 
-| Фаза    | Завершённый результат                                                            | Зависимости                                             |
-| ------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Phase 1 | Settings metadata не читает и не раскрывает secret values/defaults               | Нет                                                     |
-| Phase 2 | Проверенное поведение WebAuthn без бесконечного ожидания в поддерживаемом объёме | Нет; отдельная работа от vault                          |
-| Phase 3 | Secure Keyboard Entry с корректным lifecycle                                     | Нет; можно переиспользовать security preload из Phase 2 |
-| Phase 4 | OS-backed encrypted plugin settings и безопасная миграция                        | Phase 1                                                 |
-| Phase 5 | Runtime site grants с UI и enforcement                                           | Независима от encryption; нужна до manager              |
-| Phase 6 | Core capture/store/fill операции с проверкой человека и Touch ID policy          | Phases 3–5                                              |
-| Phase 7 | Минимальный password-manager plugin                                              | Phase 6                                                 |
-| Phase 8 | Native platform passkeys в проверенной подписанной сборке                        | Phase 2 и release signing; не зависит от manager        |
+| Фаза    | Завершённый результат                                                            | Зависимости                                      |
+| ------- | -------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Phase 1 | Settings metadata не читает и не раскрывает secret values/defaults               | Нет                                              |
+| Phase 2 | Проверенное поведение WebAuthn без бесконечного ожидания в поддерживаемом объёме | Нет; отдельная работа от vault                   |
+| Phase 3 | Secure Keyboard Entry с корректным lifecycle                                     | Нет; нужен отдельный доверенный focus bridge     |
+| Phase 4 | OS-backed encrypted plugin settings и безопасная миграция                        | Phase 1                                          |
+| Phase 5 | Runtime site grants с UI и enforcement                                           | Независима от encryption; нужна до manager       |
+| Phase 6 | Core capture/store/fill операции с проверкой человека и Touch ID policy          | Phases 3–5                                       |
+| Phase 7 | Минимальный password-manager plugin                                              | Phase 6                                          |
+| Phase 8 | Native platform passkeys в проверенной подписанной сборке                        | Phase 2 и release signing; не зависит от manager |
 
 Номера задают удобный последовательный backlog, а не искусственные зависимости:
 Phase 8 можно поднять сразу после Phase 2, когда есть signing identity. Устранение
@@ -174,13 +175,62 @@ bun run --cwd apps/server typecheck
 
 ## Phase 2 — WebAuthn: измерение и предсказуемый отказ
 
+**Статус реализации.** Compatibility path реализован и прошёл независимое ревью
+`gpt-6.1-sol`, `xhigh`: 3 раунда из 3, финальных P1/P2 нет. В первом раунде найдены
+2 P2 (синхронные inspection errors и повторные dictionary getters), оба исправлены.
+Также исправлен P3: native rejection с `undefined` сохраняется как rejection.
+Ревьюер независимо проверил 38 targeted tests, включая 17 policy tests.
+Полный desktop suite: 53 files / 713 tests passed; desktop typecheck проходит.
+Проверено на Electron 41.7.0 / Chromium 146.0.7680.216 в dev и ad-hoc
+packaged build. На машине нет valid code-signing identities; Developer ID / native
+Touch ID ceremony остаются acceptance gate Phase 8, а не заявленной поддержкой.
+
+**Результат измерения и выбранный механизм.** Native UVPAA=false при
+conditional=true, включая `getClientCapabilities().conditionalCreate/conditionalGet`.
+Короткий timeout hint (25 ms) не завершает native request до
+внешней отмены (100 ms); AbortSignal действительно отменяет ceremony. Это
+подтверждение поведения короткого hint, не новое доказательство бесконечного
+ожидания. Виртуальный USB/CTAP2 authenticator успешно выполняет create/get, поэтому
+WebAuthn целиком не отключён.
+
+Session preload с `contextBridge.executeInMainWorld` работает до первого скрипта
+только в main frame. Вместо включения Node в subframes используется встроенный
+Chromium content script: `world: MAIN`, `run_at: document_start`, `all_frames` и
+`match_origin_as_fallback`. В нём нет Electron imports, IPC, background worker или
+privileged bridge. Это compatibility adapter, который сайт может менять в своём
+realm, а не security boundary против сайта. Плагинный preload остаётся прежним.
+
+Policy отказывает explicit platform create, если native UVPAA=false; сообщает
+conditional availability=false в обоих capability APIs и отклоняет conditional
+public-key create/get до native
+request, поскольку account picker ещё отсутствует. Обычные security-key create/get
+делегируются native с отдельным AbortController: deadline по hint, максимум
+120 seconds; expiry вызывает и rejection, и native abort. Caller abort/reason и
+non-public-key calls сохраняются. Успех/ошибка очищают timer/listener, options и
+исходный signal не мутируют.
+Dictionary getters читаются однократно для policy и native conversion, с исходным
+receiver; ошибки inspection возвращаются rejected Promise для `.catch()` fallback.
+
+Проверены первая inline script под CSP, динамические same/cross-origin iframes,
+`srcdoc`, popup, reload, pre-abort, caller abort, timeout и успешный USB create/get
+после отмены. Debugger используется только в fixture, в production не подключается.
+Реальный USB hardware и нативная Touch ID ceremony этим smoke не проверены.
+
+Точки фактической реализации: `browser-webauthn-policy.ts`, browser-only content
+script и manifest, session startup в `main.ts`, build/asarUnpack, unit tests,
+`smoke-browser-webauthn.mjs` и расширенный `smoke-packaged-app.mjs`.
+Воспроизведение: `bun run --cwd apps/desktop smoke:webauthn`; baseline без policy —
+`node apps/desktop/scripts/smoke-browser-webauthn.mjs --native`; после ad-hoc package
+запустить `bun run --cwd apps/desktop smoke:packaged`.
+
 **Проблема.** TODO описывает доступные JS interfaces и зависающий platform request.
 Но текущий Electron уже имеет настройку платформенного authenticator, которой
 приложение не пользуется. Нельзя строить решение на старом объяснении причины.
 
 **Минимальный результат.** В unsupported режиме сайт получает предсказуемый отказ
 для неподдерживаемого public-key flow и может показать password fallback; приложение
-честно сообщает ограничения. Поддержка реальных ключей остаётся Phase 8.
+честно сообщает ограничения. Native platform passkeys и hardware acceptance
+остаются Phase 8; работающие roaming transport'ы сохраняются уже здесь.
 
 **Порядок реализации:**
 
@@ -193,7 +243,8 @@ bun run --cwd apps/server typecheck
 app.configureWebAuthn === 'function'` — capability, а не свидетельство успешного
    platform authenticator. Только working signed path в Phase 8 включает native mode.
 3. Для неподдерживаемой сборки реализовать минимальный compatibility adapter в
-   отдельном **core security preload**, не в page script менеджера. В main world
+   отдельном **core content script**, не в page script менеджера. Выбор вместо
+   первоначально предложенного preload подтверждён all-frame fixture. В main world
    при document start перехватывать только public-key `create/get`, возвращать
    корректный rejected Promise (`NotAllowedError`); non-public-key calls делегировать
    исходному API. Не подделывать успешные credentials. Проверки доступности
@@ -223,17 +274,17 @@ Phase 2**. Оставшаяся работа — native cancellation/испра�
 фазы; Phase 1 и storage от него не зависят. Наличие `select-webauthn-account`
 не решает зависание до обнаружения аккаунтов.
 
-**Точки изменения.** `apps/desktop/src/main.ts`, `desktop-browser-view.ts`, новый
-`browser-security-preload.ts` и отдельный WebAuthn policy module,
-`apps/desktop/scripts/build.mjs`, Electron fixtures/tests. Доверенное сообщение
-о неподдерживаемости в chrome при необходимости получает новый optional IPC API.
+**Точки изменения.** `apps/desktop/src/main.ts`, новый
+`browser-security-content-script.ts`, extension manifest и отдельный WebAuthn
+policy module, `apps/desktop/scripts/build.mjs`, asarUnpack, Electron fixtures/tests.
+Существующие browser IPC и plugin preload не изменены.
 
 **Проверка.** create/get platform, conditional get, pre-aborted signal, timeout,
 reload во время ceremony, popup, same/cross-origin iframe, создание iframe после
 load, первая inline script страницы, native non-public-key calls. На неработающей
 конфигурации fixture действительно получает rejection; видимость интерфейса сама
 по себе не считается поддержкой. DevTools не ломает поведение, debugger не
-подключается ко всем вкладкам. Лимитация iframe остаётся в release note до устранения.
+подключается ко всем вкладкам. All-frame охват подтверждён на pinned binary.
 
 ## Phase 3 — Secure Keyboard Entry
 

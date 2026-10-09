@@ -364,6 +364,29 @@ describe("desktop build", () => {
     // The bridge must stay ESM — it pulls patcher-app via the package's ESM entry.
     expect(bridgeSource).toContain('import "patcher-app/dist/patcher-app.js"');
 
+    const securitySource = await readFile(
+      resolve(
+        desktopPackageRoot,
+        "dist",
+        "browser-security-extension",
+        "policy.js",
+      ),
+      "utf8",
+    );
+    expect(securitySource).not.toMatch(/\brequire\s*\(/u);
+    expect(securitySource).not.toContain("ipcRenderer");
+    expect(securitySource).not.toContain("process.");
+    await expect(
+      access(
+        resolve(
+          desktopPackageRoot,
+          "dist",
+          "browser-security-extension",
+          "manifest.json",
+        ),
+      ),
+    ).resolves.toBeUndefined();
+
     // Source maps must ship for every entry so crash reports symbolicate.
     for (const mapPath of [
       "main.js.map",
