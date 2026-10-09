@@ -64,6 +64,30 @@ export interface PluginSettingsStoreArgs {
   descriptors: PluginSettingDescriptors;
 }
 
+function readStoredSettingValue(
+  descriptor: PluginSettingDescriptor,
+  raw: string | undefined,
+): PluginSettingValue | undefined {
+  let parsed: unknown;
+  if (raw !== undefined) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = undefined;
+    }
+  }
+  const expected = descriptor.type === "boolean" ? "boolean" : "string";
+  if (typeof parsed !== expected) parsed = undefined;
+  if (
+    descriptor.type === "select" &&
+    typeof parsed === "string" &&
+    !descriptor.options.includes(parsed)
+  ) {
+    parsed = undefined;
+  }
+  return (parsed as PluginSettingValue | undefined) ?? descriptor.default;
+}
+
 /** Effective typed values: stored value when valid, else the default, else undefined. */
 export async function readPluginSettingsValues(
   args: PluginSettingsStoreArgs,
@@ -77,26 +101,7 @@ export async function readPluginSettingsValues(
         descriptor.default;
       continue;
     }
-    const raw = stored[key];
-    let parsed: unknown;
-    if (raw !== undefined) {
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = undefined;
-      }
-    }
-    const expected = descriptor.type === "boolean" ? "boolean" : "string";
-    if (typeof parsed !== expected) parsed = undefined;
-    if (
-      descriptor.type === "select" &&
-      typeof parsed === "string" &&
-      !descriptor.options.includes(parsed)
-    ) {
-      parsed = undefined;
-    }
-    values[key] =
-      (parsed as PluginSettingValue | undefined) ?? descriptor.default;
+    values[key] = readStoredSettingValue(descriptor, stored[key]);
   }
   return values;
 }
@@ -166,18 +171,27 @@ export interface PluginSettingsView {
 export async function buildPluginSettingsView(
   args: PluginSettingsStoreArgs,
 ): Promise<PluginSettingsView> {
-  const effective = await readPluginSettingsValues(args);
+  const stored = getPluginSettingsValues(args.db, args.pluginId);
+  const schema: PluginSettingDescriptors = {};
   const values: Record<string, unknown> = {};
   for (const [key, descriptor] of Object.entries(args.descriptors)) {
+    const publicDescriptor = { ...descriptor };
     if (isSecret(descriptor)) {
-      values[key] = {
-        set: await stat(secretFilePath(args.dataDir, args.pluginId, key))
-          .then(() => true)
-          .catch(() => false),
-      };
-    } else if (effective[key] !== undefined) {
-      values[key] = effective[key];
+      delete publicDescriptor.default;
+      try {
+        await stat(secretFilePath(args.dataDir, args.pluginId, key));
+        values[key] = { set: true };
+      } catch (error) {
+        const code =
+          error instanceof Error && "code" in error ? error.code : undefined;
+        if (code !== "ENOENT") throw error;
+        values[key] = { set: false };
+      }
+    } else {
+      const effective = readStoredSettingValue(descriptor, stored[key]);
+      if (effective !== undefined) values[key] = effective;
     }
+    schema[key] = publicDescriptor;
   }
-  return { schema: args.descriptors, values };
+  return { schema, values };
 }

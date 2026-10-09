@@ -31,6 +31,12 @@ disagree.
 
 Reading order is the order in which they block each other.
 
+The implementation sequence is in
+[browser-account-security-plan.md](architecture/browser-account-security-plan.md).
+Phase 1 is implemented: public settings metadata does not read secret files or
+expose secret defaults. The files remain plaintext `0600`; encrypted storage and
+the password manager are still ahead.
+
 - **A password manager.** Reverses a Non-Goal, deliberately:
   [PROJECT_PLAN.md](PROJECT_PLAN.md) §19 rules out a _sophisticated_ one, and that
   still stands — no sync, no sharing, no breach monitoring. What is missing is the plain thing. Patcher prompts for **HTTP

@@ -49,6 +49,19 @@ because that is what it is. The missing half is a sandbox, not another gate —
 [plugin-callbacks.md](architecture/plugin-callbacks.md) describe the boundary as
 it now stands.
 
+## Secret settings stay out of public metadata
+
+Public plugin settings responses show secrets only as `{ set: boolean }` and
+omit secret defaults from the schema. Building that metadata checks file
+existence without reading secret contents; an access or I/O error is not
+reported as an unset value. The plugin backend still receives its own effective
+secret values and defaults through `settings.get()` and `onChange`.
+
+Those files are still plaintext with `0600` permissions. This protects the
+metadata path, not the stored secret from another process running as you.
+OS-backed encryption and interactive password release are later phases in the
+[browser account security plan](architecture/browser-account-security-plan.md).
+
 ## What the permission declaration is actually for
 
 Every patch declares `patcher.permissions` and, for anything that touches a
