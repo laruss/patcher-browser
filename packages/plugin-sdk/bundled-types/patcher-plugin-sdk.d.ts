@@ -6603,6 +6603,7 @@ declare const installedPluginSchema: z$1.ZodObject<{
         plugins: "plugins";
     }>>>;
     sites: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
+    siteAccess: z$1.ZodOptional<z$1.ZodLiteral<"runtime">>;
     hasSettings: z$1.ZodBoolean;
     app: z$1.ZodObject<{
         hasApp: z$1.ZodBoolean;
@@ -6743,6 +6744,7 @@ declare const pluginListResponseSchema: z$1.ZodObject<{
             plugins: "plugins";
         }>>>;
         sites: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
+        siteAccess: z$1.ZodOptional<z$1.ZodLiteral<"runtime">>;
         hasSettings: z$1.ZodBoolean;
         app: z$1.ZodObject<{
             hasApp: z$1.ZodBoolean;
@@ -6885,6 +6887,7 @@ declare const pluginReloadResponseSchema: z$1.ZodObject<{
             plugins: "plugins";
         }>>>;
         sites: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
+        siteAccess: z$1.ZodOptional<z$1.ZodLiteral<"runtime">>;
         hasSettings: z$1.ZodBoolean;
         app: z$1.ZodObject<{
             hasApp: z$1.ZodBoolean;

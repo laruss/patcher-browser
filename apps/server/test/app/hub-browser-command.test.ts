@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type {
   BrowserCommandResponseMessage,
   BrowserCommand,
@@ -89,6 +90,86 @@ describe("NotificationHub browser commands", () => {
     vi.useRealTimers();
   });
 
+  it("routes a scoped command to its native window and survives renderer reconnect", async () => {
+    const hub = new NotificationHub(),
+      a = createMockHubSocket(),
+      b = createMockHubSocket();
+    hub.registerClient(a);
+    hub.registerClient(b);
+    hub.registerBrowserHost(a, { browserHostId: "a", nativeWebContentsId: 12 });
+    hub.registerBrowserHost(b, { browserHostId: "b", nativeWebContentsId: 13 });
+    const message = {
+      type: "browser-scoped-command-request" as const,
+      requestId: "scoped",
+      token: randomUUID(),
+      command: { type: "page.get_url" as const, tabId: "tab" },
+    };
+    const pending = hub.requestBrowserCommand({
+      message,
+      nativeWebContentsId: 13,
+      timeoutMs: 1000,
+    });
+    expect(
+      a.messages.some((raw) => JSON.parse(raw).type === message.type),
+    ).toBe(false);
+    expect(
+      b.messages.some((raw) => JSON.parse(raw).type === message.type),
+    ).toBe(true);
+    hub.recordBrowserCommandResponse({
+      socket: b,
+      message: okResponse("scoped"),
+    });
+    await pending;
+    hub.unregisterClient(b);
+    const replacement = createMockHubSocket();
+    hub.registerClient(replacement);
+    hub.registerBrowserHost(replacement, {
+      browserHostId: "b",
+      nativeWebContentsId: 13,
+    });
+    const again = hub.requestBrowserCommand({
+      message: { ...message, requestId: "again" },
+      nativeWebContentsId: 13,
+      timeoutMs: 1000,
+    });
+    hub.recordBrowserCommandResponse({
+      socket: replacement,
+      message: okResponse("again"),
+    });
+    await again;
+    expect(
+      replacement.messages.some((raw) => JSON.parse(raw).type === message.type),
+    ).toBe(true);
+  });
+  it("never sends a scoped request to an old or ambiguously registered host", async () => {
+    const hub = new NotificationHub(),
+      a = createMockHubSocket(),
+      b = createMockHubSocket();
+    hub.registerClient(a);
+    hub.registerClient(b);
+    hub.registerBrowserHost(a, { browserHostId: "old" });
+    const request = {
+      message: {
+        type: "browser-scoped-command-request" as const,
+        requestId: "scoped",
+        token: randomUUID(),
+        command: { type: "page.get_url" as const, tabId: "tab" },
+      },
+      nativeWebContentsId: 12,
+      timeoutMs: 1000,
+    };
+    await expect(hub.requestBrowserCommand(request)).rejects.toThrow();
+    hub.registerBrowserHost(a, { browserHostId: "a", nativeWebContentsId: 12 });
+    hub.registerBrowserHost(b, { browserHostId: "b", nativeWebContentsId: 12 });
+    await expect(hub.requestBrowserCommand(request)).rejects.toThrow();
+    expect(
+      a.messages.some((raw) => JSON.parse(raw).type === request.message.type),
+    ).toBe(false);
+    expect(
+      b.messages.some((raw) => JSON.parse(raw).type === request.message.type),
+    ).toBe(false);
+  });
+
   it("rejects immediately when no browser window is connected", async () => {
     const hub = new NotificationHub();
     const socket = createMockHubSocket();
@@ -103,7 +184,11 @@ describe("NotificationHub browser commands", () => {
     });
     await expect(
       hub.requestBrowserCommand({
-        message: { type: "browser-command-request", requestId: "r1", command: LIST },
+        message: {
+          type: "browser-command-request",
+          requestId: "r1",
+          command: LIST,
+        },
         timeoutMs: 1_000,
       }),
     ).rejects.toThrow("No browser window is connected");
@@ -122,7 +207,11 @@ describe("NotificationHub browser commands", () => {
     });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 1_000,
     });
     expect(sentRequestIds(socket.messages)).toEqual(["r1"]);
@@ -157,7 +246,11 @@ describe("NotificationHub browser commands", () => {
     });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 1_000,
     });
 
@@ -166,7 +259,10 @@ describe("NotificationHub browser commands", () => {
     expect(sentRequestIds(first.messages)).toEqual(["r1"]);
     expect(sentRequestIds(second.messages)).toEqual([]);
 
-    hub.recordBrowserCommandResponse({ socket: first, message: okResponse("r1") });
+    hub.recordBrowserCommandResponse({
+      socket: first,
+      message: okResponse("r1"),
+    });
     await expect(pending).resolves.toEqual(okResponse("r1"));
   });
 
@@ -178,7 +274,11 @@ describe("NotificationHub browser commands", () => {
     hub.registerBrowserHost(other, { browserHostId: "window-b" });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 1_000,
     });
 
@@ -217,7 +317,11 @@ describe("NotificationHub browser commands", () => {
     hub.registerBrowserHost(socket, { browserHostId: "window-a" });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 1_000,
     });
     const assertion = expect(pending).rejects.toThrow(
@@ -239,7 +343,11 @@ describe("NotificationHub browser commands", () => {
     hub.registerBrowserHost(socket, { browserHostId: "window-a" });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 60_000,
     });
     const assertion = expect(pending).rejects.toThrow(
@@ -290,7 +398,11 @@ describe("NotificationHub browser commands", () => {
     hub.registerBrowserHost(dropped, { browserHostId: "window-a" });
 
     const stranded = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 60_000,
     });
     const assertion = expect(stranded).rejects.toThrow(
@@ -314,7 +426,11 @@ describe("NotificationHub browser commands", () => {
     });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r2", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r2",
+        command: LIST,
+      },
       timeoutMs: 1_000,
     });
     expect(sentRequestIds(reconnected.messages)).toEqual(["r2"]);
@@ -369,12 +485,8 @@ describe("NotificationHub browser commands", () => {
     // The other windows have no way to learn this otherwise: the command is
     // sent once, to one socket, so a person reading a thread over there used to
     // see an agent work with nothing on screen saying so.
-    expect(drivingSignals(watching.messages)).toEqual([
-      drivingStarted(),
-    ]);
-    expect(drivingSignals(alsoWatching.messages)).toEqual([
-      drivingStarted(),
-    ]);
+    expect(drivingSignals(watching.messages)).toEqual([drivingStarted()]);
+    expect(drivingSignals(alsoWatching.messages)).toEqual([drivingStarted()]);
     // And the window performing it is not told twice: it counts the command
     // from the request itself, so an announcement here would have it show two
     // commands in flight for one.
@@ -635,7 +747,11 @@ describe("NotificationHub browser commands", () => {
     hub.registerBrowserHost(watching, { browserHostId: "window-b" });
 
     const pending = hub.requestBrowserCommand({
-      message: { type: "browser-command-request", requestId: "r1", command: LIST },
+      message: {
+        type: "browser-command-request",
+        requestId: "r1",
+        command: LIST,
+      },
       timeoutMs: 1_000,
     });
     hub.recordBrowserCommandResponse({

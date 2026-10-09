@@ -216,6 +216,7 @@ export const installedPluginSchema = z.object({
    * sites is only honest if the list is on screen.
    */
   sites: z.array(z.string()).default([]),
+  siteAccess: z.literal("runtime").optional(),
   hasSettings: z.boolean(),
   app: pluginAppStateSchema,
   logoUrl: z.string().nullable(),

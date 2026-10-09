@@ -89,6 +89,20 @@ export function createDesktopSecretStorage(dataDir: string, stream?: Duplex) {
   });
   return {
     store,
+    requestSite: async (
+      method: import("@patcher/secret-storage").SecretChannelMethod,
+      payload: unknown,
+      signal?: AbortSignal,
+    ): Promise<unknown> => {
+      if (channel === undefined || !method.startsWith("site."))
+        throw new SecretStorageError("unavailable");
+      try {
+        return await channel.request(method, payload, { signal });
+      } catch (error) {
+        if (method === "site.policy") channel.close();
+        throw error;
+      }
+    },
     setRetry: (callback: () => Promise<void>) => {
       retry = callback;
     },

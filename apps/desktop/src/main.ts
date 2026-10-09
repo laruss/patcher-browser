@@ -1,3 +1,8 @@
+import { SITE_ACCESS_CHANNELS } from "@patcher/desktop-contract";
+import {
+  createNativeSiteAuthority,
+  registerDesktopSiteIpc,
+} from "./desktop-site-ipc.js";
 import type { Duplex } from "node:stream";
 import { createDesktopSecretBroker } from "./desktop-secret-broker.js";
 import {
@@ -1631,6 +1636,7 @@ async function startOwnedRuntime(
     secretStorage: createDesktopSecretBroker(
       patcherProcess.childProcess.stdio[3] as Duplex,
       desktopKeyBackend,
+      createNativeSiteAuthority(() => desktopBrowserViewManager),
     ),
     patcherProcess,
     ownership: "spawned",
@@ -2100,28 +2106,37 @@ async function runDesktopApp(): Promise<void> {
     sendDesktopInfoChanged();
   });
   registerDesktopUpdateIpc();
+  const authorizeApplicationIpc = (
+    event: import("electron").IpcMainInvokeEvent,
+  ) => {
+    if (
+      !applicationWindowWebContentsIds.has(event.sender.id) ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      return false;
+    try {
+      return (
+        currentRuntime !== null &&
+        new URL(event.senderFrame.url).origin ===
+          new URL(currentRuntime.serverUrl).origin
+      );
+    } catch {
+      return false;
+    }
+  };
   registerDesktopSecretIpc({
     current: () => currentRuntime?.secretStorage,
-    authorize: (event) => {
-      if (
-        !applicationWindowWebContentsIds.has(event.sender.id) ||
-        event.senderFrame !== event.sender.mainFrame
-      )
-        return false;
-      try {
-        return (
-          currentRuntime !== null &&
-          new URL(event.senderFrame.url).origin ===
-            new URL(currentRuntime.serverUrl).origin
-        );
-      } catch {
-        return false;
-      }
-    },
+    authorize: authorizeApplicationIpc,
   });
   desktopBrowserViewManager = createDesktopBrowserViewManager({
     onBrowserViewVisibilityChanged: secureKeyboard.browserViewChanged,
     pageScriptPreloadPath: resolvedPageScriptPreloadPath,
+    siteAuthority: () => currentRuntime?.secretStorage?.sites,
+    onSiteCleanupChanged: () => {
+      for (const window of BrowserWindow.getAllWindows())
+        if (applicationWindowWebContentsIds.has(window.webContents.id))
+          window.webContents.send(SITE_ACCESS_CHANNELS.changed);
+    },
     dispatchAppCommand({ command, hostWebContentsId }) {
       const browserWindow = BrowserWindow.getAllWindows().find(
         (candidate) => candidate.webContents.id === hostWebContentsId,
@@ -2177,6 +2192,11 @@ async function runDesktopApp(): Promise<void> {
         keybindings: currentAppKeybindings,
       });
     },
+  });
+  registerDesktopSiteIpc({
+    manager: desktopBrowserViewManager,
+    current: () => currentRuntime?.secretStorage?.sites,
+    authorize: authorizeApplicationIpc,
   });
   registerDesktopBrowserIpc(desktopBrowserViewManager);
   registerExternalUrlIpc();

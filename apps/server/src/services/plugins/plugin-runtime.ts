@@ -6,6 +6,7 @@ import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createJiti } from "jiti";
 import semver from "semver";
+import { runWithPluginSiteCallers } from "../browser/plugin-site-caller.js";
 import {
   PLUGIN_SDK_MAJOR,
   PLUGIN_SDK_VERSION,
@@ -788,11 +789,36 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       source: cancellation?.source,
     });
     try {
-      const outcome = await invokeWrapped(id, describeCallback(call), () =>
-        run(call.payload, signal),
-      );
+      if (
+        loaded.get(id)?.manifest.siteAccess === "runtime" &&
+        call.kind.startsWith("browser") &&
+        deps.siteAccess === undefined
+      )
+        throw new Error("Runtime site access is unavailable");
+      const work = () =>
+        invokeWrapped(id, describeCallback(call), () =>
+          run(call.payload, signal),
+        );
+      const outcome =
+        deps.siteAccess === undefined
+          ? await work()
+          : await deps.siteAccess.pageCallback(
+              id,
+              call.kind,
+              call.payload,
+              work,
+            );
       if (outcome.ok) assertCallbackCrosses(call, "result", outcome.value);
       return outcome;
+    } catch (cause) {
+      return {
+        ok: false,
+        cause,
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Runtime page callback refused",
+      };
     } finally {
       // A source signal outlives the calls made under it — one CLI request,
       // many calls — so the listener has to come off when this one settles.
@@ -1178,6 +1204,8 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     // keeps its name, icon, and logo in the list.
     blockedSettings.delete(row.id);
     await populateIdentity(row);
+    const siteManifest = identities.get(row.id)?.manifest;
+    if (siteManifest) await deps.siteAccess?.register(row, siteManifest);
     if (!row.enabled) {
       setStatus(row.id, "disabled");
       return;
@@ -1307,7 +1335,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         if (disposingPluginIds.has(row.id)) {
           throw new Error(`plugin "${row.id}" is disposing`);
         }
-        return deps.browserBridge.call(args);
+        return manifest.siteAccess === "runtime"
+          ? runWithPluginSiteCallers([row.id], () =>
+              deps.browserBridge!.call(args),
+            )
+          : deps.browserBridge.call(args);
       },
       getBrowserHostStatus: () =>
         deps.browserBridge?.status() ?? {
@@ -1482,6 +1514,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     }
     // One map replacement is the registration commit point. Until this line,
     // every dispatcher continues to resolve the complete previous handle.
+    await deps.siteAccess?.register(row, manifest, plugin.handle);
     loaded.set(row.id, plugin);
     appBundles.set(row.id, appBundleCandidate.snapshot);
     brandingAssets.set(row.id, brandingAssetCandidate);
@@ -1693,6 +1726,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   }
 
   async function disposeOne(id: string): Promise<void> {
+    await deps.siteAccess?.disable(id);
     const plugin = loaded.get(id);
     if (!plugin) return;
     loaded.delete(id);

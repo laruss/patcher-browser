@@ -32,6 +32,32 @@ Answering for the browser:
 - [External link routing](#patcherbrowser--routing-a-link-the-system-opened)
 - [History filter](#patcherbrowser--deciding-what-the-browser-remembers)
 
+## Runtime site grants
+
+With `patcher.siteAccess: "runtime"` and minimum SDK 1.1.0, every supported browser
+read/action, page RPC and page-scoped callback needs both a manifest URL match
+and an exact-origin grant confirmed by the user in the desktop app. Use an
+explicit tab ID. URL/title/text/selection, snapshot, interact, scroll, evaluate
+and viewport screenshot are supported. Storage/cookies, routing/offline,
+recording, console/network history, PDF/full-page capture, tab operations and
+navigation are denied. Global callbacks such as omnibox/history/PDF/download
+are unsupported. Auth providers must match the actual page host/scheme; proxy
+auth is denied.
+
+Runtime page scripts/RPC target only the main frame; other-origin iframe DOM/AX
+reads are excluded. Viewport screenshots include visible iframe pixels, and
+pointer input acts on the rendered page. Declared registration patterns remain
+verbatim manifest members. Backend RPC can do normal backend work, but cannot
+approve grants or forge page context. Headless/remote/old shells fail closed.
+
+Revoke stops new and pending backend operations. Already injected code remains
+until a real document reload; Patcher shows pending cleanup and leaves that
+reload to the user. Disable preserves grants; uninstall removes them. Changing
+source identity, permissions or sites requires new confirmation. See the
+[SDK README](../../../../../../../../packages/plugin-sdk/README.md#runtime-browser-site-access)
+for the supported scope. Native enforcement is outside the fake host's behavior
+simulation.
+
 ## patcher.browser — omnibox suggestions in the browser surface
 
 ```ts

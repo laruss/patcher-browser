@@ -33,9 +33,10 @@ Reading order is the order in which they block each other.
 
 The implementation sequence is in
 [browser-account-security-plan.md](architecture/browser-account-security-plan.md).
-Phase 1 is implemented: public settings metadata does not read secret files or
-expose secret defaults. The files remain plaintext `0600`; encrypted storage and
-the password manager are still ahead.
+Phases 1–5 are implemented: safe settings metadata, WebAuthn compatibility,
+Secure Keyboard Entry, opt-in encrypted plugin settings and runtime site grants.
+Password capture, a separate vault, human-approved fill and Touch ID release
+remain ahead in Phases 6–7; native platform passkeys remain Phase 8.
 
 - **A password manager.** Reverses a Non-Goal, deliberately:
   [PROJECT_PLAN.md](PROJECT_PLAN.md) §19 rules out a _sophisticated_ one, and that
@@ -47,32 +48,22 @@ the password manager are still ahead.
   so it is not a switch to flip.
 
   The sorting test now answers differently than it would have last week: after
-  Phase 9 Stage B a plugin **can** fill a form, on sites it declared. What a
-  plugin cannot do is keep the secret safely (see the next item), require a
-  fingerprint to release it (the one after), or be granted "every site the user
-  has an account on" in a way a person can meaningfully consent to (the last).
-  So the core owes three capabilities, and the manager itself can then be a
+  Phase 9 Stage B a plugin **can** fill a form, on sites it declared. Phases 4–5
+  now provide encrypted ordinary token settings and runtime site consent. A
+  password manager still needs a separate vault that keeps passwords out of
+  plugin backend memory and core capture/fill operations that require a person's
+  approval, with a defined Touch ID policy. The manager itself can then be a
   plugin — which is also how it stays out of the way of somebody who wants 1Password
   instead.
 
-- **A keychain-backed secret store for the server side.** Present-tense
-  weakness, not a feature: every plugin secret — an API token, a cookie a plugin
-  saved, whatever a credential plugin would hold — is written by
-  `@patcher/secret-storage` as a **plaintext file with `0600` permissions**
-  (`packages/secret-storage/src/secret-file.ts`). Any process running as the user
-  reads it, and so does anyone who gets a copy of the data directory: a backup, a
-  synced folder, a laptop without FileVault.
-
-  The desktop shell already does this properly for its own Connect credential —
-  `safeStorage`, backed by the OS keychain, measured available here
-  (`isEncryptionAvailable() === true`), with a documented no-op fallback when the
-  OS offers no backend (`apps/desktop/src/connect-credential-cache.ts`). The
-  structural reason it stops there: `safeStorage` is an **Electron** API and the
-  plugin host is a plain Node process that may be running with no shell at all.
-  Closing this means either handing the server a keychain capability over the
-  desktop bridge, or accepting that secrets are only encrypted at rest when a
-  shell is attached — and saying which, in writing, before anything stores a
-  password.
+- **A keychain-backed secret store for the server side.** Implemented in Phase 4
+  for the local server owned by desktop. Settings → Security offers explicit
+  migration from legacy plaintext `0600` files to AES-256-GCM records with an
+  OS-wrapped data key. A private desktop broker provides the Keychain capability;
+  lock, suspend and disconnect clear cached keys. Protected writes never fall
+  back to plaintext. Headless, remote and independently attached servers cannot
+  enable this backend; legacy mode remains available. Ordinary plugin tokens
+  still reach their owning backend, so this store is not the password vault.
 
 - **The machine's own locks: Touch ID, and a keyboard nobody else can read.**
   Both measured present. Secure Keyboard Entry is implemented in Phase 3; the
@@ -113,23 +104,19 @@ the password manager are still ahead.
   honestly so the site's fallback runs), the refusal is the part that cannot
   wait.
 
-- **A per-site grant the user makes at runtime.** `patcher.sites` is declared in the
-  manifest, and that is exactly right for "declutter GitHub". It is the wrong
-  shape for a credential filler, which legitimately needs every site the user has
-  an account on — and `["https://**/**"]` in a manifest is a disclosure that says
-  nothing while granting everything: code in every page the user ever opens.
+- **A per-site grant the user makes at runtime.** Implemented in Phase 5 through
+  opt-in `patcher.siteAccess: "runtime"` (SDK 1.1.0). Browser site info offers
+  Allow here with native confirmation; plugin detail shows permissions, declared
+  ceiling patterns, exact-origin grants and Revoke. Access requires permission,
+  an actual URL matching `patcher.sites`, and a persisted origin grant. Existing
+  legacy plugins retain their install-time semantics.
 
-  What is missing is the other kind of grant: the user, standing on a page,
-  saying "use it here", stored per site and revocable, with the manifest list
-  staying the ceiling rather than the whole answer. Everything the current model
-  rests on stays — membership not containment, refuse at the earliest place — but
-  the answer to _where_ stops being frozen at install time. This is the
-  prerequisite for the password manager being a plugin rather than core code, and
-  it is why it is listed last here and blocks the first item.
-
-  Related and no longer cosmetic: **the app shows no plugin permissions** (below).
-  A runtime grant is a UI that does not exist yet, in a surface that renders none
-  of this today.
+  Runtime access covers the supported explicit-tab browser operations and
+  main-frame scripts/RPC. Unsupported session-wide operations fail closed, as do
+  headless and old shells. Revoke cancels pending capabilities and blocks new
+  backend calls; previously injected JavaScript may remain until the explicit
+  Reload page action. The UI reports pending cleanup without erasing filled
+  forms. See the account security plan for the supported scope and native checks.
 
 ## A plugin could own these — and now nothing is in the way
 
@@ -352,9 +339,10 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   in practice because each closes the other, documented rather than fixed.
 - **Streaming HTTP across the plugin boundary.** Deferred on purpose; a plugin's
   route buffers its response.
-- **Permissions the user grants, rather than the plugin declaring them.** Today
-  `patcher.permissions` is written by whoever wrote the plugin — which, in the case this
-  product exists for, is the user's own agent. The install is one all-or-nothing
+- **General permission grants beyond runtime browser access.** Phase 5 adds
+  revocable exact-origin grants for opt-in browser plugins. For the other
+  capabilities, `patcher.permissions` is written by whoever wrote the plugin —
+  which, in the case this product exists for, is the user's own agent. The install is one all-or-nothing
   yes (and only in the CLI), nothing can be granted in part, and nothing can be
   taken back afterwards short of uninstalling. So "the agent asked for `threads`
   and `filesystem`" is a sentence the user has never actually answered, and a
@@ -385,12 +373,14 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   to a plugin that is running, which is a failure its author has never had to
   handle.
 
-- **The plugin pages show no plugin permissions.** The CLI prints
+- **Permission disclosure for legacy plugin pages.** Phase 5 shows permissions,
+  declared sites and granted origins in runtime plugin details and browser site
+  info. Legacy plugin details still need that disclosure. The CLI prints
   `patcher.permissions` and `patcher.sites` before an install and `patcher plugin info`
   lists them, and the consent prompt an agent's plugin change raises now shows
   both at the moment they decide something — but the app's own plugin list and
-  detail pages still render neither, so a plugin the user installs through the
-  app's dialog, or one they are merely looking at, discloses nothing. `sites` is
+  legacy detail pages still render neither, so a legacy plugin the user installs
+  through the app's dialog, or one they are merely looking at, discloses nothing. `sites` is
   the one whose scope only the reader can judge: it scopes two permissions, one
   of which runs the plugin's code in those pages. `InstalledPlugin` carries both
   on the wire already; what is missing is the surface.

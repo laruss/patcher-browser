@@ -294,12 +294,11 @@ anyone agrees to it. `patcher plugin install` prints it above the confirmation (
 restyle pages on: …") and `patcher plugin info` lists it, both read from the manifest on
 disk, which is the path an agent-generated plugin takes.
 
-**The app does not show it, and does not show permissions either.** That gap
-predates this permission — nothing in the SPA renders `patcher.permissions` today — but
-it matters more here than for the others, because this is the one whose scope is a
-list only the reader can judge. `sites` is on the wire (`InstalledPlugin.sites`)
-ready for that surface; until it exists, a plugin installed through the app's own
-dialog discloses its sites nowhere the user will look.
+Runtime-mode plugin detail shows permissions, declared sites and exact-origin
+grants. Browser site info offers Allow here, confirmed by the native desktop;
+Revoke blocks Patcher operations immediately and reports existing scripts as
+pending cleanup until the user reloads. The installation dialog remains a
+separate disclosure surface. See [the SDK scope](../../packages/plugin-sdk/README.md#runtime-browser-site-access).
 
 Not to be confused with `patcher.sdk.hosts`, which is enrolled machines.
 These are websites.

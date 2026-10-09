@@ -1,3 +1,9 @@
+import {
+  SITE_ACCESS_CHANNELS,
+  scopedPageCallSchema,
+  type ScopedPageCall,
+} from "@patcher/desktop-contract";
+import { browserCommandOutcomeSchema } from "@patcher/domain";
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import { appCommandIdSchema } from "@patcher/domain";
 import {
@@ -300,6 +306,8 @@ const browserSearchSelectionListeners =
 const browserContextMenuInvokeListeners =
   new Set<PatcherDesktopBrowserContextMenuInvokeHandler>();
 const browserDialogListeners = new Set<PatcherDesktopBrowserDialogHandler>();
+const siteAccessChangedListeners = new Set<() => void>();
+const scopedPageCallListeners = new Set<(call: ScopedPageCall) => void>();
 const browserPageScriptCallListeners =
   new Set<PatcherDesktopBrowserPageScriptCallHandler>();
 const browserPagePromptListeners =
@@ -483,6 +491,37 @@ const patcherBrowserApi: PatcherDesktopBrowserApi = {
   },
   setPageStyles(request: PatcherDesktopBrowserPageStyles): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_SET_PAGE_STYLES_CHANNEL, request);
+  },
+  onSiteAccessChanged(listener) {
+    siteAccessChangedListeners.add(listener);
+    return () => {
+      siteAccessChangedListeners.delete(listener);
+    };
+  },
+  async getScopedHostId() {
+    const id: unknown = await ipcRenderer.invoke(SITE_ACCESS_CHANNELS.host);
+    if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)
+      throw new Error("Invalid browser host");
+    return id;
+  },
+  async respondToScopedAuth(request) {
+    return (
+      (await ipcRenderer.invoke(SITE_ACCESS_CHANNELS.auth, request)) === true
+    );
+  },
+  async executeScopedCommand(request) {
+    return browserCommandOutcomeSchema.parse(
+      await ipcRenderer.invoke(SITE_ACCESS_CHANNELS.execute, request),
+    );
+  },
+  setScopedPageContributions(request) {
+    void ipcRenderer.invoke(SITE_ACCESS_CHANNELS.contributions, request);
+  },
+  onScopedPageScriptCall(listener) {
+    scopedPageCallListeners.add(listener);
+    return () => {
+      scopedPageCallListeners.delete(listener);
+    };
   },
   setPageScripts(request: PatcherDesktopBrowserPageScripts): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_SET_PAGE_SCRIPTS_CHANNEL, request);
@@ -1188,3 +1227,13 @@ contextBridge.exposeInMainWorld(
 // spellings for every future reader to check. `preload-browser-api.test.ts`
 // pins the name, because nothing else on this boundary can notice it changing.
 contextBridge.exposeInMainWorld("patcherDesktop", patcherDesktopApi);
+
+ipcRenderer.on(SITE_ACCESS_CHANNELS.pageCall, (_event, payload: unknown) => {
+  const parsed = scopedPageCallSchema.safeParse(payload);
+  if (parsed.success)
+    for (const listener of scopedPageCallListeners) listener(parsed.data);
+});
+
+ipcRenderer.on(SITE_ACCESS_CHANNELS.changed, () => {
+  for (const listener of siteAccessChangedListeners) listener();
+});

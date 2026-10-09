@@ -404,6 +404,19 @@ export const installedPlugins = sqliteTable("plugins", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const pluginSiteGrants = sqliteTable(
+  "plugin_site_grants",
+  {
+    pluginId: text("plugin_id")
+      .notNull()
+      .references(() => installedPlugins.id, { onDelete: "cascade" }),
+    origin: text("origin").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    grantedAt: integer("granted_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.pluginId, table.origin] })],
+);
+
 export const pluginArtifacts = sqliteTable(
   "plugin_artifacts",
   {

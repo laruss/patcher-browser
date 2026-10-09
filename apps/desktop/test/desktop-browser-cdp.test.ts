@@ -1,3 +1,4 @@
+import { runBrowserSiteOperation } from "../src/browser-site-operation.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   PATCHER_CDP_PROTOCOL_VERSION,
@@ -379,5 +380,109 @@ describe("a session's debugger listeners", () => {
     target.emitDetach("devtools took the tab");
 
     expect(target.listenerCount()).toBe(0);
+  });
+});
+
+describe("runtime site CDP checks", () => {
+  it("checks before and after an asynchronous command", async () => {
+    const target = createFakeTarget(),
+      session = createCdpSession({ target });
+    let allowed = true,
+      finish!: (value: unknown) => void;
+    target.sendCommand = () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      });
+    const assert = () => {
+      if (!allowed) throw new Error("revoked");
+    };
+    const pending = runBrowserSiteOperation(assert, () =>
+      session.send("Runtime.evaluate"),
+    );
+    allowed = false;
+    finish({ secret: "late value" });
+    await expect(pending).rejects.toThrow("revoked");
+    await expect(
+      runBrowserSiteOperation(assert, () =>
+        session.send("Input.dispatchKeyEvent"),
+      ),
+    ).rejects.toThrow("revoked");
+  });
+  it("checks cached and pending domain enables", async () => {
+    const target = createFakeTarget(),
+      session = createCdpSession({ target });
+    await session.enableDomain("DOM");
+    await expect(
+      runBrowserSiteOperation(
+        () => {
+          throw new Error("revoked");
+        },
+        () => session.enableDomain("DOM"),
+      ),
+    ).rejects.toThrow("revoked");
+    let finish!: (value: unknown) => void,
+      allowed = true;
+    target.sendCommand = () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      });
+    const first = session.enableDomain("Runtime");
+    const second = runBrowserSiteOperation(
+      () => {
+        if (!allowed) throw new Error("revoked");
+      },
+      () => session.enableDomain("Runtime"),
+    );
+    allowed = false;
+    finish({});
+    await first;
+    await expect(second).rejects.toThrow("revoked");
+  });
+  it("refuses element handles from another origin/frame document", async () => {
+    const target = createFakeTarget(),
+      session = createCdpSession({ target });
+    target.resolveCommand("DOM.resolveNode", { object: { objectId: "node" } });
+    target.resolveCommand("Page.getFrameTree", {
+      frameTree: { frame: { id: "main", url: "https://a.example.com/" } },
+    });
+    target.resolveCommand("Page.createIsolatedWorld", {
+      executionContextId: 42,
+    });
+    target.resolveCommand("Runtime.callFunctionOn", {
+      result: { value: false },
+    });
+    await expect(
+      runBrowserSiteOperation(
+        () => {},
+        () => session.send("DOM.resolveNode", { backendNodeId: 1 }),
+        "https://a.example.com/",
+      ),
+    ).rejects.toThrow(/another document/);
+    target.resolveCommand("Runtime.callFunctionOn", {
+      result: { value: true },
+    });
+    await expect(
+      runBrowserSiteOperation(
+        () => {},
+        () => session.send("DOM.resolveNode", { backendNodeId: 1 }),
+        "https://a.example.com/",
+      ),
+    ).resolves.toEqual({ object: { objectId: "node" } });
+  });
+  it("pins an accessibility snapshot to the actual main frame", async () => {
+    const target = createFakeTarget(),
+      session = createCdpSession({ target });
+    target.resolveCommand("Page.getFrameTree", {
+      frameTree: { frame: { id: "main", url: "https://a.example.com/" } },
+    });
+    await runBrowserSiteOperation(
+      () => {},
+      () => session.send("Accessibility.getFullAXTree", { depth: 5 }),
+      "https://a.example.com/",
+    );
+    expect(target.commands.at(-1)).toEqual({
+      method: "Accessibility.getFullAXTree",
+      params: { depth: 5, frameId: "main" },
+    });
   });
 });

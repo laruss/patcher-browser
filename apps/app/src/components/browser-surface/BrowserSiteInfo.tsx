@@ -1,3 +1,4 @@
+import { BrowserRuntimeSiteAccess } from "@/components/plugin/PluginSiteAccess";
 import { Icon, type IconName } from "@patcher/shared-ui/icon";
 import {
   Popover,
@@ -95,6 +96,7 @@ export function BrowserSiteInfo({
           )}
           <p className="text-xs text-muted-foreground">{copy.detail}</p>
         </div>
+        <BrowserRuntimeSiteAccess tabId={tabId} url={url} />
         <BrowserSiteInfoPluginSections tabId={tabId} url={url} />
       </PopoverContent>
     </Popover>

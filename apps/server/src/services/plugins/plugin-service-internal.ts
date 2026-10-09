@@ -71,6 +71,7 @@ export interface LoadedPlugin {
 }
 
 export interface PluginServiceDeps {
+  siteAccess?: import("./plugin-site-access.js").PluginSiteAccess;
   secretStore?: import("@patcher/secret-storage").PluginSecretStore;
   db: DbConnection;
   /**

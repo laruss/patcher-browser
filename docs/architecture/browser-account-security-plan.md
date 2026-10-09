@@ -1,10 +1,11 @@
 # Browser account security: план реализации
 
-Статус: Phases 1–4 реализованы, проверены и прошли независимое ревью.
+Статус: Phases 1–5 реализованы, проверены и прошли независимое ревью.
 Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 — `caf119792`.
 Phase 3 закоммичена и отправлена: `43f8616ea`. Sol xhigh: 3 раунда, итог без P1/P2.
-Phase 4 без коммита и push. Sol xhigh: 3 раунда, итог без P1/P2.
-Phases 5–8 — план. План проверен по исходникам на `c263e6cab`,
+Phase 4 закоммичена и запушена: `ef1883a2e`. Sol xhigh: 3 раунда, итог без P1/P2.
+Phase 5 не закоммичена. Sol xhigh: 3 раунда, итог без P1/P2.
+Phases 6–8 — план. Исходный план проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -372,7 +373,7 @@ boolean report и trusted UI. Не использовать существующ
 
 ## Phase 4 — encrypted plugin settings и миграция
 
-**Статус реализации.** Реализована, без коммита и push. Sol xhigh завершил
+**Статус реализации.** Реализована, коммит `ef1883a2e` запушен. Sol xhigh завершил
 три раунда независимого ревью; итог без оставшихся P1/P2.
 
 Settings → Security показывает режим и предлагает явное включение с native
@@ -554,6 +555,57 @@ keychain denial, disconnected shell, перенос data dir без ключа. 
 `bb-migration.md`; новый keytar/native addon для первого backend не нужен.
 
 ## Phase 5 — runtime site grants и видимые permissions
+
+**Статус реализации.** Реализована, ожидает команды на commit/push.
+Независимое ревью `gpt-6.1-sol`, `xhigh`: 3 раунда, итог без P1/P2.
+
+SDK 1.1.0 закрепляет opt-in `patcher.siteAccess: "runtime"` и minimum SDK 1.1.0.
+Legacy semantics сохранены. Core DB хранит exact-origin grants, привязанные к
+source identity, permissions и ceiling; изменение policy удаляет старые grants,
+включая последующий rollback. Disable сохраняет grants, uninstall удаляет.
+Browser site info и plugin detail показывают permissions, ceiling и origins;
+Allow here требует native confirmation, Revoke закрывает pending capabilities.
+
+Server передаёт owner context через HTTP и реальный plugin child; Electron main
+проверяет actual URL/document, permissions, policy revisions и grant через private
+broker. Новые scoped IPC/WS capabilities и optional preload API не меняют старые
+strict browser payloads или daemon protocol. Headless, attached/remote и старые
+shell/SPA отказывают runtime page operations. Обычный plugin RPC, app POST,
+plugin token, agent или thread не одобряют grant сами.
+
+Первый объём — explicit-tab reads, snapshot/interact/scroll, evaluate и viewport
+screenshot. Session-wide API, navigation, PDF/full-page capture и tab management
+запрещены. Scripts/RPC исполняются только в main frame; AX/DOM refs ограничены
+корневым документом, ownership проверяется через native intrinsic в отдельном
+host-owned world. Screenshot включает видимые iframe pixels; pointer input
+действует на отрисованную страницу. Это ограничение Patcher API, не Node sandbox.
+Native HTTP auth требует grant для каждого actual challenge URL и одноразовый
+credential-bound delivery token; revoke/navigation между ответом provider и
+передачей в Chromium запрещает выдачу. Origin/proxy и разные auth schemes не
+coalesce в одну очередь.
+
+Уже инъектированный JS может продолжать работать после revoke; backend replies
+прекращаются, UI показывает pending cleanup и явный Reload page. Filled forms
+не перезагружаются автоматически; BFCache restore обновляет document identity.
+Password capture/vault/fill и Touch ID release остаются Phase 6.
+Поздние loading events после уничтожения host не читают его native webContents;
+fixture завершает тест ошибкой при любом uncaught exception/rejection.
+
+Проверки: server — 239 files / 2211 tests плюс 11 targeted controller tests;
+desktop — 59 files / 766 tests;
+domain — 213, desktop contracts — 15,
+secret-storage — 28, SDK — 131, server contracts — 43, launcher — 68.
+UI targeted suites, app/server/desktop typecheck, root lint, file-size lint,
+format и generated declarations checks проходят. Sol независимо выполнил
+90 targeted tests в раунде 2 и 133 в финальном раунде 3.
+File-size pins уменьшены: `desktop-browser-view.ts`
+5080 → 4953, `plugin-service.ts` 3422 → 3344.
+
+`smoke:plugin-site-access` проверяет настоящий Electron 41.7.0: отсутствие
+инъекции/RPC до grant, изоляцию iframe и spoofed DOM owner, отзыв pending replies,
+сохранение заполненной формы, explicit reload и реальный HTTP 401 challenge с
+одноразовой выдачей. Все 7 проверок проходят также с packaged preload. Ad-hoc
+package, `smoke:packaged` и app boot smoke проходят.
 
 **Проблема.** Manifest wildcard сегодня — standing access ко всем matching pages.
 Password plugin должен просить «использовать здесь» по мере появления аккаунтов.

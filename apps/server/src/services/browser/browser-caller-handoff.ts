@@ -1,5 +1,9 @@
 import type { BrowserCommandIssuer } from "@patcher/server-contract";
 import {
+  currentPluginSiteCallers,
+  runWithPluginSiteCallers,
+} from "./plugin-site-caller.js";
+import {
   currentBrowserCommandIssuer,
   runAsBrowserCommandIssuer,
 } from "./browser-command-issuer.js";
@@ -80,6 +84,7 @@ import {
  */
 
 export interface BrowserCallerHandoff {
+  siteCallers?: readonly string[];
   /** The level an outside caller is charged, when there is one. */
   scope?: BrowserExternalCallerScope;
   /** The name the window is shown, when the server can say one. */
@@ -107,10 +112,12 @@ const inFlight = new Map<string, BrowserCallerHandoff>();
 export function rememberBrowserCaller(callId: string): () => void {
   const scope = currentExternalBrowserCaller();
   const issuer = currentBrowserCommandIssuer();
-  if (scope === undefined && issuer === undefined) {
+  const siteCallers = currentPluginSiteCallers();
+  if (scope === undefined && issuer === undefined && siteCallers.length === 0) {
     return () => {};
   }
   inFlight.set(callId, {
+    ...(siteCallers.length === 0 ? {} : { siteCallers }),
     ...(scope === undefined ? {} : { scope }),
     ...(issuer === undefined ? {} : { issuer }),
   });
@@ -133,9 +140,18 @@ export function runAsRememberedBrowserCaller<T>(
 ): T {
   const remembered = origin === undefined ? undefined : inFlight.get(origin);
   if (remembered === undefined) return fn();
-  const { scope, issuer } = remembered;
-  const named = issuer === undefined ? fn : () => runAsBrowserCommandIssuer(issuer, fn);
-  return scope === undefined ? named() : runAsExternalBrowserCaller(scope, named);
+  const { scope, issuer, siteCallers } = remembered;
+  const scoped =
+    siteCallers === undefined
+      ? fn
+      : () => runWithPluginSiteCallers(siteCallers, fn);
+  const named =
+    issuer === undefined
+      ? scoped
+      : () => runAsBrowserCommandIssuer(issuer, scoped);
+  return scope === undefined
+    ? named()
+    : runAsExternalBrowserCaller(scope, named);
 }
 
 /**

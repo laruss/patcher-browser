@@ -502,6 +502,11 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
   // bundles, drop removed ones) — a side effect, not a query invalidation.
   "plugins-changed": {
     dirty: [
+      ({ queryClient }) => {
+        void queryClient.invalidateQueries({
+          queryKey: ["plugins", "site-access"],
+        });
+      },
       dirtyPluginContributionQueries,
       dirtyProjectCommandCatalogQueries,
       dirtyPluginManagementQueries,

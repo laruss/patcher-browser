@@ -1,3 +1,12 @@
+import { createDesktopPageContributions } from "./desktop-page-contributions.js";
+import { randomUUID } from "node:crypto";
+import { assertBrowserSiteOperation } from "./browser-site-operation.js";
+import { pluginSiteOrigin } from "@patcher/domain/plugin-site-access";
+import { type ScopedPageCall } from "@patcher/desktop-contract";
+import type {
+  DesktopSiteAuthority,
+  SiteTarget,
+} from "./desktop-site-authority.js";
 import {
   Menu,
   WebContentsView,
@@ -26,9 +35,7 @@ import {
   type PatcherDesktopBrowserDownloadActionResult,
   type PatcherDesktopBrowserContextMenuInvoke,
   type PatcherDesktopBrowserContextMenuItem,
-  type PatcherDesktopBrowserPageStyle,
   type PatcherDesktopBrowserPageStyles,
-  type PatcherDesktopBrowserPageScript,
   type PatcherDesktopBrowserPageScripts,
   type PatcherDesktopBrowserPageScriptCall,
   type PatcherDesktopBrowserPageScriptResult,
@@ -92,7 +99,6 @@ import {
   type PatcherDesktopBrowserViewBounds,
 } from "@patcher/desktop-contract";
 import type { AppCommandId, AppShortcutInput } from "@patcher/domain";
-import { matchesBrowserUrlPattern } from "@patcher/domain/browser-url-pattern";
 import {
   PATCHER_DESKTOP_BROWSER_DOWNLOAD_CHANNEL,
   PATCHER_DESKTOP_BROWSER_FAVICON_CHANNEL,
@@ -106,7 +112,6 @@ import {
   PATCHER_DESKTOP_BROWSER_PLACED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SCOPED_OPEN_TAB_CHANNEL,
   PATCHER_DESKTOP_BROWSER_CONTEXT_MENU_INVOKE_CHANNEL,
-  PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SEARCH_SELECTION_CHANNEL,
   PATCHER_DESKTOP_BROWSER_SNAPSHOT_CHANNEL,
   PATCHER_DESKTOP_BROWSER_STATE_CHANNEL,
@@ -232,39 +237,6 @@ const POPUP_RATE_WINDOW_MS = 10_000;
 const POPUP_RATE_MAX_IN_WINDOW = 3;
 
 /**
- * Where the isolated worlds page scripts run in start.
- *
- * High on purpose. Chromium hands out the world ids behind
- * `Page.createIsolatedWorld` — the mechanism behind Patcher's own automation world —
- * from a low counter, so starting here keeps the two apart. Measured on Electron
- * 41.7.0: with world 9001 in use, a CDP-created world came back as 5, and neither
- * could see the other's globals.
- */
-const PAGE_SCRIPT_WORLD_BASE = 9001;
-
-/** Identifies the browsing session's page-script preload, for unregistering. */
-const PAGE_SCRIPT_PRELOAD_ID = "patcher-page-scripts";
-
-/**
- * How long a page script's `patcher.rpc` waits.
- *
- * A backstop rather than a policy: the answer travels through this window's
- * renderer to the Patcher server and back, and nothing in that path has a deadline of
- * its own, so without this a plugin that never answers leaves a page script
- * awaiting a promise for the life of the tab.
- */
-const PAGE_SCRIPT_CALL_TIMEOUT_MS = 30_000;
-
-/**
- * The sliding window on `patcher.rpc`, same shape as the popup limiter above.
- *
- * Generous enough for a script answering clicks and typing, and bounded because
- * a page script in a loop would otherwise be a page driving the Patcher server.
- */
-const PAGE_SCRIPT_RATE_WINDOW_MS = 10_000;
-const PAGE_SCRIPT_RATE_MAX_IN_WINDOW = 60;
-
-/**
  * How many download paths stay openable. Comfortably more than the ten the
  * renderer lists, so the list can never contain a path this has forgotten,
  * and bounded so a page downloading in a loop cannot grow it without limit.
@@ -308,6 +280,7 @@ const PAGE_UNRESPONSIVE_ERROR_TEXT = "This page is not responding.";
 /** A network question a tab is stopped on, and how to answer it. */
 interface PendingPagePrompt {
   details: PatcherDesktopBrowserPagePromptDetails;
+  nativeAuth?: { url: string; isProxy: boolean };
   /** Hands the decision back to Chromium. Called exactly once. */
   settle: (answer: PatcherDesktopBrowserPagePromptAnswer["answer"]) => void;
 }
@@ -449,6 +422,11 @@ export interface BrowserViewEntry {
    * one page.
    */
   pageScriptCallTimestamps: number[];
+  runtimeDocumentId: string;
+  runtimeBootstrapped: boolean;
+  runtimeInjected: Set<string>;
+  runtimeEverInjected: Set<string>;
+  runtimeCleanup: Set<string>;
   /**
    * The app is drawing its own chrome over the page area, so the view is
    * hidden behind a bitmap of itself. Separate from `visible`, which is the
@@ -508,7 +486,11 @@ export interface BrowserViewEntry {
    * prompting four times for one password is not what a browser does. One
    * answer settles every request parked here.
    */
-  pendingAuth: { key: string; callbacks: BrowserAuthCallback[] } | null;
+  pendingAuth: {
+    key: string;
+    requestUrls: Set<string>;
+    callbacks: BrowserAuthCallback[];
+  } | null;
   /**
    * The page has taken the window through the HTML fullscreen API, so the view
    * covers the whole content area and the renderer's own rect waits in
@@ -627,7 +609,8 @@ export type DesktopBrowserHostWebContentsPayload =
   | PatcherDesktopBrowserDevToolsState
   | PatcherDesktopBrowserSearchSelection
   | PatcherDesktopBrowserContextMenuInvoke
-  | PatcherDesktopBrowserPageScriptCall;
+  | PatcherDesktopBrowserPageScriptCall
+  | ScopedPageCall;
 
 export interface DesktopBrowserHostContentBounds {
   height: number;
@@ -666,6 +649,8 @@ export interface DispatchDesktopBrowserAppCommandArgs {
 }
 
 export interface CreateDesktopBrowserViewManagerArgs {
+  onSiteCleanupChanged?: () => void;
+  siteAuthority?: () => DesktopSiteAuthority | undefined;
   onBrowserViewVisibilityChanged?: BrowserViewVisibilityChanged;
   dispatchAppCommand: (args: DispatchDesktopBrowserAppCommandArgs) => void;
   /**
@@ -755,6 +740,14 @@ interface SetEntryDesiredBoundsArgs {
 }
 
 export interface DesktopBrowserViewManager {
+  resolveSiteTarget(tabId: string): SiteTarget | null;
+  sitePolicyChanged(): void;
+  siteScriptBootstrap(
+    webContentsId: number,
+    url: string,
+  ): { worlds: PatcherDesktopPageScriptWorld[]; documentId: string | null };
+  siteCleanup(): Array<{ pluginId: string; tabId: string }>;
+  siteDocumentRestored(webContentsId: number): string | null;
   attach(args: HostScopedRequestArgs<PatcherDesktopBrowserAttachRequest>): void;
   detach(args: HostScopedTabArgs): void;
   /** See {@link endCdpAutomation}, which is the whole of it. */
@@ -781,7 +774,7 @@ export interface DesktopBrowserViewManager {
    * `ok: false` so the renderer can tell "no view" from "page would not talk".
    */
   readPage(
-    args: HostScopedTabArgs,
+    args: HostScopedTabArgs & { allowPdf?: boolean },
   ): Promise<PatcherDesktopBrowserPageReadResult>;
   /**
    * The same read, of what a CSS selector matches. Attaches the tab's CDP
@@ -852,6 +845,7 @@ export interface DesktopBrowserViewManager {
     webContentsId: number;
     url: string;
     request: PatcherDesktopPageScriptRpcRequest;
+    documentId?: string;
   }): Promise<PatcherDesktopPageScriptRpcAnswer>;
   /** The renderer's answer to one, on its way back to the page. */
   respondToPageScriptCall(args: {
@@ -1861,13 +1855,17 @@ function runIsolatedScript(
   webContents: WebContentsView["webContents"],
   code: string,
 ): Promise<IsolatedScriptOutcome> {
+  assertBrowserSiteOperation();
   return withPageReadDeadline<IsolatedScriptOutcome>(
     webContents
       .executeJavaScriptInIsolatedWorld(
         PATCHER_DESKTOP_BROWSER_PAGE_READ_WORLD_ID,
         [{ code }],
       )
-      .then((value: unknown) => ({ kind: "value" as const, value }))
+      .then((value: unknown) => {
+        assertBrowserSiteOperation();
+        return { kind: "value" as const, value };
+      })
       .catch(() => ({ kind: "failed" as const })),
     { kind: "timeout" },
   );
@@ -2100,305 +2098,22 @@ export function createDesktopBrowserViewManager(
    * server first would put a round trip in front of every menu.
    */
   let contextMenuItems: readonly PatcherDesktopBrowserContextMenuItem[] = [];
-  /**
-   * Plugin page styles, as the renderer last declared them. Held here for a
-   * sharper reason than the menu entries above: this is where navigation
-   * happens, and inserted CSS lasts exactly one document, so re-applying it is
-   * something only the shell can do at the moment the page commits.
-   */
-  let pageStyles: readonly PatcherDesktopBrowserPageStyle[] = [];
-
-  /**
-   * Bring one view's applied stylesheets in line with what should be applied to
-   * the page it is showing.
-   *
-   * Reconciliation rather than "insert on navigate", because two different
-   * things call it: a commit, where nothing is applied yet, and a change to the
-   * declared set, where a document may already be carrying styles that should
-   * now go. One function that compares desired against applied answers both, and
-   * cannot double-insert.
-   *
-   * Failures are swallowed per style. A page that is being torn down rejects an
-   * insertion, and the tab it happened in is not a place to report anything —
-   * whereas letting it reject would abandon the styles queued behind it.
-   */
-  async function reconcilePageStyles(entry: BrowserViewEntry): Promise<void> {
-    const webContents = entry.view.webContents;
-    if (webContents.isDestroyed()) {
-      return;
-    }
-    const url = webContents.getURL();
-    const wanted = new Map<string, PatcherDesktopBrowserPageStyle>();
-    // Only a real page: `about:blank` and the empty URL of a fresh view are not
-    // sites, and a pattern like `https://**/**` must not be read as claiming them.
-    if (url.startsWith("https://") || url.startsWith("http://")) {
-      for (const style of pageStyles) {
-        if (
-          style.matches.some((pattern) =>
-            matchesBrowserUrlPattern(pattern, url),
-          )
-        ) {
-          wanted.set(`${style.pluginId}:${style.styleId}`, style);
-        }
-      }
-    }
-    const document = entry.pageStyleDocument;
-    for (const [id, cssKey] of [...entry.appliedPageStyles]) {
-      if (wanted.has(id)) continue;
-      entry.appliedPageStyles.delete(id);
-      try {
-        await webContents.removeInsertedCSS(cssKey);
-      } catch {
-        // The document that carried it is gone, which is the outcome asked for.
-      }
-    }
-    for (const [id, style] of wanted) {
-      if (entry.appliedPageStyles.has(id)) continue;
-      // Claim the slot before awaiting: a second reconcile for the same document
-      // — a push arriving mid-commit — would otherwise insert the same
-      // stylesheet twice and remember only one of the two keys.
-      entry.appliedPageStyles.set(id, "");
-      try {
-        const cssKey = await webContents.insertCSS(style.css);
-        if (entry.pageStyleDocument !== document) {
-          // The page moved on while this was in flight. The key names a
-          // stylesheet in a document that no longer exists, so it is not worth
-          // filing — and the commit that replaced it cleared this map and
-          // reconciled again, so whatever stands under `id` now is that
-          // document's and must not be dropped on this pass's way out.
-          continue;
-        }
-        if (entry.appliedPageStyles.get(id) !== "") {
-          // The slot stopped being ours: a reconcile for this same document
-          // released it because the style is no longer declared. Take the
-          // stylesheet back rather than leaving one nothing remembers.
-          try {
-            await webContents.removeInsertedCSS(cssKey);
-          } catch {
-            // The document that carried it is gone, which is the outcome asked
-            // for.
-          }
-          continue;
-        }
-        entry.appliedPageStyles.set(id, cssKey);
-      } catch {
-        // Same two questions as the success path, in the same order. The
-        // document first: a page being torn down is what rejects an insertion,
-        // and that is exactly when the next one commits — so a stale failure
-        // must not clear a slot the new document's reconcile is holding, or that
-        // reconcile finds its own claim gone and takes its stylesheet back.
-        // Then the slot, so a release for this same document is not undone.
-        if (
-          entry.pageStyleDocument === document &&
-          entry.appliedPageStyles.get(id) === ""
-        ) {
-          entry.appliedPageStyles.delete(id);
-        }
-      }
-    }
-  }
-  /**
-   * Plugin page scripts, as the renderer last declared them, and the worlds they
-   * run in.
-   *
-   * Held here for the reason the styles above are, one step sharper: a script has
-   * to reach a document *as it is created*, before the page's own first script
-   * runs, and this is the only process present at that moment.
-   */
-  let pageScripts: readonly PatcherDesktopBrowserPageScript[] = [];
-  /**
-   * Whether the browsing session currently carries the page-script preload.
-   *
-   * The load-bearing property of this whole surface: while no plugin declares a
-   * page script, no preload is installed, so a browsed renderer holds no Patcher code
-   * at all and the shell's standing rule needs no qualification. Measured: after
-   * `unregisterPreloadScript`, the next document has no preload and the isolated
-   * world is empty.
-   */
-  let pageScriptPreloadRegistered = false;
-  /**
-   * `pluginId` → the isolated world its scripts run in, allocated on first sight
-   * and stable after.
-   *
-   * One world per plugin, not one per script and not one shared: two scripts of
-   * the same plugin are one program and may share globals, while two plugins are
-   * two programs and — measured — cannot see each other's `patcher` or anything else.
-   */
-  const pageScriptWorldIds = new Map<string, number>();
-  let pageScriptCallSequence = 0;
-  /**
-   * `patcher.rpc` calls in flight: callId → how to answer the page that asked.
-   *
-   * The request starts in a browsed renderer, is answered by this window's
-   * renderer, and has to find its way back, so the correlation lives here. A late
-   * answer resolves nothing and is dropped, exactly as a late dialog answer is.
-   */
-  const pendingPageScriptCalls = new Map<
-    string,
-    (answer: PatcherDesktopPageScriptRpcAnswer) => void
-  >();
-
-  function pageScriptWorldId(pluginId: string): number {
-    const existing = pageScriptWorldIds.get(pluginId);
-    if (existing !== undefined) {
-      return existing;
-    }
-    const worldId = PAGE_SCRIPT_WORLD_BASE + pageScriptWorldIds.size;
-    pageScriptWorldIds.set(pluginId, worldId);
-    return worldId;
-  }
-
-  /**
-   * The worlds a document at this address should get, grouped by plugin.
-   *
-   * The same matching a page style gets, against the same declared patterns, and
-   * the same refusal to treat a blank page as a site: `https://**` must not be
-   * read as claiming `about:blank`.
-   */
-  function pageScriptWorldsFor(url: string): PatcherDesktopPageScriptWorld[] {
-    if (!url.startsWith("https://") && !url.startsWith("http://")) {
-      return [];
-    }
-    const worlds = new Map<string, PatcherDesktopPageScriptWorld>();
-    for (const script of pageScripts) {
-      if (
-        !script.matches.some((pattern) =>
-          matchesBrowserUrlPattern(pattern, url),
-        )
-      ) {
-        continue;
-      }
-      let world = worlds.get(script.pluginId);
-      if (world === undefined) {
-        world = {
-          pluginId: script.pluginId,
-          worldId: pageScriptWorldId(script.pluginId),
-          scripts: [],
-        };
-        worlds.set(script.pluginId, world);
-      }
-      world.scripts.push({ scriptId: script.scriptId, code: script.code });
-    }
-    return [...worlds.values()];
-  }
-
-  /**
-   * Install or remove the browsing session's page-script preload to match what is
-   * declared.
-   *
-   * Preloads are read as a frame's document is created, so this takes effect on
-   * the next load of a page — which is also what Chrome's content scripts do, and
-   * the honest thing to tell a plugin author: a script registered while a matching
-   * page is open runs when that page is reloaded.
-   */
-  function syncPageScriptPreload(): void {
-    const wanted = pageScripts.length > 0;
-    if (wanted === pageScriptPreloadRegistered) {
-      return;
-    }
-    const browserSession = ensureHardenedSession();
-    try {
-      if (wanted) {
-        browserSession.registerPreloadScript({
-          id: PAGE_SCRIPT_PRELOAD_ID,
-          type: "frame",
-          filePath: args.pageScriptPreloadPath,
-        });
-      } else {
-        browserSession.unregisterPreloadScript(PAGE_SCRIPT_PRELOAD_ID);
-      }
-      pageScriptPreloadRegistered = wanted;
-    } catch {
-      // A session that will not take the preload leaves page scripts not
-      // running, which is the safe direction: nothing half-installed, and the
-      // flag stays false so the next push tries again.
-    }
-  }
-
-  function refusePageScriptCall(
-    message: string,
-  ): PatcherDesktopPageScriptRpcAnswer {
-    return { ok: false, message };
-  }
-
-  /**
-   * One `patcher.rpc` from a page script.
-   *
-   * `url` is the frame's address as Chromium reports it to this process, never
-   * something the payload claimed, and the plugin is re-checked against it on
-   * every call rather than once at injection. That is what bounds a browsed
-   * renderer that has been taken over: it can reach the plugins that already
-   * claim the page it is actually on, and nothing else — the same set a
-   * well-behaved script on that page could reach.
-   */
-  async function callPageScriptRpc(callArgs: {
-    webContentsId: number;
-    url: string;
-    request: PatcherDesktopPageScriptRpcRequest;
-  }): Promise<PatcherDesktopPageScriptRpcAnswer> {
-    const entry = entriesByWebContentsId.get(callArgs.webContentsId);
-    if (entry === undefined) {
-      return refusePageScriptCall("patcher.rpc is not available in this page.");
-    }
-    const { pluginId, method, input } = callArgs.request;
-    if (
-      !pageScriptWorldsFor(callArgs.url).some(
-        (world) => world.pluginId === pluginId,
-      )
-    ) {
-      return refusePageScriptCall(
-        `patcher.rpc: plugin "${pluginId}" declares no page script for this address.`,
-      );
-    }
-    const now = Date.now();
-    const recent = entry.pageScriptCallTimestamps.filter(
-      (stamp) => now - stamp < PAGE_SCRIPT_RATE_WINDOW_MS,
-    );
-    if (recent.length >= PAGE_SCRIPT_RATE_MAX_IN_WINDOW) {
-      entry.pageScriptCallTimestamps = recent;
-      return refusePageScriptCall(
-        `patcher.rpc: too many calls — at most ${PAGE_SCRIPT_RATE_MAX_IN_WINDOW} every ${
-          PAGE_SCRIPT_RATE_WINDOW_MS / 1000
-        } seconds.`,
-      );
-    }
-    entry.pageScriptCallTimestamps = [...recent, now];
-
-    const hostWindow = entry.hostWindow;
-    if (hostWindow.webContents.isDestroyed()) {
-      return refusePageScriptCall(
-        "patcher.rpc: this tab's Patcher window is gone.",
-      );
-    }
-    const callId = `page-script-${(pageScriptCallSequence += 1)}`;
-    return await new Promise<PatcherDesktopPageScriptRpcAnswer>((resolve) => {
-      const timer = setTimeout(() => {
-        if (pendingPageScriptCalls.delete(callId)) {
-          resolve(
-            refusePageScriptCall(
-              `patcher.rpc("${method}"): no answer within ${
-                PAGE_SCRIPT_CALL_TIMEOUT_MS / 1000
-              } seconds.`,
-            ),
-          );
-        }
-      }, PAGE_SCRIPT_CALL_TIMEOUT_MS);
-      // Unref'd so a call in flight cannot hold the process open at shutdown.
-      timer.unref?.();
-      pendingPageScriptCalls.set(callId, (answer) => {
-        clearTimeout(timer);
-        resolve(answer);
-      });
-      send(hostWindow, PATCHER_DESKTOP_BROWSER_PAGE_SCRIPT_CALL_CHANNEL, {
-        callId,
-        tabId: entry.tabId,
-        pluginId,
-        method,
-        input,
-        url: truncate(callArgs.url, PATCHER_DESKTOP_BROWSER_MAX_URL_LENGTH),
-      });
-    });
-  }
+  const {
+    reconcilePageStyles,
+    pageScriptWorldsFor,
+    syncPageScriptPreload,
+    callPageScriptRpc,
+    pendingPageScriptCalls,
+    runtimePageCalls,
+    setStyles,
+    setScripts,
+  } = createDesktopPageContributions({
+    siteAuthority: args.siteAuthority,
+    pageScriptPreloadPath: args.pageScriptPreloadPath,
+    entriesByWebContentsId,
+    ensureHardenedSession,
+    send,
+  });
 
   /**
    * `host|fingerprint` pairs a human chose to trust despite a certificate
@@ -2892,6 +2607,9 @@ export function createDesktopBrowserViewManager(
     hostWindow: DesktopBrowserHostWindow,
     tabId: string,
   ): void {
+    if (hostWindow.isDestroyed()) {
+      return;
+    }
     const entry = entries.get(browserViewKey(hostWindow, tabId));
     if (!entry || entry.view.webContents.isDestroyed()) {
       return;
@@ -3223,11 +2941,12 @@ export function createDesktopBrowserViewManager(
       // code now owns both answers — including the refusals below, which are
       // deliberate rather than absent.
       event.preventDefault();
-      const realmKey = `${authInfo.host}:${authInfo.port}|${authInfo.realm}`;
+      const realmKey = `${authInfo.isProxy ? "proxy" : "origin"}|${authInfo.scheme}|${authInfo.host}:${authInfo.port}|${authInfo.realm}`;
       if (entry.pendingAuth?.key === realmKey) {
         // Another request for the same realm while the prompt is open: park it
         // and let one answer settle them all.
         entry.pendingAuth.callbacks.push(callback);
+        entry.pendingAuth.requestUrls.add(details.url);
         return;
       }
       // Read rather than typed: `isRequestForNavigation` is documented for
@@ -3255,8 +2974,13 @@ export function createDesktopBrowserViewManager(
       // cannot be asked about (the tab already has a prompt open) must not take
       // another realm's parked callbacks down with it — they would never be
       // settled, and their requests would hang for the life of the tab.
-      const pendingAuth = { key: realmKey, callbacks: [callback] };
+      const pendingAuth = {
+        key: realmKey,
+        requestUrls: new Set([details.url]),
+        callbacks: [callback],
+      };
       const opened = openPagePrompt({
+        nativeAuth: { url: details.url, isProxy: authInfo.isProxy },
         details: {
           kind: "auth",
           host: truncate(
@@ -3441,6 +3165,9 @@ export function createDesktopBrowserViewManager(
     // error text `did-fail-load` uses is what gives it the screen that already
     // exists, with the reload button on it.
     webContents.on("render-process-gone", (_event, details) => {
+      entry.runtimeDocumentId = randomUUID();
+      entry.runtimeBootstrapped = false;
+      args.siteAuthority?.()?.documentChanged(entry.tabId);
       if (details.reason === "clean-exit") {
         return;
       }
@@ -3490,6 +3217,13 @@ export function createDesktopBrowserViewManager(
       refresh();
     });
     webContents.on("did-navigate", (_event, url) => {
+      if (!entry.runtimeBootstrapped) {
+        entry.runtimeDocumentId = randomUUID();
+        args.siteAuthority?.()?.documentChanged(entry.tabId);
+        entry.runtimeCleanup.clear();
+        entry.runtimeInjected.clear();
+      }
+      args.onSiteCleanupChanged?.();
       commitEntryMainFrameUrl(entry, url);
       entry.lastErrorText = null;
       // The stylesheets went with the previous document: `insertCSS` lasts one
@@ -3518,6 +3252,7 @@ export function createDesktopBrowserViewManager(
     });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       if (isMainFrame) {
+        args.siteAuthority?.()?.documentChanged(entry.tabId);
         commitEntryMainFrameUrl(entry, url);
         // A same-document navigation keeps the document but routinely replaces
         // the view an SPA is showing, so the refs are just as stale.
@@ -3529,10 +3264,21 @@ export function createDesktopBrowserViewManager(
       }
       refresh();
     });
-    webContents.on("did-start-navigation", () => {
-      entry.lastErrorText = null;
-      refresh();
-    });
+    webContents.on(
+      "did-start-navigation",
+      (event, _url, isInPlace, isMainFrame) => {
+        const mainFrame = event.isMainFrame ?? isMainFrame;
+        if (mainFrame) {
+          if (!(event.isSameDocument ?? isInPlace)) {
+            entry.runtimeDocumentId = randomUUID();
+            entry.runtimeBootstrapped = false;
+          }
+          args.siteAuthority?.()?.documentChanged(entry.tabId);
+        }
+        entry.lastErrorText = null;
+        refresh();
+      },
+    );
     webContents.on("page-title-updated", refresh);
     // A page's favicon URL is still never forwarded: the renderer receives only a
     // `data:` URI the shell built from bytes it fetched in the browsing session,
@@ -3664,6 +3410,11 @@ export function createDesktopBrowserViewManager(
       appliedPageStyles: new Map(),
       pageStyleDocument: 0,
       pageScriptCallTimestamps: [],
+      runtimeDocumentId: randomUUID(),
+      runtimeBootstrapped: false,
+      runtimeInjected: new Set(),
+      runtimeEverInjected: new Set(),
+      runtimeCleanup: new Set(),
       overlayActive: false,
       visible: false,
       findRequestId: null,
@@ -3742,6 +3493,7 @@ export function createDesktopBrowserViewManager(
     rememberClosedTabSession(entry);
     entries.delete(key);
     entriesByWebContentsId.delete(entry.view.webContents.id);
+    args.siteAuthority?.()?.documentChanged(entry.tabId);
     releaseCdpSessionFor(entry);
     clearEntryLocalOriginState(entry);
     if (!hostWindow.isDestroyed()) {
@@ -3912,6 +3664,7 @@ export function createDesktopBrowserViewManager(
    */
   function openPagePrompt(args: {
     details: OpenPagePromptDetails;
+    nativeAuth?: PendingPagePrompt["nativeAuth"];
     entry: BrowserViewEntry;
     hostWindow: DesktopBrowserHostWindow;
     settle: PendingPagePrompt["settle"];
@@ -3925,7 +3678,11 @@ export function createDesktopBrowserViewManager(
       ...args.details,
       id: `page-prompt-${pagePromptSequence}`,
     } as PatcherDesktopBrowserPagePromptDetails;
-    args.entry.pagePrompt = { details, settle: args.settle };
+    args.entry.pagePrompt = {
+      details,
+      nativeAuth: args.nativeAuth,
+      settle: args.settle,
+    };
     // Stand a bitmap of the stopped page in behind the question, the way the
     // dialog path does — a prompt over an empty panel says less about what is
     // being asked.
@@ -4287,7 +4044,115 @@ export function createDesktopBrowserViewManager(
     });
   }
 
+  function documentForEntry(entry: BrowserViewEntry): string {
+    return entry.runtimeDocumentId;
+  }
+  function resolveSiteTarget(tabId: string): SiteTarget | null {
+    const found = [...entries.values()].filter(
+      (entry) =>
+        entry.tabId === tabId &&
+        !entry.view.webContents.isDestroyed() &&
+        !entry.hostWindow.isDestroyed(),
+    );
+    if (found.length !== 1) return null;
+    const entry = found[0]!;
+    const current = () => {
+      if (
+        entry.view.webContents.isDestroyed() ||
+        entry.hostWindow.isDestroyed() ||
+        entriesByWebContentsId.get(entry.view.webContents.id) !== entry
+      )
+        return null;
+      const url = entry.view.webContents.getURL(),
+        origin = pluginSiteOrigin(url),
+        documentId = documentForEntry(entry);
+      return origin === null || documentId === null
+        ? null
+        : { tabId, url, origin, documentId };
+    };
+    const context = current();
+    return context === null
+      ? null
+      : {
+          context,
+          current,
+          hostWebContentsId: entry.hostWindow.webContents.id,
+          authPrompt: () => {
+            const pending = entry.pagePrompt;
+            return pending?.details.kind === "auth" && pending.nativeAuth
+              ? {
+                  id: pending.details.id,
+                  host: pending.details.host,
+                  insecure: pending.details.insecure,
+                  ...pending.nativeAuth,
+                  urls: [
+                    ...(entry.pendingAuth?.requestUrls ??
+                      new Set([pending.nativeAuth.url])),
+                  ],
+                }
+              : null;
+          },
+        };
+  }
   return {
+    resolveSiteTarget,
+    siteCleanup: () =>
+      [...entries.values()].flatMap((entry) =>
+        [...entry.runtimeCleanup].map((pluginId) => ({
+          pluginId,
+          tabId: entry.tabId,
+        })),
+      ),
+    sitePolicyChanged() {
+      for (const entry of entries.values()) {
+        for (const id of entry.runtimeInjected)
+          if (
+            !args.siteAuthority?.()?.allows(id, entry.view.webContents.getURL())
+          )
+            entry.runtimeCleanup.add(id);
+        void reconcilePageStyles(entry);
+      }
+      for (const [callId, guard] of runtimePageCalls)
+        try {
+          guard.assert();
+        } catch {
+          const settle = pendingPageScriptCalls.get(callId);
+          pendingPageScriptCalls.delete(callId);
+          settle?.({ ok: false, message: "Runtime page access was revoked" });
+        }
+      syncPageScriptPreload();
+      args.onSiteCleanupChanged?.();
+    },
+    siteDocumentRestored(webContentsId) {
+      const entry = entriesByWebContentsId.get(webContentsId);
+      if (!entry) return null;
+      entry.runtimeDocumentId = randomUUID();
+      args.siteAuthority?.()?.documentChanged(entry.tabId);
+      for (const id of entry.runtimeEverInjected)
+        if (
+          !args.siteAuthority?.()?.allows(id, entry.view.webContents.getURL())
+        )
+          entry.runtimeCleanup.add(id);
+      args.onSiteCleanupChanged?.();
+      return entry.runtimeDocumentId;
+    },
+    siteScriptBootstrap(webContentsId, url) {
+      const entry = entriesByWebContentsId.get(webContentsId);
+      if (!entry) return { worlds: [], documentId: null };
+      const worlds = pageScriptWorldsFor(url).filter((world) =>
+        args.siteAuthority?.()?.known(world.pluginId),
+      );
+      entry.runtimeBootstrapped = true;
+      entry.runtimeDocumentId = randomUUID();
+      args.siteAuthority?.()?.documentChanged(entry.tabId);
+      entry.runtimeInjected.clear();
+      entry.runtimeCleanup.clear();
+      for (const world of worlds) {
+        entry.runtimeInjected.add(world.pluginId);
+        entry.runtimeEverInjected.add(world.pluginId);
+      }
+      return { worlds, documentId: documentForEntry(entry) };
+    },
     attach({ hostWindow, request }) {
       const key = browserViewKey(hostWindow, request.tabId);
       const existing = entries.get(key) ?? null;
@@ -4504,7 +4369,7 @@ export function createDesktopBrowserViewManager(
       contextMenuItems = request.items;
     },
     setPageStyles({ request }) {
-      pageStyles = request.styles;
+      setStyles(request.styles);
       // Every open page, not only the active one: a style the user just enabled
       // should not wait for a navigation in a background tab to take effect, and
       // one whose plugin was just removed should stop applying everywhere at
@@ -4514,7 +4379,7 @@ export function createDesktopBrowserViewManager(
       }
     },
     setPageScripts({ request }) {
-      pageScripts = request.scripts;
+      setScripts(request.scripts);
       // No walk over open views, unlike the styles above: a document already
       // running cannot be given a world it was not created with, and reloading
       // the user's pages under them to make an install feel instant is not a
@@ -4525,7 +4390,11 @@ export function createDesktopBrowserViewManager(
       // Scoped to views this manager knows: the browsing session's preload runs
       // in every frame it creates, and only a tab has a plugin list behind it.
       return entriesByWebContentsId.has(webContentsId)
-        ? { worlds: pageScriptWorldsFor(url) }
+        ? {
+            worlds: pageScriptWorldsFor(url).filter(
+              (world) => !args.siteAuthority?.()?.known(world.pluginId),
+            ),
+          }
         : { worlds: [] };
     },
     pageScriptRpc(callArgs) {
@@ -4574,7 +4443,7 @@ export function createDesktopBrowserViewManager(
             ),
           };
     },
-    async readPage({ hostWindow, tabId }) {
+    async readPage({ hostWindow, tabId, allowPdf = true }) {
       const entry = entries.get(browserViewKey(hostWindow, tabId));
       if (!entry || entry.view.webContents.isDestroyed()) {
         return { ok: false, reason: "no-view" };
@@ -4608,6 +4477,7 @@ export function createDesktopBrowserViewManager(
       const { contentType, ...page } = content;
 
       if (isBrowserPdfContentType(contentType)) {
+        if (!allowPdf) return { ok: false, reason: "unreadable" };
         const pdf = await readPdfText(webContents.getURL());
         if (webContents.isDestroyed()) {
           return { ok: false, reason: "no-view" };
@@ -4776,12 +4646,15 @@ export function createDesktopBrowserViewManager(
         return { ok: false, reason: "no-view" };
       }
       try {
-        return await captureObservation(
+        assertBrowserSiteOperation();
+        const result = await captureObservation(
           entry,
           request.tabId,
           request.observation,
           isHostResizing(hostWindow),
         );
+        assertBrowserSiteOperation();
+        return result;
       } catch (error) {
         return {
           ok: false,

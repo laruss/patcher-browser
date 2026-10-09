@@ -1,3 +1,4 @@
+import { registerPluginSiteRoutes } from "./plugin-site-access.js";
 import { SecretStorageError } from "@patcher/secret-storage";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -406,6 +407,9 @@ export function registerPluginRoutes(
   deps: PluginRoutesDeps,
   plugins: PluginService,
 ): void {
+  registerPluginSiteRoutes(app, plugins, (context) =>
+    localAuthProblem(context, deps),
+  );
   const appAssetCompressionCache = createAppAssetCompressionCache(
     MAX_CACHED_APP_ASSETS,
   );

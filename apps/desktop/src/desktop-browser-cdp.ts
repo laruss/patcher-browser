@@ -24,6 +24,10 @@
 
 /** CDP revision to negotiate. 1.3 is the current stable protocol. */
 export const PATCHER_CDP_PROTOCOL_VERSION = "1.3";
+import {
+  assertBrowserSiteOperation,
+  browserSiteOperationUrl,
+} from "./browser-site-operation.js";
 
 /**
  * The slice of Electron's `Debugger` this module uses, so the session logic can
@@ -108,6 +112,7 @@ export interface CreateCdpSessionArgs {
  * share one target and the resulting failures would surface far from the cause.
  */
 export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
+  assertBrowserSiteOperation();
   const { target } = args;
 
   if (target.isAttached()) {
@@ -168,6 +173,7 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
   target.on("message", onTargetMessage);
 
   function assertAttached(): void {
+    assertBrowserSiteOperation();
     if (detachedReason !== null) {
       throw new CdpUnavailableError(
         `The browser debugger was detached (${detachedReason}).`,
@@ -181,7 +187,69 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
     },
     async send<TResult>(method: string, params?: Record<string, unknown>) {
       assertAttached();
-      return (await target.sendCommand(method, params)) as TResult;
+      const url = browserSiteOperationUrl();
+      if (url && method === "Accessibility.getFullAXTree") {
+        const tree = (await target.sendCommand("Page.getFrameTree")) as {
+          frameTree?: { frame?: { id?: string; url?: string } };
+        };
+        assertBrowserSiteOperation();
+        const frame = tree.frameTree?.frame;
+        if (!frame?.id || frame.url !== url)
+          throw new CdpUnavailableError("Runtime page context changed");
+        params = { ...params, frameId: frame.id };
+      }
+      const result = await target.sendCommand(method, params);
+      assertBrowserSiteOperation();
+      if (url && method === "DOM.resolveNode") {
+        const objectId = (result as { object?: { objectId?: string } }).object
+          ?.objectId;
+        if (!objectId)
+          throw new CdpUnavailableError("Runtime page node unavailable");
+        const tree = (await target.sendCommand("Page.getFrameTree")) as {
+          frameTree?: { frame?: { id?: string; url?: string } };
+        };
+        assertBrowserSiteOperation();
+        const frame = tree.frameTree?.frame;
+        if (!frame?.id || frame.url !== url)
+          throw new CdpUnavailableError("Runtime page context changed");
+        // Page main-world prototypes are mutable. Prove DOM ownership in a
+        // private root-frame world, using its own intrinsic getter, not page JS.
+        const world = (await target.sendCommand("Page.createIsolatedWorld", {
+          frameId: frame.id,
+          worldName: "patcher-runtime-site-proof",
+        })) as { executionContextId?: number };
+        assertBrowserSiteOperation();
+        if (typeof world.executionContextId !== "number")
+          throw new CdpUnavailableError("Runtime page proof unavailable");
+        const resolved = (await target.sendCommand("DOM.resolveNode", {
+          ...params,
+          executionContextId: world.executionContextId,
+        })) as { object?: { objectId?: string } };
+        assertBrowserSiteOperation();
+        const proofObjectId = resolved.object?.objectId;
+        if (!proofObjectId)
+          throw new CdpUnavailableError("Runtime page node unavailable");
+        let proof: { result?: { value?: unknown } };
+        try {
+          proof = (await target.sendCommand("Runtime.callFunctionOn", {
+            objectId: proofObjectId,
+            functionDeclaration:
+              "function(){try{return Object.getOwnPropertyDescriptor(Node.prototype,'ownerDocument').get.call(this) === document && Object.getOwnPropertyDescriptor(Element.prototype,'localName').get.call(this) !== 'iframe'}catch{return false}}",
+            returnByValue: true,
+          })) as { result?: { value?: unknown } };
+          assertBrowserSiteOperation();
+        } finally {
+          await target
+            .sendCommand("Runtime.releaseObject", { objectId: proofObjectId })
+            .catch(() => {});
+        }
+        assertBrowserSiteOperation();
+        if (proof.result?.value !== true)
+          throw new CdpUnavailableError(
+            "Runtime page node belongs to another document",
+          );
+      }
+      return result as TResult;
     },
     on(method, listener) {
       const listeners = listenersByMethod.get(method) ?? new Set();
@@ -204,6 +272,7 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
       const pending = enablingDomains.get(domain);
       if (pending) {
         await pending;
+        assertBrowserSiteOperation();
         return;
       }
       const enabling = target
@@ -216,6 +285,7 @@ export function createCdpSession(args: CreateCdpSessionArgs): CdpSession {
         });
       enablingDomains.set(domain, enabling);
       await enabling;
+      assertBrowserSiteOperation();
     },
     detach() {
       if (detachedReason !== null) {

@@ -1,3 +1,4 @@
+import type { RuntimeSiteBrowserApi } from "./site-access.js";
 import { z } from "zod";
 
 /**
@@ -2544,7 +2545,7 @@ export type PatcherDesktopBrowserSnapshotHandler = (
 ) => void;
 export type PatcherDesktopBrowserUnsubscribe = () => void;
 
-export interface PatcherDesktopBrowserApi {
+export interface PatcherDesktopBrowserApi extends RuntimeSiteBrowserApi {
   /** Create (or reuse) and show the view for `tabId`, loading `url` if non-empty. */
   attach(request: PatcherDesktopBrowserAttachRequest): void;
   /** Destroy the view for `tabId` (tears down its `webContents`). */

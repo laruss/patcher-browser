@@ -28,6 +28,8 @@ import { createAgentAccessIdentity } from "./agent-access-identity.js";
 import { agentAccessRoutePolicyDenial } from "./agent-access-route-policy.js";
 import { createAppApiIdentity } from "./app-identity.js";
 import { setPluginApiId } from "./plugin-api-identity-context.js";
+import { createPluginSiteAccess } from "./services/plugins/plugin-site-access.js";
+import { runWithPluginSiteCallers } from "./services/browser/plugin-site-caller.js";
 import { createThreadApiIdentity } from "./thread-identity.js";
 import { ApiError, errorToResponse } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
@@ -150,6 +152,9 @@ function normalizeInternalAuthPath(path: string): string {
 
 interface CreateAppOptions {
   secretStore?: import("@patcher/secret-storage").PluginSecretStore;
+  requestSite?: ReturnType<
+    typeof import("./services/plugins/desktop-secret-storage.js").createDesktopSecretStorage
+  >["requestSite"];
   patcherAppArtifactService?: PatcherAppArtifactService;
   /**
    * Which plugins run in a plugin process rather than in the server. Omitted
@@ -466,7 +471,15 @@ export function createApp(
     }
     return next();
   });
+  const siteAccess = createPluginSiteAccess({
+    db: deps.db,
+    request: options?.requestSite,
+    changed: () => deps.hub.notifySystem(["plugins-changed"]),
+  });
+  const browserBridge = createBrowserBridge({ hub: deps.hub, siteAccess });
+  siteAccess.setBridge(browserBridge);
   const pluginService = createPluginService({
+    siteAccess,
     ...(options?.secretStore === undefined
       ? {}
       : { secretStore: options.secretStore }),
@@ -477,7 +490,7 @@ export function createApp(
     hub: deps.hub,
     logger: deps.logger,
     pendingInteractions: deps.pendingInteractions,
-    browserBridge: createBrowserBridge({ hub: deps.hub }),
+    browserBridge,
     dataDir: deps.config.dataDir,
     appVersion: deps.config.appVersion,
     watchBuiltinPluginSources:
@@ -614,7 +627,9 @@ export function createApp(
     // own is the thread header a plugin never sends. See
     // `plugin-api-identity-context.ts`.
     setPluginApiId(context, pluginId);
-    return next();
+    return siteAccess.isRuntime(pluginId)
+      ? runWithPluginSiteCallers([pluginId], next)
+      : next();
   });
   const publicApi = new Hono();
   const pluginCatalogService = createPluginCatalogService({

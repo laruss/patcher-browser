@@ -42,6 +42,7 @@ export interface PluginManifest {
    * that is not https (or loopback http).
    */
   sites: readonly string[] | undefined;
+  siteAccess?: "runtime";
   /** semver range from engines.patcher, when declared. */
   patcherEngineRange: string | undefined;
   /** semver range from engines.patcherPluginSdk; absent manifests are legacy. */
@@ -153,6 +154,13 @@ export async function readPluginManifest(
     throw new Error(
       "invalid plugin package.json (engines.patcherPluginSdk): must be a valid semver range",
     );
+  }
+  if (patcher.siteAccess === "runtime") {
+    const minimum = semver.minVersion(engines?.patcherPluginSdk ?? "");
+    if (minimum === null || semver.lt(minimum, "1.1.0"))
+      throw new Error(
+        "runtime site access requires engines.patcherPluginSdk with minimum >=1.1.0",
+      );
   }
   const serverEntry = resolveEntry(rootDir, patcher.server, "patcher.server");
   try {
@@ -273,6 +281,9 @@ export async function readPluginManifest(
     },
     permissions: patcher.permissions,
     sites: patcher.sites,
+    ...(patcher.siteAccess === undefined
+      ? {}
+      : { siteAccess: patcher.siteAccess }),
     patcherEngineRange: engines?.patcher,
     patcherPluginSdkRange: engines?.patcherPluginSdk,
     serverEntry,

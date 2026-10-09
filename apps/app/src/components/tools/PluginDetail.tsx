@@ -1,3 +1,4 @@
+import { PluginSiteAccess } from "@/components/plugin/PluginSiteAccess";
 import { useState, useSyncExternalStore } from "react";
 import {
   ResourceActivitySection,
@@ -418,6 +419,7 @@ export function PluginDetail({
           </PluginDetailTable>
         </ResourceDetailReleaseSection>
         <PluginIncludes plugin={plugin} />
+        <PluginSiteAccess pluginId={plugin.id} />
         {/*
           Services and schedules are two different objects with two different
           status vocabularies, so they stay under their own names and use

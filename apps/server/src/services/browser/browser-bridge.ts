@@ -5,12 +5,10 @@ import {
   type BrowserCommandErrorCode,
   type BrowserCommandValue,
 } from "@patcher/domain";
-import type {
-  BrowserHostSnapshot,
-  NotificationHub,
-} from "../../ws/hub.js";
+import type { BrowserHostSnapshot, NotificationHub } from "../../ws/hub.js";
 import { browserExternalAccessRefusal } from "./browser-external-access.js";
 import { currentBrowserCommandIssuer } from "./browser-command-issuer.js";
+import { currentPluginSiteCallers } from "./plugin-site-caller.js";
 
 /**
  * Server-side half of agent browser control.
@@ -67,9 +65,16 @@ export interface BrowserBridge {
    */
   onStatusChange(listener: () => void): () => void;
   call(args: BrowserBridgeCallArgs): Promise<BrowserCommandValue>;
+  callScoped?(
+    args: BrowserBridgeCallArgs & {
+      token: string;
+      nativeWebContentsId: number;
+    },
+  ): Promise<BrowserCommandValue>;
 }
 
 export interface CreateBrowserBridgeArgs {
+  siteAccess?: import("../plugins/plugin-site-access.js").PluginSiteAccess;
   hub: Pick<
     NotificationHub,
     "requestBrowserCommand" | "getBrowserHostSnapshot" | "onBrowserHostsChanged"
@@ -80,12 +85,87 @@ function clampTimeout(timeoutMs: number | undefined): number {
   if (timeoutMs === undefined) {
     return BROWSER_COMMAND_DEFAULT_TIMEOUT_MS;
   }
-  return Math.min(Math.max(Math.floor(timeoutMs), 1), BROWSER_COMMAND_MAX_TIMEOUT_MS);
+  return Math.min(
+    Math.max(Math.floor(timeoutMs), 1),
+    BROWSER_COMMAND_MAX_TIMEOUT_MS,
+  );
 }
 
 export function createBrowserBridge(
   args: CreateBrowserBridgeArgs,
 ): BrowserBridge {
+  async function send({
+    command,
+    signal,
+    timeoutMs,
+    token,
+    nativeWebContentsId,
+  }: BrowserBridgeCallArgs & {
+    token?: string;
+    nativeWebContentsId?: number;
+  }): Promise<BrowserCommandValue> {
+    if (token === undefined && currentPluginSiteCallers().length > 0) {
+      if (!args.siteAccess)
+        throw new BrowserCommandError(
+          "external_access_denied",
+          "Runtime site access is unavailable",
+        );
+      return args.siteAccess.callBrowser({ command, signal, timeoutMs });
+    }
+    return perform({ command, signal, timeoutMs, token, nativeWebContentsId });
+  }
+  const perform = async ({
+    command,
+    signal,
+    timeoutMs,
+    token,
+    nativeWebContentsId,
+  }: BrowserBridgeCallArgs & {
+    token?: string;
+    nativeWebContentsId?: number;
+  }): Promise<BrowserCommandValue> => {
+    if (signal?.aborted === true) throw new BrowserCommandAbortedError();
+    const parsed = browserCommandSchema.parse(command);
+    const refusal = browserExternalAccessRefusal(parsed);
+    if (refusal !== null)
+      throw new BrowserCommandError("external_access_denied", refusal);
+    const requestId = randomUUID();
+    const issuer = currentBrowserCommandIssuer();
+    const responsePromise = args.hub.requestBrowserCommand({
+      message: {
+        type:
+          token === undefined
+            ? "browser-command-request"
+            : "browser-scoped-command-request",
+        requestId,
+        command: parsed,
+        ...(issuer === undefined ? {} : { issuer }),
+        ...(token === undefined ? {} : { token }),
+      } as Parameters<
+        CreateBrowserBridgeArgs["hub"]["requestBrowserCommand"]
+      >[0]["message"],
+      timeoutMs: clampTimeout(timeoutMs),
+      ...(nativeWebContentsId === undefined ? {} : { nativeWebContentsId }),
+    });
+    const response = await (signal === undefined
+      ? responsePromise
+      : Promise.race([
+          responsePromise,
+          new Promise<never>((_resolve, reject) => {
+            const onAbort = () => reject(new BrowserCommandAbortedError());
+            signal.addEventListener("abort", onAbort, { once: true });
+            void responsePromise
+              .catch(() => {})
+              .finally(() => signal.removeEventListener("abort", onAbort));
+          }),
+        ]));
+    if (!response.outcome.ok)
+      throw new BrowserCommandError(
+        response.outcome.code,
+        response.outcome.message,
+      );
+    return response.outcome.value;
+  };
   return {
     status() {
       return args.hub.getBrowserHostSnapshot();
@@ -93,61 +173,7 @@ export function createBrowserBridge(
     onStatusChange(listener) {
       return args.hub.onBrowserHostsChanged(listener);
     },
-    async call({ command, signal, timeoutMs }) {
-      if (signal?.aborted === true) {
-        throw new BrowserCommandAbortedError();
-      }
-      // Parse on the way out as well as on the way in: a caller of this service
-      // is trusted code, but the command it built may have come from a model.
-      const parsed = browserCommandSchema.parse(command);
-
-      // Every browser command this process issues passes here, which is what
-      // makes this the place to ask whether the caller may issue it. Asked
-      // after the parse so the permission is derived from the command the
-      // browser would actually be sent, and before the send so a refusal means
-      // the page was never touched.
-      const refusal = browserExternalAccessRefusal(parsed);
-      if (refusal !== null) {
-        throw new BrowserCommandError("external_access_denied", refusal);
-      }
-      const requestId = randomUUID();
-
-      // Read here rather than passed in, and read *after* the refusal: the
-      // window is told who is driving it only about commands it is actually
-      // going to be sent.
-      const issuer = currentBrowserCommandIssuer();
-      const responsePromise = args.hub.requestBrowserCommand({
-        message: {
-          type: "browser-command-request",
-          requestId,
-          command: parsed,
-          ...(issuer === undefined ? {} : { issuer }),
-        },
-        timeoutMs: clampTimeout(timeoutMs),
-      });
-
-      // Abort ends the wait, never the navigation the browser already started.
-      // The app's eventual reply then lands as a stale response and is dropped.
-      const response = await (signal === undefined
-        ? responsePromise
-        : Promise.race([
-            responsePromise,
-            new Promise<never>((_resolve, reject) => {
-              const onAbort = () => reject(new BrowserCommandAbortedError());
-              signal.addEventListener("abort", onAbort, { once: true });
-              void responsePromise.catch(() => undefined).finally(() => {
-                signal.removeEventListener("abort", onAbort);
-              });
-            }),
-          ]));
-
-      if (!response.outcome.ok) {
-        throw new BrowserCommandError(
-          response.outcome.code,
-          response.outcome.message,
-        );
-      }
-      return response.outcome.value;
-    },
+    call: send,
+    callScoped: send,
   };
 }

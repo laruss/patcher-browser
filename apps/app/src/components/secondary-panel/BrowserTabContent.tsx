@@ -41,6 +41,7 @@ import { useDefaultBrowserStatus } from "@/hooks/useDefaultBrowserStatus";
 import { usePointerCoarse } from "@patcher/shared-ui/hooks/use-pointer-coarse";
 import { BrowserPageDialog } from "@/components/browser-surface/BrowserPageDialog";
 import { BrowserPagePrompt } from "@/components/browser-surface/BrowserPagePrompt";
+import { respondWithRuntimePluginAuth } from "@/lib/browser-runtime-site-access";
 import { resolvePluginBrowserAuth } from "@/hooks/queries/plugin-contribution-queries";
 import { BrowserNewTabScreen } from "./BrowserNewTabScreen";
 import {
@@ -729,9 +730,15 @@ export function BrowserTabContent({
         host: prompt.host,
         insecure: prompt.insecure,
         tabId,
-      }).then((credentials) => {
+      }).then(async (credentials) => {
         if (credentials === null) {
-          setPagePrompt(prompt);
+          const answered = await respondWithRuntimePluginAuth({
+            tabId,
+            id: prompt.id,
+            host: prompt.host,
+            insecure: prompt.insecure,
+          });
+          if (!answered) setPagePrompt(prompt);
           return;
         }
         void desktopBrowser.respondToPagePrompt?.({

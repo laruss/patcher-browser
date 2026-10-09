@@ -14,6 +14,7 @@ import {
   type PluginSecretStore,
   SecretStorageError,
 } from "@patcher/secret-storage";
+import { createDesktopSiteAuthority } from "../src/desktop-site-authority.js";
 import {
   createDesktopSecretBroker,
   type DesktopKeyBackend,
@@ -104,6 +105,53 @@ async function stack() {
   return { broker, storage, restart };
 }
 describe("desktop-owned settings channel", () => {
+  it("keeps site policy independent of Keychain lock and resets it when the owned server disconnects", async () => {
+    const [main, child] = pair();
+    const authority = createDesktopSiteAuthority({
+      resolve: () => null,
+      confirm: async () => false,
+      changed: vi.fn(),
+    });
+    const unavailableBackend = { ...backend(), available: () => false };
+    const broker = createDesktopSecretBroker(
+        main,
+        unavailableBackend,
+        authority,
+      ),
+      server = new PrivateSecretChannel(child);
+    cleanup.push(() => {
+      broker.close();
+      server.close();
+    });
+    server.notify("server", true);
+    await expect(
+      server.request("site.policy", {
+        pluginId: "plugin",
+        name: "Plugin",
+        revision: randomUUID(),
+        enabled: true,
+        sites: ["https://a.example.com/**"],
+        origins: ["https://a.example.com"],
+        permissions: ["page.read"],
+        scripts: [],
+        styles: [],
+      }),
+    ).resolves.toBe(true);
+    expect(authority.allows("plugin", "https://a.example.com/")).toBe(true);
+    await expect(
+      server.request("wrap", {
+        storeId: randomUUID(),
+        key: randomBytes(32).toString("base64"),
+      }),
+    ).rejects.toMatchObject({ code: "locked" });
+    server.notify("server", false);
+    await vi.waitFor(() =>
+      expect(authority.allows("plugin", "https://a.example.com/")).toBe(false),
+    );
+    await expect(server.request("site.cleanup", null)).rejects.toMatchObject({
+      code: "unavailable",
+    });
+  });
   it("allows activation to be retried after a cancelled OS key operation", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "patcher-cancelled-secret-"));
     cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
@@ -243,7 +291,7 @@ describe("desktop-owned settings channel", () => {
       raw.destroy();
     });
     const header = Buffer.alloc(4);
-    header.writeUInt32BE(16385);
+    header.writeUInt32BE(1_048_577);
     raw.write(header);
     await expect(limited.request("status")).rejects.toMatchObject({
       code: "unavailable",

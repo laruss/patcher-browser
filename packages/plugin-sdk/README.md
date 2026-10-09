@@ -42,6 +42,49 @@ dynamic DOM/style nodes when their disposer removes them. See the
 [`content-script` reference plugin](../../examples/plugins/content-script/README.md)
 for a cleanup-safe editor enhancement.
 
+## Runtime browser site access
+
+SDK 1.1.0 adds opt-in `patcher.siteAccess: "runtime"` in the plugin manifest.
+Declare `engines.patcherPluginSdk: "^1.1.0"` (minimum 1.1.0), the required
+permissions, and `patcher.sites` as the URLs the plugin may request. Legacy
+plugins keep their existing site semantics. Registration matches still must name
+declared patterns verbatim.
+
+The user chooses **Allow here** in browser site info and confirms in a native
+desktop dialog. Access requires both a matching actual page URL and a persisted
+grant for its exact origin; schemes, subdomains and non-default ports are
+separate. Plugin detail shows permissions, declared sites, grants and Revoke.
+Source identity, permission or ceiling changes require new confirmation. Disable
+blocks access while preserving grants; uninstall removes them.
+
+Runtime browser calls require an explicit tab ID. The first version supports
+URL/title/text/selection reads, snapshots, interaction, scroll, evaluate and
+viewport screenshots. Session storage/cookies, routing/offline, recording,
+console/network history, PDF/full-page capture, tab management and navigation
+are unavailable. Runtime scripts/RPC run only in the main frame; DOM and AX
+reads exclude other-origin frames. A viewport screenshot includes visible iframe
+pixels, and pointer input acts on the rendered page. These grants govern Patcher
+APIs; installed Node plugins still run with the user's local process privileges.
+
+A connected, owned desktop server and a shell/SPA with the new optional scoped
+API are required. Headless, attached/remote and older combinations refuse runtime
+page operations. Normal backend RPC cannot approve a grant or create trusted
+page context. The testing fake host is a behavior harness, not a simulation of
+native grants; use the server and Electron fixtures for access enforcement.
+
+Runtime HTTP auth providers need `auth.provide` and a grant covering the actual
+native challenge URL. Patcher checks every coalesced request URL, keeps proxy and
+origin challenges separate, and binds the returned credentials to a one-use
+native delivery capability. Navigation or revoke before delivery refuses the
+answer. Older shells cannot use runtime auth providers; manual entry and legacy
+providers retain their existing behavior.
+
+Revoke cancels pending capabilities and blocks new backend calls. Previously
+injected JavaScript can remain in the page: Patcher reports pending cleanup and
+provides an explicit Reload page action, preserving filled forms until the user
+chooses it. Scripts registered or newly allowed on an open page run on its next
+load. This does not add password capture/fill or Touch ID release APIs.
+
 ## External plugin tests
 
 The packed package includes executable JavaScript and portable declarations

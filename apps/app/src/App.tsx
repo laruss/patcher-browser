@@ -1,3 +1,4 @@
+import { useBrowserRuntimeSiteAccess } from "./lib/browser-runtime-site-access";
 import { lazy, Suspense } from "react";
 import {
   Navigate,
@@ -292,6 +293,7 @@ export function App() {
   useBrowserAgentBridge();
   useBrowserPageStyles();
   useBrowserPageScripts();
+  useBrowserRuntimeSiteAccess();
   // Report downloads a browsed page started. Above <Routes> for the same reason
   // as the bridge: the file keeps arriving after the user leaves /browser.
   useBrowserDownloadNotifications();

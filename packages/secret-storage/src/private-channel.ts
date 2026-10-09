@@ -8,9 +8,25 @@ import {
   type SecretStorageCode,
 } from "./storage-error.js";
 
-export const SECRET_CHANNEL_MAX_BYTES = 16_384;
+// A policy can contain 32 long patterns and 64 canonical origins; keep the whole frame bounded, including JSON/UTF-8 expansion.
+export const SECRET_CHANNEL_MAX_BYTES = 1_048_576;
 const MAX_PENDING = 16;
-const METHODS = ["status", "activate", "unlock", "wrap", "unwrap"] as const;
+const METHODS = [
+  "status",
+  "activate",
+  "unlock",
+  "wrap",
+  "unwrap",
+  "site.policy",
+  "site.confirm",
+  "site.context",
+  "site.prepare",
+  "site.auth",
+  "site.redeem",
+  "site.check",
+  "site.release",
+  "site.cleanup",
+] as const;
 export type SecretChannelMethod = (typeof METHODS)[number];
 export type SecretChannelNotice = "availability" | "server";
 const id = z.uuid();

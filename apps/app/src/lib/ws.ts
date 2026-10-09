@@ -1,6 +1,8 @@
 import ReconnectingWebSocket from "partysocket/ws";
 import {
   browserCommandRequestSignalLenientSchema,
+  scopedBrowserCommandRequestSignalSchema,
+  type ScopedBrowserCommandRequestSignal,
   browserDrivingSignalLenientSchema,
   changedMessageLenientSchema,
   pluginSignalLenientSchema,
@@ -27,7 +29,9 @@ type ChangeCallback = (message: ChangedMessage) => void;
 type ThreadOpenCallback = (signal: ThreadOpenSignal) => void;
 type ThreadPaneActionCallback = (signal: ThreadPaneActionSignal) => void;
 type PluginSignalCallback = (signal: PluginSignal) => void;
-type BrowserCommandCallback = (signal: BrowserCommandRequestSignal) => void;
+type BrowserCommandCallback = (
+  signal: BrowserCommandRequestSignal | ScopedBrowserCommandRequestSignal,
+) => void;
 type BrowserDrivingCallback = (signal: BrowserDrivingSignalReceived) => void;
 type ConnectedCallback = (event: { reconnected: boolean }) => void;
 type ConnectionStateCallback = () => void;
@@ -53,6 +57,7 @@ export class WebSocketManager {
   // Re-announced on every reconnect, so a server restart does not leave agents
   // believing no browser is open.
   private browserHostId: string | null = null;
+  private nativeWebContentsId: number | undefined;
   // Ephemeral "open this file in the secondary panel" intents, keyed by thread.
   // Held in memory only (cleared on reload) so a thread that is not currently
   // viewed opens the file when it is next viewed. Last write wins per thread.
@@ -94,10 +99,7 @@ export class WebSocketManager {
       // Registration is per-connection server-side, so a reconnect has to say
       // again that this window can drive the browser.
       if (this.browserHostId !== null) {
-        this.sendMessage({
-          type: "browser-host.register",
-          browserHostId: this.browserHostId,
-        });
+        this.registerBrowserHost(this.browserHostId, this.nativeWebContentsId);
       }
       for (const callback of this.connectedCallbacks) {
         callback({ reconnected });
@@ -157,8 +159,11 @@ export class WebSocketManager {
 
     // An agent browser command, addressed to this client because it registered
     // as the browser host. Exactly one subscriber answers it.
-    const browserCommand =
-      browserCommandRequestSignalLenientSchema.safeParse(parsed);
+    const browserCommand = scopedBrowserCommandRequestSignalSchema.safeParse(
+      parsed,
+    ).success
+      ? scopedBrowserCommandRequestSignalSchema.safeParse(parsed)
+      : browserCommandRequestSignalLenientSchema.safeParse(parsed);
     if (browserCommand.success) {
       for (const cb of this.browserCommandCallbacks) {
         cb(browserCommand.data);
@@ -298,9 +303,21 @@ export class WebSocketManager {
    * been processed the claim is a new one, behind any sibling window's, and the
    * agent's next command goes there instead.
    */
-  registerBrowserHost(browserHostId: string): void {
+  registerBrowserHost(
+    browserHostId: string,
+    nativeWebContentsId?: number,
+  ): void {
+    this.nativeWebContentsId = nativeWebContentsId;
     this.browserHostId = browserHostId;
-    this.sendMessage({ type: "browser-host.register", browserHostId });
+    this.sendMessage(
+      nativeWebContentsId === undefined
+        ? { type: "browser-host.register", browserHostId }
+        : {
+            type: "browser-host.site-register",
+            browserHostId,
+            nativeWebContentsId,
+          },
+    );
   }
 
   unregisterBrowserHost(browserHostId: string): void {

@@ -25,6 +25,7 @@
 // before the page's first script, when `document.documentElement` is still null;
 // a second `exposeInIsolatedWorld` for the same world throws **and aborts the
 // rest of the preload**, which is why every step below is contained.
+import { SITE_ACCESS_CHANNELS } from "@patcher/desktop-contract";
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import type {
   PatcherDesktopPageScriptBootstrap,
@@ -58,7 +59,9 @@ function wrap(code: string): string {
   return `(function(){"use strict";\n${code}\n})()`;
 }
 
-function buildApi(pluginId: string): PageScriptApi {
+const runtimeDocuments = new Map<string, string>();
+
+function buildApi(pluginId: string, runtime = false): PageScriptApi {
   return {
     async rpc(method: string, input?: unknown): Promise<unknown> {
       let serialized: string;
@@ -71,8 +74,15 @@ function buildApi(pluginId: string): PageScriptApi {
         );
       }
       const answer = (await ipcRenderer.invoke(
-        PATCHER_DESKTOP_PAGE_SCRIPT_RPC_CHANNEL,
-        { pluginId, method, input: serialized },
+        runtime
+          ? SITE_ACCESS_CHANNELS.rpc
+          : PATCHER_DESKTOP_PAGE_SCRIPT_RPC_CHANNEL,
+        {
+          pluginId,
+          method,
+          input: serialized,
+          ...(runtime ? { documentId: runtimeDocuments.get(pluginId) } : {}),
+        },
       )) as PatcherDesktopPageScriptRpcAnswer | undefined;
       if (answer === undefined || answer.ok !== true) {
         throw new Error(
@@ -105,7 +115,7 @@ function buildApi(pluginId: string): PageScriptApi {
   };
 }
 
-function runWorld(world: PatcherDesktopPageScriptWorld): void {
+function runWorld(world: PatcherDesktopPageScriptWorld, runtime = false): void {
   try {
     // One name, exposed once: a second `exposeInIsolatedWorld` for the same
     // world throws and aborts the rest of this preload (see the header), so an
@@ -114,7 +124,7 @@ function runWorld(world: PatcherDesktopPageScriptWorld): void {
     contextBridge.exposeInIsolatedWorld(
       world.worldId,
       "patcher",
-      buildApi(world.pluginId),
+      buildApi(world.pluginId, runtime),
     );
   } catch {
     // Nothing to run in a world that took no API; the next plugin still gets its.
@@ -153,3 +163,28 @@ function bootstrap(): void {
 }
 
 bootstrap();
+
+// Only main-frame runtime worlds receive document-bound RPC. Older shells return nothing.
+try {
+  const answer = ipcRenderer.sendSync(SITE_ACCESS_CHANNELS.bootstrap) as {
+    worlds?: PatcherDesktopPageScriptWorld[];
+    documentId?: string;
+  };
+  if (typeof answer?.documentId === "string" && Array.isArray(answer.worlds)) {
+    for (const world of answer.worlds) {
+      runtimeDocuments.set(world.pluginId, answer.documentId);
+      runWorld(world, true);
+    }
+  }
+} catch {
+  /* Runtime work fails closed. */
+}
+window.addEventListener("pageshow", (event) => {
+  if (!event.isTrusted || !event.persisted) return;
+  const documentId: unknown = ipcRenderer.sendSync(
+    SITE_ACCESS_CHANNELS.restored,
+  );
+  if (typeof documentId === "string")
+    for (const id of runtimeDocuments.keys())
+      runtimeDocuments.set(id, documentId);
+});

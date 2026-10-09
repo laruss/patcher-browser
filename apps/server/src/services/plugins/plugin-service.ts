@@ -1,3 +1,6 @@
+import { resolvePluginBrowserAuth } from "./plugin-browser-auth.js";
+import { withPluginTimeout } from "./plugin-timeout.js";
+import { listLegacyPageContributions } from "./plugin-page-contributions.js";
 import { watch } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -187,6 +190,7 @@ export interface PluginSkillRootContribution {
 }
 
 export interface PluginService {
+  siteAccess?: import("./plugin-site-access.js").PluginSiteAccess;
   /** Whether this installed plugin has builtin provenance. */
   isBuiltin(id: string): boolean;
   /** Thread lifecycle event emitter, called from the lifecycle seams. */
@@ -583,7 +587,8 @@ export interface PluginService {
    */
   resolveBrowserAuth(args: {
     challenge: PluginBrowserAuthChallenge;
-  }): Promise<PluginBrowserAuthCredentials | null>;
+    runtimePromptId?: string;
+  }): Promise<(PluginBrowserAuthCredentials & { token?: string }) | null>;
   /**
    * Ask every registered PDF text provider (`browser.pdf.textProviders`) for
    * the text of a document the browser parsed and found none in, in plugin id
@@ -741,7 +746,6 @@ const DEFAULT_CONTEXT_MENU_RUN_TIMEOUT_MS = 10_000;
  * short enough that a wedged provider does not become a hung browser. Running
  * out of time is not an error — the user is asked instead.
  */
-const DEFAULT_BROWSER_AUTH_TIMEOUT_MS = 5_000;
 /**
  * A PDF text provider gets the longest box of any browser hook, because it is
  * the only one asked to do real work: an OCR pass, or a round trip to a
@@ -1163,33 +1167,6 @@ function normalizeOmniboxSuggestItems(args: {
   });
 }
 
-/**
- * Race a plugin call against a time box. The abandoned promise keeps a catch
- * attached so a late rejection cannot surface as an unhandled rejection.
- */
-async function withPluginTimeout<T>(args: {
-  run: () => Promise<T>;
-  timeoutMs: number;
-}): Promise<T> {
-  const call = args.run();
-  call.catch(() => {});
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      call,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`timed out after ${args.timeoutMs}ms`)),
-          args.timeoutMs,
-        );
-        timer.unref?.();
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
 const PLUGIN_AGENT_SELECTION_MAX_IDS = 256;
 const PLUGIN_AGENT_DYNAMIC_INSTRUCTIONS_MAX_CHARS = 4096;
 const PLUGIN_AGENT_TOOL_PARAMETERS_MAX_BYTES = 128 * 1024;
@@ -1443,7 +1420,6 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     deps.newTabRowsTimeoutMs ?? DEFAULT_SITE_INFO_TIMEOUT_MS;
   const contextMenuRunTimeoutMs =
     deps.contextMenuRunTimeoutMs ?? DEFAULT_CONTEXT_MENU_RUN_TIMEOUT_MS;
-  const browserAuthTimeoutMs = DEFAULT_BROWSER_AUTH_TIMEOUT_MS;
   const browserPdfTextTimeoutMs = DEFAULT_BROWSER_PDF_TEXT_TIMEOUT_MS;
   const browserExternalLinkTimeoutMs = DEFAULT_BROWSER_EXTERNAL_LINK_TIMEOUT_MS;
   const stabilizationWindowMs =
@@ -1857,6 +1833,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           sites: [
             ...((loadedPlugin?.manifest ?? identity?.manifest)?.sites ?? []),
           ],
+          siteAccess: (loadedPlugin?.manifest ?? identity?.manifest)
+            ?.siteAccess,
           hasSettings:
             Object.keys(
               loadedPlugin?.handle.settings.descriptors ??
@@ -1879,6 +1857,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
   }
 
   return {
+    siteAccess: deps.siteAccess,
     isBuiltin: isBuiltinPluginId,
 
     listThemes() {
@@ -2061,6 +2040,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
         const row = getInstalledPlugin(deps.db, id);
         await deps.secretStore?.deletePlugin(id);
         blockedSettings.delete(id);
+        await deps.siteAccess?.remove(id);
         await withLifecycleLock(id, () => disposeOne(id));
         statuses.delete(id);
         handlerStats.delete(id);
@@ -2789,39 +2769,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return contributions;
     },
 
-    listPageStyleContributions() {
-      const contributions: PluginPageStyleContribution[] = [];
-      for (const [id, plugin] of [...loaded.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      )) {
-        for (const style of plugin.handle.pageStyles) {
-          contributions.push({
-            pluginId: id,
-            styleId: style.id,
-            matches: [...style.matches],
-            css: style.css,
-          });
-        }
-      }
-      return contributions;
-    },
-
-    listPageScriptContributions() {
-      const contributions: PluginPageScriptContribution[] = [];
-      for (const [id, plugin] of [...loaded.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      )) {
-        for (const script of plugin.handle.pageScripts) {
-          contributions.push({
-            pluginId: id,
-            scriptId: script.id,
-            matches: [...script.matches],
-            code: script.code,
-          });
-        }
-      }
-      return contributions;
-    },
+    listPageStyleContributions: () =>
+      listLegacyPageContributions(loaded, deps.siteAccess).styles,
+    listPageScriptContributions: () =>
+      listLegacyPageContributions(loaded, deps.siteAccess).scripts,
 
     listTabActionContributions() {
       const contributions: PluginTabActionContribution[] = [];
@@ -3081,42 +3032,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       );
     },
 
-    async resolveBrowserAuth({ challenge }) {
-      for (const [pluginId, plugin] of [...loaded.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      )) {
-        for (const provider of plugin.handle.authProviders) {
-          const outcome = await invokeCallback(
-            pluginId,
-            { kind: "browserAuth", payload: challenge },
-            async (payload) =>
-              withPluginTimeout({
-                run: async () => provider(payload),
-                timeoutMs: browserAuthTimeoutMs,
-              }),
-          );
-          if (!outcome.ok || outcome.value === null) {
-            continue;
-          }
-          const credentials =
-            outcome.value as Partial<PluginBrowserAuthCredentials>;
-          // A provider that answered with something other than credentials has
-          // not answered: the browser asks the user rather than sending a
-          // half-formed login.
-          if (
-            typeof credentials?.username !== "string" ||
-            typeof credentials.password !== "string"
-          ) {
-            continue;
-          }
-          return {
-            username: credentials.username,
-            password: credentials.password,
-          };
-        }
-      }
-      return null;
-    },
+    resolveBrowserAuth: (request) =>
+      resolvePluginBrowserAuth({
+        ...request,
+        loaded,
+        invokeCallback,
+        siteAccess: deps.siteAccess,
+      }),
 
     async resolveBrowserExternalLink({ link }) {
       for (const [pluginId, plugin] of [...loaded.entries()].sort(([a], [b]) =>

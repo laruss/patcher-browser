@@ -74,6 +74,8 @@ export const pluginPatcherManifestSchema = z
      * machines a plugin can reach; these are websites.
      */
     sites: z.array(z.string()).optional(),
+    /** Runtime mode needs an explicit grant for each exact website origin. */
+    siteAccess: z.literal("runtime").optional(),
     skills: z.array(requiredManifestString).optional(),
     themes: z
       .array(

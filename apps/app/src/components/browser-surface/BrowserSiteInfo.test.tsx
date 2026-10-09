@@ -9,11 +9,20 @@ import { BrowserSiteInfo } from "./BrowserSiteInfo";
 const TAB_ID = "tab-active";
 
 function mockSiteInfo(sections: unknown) {
-  const fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ ok: true, sections }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    }),
+  const fetchMock = vi.fn(
+    async (input: string) =>
+      new Response(
+        JSON.stringify(
+          input === "/api/v1/plugins/site-access"
+            ? {
+                plugins: [],
+                cleanup: [],
+                contributions: { scripts: [], styles: [] },
+              }
+            : { ok: true, sections },
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
   );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;

@@ -90,6 +90,29 @@ plaintext, and ciphertext copied without the OS key is not a portable backup.
 Interactive password release remains a later phase in the
 [browser account security plan](architecture/browser-account-security-plan.md).
 
+## Runtime browser grants
+
+Plugins opting into `patcher.siteAccess: "runtime"` (minimum SDK 1.1.0) require
+user confirmation in a native desktop dialog before Patcher page APIs can reach
+an exact origin. Permissions, the manifest ceiling for the actual URL, and the
+persisted grant must all allow the operation. Server owner checks include child
+process calls and cross-plugin delegation; desktop checks bind commands and
+page RPC to the actual tab, window and document using one-use capabilities.
+Navigation, revoke, disable, crash and disconnect invalidate capabilities.
+Older, headless and attached/remote hosts refuse this mode.
+
+This first version supports a limited explicit-tab command subset and
+main-frame scripts/RPC. DOM/AX reads exclude other-origin frames; viewport
+screenshots include their visible pixels and pointer input acts on the rendered
+page. Session-wide and unsupported operations are denied. Legacy plugins retain
+their previous semantics. See [the SDK scope](../packages/plugin-sdk/README.md#runtime-browser-site-access).
+
+Revoke prevents backend access, but JavaScript already injected in the page can
+continue running. The UI reports pending cleanup until a new document and lets
+the user reload explicitly; it does not silently erase a filled form. BFCache
+restoration can revive old code and restores the cleanup warning. Grants do not
+sandbox installed Node processes or implement password release/Touch ID.
+
 ## What the permission declaration is actually for
 
 Every patch declares `patcher.permissions` and, for anything that touches a

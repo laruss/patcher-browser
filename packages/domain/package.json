@@ -82,6 +82,21 @@
       "source": "./src/json-value.ts",
       "types": "./src/json-value.ts",
       "default": "./src/json-value.ts"
+    },
+    "./plugin-site-access": {
+      "source": "./src/plugin-site-access.ts",
+      "types": "./src/plugin-site-access.ts",
+      "default": "./src/plugin-site-access.ts"
+    },
+    "./browser-command-refs": {
+      "source": "./src/browser-command-refs.ts",
+      "types": "./src/browser-command-refs.ts",
+      "default": "./src/browser-command-refs.ts"
+    },
+    "./browser-command-scroll": {
+      "source": "./src/browser-command-scroll.ts",
+      "types": "./src/browser-command-scroll.ts",
+      "default": "./src/browser-command-scroll.ts"
     }
   },
   "types": "./src/index.ts",

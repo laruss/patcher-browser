@@ -74,7 +74,7 @@ const SOURCE_FILES = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"];
 const PINNED_OVER_LIMIT = {
   "packages/agent-runtime/src/codex/adapter.test.ts": 6088,
   "packages/agent-runtime/src/claude-code/adapter.test.ts": 5795,
-  "apps/desktop/src/desktop-browser-view.ts": 5080,
+  "apps/desktop/src/desktop-browser-view.ts": 4953,
   "apps/server/test/public/public-thread-data.test.ts": 5128,
   "packages/db/test/migrate.test.ts": 4535,
   "packages/db/test/data/events.test.ts": 4455,
@@ -82,7 +82,7 @@ const PINNED_OVER_LIMIT = {
   "packages/host-daemon-contract/test/contract.test.ts": 3774,
   "packages/plugin-sdk/src/testing/fake-plugin-host.ts": 3430,
   "packages/patcher-app/src/launcher.ts": 3491,
-  "apps/server/src/services/plugins/plugin-service.ts": 3422,
+  "apps/server/src/services/plugins/plugin-service.ts": 3344,
   "apps/app/src/views/RootComposeView.tsx": 3457,
   "packages/db/src/data/events.ts": 3418,
   "apps/server/src/services/plugins/plugin-api.ts": 3187,

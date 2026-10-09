@@ -606,3 +606,4 @@ export type {
   DropDeferredLegacyTablesResult,
   RunIncrementalVacuumArgs,
 } from "./maintenance.js";
+export * from "./plugin-site-grants.js";
