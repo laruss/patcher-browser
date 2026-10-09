@@ -173,6 +173,10 @@ import {
   type PatcherDesktopSpellcheckApi,
 } from "./desktop-spellcheck-contract.js";
 
+import { installSecureKeyboardReporting } from "./secure-keyboard-preload.js";
+
+installSecureKeyboardReporting(false);
+
 function getDesktopVersion(version: string | undefined): string {
   if (version === undefined || version.length === 0) {
     throw new Error("Desktop version must be injected at build time");

@@ -376,6 +376,13 @@ describe("desktop build", () => {
     expect(securitySource).not.toMatch(/\brequire\s*\(/u);
     expect(securitySource).not.toContain("ipcRenderer");
     expect(securitySource).not.toContain("process.");
+    const securityPreload = await readFile(
+      resolve(desktopPackageRoot, "dist", "browser-security-preload.cjs"),
+      "utf8",
+    );
+    expect(securityPreload).toContain('require("electron")');
+    expect(securityPreload).not.toContain("exposeInMainWorld");
+    expect(securityPreload).not.toContain("exposeInIsolatedWorld");
     await expect(
       access(
         resolve(
@@ -393,6 +400,7 @@ describe("desktop build", () => {
       "preload.cjs.map",
       "log-viewer-preload.cjs.map",
       "page-script-preload.cjs.map",
+      "browser-security-preload.cjs.map",
       "patcher-app-bridge.mjs.map",
     ]) {
       await expect(

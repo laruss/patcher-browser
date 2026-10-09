@@ -142,6 +142,9 @@ const electronMock = vi.hoisted(() => {
       },
     },
     ipcRenderer: {
+      sendSync(): null {
+        return null;
+      },
       invoke(channel: string, payload?: unknown): Promise<unknown> {
         invokeCalls.push(channel);
         invokePayloads.push(payload);

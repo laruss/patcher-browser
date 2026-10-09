@@ -1,8 +1,9 @@
 # Browser account security: план реализации
 
-Статус: Phases 1–2 реализованы, проверены и прошли независимое ревью.
-Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 готова к коммиту.
-Phases 3–8 — план. План проверен по исходникам на `c263e6cab`,
+Статус: Phases 1–3 реализованы, проверены и прошли независимое ревью.
+Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 — `caf119792`.
+Phase 3 готова; без коммита. Sol xhigh: 3 раунда, итог без P1/P2.
+Phases 4–8 — план. План проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -287,6 +288,45 @@ load, первая inline script страницы, native non-public-key calls. 
 подключается ко всем вкладкам. All-frame охват подтверждён на pinned binary.
 
 ## Phase 3 — Secure Keyboard Entry
+
+**Статус реализации.** Controller и core isolated preload реализованы;
+Sol xhigh завершил три раунда независимого ревью; пять P2 исправлены,
+финальное ревью без оставшихся P1/P2. Фаза без коммита.
+На pinned Electron 41.7.0 нативный setter/getter
+подтверждены, OS flag измерен в отдельном Electron smoke. Unit lifecycle tests (11)
+и desktop typecheck проходят; полный desktop suite: 54 files / 724 tests.
+
+Main проверяет зарегистрированные webContents, текущий main frame и main-owned
+document identity; payload содержит только boolean `protect` и opaque document ID,
+без значений полей, клавиш или селекторов. ID меняется при новом preload bootstrap
+и crash; `pageshow` запрашивает новый ID при history/BFCache restoration.
+Provisional navigation сохраняет текущий документ: Stop до commit не лишает
+оставшийся документ защиты.
+Synthetic pageshow/pagehide игнорируются; MutationObserver восстанавливает focus
+и lifecycle listeners после `document.open()` без нового preload bootstrap.
+Background report не меняет защиту другого окна. Browser view visibility берётся
+из manager, а не из сообщения страницы: скрытие/overlay/detach выключают защиту.
+
+Browser session preload не зависит от плагина и ничего не выставляет странице.
+Он следит за password/ordinary focus, `type` mutation и open shadow roots.
+Iframe, непрозрачный host (включая body) или неизвестный focused frame защищаются консервативно,
+пока browser view имеет фокус. Это может временно мешать keyboard utilities даже
+на обычном поле внутри такого контекста. Trusted UI preload обслуживает обычные
+password inputs настроек и network auth prompts; wire browser API не меняется.
+
+Smoke: `bun run --cwd apps/desktop smoke:secure-keyboard`. Проверены trusted UI,
+browser password → ordinary input, type mutation, intra-root focus transitions,
+open/closed shadow roots, включая closed body root, iframe, hidden view, popup,
+две native windows, app hide/reactivation, synthetic lifecycle events,
+`document.open()` rewrite, отменённая navigation, history restore и real crash.
+Проверены также preloads из packaged app.asar и запуск packaged app.
+События screen lock/suspend проверены через EventEmitter без блокировки машины.
+Unicode проверен через native `insertText`, composition events синтетические;
+реальный IME и сторонний keylogger этим тестом не проверены. Каждый выход smoke
+явно выключает OS flag. На non-macOS internal bootstrap возвращает null.
+
+Для hook видимости вынесено существующее тело `applyEntryVisibility` в отдельный
+модуль; это сохраняет file-size invariant, pin уменьшен с 5101 до 5080 строк.
 
 **Проблема.** Приложение не вызывает OS API. Готового надёжного события «фокус
 в password field» нет, а глобальный флаг, забытый после blur/crash, мешает другим

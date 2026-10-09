@@ -52,6 +52,7 @@ import {
   type PatcherAppProcessExit,
   startPatcherAppProcess,
 } from "./patcher-process.js";
+import { registerSecureKeyboardEntry } from "./secure-keyboard-entry.js";
 import { openExistingServerDialog } from "./existing-server-dialog.js";
 import {
   readForeignRuntimeDetails,
@@ -1975,6 +1976,12 @@ async function runDesktopApp(): Promise<void> {
     paths,
   });
   const bridgePath = resolveDesktopBridgePath({ paths });
+  const secureKeyboard = registerSecureKeyboardEntry();
+  session.fromPartition(PATCHER_BROWSER_PARTITION).registerPreloadScript({
+    id: "patcher-browser-security",
+    type: "frame",
+    filePath: join(paths.appPath, "dist", "browser-security-preload.cjs"),
+  });
   // Chromium content scripts cover subframes without enabling Node in them.
   // The extension is unpacked beside the bridge in packaged builds.
   await session
@@ -2080,6 +2087,7 @@ async function runDesktopApp(): Promise<void> {
   });
   registerDesktopUpdateIpc();
   desktopBrowserViewManager = createDesktopBrowserViewManager({
+    onBrowserViewVisibilityChanged: secureKeyboard.browserViewChanged,
     pageScriptPreloadPath: resolvedPageScriptPreloadPath,
     dispatchAppCommand({ command, hostWebContentsId }) {
       const browserWindow = BrowserWindow.getAllWindows().find(

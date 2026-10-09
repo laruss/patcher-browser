@@ -116,6 +116,10 @@ import {
   resolveBrowserFaviconPageKey,
   selectBrowserFaviconUrl,
 } from "./desktop-browser-favicon.js";
+import {
+  applyBrowserViewVisibility,
+  type BrowserViewVisibilityChanged,
+} from "./desktop-browser-view-visibility.js";
 import { buildBrowserContextMenuTemplate } from "./desktop-browser-context-menu.js";
 import {
   DOWNLOAD_RATE_MAX_IN_WINDOW,
@@ -662,6 +666,7 @@ export interface DispatchDesktopBrowserAppCommandArgs {
 }
 
 export interface CreateDesktopBrowserViewManagerArgs {
+  onBrowserViewVisibilityChanged?: BrowserViewVisibilityChanged;
   dispatchAppCommand: (args: DispatchDesktopBrowserAppCommandArgs) => void;
   /**
    * Whether a path is already taken, so a download can pick the next free
@@ -2541,38 +2546,11 @@ export function createDesktopBrowserViewManager(
     entry: BrowserViewEntry,
     hostWindow: DesktopBrowserHostWindow,
   ): void {
-    // The host as well as the view, and the same three conditions `send` uses:
-    // `isHostResizing` below reads `hostWindow.webContents.id`, which throws
-    // once that webContents is gone. Reachable since a detach began clearing
-    // the pending dialog — a debugger detach can arrive while the window is
-    // already tearing down, with the child view still alive, which is the
-    // ordering `releaseWindow` exists to handle. An exception in that callback
-    // is an uncaught one in the main process. Found by the code re-review on
-    // 2026-09-08; the security re-review read the view guard and stopped.
-    if (
-      entry.view.webContents.isDestroyed() ||
-      hostWindow.isDestroyed() ||
-      hostWindow.webContents.isDestroyed()
-    ) {
-      return;
-    }
-    // Reasons the app is drawing its own chrome across the whole page area, and
-    // possibly across the DevTools panel below it: a resize burst is standing in
-    // a bitmap, a dialog or a network prompt is a modal where the page was, and
-    // an overlay is a dropdown that can reach down over either view.
-    const appDrawsOverBothViews =
-      isHostResizing(hostWindow) ||
-      entry.pendingDialog !== null ||
-      entry.pagePrompt !== null ||
-      entry.overlayActive;
-    entry.view.setVisible(entry.visible && !appDrawsOverBothViews);
-    // The panel is a native view too, so it hides for all of those. What it no
-    // longer follows is the page's own visibility: the renderer hides the page
-    // to draw a load-error screen in its rect, and the panel has a rect of its
-    // own. See {@link BrowserViewEntry.devToolsVisible} for the fallback that
-    // keeps an app which never reports panel visibility working as before.
-    entry.devToolsView?.setVisible(
-      (entry.devToolsVisible ?? entry.visible) && !appDrawsOverBothViews,
+    applyBrowserViewVisibility(
+      entry,
+      hostWindow,
+      isHostResizing,
+      args.onBrowserViewVisibilityChanged,
     );
   }
 
@@ -3666,8 +3644,8 @@ export function createDesktopBrowserViewManager(
           // page gets the fullscreen it asked for while the window state stays
           // the user's.
           disableHtmlFullscreenWindowResize: true,
-          // Intentionally NO preload: browsed pages are untrusted and must never
-          // receive a Patcher bridge.
+          // The session security preload reports focus without exposing a Patcher
+          // bridge. Plugin preloads remain isolated from the page too.
         },
       });
     const entry: BrowserViewEntry = {
@@ -3722,6 +3700,7 @@ export function createDesktopBrowserViewManager(
     args.hostWindow.contentView.addChildView(view);
     entries.set(browserViewKey(args.hostWindow, args.tabId), entry);
     entriesByWebContentsId.set(view.webContents.id, entry);
+    applyEntryVisibility(entry, args.hostWindow);
     return entry;
   }
 

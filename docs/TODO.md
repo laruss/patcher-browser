@@ -75,7 +75,8 @@ the password manager are still ahead.
   password.
 
 - **The machine's own locks: Touch ID, and a keyboard nobody else can read.**
-  Both measured present and both unused today:
+  Both measured present. Secure Keyboard Entry is implemented in Phase 3; the
+  Touch ID gate is still ahead:
   - `systemPreferences.canPromptTouchID()` → **true**, and `promptTouchID` is
     there. So "release this password" / "unlock the vault" / "approve this agent
     action" can cost a fingerprint rather than nothing. What has to be decided is
@@ -83,8 +84,10 @@ the password manager are still ahead.
     is how a biometric gate becomes theatre.
   - `app.setSecureKeyboardEntryEnabled` → present. Chrome turns this on while a
     password field has focus, which stops other processes on the machine from
-    logging the keystrokes. Patcher never turns it on. Cheap, and the shell already
-    knows when a page's focused field is a password one.
+    logging the keystrokes. Patcher now enables it for foreground password fields
+    in browser pages and its own UI, with conservative protection for opaque browser
+    focus contexts. It releases the flag on focus loss and lifecycle teardown;
+    see Phase 3 of the account security plan.
 
 - **Passkeys, and the way the page hangs without them.** The measurement that
   led to Phase 2 of the account security plan. Its compatibility adapter is now

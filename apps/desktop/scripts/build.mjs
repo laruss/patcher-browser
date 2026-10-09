@@ -62,6 +62,13 @@ await Promise.all([
   }),
   build({
     ...commonOptions,
+    entryPoints: [resolve(packageRoot, "src", "browser-security-preload.ts")],
+    external: ["electron"],
+    format: "cjs",
+    outfile: resolve(distDir, "browser-security-preload.cjs"),
+  }),
+  build({
+    ...commonOptions,
     entryPoints: [resolve(packageRoot, "src", "main.ts")],
     external: ["electron"],
     format: "cjs",

@@ -1365,6 +1365,21 @@ prompt is raised, an unknown thread or one already holding a question is a
 
 ## The browser runs your real sessions
 
+**Secure Keyboard Entry follows foreground password focus on macOS.** Core
+isolated preloads report a boolean and an opaque document identity to Electron
+main, which verifies the sender, active window/view and current document before
+changing the OS flag. Browser iframes and opaque shadow hosts use conservative
+protection while focused, including body focus and ordinary fields that cannot be inspected.
+An open shadow root has its own focus listeners. A new document bootstrap renews
+the reporting identity; canceling provisional navigation keeps the retained page protected.
+Synthetic lifecycle events are ignored; observation restores listeners after a
+`document.open()` rewrite without relying on a new preload bootstrap.
+The flag is released on focus loss, hiding/detaching the view, crash,
+screen lock, suspend and quit. Password fields in Patcher's settings and network
+auth prompts are covered by the trusted UI preload. This protects against external
+keystroke interception; page JavaScript, DOM access and clipboard retain their
+existing access. No password values or keystrokes are carried in these messages.
+
 **WebAuthn has a compatibility adapter while native passkey UI is unavailable.**
 An explicit platform registration is refused when Chromium reports no platform
 authenticator; conditional mediation is reported unavailable. Ordinary security

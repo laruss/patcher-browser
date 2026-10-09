@@ -19,6 +19,7 @@
     "smoke:app-boot": "node scripts/smoke-app-boot.mjs",
     "smoke:packaged": "node scripts/smoke-packaged-app.mjs",
     "smoke:webauthn": "bun run build && node scripts/smoke-browser-webauthn.mjs",
+    "smoke:secure-keyboard": "bun run build && node scripts/smoke-secure-keyboard.mjs",
     "start": "bun run package && node scripts/run-packaged-app.mjs",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
