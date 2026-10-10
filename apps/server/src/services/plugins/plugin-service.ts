@@ -220,7 +220,7 @@ export interface PluginService {
   install(source: string): Promise<PluginListEntry>;
   /**
    * Install a bundled official plugin by its registry name (store install).
-   * Registers with catalog provenance so the opt-in survives reconciliation.
+   * Keeps builtin provenance for included plugins, catalog for optional ones.
    */
   installOfficialPlugin(name: string): Promise<PluginListEntry>;
   installPath(path: string): Promise<PluginListEntry>;
@@ -2018,9 +2018,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
 
     async installOfficialPlugin(name) {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
-        const bundled = bundledPlugins.find(
-          (plugin) => plugin.name === name && !plugin.autoInstall,
-        );
+        const bundled = bundledPlugins.find((plugin) => plugin.name === name);
         if (bundled === undefined) {
           throw new Error(`unknown official plugin "${name}"`);
         }

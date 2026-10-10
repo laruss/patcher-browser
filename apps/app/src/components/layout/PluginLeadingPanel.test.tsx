@@ -80,6 +80,19 @@ afterEach(cleanup);
  * asked for it rather than from configuration.
  */
 describe("PluginLeadingPanel", () => {
+  it("passes the tab id and URL from the same active web tab", () => {
+    const selected = panel("manager", "logins");
+    selected.component = ({ browserTabId, browserUrl }) => (
+      <div>
+        {browserTabId} {browserUrl}
+      </div>
+    );
+    slotState.panels = [selected];
+    renderWithActivePage("https://example.test/login");
+    expect(
+      screen.getByText("browser:a https://example.test/login"),
+    ).toBeTruthy();
+  });
   it("is absent entirely when no plugin claims the edge", () => {
     render(<PluginLeadingPanel />);
 

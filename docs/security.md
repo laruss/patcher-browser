@@ -100,6 +100,15 @@ survives child calls and the host-owned SDK HTTP correlation. Installed Node
 plugins remain trusted local code; arbitrary custom networking/queues do not
 carry an implicit user identity, and this is not a process sandbox.
 
+The bundled password manager is preinstalled and enabled by default; existing
+disabled state and earlier removal tombstones survive restarts and updates.
+Settings permits disabling builtins, not uninstalling them. Grant each exact HTTPS
+origin with Use here. Its panel receives account metadata
+and invokes Save/Update/Fill/Delete only on manual actions. Page RPC cannot list
+or request credentials, including through child/SDK HTTP deputies. Form/submit
+hints carry only origin, kind and presence; they update advisory text without
+auto-fill, auto-save or a post-submit password buffer.
+
 Each Save/Update/Fill/Delete starts as an inert request in core chrome. A fresh
 native gesture opens the native confirmation. The policy chosen at first Save
 is sealed: Require Touch ID always requires a successful native prompt; the
@@ -123,9 +132,11 @@ is returned for SQL commit. Missing/corrupt keys fail closed without silent
 replacement; encrypted records survive disable/uninstall. This uses application
 checks around `safeStorage` and `promptTouchID`, not a native Keychain
 user-presence ACL, and does not protect against compromised main/server or
-another arbitrary process running as the same user. Physical Touch ID acceptance
-still needs a manual hardware check; native smoke exercises real OS encryption
-with a fixture biometric adapter. Native platform passkeys remain a later phase.
+another arbitrary process running as the same user. A real hardware Touch ID
+prompt successfully approved core Save on 2026-10-09. The repeatable native smoke
+uses real OS encryption with a fixture biometric adapter; physical cancellation
+and the full product approval UI still need manual acceptance. Native platform
+passkeys, including phone QR sign-in, remain Phase 8.
 
 ## Runtime browser grants
 

@@ -390,6 +390,24 @@ async function run() {
   console.log(
     "PASS approved update increments the sealed version and retains policy; delete needs approval without reading a form",
   );
+  await require("./password-manager.cjs")({
+    root,
+    runtime,
+    vault,
+    sites,
+    policy,
+    backend,
+    page,
+    context,
+    evaluate,
+    form,
+    login,
+    sentinel,
+    settlePending,
+    resetApproval: () => {
+      nativeApproved = false;
+    },
+  });
   vault.close();
   session.detach();
   window.destroy();

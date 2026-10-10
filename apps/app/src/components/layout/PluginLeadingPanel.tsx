@@ -144,13 +144,13 @@ export function useIsLeadingPanelShowing(): boolean {
  * panel that vanished the moment the user glanced at a thread would take the
  * work they were doing in it with them.
  */
-function useActiveBrowserUrl(): string | null {
+function useActiveBrowserPage(): { tabId: string; url: string } | null {
   const tabs = useAtomValue(browserSurfaceTabsAtom);
   const active = getActiveBrowserSurfaceTab(tabs);
   if (active === null || !isWebSurfaceTab(active) || active.url.length === 0) {
     return null;
   }
-  return active.url;
+  return { tabId: active.id, url: active.url };
 }
 
 /**
@@ -163,7 +163,7 @@ function useActiveBrowserUrl(): string | null {
  */
 function useApplicableLeadingPanels(): readonly PluginLeadingPanelSlot[] {
   const { leadingPanels } = usePluginSlots();
-  const browserUrl = useActiveBrowserUrl();
+  const browserUrl = useActiveBrowserPage()?.url ?? null;
   return useMemo(
     () =>
       leadingPanels.filter(
@@ -180,7 +180,8 @@ function useApplicableLeadingPanels(): readonly PluginLeadingPanelSlot[] {
 
 export function PluginLeadingPanel() {
   const leadingPanels = useApplicableLeadingPanels();
-  const browserUrl = useActiveBrowserUrl();
+  const browserPage = useActiveBrowserPage();
+  const browserUrl = browserPage?.url ?? null;
   const [width, setWidth] = useState(readStoredWidth);
   const [activeId, setActiveId] = useState(readStoredActiveId);
   const [isResizing, setIsResizing] = useState(false);
@@ -320,7 +321,10 @@ export function PluginLeadingPanel() {
           slotKind="experimental_leadingPanel"
           slotId={active.id}
         >
-          <active.component browserUrl={browserUrl} />
+          <active.component
+            browserUrl={browserUrl}
+            browserTabId={browserPage?.tabId ?? null}
+          />
         </PluginSlotMount>
       </div>
       <div

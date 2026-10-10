@@ -33,6 +33,23 @@ try {
     bundle: true,
     platform: "node",
     target: "node24",
+    format: "esm",
+    alias: {
+      "@patcher/plugin-sdk": resolve(
+        packageRoot,
+        "../../packages/plugin-sdk/src/index.ts",
+      ),
+    },
+    entryPoints: [
+      process.env.PATCHER_PASSWORD_MANAGER_SMOKE_ENTRY ??
+        resolve(packageRoot, "../../plugins/password-manager/server.ts"),
+    ],
+    outfile: join(root, "manager.mjs"),
+  });
+  await build({
+    bundle: true,
+    platform: "node",
+    target: "node24",
     format: "cjs",
     external: ["electron"],
     stdin: {

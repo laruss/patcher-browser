@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { currentCredentialPluginCallers } from "../browser/credential-plugin-caller.js";
+import { runAsCredentialAgent } from "../browser/credential-agent-scope.js";
 import {
   browserCommandSchema,
   permissionForBrowserCommand,
@@ -411,7 +412,9 @@ export function createPluginSiteAccess(args: {
     );
     try {
       const result = await runWithPluginSiteCallers([id], () =>
-        untilRevoked(signal, run),
+        // Page RPC is untrusted input, never a human credential action. Carry
+        // the existing denial scope through child calls and SDK HTTP too.
+        runAsCredentialAgent(() => untilRevoked(signal, run)),
       );
       stateFor(id);
       await request("site.check", { token }, signal);

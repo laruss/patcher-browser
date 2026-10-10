@@ -33,19 +33,20 @@ Reading order is the order in which they block each other.
 
 The implementation sequence is in
 [browser-account-security-plan.md](architecture/browser-account-security-plan.md).
-Phases 1–6 are implemented: safe settings metadata, WebAuthn compatibility,
+Phases 1–7 are implemented: safe settings metadata, WebAuthn compatibility,
 Secure Keyboard Entry, opt-in encrypted plugin settings, runtime site grants and
-protected core credential operations. The opt-in manager UX remains Phase 7;
-native platform passkeys remain Phase 8. Physical vault Touch ID acceptance still
-needs a manual hardware check.
+protected core credential operations and the preinstalled password manager.
+Native platform passkeys and phone QR sign-in remain Phase 8. Physical vault
+Touch ID approved core Save on 2026-10-09; full product UI and physical cancellation
+acceptance remain manual checks.
 
 - **A password manager.** Reverses a Non-Goal, deliberately:
   [PROJECT_PLAN.md](PROJECT_PLAN.md) §19 rules out a _sophisticated_ one, and that
   still stands — no sync, no sharing, no breach monitoring. What is missing is the plain thing. Patcher prompts for **HTTP
   authentication** today and lets a plugin answer one
   (`patcher.browser.registerAuthProvider`), which is the rare case; a **form login**,
-  which is nearly every case, still needs the opt-in manager UI. Core now exposes
-  protected capture/fill primitives for that UI. Chromium's own manager is not in Electron,
+  which is nearly every case, now has a preinstalled, enabled manager.
+  Its side panel offers manual Save/Update/Fill/Delete through protected core primitives. Chromium's own manager is not in Electron,
   so it is not a switch to flip.
 
   The sorting test now answers differently than it would have last week: after
@@ -53,9 +54,9 @@ needs a manual hardware check.
   now provide encrypted ordinary token settings and runtime site consent.
   Phase 6 now supplies a separate vault that keeps passwords out of plugin backend
   memory and core capture/fill operations that require a person's approval, with
-  a sealed per-action Touch ID policy. The manager itself can then be a
-  plugin — which is also how it stays out of the way of somebody who wants 1Password
-  instead.
+  a sealed per-action Touch ID policy. Phase 7 delivers the manager as a
+  builtin plugin with explicit site grants. A user can disable it; the choice
+  survives restarts and updates. Earlier removal tombstones are also respected.
 
 - **A keychain-backed secret store for the server side.** Implemented in Phase 4
   for the local server owned by desktop. Settings → Security offers explicit
@@ -68,7 +69,8 @@ needs a manual hardware check.
 
 - **The machine's own locks: Touch ID, and a keyboard nobody else can read.**
   Both measured present. Secure Keyboard Entry is implemented in Phase 3; the
-  vault Touch ID gate is implemented in Phase 6, with physical hardware acceptance pending:
+  vault Touch ID gate is implemented in Phase 6, with a real hardware Save approved
+  on 2026-10-09:
   - `systemPreferences.canPromptTouchID()` → **true**, and `promptTouchID` is
     there. Protected credential actions can require a fresh successful fingerprint.
     Cancel/error/unavailable refuses Require Touch ID without fallback; Confirm
@@ -85,7 +87,10 @@ needs a manual hardware check.
   led to Phase 2 of the account security plan. Its compatibility adapter is now
   implemented: unavailable platform/conditional flows reject, and ordinary
   public-key requests have a deadline that cancels the native ceremony. This
-  covers main pages, iframes and popups; actual platform passkeys remain Phase 8.
+  covers main pages, iframes and popups; actual platform passkeys remain Phase 8,
+  including cross-device sign-in: scan the computer's QR code on iPhone/Android
+  and approve with the phone's biometrics or PIN through FIDO's standard hybrid
+  transport. TOTP setup QR codes and service-specific phone login are separate flows.
   The native measurements below describe the session without that adapter.
   In a browsed page, on a secure origin: `PublicKeyCredential`
   and `navigator.credentials` **exist**, and

@@ -75,6 +75,12 @@ export const BUILTIN_PLUGINS = [
     category: "Interface",
   },
   {
+    name: "password-manager",
+    pluginId: "password-manager",
+    defaultEnabled: true,
+    category: "Interface",
+  },
+  {
     name: "provider-retry",
     pluginId: "provider-retry",
     defaultEnabled: false,

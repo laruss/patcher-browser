@@ -207,6 +207,7 @@ describe("builtin plugin reconciliation", () => {
       ["browser-tools", "Globe02"],
       ["custom-instructions", "EditFile"],
       ["inline-vis", "AppWindow"],
+      ["password-manager", "Key"],
       ["provider-retry", "ArrowReloadHorizontal"],
       ["secrets", "Lock"],
       ["side-chat", "SideChat"],

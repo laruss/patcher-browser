@@ -1,12 +1,13 @@
 # Browser account security: план реализации
 
-Статус: Phases 1–6 реализованы, проверены и прошли независимое ревью.
+Статус: Phases 1–7 реализованы и прошли независимое ревью.
 Phase 1 закоммичена и отправлена: `a804d6bbe`; Phase 2 — `caf119792`.
 Phase 3 закоммичена и отправлена: `43f8616ea`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 4 закоммичена и запушена: `ef1883a2e`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 5 закоммичена и запушена: `d21f9405e`. Sol xhigh: 3 раунда, итог без P1/P2.
-Phase 6 не закоммичена. Sol xhigh: 3 раунда, итог без P1/P2.
-Phases 7–8 — план. Исходный план проверен по исходникам на `c263e6cab`,
+Phase 6 закоммичена и запушена: `818e585e5`. Sol xhigh: 3 раунда, итог без P1/P2.
+Phase 7 реализована. Sol xhigh: 3 раунда, итог без P1/P2.
+Phase 8 — план. Исходный план проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -93,7 +94,7 @@ authenticator сюда не входят.
 | Phase 5 | Runtime site grants с UI и enforcement                                           | Независима от encryption; нужна до manager       |
 | Phase 6 | Core capture/store/fill операции с проверкой человека и Touch ID policy          | Phases 3–5                                       |
 | Phase 7 | Минимальный password-manager plugin                                              | Phase 6                                          |
-| Phase 8 | Native platform passkeys в проверенной подписанной сборке                        | Phase 2 и release signing; не зависит от manager |
+| Phase 8 | Native platform passkeys и вход с телефона по QR в проверенной сборке            | Phase 2 и release signing; не зависит от manager |
 
 Номера задают удобный последовательный backlog, а не искусственные зависимости:
 Phase 8 можно поднять сразу после Phase 2, когда есть signing identity. Устранение
@@ -683,7 +684,7 @@ JS до reload показано честно. Существующие legacy si
 
 ## Phase 6 — core операции с паролем и проверка человека
 
-**Статус реализации.** Core primitives реализованы, без commit/push. Sol xhigh:
+**Статус реализации.** Core primitives закоммичены и запушены: `818e585e5`. Sol xhigh:
 3 раунда, итог без P1/P2; reviewer независимо проверил 37 server и 34 desktop
 tests. SDK 1.2.0 добавляет `browser.credentials.list({ tabId })` и `request`: Save принимает
 account ID, Update/Fill/Delete — opaque `{ id, version }`. Отдельная permission
@@ -731,9 +732,11 @@ thread scope; authenticated legacy deputy и forged caller token не доход
 broker. Native Electron 41.7/macOS smoke использует настоящий `safeStorage`:
 Save/restart, private-world isolation, AX redaction, hidden/disabled/ambiguous/
 iframe/action/node-swap отказ, event reentrancy, late queued Fill после cancel,
-Update version/policy и Delete. Touch ID adapter в smoke заменён fixture;
-физические success/cancel на датчике требуют ручной проверки и не заявляются
-как пройденные. Unit matrix покрывает unavailable/error/late biometric success,
+Update version/policy и Delete. Touch ID adapter в smoke заменён fixture.
+2026-10-09 отдельный hardware test с настоящим `promptTouchID` успешно подтвердил
+core Save и проверил OS ciphertext; это не acceptance полного product Review UI
+или WebAuthn. Физический cancel остаётся ручной проверкой.
+Unit matrix покрывает unavailable/error/late biometric success,
 replay, lease loss, key loss и filesystem sync failure. Signed native passkeys
 остаются Phase 8.
 
@@ -823,8 +826,10 @@ operation не сериализуется как обычный browser `fill` c
 
 **Проблема.** Primitives сами не дают пользователю списка аккаунтов и Save/Fill UX.
 
-**Минимальный результат.** Отключаемый first-party plugin, установленный/включённый
-явно: Save new login, Update existing login, Choose account and Fill, Delete.
+**Минимальный результат.** Отключаемый first-party plugin, предустановленный и
+включённый по умолчанию: Save new login, Update existing login, Choose account
+and Fill, Delete. Disable и прежние removal tombstones сохраняются после restart/update.
+Как остальные builtins, manager можно отключить; Settings не позволяет удалить builtin.
 Использует только уже проверенные core primitives. Не получает wildcard access
 при установке; broad manifest ceiling становится доступом лишь после site grant.
 
@@ -835,9 +840,10 @@ operation не сериализуется как обычный browser `fill` c
   core исполнить fill. Первое действие «Use here» использует Phase 5.
 - Page script после grant на HTTPS main frame распознаёт обычную форму с одним
   username/email и одним password field, стандартный submit и динамическое
-  появление полей. Передаёт только сведения о кандидате/opaque capture ID,
-  не password в generic RPC. Core может держать короткоживущий candidate после
-  submit для prompt; max lifetime и размер обязательны, после отказа удаляется.
+  появление полей. Передаёт только `{ origin, kind, present }`, без значений полей и capture ID.
+  Подсказка недоверенная, меняет лишь текст панели и истекает через 30 секунд.
+  Отдельный буфер после submit не создаётся: Save/Update захватывают только живую
+  форму после core approval. После navigation/replacement нужно вернуться к форме.
 - Save prompt не утверждает, что вход успешен: форма могла вернуть ошибку.
   У пользователя остаётся ручное «Save login» для непойманного SPA flow.
   Update требует выбора существующего account, не перезаписывает автоматически.
@@ -856,14 +862,16 @@ operation не сериализуется как обычный browser `fill` c
   history, screenshots prompt UI, telemetry, crash metadata или action logs.
 - Disabling manager немедленно прекращает actions/prompts и отзывает его active
   capabilities; encrypted records сохраняются. Удаление records — отдельное явное
-  действие, uninstall не должен уничтожать их неожиданно. Решение о повторном
-  использовании данных при reinstall требует того же owner/source identity,
+  действие. Core removal сохраняет records; Settings предлагает disable для builtin.
+  Повторное использование данных после прежнего removal/reinstall требует того же owner/source identity,
   а не доверия одному совпавшему package name.
 
 **Точки изменения.** Новый first-party plugin по текущему примеру
 `examples/plugins/bookmarks`, но включение в builtin registry/packaged artifacts
-обсудить как решение доставки. Предпочтение: opt-in bundled plugin, чтобы не
-требовать сетевой установки, с отдельной permission declaration и тестами.
+реализовано как builtin plugin в категории Interface: `autoInstall: true`,
+`defaultEnabled: true`, отдельные permissions и явный runtime site consent.
+Штатный reconcile сохраняет disabled registrations и removal tombstones;
+предустановка не даёт wildcard access и не восстанавливает удалённый manager.
 Core перестаёт расти после готовых Phase 6 primitives; особые поля под этот UI
 не добавляются в универсальный settings API.
 
@@ -873,18 +881,57 @@ Core перестаёт расти после готовых Phase 6 primitives;
 navigation на похожий hostname, DOM mutation между prompt/fill, revoked grant.
 None из них не выдаёт password без предусмотренного human action. Real plugin
 process test, tests с fake host, packaged smoke после restart и locked backend.
-Проверить возможность выключить plugin, продолжать вводить вручную и не потерять
+Проверить auto-install/enabled на свежем профиле и сохранение disable и прежнего
+removal после restart/update. Проверить возможность продолжать вводить вручную и не потерять
 credentials. **Готовность manager = Phases 4–6 пройдены, а не только удачный fill.**
 
-## Phase 8 — native platform passkeys
+**Реализация Phase 7.** `plugins/password-manager` использует только manual RPC,
+ожидая core request на исходном caller stack. SDK 1.3 добавляет optional
+`browserTabId` в leading panel вместе с URL той же активной вкладки. Старый host
+без ID отказывает; tab/URL смена сбрасывает UI и отменяет pending request.
+Page RPC запрещён для credential list/request, включая дочерних и SDK HTTP
+посредников; hints не вызывают vault. Это защита trusted first-party flow,
+не sandbox для произвольного Node кода.
 
-**Проблема.** Нужен рабочий platform authenticator в выпускаемой сборке и UI выбора
-account, а не только доступный метод или успешный тест с virtual authenticator.
+**Проверки Phase 7 (2026-10-09).** Server: 242 files / 2224 tests;
+Manager: 16 tests; SDK: 131 tests;
+leading panel: 17 tests; общий typecheck: 55 tasks; lint: 0 errors
+(152 существующих warnings). Real-child manager lifecycle проверяет два аккаунта,
+restart, disable/enable, revoke и reinstall с сохранением SQL ciphertext;
+page → child → SDK HTTP deputy не достигает credential broker. Arm64 package
+и packaged boot прошли. Packaged manager с настоящим Electron/main vault и
+`safeStorage` проходит Save/Fill/Update/Delete, restart wrapped key, stale reference,
+unavailable backend, cancel при disable и hints в отдельном мире HTTPS страницы.
+Native smoke всего 9 групп; биометрический adapter тестовый. Отдельный hardware
+test 2026-10-09 подтвердил core Save настоящим Touch ID; физический cancel и полный
+product Review UI остаются manual acceptance.
+
+**Предустановка (2026-10-10).** Manager включён в auto-install builtins и включён
+по умолчанию. Real-child test проверяет свежую установку, отсутствие доступа до
+site grant, сохранение disable и removal tombstone после restart, сохранение
+ciphertext и reinstall через реальный catalog service с новым site consent.
+Catalog install принимает также included bundled plugins и сохраняет builtin
+provenance. Settings/API оставляют для builtins disable; удаление возвращает 409.
+Full server: 242 files / 2224 tests; manager: 16 tests; server typecheck,
+форматирование и diff check прошли. Sol xhigh: итог 3 раундов без P1/P2.
+Arm64 package пересобран с актуальным catalog fix и panel copy. Его реальный
+Electron/Node server на временном чистом профиле автоматически устанавливает и
+включает manager, сохраняет disable после restart, отклоняет builtin uninstall
+и снова запускает manager при enable. Packaged manager проходит все 9 native
+credential smoke groups с настоящим OS encryption и тестовым biometric adapter.
+
+## Phase 8 — native platform passkeys и вход с телефона по QR
+
+**Проблема.** Нужен рабочий platform authenticator в выпускаемой сборке, UI выбора
+account и стандартный вход с passkey на телефоне через QR.
 
 **Минимальный результат.** Подписанный macOS desktop с подходящим оборудованием
 делает реальную create/get ceremony через Electron/OS; unavailable build остаётся
-в проверенном unsupported режиме Phase 2. Passkeys принадлежат Chromium/OS,
-не password plugin и не server secret store.
+в проверенном unsupported режиме Phase 2. Для cross-device get человек выбирает
+телефон, сканирует QR на компьютере и подтверждает вход биометрией/PIN телефона.
+Passkeys принадлежат Chromium/OS или authenticator телефона, не password plugin
+и не server secret store. QR flow использует стандартный
+[FIDO cross-device authentication](https://fidoalliance.org/passkeys-2/).
 
 **Решения и шаги:**
 
@@ -910,11 +957,30 @@ account, а не только доступный метод или успешн�
 5. При включённом native mode отключить incompatible fallback adapter Phase 2.
    UVPAA/conditional behaviour определяются проверенной нативной конфигурацией,
    не подменой true. Touch ID для vault и WebAuthn user verification не смешивать.
+6. До реализации phone flow проверить реальную доступность Chromium FIDO hybrid
+   transport, QR chooser/UI delegate и Bluetooth proximity в pinned Electron 41.7.0.
+   Использовать стандартный Chromium/OS flow, без собственного QR протокола,
+   передачи паролей или authenticator. Если embedded Electron не предоставляет
+   нужный UI/API, зафиксировать точный gap и проверить минимальный официальный
+   путь интеграции; изменение dependency/API отдельно сверить с
+   [migration invariants](bb-migration.md#invariants-that-must-not-break).
+   Наличие `touchID` API само по себе не доказывает поддержку hybrid transport.
+7. Привязать QR и выбор телефона к текущей WebAuthn ceremony, RP и frame.
+   Bluetooth permission/proximity запрашивать лишь для активного phone flow;
+   не включать общий background access. Cancel/abort/timeout/navigation/frame close
+   и shutdown завершают ceremony ровно один раз и делают старый QR непригодным.
+   Сохранять fail-closed поведение и не запускать другой authenticator молча.
+   Phone passkey не требует копирования в macOS vault или обещания iCloud sync.
+
+QR enrollment для TOTP и собственный QR login конкретного сервиса не входят в
+FIDO hybrid scope: их веб-страницы должны работать как обычные сайты, но браузер
+не создаёт для них свою систему двухфакторной аутентификации.
 
 **Точки изменения.** `main.ts`, browser session setup/view lifecycle, новый
 account chooser/prompt module и optional IPC capability при renderer UI;
 `apps/desktop/build/entitlements.mac.plist`, build/signing script/config,
-packaging tests и Electron secure-origin fixtures.
+packaging tests и Electron secure-origin fixtures; стандартный hybrid chooser
+и ограниченные Bluetooth permissions при подтверждённой доступности API.
 
 **Проверка.** Реальный signed packaged app: create → quit/relaunch → get,
 несколько accounts, cancellation, timeout/abort, iframe policy, popup,
@@ -924,6 +990,13 @@ navigation/closed frame, другой origin/RP, другой partition, обн�
 чтобы fallback не сломал ранее рабочий transport. Виртуальный CDP authenticator
 годится только для protocol fixture; он не проверяет Secure Enclave/signing.
 Если подписи/устройства нет, unit checks можно закончить, phase acceptance — нет.
+Phone acceptance — реальный HTTPS RP и успешный get/sign-in с iPhone и Android:
+QR → proximity по Bluetooth → Face ID/Touch ID/биометрия/PIN → ответ текущему RP.
+Проверить несколько accounts, чужой RP/origin, просроченный QR, cancel/abort,
+navigation/closed frame и недоступный Bluetooth. Virtual authenticator не
+заменяет ни телефон, ни аппаратный macOS тест. Готовность Phase 8 требует обоих
+flows; при недоступном hybrid API или устройстве эта часть явно остаётся
+незавершённой, даже если локальный Touch ID passkey уже работает.
 
 ## Решения, которые нужно подтвердить до соответствующей реализации
 
@@ -935,7 +1008,7 @@ navigation/closed frame, другой origin/RP, другой partition, обн�
 | Touch ID отсутствует                     | Явный режим OS encryption + подтверждение каждого fill; Require Touch ID всегда fail closed. Не реализовывать свой master password в этом scope                               | Phase 6         |
 | Session unlock                           | Не добавлять в MVP; каждый fill имеет своё разрешение, меньше lifetime/race/replay состояний                                                                                  | Phase 6         |
 | Может ли plugin прочитать пароль         | MVP API выдаёт handle/status и выполняет scoped fill в core. Обычный `settings.get()` остаётся для tokens, не vault                                                           | Phase 6         |
-| Delivery manager                         | Opt-in bundled first-party plugin. Пользователь может выбрать другой manager и выключить этот                                                                                 | Phase 7         |
+| Delivery manager                         | Предустановленный и включённый builtin plugin с явными site grants. Disable и прежние removal tombstones сохраняются после restart/update                                     | Phase 7         |
 | Подпись для passkeys                     | Использовать реальную стабильную signing identity; до её готовности честный unsupported path. Не писать собственный authenticator                                             | Phase 8         |
 
 Эти рекомендации дают реализацию без выбора «на глаз». Они не требуют нового

@@ -85,6 +85,11 @@ provides an explicit Reload page action, preserving filled forms until the user
 chooses it. Scripts registered or newly allowed on an open page run on its next
 load. Protected credential operations have their own scope below.
 
+SDK 1.3.0 adds optional `browserTabId?: string | null` to leading-panel props,
+paired with `browserUrl` from the same active tab in that window. Treat it as a
+target identifier, not consent or approval. Older hosts omit it; credential UI
+must refuse operations without a tab ID.
+
 ## Protected browser credentials
 
 SDK 1.2.0 adds `patcher.browser.credentials`. Declare minimum SDK 1.2.0,
@@ -118,7 +123,7 @@ selector, approved flag, origin override, reveal, export or clipboard API.
 Only the owned desktop server and current core chrome can approve. Each action
 uses the sealed policy chosen at Save: Require Touch ID fails closed when
 unavailable/cancelled; Confirm every action is an explicit separate choice.
-Agents and external callers are refused, including calls through child/SDK
+Agents, page RPC and external callers are refused, including calls through child/SDK
 HTTP delegation. Every authenticated deputy needs its own runtime permission
 and site grant; legacy deputies cannot use another manager's authority.
 

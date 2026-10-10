@@ -50,6 +50,9 @@ export interface PluginSettingsSectionProps {}
  * changing what a plugin's component signature looks like.
  */
 export interface PluginLeadingPanelProps {
+  /** Active web tab in this window. Added in SDK 1.3; older hosts omit it.
+   * This identifies a target, not permission or approval to access it. */
+  browserTabId?: string | null;
   /**
    * The address of the page in the active browser tab, or null when the window
    * is not showing one.

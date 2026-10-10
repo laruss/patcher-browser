@@ -240,6 +240,23 @@ it("carries legacy deputies and original agent scope through real SDK HTTP befor
       });
       expect(positive.status).toBe(200);
       expect(brokerCalls).toBe(2);
+      const forward = pluginService.getRpcHandler(permitted, "forward");
+      if (forward.outcome !== "found") throw Error("Missing deputy handler");
+      const fromPage = await pluginService.siteAccess!.pageRpc(
+        permitted,
+        randomUUID(),
+        "forward",
+        "null",
+        () =>
+          pluginService.invokeRpcHandler(
+            permitted,
+            "forward",
+            forward.value,
+            null,
+          ),
+      );
+      expect(fromPage.ok).toBe(false);
+      expect(brokerCalls).toBe(2); // Page → real child → SDK HTTP → manager cannot borrow human scope.
       const { host } = seedHostSession(harness.deps),
         { project } = seedProjectWithSource(harness.deps, { hostId: host.id });
       const environment = seedEnvironment(harness.deps, {

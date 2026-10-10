@@ -1,0 +1,51 @@
+{
+  "name": "patcher-plugin-password-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Save and fill logins with core confirmation for every action.",
+  "engines": {
+    "patcher": ">=0.0",
+    "patcherPluginSdk": "^1.3.0"
+  },
+  "patcher": {
+    "name": "Password manager",
+    "description": "Save, update, fill and delete logins with confirmation for every action. Choose which sites can use the manager.",
+    "branding": {
+      "icon": "Key"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "siteAccess": "runtime",
+    "sites": [
+      "https://**"
+    ],
+    "permissions": [
+      "credentials.manage",
+      "tabs.read",
+      "toolbar.register",
+      "pageScript.register"
+    ]
+  },
+  "keywords": [
+    "patcher-plugin"
+  ],
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@patcher/plugin-sdk": "workspace:*",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "jsdom": "^29.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}
