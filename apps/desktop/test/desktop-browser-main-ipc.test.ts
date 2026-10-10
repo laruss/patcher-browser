@@ -183,6 +183,9 @@ interface SendBrowserIpcArgs {
 }
 
 class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
+  webAuthnTarget() {
+    return null;
+  }
   resolveSiteTarget() {
     return null;
   }

@@ -68,6 +68,8 @@ import {
   startPatcherAppProcess,
 } from "./patcher-process.js";
 import { registerSecureKeyboardEntry } from "./secure-keyboard-entry.js";
+import { configureNativeWebAuthn } from "./native-webauthn.js";
+import { registerWebAuthnAccountChooser } from "./webauthn-account-chooser.js";
 import { openExistingServerDialog } from "./existing-server-dialog.js";
 import {
   readForeignRuntimeDetails,
@@ -2009,6 +2011,26 @@ async function runDesktopApp(): Promise<void> {
   });
   const bridgePath = resolveDesktopBridgePath({ paths });
   const secureKeyboard = registerSecureKeyboardEntry();
+  const nativeWebAuthn = await configureNativeWebAuthn(
+    DESKTOP_RELEASE_INFO.channel === "nightly"
+      ? "app.patcher.desktop.nightly"
+      : "app.patcher.desktop",
+  );
+  console.log(
+    `Native Touch ID passkeys: ${nativeWebAuthn ? "configured" : "unavailable (requires signed app and Touch ID)"}.`,
+  );
+  registerWebAuthnAccountChooser(
+    session.fromPartition(PATCHER_BROWSER_PARTITION),
+    (id) => {
+      const target = desktopBrowserViewManager?.webAuthnTarget(id);
+      if (!target) return null;
+      const window = BrowserWindow.getAllWindows().find(
+        (one) =>
+          !one.isDestroyed() && one.webContents.id === target.hostWebContentsId,
+      );
+      return window ? { window, current: target.current } : null;
+    },
+  );
   session.fromPartition(PATCHER_BROWSER_PARTITION).registerPreloadScript({
     id: "patcher-browser-security",
     type: "frame",

@@ -11,7 +11,9 @@ import {
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopPackageRoot = resolve(scriptDirectory, "..");
-const releaseDir = join(desktopPackageRoot, "release");
+const releaseDir =
+  process.env.PATCHER_PACKAGED_SMOKE_RELEASE_DIR ??
+  join(desktopPackageRoot, "release");
 const releaseConfig = createDesktopReleaseConfig(
   resolveDesktopReleaseChannel(process.env),
 );
@@ -175,8 +177,9 @@ async function startSmokeServer({ dataDir, expectedDesktopVersion }) {
           let reason = "";
           try {
             const available = await PublicKeyCredential.isConditionalMediationAvailable();
+            const capabilities = await PublicKeyCredential.getClientCapabilities();
             const exposed = typeof require !== "undefined" || typeof process !== "undefined" || typeof patcherDesktop !== "undefined";
-            ok = available === false && !exposed;
+            ok = available === false && capabilities.hybridTransport === false && !exposed;
             reason = ok ? "" : "missing compatibility policy or exposed app bridge";
           } catch (error) { reason = String(error); }
           await fetch("/smoke/browser-ready?" + new URLSearchParams({ ok: ok ? "1" : "0", reason }), { method: "POST" });
@@ -462,6 +465,11 @@ async function smokePackagedApp() {
     }
 
     await sleep(postReadySettleMs);
+    const nativeStatus = stdout
+      .join("")
+      .match(/Native Touch ID passkeys: ([^\n]+)/u)?.[1];
+    if (!nativeStatus)
+      throw new Error("Missing native passkey startup guard result.");
     if (child.exitCode !== null || child.signalCode !== null) {
       throw new Error(
         `Packaged Electron app exited after startup: code=${String(
@@ -474,6 +482,7 @@ async function smokePackagedApp() {
     }
 
     console.log(`Packaged desktop smoke passed: ${appBinary}`);
+    console.log(`Native passkey startup guard: ${nativeStatus}`);
   } finally {
     await stopPackagedApp(child);
     await smokeServer.close();

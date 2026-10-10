@@ -58,6 +58,8 @@ export class WebSocketManager {
   // believing no browser is open.
   private browserHostId: string | null = null;
   private nativeWebContentsId: number | undefined;
+  private siteRegistrationUnsupported = false;
+  private sentSiteRegistration = false;
   // Ephemeral "open this file in the secondary panel" intents, keyed by thread.
   // Held in memory only (cleared on reload) so a thread that is not currently
   // viewed opens the file when it is next viewed. Last write wins per thread.
@@ -89,6 +91,7 @@ export class WebSocketManager {
     });
 
     this.socket.onopen = () => {
+      this.sentSiteRegistration = false;
       const reconnected = this.hasConnected;
       this.hasConnected = true;
       this.setConnectionState("connected");
@@ -111,7 +114,17 @@ export class WebSocketManager {
       this.handleIncomingMessage(event.data);
     };
 
-    this.socket.onclose = () => {
+    this.socket.onclose = (event) => {
+      // A window may outlive a server downgrade. Retry the original message
+      // after an explicit rejection, keeping scoped registration off until reload.
+      if (
+        event.code === 1008 &&
+        event.reason === "invalid-message" &&
+        this.sentSiteRegistration
+      ) {
+        this.siteRegistrationUnsupported = true;
+      }
+      this.sentSiteRegistration = false;
       this.setConnectionState(
         this.hasConnected ? "reconnecting" : "connecting",
       );
@@ -309,8 +322,13 @@ export class WebSocketManager {
   ): void {
     this.nativeWebContentsId = nativeWebContentsId;
     this.browserHostId = browserHostId;
+    const scoped =
+      nativeWebContentsId !== undefined && !this.siteRegistrationUnsupported;
+    if (scoped && this.socket?.readyState === WebSocket.OPEN) {
+      this.sentSiteRegistration = true;
+    }
     this.sendMessage(
-      nativeWebContentsId === undefined
+      !scoped
         ? { type: "browser-host.register", browserHostId }
         : {
             type: "browser-host.site-register",

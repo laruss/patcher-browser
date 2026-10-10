@@ -5,7 +5,7 @@ type CredentialMethod =
   | CredentialsContainer["create"]
   | CredentialsContainer["get"];
 
-/** Compatibility for the browser session before native passkey UI is available. */
+/** Bound requests and report only the UI supported by pinned Electron. */
 export function installWebAuthnCompatibility(): void {
   if (
     typeof PublicKeyCredential === "undefined" ||
@@ -184,6 +184,7 @@ export function installWebAuthnCompatibility(): void {
         ...capabilities,
         conditionalCreate: false,
         conditionalGet: false,
+        hybridTransport: false,
       }));
   }
 }

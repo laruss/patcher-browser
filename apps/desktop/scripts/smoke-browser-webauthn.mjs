@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 const require = createRequire(import.meta.url);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -16,6 +17,15 @@ const entry = resolve(
   "browser-webauthn.cjs",
 );
 try {
+  await build({
+    bundle: true,
+    platform: "node",
+    target: "node24",
+    format: "cjs",
+    external: ["electron"],
+    entryPoints: [resolve(packageRoot, "src/native-webauthn.ts")],
+    outfile: join(root, "native.cjs"),
+  });
   const childEnv = { ...process.env };
   delete childEnv.ELECTRON_RUN_AS_NODE;
   const child = spawn(binary, [entry], {

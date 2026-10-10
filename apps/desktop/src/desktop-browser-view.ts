@@ -1,4 +1,4 @@
-import { resolveBrowserSiteTarget } from "./desktop-browser-site-target.js";
+import { createBrowserSiteTargets } from "./desktop-browser-site-target.js";
 import { redactCredentialNodes } from "./desktop-credential-redaction.js";
 import { createDesktopPageContributions } from "./desktop-page-contributions.js";
 import { randomUUID } from "node:crypto";
@@ -743,6 +743,9 @@ interface SetEntryDesiredBoundsArgs {
 }
 
 export interface DesktopBrowserViewManager {
+  webAuthnTarget(
+    webContentsId: number,
+  ): { hostWebContentsId: number; current(): boolean } | null;
   resolveSiteTarget(tabId: string): SiteTarget | null;
   sitePolicyChanged(): void;
   siteScriptBootstrap(
@@ -4055,18 +4058,12 @@ export function createDesktopBrowserViewManager(
   function documentForEntry(entry: BrowserViewEntry): string {
     return entry.runtimeDocumentId;
   }
-  function resolveSiteTarget(tabId: string): SiteTarget | null {
-    return resolveBrowserSiteTarget({
-      tabId,
-      entries: entries.values(),
-      exists: (entry) =>
-        entriesByWebContentsId.get(entry.view.webContents.id) === entry,
-      send: (entry, method, params) =>
-        ensureCdpSession(entry).send(method, params),
-    });
-  }
   return {
-    resolveSiteTarget,
+    ...createBrowserSiteTargets(
+      entries,
+      entriesByWebContentsId,
+      (entry, method, params) => ensureCdpSession(entry).send(method, params),
+    ),
     siteCleanup: () =>
       [...entries.values()].flatMap((entry) =>
         [...entry.runtimeCleanup].map((pluginId) => ({

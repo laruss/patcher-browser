@@ -9,6 +9,9 @@ app.setPath(
   join(process.env.PATCHER_WEBAUTHN_SMOKE_ROOT, "profile"),
 );
 const nativeMode = process.env.PATCHER_WEBAUTHN_SMOKE_NATIVE === "1";
+const { configureNativeWebAuthn } = require(
+  join(process.env.PATCHER_WEBAUTHN_SMOKE_ROOT, "native.cjs"),
+);
 const deadline = setTimeout(() => {
   console.error("WebAuthn smoke harness deadline exceeded");
   app.exit(1);
@@ -61,6 +64,12 @@ async function checkContext(frame, label) {
       `${label}: ${capability}`,
     );
   }
+  if (!nativeMode)
+    assert.equal(
+      result.capabilities.hybridTransport,
+      false,
+      `${label}: hybrid UI unavailable`,
+    );
   return { label, ...result };
 }
 
@@ -252,6 +261,12 @@ async function exerciseSecurityKey(contents) {
 
 (async () => {
   await app.whenReady();
+  const nativeConfigured = await configureNativeWebAuthn("app.patcher.desktop");
+  assert.equal(
+    nativeConfigured,
+    false,
+    "dev Electron must not configure signed Touch ID passkeys",
+  );
   const port = await startServer();
   const crossPort = await startServer();
   const browserSession = session.fromPartition("persist:webauthn-smoke");
@@ -340,6 +355,7 @@ async function exerciseSecurityKey(contents) {
         chromium: process.versions.chrome,
         packaged: app.isPackaged,
         configureWebAuthn: typeof app.configureWebAuthn === "function",
+        nativeConfigured,
         touchIDAvailable: systemPreferences.canPromptTouchID(),
         contexts,
         cases,

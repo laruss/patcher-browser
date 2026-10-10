@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createWebAuthnEntitlements } from "./webauthn-entitlements.mjs";
 import {
   createDesktopReleaseConfig,
   createDesktopUpdateReleaseBaseUrl,
@@ -17,6 +18,10 @@ const baseConfigPath = resolve(
 const generatedConfigPath = resolve(
   desktopPackageRoot,
   ".electron-builder.generated.json",
+);
+const generatedEntitlementsPath = resolve(
+  desktopPackageRoot,
+  ".webauthn-entitlements.generated.plist",
 );
 const electronBuilderBin = resolve(
   desktopPackageRoot,
@@ -189,6 +194,15 @@ export function resolveElectronBuilderConfig(baseConfig, env) {
 
   config.mac = mac;
   config.appId = releaseConfig.appId;
+  if (signingPlan.mode === "environment") {
+    // Validate even in --print-config; never ship a made-up access group.
+    createWebAuthnEntitlements(
+      "<dict></dict>",
+      env.APPLE_TEAM_ID.trim(),
+      config.appId,
+    );
+    config.mac.entitlements = generatedEntitlementsPath;
+  }
   config.artifactName = releaseConfig.artifactName;
   config.productName = releaseConfig.applicationName;
   config.publish = [
@@ -293,11 +307,26 @@ async function main() {
 
   logSigningPlan(signingPlan);
   await mkdir(dirname(generatedConfigPath), { recursive: true });
-  await writeGeneratedConfig(config);
   try {
+    if (signingPlan.mode === "environment") {
+      const source = await readFile(
+        resolve(desktopPackageRoot, baseConfig.mac.entitlements),
+        "utf8",
+      );
+      await writeFile(
+        generatedEntitlementsPath,
+        createWebAuthnEntitlements(
+          source,
+          process.env.APPLE_TEAM_ID.trim(),
+          config.appId,
+        ),
+      );
+    }
+    await writeGeneratedConfig(config);
     await runElectronBuilder(electronBuilderArgs, signingPlan);
   } finally {
     await removeGeneratedConfig();
+    await rm(generatedEntitlementsPath, { force: true });
   }
 }
 

@@ -26,6 +26,7 @@ out
 /packages/patcher-app/host-daemon/
 /apps/desktop/release/
 /apps/desktop/.electron-builder.generated.json
+/apps/desktop/.webauthn-entitlements.generated.plist
 
 # generated at build time (see @patcher/sdk#generate:app-runtime-browser-bundle)
 /packages/sdk/src/app-runtime-browser-bundle.generated.ts

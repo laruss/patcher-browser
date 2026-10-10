@@ -4,6 +4,39 @@ import type { SiteTarget } from "./desktop-site-authority.js";
 import { rememberCredentialPassword } from "./desktop-credential-redaction.js";
 import { CREDENTIAL_WORLD_ID } from "./credential-release-ipc.js";
 
+/** Site operations and native passkey UI share the same tracked tab lifecycle. */
+export function createBrowserSiteTargets(
+  entries: Map<string, BrowserViewEntry>,
+  entriesByWebContentsId: Map<number, BrowserViewEntry>,
+  send: Parameters<typeof resolveBrowserSiteTarget>[0]["send"],
+) {
+  return {
+    resolveSiteTarget: (tabId: string) =>
+      resolveBrowserSiteTarget({
+        tabId,
+        entries: entries.values(),
+        exists: (entry) =>
+          entriesByWebContentsId.get(entry.view.webContents.id) === entry,
+        send,
+      }),
+    webAuthnTarget: (id: number) => {
+      const entry = entriesByWebContentsId.get(id);
+      if (!entry || entry.hostWindow.isDestroyed()) return null;
+      return {
+        hostWebContentsId: entry.hostWindow.webContents.id,
+        current: () =>
+          entriesByWebContentsId.get(id) === entry &&
+          !entry.view.webContents.isDestroyed() &&
+          !entry.hostWindow.isDestroyed() &&
+          entry.visible &&
+          !entry.overlayActive &&
+          !entry.pendingDialog &&
+          !entry.pagePrompt,
+      };
+    },
+  };
+}
+
 export function resolveBrowserSiteTarget(args: {
   tabId: string;
   entries: Iterable<BrowserViewEntry>;

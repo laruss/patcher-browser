@@ -209,6 +209,23 @@ some required signing secrets are set, the workflow fails before packaging so a
 misconfigured release cannot silently produce unsigned or
 signed-but-not-notarized artifacts.
 
+The complete signing path also generates the main app's WebAuthn entitlement
+`APPLE_TEAM_ID.app.patcher.desktop.webauthn` (nightly uses
+`APPLE_TEAM_ID.app.patcher.desktop.nightly.webauthn`). No Team ID is checked into
+the source plist. Startup verifies the app's Apple signature and effective
+bundle/team/access group before configuring Electron's device-bound Touch ID
+authenticator. Ad-hoc/dev builds keep it unavailable; ordinary vault Touch ID
+does not depend on this configuration.
+
+Keep the Team ID, bundle ID and browser profile stable across updates. These
+passkeys do not sync to iCloud or the password-manager plugin. After signing,
+inspect the finished app with `codesign --display --verbose=4 Patcher.app` and
+`codesign --display --entitlements - --xml Patcher.app`, then perform real Touch ID
+create → quit/relaunch → get, account selection and cancellation checks. The
+native account chooser is implemented; physical acceptance is still outstanding.
+Phone QR sign-in requires an upstream hybrid UI/Bluetooth integration absent
+from pinned Electron 41.7.0; a signing certificate alone does not enable it.
+
 ### Releasing without a Developer ID
 
 `release_channel=alpha` with `publish=true` is the path that has no Apple

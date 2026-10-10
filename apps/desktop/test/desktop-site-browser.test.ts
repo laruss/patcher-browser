@@ -98,6 +98,25 @@ async function fixture() {
   };
 }
 describe("runtime native browser path", () => {
+  it("binds native WebAuthn UI to a tracked visible tab and refuses it after hide/detach", async () => {
+    const f = await fixture();
+    expect(f.manager.webAuthnTarget(-1)).toBeNull();
+    const target = f.manager.webAuthnTarget(f.view.webContents.id)!;
+    expect(target.hostWebContentsId).toBe(f.host.webContents.id);
+    expect(target.current()).toBe(true);
+    f.manager.setVisible({
+      hostWindow: f.host,
+      request: { tabId: "tab", visible: false },
+    });
+    expect(target.current()).toBe(false);
+    f.manager.setVisible({
+      hostWindow: f.host,
+      request: { tabId: "tab", visible: true },
+    });
+    expect(target.current()).toBe(true);
+    f.manager.detach({ hostWindow: f.host, tabId: "tab" });
+    expect(target.current()).toBe(false);
+  });
   async function authFixture() {
     const f = await fixture();
     await f.request("site.policy", {

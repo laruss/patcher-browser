@@ -136,7 +136,8 @@ another arbitrary process running as the same user. A real hardware Touch ID
 prompt successfully approved core Save on 2026-10-09. The repeatable native smoke
 uses real OS encryption with a fixture biometric adapter; physical cancellation
 and the full product approval UI still need manual acceptance. Native platform
-passkeys, including phone QR sign-in, remain Phase 8.
+passkeys now have signing/Keychain configuration and a native account chooser;
+signed hardware acceptance and phone QR sign-in remain incomplete Phase 8 work.
 
 ## Runtime browser grants
 
@@ -307,7 +308,7 @@ Patcher's plumbing never does, while denying them would take `git submodule
 update` and `git worktree add` from every sandboxed turn.
 
 **A linked worktree is the shape this actually runs in, and it was the one not
-measured.** A managed worktree's gitdir sits *outside* the workspace and has to
+measured.** A managed worktree's gitdir sits _outside_ the workspace and has to
 stay writable — its index and refs live there — so the refusals and the
 permissions interleave in a way a plain checkout never shows. Measured under
 the real profile on that layout: the pointer `.git`, the common `config`,
@@ -319,7 +320,7 @@ That measurement found the list meaning two different things. **On Linux a
 protected path that did not exist yet was not protected**: bubblewrap has no
 rule about a name, only about a mount, and a missing path was skipped — so on a
 fresh repository `info/attributes` and `config.worktree` were refused under
-seatbelt and *written* under bubblewrap, because neither file exists until
+seatbelt and _written_ under bubblewrap, because neither file exists until
 something creates it. The profile now mounts something over such a path when
 its parent is writable, which is the only case that needs it: with a read-only
 parent bwrap cannot create the mount point and fails the whole launch, and a
@@ -351,7 +352,7 @@ checkpoint, and a provider process outlives that. Measured with the argv this
 module builds: the file denied at launch was refused and a file created on the
 host a second later was read in full from inside. Binding over the name is not
 available — the daemon's data directory is not a writable root, so bwrap cannot
-create the mount point there, and where it *can* it leaves a mode-0444 file that
+create the mount point there, and where it _can_ it leaves a mode-0444 file that
 the daemon then cannot write, which for a `-wal` beside a live database is worse
 than the leak. So a directory holding a denied path that does not exist is
 replaced wholesale: an empty `tmpfs`, with everything already in it re-bound
@@ -376,9 +377,9 @@ under `/tmp` or `$TMPDIR`, which are writable so a shell works at all — that i
 the linked worktree's `.git` pointer file moved out from under its own rule.
 
 So every directory between a writable root and a protected path is now
-protected as an *entry* rather than as a subtree: seatbelt gets
+protected as an _entry_ rather than as a subtree: seatbelt gets
 `(deny file-write* (literal …))`, which refuses a rename or an unlink of the
-directory while a write *inside* it still succeeds, and bubblewrap gets
+directory while a write _inside_ it still succeeds, and bubblewrap gets
 `--bind <dir> <dir>`, which makes it a mount point so `rename()` answers
 `EBUSY`. The distinction is the whole point — `.git` denied as a subtree takes
 `index.lock` with it, and a turn that cannot write that cannot `git add`. An
@@ -392,7 +393,7 @@ rather than reasoned about.
 
 **A symlink is two names, and only one of them is the target.** The rules are
 built from the path a lookup lands on, which is what makes them rules about
-anything at all — but where a protected path is *itself* a link, that resolves
+anything at all — but where a protected path is _itself_ a link, that resolves
 to the target and leaves the link an ordinary entry in a writable directory.
 Measured on a checkout whose `.git/config` was a symlink: the write through it
 refused, and `rm .git/config` followed by a fresh file of the same name allowed,
@@ -405,7 +406,7 @@ still removable. There the launch is **refused**, naming the path and asking for
 a regular file in its place or a Full Access thread, which is the answer this
 module already gives a machine that cannot build a sandbox. Narrow on purpose:
 only a protected path or one of the directories on the way to it, and only when
-that entry is a link — a workspace reached *through* a symlinked ancestor is not
+that entry is a link — a workspace reached _through_ a symlinked ancestor is not
 this, and a linked worktree's `.git` is a regular file, so the layout Patcher
 runs by default never meets it.
 
@@ -445,10 +446,10 @@ permission profile from `permission-profile.ts`, each running the same probe.
   by the list's.
 - **Linux, Codex: `.git/info` can be renamed and an `info/attributes` written
   in its place.** `.git`, `.git/hooks`, the workspace, and both a rename and an
-  unlink of `.git/config` are refused. What the one gap buys is an *untracked*
+  unlink of `.git/config` are refused. What the one gap buys is an _untracked_
   attributes file, which is not a privilege a turn lacks — it can commit a
   `.gitattributes` saying the same thing — because the config half that would
-  have to *define* the filter driver stays refused. Left as it is on purpose:
+  have to _define_ the filter driver stays refused. Left as it is on purpose:
   closing it needs `.git/info` as a whole read-only in Codex's map, which takes
   `git sparse-checkout` from every Codex turn for nothing gained.
 - **Linux, Claude Code: not measured.** Its sandbox needs a live session, and a
@@ -463,7 +464,7 @@ that closes it fails the test rather than quietly outdating this text. The
 remaining square, Claude Code on Linux, stays manual: `qa/provider-permission-mode-runbook.md`
 carries the probe, because a live session is the only way to raise that sandbox.
 
-What no measurement can answer is whether every enforcer was *given* the list in
+What no measurement can answer is whether every enforcer was _given_ the list in
 the first place. Each one had a test written against a hand-written path, so
 adding an entry to `GIT_EXECUTION_ENTRIES` failed nothing:
 `apps/host-daemon/src/provider-boundary-matrix.test.ts` resolves the real list on
@@ -516,7 +517,7 @@ fewer namespaces than the launch uses, so a machine that cannot mount `/proc`
 passed it and killed the shell one step later instead; it now asks for exactly
 what the launch asks for. And it remembered a refusal for the daemon's whole
 life, while the remedy it prints — allow unprivileged user namespaces — is
-something a person does *while the daemon is running*, so a machine that had
+something a person does _while the daemon is running_, so a machine that had
 just been fixed kept being refused, and a probe that timed out once under load
 was cached as a permanent property of the machine. A success is still kept; a
 refusal is re-asked after a minute.
@@ -686,7 +687,7 @@ the file anyway. That is not a guess about what an agent would do — measured o
 the enforced run above, grok answered the refusal by running `cat` on the same
 path in its own shell, and got the file, because the harness the measurement ran
 in confines nothing. Which is the whole shape of this: the bridge mirrors the
-boundary and the sandbox *is* the boundary, and a bridge refusing more than the
+boundary and the sandbox _is_ the boundary, and a bridge refusing more than the
 sandbox does buys a detour rather than a denial. What is closed here is the read
 whose answer is a credential. A Full Access turn is left alone entirely — that
 mode asks for no sandbox, which is the same line drawn where the credential list
@@ -842,10 +843,11 @@ Four things about it are decisions rather than defaults:
   goes through its own service. Declaring them would have handed every confined
   Hermes turn the GitHub API and three model vendors on the strength of a
   startup probe.
+
 - **Pi cannot be covered, and the reason is its own HTTP client.** Not a
   missing declaration — measured. With `HTTPS_PROXY`, `https_proxy`,
   `HTTP_PROXY`, `ALL_PROXY`, `all_proxy` and `NODE_USE_ENV_PROXY=1` all set
-  *before* the process started, on Node 22.20, 22.22 and 25.6.1, a real Pi turn
+  _before_ the process started, on Node 22.20, 22.22 and 25.6.1, a real Pi turn
   reached `api.anthropic.com` directly every time — proven by a genuine 401
   from the API against a deliberately fake key, while a local proxy logged
   nothing. Two controls rule out Patcher: the bare `@anthropic-ai/sdk` under
@@ -861,7 +863,7 @@ Four things about it are decisions rather than defaults:
   profile would need DNS open and would rot with every address change.
 
   Worth recording for whenever that changes, because it is the part that was
-  hard to know: Pi's hosts could not be *declared* the way an ACP agent's are.
+  hard to know: Pi's hosts could not be _declared_ the way an ACP agent's are.
   Its catalog is 38 providers, 1153 models and **37 distinct hosts**, and the
   address lives on the model — `anthropic/…` is `api.anthropic.com`,
   `openrouter/…` is `openrouter.ai`, `google-vertex/…` is a
@@ -937,8 +939,8 @@ recorded here with what closed them:
   because `/var/run` is a symlink to `/run` on Debian and mounting over a
   symlink fails the whole launch — resolving turns it into `/run`, which the
   list already has, and the same resolution is what lets an `$XDG_RUNTIME_DIR`
-  that is a link be covered at all. And a directory *holding* a writable path is
-  left alone while one *inside* a writable path is not: there is no mount order
+  that is a link be covered at all. And a directory _holding_ a writable path is
+  left alone while one _inside_ a writable path is not: there is no mount order
   that both hides the first and keeps the turn's own `$TMPDIR`, and the second
   is the ordinary case — `/tmp/.X11-unix` sits inside `/tmp`, which is always
   writable, so a rule that skipped it would have skipped the X11 socket
@@ -952,10 +954,11 @@ recorded here with what closed them:
   path with `EPERM` and reached a TCP loopback listener in the same breath.
   Seatbelt's allow names an `ip` remote, which a unix-socket connect does not
   match, so the blanket deny takes it.
+
 - **The proxy itself would dial the host's loopback.** It allowed `localhost`,
   `127.0.0.1` and `::1` unconditionally, ahead of the list — a well-behaved
   client never sends those through a proxy, so the allowance looked free — and
-  then connected from the *host's* namespace. A client that asked explicitly
+  then connected from the _host's_ namespace. A client that asked explicitly
   (`curl -x "$HTTPS_PROXY" --noproxy '' http://127.0.0.1:<port>`) reached any
   loopback service the relay withheld. It was a functional bug from the other
   side too: an agent's own in-namespace server, routed through the proxy, landed
@@ -971,21 +974,21 @@ recorded here with what closed them:
   all arrive where `127.0.0.1` does. Read as an address and not as a pattern,
   which is the half that keeps it from over-refusing: `2001:db8::1` ends in
   `:1` and belongs to somebody, `0.0.0.1` is not this machine, and anything
-  outside the numeric grammar is a *name* rather than an address — a part out
+  outside the numeric grammar is a _name_ rather than an address — a part out
   of range (`127.0.0.256`, `4294967296`), a leading zero that is not octal
   (`127.0.0.08`), a trailing root dot (`127.0.0.1.`) — which Linux resolves as
   one, so refusing it would be refusing somebody's hostname. It also refuses without
   asking anybody — a prompt saying "allow 127.0.0.1?" is one nobody can answer
   usefully, because the loopback the proxy could dial is not the one the caller
   means — and it refuses ahead of the list, so a host somebody typed into
-  Settings cannot turn it back on. What is left is a *name* that resolves to
+  Settings cannot turn it back on. What is left is a _name_ that resolves to
   loopback: the check reads addresses, not answers from a resolver, so such a
   name is refused only if it is not on the list.
 
 What the switch costs, so nobody discovers it in a turn: `git push` over an SSH
 remote stops working, because SSH has no proxy to use and the connection is
 refused — HTTPS remotes keep working. Anything else that is not proxy-aware
-stops too. And on a machine whose daemon talks to a *remote* server rather than
+stops too. And on a machine whose daemon talks to a _remote_ server rather than
 one on its own loopback, the `patcher` CLI in a turn's shell is refused like
 anything else off the machine until that server's host is on the list.
 
@@ -1223,7 +1226,7 @@ Named here rather than left to be rediscovered:
   unscoped — it clones the source's own provider session into a thread the
   caller then drives, which is the model's context rather than the timeline,
   including the agent-only inputs the timeline never shows, and with `workspace:
-  "reuse"` the source's environment becomes the new thread's. Creation was
+"reuse"` the source's environment becomes the new thread's. Creation was
   already bounded (the project comes from the source thread, so another
   project's is refused by the check above, and the permission mode is clamped to
   the caller's ceiling), leaving only "whose conversation" — which is now the
@@ -1295,6 +1298,7 @@ Named here rather than left to be rediscovered:
   remembered "no" that stops retry-until-someone-gives-in. Both are refused to a
   turn and to a plugin now; `deny` stays open, because lowering privilege is not
   the question.
+
 - ~~**A remembered setup-script allow is keyed to a project, not a
   repository.**~~ Closed: migration `0099` re-keys the row on the project, the
   **machine**, the **checkout** the worktree came from, and the hash. So
@@ -1323,7 +1327,6 @@ Named here rather than left to be rediscovered:
 
   So there are two credentials with two lifetimes, each held to state the
   server already keeps, which is why neither needs a store of live keys:
-
   - A **turn** key is accepted while its thread has a turn running —
     `starting`, `active` or `stopping`. `idle` and `error` are exactly the
     window an agent used to keep.
@@ -1347,7 +1350,7 @@ Named here rather than left to be rediscovered:
   string is accepted again the moment that thread has a turn running, which the
   person's next message starts. So a `nohup`ed process regains the API on the
   next turn rather than being locked out of it: what the lifetime removes is the
-  *idle* window an agent used to keep, which is the window nobody is watching.
+  _idle_ window an agent used to keep, which is the window nobody is watching.
   The narrower reading — one turn, one credential — would need a turn counter
   folded into the MAC input, and #68 is where that decision sits. Until then, an
   agent that wants something to outlive a turn still has no reason to save a
@@ -1359,13 +1362,14 @@ Named here rather than left to be rediscovered:
   environment of every terminal Patcher opened, and an agent may open and drive
   a sandboxed terminal for its own thread, so `echo $PATCHER_APP_KEY` in a shell
   it asked for returned the credential taking it out of the turn's shell had
-  removed. With the app key an agent is the app, and it can derive *any*
+  removed. With the app key an agent is the app, and it can derive _any_
   thread's key, since a thread key is an HMAC under it — so the boundary above
   was one command from being decorative. A terminal that belongs to a thread now
   carries that thread's key instead, the same trade a turn's shell makes, plus
   the thread id its `patcher --self` needs. A terminal that belongs to no thread
   keeps what it had: that is a person's own shell, an agent may not drive one,
   and there is no narrower credential a shell with no thread could hold.
+
 - **A terminal's network.** Named above and repeated here because it is the
   shape of what is left: an agent's terminal is confined on the filesystem and
   not on the network, so `curl` inside one reaches whatever the machine can. It
@@ -1383,7 +1387,7 @@ Named here rather than left to be rediscovered:
   `pbcopy` still reaches whoever is at the keyboard, and `launchctl kickstart`
   of a service the user already has, which restarted Finder from inside the
   sandbox. Neither runs a program the shell chose — that needs the `launchctl
-  bootstrap` the sandbox is refused, or a plist in a directory the profile does
+bootstrap` the sandbox is refused, or a plist in a directory the profile does
   not make writable — so what is left is nuisance and a channel to the person,
   not a way out. On Linux the same class is open wider, over unix sockets, and
   is tracked in #64.
@@ -1394,7 +1398,7 @@ Named here rather than left to be rediscovered:
   stood here are closed — the sockets of services outside the namespace are gone
   from a confined launch, and the proxy no longer dials the daemon's own
   loopback for a client that asks it to — and what is left of that pair is a
-  *name* somebody allows which resolves to loopback: the proxy reads addresses,
+  _name_ somebody allows which resolves to loopback: the proxy reads addresses,
   not answers from a resolver. A host on nobody's list is now a
   question on the thread rather than a refusal. Pi is not covered at all, for a
   measured reason its own bullet above gives, and a turn that asked for the
@@ -1479,15 +1483,21 @@ auth prompts are covered by the trusted UI preload. This protects against extern
 keystroke interception; page JavaScript, DOM access and clipboard retain their
 existing access. No password values or keystrokes are carried in these messages.
 
-**WebAuthn has a compatibility adapter while native passkey UI is unavailable.**
+**WebAuthn reports only the UI available in the pinned Electron build.**
 An explicit platform registration is refused when Chromium reports no platform
-authenticator; conditional mediation is reported unavailable. Ordinary security
+authenticator; conditional mediation and hybrid transport are reported unavailable. Ordinary security
 key requests still reach native WebAuthn, with a deadline that aborts the underlying
 request and preserves caller cancellation. The browser's built-in content script
 runs at document start in page frames and popups, without Electron APIs or a
 Patcher bridge. Its purpose is a predictable fallback for sign-in pages; a page
-can change code in its own JavaScript realm. Native Touch ID passkeys are a later
-phase of the [account security plan](architecture/browser-account-security-plan.md).
+can change code in its own JavaScript realm. Native Touch ID is configured only
+after verifying the packaged app's Apple signature, bundle/team and effective
+Keychain group. Account choice uses a native parented dialog bound to the current
+visible tab and requesting frame, with cancellation and a 120s deadline. The
+same-page caller abort cannot immediately close that sheet because Electron 41.7.0
+exposes no ceremony-ended event. Signed hardware acceptance and the missing
+upstream phone QR/Bluetooth UI remain in
+[Phase 8](architecture/browser-account-security-plan.md#phase-8--native-platform-passkeys-и-вход-с-телефона-по-qr).
 
 Browsing happens in a persistent Chromium session with your real cookies and
 logins. A plugin that declares a site and registers a page script runs on that
@@ -1567,7 +1577,7 @@ and left to its own thread, which is where it is stopped.
 `patcher browser status` answers the same question from the other side, so an
 agent can be told what it may do instead of finding out by being refused. The
 row is the window's rather than a page's — under the tab strip, which is on
-screen for every desktop route, and in the app's *other* windows too, fed by a
+screen for every desktop route, and in the app's _other_ windows too, fed by a
 `browser-driving` signal the server sends to every browser host but the one
 performing the command. It names the command too, in the words the caller's own
 trace uses, and each window keeps the last 200 commands to be read in Settings

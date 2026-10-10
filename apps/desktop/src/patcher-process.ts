@@ -16,7 +16,7 @@ export interface StartPatcherAppProcessArgs {
   logLineLimit: number;
   runtime: PatcherAppProcessRuntime;
   /** Only the desktop-specific entrypoint receives a private secret pipe. */
-  secretChannel?: boolean;
+  secretChannel: boolean;
 }
 
 export interface PatcherAppProcess {

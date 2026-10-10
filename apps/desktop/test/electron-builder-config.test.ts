@@ -19,6 +19,8 @@ import {
 } from "../src/desktop-update-provider.js";
 // @ts-expect-error -- plain .mjs build script with no type declarations
 import { createElectronBuilderEnv } from "../scripts/run-electron-builder.mjs";
+// @ts-expect-error -- plain .mjs build script with no type declarations
+import { createWebAuthnEntitlements } from "../scripts/webauthn-entitlements.mjs";
 
 const desktopPackageRoot = process.cwd();
 
@@ -643,6 +645,33 @@ describe("electron-builder signing config", () => {
       "Sawyer Hood (TEAMID1234)",
     );
     expect(completeAppleCredentials.config.mac.notarize).toBe(true);
+    expect(completeAppleCredentials.config.mac.entitlements).toBe(
+      resolve(desktopPackageRoot, ".webauthn-entitlements.generated.plist"),
+    );
     expect(completeAppleCredentials.config.dmg.sign).toBe(false);
+  });
+  it("adds the real team/channel WebAuthn group only to main-app entitlements", async () => {
+    const base = await readFile(
+      resolve(desktopPackageRoot, "build/entitlements.mac.plist"),
+      "utf8",
+    );
+    const result = createWebAuthnEntitlements(
+      base,
+      "TEAMID1234",
+      "app.patcher.desktop.nightly",
+    );
+    expect(result).toContain("TEAMID1234.app.patcher.desktop.nightly.webauthn");
+    expect(result).toMatch(audioInputEntitlementPattern);
+    expect(base).not.toContain("keychain-access-groups");
+    for (const team of ["", "FAKE", "TEAM<12345", "teamid1234"])
+      expect(() =>
+        createWebAuthnEntitlements(base, team, "app.patcher.desktop"),
+      ).toThrow("Invalid WebAuthn");
+    expect(() =>
+      createWebAuthnEntitlements(base, "TEAMID1234", "other.app"),
+    ).toThrow("Invalid WebAuthn");
+    expect(() =>
+      createWebAuthnEntitlements(result, "TEAMID1234", "app.patcher.desktop"),
+    ).toThrow("Unexpected base");
   });
 });

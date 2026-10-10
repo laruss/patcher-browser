@@ -36,7 +36,8 @@ The implementation sequence is in
 Phases 1–7 are implemented: safe settings metadata, WebAuthn compatibility,
 Secure Keyboard Entry, opt-in encrypted plugin settings, runtime site grants and
 protected core credential operations and the preinstalled password manager.
-Native platform passkeys and phone QR sign-in remain Phase 8. Physical vault
+Phase 8 now prepares signed Touch ID passkeys and a native account chooser;
+signed hardware acceptance and phone QR sign-in remain incomplete. Physical vault
 Touch ID approved core Save on 2026-10-09; full product UI and physical cancellation
 acceptance remain manual checks.
 
@@ -87,19 +88,21 @@ acceptance remain manual checks.
   led to Phase 2 of the account security plan. Its compatibility adapter is now
   implemented: unavailable platform/conditional flows reject, and ordinary
   public-key requests have a deadline that cancels the native ceremony. This
-  covers main pages, iframes and popups; actual platform passkeys remain Phase 8,
-  including cross-device sign-in: scan the computer's QR code on iPhone/Android
-  and approve with the phone's biometrics or PIN through FIDO's standard hybrid
-  transport. TOTP setup QR codes and service-specific phone login are separate flows.
+  covers main pages, iframes and popups. Phase 8 adds verified signing/Keychain
+  configuration and a native account chooser. No Developer ID identity is available
+  yet, so actual Touch ID passkeys remain unverified. Phone QR sign-in needs an
+  upstream Electron hybrid UI/Bluetooth bridge; 41.7.0 exposes neither. TOTP setup
+  QR codes and service-specific phone login are separate flows.
   The native measurements below describe the session without that adapter.
   In a browsed page, on a secure origin: `PublicKeyCredential`
   and `navigator.credentials` **exist**, and
   `isConditionalMediationAvailable()` answers **true** — so a site is told
   WebAuthn is available — while
   `isUserVerifyingPlatformAuthenticatorAvailable()` answers **false**: there is
-  no platform authenticator, because Electron does not ship Chrome's macOS one.
-  The Secure Enclave is reachable from the _shell_ (Touch ID, above) and not from
-  a _page_.
+  no configured platform authenticator in this unsigned test build. Electron
+  41.7.0 provides a device-bound Touch ID authenticator when configured with a
+  matching signed Keychain access group; the Secure Enclave hardware alone is
+  insufficient to enable it.
 
   Worse than unsupported: `navigator.credentials.create()` asking for a platform
   authenticator **never settles** — no resolve, no reject, and the `timeout` in
@@ -166,7 +169,7 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 - **The "who is driving" indicator does not leave the app.** It is a row of the
   window's own chrome now — under the tab strip, which is the one row on screen
-  for every desktop route, and fed in the app's *other* windows by the server's
+  for every desktop route, and fed in the app's _other_ windows by the server's
   `browser-driving` signal
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
   What is still uncovered is a person who is not looking at Patcher at all:
@@ -289,7 +292,7 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   not say how much came back. Making it survive a reload means a table, a
   retention policy and a route, and the complete record already exists as
   `patcher browser trace-start`, so this is worth doing when somebody needs the
-  answer *after* closing the window rather than during the session.
+  answer _after_ closing the window rather than during the session.
 - **Revoking or pausing a browser access grant does not undo what it set up.**
   The credential stops at the next request
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)),

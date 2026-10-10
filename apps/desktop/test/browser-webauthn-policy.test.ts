@@ -86,13 +86,14 @@ describe("browser WebAuthn compatibility", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("reports conditional capabilities consistently and preserves other native flags", async () => {
+  it("reports conditional/hybrid UI unavailable and preserves other native flags", async () => {
     const reported = await PublicKeyCredential.getClientCapabilities();
     const native = await nativeCapabilities.mock.results[0]!.value;
     expect(reported).toEqual({
       ...native,
       conditionalCreate: false,
       conditionalGet: false,
+      hybridTransport: false,
     });
     expect(native.conditionalCreate).toBe(true);
     expect(native.conditionalGet).toBe(true);

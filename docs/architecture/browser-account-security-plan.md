@@ -6,8 +6,12 @@ Phase 3 закоммичена и отправлена: `43f8616ea`. Sol xhigh: 
 Phase 4 закоммичена и запушена: `ef1883a2e`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 5 закоммичена и запушена: `d21f9405e`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 6 закоммичена и запушена: `818e585e5`. Sol xhigh: 3 раунда, итог без P1/P2.
-Phase 7 реализована. Sol xhigh: 3 раунда, итог без P1/P2.
-Phase 8 — план. Исходный план проверен по исходникам на `c263e6cab`,
+Phase 7 закоммичена и запушена: `e4c198a33`. Sol xhigh: 3 раунда, итог без P1/P2.
+Phase 8 — частичная реализация; Sol xhigh: 3 раунда, итог без P1/P2.
+Signed hardware и phone acceptance не пройдены.
+Полное ревью ветки Claude Code Fable через `claude -c` завершено 2026-10-10;
+после исправлений повторное ревью без актуальных P1/P2/P3.
+Исходный план проверен по исходникам на `c263e6cab`,
 2026-10-09, в ветке `codex/browser-security-phase-1`.
 
 Область: раздел [TODO — First](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
@@ -954,9 +958,10 @@ Passkeys принадлежат Chromium/OS или authenticator телефон�
    обычном обновлении. Не обещать iCloud sync, portable backup или работу после
    потери Secure Enclave/keychain/profile. Очистка browser data должна отдельно
    объяснять последствия для passkeys до разрушительного действия.
-5. При включённом native mode отключить incompatible fallback adapter Phase 2.
-   UVPAA/conditional behaviour определяются проверенной нативной конфигурацией,
-   не подменой true. Touch ID для vault и WebAuthn user verification не смешивать.
+5. Сохранить совместимые bounds/cancellation Phase 2: доступный platform create
+   уже делегируется native API при настоящем UVPAA. Native Touch ID configuration
+   не добавляет conditional UI; conditional и hybrid capabilities остаются false.
+   UVPAA не подменяется true. Touch ID vault и WebAuthn UV не смешивать.
 6. До реализации phone flow проверить реальную доступность Chromium FIDO hybrid
    transport, QR chooser/UI delegate и Bluetooth proximity в pinned Electron 41.7.0.
    Использовать стандартный Chromium/OS flow, без собственного QR протокола,
@@ -997,6 +1002,92 @@ navigation/closed frame и недоступный Bluetooth. Virtual authenticat
 заменяет ни телефон, ни аппаратный macOS тест. Готовность Phase 8 требует обоих
 flows; при недоступном hybrid API или устройстве эта часть явно остаётся
 незавершённой, даже если локальный Touch ID passkey уже работает.
+
+**Подготовленная реализация (2026-10-10).** Полный CI signing path генерирует
+main-app `keychain-access-groups` из `APPLE_TEAM_ID` и channel bundle ID:
+`TEAMID.app.patcher.desktop[.nightly].webauthn`; исходный/inherit plist не меняется.
+До browser startup main читает фактические Identifier/TeamIdentifier;
+ad-hoc и builds без Team прекращают проверку до hashing resource seal.
+Для подходящей подписи main проверяет
+effective entitlements через `codesign --display --entitlements - --xml`
+и `plutil`: текущая macOS без `--xml` возвращает abstract display, не plist.
+Перед конфигурацией обязателен полный `codesign --verify --strict
+-R='anchor apple generic'`. Только совпадающая group и доступный Touch ID допускают
+`app.configureWebAuthn({touchID})`. Dev/ad-hoc/missing/mismatched paths ничего не
+переинициализируют и остаются unavailable. Существующий persistent partition
+и его WebAuthn metadata не меняются. Ошибки проверки подписи и native configuration
+логируются отдельно; signed cold-disk performance ещё требует проверки.
+
+Session account picker — parented native dialog с RP и requesting frame origin,
+до 8 accounts, Cancel по умолчанию. Только текущий native account ID может быть
+возвращён. Он требует tracked visible browser target и foreground host, сохраняет
+frame token/process/origin/URL; navigation, render loss, hide/detach, frame removal,
+window close, shutdown и 120s deadline отменяют callback ровно один раз. Slot
+остаётся занят до фактического закрытия OS sheet. Имена очищаются от control/bidi
+characters и показываются как текст; page/plugin IPC для выбора отсутствует.
+
+**Точный upstream gap.** Аудит
+[request client delegate v41.7.0](https://github.com/electron/electron/blob/v41.7.0/shell/browser/webauthn/electron_authenticator_request_client_delegate.cc)
+и его [header](https://github.com/electron/electron/blob/v41.7.0/shell/browser/webauthn/electron_authenticator_request_client_delegate.h)
+показывает только account selection: нет QR/transport chooser или caBLE UI bridge;
+Bluetooth power-on и BLE permission callbacks в `RegisterActionCallbacks`
+игнорируются. `StopObserving` также не отдаёт JS событие завершения ceremony.
+Поэтому native caller abort отменяет запрос Chromium, но app account sheet
+при abort на той же странице пока может оставаться до Cancel/deadline/navigation;
+Electron weak delegate не принимает поздний выбор в уничтоженную ceremony.
+Этот UI cancellation gap остаётся непроверенным upstream ограничением Phase 8.
+MAIN-world adapter не является доверенным источником состояния native ceremony.
+
+Предлагаемый минимальный путь для QR — upstream Electron integration: expose Chromium hybrid
+transport/QR state, привязанные к ceremony native action callbacks, scoped BLE
+permission/power-on и request-ended event; затем trusted UI и реальные iPhone/
+Android acceptance. Создавать собственный caBLE/authenticator не следует.
+Latest [`platformPasskeys`](https://github.com/electron/electron/blob/main/docs/api/app.md#appconfigurewebauthnoptions)
+не является подтверждённым решением для произвольных
+сайтов: это другой API Apple provider sheet с Associated Domains/`webcredentials`
+для RP, отсутствующий в pinned 41.7.0; dependency upgrade сейчас не выполнялся.
+
+**Блокеры полной приёмки.** На этом Mac `security find-identity -v -p codesigning`
+даёт 0 identities; готовая `.app` ad-hoc, TeamIdentifier отсутствует. Пользователь
+подтвердил, что signing identity в CI также нет. Нужен настоящий Developer ID
+Application и стабильный Team ID; секреты уже имеют предусмотренные CI slots.
+Signed Secure Enclave create/relaunch/get, физический security key и оба телефона
+не проверены. Фаза 8 целиком не объявляется завершённой.
+
+**Проверки подготовки.** Desktop suite: 66 files / 833 tests, desktop typecheck,
+targeted lint, repository file-size gate и build прошли. Настоящий Electron 41.7.0 smoke подтверждает dev unavailable,
+false conditional/hybrid UI в main/iframe/srcdoc/popup, bounded abort/timeout и
+CDP virtual USB create/get; virtual USB не является hardware acceptance.
+Sol xhigh: 3 раунда, итог без P1/P2. Найденный P2 (navigation чужого iframe
+отменяла request) исправлен: cancel только для requester, ancestors или main
+frame; regression test сохраняет chooser при sibling navigation.
+Отдельная arm64 `.app` проходит packaged boot, native guard сообщает unavailable
+для ad-hoc подписи; настоящая browsing page подтверждает false hybrid capability
+и отсутствие Node/app bridge. Root Node SQLite ABI 141 остаётся рабочим.
+После коррекции XML extraction: 4 targeted tests, typecheck, lint и build прошли;
+независимое ревью повторно проверило 59 tests в 5 files. Отдельный macOS test
+копирует системный test binary во временную папку, ad-hoc подписывает только
+копию с public fixture group и читает её real codesign/plutil pipeline. Это
+проверяет формат effective entitlements, не разрешение Keychain или passkeys.
+
+**Полное ревью ветки (2026-10-10).** Claude Code Fable прочитал исходники всех
+фаз, дельты относительно `c263e6cab` и Electron smoke fixtures; повторно проверил
+исправления. Актуальных P1/P2/P3 не осталось. Rewind миграций воспроизводил 14
+падений: helpers теперь снимают таблицы 0107/0108, полный DB suite проходит
+36 files / 433 tests. Миграция 0108 получила имя `protected_credentials`;
+SQL bytes/hash и journal timestamp сохранены.
+SPA после отказа старого сервера `1008 invalid-message` переходит на исходную
+browser-host registration: realtime сохраняется, scoped runtime commands остаются
+fail-closed до reload. WebSocket tests: 20 passed. Native chooser сохраняет
+подтверждённый выбор при задержке возврата фокуса после sheet. Формат credential ID
+подтверждён по [Electron v41.7.0](https://github.com/electron/electron/blob/v41.7.0/docs/api/structures/webauthn-account.md)
+как base64url без padding и покрыт fixture с `-`/`_`.
+Generated entitlement plist исключён из Git; выбор private secret pipe требует
+явного boolean. Server suite: 242 files / 2224 tests; secret storage: 28 tests;
+password manager: 16 tests. Все 55 typecheck tasks, targeted lint, file-size gate,
+app/desktop builds, текущий Electron WebAuthn smoke и свежий packaged boot прошли.
+Root Node SQLite ABI 141 проверен после packaging и остаётся рабочим.
+Signed аппаратная приёмка и phone QR по-прежнему не пройдены.
 
 ## Решения, которые нужно подтвердить до соответствующей реализации
 
