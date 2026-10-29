@@ -7,8 +7,9 @@ Phase 4 закоммичена и запушена: `ef1883a2e`. Sol xhigh: 3 р
 Phase 5 закоммичена и запушена: `d21f9405e`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 6 закоммичена и запушена: `818e585e5`. Sol xhigh: 3 раунда, итог без P1/P2.
 Phase 7 закоммичена и запушена: `e4c198a33`. Sol xhigh: 3 раунда, итог без P1/P2.
-Phase 8 — частичная реализация; Sol xhigh: 3 раунда, итог без P1/P2.
-Signed hardware и phone acceptance не пройдены.
+Phase 8 — подготовка реализована; оставшиеся работы отложены по решению пользователя
+2026-10-29 до покупки официального Apple Developer Program account и настройки подписи.
+Sol xhigh: 3 раунда, итог без P1/P2. Signed hardware и phone acceptance не пройдены.
 Полное ревью ветки Claude Code Fable через `claude -c` завершено 2026-10-10;
 после исправлений повторное ревью без актуальных P1/P2/P3.
 Исходный план проверен по исходникам на `c263e6cab`,
@@ -925,6 +926,13 @@ Electron/Node server на временном чистом профиле авт�
 credential smoke groups с настоящим OS encryption и тестовым biometric adapter.
 
 ## Phase 8 — native platform passkeys и вход с телефона по QR
+
+**Статус (2026-10-29).** Дальнейшую реализацию и аппаратную приёмку отложить до
+покупки официального Apple Developer Program account и настройки Developer ID
+Application/Team ID. Задача сохранена в [TODO](../TODO.md#first--the-account-the-keychain-and-the-machines-own-locks).
+Подготовленный код остаётся в ветке; Phases 1–7 завершены. После настройки подписи
+проверить реальные Touch ID passkeys; для QR отдельно реализовать upstream hybrid
+UI/Bluetooth integration и провести phone acceptance — сама подпись этого не добавит.
 
 **Проблема.** Нужен рабочий platform authenticator в выпускаемой сборке, UI выбора
 account и стандартный вход с passkey на телефоне через QR.

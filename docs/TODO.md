@@ -36,8 +36,9 @@ The implementation sequence is in
 Phases 1–7 are implemented: safe settings metadata, WebAuthn compatibility,
 Secure Keyboard Entry, opt-in encrypted plugin settings, runtime site grants and
 protected core credential operations and the preinstalled password manager.
-Phase 8 now prepares signed Touch ID passkeys and a native account chooser;
-signed hardware acceptance and phone QR sign-in remain incomplete. Physical vault
+Phase 8 prepares signed Touch ID passkeys and a native account chooser; remaining
+work is deliberately deferred until an official Apple Developer Program account
+has been purchased and signing is configured (user decision, 2026-10-29). Physical vault
 Touch ID approved core Save on 2026-10-09; full product UI and physical cancellation
 acceptance remain manual checks.
 
@@ -89,10 +90,17 @@ acceptance remain manual checks.
   implemented: unavailable platform/conditional flows reject, and ordinary
   public-key requests have a deadline that cancels the native ceremony. This
   covers main pages, iframes and popups. Phase 8 adds verified signing/Keychain
-  configuration and a native account chooser. No Developer ID identity is available
-  yet, so actual Touch ID passkeys remain unverified. Phone QR sign-in needs an
-  upstream Electron hybrid UI/Bluetooth bridge; 41.7.0 exposes neither. TOTP setup
-  QR codes and service-specific phone login are separate flows.
+  configuration and a native account chooser.
+
+  **Deferred until the Apple Developer Program account is purchased.** Resume
+  Phase 8 after Developer ID Application signing and a stable Team ID are
+  configured. Then verify real Touch ID passkey create → quit/relaunch → get and
+  cancellation in the signed app. Phone QR sign-in also needs an upstream Electron
+  hybrid UI/Bluetooth bridge and real iPhone/Android acceptance; signing alone
+  does not add it, and 41.7.0 exposes neither bridge. Keep the prepared code and
+  the tested unavailable behavior until this work resumes. TOTP setup QR codes
+  and service-specific phone login are separate flows.
+
   The native measurements below describe the session without that adapter.
   In a browsed page, on a secure origin: `PublicKeyCredential`
   and `navigator.credentials` **exist**, and
