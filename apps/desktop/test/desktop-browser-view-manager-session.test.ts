@@ -1,3 +1,4 @@
+import { setImmediate as nextImmediate } from "node:timers/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PATCHER_DESKTOP_BROWSER_PAGE_PROMPT_CHANNEL,
@@ -481,6 +482,7 @@ describe("questions the network asks", () => {
         },
       });
 
+      await nextImmediate();
       expect(first.trusted).toBe(true);
     });
 
@@ -502,6 +504,8 @@ describe("questions the network asks", () => {
         isMainFrame: false,
       });
 
+      expect(again.trusted).toBeNull();
+      await nextImmediate();
       expect(again.trusted).toBe(true);
     });
 
@@ -529,15 +533,17 @@ describe("questions the network asks", () => {
     });
 
     // A user cannot judge a subresource they cannot see.
-    it("refuses a subresource's bad certificate without asking", () => {
+    it("defers rejecting a subresource's bad certificate until after event emission", async () => {
       const { hostWindow, view } = attachVisibleTab();
 
       const result = view.webContents.emitCertificateError({
         isMainFrame: false,
       });
 
-      expect(result.trusted).toBe(false);
+      expect(result.trusted).toBeNull();
       expect(promptPushes(hostWindow)).toEqual([]);
+      await nextImmediate();
+      expect(result.trusted).toBe(false);
     });
   });
 
@@ -701,12 +707,14 @@ describe("questions the network asks", () => {
       });
     });
 
-    it("refuses a second question while one is open", () => {
+    it("refuses a second question while one is open", async () => {
       const { hostWindow, view } = attachVisibleTab();
       view.webContents.emitLogin({ isRequestForNavigation: true });
 
       const certificate = view.webContents.emitCertificateError({});
 
+      expect(certificate.trusted).toBeNull();
+      await nextImmediate();
       expect(certificate.trusted).toBe(false);
       expect(
         promptPushes(hostWindow).filter(

@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import {
   ensurePackagedMacOsUserShellPath,
   type DesktopShellPathLogger,
@@ -158,4 +161,36 @@ describe("desktop shell PATH loading", () => {
     expect(env.PATH).toBe("/usr/bin:/bin");
     expect(warningLogger.warnings[0]).toContain("ETIMEDOUT");
   });
+
+  it.skipIf(process.platform !== "darwin")(
+    "bounds startup when the login shell ignores SIGTERM",
+    () => {
+      const directory = mkdtempSync(join(tmpdir(), "patcher-shell-timeout-"));
+      writeFileSync(
+        join(directory, ".zshenv"),
+        "trap '' TERM\nprobe_deadline=$((SECONDS + 5))\nwhile (( SECONDS < probe_deadline )); do :; done\nexit 0\n",
+      );
+      vi.stubEnv("ZDOTDIR", directory);
+      try {
+        const env = { PATH: "/usr/bin:/bin" };
+        const warningLogger = createWarningLogger();
+        const started = performance.now();
+        const result = ensurePackagedMacOsUserShellPath({
+          env,
+          isPackaged: true,
+          logger: warningLogger.logger,
+          platform: "darwin",
+        });
+
+        expect(performance.now() - started).toBeLessThan(3_500);
+        expect(result).toEqual({ kind: "unchanged", reason: "shell-error" });
+        expect(env.PATH).toBe("/usr/bin:/bin");
+        expect(warningLogger.warnings[0]).toContain("ETIMEDOUT");
+      } finally {
+        vi.unstubAllEnvs();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+    10_000,
+  );
 });

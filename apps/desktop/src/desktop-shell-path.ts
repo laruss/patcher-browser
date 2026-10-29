@@ -60,6 +60,9 @@ function defaultSpawnLoginShellPath(
   const result = spawnSync(args.command, args.args, {
     encoding: "utf8",
     timeout: args.timeoutMs,
+    // Shell integrations can ignore SIGTERM, leaving spawnSync blocked past
+    // its timeout.
+    killSignal: "SIGKILL",
   });
 
   return {
