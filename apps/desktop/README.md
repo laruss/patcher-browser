@@ -51,10 +51,10 @@ Node runtime:
 bunx turbo run start --filter=@patcher/desktop
 ```
 
-Electron is pinned to `41.7.0`, the highest stable line verified to rebuild the
-packaged native modules with the current dependency set. Electron 42.2.0 was
-tested, but `better-sqlite3@12.10.0` does not compile against Electron ABI 146.
-Revisit the pin when `better-sqlite3` ships support or prebuilds for that ABI.
+Electron is pinned to `45.0.0`. `better-sqlite3@13.0.3` ships Node-API binaries
+shared by Node and Electron, so packaging no longer downloads an Electron-ABI
+SQLite prebuild. The packaged smoke runs a SQLite query and a PTY command with
+the packaged Electron executable before checking the desktop window.
 
 ## Validation
 

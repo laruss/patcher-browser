@@ -216,23 +216,27 @@ removed both, along with `plugins/connect`, `packages/connect-db`,
    exact package tree on disk so extensions share one runtime. Both rationales
    are written against a specific resolver layout and must be re-verified
    whenever the package manager or its layout changes.
-5. **Native module ABI.** `better-sqlite3` 12.10.0 is pinned in 9 `package.json`
+5. **Native modules.** `better-sqlite3` 13.0.3 is pinned in 9 `package.json`
    files — `apps/host-daemon`, `apps/server`, `packages/db`,
    `packages/patcher-app`, `packages/plugin-sdk`, `plugins/automations`,
    `plugins/workflows`, `examples/plugins/site-tweaks` and
    `examples/plugins/t3sidebar` — plus `node-pty` 1.1.0 and
-   `sharp`. `apps/desktop/electron-builder.config.json` sets `npmRebuild: false`
-   and fetches the Electron prebuild in the `afterPack` hook
-   `apps/desktop/scripts/prepare-native-modules.cjs` (the config names it
-   relative to itself, as `scripts/prepare-native-modules.cjs`), because
-   rebuilding in place flips `better-sqlite3` to Electron's ABI and breaks every
-   plain-Node consumer including the server test suite.
-   `scripts/ensure-native-modules.mjs` — at the repository root — rebuilds it
-   for plain Node, resolving from `packages/db/package.json`.
+   `sharp`. The root SQLite override keeps optional peers on the same version.
+   SQLite 13 ships Node-API binaries that Node and Electron share;
+   unlike SQLite 12, it needs no Electron-specific prebuild. Keep
+   `npmRebuild: false` in `apps/desktop/electron-builder.config.json` so packaging
+   does not rewrite the shared package store. The `afterPack` hook
+   `apps/desktop/scripts/prepare-native-modules.cjs` prepares node-pty's helper
+   in the packaged copy. `smoke-packaged-app.mjs` loads SQLite and runs a PTY
+   command with the packaged Electron executable to verify both native modules.
+   `scripts/ensure-native-modules.mjs` verifies the checkout's SQLite in plain
+   Node, resolving from `packages/db/package.json`; its ABI repair paths describe
+   the older SQLite 12 layout.
 6. **Electron's main process cannot run on Bun.** Electron embeds its own Node
    build. `apps/desktop` stays on Node regardless of toolchain decisions
-   elsewhere. Neither can anything that loads `better-sqlite3` or `node-pty`:
-   both were measured against Bun 1.3.14 and both fail — see
+   elsewhere. The host runtime also stays on Node: `node-pty` was measured
+   against Bun 1.3.14 and fails. The historical SQLite measurements below used
+   better-sqlite3 12, before its Node-API migration — see
    [Bun as a runtime](#bun-as-a-runtime-measured-against-the-two-native-modules).
 7. **The server ↔ SPA socket has no handshake either**, which invariant 2's
    wording covers for the desktop wire and not for this one. The app bundle is
