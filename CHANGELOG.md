@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.1.1-alpha.7
+
+This release adds a preinstalled password manager and the desktop protections
+behind it: explicit site access, approval before saving or filling a login, and
+a separate encrypted vault. Plugin settings can also move from legacy plaintext
+files to OS-backed encrypted storage.
+
+Still macOS on Apple Silicon, still ad-hoc signed, and still without
+auto-update: the first launch needs one explicit approval in System Settings,
+and a newer alpha has to be downloaded rather than offered.
+
+### Saving and filling logins
+
+- **Password manager is installed and enabled.** Open an HTTPS login page,
+  select **Use here** in its side panel, and approve access to that exact site.
+  Save a login from the live form, then choose a saved account to fill, update
+  or delete. Fill does not submit the form; saving and updating are manual.
+- **Each action needs approval.** The first Save chooses Require Touch ID or
+  Confirm every action. Passwords stay in the protected core vault and are not
+  returned to the manager's backend. The manager can be disabled in Settings →
+  Plugins, and the choice survives restarts and updates.
+- **Supported forms are deliberately limited.** One visible password field and
+  at most one username/email field in a main-frame form with a same-origin
+  action. Ambiguous or unsupported forms require manual entry. There is no
+  import, export, sync, reveal, clipboard or automatic save/fill.
+
+### Local secrets and browser access
+
+- **Encrypted plugin settings are opt-in.** Settings → Security can migrate
+  ordinary plugin secrets to encrypted records using the desktop's OS-backed
+  key. Lock, suspend and disconnect clear cached keys; protected writes never
+  fall back to plaintext. This backend requires the local desktop-owned server.
+- **Plugins can ask for site access at runtime.** Grants apply to an exact
+  origin within the plugin's declared scope. Site info and plugin settings let
+  the person review and revoke access.
+- **Password entry enables Secure Keyboard Entry** while the relevant browser
+  or app password field has focus, and releases it when focus or the window
+  goes away.
+- **Unavailable passkey flows stop hanging pages.** Unsupported platform and
+  conditional requests reject, while ordinary public-key requests have bounded
+  timeouts and cancellation. Older browser-host connections retain realtime
+  registration compatibility.
+
+### Deferred passkeys
+
+Native Touch ID passkeys and phone QR sign-in remain unavailable in this alpha.
+The remaining work is deferred until an official Apple Developer Program
+account and release signing are ready. Phone sign-in also needs Electron hybrid
+QR/Bluetooth integration. Touch ID approval for the password vault is a separate
+feature and does not enable WebAuthn passkeys.
+
 ## 0.1.1-alpha.6
 
 alpha.5 put an agent outside Patcher in front of the person when it asks for the
