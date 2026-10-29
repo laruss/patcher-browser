@@ -279,6 +279,7 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.github/scripts/electron-updates.cjs",
         "$TURBO_ROOT$/vitest.shared.ts",
         "$TURBO_ROOT$/scripts/*.mjs",
         "$TURBO_ROOT$/CHANGELOG.md",

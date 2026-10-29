@@ -185,6 +185,38 @@ jobs:
       - name: Boot the app and fail on any start-up error
         run: node apps/desktop/scripts/smoke-app-boot.mjs
 
+  desktop-package-smoke:
+    name: Desktop Package Smoke (macos-15, arm64)
+    # Dependabot only updates Electron. Human PRs keep the existing CI cost;
+    # workflow_dispatch also allows testing the packaging gate by hand.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          bun-version: ${{ env.BUN_VERSION }}
+          cache-prefix: desktop-package-smoke
+
+      - name: Verify arm64 runner
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Package desktop with Electron native modules
+        run: bun run --filter @patcher/desktop package
+
+      - name: Smoke test packaged desktop app
+        run: bun run --filter @patcher/desktop smoke:packaged
+
   package-smoke:
     name: Package Smoke (${{ matrix.os }}, Node ${{ matrix.node-version }})
     runs-on: ${{ matrix.os }}
