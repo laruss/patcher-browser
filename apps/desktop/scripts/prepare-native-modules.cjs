@@ -1,28 +1,13 @@
-const { spawn } = require("node:child_process");
 const { chmod, readFile, readdir, writeFile } = require("node:fs/promises");
-const { createRequire } = require("node:module");
 const path = require("node:path");
-
-const desktopPackageRoot = path.resolve(__dirname, "..");
 
 const NODE_MODULES_DIRECTORY = "node_modules";
 const NODE_PTY_PACKAGE_NAME = "node-pty";
-const BETTER_SQLITE3_PACKAGE_NAME = "better-sqlite3";
-const PACKAGED_NATIVE_PACKAGE_NAMES = [
-  NODE_PTY_PACKAGE_NAME,
-  BETTER_SQLITE3_PACKAGE_NAME,
-];
+const PACKAGED_NATIVE_PACKAGE_NAMES = [NODE_PTY_PACKAGE_NAME];
 
-// better-sqlite3 must match the runtime that loads it. The packaged app runs
-// the Patcher server through Electron's bundled Node, so the packaged copy has to
-// target Electron's ABI. electron-builder's `npmRebuild` would rebuild it for
-// us, but in this workspace better-sqlite3 resolves to the shared
-// content-addressed store (node_modules/.bun), so an in-place rebuild clobbers the node-ABI binary
-// every other workspace package (and the server test suite) relies on. Instead
-// `npmRebuild` is disabled and we fetch the Electron prebuild into the packaged
-// copy here, leaving the shared store untouched. Desktop dev runs patcher-app with
-// the host Node executable so it can use the workspace's normal Node-ABI binary.
-const NATIVE_MODULE_PLATFORM = "darwin";
+// better-sqlite3 13 ships Node-API binaries that work in Node and Electron.
+// Keep npmRebuild disabled: packaging must not rewrite the shared package store.
+// node-pty still needs its executable helper prepared in the packaged copy.
 
 const NODE_PTY_PREBUILD_PLATFORMS = ["darwin-arm64", "darwin-x64"];
 const NODE_PTY_SPAWN_HELPER_RELATIVE_PATHS = [
@@ -151,54 +136,7 @@ async function prepareNodePtyPackageDirectory(packageDirectory) {
   );
 }
 
-function resolveBetterSqlite3PrebuildArguments({ electronVersion, arch }) {
-  return [
-    "--runtime=electron",
-    `--target=${electronVersion}`,
-    `--arch=${arch}`,
-    `--platform=${NATIVE_MODULE_PLATFORM}`,
-  ];
-}
-
-async function runPrebuildInstall(packageDirectory, prebuildArguments) {
-  const requireFromPackage = createRequire(
-    path.join(packageDirectory, "package.json"),
-  );
-  const prebuildInstallBinPath = requireFromPackage.resolve(
-    "prebuild-install/bin.js",
-  );
-
-  const exitCode = await new Promise((resolveExitCode) => {
-    const child = spawn(
-      process.execPath,
-      [prebuildInstallBinPath, ...prebuildArguments],
-      {
-        cwd: packageDirectory,
-        stdio: "inherit",
-      },
-    );
-    child.on("error", () => resolveExitCode(1));
-    child.on("close", resolveExitCode);
-  });
-
-  if (exitCode !== 0) {
-    throw new Error(
-      `prebuild-install for ${BETTER_SQLITE3_PACKAGE_NAME} exited with code ${
-        exitCode ?? "null"
-      } (arguments: ${prebuildArguments.join(" ")}). The packaged app needs the ` +
-        "Electron-ABI binary; refusing to ship a mismatched build.",
-    );
-  }
-}
-
-async function prepareBetterSqlite3PackageDirectory(packageDirectory, options) {
-  await runPrebuildInstall(
-    packageDirectory,
-    resolveBetterSqlite3PrebuildArguments(options),
-  );
-}
-
-async function preparePackagedNativeModules(appOutDir, options = {}) {
+async function preparePackagedNativeModules(appOutDir) {
   if (!(await isDirectory(appOutDir))) {
     throw new Error(`Packaged app output does not exist: ${appOutDir}`);
   }
@@ -215,107 +153,28 @@ async function preparePackagedNativeModules(appOutDir, options = {}) {
   }
   await Promise.all(nodePtyDirectories.map(prepareNodePtyPackageDirectory));
 
-  // The Electron target is only known on the real afterPack path. Standalone
-  // invocations (e.g. tests, manual node-pty repair) omit it and skip the fetch.
-  if (options.electronVersion === undefined) {
-    return { betterSqlite3Directories: [], nodePtyDirectories };
-  }
-
-  const betterSqlite3Directories = packageDirectories.get(
-    BETTER_SQLITE3_PACKAGE_NAME,
-  );
-  if (betterSqlite3Directories.length === 0) {
-    throw new Error(
-      `Unable to find ${BETTER_SQLITE3_PACKAGE_NAME} under ${appOutDir}`,
-    );
-  }
-  await Promise.all(
-    betterSqlite3Directories.map((packageDirectory) =>
-      prepareBetterSqlite3PackageDirectory(packageDirectory, {
-        arch: options.arch,
-        electronVersion: options.electronVersion,
-      }),
-    ),
-  );
-
-  return { betterSqlite3Directories, nodePtyDirectories };
-}
-
-function resolveElectronVersion() {
-  const requireFromDesktop = createRequire(
-    path.join(desktopPackageRoot, "package.json"),
-  );
-  return requireFromDesktop("electron/package.json").version;
-}
-
-function resolveArchName(context) {
-  try {
-    const { Arch } = require("electron-builder");
-    const archName = Arch[context.arch];
-    if (typeof archName === "string") {
-      return archName;
-    }
-  } catch {
-    // electron-builder is only resolvable inside the build process; fall back to
-    // the host architecture, which matches single-arch builds on a native host.
-  }
-  return process.arch;
+  return { nodePtyDirectories };
 }
 
 async function afterPack(context) {
-  await preparePackagedNativeModules(context.appOutDir, {
-    arch: resolveArchName(context),
-    electronVersion: resolveElectronVersion(),
-  });
-}
-
-function parseStandaloneArguments(argv) {
-  const options = {};
-  let appOutDir;
-
-  for (const argument of argv) {
-    const electronVersionMatch = argument.match(/^--electron-version=(.+)$/);
-    if (electronVersionMatch) {
-      options.electronVersion = electronVersionMatch[1];
-      continue;
-    }
-    const archMatch = argument.match(/^--arch=(.+)$/);
-    if (archMatch) {
-      options.arch = archMatch[1];
-      continue;
-    }
-    appOutDir = argument;
-  }
-
-  if (options.arch === undefined) {
-    options.arch = process.arch;
-  }
-
-  return { appOutDir, options };
+  await preparePackagedNativeModules(context.appOutDir);
 }
 
 async function main() {
-  const { appOutDir, options } = parseStandaloneArguments(
-    process.argv.slice(2),
-  );
+  const appOutDir = process.argv[2];
   if (appOutDir === undefined || appOutDir.length === 0) {
     throw new Error(
-      "Usage: node apps/desktop/scripts/prepare-native-modules.cjs <appOutDir> " +
-        "[--electron-version=<version>] [--arch=<arch>]",
+      "Usage: node apps/desktop/scripts/prepare-native-modules.cjs <appOutDir>",
     );
   }
 
-  await preparePackagedNativeModules(path.resolve(appOutDir), options);
+  await preparePackagedNativeModules(path.resolve(appOutDir));
 }
 
 module.exports = afterPack;
 module.exports.findNativePackageDirectories = findNativePackageDirectories;
 module.exports.prepareNodePtyPackageDirectory = prepareNodePtyPackageDirectory;
-module.exports.prepareBetterSqlite3PackageDirectory =
-  prepareBetterSqlite3PackageDirectory;
 module.exports.preparePackagedNativeModules = preparePackagedNativeModules;
-module.exports.resolveBetterSqlite3PrebuildArguments =
-  resolveBetterSqlite3PrebuildArguments;
 
 if (require.main === module) {
   main().catch((error) => {

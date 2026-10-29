@@ -312,12 +312,8 @@ describe("electron-builder signing config", () => {
   });
 
   it("disables in-place native rebuilds so the shared package store is not mutated", async () => {
-    // electron-builder's npmRebuild rebuilds better-sqlite3 through the
-    // workspace symlink into the shared content-addressed store (node_modules/.bun,
-    // previously node_modules/.pnpm), flipping the binary to Electron's ABI and
-    // breaking every plain-node consumer (the server test suite). The afterPack
-    // hook fetches the Electron prebuild into the packaged copy instead, so this
-    // must stay false.
+    // better-sqlite3 13 ships a Node-API binary shared by Node and Electron.
+    // Packaging must preserve it and leave the workspace's shared store alone.
     const configText = await readFile(
       resolve(desktopPackageRoot, "electron-builder.config.json"),
       "utf8",

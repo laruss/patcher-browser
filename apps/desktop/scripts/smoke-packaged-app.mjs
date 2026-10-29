@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { access, readFile, readdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -414,6 +414,45 @@ async function smokePackagedApp() {
 
   const desktopVersion = await readDesktopPackageVersion();
   const appBinary = await resolvePackagedAppBinary();
+  // Exercise the packaged server's actual native dependencies in Electron's
+  // Node runtime, not the checkout's Node or a renderer that attaches to a stub.
+  const packagedManifest = resolve(
+    dirname(appBinary),
+    "..",
+    "Resources",
+    "app.asar",
+    "node_modules",
+    "patcher-app",
+    "package.json",
+  );
+  execFileSync(
+    appBinary,
+    [
+      "--eval",
+      `
+    const requirePackaged = require('node:module').createRequire(${JSON.stringify(packagedManifest)});
+    const Database = requirePackaged('better-sqlite3');
+    const db = new Database(':memory:');
+    db.exec('CREATE TABLE smoke (value INTEGER); INSERT INTO smoke VALUES (42)');
+    if (db.prepare('SELECT value FROM smoke').get().value !== 42) throw new Error('Packaged SQLite query failed');
+    db.close();
+    const terminal = requirePackaged('node-pty').spawn('/bin/sh', ['-c', 'printf PATCHER_NATIVE_PTY_OK'], { cols: 80, rows: 24 });
+    let output = '';
+    const timer = setTimeout(() => { terminal.kill(); process.exit(1); }, 5000);
+    terminal.onData(data => { output += data; });
+    terminal.onExit(({ exitCode }) => {
+      clearTimeout(timer);
+      if (exitCode !== 0 || !output.includes('PATCHER_NATIVE_PTY_OK')) process.exit(1);
+      console.log('Packaged SQLite query and PTY execution: passed');
+    });
+  `,
+    ],
+    {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      timeout: 10_000,
+      stdio: "inherit",
+    },
+  );
   const smokeRoot = await mkdtemp(
     join(tmpdir(), "patcher-desktop-packaged-smoke-"),
   );
