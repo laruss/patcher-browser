@@ -14,8 +14,9 @@ This release updates the embedded browser to Electron 45.0.0 with Chromium
   query and a terminal command with the packaged Electron executable before
   checking that the desktop window starts.
 
-macOS on Apple Silicon only. Alpha builds remain ad-hoc signed and require
-one approval on first launch. Updates are downloaded manually.
+Requires macOS 13 (Ventura) or later on Apple Silicon. Alpha builds remain
+ad-hoc signed and require one approval on first launch. Updates are downloaded
+manually.
 
 ## 0.1.1-alpha.7
 
