@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { access, readFile, readdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -161,7 +162,62 @@ async function resolvePackagedAppBinary() {
   throw new Error(`No packaged ${appBundleName} found under ${releaseDir}`);
 }
 
-async function startSmokeServer({ dataDir, expectedDesktopVersion }) {
+async function startCertificateServer(root) {
+  const key = join(root, "key.pem");
+  const cert = join(root, "cert.pem");
+  execFileSync(
+    "openssl",
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-keyout",
+      key,
+      "-out",
+      cert,
+      "-subj",
+      "/CN=certificate-smoke.test",
+      "-days",
+      "1",
+    ],
+    { stdio: "ignore" },
+  );
+  let rejected = 0;
+  let accepted = 0;
+  const server = createHttpsServer(
+    { key: await readFile(key), cert: await readFile(cert) },
+    (_request, response) => {
+      accepted += 1;
+      response.end("This certificate must not be trusted.");
+    },
+  );
+  server.on("tlsClientError", () => {
+    rejected += 1;
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return {
+    url: `https://certificate-smoke.test:${server.address().port}`,
+    assertRejected() {
+      if (rejected === 0 || accepted !== 0) {
+        throw new Error(
+          `Expected rejected TLS handshakes; rejected=${rejected}, accepted=${accepted}`,
+        );
+      }
+    },
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
+async function startSmokeServer({
+  dataDir,
+  expectedDesktopVersion,
+  certificateUrl,
+}) {
   let browserResult = null;
   let resolvePreloadReady = () => {};
   const preloadReady = new Promise((resolvePromise) => {
@@ -176,6 +232,14 @@ async function startSmokeServer({ dataDir, expectedDesktopVersion }) {
           let ok = false;
           let reason = "";
           try {
+            // Concurrent certificate errors used to crash Electron 45 while
+            // converting the second certificate-error event's borrowed URL.
+            await Promise.all(Array.from({ length: 16 }, (_, index) => new Promise((resolve, reject) => {
+              const image = new Image();
+              image.onerror = resolve;
+              image.onload = () => reject(new Error("Untrusted certificate accepted"));
+              image.src = ${JSON.stringify(certificateUrl)} + "/untrusted-" + index + ".png";
+            })));
             const available = await PublicKeyCredential.isConditionalMediationAvailable();
             const capabilities = await PublicKeyCredential.getClientCapabilities();
             const exposed = typeof require !== "undefined" || typeof process !== "undefined" || typeof patcherDesktop !== "undefined";
@@ -458,9 +522,11 @@ async function smokePackagedApp() {
   );
   const dataDir = join(smokeRoot, "data");
   const userDataDir = join(smokeRoot, "user-data");
+  const certificateServer = await startCertificateServer(smokeRoot);
   const smokeServer = await startSmokeServer({
     dataDir,
     expectedDesktopVersion: desktopVersion,
+    certificateUrl: certificateServer.url,
   });
   const serverUrl = `http://127.0.0.1:${smokeServer.port}`;
   const stdout = [];
@@ -480,9 +546,17 @@ async function smokePackagedApp() {
   delete childEnv.PATCHER_DESKTOP_NODE_EXEC_PATH;
   delete childEnv.ELECTRON_RUN_AS_NODE;
 
-  const child = spawn(appBinary, [`--user-data-dir=${userDataDir}`], {
-    env: childEnv,
-  });
+  const child = spawn(
+    appBinary,
+    [
+      `--user-data-dir=${userDataDir}`,
+      // Give the fixture a public-looking hostname so requests exercise TLS
+      // rejection rather than the browsing session's loopback firewall.
+      "--host-resolver-rules=MAP certificate-smoke.test 127.0.0.1",
+      "--no-proxy-server",
+    ],
+    { env: childEnv },
+  );
   child.stdout.on("data", (chunk) => {
     appendOutput(stdout, chunk);
   });
@@ -502,6 +576,7 @@ async function smokePackagedApp() {
         `Packaged desktop preload bridge did not become ready: ${preloadReady.reason}`,
       );
     }
+    certificateServer.assertRejected();
 
     await sleep(postReadySettleMs);
     const nativeStatus = stdout
@@ -521,10 +596,14 @@ async function smokePackagedApp() {
     }
 
     console.log(`Packaged desktop smoke passed: ${appBinary}`);
+    console.log(
+      "Concurrent untrusted certificate requests rejected without crashing: passed",
+    );
     console.log(`Native passkey startup guard: ${nativeStatus}`);
   } finally {
     await stopPackagedApp(child);
     await smokeServer.close();
+    await certificateServer.close();
     await rm(smokeRoot, { force: true, recursive: true });
   }
 }

@@ -3023,18 +3023,18 @@ export function createDesktopBrowserViewManager(
       "certificate-error",
       (event, url, error, certificate, callback, isMainFrame) => {
         event.preventDefault();
+        // Electron 45 reuses the URL for app's event; synchronous decisions
+        // can free it before Electron finishes emitting both events.
         const host = browserUrlHost(url);
         const key = `${host}|${certificate.fingerprint}`;
         if (acceptedCertificates.has(key)) {
-          callback(true);
+          setImmediate(callback, true);
           return;
         }
-        // Only the page itself may be trusted by hand. A subresource riding on
-        // a bad certificate is not something a user can judge — they cannot see
-        // what it is — so it is refused unless the same certificate was already
-        // accepted for the page.
+        // Subresources cannot ask for trust; only the same certificate already
+        // accepted for the page may proceed.
         if (!isMainFrame) {
-          callback(false);
+          setImmediate(callback, false);
           return;
         }
         const opened = openPagePrompt({
@@ -3067,16 +3067,16 @@ export function createDesktopBrowserViewManager(
           hostWindow,
           settle: (answer) => {
             if (answer.kind !== "proceed") {
-              callback(false);
+              setImmediate(callback, false);
               return;
             }
             rememberAcceptedCertificate(key);
-            callback(true);
+            setImmediate(callback, true);
           },
           tabId,
         });
         if (!opened) {
-          callback(false);
+          setImmediate(callback, false);
         }
       },
     );
