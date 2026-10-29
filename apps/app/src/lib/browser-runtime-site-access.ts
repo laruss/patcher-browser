@@ -2,7 +2,13 @@ import { z } from "zod";
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { scopedPageContributionsSchema } from "@patcher/desktop-contract";
+import {
+  invalidatePluginSiteAccess,
+  SITE_ACCESS_QUERY_KEY,
+} from "../hooks/cache-owners/plugin-cache-owner";
 import { getDesktopBrowserApi } from "./patcher-desktop";
+
+export { SITE_ACCESS_QUERY_KEY };
 
 export interface PluginSiteAccessStatus {
   pluginId: string;
@@ -34,7 +40,6 @@ const statusSchema = z
     ),
   })
   .strict();
-export const SITE_ACCESS_QUERY_KEY = ["plugins", "site-access"] as const;
 export function usePluginSiteAccess() {
   return useQuery({
     queryKey: SITE_ACCESS_QUERY_KEY,
@@ -51,7 +56,7 @@ export function useBrowserRuntimeSiteAccess() {
   useEffect(
     () =>
       getDesktopBrowserApi()?.onSiteAccessChanged?.(() => {
-        void client.invalidateQueries({ queryKey: SITE_ACCESS_QUERY_KEY });
+        void invalidatePluginSiteAccess({ queryClient: client });
       }),
     [client],
   );

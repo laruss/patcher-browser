@@ -103,6 +103,7 @@ import {
 } from "../queries/plugin-catalog-queries";
 import { allPluginSettingsQueryKeyPrefix } from "../../lib/plugin-sdk-hooks";
 import { schedulePluginFrontendReconcile } from "../../lib/plugin-frontend-lazy";
+import { invalidatePluginSiteAccess } from "./plugin-cache-owner";
 import {
   getProjectListInvalidationQueryKeys,
   getProjectPromptHistoryInvalidationQueryKeys,
@@ -503,9 +504,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
   "plugins-changed": {
     dirty: [
       ({ queryClient }) => {
-        void queryClient.invalidateQueries({
-          queryKey: ["plugins", "site-access"],
-        });
+        void invalidatePluginSiteAccess({ queryClient });
       },
       dirtyPluginContributionQueries,
       dirtyProjectCommandCatalogQueries,

@@ -17,7 +17,9 @@ import {
 const group = "TEAMID1234.app.patcher.desktop.webauthn";
 const signature =
   "Identifier=app.patcher.desktop\nAuthority=Developer ID Application: Fixture\nTeamIdentifier=TEAMID1234\n";
+const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
 beforeEach(() => {
+  Object.defineProperty(process, "platform", { value: "darwin" });
   vi.clearAllMocks();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   mocks.app.isPackaged = true;
@@ -37,7 +39,17 @@ beforeEach(() => {
     return { stdin: { on: vi.fn(), end: vi.fn() } };
   });
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  Object.defineProperty(process, "platform", originalPlatform);
+  vi.restoreAllMocks();
+});
+it("keeps non-macOS platforms unsupported without calling macOS APIs", async () => {
+  Object.defineProperty(process, "platform", { value: "linux" });
+  expect(await configureNativeWebAuthn("app.patcher.desktop")).toBe(false);
+  expect(mocks.touchId).not.toHaveBeenCalled();
+  expect(mocks.command).not.toHaveBeenCalled();
+  expect(mocks.app.configureWebAuthn).not.toHaveBeenCalled();
+});
 it("requires the actual team, bundle, certificate and exact effective access group", () => {
   const entitlements = { "keychain-access-groups": [group] };
   expect(

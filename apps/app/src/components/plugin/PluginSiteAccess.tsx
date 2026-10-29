@@ -6,9 +6,9 @@ import {
 } from "@patcher/domain/plugin-site-access";
 import {
   usePluginSiteAccess,
-  SITE_ACCESS_QUERY_KEY,
   type PluginSiteAccessStatus,
 } from "@/lib/browser-runtime-site-access";
+import { invalidatePluginSiteAccess } from "@/hooks/cache-owners/plugin-cache-owner";
 import { getDesktopBrowserApi } from "@/lib/patcher-desktop";
 
 function SiteAccessControls({
@@ -40,7 +40,7 @@ function SiteAccessControls({
         }),
       });
       if (!response.ok) throw new Error("Site access was refused or cancelled");
-      await client.invalidateQueries({ queryKey: SITE_ACCESS_QUERY_KEY });
+      await invalidatePluginSiteAccess({ queryClient: client });
     } catch {
       setError("Site access was refused or cancelled");
     } finally {
@@ -104,9 +104,7 @@ function SiteAccessControls({
             className="text-left underline"
             onClick={() => {
               getDesktopBrowserApi()?.reload(item.tabId);
-              void client.invalidateQueries({
-                queryKey: SITE_ACCESS_QUERY_KEY,
-              });
+              void invalidatePluginSiteAccess({ queryClient: client });
             }}
           >
             Reload page
