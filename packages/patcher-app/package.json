@@ -29,7 +29,8 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./dist/patcher-app.js": "./dist/patcher-app.js"
+    "./dist/patcher-app.js": "./dist/patcher-app.js",
+    "./dist/patcher-desktop.js": "./dist/patcher-desktop.js"
   },
   "types": "./dist/index.d.ts",
   "os": [
@@ -85,6 +86,7 @@
   "devDependencies": {
     "@patcher/config": "workspace:*",
     "@patcher/sdk": "workspace:*",
+    "@patcher/secret-storage": "workspace:*",
     "@patcher/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "rimraf": "^6.1.0",

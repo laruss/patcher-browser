@@ -87,6 +87,8 @@ export const PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX =
   "--patcher-window-key=";
 
 export interface PatcherDesktopApi extends PatcherDesktopInfo {
+  /** Host-owned ordinary plugin settings; optional for older desktop shells. */
+  secretStorage?: import("./secret-storage.js").DesktopSecretStorageApi;
   /**
    * Control surface for the desktop-only web browser tab. The renderer drives
    * a hardened, isolated Electron `WebContentsView` through these methods; the

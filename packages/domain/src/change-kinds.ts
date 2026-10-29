@@ -145,6 +145,13 @@ export const browserHostRegisterMessageSchema = z.object({
   type: z.literal("browser-host.register"),
   browserHostId: z.string().min(1).max(128),
 });
+export const scopedBrowserHostRegisterMessageSchema =
+  browserHostRegisterMessageSchema
+    .extend({
+      type: z.literal("browser-host.site-register"),
+      nativeWebContentsId: z.number().int().positive(),
+    })
+    .strict();
 export type BrowserHostRegisterMessage = z.infer<
   typeof browserHostRegisterMessageSchema
 >;
@@ -171,6 +178,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   subscribeMessageSchema,
   unsubscribeMessageSchema,
   browserHostRegisterMessageSchema,
+  scopedBrowserHostRegisterMessageSchema,
   browserHostUnregisterMessageSchema,
   browserCommandResponseMessageSchema,
 ]);

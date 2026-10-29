@@ -74,6 +74,8 @@ export const pluginPatcherManifestSchema = z
      * machines a plugin can reach; these are websites.
      */
     sites: z.array(z.string()).optional(),
+    /** Runtime mode needs an explicit grant for each exact website origin. */
+    siteAccess: z.literal("runtime").optional(),
     skills: z.array(requiredManifestString).optional(),
     themes: z
       .array(
@@ -93,6 +95,15 @@ export const pluginPatcherManifestSchema = z
   })
   .strict()
   .superRefine((patcher, context) => {
+    if (
+      patcher.permissions?.includes("credentials.manage") &&
+      patcher.siteAccess !== "runtime"
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["siteAccess"],
+        message: "credentials.manage requires runtime site access",
+      });
     if (patcher.sites === undefined) return;
     if (patcher.sites.length > PLUGIN_SITE_PATTERN_MAX_COUNT) {
       context.addIssue({

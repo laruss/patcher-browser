@@ -192,7 +192,12 @@ export interface FakeWebContentsEventMap {
   "did-stop-loading": FakeVoidWebContentsListener;
   "did-navigate": FakeDidNavigateListener;
   "did-navigate-in-page": FakeDidNavigateInPageListener;
-  "did-start-navigation": FakeVoidWebContentsListener;
+  "did-start-navigation": (
+    event: unknown,
+    url: string,
+    isInPlace: boolean,
+    isMainFrame: boolean,
+  ) => void;
   "page-title-updated": FakeVoidWebContentsListener;
   "page-favicon-updated": FakePageFaviconUpdatedListener;
   "did-fail-load": FakeDidFailLoadListener;
@@ -991,6 +996,15 @@ function createElectronMock() {
 
     async removeInsertedCSS(key: string): Promise<void> {
       this.removedCssKeys.push(key);
+    }
+
+    emitDidStartNavigation(
+      url: string,
+      isInPlace = false,
+      isMainFrame = true,
+    ): void {
+      for (const listener of this.listeners["did-start-navigation"])
+        listener(fakeWebContentsEvent, url, isInPlace, isMainFrame);
     }
 
     emitDidNavigate(url: string): void {

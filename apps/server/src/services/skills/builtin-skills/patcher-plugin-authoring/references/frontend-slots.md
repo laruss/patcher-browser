@@ -352,7 +352,7 @@ Versioned and additive-only:
   for data. Enabled plugins appear in the
   settings sidebar when they declare settings descriptors OR register
   settings sections.
-- `experimental_leadingPanel` → `{ browserUrl: string | null }` — a panel on the
+- `experimental_leadingPanel` → `{ browserUrl: string | null, browserTabId?: string | null }` — a panel on the
   window's **leading** edge, the end opposite the sidebar. Registration:
   `{ id, title, icon, component, matches? }`. It is not a route: nothing links to
   it, it has no path, and it stays put while the user navigates — use it for
@@ -362,7 +362,9 @@ Versioned and additive-only:
   did: one gets the panel whole with no host chrome, and a second is what makes
   the host add a rail of icons to switch between them. `title` names the rail
   button; `icon` is a Patcher icon name. The user can resize the panel; the plugin
-  does not choose its width.
+  does not choose its width. SDK 1.3 adds `browserTabId` for the same active tab
+  as `browserUrl`; older hosts omit it. A tab ID identifies a target, without
+  granting access or approving a credential action.
   `matches` scopes the panel to pages: URL globs (`["https://github.com/**"]`,
   `**` crossing `/`), and the host draws the column only while the **active
   browser tab** is on a matching page. Declare it rather than returning `null`

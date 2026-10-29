@@ -11,6 +11,16 @@ import type { InstalledPlugin } from "@patcher/server-contract";
 import { allPluginCatalogSearchQueryKeyPrefix } from "../queries/plugin-catalog-queries";
 import { pluginToolbarStatesQueryKeyPrefix } from "../queries/plugin-contribution-queries";
 
+export const SITE_ACCESS_QUERY_KEY = ["plugins", "site-access"] as const;
+
+export function invalidatePluginSiteAccess(args: {
+  queryClient: QueryClient;
+}): Promise<void> {
+  return args.queryClient.invalidateQueries({
+    queryKey: SITE_ACCESS_QUERY_KEY,
+  });
+}
+
 /**
  * Cache owner for plugin management data. The PUT /plugins/:id/settings
  * response is the refreshed settings view, so the mutation seeds it directly

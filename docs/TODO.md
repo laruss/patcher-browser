@@ -31,64 +31,86 @@ disagree.
 
 Reading order is the order in which they block each other.
 
+The implementation sequence is in
+[browser-account-security-plan.md](architecture/browser-account-security-plan.md).
+Phases 1–7 are implemented: safe settings metadata, WebAuthn compatibility,
+Secure Keyboard Entry, opt-in encrypted plugin settings, runtime site grants and
+protected core credential operations and the preinstalled password manager.
+Phase 8 prepares signed Touch ID passkeys and a native account chooser; remaining
+work is deliberately deferred until an official Apple Developer Program account
+has been purchased and signing is configured (user decision, 2026-10-29). Physical vault
+Touch ID approved core Save on 2026-10-09; full product UI and physical cancellation
+acceptance remain manual checks.
+
 - **A password manager.** Reverses a Non-Goal, deliberately:
   [PROJECT_PLAN.md](PROJECT_PLAN.md) §19 rules out a _sophisticated_ one, and that
   still stands — no sync, no sharing, no breach monitoring. What is missing is the plain thing. Patcher prompts for **HTTP
   authentication** today and lets a plugin answer one
   (`patcher.browser.registerAuthProvider`), which is the rare case; a **form login**,
-  which is nearly every case, has nowhere to be saved from, nothing to fill it,
-  and no "save this password?" at all. Chromium's own manager is not in Electron,
+  which is nearly every case, now has a preinstalled, enabled manager.
+  Its side panel offers manual Save/Update/Fill/Delete through protected core primitives. Chromium's own manager is not in Electron,
   so it is not a switch to flip.
 
   The sorting test now answers differently than it would have last week: after
-  Phase 9 Stage B a plugin **can** fill a form, on sites it declared. What a
-  plugin cannot do is keep the secret safely (see the next item), require a
-  fingerprint to release it (the one after), or be granted "every site the user
-  has an account on" in a way a person can meaningfully consent to (the last).
-  So the core owes three capabilities, and the manager itself can then be a
-  plugin — which is also how it stays out of the way of somebody who wants 1Password
-  instead.
+  Phase 9 Stage B a plugin **can** fill a form, on sites it declared. Phases 4–5
+  now provide encrypted ordinary token settings and runtime site consent.
+  Phase 6 now supplies a separate vault that keeps passwords out of plugin backend
+  memory and core capture/fill operations that require a person's approval, with
+  a sealed per-action Touch ID policy. Phase 7 delivers the manager as a
+  builtin plugin with explicit site grants. A user can disable it; the choice
+  survives restarts and updates. Earlier removal tombstones are also respected.
 
-- **A keychain-backed secret store for the server side.** Present-tense
-  weakness, not a feature: every plugin secret — an API token, a cookie a plugin
-  saved, whatever a credential plugin would hold — is written by
-  `@patcher/secret-storage` as a **plaintext file with `0600` permissions**
-  (`packages/secret-storage/src/secret-file.ts`). Any process running as the user
-  reads it, and so does anyone who gets a copy of the data directory: a backup, a
-  synced folder, a laptop without FileVault.
-
-  The desktop shell already does this properly for its own Connect credential —
-  `safeStorage`, backed by the OS keychain, measured available here
-  (`isEncryptionAvailable() === true`), with a documented no-op fallback when the
-  OS offers no backend (`apps/desktop/src/connect-credential-cache.ts`). The
-  structural reason it stops there: `safeStorage` is an **Electron** API and the
-  plugin host is a plain Node process that may be running with no shell at all.
-  Closing this means either handing the server a keychain capability over the
-  desktop bridge, or accepting that secrets are only encrypted at rest when a
-  shell is attached — and saying which, in writing, before anything stores a
-  password.
+- **A keychain-backed secret store for the server side.** Implemented in Phase 4
+  for the local server owned by desktop. Settings → Security offers explicit
+  migration from legacy plaintext `0600` files to AES-256-GCM records with an
+  OS-wrapped data key. A private desktop broker provides the Keychain capability;
+  lock, suspend and disconnect clear cached keys. Protected writes never fall
+  back to plaintext. Headless, remote and independently attached servers cannot
+  enable this backend; legacy mode remains available. Ordinary plugin tokens
+  still reach their owning backend, so this store is not the password vault.
 
 - **The machine's own locks: Touch ID, and a keyboard nobody else can read.**
-  Both measured present and both unused today:
+  Both measured present. Secure Keyboard Entry is implemented in Phase 3; the
+  vault Touch ID gate is implemented in Phase 6, with a real hardware Save approved
+  on 2026-10-09:
   - `systemPreferences.canPromptTouchID()` → **true**, and `promptTouchID` is
-    there. So "release this password" / "unlock the vault" / "approve this agent
-    action" can cost a fingerprint rather than nothing. What has to be decided is
-    what a _failed_ or _unavailable_ prompt means — a fallback nobody thought about
-    is how a biometric gate becomes theatre.
+    there. Protected credential actions can require a fresh successful fingerprint.
+    Cancel/error/unavailable refuses Require Touch ID without fallback; Confirm
+    every action is a separate explicit mode. There is no session unlock or agent
+    approval API in this phase.
   - `app.setSecureKeyboardEntryEnabled` → present. Chrome turns this on while a
     password field has focus, which stops other processes on the machine from
-    logging the keystrokes. Patcher never turns it on. Cheap, and the shell already
-    knows when a page's focused field is a password one.
+    logging the keystrokes. Patcher now enables it for foreground password fields
+    in browser pages and its own UI, with conservative protection for opaque browser
+    focus contexts. It releases the flag on focus loss and lifecycle teardown;
+    see Phase 3 of the account security plan.
 
 - **Passkeys, and the way the page hangs without them.** The measurement that
-  worries me most. In a browsed page, on a secure origin: `PublicKeyCredential`
+  led to Phase 2 of the account security plan. Its compatibility adapter is now
+  implemented: unavailable platform/conditional flows reject, and ordinary
+  public-key requests have a deadline that cancels the native ceremony. This
+  covers main pages, iframes and popups. Phase 8 adds verified signing/Keychain
+  configuration and a native account chooser.
+
+  **Deferred until the Apple Developer Program account is purchased.** Resume
+  Phase 8 after Developer ID Application signing and a stable Team ID are
+  configured. Then verify real Touch ID passkey create → quit/relaunch → get and
+  cancellation in the signed app. Phone QR sign-in also needs an upstream Electron
+  hybrid UI/Bluetooth bridge and real iPhone/Android acceptance; signing alone
+  does not add it, and 41.7.0 exposes neither bridge. Keep the prepared code and
+  the tested unavailable behavior until this work resumes. TOTP setup QR codes
+  and service-specific phone login are separate flows.
+
+  The native measurements below describe the session without that adapter.
+  In a browsed page, on a secure origin: `PublicKeyCredential`
   and `navigator.credentials` **exist**, and
   `isConditionalMediationAvailable()` answers **true** — so a site is told
   WebAuthn is available — while
   `isUserVerifyingPlatformAuthenticatorAvailable()` answers **false**: there is
-  no platform authenticator, because Electron does not ship Chrome's macOS one.
-  The Secure Enclave is reachable from the _shell_ (Touch ID, above) and not from
-  a _page_.
+  no configured platform authenticator in this unsigned test build. Electron
+  41.7.0 provides a device-bound Touch ID authenticator when configured with a
+  matching signed Keychain access group; the Secure Enclave hardware alone is
+  insufficient to enable it.
 
   Worse than unsupported: `navigator.credentials.create()` asking for a platform
   authenticator **never settles** — no resolve, no reject, and the `timeout` in
@@ -99,23 +121,19 @@ Reading order is the order in which they block each other.
   honestly so the site's fallback runs), the refusal is the part that cannot
   wait.
 
-- **A per-site grant the user makes at runtime.** `patcher.sites` is declared in the
-  manifest, and that is exactly right for "declutter GitHub". It is the wrong
-  shape for a credential filler, which legitimately needs every site the user has
-  an account on — and `["https://**/**"]` in a manifest is a disclosure that says
-  nothing while granting everything: code in every page the user ever opens.
+- **A per-site grant the user makes at runtime.** Implemented in Phase 5 through
+  opt-in `patcher.siteAccess: "runtime"` (SDK 1.1.0). Browser site info offers
+  Allow here with native confirmation; plugin detail shows permissions, declared
+  ceiling patterns, exact-origin grants and Revoke. Access requires permission,
+  an actual URL matching `patcher.sites`, and a persisted origin grant. Existing
+  legacy plugins retain their install-time semantics.
 
-  What is missing is the other kind of grant: the user, standing on a page,
-  saying "use it here", stored per site and revocable, with the manifest list
-  staying the ceiling rather than the whole answer. Everything the current model
-  rests on stays — membership not containment, refuse at the earliest place — but
-  the answer to _where_ stops being frozen at install time. This is the
-  prerequisite for the password manager being a plugin rather than core code, and
-  it is why it is listed last here and blocks the first item.
-
-  Related and no longer cosmetic: **the app shows no plugin permissions** (below).
-  A runtime grant is a UI that does not exist yet, in a surface that renders none
-  of this today.
+  Runtime access covers the supported explicit-tab browser operations and
+  main-frame scripts/RPC. Unsupported session-wide operations fail closed, as do
+  headless and old shells. Revoke cancels pending capabilities and blocks new
+  backend calls; previously injected JavaScript may remain until the explicit
+  Reload page action. The UI reports pending cleanup without erasing filled
+  forms. See the account security plan for the supported scope and native checks.
 
 ## A plugin could own these — and now nothing is in the way
 
@@ -159,7 +177,7 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
 
 - **The "who is driving" indicator does not leave the app.** It is a row of the
   window's own chrome now — under the tab strip, which is the one row on screen
-  for every desktop route, and fed in the app's *other* windows by the server's
+  for every desktop route, and fed in the app's _other_ windows by the server's
   `browser-driving` signal
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)).
   What is still uncovered is a person who is not looking at Patcher at all:
@@ -282,7 +300,7 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   not say how much came back. Making it survive a reload means a table, a
   retention policy and a route, and the complete record already exists as
   `patcher browser trace-start`, so this is worth doing when somebody needs the
-  answer *after* closing the window rather than during the session.
+  answer _after_ closing the window rather than during the session.
 - **Revoking or pausing a browser access grant does not undo what it set up.**
   The credential stops at the next request
   ([architecture/browser-external-access.md](architecture/browser-external-access.md)),
@@ -338,9 +356,10 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   in practice because each closes the other, documented rather than fixed.
 - **Streaming HTTP across the plugin boundary.** Deferred on purpose; a plugin's
   route buffers its response.
-- **Permissions the user grants, rather than the plugin declaring them.** Today
-  `patcher.permissions` is written by whoever wrote the plugin — which, in the case this
-  product exists for, is the user's own agent. The install is one all-or-nothing
+- **General permission grants beyond runtime browser access.** Phase 5 adds
+  revocable exact-origin grants for opt-in browser plugins. For the other
+  capabilities, `patcher.permissions` is written by whoever wrote the plugin —
+  which, in the case this product exists for, is the user's own agent. The install is one all-or-nothing
   yes (and only in the CLI), nothing can be granted in part, and nothing can be
   taken back afterwards short of uninstalling. So "the agent asked for `threads`
   and `filesystem`" is a sentence the user has never actually answered, and a
@@ -371,12 +390,14 @@ either a screen Patcher has not drawn (below) or a decision nobody has needed ye
   to a plugin that is running, which is a failure its author has never had to
   handle.
 
-- **The plugin pages show no plugin permissions.** The CLI prints
+- **Permission disclosure for legacy plugin pages.** Phase 5 shows permissions,
+  declared sites and granted origins in runtime plugin details and browser site
+  info. Legacy plugin details still need that disclosure. The CLI prints
   `patcher.permissions` and `patcher.sites` before an install and `patcher plugin info`
   lists them, and the consent prompt an agent's plugin change raises now shows
   both at the moment they decide something — but the app's own plugin list and
-  detail pages still render neither, so a plugin the user installs through the
-  app's dialog, or one they are merely looking at, discloses nothing. `sites` is
+  legacy detail pages still render neither, so a legacy plugin the user installs
+  through the app's dialog, or one they are merely looking at, discloses nothing. `sites` is
   the one whose scope only the reader can judge: it scopes two permissions, one
   of which runs the plugin's code in those pages. `InstalledPlugin` carries both
   on the wire already; what is missing is the surface.

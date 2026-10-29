@@ -6585,6 +6585,7 @@ declare const installedPluginSchema: z$1.ZodObject<{
         "page.inject": "page.inject";
         "network.intercept": "network.intercept";
         "page.credentials": "page.credentials";
+        "credentials.manage": "credentials.manage";
         "omnibox.register": "omnibox.register";
         "contextMenu.register": "contextMenu.register";
         "tabMenu.register": "tabMenu.register";
@@ -6603,6 +6604,7 @@ declare const installedPluginSchema: z$1.ZodObject<{
         plugins: "plugins";
     }>>>;
     sites: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
+    siteAccess: z$1.ZodOptional<z$1.ZodLiteral<"runtime">>;
     hasSettings: z$1.ZodBoolean;
     app: z$1.ZodObject<{
         hasApp: z$1.ZodBoolean;
@@ -6725,6 +6727,7 @@ declare const pluginListResponseSchema: z$1.ZodObject<{
             "page.inject": "page.inject";
             "network.intercept": "network.intercept";
             "page.credentials": "page.credentials";
+            "credentials.manage": "credentials.manage";
             "omnibox.register": "omnibox.register";
             "contextMenu.register": "contextMenu.register";
             "tabMenu.register": "tabMenu.register";
@@ -6743,6 +6746,7 @@ declare const pluginListResponseSchema: z$1.ZodObject<{
             plugins: "plugins";
         }>>>;
         sites: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
+        siteAccess: z$1.ZodOptional<z$1.ZodLiteral<"runtime">>;
         hasSettings: z$1.ZodBoolean;
         app: z$1.ZodObject<{
             hasApp: z$1.ZodBoolean;
@@ -6867,6 +6871,7 @@ declare const pluginReloadResponseSchema: z$1.ZodObject<{
             "page.inject": "page.inject";
             "network.intercept": "network.intercept";
             "page.credentials": "page.credentials";
+            "credentials.manage": "credentials.manage";
             "omnibox.register": "omnibox.register";
             "contextMenu.register": "contextMenu.register";
             "tabMenu.register": "tabMenu.register";
@@ -6885,6 +6890,7 @@ declare const pluginReloadResponseSchema: z$1.ZodObject<{
             plugins: "plugins";
         }>>>;
         sites: z$1.ZodDefault<z$1.ZodArray<z$1.ZodString>>;
+        siteAccess: z$1.ZodOptional<z$1.ZodLiteral<"runtime">>;
         hasSettings: z$1.ZodBoolean;
         app: z$1.ZodObject<{
             hasApp: z$1.ZodBoolean;
@@ -11348,6 +11354,9 @@ interface PluginSettingsSectionProps {
  * changing what a plugin's component signature looks like.
  */
 interface PluginLeadingPanelProps {
+    /** Active web tab in this window. Added in SDK 1.3; older hosts omit it.
+     * This identifies a target, not permission or approval to access it. */
+    browserTabId?: string | null;
     /**
      * The address of the page in the active browser tab, or null when the window
      * is not showing one.
@@ -12679,6 +12688,87 @@ interface PluginSdkApp {
      */
     experimental_NewThreadComposer: ComponentType<NewThreadComposerProps>;
     useComposerView(): ComposerView;
+}
+
+declare const credentialProtectionSchema: z$1.ZodEnum<{
+    "require-touch-id": "require-touch-id";
+    "confirm-each-time": "confirm-each-time";
+}>;
+declare const credentialMetadataSchema: z$1.ZodObject<{
+    id: z$1.ZodUUID;
+    version: z$1.ZodNumber;
+    origin: z$1.ZodString;
+    accountId: z$1.ZodString;
+    username: z$1.ZodString;
+    protection: z$1.ZodEnum<{
+        "require-touch-id": "require-touch-id";
+        "confirm-each-time": "confirm-each-time";
+    }>;
+    createdAt: z$1.ZodNumber;
+    updatedAt: z$1.ZodNumber;
+}, z$1.core.$strict>;
+declare const credentialListArgsSchema: z$1.ZodObject<{
+    tabId: z$1.ZodString;
+}, z$1.core.$strict>;
+declare const credentialRequestArgsSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
+    tabId: z$1.ZodString;
+    operation: z$1.ZodLiteral<"save">;
+    accountId: z$1.ZodString;
+}, z$1.core.$strict>, z$1.ZodObject<{
+    tabId: z$1.ZodString;
+    operation: z$1.ZodEnum<{
+        update: "update";
+        fill: "fill";
+        delete: "delete";
+    }>;
+    reference: z$1.ZodObject<{
+        id: z$1.ZodUUID;
+        version: z$1.ZodNumber;
+    }, z$1.core.$strict>;
+}, z$1.core.$strict>], "operation">;
+declare const credentialResultSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
+    status: z$1.ZodEnum<{
+        saved: "saved";
+        updated: "updated";
+    }>;
+    credential: z$1.ZodObject<{
+        id: z$1.ZodUUID;
+        version: z$1.ZodNumber;
+        origin: z$1.ZodString;
+        accountId: z$1.ZodString;
+        username: z$1.ZodString;
+        protection: z$1.ZodEnum<{
+            "require-touch-id": "require-touch-id";
+            "confirm-each-time": "confirm-each-time";
+        }>;
+        createdAt: z$1.ZodNumber;
+        updatedAt: z$1.ZodNumber;
+    }, z$1.core.$strict>;
+}, z$1.core.$strict>, z$1.ZodObject<{
+    status: z$1.ZodEnum<{
+        filled: "filled";
+        deleted: "deleted";
+        cancelled: "cancelled";
+        denied: "denied";
+        unavailable: "unavailable";
+        unsupported: "unsupported";
+        busy: "busy";
+    }>;
+}, z$1.core.$strict>], "status">;
+type CredentialMetadata = z$1.infer<typeof credentialMetadataSchema>;
+type CredentialRequestArgs = z$1.infer<typeof credentialRequestArgsSchema>;
+type CredentialResult = z$1.infer<typeof credentialResultSchema>;
+type CredentialProtection = z$1.infer<typeof credentialProtectionSchema>;
+interface PluginBrowserCredentials {
+    /** Metadata only. Requires credentials.manage and a live runtime site grant. */
+    list(args: z$1.infer<typeof credentialListArgsSchema>, options?: {
+        signal?: AbortSignal;
+    }): Promise<CredentialMetadata[]>;
+    /** Creates an inert proposal in core browser chrome. Only a person can review it.
+     * No plaintext, reveal, export, submit or automatic retry. Agent callers are refused. */
+    request(args: CredentialRequestArgs, options?: {
+        signal?: AbortSignal;
+    }): Promise<CredentialResult>;
 }
 
 interface BrowserHistoryListArgs {
@@ -16266,6 +16356,7 @@ interface PluginBrowser {
      * factories run. Call them from handlers, tools and services, never at load
      * time, and expect `BrowserHostUnavailableError` when nothing is connected.
      */
+    readonly credentials: PluginBrowserCredentials;
     readonly tabs: PluginBrowserTabs;
     readonly page: PluginBrowserPage;
     readonly navigation: PluginBrowserNavigation;
@@ -16357,4 +16448,4 @@ interface PatcherPluginApi {
 }
 
 export { PLUGIN_CLI_OUTPUT_MAX_BYTES, defineRpcContract };
-export type { ComposerCustomization, ComposerPlusMenuItem, ComposerRichTextSpec, ComposerStructuredDraft, ComposerView, JsonValue, MarkdownProps, NewThreadComposerProps, NewThreadRequest, PatcherContext, PatcherNavigate, PatcherPluginApi, PluginAgentConfiguration, PluginAgentConfigurationContext, PluginAgentToolContentPart, PluginAgentToolContext, PluginAgentToolExperimentalStatusLabels, PluginAgentToolRegistrationBase, PluginAgentToolResult, PluginAgentToolSelection, PluginAgents, PluginAppBuilder, PluginAppComposer, PluginAppContentScripts, PluginAppDefinition, PluginAppSetup, PluginAppSlots, PluginBackground, PluginBrowser, PluginBrowserAction, PluginBrowserAuthChallenge, PluginBrowserAuthCredentials, PluginBrowserAuthProvider, PluginBrowserCallOptions, PluginBrowserConsoleEntry, PluginBrowserContextMenuContext, PluginBrowserContextMenuItemRegistration, PluginBrowserContextMenuWhen, PluginBrowserControl, PluginBrowserCookie, PluginBrowserCookieInput, PluginBrowserCookies, PluginBrowserDownload, PluginBrowserDownloadHandler, PluginBrowserDownloadState, PluginBrowserErrorCode, PluginBrowserEvaluated, PluginBrowserExternalLink, PluginBrowserExternalLinkDecision, PluginBrowserExternalLinkHandler, PluginBrowserFindActionRegistration, PluginBrowserFindContext, PluginBrowserHistoryFilter, PluginBrowserHistoryRewrite, PluginBrowserHistoryVisit, PluginBrowserKeyModifier, PluginBrowserLog, PluginBrowserNavigation, PluginBrowserNetworkEntry, PluginBrowserNewTabContext, PluginBrowserNewTabRow, PluginBrowserNewTabWidgetRegistration, PluginBrowserPage, PluginBrowserPageScriptRegistration, PluginBrowserPageSnapshot, PluginBrowserPageState, PluginBrowserPageStyleRegistration, PluginBrowserPdf, PluginBrowserPdfDocument, PluginBrowserPdfTextProvider, PluginBrowserRecording, PluginBrowserRoute, PluginBrowserRouteState, PluginBrowserRoutes, PluginBrowserScreenshot, PluginBrowserSearchEngineRegistration, PluginBrowserSiteInfoContext, PluginBrowserSiteInfoProviderRegistration, PluginBrowserSiteInfoRow, PluginBrowserStatus, PluginBrowserStorage, PluginBrowserStorageArea, PluginBrowserStorageItem, PluginBrowserStorageItems, PluginBrowserStorageWrite, PluginBrowserTab, PluginBrowserTabActionContext, PluginBrowserTabActionRegistration, PluginBrowserTabStatus, PluginBrowserTabs, PluginBrowserToolbarContext, PluginBrowserToolbarItemRegistration, PluginBrowserToolbarState, PluginBrowserTrace, PluginBrowserTraceStep, PluginBrowserVideo, PluginCli, PluginCliCaller, PluginCliCommandInfo, PluginCliContext, PluginCliExecutionResult, PluginCliOutputLimitError, PluginCliRegistration, PluginCliResult, PluginCommandRegistration, PluginComposerApi, PluginComposerMention, PluginComposerScope, PluginComposerTextEffect, PluginComposerThreadRowStatus, PluginContentScriptContext, PluginContentScriptDisposer, PluginContentScriptRegistration, PluginEvents, PluginFileOpenerProps, PluginFileOpenerRegistration, PluginFileOpenerSource, PluginHomepageSectionProps, PluginHomepageSectionRegistration, PluginHttp, PluginHttpAuthMode, PluginHttpHandler, PluginInteractionCancelReason, PluginInteractionRequest, PluginInteractionResult, PluginKeybinding, PluginKeybindingShortcut, PluginKvStorage, PluginLeadingPanelProps, PluginLeadingPanelRegistration, PluginLogger, PluginMentionItem, PluginMentionProviderRegistration, PluginMentionSearchContext, PluginMentionTrigger, PluginMessageActionContext, PluginMessageActionRegistration, PluginMessageActionThreadPanelOptions, PluginMessageDirectiveMessage, PluginMessageDirectiveOpenWorkspaceFile, PluginMessageDirectiveProps, PluginMessageDirectiveRegistration, PluginNavPanelProps, PluginNavPanelRegistration, PluginNewThreadPanelActionContext, PluginNewThreadPanelActionRegistration, PluginNewThreadPanelProps, PluginOmniboxAction, PluginOmniboxProviderRegistration, PluginOmniboxRunContext, PluginOmniboxRunResult, PluginOmniboxSuggestContext, PluginOmniboxSuggestion, PluginPageScriptApi, PluginPendingInteractionProps, PluginPendingInteractionRegistration, PluginPendingInteractionView, PluginRealtime, PluginRealtimeConnectionState, PluginRpc, PluginRpcCallArgs, PluginRpcClient, PluginRpcContract, PluginRpcError, PluginRpcErrorCode, PluginRpcHandlers, PluginRpcIssuePathSegment, PluginRpcMethodContract, PluginRpcResult, PluginRpcValidationIssue, PluginSdkApp, PluginServerApi, PluginSettingDescriptor, PluginSettingDescriptors, PluginSettingValue, PluginSettings, PluginSettingsHandle, PluginSettingsSectionProps, PluginSettingsSectionRegistration, PluginSettingsState, PluginSettingsValues, PluginSidebarFooterActionContext, PluginSidebarFooterActionProps, PluginSidebarFooterActionRegistration, PluginSidebarProject, PluginSidebarPullRequest, PluginSidebarSplitPane, PluginSidebarThread, PluginSidebarThreadActions, PluginSidebarThreadActivity, PluginSidebarThreadIndicator, PluginSidebarThreadPullRequestState, PluginSidebarThreadSplit, PluginSidebarThreadsState, PluginSidebarWorkspaceKind, PluginStatusApi, PluginStorage, PluginThreadEventHandler, PluginThreadEventName, PluginThreadEventPayloads, PluginThreadHeaderActionProps, PluginThreadHeaderActionRegistration, PluginThreadListProps, PluginThreadListRegistration, PluginThreadPanelActionContext, PluginThreadPanelActionRegistration, PluginThreadPanelProps, PluginUi, StandardSchemaV1, StandardSchemaV1InferInput, StandardSchemaV1InferOutput, StandardSchemaV1Issue, StandardSchemaV1Result, ThreadChatMessageAction, ThreadChatMessageReference, ThreadChatProps };
+export type { ComposerCustomization, ComposerPlusMenuItem, ComposerRichTextSpec, ComposerStructuredDraft, ComposerView, CredentialMetadata, CredentialProtection, CredentialRequestArgs, CredentialResult, JsonValue, MarkdownProps, NewThreadComposerProps, NewThreadRequest, PatcherContext, PatcherNavigate, PatcherPluginApi, PluginAgentConfiguration, PluginAgentConfigurationContext, PluginAgentToolContentPart, PluginAgentToolContext, PluginAgentToolExperimentalStatusLabels, PluginAgentToolRegistrationBase, PluginAgentToolResult, PluginAgentToolSelection, PluginAgents, PluginAppBuilder, PluginAppComposer, PluginAppContentScripts, PluginAppDefinition, PluginAppSetup, PluginAppSlots, PluginBackground, PluginBrowser, PluginBrowserAction, PluginBrowserAuthChallenge, PluginBrowserAuthCredentials, PluginBrowserAuthProvider, PluginBrowserCallOptions, PluginBrowserConsoleEntry, PluginBrowserContextMenuContext, PluginBrowserContextMenuItemRegistration, PluginBrowserContextMenuWhen, PluginBrowserControl, PluginBrowserCookie, PluginBrowserCookieInput, PluginBrowserCookies, PluginBrowserCredentials, PluginBrowserDownload, PluginBrowserDownloadHandler, PluginBrowserDownloadState, PluginBrowserErrorCode, PluginBrowserEvaluated, PluginBrowserExternalLink, PluginBrowserExternalLinkDecision, PluginBrowserExternalLinkHandler, PluginBrowserFindActionRegistration, PluginBrowserFindContext, PluginBrowserHistoryFilter, PluginBrowserHistoryRewrite, PluginBrowserHistoryVisit, PluginBrowserKeyModifier, PluginBrowserLog, PluginBrowserNavigation, PluginBrowserNetworkEntry, PluginBrowserNewTabContext, PluginBrowserNewTabRow, PluginBrowserNewTabWidgetRegistration, PluginBrowserPage, PluginBrowserPageScriptRegistration, PluginBrowserPageSnapshot, PluginBrowserPageState, PluginBrowserPageStyleRegistration, PluginBrowserPdf, PluginBrowserPdfDocument, PluginBrowserPdfTextProvider, PluginBrowserRecording, PluginBrowserRoute, PluginBrowserRouteState, PluginBrowserRoutes, PluginBrowserScreenshot, PluginBrowserSearchEngineRegistration, PluginBrowserSiteInfoContext, PluginBrowserSiteInfoProviderRegistration, PluginBrowserSiteInfoRow, PluginBrowserStatus, PluginBrowserStorage, PluginBrowserStorageArea, PluginBrowserStorageItem, PluginBrowserStorageItems, PluginBrowserStorageWrite, PluginBrowserTab, PluginBrowserTabActionContext, PluginBrowserTabActionRegistration, PluginBrowserTabStatus, PluginBrowserTabs, PluginBrowserToolbarContext, PluginBrowserToolbarItemRegistration, PluginBrowserToolbarState, PluginBrowserTrace, PluginBrowserTraceStep, PluginBrowserVideo, PluginCli, PluginCliCaller, PluginCliCommandInfo, PluginCliContext, PluginCliExecutionResult, PluginCliOutputLimitError, PluginCliRegistration, PluginCliResult, PluginCommandRegistration, PluginComposerApi, PluginComposerMention, PluginComposerScope, PluginComposerTextEffect, PluginComposerThreadRowStatus, PluginContentScriptContext, PluginContentScriptDisposer, PluginContentScriptRegistration, PluginEvents, PluginFileOpenerProps, PluginFileOpenerRegistration, PluginFileOpenerSource, PluginHomepageSectionProps, PluginHomepageSectionRegistration, PluginHttp, PluginHttpAuthMode, PluginHttpHandler, PluginInteractionCancelReason, PluginInteractionRequest, PluginInteractionResult, PluginKeybinding, PluginKeybindingShortcut, PluginKvStorage, PluginLeadingPanelProps, PluginLeadingPanelRegistration, PluginLogger, PluginMentionItem, PluginMentionProviderRegistration, PluginMentionSearchContext, PluginMentionTrigger, PluginMessageActionContext, PluginMessageActionRegistration, PluginMessageActionThreadPanelOptions, PluginMessageDirectiveMessage, PluginMessageDirectiveOpenWorkspaceFile, PluginMessageDirectiveProps, PluginMessageDirectiveRegistration, PluginNavPanelProps, PluginNavPanelRegistration, PluginNewThreadPanelActionContext, PluginNewThreadPanelActionRegistration, PluginNewThreadPanelProps, PluginOmniboxAction, PluginOmniboxProviderRegistration, PluginOmniboxRunContext, PluginOmniboxRunResult, PluginOmniboxSuggestContext, PluginOmniboxSuggestion, PluginPageScriptApi, PluginPendingInteractionProps, PluginPendingInteractionRegistration, PluginPendingInteractionView, PluginRealtime, PluginRealtimeConnectionState, PluginRpc, PluginRpcCallArgs, PluginRpcClient, PluginRpcContract, PluginRpcError, PluginRpcErrorCode, PluginRpcHandlers, PluginRpcIssuePathSegment, PluginRpcMethodContract, PluginRpcResult, PluginRpcValidationIssue, PluginSdkApp, PluginServerApi, PluginSettingDescriptor, PluginSettingDescriptors, PluginSettingValue, PluginSettings, PluginSettingsHandle, PluginSettingsSectionProps, PluginSettingsSectionRegistration, PluginSettingsState, PluginSettingsValues, PluginSidebarFooterActionContext, PluginSidebarFooterActionProps, PluginSidebarFooterActionRegistration, PluginSidebarProject, PluginSidebarPullRequest, PluginSidebarSplitPane, PluginSidebarThread, PluginSidebarThreadActions, PluginSidebarThreadActivity, PluginSidebarThreadIndicator, PluginSidebarThreadPullRequestState, PluginSidebarThreadSplit, PluginSidebarThreadsState, PluginSidebarWorkspaceKind, PluginStatusApi, PluginStorage, PluginThreadEventHandler, PluginThreadEventName, PluginThreadEventPayloads, PluginThreadHeaderActionProps, PluginThreadHeaderActionRegistration, PluginThreadListProps, PluginThreadListRegistration, PluginThreadPanelActionContext, PluginThreadPanelActionRegistration, PluginThreadPanelProps, PluginUi, StandardSchemaV1, StandardSchemaV1InferInput, StandardSchemaV1InferOutput, StandardSchemaV1Issue, StandardSchemaV1Result, ThreadChatMessageAction, ThreadChatMessageReference, ThreadChatProps };

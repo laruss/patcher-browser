@@ -22,6 +22,8 @@ import type {
 } from "@patcher/host-daemon-contract";
 import {
   browserCommandRequestSignalSchema,
+  scopedBrowserCommandRequestSignalSchema,
+  type ScopedBrowserCommandRequestSignal,
   browserDrivingCommandFor,
   browserDrivingSignalSchema,
   pluginSignalSchema,
@@ -157,6 +159,7 @@ export class HostOnlineRpcUnavailableError extends Error {
 }
 
 interface BrowserHostRegistration {
+  nativeWebContentsId?: number;
   browserHostId: string;
   /**
    * Which claim came first, which is what decides the primary host. Held here
@@ -867,7 +870,7 @@ export class NotificationHub implements DbNotifier {
    */
   registerBrowserHost(
     socket: HubSocket,
-    args: { browserHostId: string },
+    args: { browserHostId: string; nativeWebContentsId?: number },
   ): BrowserHostClaim {
     const held = this.browserHosts.get(socket);
     const reconnected = this.reconnectedBrowserHost(socket, args.browserHostId);
@@ -881,6 +884,9 @@ export class NotificationHub implements DbNotifier {
     }
     this.browserHosts.set(socket, {
       browserHostId: args.browserHostId,
+      ...(args.nativeWebContentsId === undefined
+        ? {}
+        : { nativeWebContentsId: args.nativeWebContentsId }),
       claimedAt:
         held?.claimedAt ?? reconnected?.claimedAt ?? ++this.browserHostClaims,
       socket,
@@ -948,10 +954,22 @@ export class NotificationHub implements DbNotifier {
    * every tool call on the chance one appears is worse than saying so at once.
    */
   requestBrowserCommand(args: {
-    message: BrowserCommandRequestSignal;
+    message: BrowserCommandRequestSignal | ScopedBrowserCommandRequestSignal;
+    nativeWebContentsId?: number;
     timeoutMs: number;
   }): Promise<BrowserCommandResponseMessage> {
-    const host = this.primaryBrowserHost();
+    const matches =
+      args.nativeWebContentsId === undefined
+        ? []
+        : [...this.browserHosts.values()].filter(
+            (host) => host.nativeWebContentsId === args.nativeWebContentsId,
+          );
+    const host =
+      args.message.type === "browser-scoped-command-request"
+        ? matches.length === 1
+          ? matches[0]
+          : undefined
+        : this.primaryBrowserHost();
     if (!host) {
       return Promise.reject(new BrowserHostUnavailableError());
     }
@@ -969,7 +987,12 @@ export class NotificationHub implements DbNotifier {
       this.browserCommandWaiters.set(args.message.requestId, waiter);
       try {
         host.socket.send(
-          JSON.stringify(browserCommandRequestSignalSchema.parse(args.message)),
+          JSON.stringify(
+            (args.message.type === "browser-scoped-command-request"
+              ? scopedBrowserCommandRequestSignalSchema
+              : browserCommandRequestSignalSchema
+            ).parse(args.message),
+          ),
         );
       } catch (error) {
         this.deleteBrowserCommandWaiter(args.message.requestId, waiter);

@@ -3,7 +3,7 @@ import { clientMessageSchema, type ClientMessage } from "@patcher/domain";
 import type { RealtimeSubscriptionTarget } from "@patcher/server-contract";
 
 const fakeSocketState = vi.hoisted(() => {
-  type CloseHandler = () => void;
+  type CloseHandler = (event: { code: number; reason: string }) => void;
   type MessageHandler = (event: MessageEvent) => void;
   type OpenHandler = () => void;
 
@@ -18,9 +18,9 @@ const fakeSocketState = vi.hoisted(() => {
       instances.push(this);
     }
 
-    close(): void {
+    close(code = 1000, reason = ""): void {
       this.readyState = 3;
-      this.onclose?.();
+      this.onclose?.({ code, reason });
     }
 
     open(): void {
@@ -66,7 +66,7 @@ interface ConnectedManager {
 
 interface FakeSocket {
   readonly sentMessages: string[];
-  close: () => void;
+  close: (code?: number, reason?: string) => void;
   open: () => void;
 }
 
@@ -598,6 +598,58 @@ describe("WebSocketManager browser commands", () => {
     expect(
       socket.sentMessages.map((raw) => JSON.parse(raw) as { type: string }),
     ).toEqual([{ type: "browser-host.register", browserHostId: "window-a" }]);
+  });
+
+  it("keeps subscriptions connected when an older server rejects site registration", () => {
+    const { manager, socket } = createConnectedManager();
+    manager.registerBrowserHost("window-a", 42);
+    expect(readClientMessages(socket)).toEqual([
+      {
+        type: "browser-host.site-register",
+        browserHostId: "window-a",
+        nativeWebContentsId: 42,
+      },
+    ]);
+    manager.subscribe(THREAD_TARGET);
+    const changed = vi.fn();
+    manager.onChanged(changed);
+    socket.close(1008, "invalid-message");
+    socket.sentMessages.length = 0;
+    socket.open();
+    expect(readClientMessages(socket)).toEqual([
+      { type: "subscribe", target: THREAD_TARGET },
+      { type: "browser-host.register", browserHostId: "window-a" },
+    ]);
+    manager.handleIncomingMessage(
+      JSON.stringify({
+        type: "changed",
+        entity: "thread",
+        id: "thr_1",
+        changes: ["events-appended"],
+      }),
+    );
+    expect(changed).toHaveBeenCalledOnce();
+    socket.close();
+    socket.sentMessages.length = 0;
+    socket.open();
+    expect(readClientMessages(socket).at(-1)?.type).toBe(
+      "browser-host.register",
+    );
+  });
+
+  it("retries site registration after an ordinary connection loss", () => {
+    const { manager, socket } = createConnectedManager();
+    manager.registerBrowserHost("window-a", 42);
+    socket.close(1006);
+    socket.sentMessages.length = 0;
+    socket.open();
+    expect(readClientMessages(socket)).toEqual([
+      {
+        type: "browser-host.site-register",
+        browserHostId: "window-a",
+        nativeWebContentsId: 42,
+      },
+    ]);
   });
 
   it("sends a response the server can correlate", () => {

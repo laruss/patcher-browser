@@ -94,6 +94,7 @@ describe("official plugin registry invariants", () => {
       github: "Developer tools",
       "inline-vis": "Interface",
       memory: "Context & knowledge",
+      "password-manager": "Interface",
       "provider-retry": "Agent interaction",
       secrets: "Developer tools",
       "side-chat": "Agent interaction",

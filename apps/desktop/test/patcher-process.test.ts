@@ -135,6 +135,7 @@ setInterval(() => undefined, 1000);
 `,
     });
     const processEntry = startPatcherAppProcess({
+      secretChannel: false,
       bridgePath: script.path,
       cwd: script.root,
       env: process.env,

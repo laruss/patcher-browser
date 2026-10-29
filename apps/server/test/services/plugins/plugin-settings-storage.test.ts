@@ -293,6 +293,58 @@ describe("plugin settings + storage", () => {
       expect(unknown.status).toBe(404);
     });
 
+    it("omits secret defaults and saved values from complete GET and PUT responses", async () => {
+      const rootDir = await writePlugin(workDir, {
+        name: "patcher-plugin-secret-defaults",
+        serverSource: `
+          export default function plugin(patcher: any) {
+            patcher.settings.define({
+              fallbackToken: { type: "string", label: "Fallback token", secret: true, default: "fixture-default-secret" },
+              savedToken: { type: "string", label: "Saved token", secret: true },
+              note: { type: "string", label: "Note", default: "visible default" },
+            });
+          }
+        `,
+      });
+      expect((await service.installPath(rootDir)).status).toBe("running");
+      await service.updateSettings("secret-defaults", {
+        savedToken: "fixture-saved-secret",
+      });
+      const app = new Hono();
+      registerPluginRoutes(
+        app,
+        { config: { serverPort: 3334, dataDir: "/tmp/patcher-data" }, db },
+        service,
+      );
+
+      for (const method of ["GET", "PUT"]) {
+        const response = await app.request(
+          "/plugins/secret-defaults/settings",
+          {
+            method,
+            ...(method === "PUT"
+              ? {
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ values: { note: "updated note" } }),
+                }
+              : {}),
+          },
+        );
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        expect(JSON.stringify(body)).not.toContain("fixture-default-secret");
+        expect(JSON.stringify(body)).not.toContain("fixture-saved-secret");
+        expect(body.schema.fallbackToken).toEqual({
+          type: "string",
+          label: "Fallback token",
+          secret: true,
+        });
+        expect(body.schema.note.default).toBe("visible default");
+        expect(body.values.fallbackToken).toEqual({ set: false });
+        expect(body.values.savedToken).toEqual({ set: true });
+      }
+    });
+
     it("marks a plugin error when it defines an invalid descriptor", async () => {
       const rootDir = await writePlugin(workDir, {
         name: "patcher-plugin-bad-schema",

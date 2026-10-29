@@ -1,3 +1,6 @@
+import { resolvePluginBrowserAuth } from "./plugin-browser-auth.js";
+import { withPluginTimeout } from "./plugin-timeout.js";
+import { listLegacyPageContributions } from "./plugin-page-contributions.js";
 import { watch } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -92,13 +95,9 @@ import { readBrowserExternalLinkDecision } from "./plugin-external-link.js";
 import { isResponseLike } from "./plugin-http-message.js";
 import { rpcBoundaryError, runRpcCall } from "./plugin-rpc-call.js";
 import { readPluginLogTail } from "./plugin-log.js";
+import { createPluginSettingsMethods } from "./plugin-settings-methods.js";
 import {
-  buildPluginSettingsView,
   pluginSecretsDir,
-  readPluginSettingsValues,
-  validatePluginSettingsUpdate,
-  writePluginSettingsUpdate,
-  PluginSettingsValidationError,
   type PluginSettingsView,
 } from "./plugin-settings.js";
 import { createPluginActivation } from "./plugin-activation.js";
@@ -191,6 +190,7 @@ export interface PluginSkillRootContribution {
 }
 
 export interface PluginService {
+  siteAccess?: import("./plugin-site-access.js").PluginSiteAccess;
   /** Whether this installed plugin has builtin provenance. */
   isBuiltin(id: string): boolean;
   /** Thread lifecycle event emitter, called from the lifecycle seams. */
@@ -220,7 +220,7 @@ export interface PluginService {
   install(source: string): Promise<PluginListEntry>;
   /**
    * Install a bundled official plugin by its registry name (store install).
-   * Registers with catalog provenance so the opt-in survives reconciliation.
+   * Keeps builtin provenance for included plugins, catalog for optional ones.
    */
   installOfficialPlugin(name: string): Promise<PluginListEntry>;
   installPath(path: string): Promise<PluginListEntry>;
@@ -587,7 +587,8 @@ export interface PluginService {
    */
   resolveBrowserAuth(args: {
     challenge: PluginBrowserAuthChallenge;
-  }): Promise<PluginBrowserAuthCredentials | null>;
+    runtimePromptId?: string;
+  }): Promise<(PluginBrowserAuthCredentials & { token?: string }) | null>;
   /**
    * Ask every registered PDF text provider (`browser.pdf.textProviders`) for
    * the text of a document the browser parsed and found none in, in plugin id
@@ -745,7 +746,6 @@ const DEFAULT_CONTEXT_MENU_RUN_TIMEOUT_MS = 10_000;
  * short enough that a wedged provider does not become a hung browser. Running
  * out of time is not an error — the user is asked instead.
  */
-const DEFAULT_BROWSER_AUTH_TIMEOUT_MS = 5_000;
 /**
  * A PDF text provider gets the longest box of any browser hook, because it is
  * the only one asked to do real work: an OCR pass, or a round trip to a
@@ -1167,33 +1167,6 @@ function normalizeOmniboxSuggestItems(args: {
   });
 }
 
-/**
- * Race a plugin call against a time box. The abandoned promise keeps a catch
- * attached so a late rejection cannot surface as an unhandled rejection.
- */
-async function withPluginTimeout<T>(args: {
-  run: () => Promise<T>;
-  timeoutMs: number;
-}): Promise<T> {
-  const call = args.run();
-  call.catch(() => {});
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      call,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`timed out after ${args.timeoutMs}ms`)),
-          args.timeoutMs,
-        );
-        timer.unref?.();
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
 const PLUGIN_AGENT_SELECTION_MAX_IDS = 256;
 const PLUGIN_AGENT_DYNAMIC_INSTRUCTIONS_MAX_CHARS = 4096;
 const PLUGIN_AGENT_TOOL_PARAMETERS_MAX_BYTES = 128 * 1024;
@@ -1447,7 +1420,6 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     deps.newTabRowsTimeoutMs ?? DEFAULT_SITE_INFO_TIMEOUT_MS;
   const contextMenuRunTimeoutMs =
     deps.contextMenuRunTimeoutMs ?? DEFAULT_CONTEXT_MENU_RUN_TIMEOUT_MS;
-  const browserAuthTimeoutMs = DEFAULT_BROWSER_AUTH_TIMEOUT_MS;
   const browserPdfTextTimeoutMs = DEFAULT_BROWSER_PDF_TEXT_TIMEOUT_MS;
   const browserExternalLinkTimeoutMs = DEFAULT_BROWSER_EXTERNAL_LINK_TIMEOUT_MS;
   const stabilizationWindowMs =
@@ -1490,6 +1462,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     isPackagedBuiltinAppEntry,
     loadAll,
     loaded,
+    blockedSettings,
     loadOne,
     brandingAssets,
     setDevBuildProblem,
@@ -1860,9 +1833,14 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           sites: [
             ...((loadedPlugin?.manifest ?? identity?.manifest)?.sites ?? []),
           ],
+          siteAccess: (loadedPlugin?.manifest ?? identity?.manifest)
+            ?.siteAccess,
           hasSettings:
-            loadedPlugin !== undefined &&
-            Object.keys(loadedPlugin.handle.settings.descriptors).length > 0,
+            Object.keys(
+              loadedPlugin?.handle.settings.descriptors ??
+                blockedSettings.get(row.id) ??
+                {},
+            ).length > 0,
           app: appBundles.get(row.id)?.state ?? { hasApp: false, bundle: null },
           // Rich logos come from the live runtime for an exposed plugin, else
           // from the static-identity cache.
@@ -1879,6 +1857,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
   }
 
   return {
+    siteAccess: deps.siteAccess,
     isBuiltin: isBuiltinPluginId,
 
     listThemes() {
@@ -2039,9 +2018,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
 
     async installOfficialPlugin(name) {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
-        const bundled = bundledPlugins.find(
-          (plugin) => plugin.name === name && !plugin.autoInstall,
-        );
+        const bundled = bundledPlugins.find((plugin) => plugin.name === name);
         if (bundled === undefined) {
           throw new Error(`unknown official plugin "${name}"`);
         }
@@ -2059,6 +2036,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     async remove(id) {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
         const row = getInstalledPlugin(deps.db, id);
+        await deps.secretStore?.deletePlugin(id);
+        blockedSettings.delete(id);
+        await deps.siteAccess?.remove(id);
         await withLifecycleLock(id, () => disposeOne(id));
         statuses.delete(id);
         handlerStats.delete(id);
@@ -2187,69 +2167,23 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       };
     },
 
-    async getSettings(id) {
-      const plugin = loaded.get(id);
-      if (!plugin) return undefined;
-      return buildPluginSettingsView({
-        db: deps.db,
-        dataDir: deps.dataDir,
-        pluginId: id,
-        descriptors: plugin.handle.settings.descriptors,
-      });
-    },
-
-    async updateSettings(id, values) {
-      const plugin = loaded.get(id);
-      if (!plugin) return undefined;
-      const storeArgs = {
-        db: deps.db,
-        dataDir: deps.dataDir,
-        pluginId: id,
-        descriptors: plugin.handle.settings.descriptors,
-      };
-      const errors = validatePluginSettingsUpdate(
-        storeArgs.descriptors,
-        values,
-      );
-      if (errors.length > 0) {
-        throw new PluginSettingsValidationError(errors.join("; "));
-      }
-      const prev = await readPluginSettingsValues(storeArgs);
-      await writePluginSettingsUpdate({ ...storeArgs, values });
-      const next = await readPluginSettingsValues(storeArgs);
-      if (JSON.stringify(next) !== JSON.stringify(prev)) {
-        for (const listener of plugin.handle.settings.listeners) {
-          try {
-            listener(next, prev);
-          } catch (error) {
-            logger.warn(
-              `plugin ${id} settings onChange listener failed: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-        // Effective values changed: broadcast so every open page's settings
-        // queries (plugin-sdk useSettings included) refetch instead of
-        // serving the pre-save snapshot until stale time.
-        notifyPluginsChanged();
-        // A plugin stuck on needs-configuration is waiting for exactly this
-        // save — reload it so the new values take effect without a manual
-        // `patcher plugin reload` (the NeedsConfigurationError contract documents
-        // this). Healthy plugins are NOT reloaded: they read settings lazily
-        // via settings.get(), and restarting live services on every toggle
-        // would be disruptive.
-        if (statuses.get(id)?.status === "needs-configuration") {
-          const row = getInstalledPlugin(deps.db, id);
-          if (row) {
-            await withLifecycleLock(id, async () => {
-              await disposeOne(id);
-              await loadOne(row);
-            });
-            notifyPluginsChanged();
-          }
-        }
-      }
-      return buildPluginSettingsView(storeArgs);
-    },
+    ...createPluginSettingsMethods({
+      deps,
+      loaded,
+      blockedSettings,
+      withLock: (run) =>
+        withPluginOperationLock(REGISTRATION_MUTATION_KEY, run),
+      status: (id) => statuses.get(id)?.status,
+      notify: notifyPluginsChanged,
+      reload: async (id) => {
+        const row = getInstalledPlugin(deps.db, id);
+        if (row)
+          await withLifecycleLock(id, async () => {
+            await disposeOne(id);
+            await loadOne(row);
+          });
+      },
+    }),
 
     getHttpRoute(id, method, path) {
       const normalizedMethod = method.toUpperCase();
@@ -2833,39 +2767,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return contributions;
     },
 
-    listPageStyleContributions() {
-      const contributions: PluginPageStyleContribution[] = [];
-      for (const [id, plugin] of [...loaded.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      )) {
-        for (const style of plugin.handle.pageStyles) {
-          contributions.push({
-            pluginId: id,
-            styleId: style.id,
-            matches: [...style.matches],
-            css: style.css,
-          });
-        }
-      }
-      return contributions;
-    },
-
-    listPageScriptContributions() {
-      const contributions: PluginPageScriptContribution[] = [];
-      for (const [id, plugin] of [...loaded.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      )) {
-        for (const script of plugin.handle.pageScripts) {
-          contributions.push({
-            pluginId: id,
-            scriptId: script.id,
-            matches: [...script.matches],
-            code: script.code,
-          });
-        }
-      }
-      return contributions;
-    },
+    listPageStyleContributions: () =>
+      listLegacyPageContributions(loaded, deps.siteAccess).styles,
+    listPageScriptContributions: () =>
+      listLegacyPageContributions(loaded, deps.siteAccess).scripts,
 
     listTabActionContributions() {
       const contributions: PluginTabActionContribution[] = [];
@@ -3125,42 +3030,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       );
     },
 
-    async resolveBrowserAuth({ challenge }) {
-      for (const [pluginId, plugin] of [...loaded.entries()].sort(([a], [b]) =>
-        a.localeCompare(b),
-      )) {
-        for (const provider of plugin.handle.authProviders) {
-          const outcome = await invokeCallback(
-            pluginId,
-            { kind: "browserAuth", payload: challenge },
-            async (payload) =>
-              withPluginTimeout({
-                run: async () => provider(payload),
-                timeoutMs: browserAuthTimeoutMs,
-              }),
-          );
-          if (!outcome.ok || outcome.value === null) {
-            continue;
-          }
-          const credentials =
-            outcome.value as Partial<PluginBrowserAuthCredentials>;
-          // A provider that answered with something other than credentials has
-          // not answered: the browser asks the user rather than sending a
-          // half-formed login.
-          if (
-            typeof credentials?.username !== "string" ||
-            typeof credentials.password !== "string"
-          ) {
-            continue;
-          }
-          return {
-            username: credentials.username,
-            password: credentials.password,
-          };
-        }
-      }
-      return null;
-    },
+    resolveBrowserAuth: (request) =>
+      resolvePluginBrowserAuth({
+        ...request,
+        loaded,
+        invokeCallback,
+        siteAccess: deps.siteAccess,
+      }),
 
     async resolveBrowserExternalLink({ link }) {
       for (const [pluginId, plugin] of [...loaded.entries()].sort(([a], [b]) =>

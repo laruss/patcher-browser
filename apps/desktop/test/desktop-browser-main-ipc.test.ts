@@ -183,6 +183,23 @@ interface SendBrowserIpcArgs {
 }
 
 class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
+  webAuthnTarget() {
+    return null;
+  }
+  resolveSiteTarget() {
+    return null;
+  }
+  sitePolicyChanged() {}
+  siteScriptBootstrap() {
+    return { worlds: [], documentId: null };
+  }
+  siteCleanup() {
+    return [];
+  }
+  siteDocumentRestored() {
+    return null;
+  }
+
   public readonly attachCalls: AttachCall[] = [];
   public readonly beginWindowResizeCalls: WindowResizeCall[] = [];
   public readonly destroyAllCalls: string[] = [];

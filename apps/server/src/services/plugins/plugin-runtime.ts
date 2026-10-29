@@ -1,3 +1,8 @@
+import {
+  createCredentialHttpCaller,
+  releaseCredentialHttpCaller,
+} from "../browser/credential-plugin-caller.js";
+import { runAsCredentialAgent } from "../browser/credential-agent-scope.js";
 import { realpathSync, type FSWatcher } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -6,6 +11,7 @@ import { createRequire, registerHooks } from "node:module";
 import { performance } from "node:perf_hooks";
 import { createJiti } from "jiti";
 import semver from "semver";
+import { runWithPluginSiteCallers } from "../browser/plugin-site-caller.js";
 import {
   PLUGIN_SDK_MAJOR,
   PLUGIN_SDK_VERSION,
@@ -26,7 +32,12 @@ import {
   pluginApiHeaders,
 } from "./plugin-api-identity.js";
 import { linkCancellation } from "./plugin-cancellation.js";
-import { readPluginSettingsValues } from "./plugin-settings.js";
+import { SecretStorageError } from "@patcher/secret-storage";
+import type { PluginSettingDescriptors } from "@patcher/plugin-sdk";
+import {
+  readPluginSettingsValues,
+  registerSettingDescriptors,
+} from "./plugin-settings.js";
 import { pluginExternalsAlias } from "./plugin-externals-alias.js";
 import { rememberBrowserCaller } from "../browser/browser-caller-handoff.js";
 import { createPluginHostCallServer } from "./plugin-host-call-server.js";
@@ -68,6 +79,7 @@ import { readPluginManifest, type PluginManifest } from "./manifest.js";
 import {
   createPluginApi,
   isNeedsConfigurationError,
+  NeedsConfigurationError,
   type PatcherPluginApi,
   type PluginApiHandle,
   type PluginThreadEventName,
@@ -355,6 +367,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   // needs-configuration messages reported during the current load; cleared
   // on the next load so a reconfigured plugin comes back as running.
   const needsConfiguration = new Map<string, string>();
+  const blockedSettings = new Map<string, PluginSettingDescriptors>();
   // Agent-tool registration problems (cross-plugin name collisions): the
   // plugin keeps running, but the dropped registration is surfaced as its
   // status detail. Cleared on the next load.
@@ -395,6 +408,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         fetch: createPluginApiFetch({
           pluginId,
           key,
+          credentialCaller: {
+            create: async () => createCredentialHttpCaller(pluginId),
+            release: async (token) =>
+              releaseCredentialHttpCaller(pluginId, token),
+          },
           fetch: createRequestTimeoutFetch({
             timeoutMs: DEFAULT_PATCHER_REQUEST_TIMEOUT_MS,
           }),
@@ -781,11 +799,38 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       source: cancellation?.source,
     });
     try {
-      const outcome = await invokeWrapped(id, describeCallback(call), () =>
-        run(call.payload, signal),
-      );
+      if (
+        loaded.get(id)?.manifest.siteAccess === "runtime" &&
+        call.kind.startsWith("browser") &&
+        deps.siteAccess === undefined
+      )
+        throw new Error("Runtime site access is unavailable");
+      const work = () =>
+        invokeWrapped(id, describeCallback(call), () =>
+          call.kind === "agentTool"
+            ? runAsCredentialAgent(() => run(call.payload, signal))
+            : run(call.payload, signal),
+        );
+      const outcome =
+        deps.siteAccess === undefined
+          ? await work()
+          : await deps.siteAccess.pageCallback(
+              id,
+              call.kind,
+              call.payload,
+              work,
+            );
       if (outcome.ok) assertCallbackCrosses(call, "result", outcome.value);
       return outcome;
+    } catch (cause) {
+      return {
+        ok: false,
+        cause,
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Runtime page callback refused",
+      };
     } finally {
       // A source signal outlives the calls made under it — one CLI request,
       // many calls — so the listener has to come off when this one settles.
@@ -1169,7 +1214,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   async function loadOne(row: InstalledPluginRow): Promise<void> {
     // Refresh identity first so even a disabled/incompatible/errored plugin
     // keeps its name, icon, and logo in the list.
+    blockedSettings.delete(row.id);
     await populateIdentity(row);
+    const siteManifest = identities.get(row.id)?.manifest;
+    if (siteManifest) await deps.siteAccess?.register(row, siteManifest);
     if (!row.enabled) {
       setStatus(row.id, "disabled");
       return;
@@ -1257,13 +1305,28 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         },
         list: async (prefix) => listPluginKvKeys(deps.db, row.id, prefix),
       },
-      readSettingsValues: (descriptors) =>
-        readPluginSettingsValues({
-          db: deps.db,
-          dataDir: deps.dataDir,
-          pluginId: row.id,
-          descriptors,
-        }),
+      readSettingsValues: async (descriptors) => {
+        const validated = registerSettingDescriptors({}, descriptors);
+        try {
+          return await readPluginSettingsValues({
+            db: deps.db,
+            dataDir: deps.dataDir,
+            pluginId: row.id,
+            descriptors: validated,
+            ...(deps.secretStore === undefined
+              ? {}
+              : { secretStore: deps.secretStore }),
+          });
+        } catch (error) {
+          if (!(error instanceof SecretStorageError)) throw error;
+          blockedSettings.set(row.id, {
+            ...blockedSettings.get(row.id),
+            ...validated,
+          });
+          reportNeedsConfiguration(row.id, error.message);
+          throw new NeedsConfigurationError(error.message);
+        }
+      },
       dataDir: deps.dataDir,
       getSdk: () => sdkFor(row.id),
       getLoopbackBaseUrl: () => boundLoopbackBaseUrl,
@@ -1284,7 +1347,16 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         if (disposingPluginIds.has(row.id)) {
           throw new Error(`plugin "${row.id}" is disposing`);
         }
-        return deps.browserBridge.call(args);
+        return manifest.siteAccess === "runtime"
+          ? runWithPluginSiteCallers([row.id], () =>
+              deps.browserBridge!.call(args),
+            )
+          : deps.browserBridge.call(args);
+      },
+      requestCredentials: (method, args, signal) => {
+        if (disposingPluginIds.has(row.id) || !deps.protectedCredentials)
+          throw new Error("Protected credentials unavailable");
+        return deps.protectedCredentials.call(row.id)(method, args, signal);
       },
       getBrowserHostStatus: () =>
         deps.browserBridge?.status() ?? {
@@ -1332,7 +1404,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
           // boundary was bought for — and let it choose that by lying about
           // what it registered.
           const detail = error instanceof Error ? error.message : String(error);
-          failBeforeFactory("error", detail);
+          failBeforeFactory(
+            isNeedsConfigurationError(error) ? "needs-configuration" : "error",
+            detail,
+          );
           logger.warn(`plugin ${row.id} failed to load: ${detail}`);
           return;
         }
@@ -1405,7 +1480,11 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
         if (previous !== undefined) {
           setStatus(row.id, "running", `reload failed: ${message}`);
         } else {
-          setStatus(row.id, "error", message);
+          setStatus(
+            row.id,
+            isNeedsConfigurationError(error) ? "needs-configuration" : "error",
+            message,
+          );
         }
         logger.warn(
           `plugin ${row.id} failed to load: ${statuses.get(row.id)?.detail}`,
@@ -1452,6 +1531,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     }
     // One map replacement is the registration commit point. Until this line,
     // every dispatcher continues to resolve the complete previous handle.
+    await deps.siteAccess?.register(row, manifest, plugin.handle);
     loaded.set(row.id, plugin);
     appBundles.set(row.id, appBundleCandidate.snapshot);
     brandingAssets.set(row.id, brandingAssetCandidate);
@@ -1663,6 +1743,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
   }
 
   async function disposeOne(id: string): Promise<void> {
+    await deps.siteAccess?.disable(id);
     const plugin = loaded.get(id);
     if (!plugin) return;
     loaded.delete(id);
@@ -1897,6 +1978,10 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
       // is the floor for those. This one is the process working fine and
       // saying something the host will not adopt, so there is no floor to fall
       // to: `load` turns it into the plugin's load error.
+      if (blockedSettings.has(row.id))
+        throw new NeedsConfigurationError(
+          needsConfiguration.get(row.id) ?? "Plugin secret storage unavailable",
+        );
       if (error instanceof PluginRegistrationRefusedError) throw error;
       return fallBackToServer(
         row.id,
@@ -1958,6 +2043,7 @@ export function createPluginRuntime(context: PluginRuntimeContext) {
     loadOne,
     brandingAssets,
     needsConfiguration,
+    blockedSettings,
     setDevBuildProblem,
     setStatus,
     sourceKind,

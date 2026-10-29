@@ -103,8 +103,10 @@ describe("desktop wire values", () => {
       },
     }));
 
+    vi.stubGlobal("window", { addEventListener: vi.fn() });
     vi.resetModules();
     await import("../src/page-script-preload.js");
+    vi.unstubAllGlobals();
 
     expect(exposed).toEqual([{ worldId: 17, name: "patcher" }]);
     vi.doUnmock("electron");

@@ -21,7 +21,9 @@ const TABS_VALUE: BrowserCommandValue = { type: "tabs", tabs: [] };
 
 interface HubStub {
   requests: Array<{
-    message: BrowserCommandRequestSignal;
+    message:
+      | BrowserCommandRequestSignal
+      | import("@patcher/server-contract").ScopedBrowserCommandRequestSignal;
     timeoutMs: number;
   }>;
   settle: (message: BrowserCommandResponseMessage) => void;

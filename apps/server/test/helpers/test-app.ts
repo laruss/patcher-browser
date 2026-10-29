@@ -135,6 +135,7 @@ export type TestAppHarnessConfigOverrides = Partial<ServerRuntimeConfig> & {
   appVersionService?: AppVersionService;
   runPluginOutOfProcess?: (plugin: PluginPlacementInput) => boolean;
   terminalCloseTimeoutMs?: number;
+  requestSite?: NonNullable<Parameters<typeof createApp>[1]>["requestSite"];
 };
 
 export const testLogger = {
@@ -187,6 +188,7 @@ export async function createTestAppHarness(
     appVersionService,
     runPluginOutOfProcess,
     terminalCloseTimeoutMs,
+    requestSite,
     ...configOverrides
   } = overrides;
   const dataDir = await mkdtemp(join(tmpdir(), "patcher-server-test-"));
@@ -292,10 +294,10 @@ export async function createTestAppHarness(
     terminalSessions,
     watchInterests,
   };
-  const { app, pluginCatalogService, pluginService } = createApp(
-    deps,
-    runPluginOutOfProcess === undefined ? undefined : { runPluginOutOfProcess },
-  );
+  const { app, pluginCatalogService, pluginService } = createApp(deps, {
+    runPluginOutOfProcess,
+    requestSite,
+  });
 
   return {
     app: withTestAppKey(app),

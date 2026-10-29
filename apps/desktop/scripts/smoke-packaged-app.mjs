@@ -11,7 +11,9 @@ import {
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopPackageRoot = resolve(scriptDirectory, "..");
-const releaseDir = join(desktopPackageRoot, "release");
+const releaseDir =
+  process.env.PATCHER_PACKAGED_SMOKE_RELEASE_DIR ??
+  join(desktopPackageRoot, "release");
 const releaseConfig = createDesktopReleaseConfig(
   resolveDesktopReleaseChannel(process.env),
 );
@@ -93,6 +95,22 @@ function renderSmokePage(expectedDesktopVersion) {
         window.patcherDesktop.version === expectedVersion &&
         info.version === expectedVersion;
       reason = ok ? "" : "unexpected desktop bridge info";
+      if (ok) {
+        window.patcherDesktop.browser.attach({
+          tabId: "packaged-webauthn-smoke",
+          url: new URL("/smoke/browser", location.href).href,
+          bounds: { x: 0, y: 0, width: 400, height: 300 },
+          visible: false,
+        });
+        const deadline = Date.now() + 5000;
+        let result = null;
+        while (result === null && Date.now() < deadline) {
+          result = await fetch("/smoke/browser-result").then(response => response.json());
+          if (result === null) await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        ok = result?.ok === true;
+        reason = result?.reason ?? "browser compatibility script did not answer";
+      }
     }
   } catch (error) {
     reason = error instanceof Error ? error.message : String(error);
@@ -144,11 +162,46 @@ async function resolvePackagedAppBinary() {
 }
 
 async function startSmokeServer({ dataDir, expectedDesktopVersion }) {
+  let browserResult = null;
   let resolvePreloadReady = () => {};
   const preloadReady = new Promise((resolvePromise) => {
     resolvePreloadReady = resolvePromise;
   });
   const server = createServer((request, response) => {
+    if (request.url === "/smoke/browser") {
+      writeHtml(
+        response,
+        `<!doctype html><script>
+        (async () => {
+          let ok = false;
+          let reason = "";
+          try {
+            const available = await PublicKeyCredential.isConditionalMediationAvailable();
+            const capabilities = await PublicKeyCredential.getClientCapabilities();
+            const exposed = typeof require !== "undefined" || typeof process !== "undefined" || typeof patcherDesktop !== "undefined";
+            ok = available === false && capabilities.hybridTransport === false && !exposed;
+            reason = ok ? "" : "missing compatibility policy or exposed app bridge";
+          } catch (error) { reason = String(error); }
+          await fetch("/smoke/browser-ready?" + new URLSearchParams({ ok: ok ? "1" : "0", reason }), { method: "POST" });
+        })();
+      </script>`,
+      );
+      return;
+    }
+    if (request.url?.startsWith("/smoke/browser-ready?") === true) {
+      const url = new URL(request.url, "http://127.0.0.1");
+      browserResult = {
+        ok: url.searchParams.get("ok") === "1",
+        reason: url.searchParams.get("reason") ?? "",
+      };
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    if (request.url === "/smoke/browser-result") {
+      writeJson(response, browserResult);
+      return;
+    }
     if (request.url === "/health") {
       writeJson(response, { ok: true });
       return;
@@ -412,6 +465,11 @@ async function smokePackagedApp() {
     }
 
     await sleep(postReadySettleMs);
+    const nativeStatus = stdout
+      .join("")
+      .match(/Native Touch ID passkeys: ([^\n]+)/u)?.[1];
+    if (!nativeStatus)
+      throw new Error("Missing native passkey startup guard result.");
     if (child.exitCode !== null || child.signalCode !== null) {
       throw new Error(
         `Packaged Electron app exited after startup: code=${String(
@@ -424,6 +482,7 @@ async function smokePackagedApp() {
     }
 
     console.log(`Packaged desktop smoke passed: ${appBinary}`);
+    console.log(`Native passkey startup guard: ${nativeStatus}`);
   } finally {
     await stopPackagedApp(child);
     await smokeServer.close();

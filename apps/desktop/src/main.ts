@@ -1,7 +1,22 @@
+import {
+  createNativeCredentialVault,
+  registerCredentialIpc,
+} from "./desktop-credential-ipc.js";
+import { SITE_ACCESS_CHANNELS } from "@patcher/desktop-contract";
+import {
+  createNativeSiteAuthority,
+  registerDesktopSiteIpc,
+} from "./desktop-site-ipc.js";
+import type { Duplex } from "node:stream";
+import { createDesktopSecretBroker } from "./desktop-secret-broker.js";
+import {
+  desktopKeyBackend,
+  registerDesktopSecretIpc,
+} from "./desktop-secret-ipc.js";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -52,6 +67,9 @@ import {
   type PatcherAppProcessExit,
   startPatcherAppProcess,
 } from "./patcher-process.js";
+import { registerSecureKeyboardEntry } from "./secure-keyboard-entry.js";
+import { configureNativeWebAuthn } from "./native-webauthn.js";
+import { registerWebAuthnAccountChooser } from "./webauthn-account-chooser.js";
 import { openExistingServerDialog } from "./existing-server-dialog.js";
 import {
   readForeignRuntimeDetails,
@@ -126,6 +144,7 @@ import {
 } from "./desktop-window-command-ipc.js";
 import {
   createDesktopBrowserViewManager,
+  PATCHER_BROWSER_PARTITION,
   type DesktopBrowserViewManager,
 } from "./desktop-browser-view.js";
 import { createBrowserPdfTextExtractor } from "./desktop-browser-pdf-process.js";
@@ -183,6 +202,7 @@ const FOREIGN_RUNTIME_KILL_TIMEOUT_MS = 3_000;
 const REMOTE_SYSTEM_CONFIG_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 interface DesktopRuntime {
+  secretStorage?: ReturnType<typeof createDesktopSecretBroker>;
   patcherProcess: PatcherAppProcess | null;
   ownership: RuntimeOwnership;
   serverUrl: string;
@@ -833,6 +853,8 @@ function refreshApplicationMenu(): void {
 }
 
 function setCurrentRuntime(runtime: DesktopRuntime | null): void {
+  if (currentRuntime?.secretStorage !== runtime?.secretStorage)
+    currentRuntime?.secretStorage?.close();
   currentRuntime = runtime;
   if (runtime === null) {
     stopSystemConfigSync();
@@ -1602,6 +1624,7 @@ async function startOwnedRuntime(
   args: StartOwnedRuntimeArgs,
 ): Promise<DesktopRuntime | null> {
   const patcherProcess = startPatcherAppProcess({
+    secretChannel: true,
     bridgePath: args.bridgePath,
     cwd: homedir(),
     env: {
@@ -1615,7 +1638,20 @@ async function startOwnedRuntime(
       processExecPath: process.execPath,
     }),
   });
+  const siteAuthority = createNativeSiteAuthority(
+    () => desktopBrowserViewManager,
+  );
   const runtime: DesktopRuntime = {
+    secretStorage: createDesktopSecretBroker(
+      patcherProcess.childProcess.stdio[3] as Duplex,
+      desktopKeyBackend,
+      siteAuthority,
+      createNativeCredentialVault(
+        siteAuthority,
+        desktopKeyBackend,
+        args.userDataPath,
+      ),
+    ),
     patcherProcess,
     ownership: "spawned",
     serverUrl: args.serverUrl,
@@ -1974,6 +2010,39 @@ async function runDesktopApp(): Promise<void> {
     paths,
   });
   const bridgePath = resolveDesktopBridgePath({ paths });
+  const secureKeyboard = registerSecureKeyboardEntry();
+  const nativeWebAuthn = await configureNativeWebAuthn(
+    DESKTOP_RELEASE_INFO.channel === "nightly"
+      ? "app.patcher.desktop.nightly"
+      : "app.patcher.desktop",
+  );
+  console.log(
+    `Native Touch ID passkeys: ${nativeWebAuthn ? "configured" : "unavailable (requires signed app and Touch ID)"}.`,
+  );
+  registerWebAuthnAccountChooser(
+    session.fromPartition(PATCHER_BROWSER_PARTITION),
+    (id) => {
+      const target = desktopBrowserViewManager?.webAuthnTarget(id);
+      if (!target) return null;
+      const window = BrowserWindow.getAllWindows().find(
+        (one) =>
+          !one.isDestroyed() && one.webContents.id === target.hostWebContentsId,
+      );
+      return window ? { window, current: target.current } : null;
+    },
+  );
+  session.fromPartition(PATCHER_BROWSER_PARTITION).registerPreloadScript({
+    id: "patcher-browser-security",
+    type: "frame",
+    filePath: join(paths.appPath, "dist", "browser-security-preload.cjs"),
+  });
+  // Chromium content scripts cover subframes without enabling Node in them.
+  // The extension is unpacked beside the bridge in packaged builds.
+  await session
+    .fromPartition(PATCHER_BROWSER_PARTITION)
+    .extensions.loadExtension(
+      join(dirname(bridgePath), "browser-security-extension"),
+    );
   const resolvedLogViewerPreloadPath = join(
     paths.appPath,
     "dist",
@@ -2071,8 +2140,41 @@ async function runDesktopApp(): Promise<void> {
     sendDesktopInfoChanged();
   });
   registerDesktopUpdateIpc();
+  const authorizeApplicationIpc = (
+    event: import("electron").IpcMainInvokeEvent,
+  ) => {
+    if (
+      !applicationWindowWebContentsIds.has(event.sender.id) ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      return false;
+    try {
+      return (
+        currentRuntime !== null &&
+        new URL(event.senderFrame.url).origin ===
+          new URL(currentRuntime.serverUrl).origin
+      );
+    } catch {
+      return false;
+    }
+  };
+  registerDesktopSecretIpc({
+    current: () => currentRuntime?.secretStorage,
+    authorize: authorizeApplicationIpc,
+  });
   desktopBrowserViewManager = createDesktopBrowserViewManager({
+    onBrowserViewVisibilityChanged: (contents, host, visible) => {
+      secureKeyboard.browserViewChanged(contents, host, visible);
+      if (!visible)
+        currentRuntime?.secretStorage?.credentials?.cancelView(contents.id);
+    },
     pageScriptPreloadPath: resolvedPageScriptPreloadPath,
+    siteAuthority: () => currentRuntime?.secretStorage?.sites,
+    onSiteCleanupChanged: () => {
+      for (const window of BrowserWindow.getAllWindows())
+        if (applicationWindowWebContentsIds.has(window.webContents.id))
+          window.webContents.send(SITE_ACCESS_CHANNELS.changed);
+    },
     dispatchAppCommand({ command, hostWebContentsId }) {
       const browserWindow = BrowserWindow.getAllWindows().find(
         (candidate) => candidate.webContents.id === hostWebContentsId,
@@ -2128,6 +2230,15 @@ async function runDesktopApp(): Promise<void> {
         keybindings: currentAppKeybindings,
       });
     },
+  });
+  registerDesktopSiteIpc({
+    manager: desktopBrowserViewManager,
+    current: () => currentRuntime?.secretStorage?.sites,
+    authorize: authorizeApplicationIpc,
+  });
+  registerCredentialIpc({
+    current: () => currentRuntime?.secretStorage?.credentials,
+    authorize: authorizeApplicationIpc,
   });
   registerDesktopBrowserIpc(desktopBrowserViewManager);
   registerExternalUrlIpc();

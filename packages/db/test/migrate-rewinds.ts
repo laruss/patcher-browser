@@ -230,6 +230,8 @@ export function dropSchemaSince0101(db: DbConnection): void {
   dropOutsideAgentSetupColumn(db);
   dropCliSkillsAnsweredColumn(db);
   dropCliCommandSetupColumn(db);
+  dropPluginSiteGrantsTable(db);
+  dropProtectedCredentialsTable(db);
 }
 
 export function dropOnboardingCompletedAtColumn(db: DbConnection): void {
@@ -255,4 +257,14 @@ export function dropProjectGitRemoteUrlColumn(db: DbConnection): void {
 /** Migration 0102 creates it; a replay of 0102 needs it gone. */
 export function dropBrowserAccessGrantsTable(db: DbConnection): void {
   db.$client.prepare("DROP TABLE IF EXISTS browser_access_grants").run();
+}
+
+/** Migration 0107 creates it; a replay of 0107 needs it gone. */
+export function dropPluginSiteGrantsTable(db: DbConnection): void {
+  db.$client.prepare("DROP TABLE IF EXISTS plugin_site_grants").run();
+}
+
+/** Dropping the 0108 table also removes its account uniqueness index. */
+export function dropProtectedCredentialsTable(db: DbConnection): void {
+  db.$client.prepare("DROP TABLE IF EXISTS protected_credentials").run();
 }

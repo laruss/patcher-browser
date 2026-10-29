@@ -1,1 +1,1 @@
-import "patcher-app/dist/patcher-app.js";
+import "patcher-app/dist/patcher-desktop.js";

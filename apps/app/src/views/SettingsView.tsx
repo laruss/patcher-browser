@@ -1,3 +1,4 @@
+import { SecuritySettingsSection } from "@/components/settings/SecuritySettingsSection";
 import { useMemo, useState, type ReactNode } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import {
@@ -1674,6 +1675,8 @@ export function SettingsView() {
     );
   } else if (activeSection === "machines") {
     content = <MachinesSettingsSection />;
+  } else if (activeSection === "security") {
+    content = <SecuritySettingsSection />;
   } else if (activeSection === "updates") {
     content = <UpdatesSettingsSection />;
   } else if (activeSection === "experiments") {

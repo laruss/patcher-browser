@@ -1,3 +1,4 @@
+import { fakeNativeBrowserCapabilities } from "./fake-credentials.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -2119,6 +2120,11 @@ function createFakePluginHostInternal(
   const externalLinkHandlers: PluginBrowserExternalLinkHandler[] = [];
   const historyFilters: PluginBrowserHistoryFilter[] = [];
   const browser: PluginBrowser = {
+    ...fakeNativeBrowserCapabilities(
+      assertLive,
+      permissionGate,
+      () => browserConnected,
+    ),
     registerOmniboxProvider(provider) {
       assertLive();
       permissionGate.assert(
@@ -2819,12 +2825,6 @@ function createFakePluginHostInternal(
           durationMs: 0,
         });
       },
-    },
-    getStatus() {
-      return {
-        connected: browserConnected,
-        windowCount: browserConnected ? 1 : 0,
-      };
     },
   };
 

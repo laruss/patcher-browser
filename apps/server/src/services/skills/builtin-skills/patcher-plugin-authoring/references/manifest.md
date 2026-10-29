@@ -47,6 +47,13 @@ The complete manifest, with the optional fields SKILL.md leaves out:
   `patcher plugin build` needs no server, and depending on `patcher-app@X` builds
   against exactly that release's shim configuration. Patcher downloads its build
   toolchain on first use, so cache `<dataDir>/plugins/toolchain-*` in CI.
+- `patcher.siteAccess: "runtime"` (optional) — SDK >=1.1.0 opt-in exact-origin
+  grants. Set `engines.patcherPluginSdk` with minimum 1.1.0, e.g. `"^1.1.0"`.
+  `sites` is a ceiling, not granted access: the user must choose Allow here and
+  confirm in the native desktop dialog. Runtime scripts/RPC are main-frame-only;
+  browser calls require explicit tab IDs and support the limited subset in
+  [browser.md](browser.md#runtime-site-grants). Older/headless/attached hosts
+  refuse runtime page operations. Omitting this field preserves legacy behavior.
 - `patcher.permissions` (optional, but **undeclared means denied**) — what this
   plugin may reach through `patcher.browser` and `patcher.sdk`. Absent or `[]` reaches
   nothing gated; the first call to a surface you did not declare throws with

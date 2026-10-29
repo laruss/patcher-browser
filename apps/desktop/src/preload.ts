@@ -1,5 +1,16 @@
+import { preloadCredentials } from "./preload-credentials.js";
+import {
+  SITE_ACCESS_CHANNELS,
+  scopedPageCallSchema,
+  type ScopedPageCall,
+} from "@patcher/desktop-contract";
+import { browserCommandOutcomeSchema } from "@patcher/domain";
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import { appCommandIdSchema } from "@patcher/domain";
+import {
+  DESKTOP_SECRET_STORAGE_CHANNELS,
+  desktopSecretStorageStatusSchema,
+} from "@patcher/desktop-contract";
 import {
   patcherDesktopBrowserCaptureFullPageResultSchema,
   patcherDesktopBrowserDownloadActionResultSchema,
@@ -173,6 +184,10 @@ import {
   type PatcherDesktopSpellcheckApi,
 } from "./desktop-spellcheck-contract.js";
 
+import { installSecureKeyboardReporting } from "./secure-keyboard-preload.js";
+
+installSecureKeyboardReporting(false);
+
 function getDesktopVersion(version: string | undefined): string {
   if (version === undefined || version.length === 0) {
     throw new Error("Desktop version must be injected at build time");
@@ -292,6 +307,8 @@ const browserSearchSelectionListeners =
 const browserContextMenuInvokeListeners =
   new Set<PatcherDesktopBrowserContextMenuInvokeHandler>();
 const browserDialogListeners = new Set<PatcherDesktopBrowserDialogHandler>();
+const siteAccessChangedListeners = new Set<() => void>();
+const scopedPageCallListeners = new Set<(call: ScopedPageCall) => void>();
 const browserPageScriptCallListeners =
   new Set<PatcherDesktopBrowserPageScriptCallHandler>();
 const browserPagePromptListeners =
@@ -349,6 +366,7 @@ function browserViewBoundsAtWindowScale(
 }
 
 const patcherBrowserApi: PatcherDesktopBrowserApi = {
+  ...preloadCredentials(),
   attach(request): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_ATTACH_CHANNEL, {
       ...request,
@@ -475,6 +493,37 @@ const patcherBrowserApi: PatcherDesktopBrowserApi = {
   },
   setPageStyles(request: PatcherDesktopBrowserPageStyles): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_SET_PAGE_STYLES_CHANNEL, request);
+  },
+  onSiteAccessChanged(listener) {
+    siteAccessChangedListeners.add(listener);
+    return () => {
+      siteAccessChangedListeners.delete(listener);
+    };
+  },
+  async getScopedHostId() {
+    const id: unknown = await ipcRenderer.invoke(SITE_ACCESS_CHANNELS.host);
+    if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)
+      throw new Error("Invalid browser host");
+    return id;
+  },
+  async respondToScopedAuth(request) {
+    return (
+      (await ipcRenderer.invoke(SITE_ACCESS_CHANNELS.auth, request)) === true
+    );
+  },
+  async executeScopedCommand(request) {
+    return browserCommandOutcomeSchema.parse(
+      await ipcRenderer.invoke(SITE_ACCESS_CHANNELS.execute, request),
+    );
+  },
+  setScopedPageContributions(request) {
+    void ipcRenderer.invoke(SITE_ACCESS_CHANNELS.contributions, request);
+  },
+  onScopedPageScriptCall(listener) {
+    scopedPageCallListeners.add(listener);
+    return () => {
+      scopedPageCallListeners.delete(listener);
+    };
   },
   setPageScripts(request: PatcherDesktopBrowserPageScripts): void {
     ipcRenderer.send(PATCHER_DESKTOP_BROWSER_SET_PAGE_SCRIPTS_CHANNEL, request);
@@ -771,6 +820,20 @@ async function invokeDefaultBrowserStatus(
 }
 
 const patcherDesktopApi: PatcherDesktopApi = {
+  secretStorage: {
+    status: async () =>
+      desktopSecretStorageStatusSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_SECRET_STORAGE_CHANNELS.status),
+      ),
+    activate: async () =>
+      desktopSecretStorageStatusSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_SECRET_STORAGE_CHANNELS.activate),
+      ),
+    unlock: async () =>
+      desktopSecretStorageStatusSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_SECRET_STORAGE_CHANNELS.unlock),
+      ),
+  },
   browser: patcherBrowserApi,
   ...(windowKey === undefined || windowKey.length === 0 ? {} : { windowKey }),
   get lastCheckedAt() {
@@ -1166,3 +1229,13 @@ contextBridge.exposeInMainWorld(
 // spellings for every future reader to check. `preload-browser-api.test.ts`
 // pins the name, because nothing else on this boundary can notice it changing.
 contextBridge.exposeInMainWorld("patcherDesktop", patcherDesktopApi);
+
+ipcRenderer.on(SITE_ACCESS_CHANNELS.pageCall, (_event, payload: unknown) => {
+  const parsed = scopedPageCallSchema.safeParse(payload);
+  if (parsed.success)
+    for (const listener of scopedPageCallListeners) listener(parsed.data);
+});
+
+ipcRenderer.on(SITE_ACCESS_CHANNELS.changed, () => {
+  for (const listener of siteAccessChangedListeners) listener();
+});

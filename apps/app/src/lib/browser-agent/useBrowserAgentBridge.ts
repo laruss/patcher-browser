@@ -1,3 +1,4 @@
+import { permissionForBrowserCommand } from "@patcher/domain";
 import { useEffect } from "react";
 import { useStore } from "jotai";
 import { resolvePluginBrowserPdfText } from "@/hooks/queries/plugin-contribution-queries";
@@ -18,6 +19,7 @@ import { browserActivityAtom, createBrowserActivityLog } from "./activity";
 import { browserDrivingAtom, createBrowserDrivingTracker } from "./driving";
 import {
   browserTabOwnersAtom,
+  mayActOnBrowserTab,
   requestBrowserTabHandoverAtom,
   withdrawBrowserTabHandoverAtom,
   withBrowserTabOwner,
@@ -145,6 +147,53 @@ export function useBrowserAgentBridge(): void {
     });
 
     const unsubscribeCommands = wsManager.onBrowserCommand((signal) => {
+      if (signal.type === "browser-scoped-command-request") {
+        const tabId = "tabId" in signal.command ? signal.command.tabId : null;
+        if (
+          signal.issuer &&
+          (!tabId ||
+            !mayActOnBrowserTab({
+              claim: store.get(browserTabOwnersAtom).get(tabId),
+              issuer: signal.issuer,
+              need: permissionForBrowserCommand(signal.command),
+            }))
+        ) {
+          wsManager.sendBrowserCommandResponse({
+            type: "browser-command.response",
+            requestId: signal.requestId,
+            outcome: {
+              ok: false,
+              code: "external_access_denied",
+              message: "This caller cannot act on this browser tab",
+            },
+          });
+          return;
+        }
+        const task =
+          desktopBrowser?.executeScopedCommand?.({
+            token: signal.token,
+            command: signal.command,
+          }) ??
+          Promise.resolve({
+            ok: false as const,
+            code: "external_access_denied" as const,
+            message: "Runtime site access is unavailable",
+          });
+        void task
+          .catch(() => ({
+            ok: false as const,
+            code: "external_access_denied" as const,
+            message: "Runtime site access refused this command",
+          }))
+          .then((outcome) =>
+            wsManager.sendBrowserCommandResponse({
+              type: "browser-command.response",
+              requestId: signal.requestId,
+              outcome,
+            }),
+          );
+        return;
+      }
       // Rendered here rather than read off a frame: this window is the one
       // performing the command, so nobody sent it the pair — and it is the same
       // function the server renders with, so the two windows say the same
@@ -260,8 +309,16 @@ export function useBrowserAgentBridge(): void {
     });
 
     wsManager.registerBrowserHost(browserHostId);
+    let registered = true;
+    void desktopBrowser
+      ?.getScopedHostId?.()
+      .then((id) => {
+        if (registered) wsManager.registerBrowserHost(browserHostId, id);
+      })
+      .catch(() => {});
 
     return () => {
+      registered = false;
       wsManager.unregisterBrowserHost(browserHostId);
       unsubscribeCommands();
       unsubscribeDriving();

@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
+import { PLUGIN_SDK_VERSION } from "@patcher/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scaffoldPlugin } from "../src/plugin-scaffold.js";
 
@@ -359,7 +360,7 @@ describe("external plugin scaffold types", () => {
       peerDependencies?: Record<string, string>;
       exports: Record<string, { import: string; types: string }>;
     };
-    expect(installedManifest.version).toBe("1.0.0");
+    expect(installedManifest.version).toBe(PLUGIN_SDK_VERSION);
     expect(installedManifest.private).not.toBe(true);
     expect(JSON.stringify(installedManifest.dependencies ?? {})).not.toContain(
       "workspace:",

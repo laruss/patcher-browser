@@ -103,6 +103,7 @@ import {
 } from "../queries/plugin-catalog-queries";
 import { allPluginSettingsQueryKeyPrefix } from "../../lib/plugin-sdk-hooks";
 import { schedulePluginFrontendReconcile } from "../../lib/plugin-frontend-lazy";
+import { invalidatePluginSiteAccess } from "./plugin-cache-owner";
 import {
   getProjectListInvalidationQueryKeys,
   getProjectPromptHistoryInvalidationQueryKeys,
@@ -502,6 +503,9 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
   // bundles, drop removed ones) — a side effect, not a query invalidation.
   "plugins-changed": {
     dirty: [
+      ({ queryClient }) => {
+        void invalidatePluginSiteAccess({ queryClient });
+      },
       dirtyPluginContributionQueries,
       dirtyProjectCommandCatalogQueries,
       dirtyPluginManagementQueries,

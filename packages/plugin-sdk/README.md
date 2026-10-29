@@ -42,6 +42,104 @@ dynamic DOM/style nodes when their disposer removes them. See the
 [`content-script` reference plugin](../../examples/plugins/content-script/README.md)
 for a cleanup-safe editor enhancement.
 
+## Runtime browser site access
+
+SDK 1.1.0 adds opt-in `patcher.siteAccess: "runtime"` in the plugin manifest.
+Declare `engines.patcherPluginSdk: "^1.1.0"` (minimum 1.1.0), the required
+permissions, and `patcher.sites` as the URLs the plugin may request. Legacy
+plugins keep their existing site semantics. Registration matches still must name
+declared patterns verbatim.
+
+The user chooses **Allow here** in browser site info and confirms in a native
+desktop dialog. Access requires both a matching actual page URL and a persisted
+grant for its exact origin; schemes, subdomains and non-default ports are
+separate. Plugin detail shows permissions, declared sites, grants and Revoke.
+Source identity, permission or ceiling changes require new confirmation. Disable
+blocks access while preserving grants; uninstall removes them.
+
+Runtime browser calls require an explicit tab ID. The first version supports
+URL/title/text/selection reads, snapshots, interaction, scroll, evaluate and
+viewport screenshots. Session storage/cookies, routing/offline, recording,
+console/network history, PDF/full-page capture, tab management and navigation
+are unavailable. Runtime scripts/RPC run only in the main frame; DOM and AX
+reads exclude other-origin frames. A viewport screenshot includes visible iframe
+pixels, and pointer input acts on the rendered page. These grants govern Patcher
+APIs; installed Node plugins still run with the user's local process privileges.
+
+A connected, owned desktop server and a shell/SPA with the new optional scoped
+API are required. Headless, attached/remote and older combinations refuse runtime
+page operations. Normal backend RPC cannot approve a grant or create trusted
+page context. The testing fake host is a behavior harness, not a simulation of
+native grants; use the server and Electron fixtures for access enforcement.
+
+Runtime HTTP auth providers need `auth.provide` and a grant covering the actual
+native challenge URL. Patcher checks every coalesced request URL, keeps proxy and
+origin challenges separate, and binds the returned credentials to a one-use
+native delivery capability. Navigation or revoke before delivery refuses the
+answer. Older shells cannot use runtime auth providers; manual entry and legacy
+providers retain their existing behavior.
+
+Revoke cancels pending capabilities and blocks new backend calls. Previously
+injected JavaScript can remain in the page: Patcher reports pending cleanup and
+provides an explicit Reload page action, preserving filled forms until the user
+chooses it. Scripts registered or newly allowed on an open page run on its next
+load. Protected credential operations have their own scope below.
+
+SDK 1.3.0 adds optional `browserTabId?: string | null` to leading-panel props,
+paired with `browserUrl` from the same active tab in that window. Treat it as a
+target identifier, not consent or approval. Older hosts omit it; credential UI
+must refuse operations without a tab ID.
+
+## Protected browser credentials
+
+SDK 1.2.0 adds `patcher.browser.credentials`. Declare minimum SDK 1.2.0,
+`patcher.siteAccess: "runtime"`, a matching `patcher.sites` ceiling and
+`credentials.manage`. The person must grant the exact origin first.
+
+`list({ tabId })` returns account metadata and opaque `{ id, version }` references
+for your plugin/source and the live origin. `request` proposes an operation in
+core browser chrome; it awaits the person's Review and native confirmation.
+
+```ts
+const saved = await patcher.browser.credentials.request({
+  operation: "save",
+  tabId,
+  accountId: "primary",
+});
+// From a later user action, after choosing one of list({ tabId })'s accounts:
+const filled = await patcher.browser.credentials.request({
+  operation: "fill",
+  tabId,
+  reference: { id: account.id, version: account.version },
+});
+```
+
+Update/Delete use the same reference shape. Save/Update return metadata;
+Fill/Delete return status only. Handle `cancelled`, `denied`, `unavailable`,
+`unsupported` and `busy`; never retry automatically. Pass `{ signal }` as the
+second argument to cancel a request. There is no password parameter, getter,
+selector, approved flag, origin override, reveal, export or clipboard API.
+
+Only the owned desktop server and current core chrome can approve. Each action
+uses the sealed policy chosen at Save: Require Touch ID fails closed when
+unavailable/cancelled; Confirm every action is an explicit separate choice.
+Agents, page RPC and external callers are refused, including calls through child/SDK
+HTTP delegation. Every authenticated deputy needs its own runtime permission
+and site grant; legacy deputies cannot use another manager's authority.
+
+The MVP accepts one visible enabled password input and at most one username/email
+input in a main-frame HTTPS form with same-origin action. Hidden/readonly,
+ambiguous, signup/password-change, iframe and closed-shadow forms are unsupported.
+Exact nodes are rechecked before capture/fill; both values are assigned before
+page events. Fill neither submits nor retries after node replacement. Once in
+the DOM, the site and permitted page scripts can read the password.
+
+Requests expire within 120 seconds; parent call deadlines can cancel earlier.
+Navigation, hide, lock, revoke, disable and broker disconnect cancel them. Encrypted records remain after disable/uninstall;
+reinstall requires the same owner/source identity and fresh grants. Missing OS
+key never recreates a vault over existing ciphertext. Headless/remote/old hosts
+refuse this capability; the testing fake host does not simulate native approval.
+
 ## External plugin tests
 
 The packed package includes executable JavaScript and portable declarations

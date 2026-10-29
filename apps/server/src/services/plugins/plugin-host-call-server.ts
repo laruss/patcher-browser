@@ -1,3 +1,12 @@
+import { z } from "zod";
+import {
+  createCredentialHttpCaller,
+  releaseCredentialHttpCaller,
+} from "../browser/credential-plugin-caller.js";
+import {
+  credentialListArgsSchema,
+  credentialRequestArgsSchema,
+} from "@patcher/domain/protected-credentials";
 /**
  * The server's half of the plugin→host direction.
  *
@@ -40,6 +49,7 @@ import {
 import { runAsRememberedBrowserCaller } from "../browser/browser-caller-handoff.js";
 import type { PluginHostCallPath } from "./plugin-host-calls.js";
 import { createPluginPermissionGate } from "./plugin-permission-gate.js";
+import { registerSettingDescriptors } from "./plugin-setting-descriptors.js";
 
 export type PluginHostCapabilities = Parameters<typeof createPluginApi>[0];
 
@@ -195,6 +205,39 @@ export function createPluginHostCallServer(
       return null;
     }
     switch (path) {
+      case "internal.credentialHttpCreate":
+        if (payload !== null || signal.aborted)
+          throw Error("Invalid SDK caller request");
+        return createCredentialHttpCaller(capabilities.pluginId);
+      case "internal.credentialHttpRelease": {
+        const parsed = z
+          .object({ token: z.uuid() })
+          .strict()
+          .safeParse(payload);
+        if (!parsed.success) throw Error("Invalid SDK caller request");
+        return releaseCredentialHttpCaller(
+          capabilities.pluginId,
+          parsed.data.token,
+        );
+      }
+      case "browser.credentials.list":
+      case "browser.credentials.request": {
+        gate.assert("credentials.manage", path);
+        const method = path.endsWith(".list") ? "list" : "request";
+        const parsed = (
+          method === "list"
+            ? credentialListArgsSchema
+            : credentialRequestArgsSchema
+        ).safeParse(payload);
+        if (!parsed.success) throw new Error("Invalid credential request");
+        if (!capabilities.requestCredentials)
+          throw new Error("Protected credentials unavailable");
+        return (await capabilities.requestCredentials(
+          method,
+          parsed.data,
+          signal,
+        )) as JsonValue;
+      }
       case "storage.kv.get":
         return (await capabilities.kvStore.get(String(args.key))) ?? null;
       case "storage.kv.set":
@@ -212,8 +255,19 @@ export function createPluginHostCallServer(
         // — its factory declared them — and the host resolves values for
         // whichever set it is handed, exactly as the in-process handle closes
         // over its own.
+        if (
+          args.descriptors === null ||
+          typeof args.descriptors !== "object" ||
+          Array.isArray(args.descriptors) ||
+          Object.keys(args.descriptors).length > 256
+        ) {
+          throw new Error("Invalid setting descriptors");
+        }
         return (await capabilities.readSettingsValues(
-          args.descriptors as never,
+          registerSettingDescriptors(
+            {},
+            args.descriptors as Record<string, unknown>,
+          ),
         )) as JsonValue;
       case "ui.requestInput":
         // Validated here as well as in the plugin's own process, for the same

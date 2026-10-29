@@ -142,6 +142,9 @@ const electronMock = vi.hoisted(() => {
       },
     },
     ipcRenderer: {
+      sendSync(): null {
+        return null;
+      },
       invoke(channel: string, payload?: unknown): Promise<unknown> {
         invokeCalls.push(channel);
         invokePayloads.push(payload);
@@ -260,15 +263,20 @@ describe("desktop preload browser API", () => {
       "captureFullPage",
       "control",
       "detach",
+      "dismissCredentialRequest",
       "downloadAction",
       "endAutomation",
+      "executeScopedCommand",
       "find",
+      "getCredentialRequests",
+      "getScopedHostId",
       "goBack",
       "goForward",
       "interact",
       "navigate",
       "observe",
       "onContextMenuInvoke",
+      "onCredentialRequestsChanged",
       "onDevToolsState",
       "onDialog",
       "onDownload",
@@ -282,7 +290,9 @@ describe("desktop preload browser API", () => {
       "onPlacedOpenTab",
       "onPopup",
       "onScopedOpenTab",
+      "onScopedPageScriptCall",
       "onSearchSelection",
+      "onSiteAccessChanged",
       "onSnapshot",
       "onState",
       "onZoom",
@@ -294,6 +304,8 @@ describe("desktop preload browser API", () => {
       "respondToDialog",
       "respondToPagePrompt",
       "respondToPageScriptCall",
+      "respondToScopedAuth",
+      "reviewCredentialRequest",
       "setBounds",
       "setContextMenuItems",
       "setDevTools",
@@ -304,6 +316,7 @@ describe("desktop preload browser API", () => {
       "setPageScripts",
       "setPageStyles",
       "setPopupTabs",
+      "setScopedPageContributions",
       "setVisible",
       "setZoom",
       "snapshot",

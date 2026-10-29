@@ -40,6 +40,20 @@ describe("plugin manifest", () => {
     );
   }
 
+  it.each([undefined, "^1.0.0", ">=1.0.0 || >=1.1.0", "invalid"])(
+    "refuses runtime mode without a supported SDK minimum: %s",
+    async (range) => {
+      await writeManifest(range, { ...validPatcher, siteAccess: "runtime" });
+      await expect(readPluginManifest(rootDir)).rejects.toThrow(
+        /patcherPluginSdk/,
+      );
+    },
+  );
+  it("accepts runtime mode only with SDK >=1.1.0", async () => {
+    await writeManifest(">=1.1.0", { ...validPatcher, siteAccess: "runtime" });
+    expect((await readPluginManifest(rootDir)).siteAccess).toBe("runtime");
+  });
+
   it("accepts a valid engines.patcherPluginSdk range", async () => {
     await writeManifest("^0.2.0 || >=2.0.0");
     expect((await readPluginManifest(rootDir)).patcherPluginSdkRange).toBe(

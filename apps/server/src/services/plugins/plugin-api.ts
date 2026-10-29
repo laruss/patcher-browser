@@ -1,3 +1,8 @@
+import {
+  createPluginCredentials,
+  type PluginBrowserHostCapabilities,
+} from "./plugin-api-credentials.js";
+import { protectedAgentExecute } from "./plugin-agent-credentials.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -859,58 +864,52 @@ export function normalizePluginInteractionRequest(request: unknown): {
   };
 }
 
-export function createPluginApi(options: {
-  pluginId: string;
-  /**
-   * What `patcher.permissions` declared. Absent or empty denies everything gated —
-   * there is no legacy "everything" mode, see ./plugin-permission-gate.ts.
-   */
-  permissions: readonly PluginPermission[] | undefined;
-  /**
-   * What `patcher.sites` declared: the websites this plugin's page contributions may
-   * reach. Absent or empty reaches none, so a `registerPageStyle` or
-   * `registerPageScript` call with nothing declared is refused rather than
-   * silently applying nowhere.
-   */
-  sites: readonly string[] | undefined;
-  logger: ServerLogger;
-  /** `patcher.storage.kv`'s rows; db-backed in the server, a channel call in a
-   * plugin process. See {@link PluginKvStore}. */
-  kvStore: PluginKvStore;
-  /** Resolves declared settings to their current values, secrets included. */
-  readSettingsValues: PluginSettingsReader;
-  dataDir: string;
-  /** Undefined until the server is listening (patcher.sdk is bind-gated). */
-  getSdk: () => PatcherSdk | undefined;
-  /** Undefined until the server is listening (patcher.server is bind-gated too). */
-  getLoopbackBaseUrl: () => string | undefined;
-  /** Broadcasts a plugin-signal WS message (hub.notifyPluginSignal). */
-  publishSignal: (channel: string, payload: unknown) => void;
-  /** Marks the plugin needs-configuration in the loader's status table. */
-  reportNeedsConfiguration: (message: string) => void;
-  /** Returns the owning plugin id when another plugin already registered
-   * this agent tool name (cross-plugin collisions lose, design §4.4). */
-  isAgentToolNameTaken: (name: string) => string | undefined;
-  /** Records an agent-tool registration problem as the plugin's status
-   * detail; the plugin itself keeps running. */
-  reportAgentToolProblem: (message: string) => void;
-  requestInteraction: (args: {
-    threadId: string;
-    rendererId: string;
-    title: string;
-    payload: JsonValue;
-    timeoutMs: number;
-    signal?: AbortSignal;
-  }) => Promise<PluginInteractionResult>;
-  /** Performs one `patcher.browser.*` command in the connected app window. */
-  requestBrowserCommand: (args: {
-    command: BrowserCommand;
-    timeoutMs?: number;
-    signal?: AbortSignal;
-  }) => Promise<BrowserCommandValue>;
-  /** Whether any app window can serve browser commands right now. */
-  getBrowserHostStatus: () => { connected: boolean; hostCount: number };
-}): PluginApiHandle {
+export function createPluginApi(
+  options: {
+    pluginId: string;
+    /**
+     * What `patcher.permissions` declared. Absent or empty denies everything gated —
+     * there is no legacy "everything" mode, see ./plugin-permission-gate.ts.
+     */
+    permissions: readonly PluginPermission[] | undefined;
+    /**
+     * What `patcher.sites` declared: the websites this plugin's page contributions may
+     * reach. Absent or empty reaches none, so a `registerPageStyle` or
+     * `registerPageScript` call with nothing declared is refused rather than
+     * silently applying nowhere.
+     */
+    sites: readonly string[] | undefined;
+    logger: ServerLogger;
+    /** `patcher.storage.kv`'s rows; db-backed in the server, a channel call in a
+     * plugin process. See {@link PluginKvStore}. */
+    kvStore: PluginKvStore;
+    /** Resolves declared settings to their current values, secrets included. */
+    readSettingsValues: PluginSettingsReader;
+    dataDir: string;
+    /** Undefined until the server is listening (patcher.sdk is bind-gated). */
+    getSdk: () => PatcherSdk | undefined;
+    /** Undefined until the server is listening (patcher.server is bind-gated too). */
+    getLoopbackBaseUrl: () => string | undefined;
+    /** Broadcasts a plugin-signal WS message (hub.notifyPluginSignal). */
+    publishSignal: (channel: string, payload: unknown) => void;
+    /** Marks the plugin needs-configuration in the loader's status table. */
+    reportNeedsConfiguration: (message: string) => void;
+    /** Returns the owning plugin id when another plugin already registered
+     * this agent tool name (cross-plugin collisions lose, design §4.4). */
+    isAgentToolNameTaken: (name: string) => string | undefined;
+    /** Records an agent-tool registration problem as the plugin's status
+     * detail; the plugin itself keeps running. */
+    reportAgentToolProblem: (message: string) => void;
+    requestInteraction: (args: {
+      threadId: string;
+      rendererId: string;
+      title: string;
+      payload: JsonValue;
+      timeoutMs: number;
+      signal?: AbortSignal;
+    }) => Promise<PluginInteractionResult>;
+  } & PluginBrowserHostCapabilities,
+): PluginApiHandle {
   const {
     pluginId,
     permissions,
@@ -1424,12 +1423,7 @@ export function createPluginApi(options: {
             : null,
         inputSchema,
         parse,
-        execute: (
-          tool.execute as (
-            params: unknown,
-            ctx: PluginAgentToolContext,
-          ) => PluginAgentToolResult | Promise<PluginAgentToolResult>
-        ).bind(tool),
+        execute: protectedAgentExecute(tool),
       };
       agentTools.push(record);
     },
@@ -1989,6 +1983,11 @@ export function createPluginApi(options: {
   const historyFilters: PluginBrowserHistoryFilter[] = [];
   const keybindings: AppKeybindingOverride[] = [];
   const browser: PluginBrowser = {
+    credentials: createPluginCredentials({
+      assertLive,
+      gate: permissionGate,
+      request: options.requestCredentials,
+    }),
     registerOmniboxProvider(provider) {
       assertLive();
       permissionGate.assert(

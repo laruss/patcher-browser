@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { CREDENTIAL_CALLER_HEADER } from "../browser/credential-http-header.js";
 
 /**
  * Who is calling `/api/v1`.
@@ -85,13 +86,29 @@ export function createPluginApiFetch(args: {
   pluginId: string;
   key: string;
   fetch?: typeof fetch;
+  credentialCaller?: {
+    create(): Promise<string>;
+    release(token: string): Promise<unknown>;
+  };
 }): typeof fetch {
   const inner = args.fetch ?? fetch;
   return (input, init) => {
     const headers = new Headers(init?.headers);
     headers.set(PLUGIN_API_ID_HEADER, args.pluginId);
     headers.set(PLUGIN_API_KEY_HEADER, args.key);
-    return inner(input, { ...init, headers });
+    const call = (token: string) => {
+      headers.set(CREDENTIAL_CALLER_HEADER, token);
+      return inner(input, { ...init, headers });
+    };
+    if (!args.credentialCaller) return inner(input, { ...init, headers });
+    return (async () => {
+      const token = await args.credentialCaller!.create();
+      try {
+        return await call(token);
+      } finally {
+        await args.credentialCaller!.release(token).catch(() => {});
+      }
+    })();
   };
 }
 

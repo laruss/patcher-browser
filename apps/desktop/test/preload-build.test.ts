@@ -362,7 +362,42 @@ describe("desktop build", () => {
     expect(preloadSource).not.toContain("getDesktopVersion(process.env");
 
     // The bridge must stay ESM — it pulls patcher-app via the package's ESM entry.
-    expect(bridgeSource).toContain('import "patcher-app/dist/patcher-app.js"');
+    expect(bridgeSource).toContain(
+      'import "patcher-app/dist/patcher-desktop.js"',
+    );
+
+    const securitySource = await readFile(
+      resolve(
+        desktopPackageRoot,
+        "dist",
+        "browser-security-extension",
+        "policy.js",
+      ),
+      "utf8",
+    );
+    expect(securitySource).not.toMatch(/\brequire\s*\(/u);
+    expect(securitySource).not.toContain("ipcRenderer");
+    expect(securitySource).not.toContain("process.");
+    const securityPreload = await readFile(
+      resolve(desktopPackageRoot, "dist", "browser-security-preload.cjs"),
+      "utf8",
+    );
+    expect(securityPreload).toContain('require("electron")');
+    expect(securityPreload).not.toContain("exposeInMainWorld");
+    expect(securityPreload).toContain("var CREDENTIAL_WORLD_ID = 1741;");
+    expect(securityPreload).toMatch(
+      /exposeInIsolatedWorld\(\s*CREDENTIAL_WORLD_ID/u,
+    );
+    await expect(
+      access(
+        resolve(
+          desktopPackageRoot,
+          "dist",
+          "browser-security-extension",
+          "manifest.json",
+        ),
+      ),
+    ).resolves.toBeUndefined();
 
     // Source maps must ship for every entry so crash reports symbolicate.
     for (const mapPath of [
@@ -370,6 +405,7 @@ describe("desktop build", () => {
       "preload.cjs.map",
       "log-viewer-preload.cjs.map",
       "page-script-preload.cjs.map",
+      "browser-security-preload.cjs.map",
       "patcher-app-bridge.mjs.map",
     ]) {
       await expect(

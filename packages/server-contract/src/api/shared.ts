@@ -303,6 +303,16 @@ export const browserCommandRequestSignalSchema = z
 export type BrowserCommandRequestSignal = z.infer<
   typeof browserCommandRequestSignalSchema
 >;
+export const scopedBrowserCommandRequestSignalSchema =
+  browserCommandRequestSignalSchema
+    .extend({
+      type: z.literal("browser-scoped-command-request"),
+      token: z.uuid(),
+    })
+    .strict();
+export type ScopedBrowserCommandRequestSignal = z.infer<
+  typeof scopedBrowserCommandRequestSignalSchema
+>;
 
 /**
  * Lenient counterpart for INBOUND parsing on clients, mirroring

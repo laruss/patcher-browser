@@ -1,3 +1,10 @@
+import { runAsCredentialAgent } from "./services/browser/credential-agent-scope.js";
+import {
+  CREDENTIAL_CALLER_HEADER,
+  runAsCredentialHttpCaller,
+  runWithCredentialPluginCallers,
+} from "./services/browser/credential-plugin-caller.js";
+import { createProtectedCredentials } from "./services/plugins/protected-credentials.js";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { readFile, stat } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
@@ -28,6 +35,8 @@ import { createAgentAccessIdentity } from "./agent-access-identity.js";
 import { agentAccessRoutePolicyDenial } from "./agent-access-route-policy.js";
 import { createAppApiIdentity } from "./app-identity.js";
 import { setPluginApiId } from "./plugin-api-identity-context.js";
+import { createPluginSiteAccess } from "./services/plugins/plugin-site-access.js";
+import { runWithPluginSiteCallers } from "./services/browser/plugin-site-caller.js";
 import { createThreadApiIdentity } from "./thread-identity.js";
 import { ApiError, errorToResponse } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
@@ -149,6 +158,13 @@ function normalizeInternalAuthPath(path: string): string {
 }
 
 interface CreateAppOptions {
+  secretStore?: import("@patcher/secret-storage").PluginSecretStore;
+  requestCredentials?: Parameters<
+    typeof createProtectedCredentials
+  >[0]["request"];
+  requestSite?: ReturnType<
+    typeof import("./services/plugins/desktop-secret-storage.js").createDesktopSecretStorage
+  >["requestSite"];
   patcherAppArtifactService?: PatcherAppArtifactService;
   /**
    * Which plugins run in a plugin process rather than in the server. Omitted
@@ -465,7 +481,24 @@ export function createApp(
     }
     return next();
   });
+  const siteAccess = createPluginSiteAccess({
+    db: deps.db,
+    request: options?.requestSite,
+    changed: () => deps.hub.notifySystem(["plugins-changed"]),
+  });
+  const browserBridge = createBrowserBridge({ hub: deps.hub, siteAccess });
+  siteAccess.setBridge(browserBridge);
+  const protectedCredentials = createProtectedCredentials({
+    db: deps.db,
+    sites: siteAccess,
+    request: options?.requestCredentials,
+  });
   const pluginService = createPluginService({
+    protectedCredentials,
+    siteAccess,
+    ...(options?.secretStore === undefined
+      ? {}
+      : { secretStore: options.secretStore }),
     db: deps.db,
     ...(options?.runPluginOutOfProcess === undefined
       ? {}
@@ -473,7 +506,7 @@ export function createApp(
     hub: deps.hub,
     logger: deps.logger,
     pendingInteractions: deps.pendingInteractions,
-    browserBridge: createBrowserBridge({ hub: deps.hub }),
+    browserBridge,
     dataDir: deps.config.dataDir,
     appVersion: deps.config.appVersion,
     watchBuiltinPluginSources:
@@ -545,7 +578,7 @@ export function createApp(
           throw new ApiError(403, "forbidden", terminalDenial.message);
         }
         setAgentThreadId(context, threadId);
-        return next();
+        return runAsCredentialAgent(next);
       }
       // The fourth kind of caller: an agent that is not Patcher's, holding a
       // grant a person issued for the browser.
@@ -584,7 +617,7 @@ export function createApp(
           throw new ApiError(403, "forbidden", grantDenial);
         }
         setAgentAccessCaller(context, agentAccess.caller);
-        return next();
+        return runAsCredentialAgent(next);
       }
       // Two exceptions, and they have to be: a plugin's own HTTP routes are
       // meant to be callable by a third party, and its frontend assets are
@@ -598,7 +631,9 @@ export function createApp(
       ) {
         return unauthorizedResponse();
       }
-      return next();
+      return appIdentity.verify(context.req)
+        ? next()
+        : runAsCredentialAgent(next);
     }
     const required = permissionsForApiPath(context.req.path);
     const problem = pluginService.apiPermissionProblem(pluginId, required);
@@ -610,7 +645,16 @@ export function createApp(
     // own is the thread header a plugin never sends. See
     // `plugin-api-identity-context.ts`.
     setPluginApiId(context, pluginId);
-    return next();
+    return runAsCredentialHttpCaller(
+      pluginId,
+      context.req.header(CREDENTIAL_CALLER_HEADER),
+      () =>
+        runWithCredentialPluginCallers([pluginId], () =>
+          siteAccess.isRuntime(pluginId)
+            ? runWithPluginSiteCallers([pluginId], next)
+            : next(),
+        ),
+    );
   });
   const publicApi = new Hono();
   const pluginCatalogService = createPluginCatalogService({

@@ -7,6 +7,7 @@ import type { BrowserCommandOutcome } from "@patcher/domain";
 import type {
   BrowserDrivingOutcome,
   BrowserDrivingSignal,
+  ScopedBrowserCommandRequestSignal,
 } from "@patcher/server-contract";
 import {
   createNoopDesktopBrowserApi,
@@ -38,7 +39,11 @@ interface CommandSignal {
 
 const wsManager = {
   onBrowserCommand: vi.fn<
-    (callback: (signal: CommandSignal) => void) => Unsubscribe
+    (
+      callback: (
+        signal: CommandSignal | ScopedBrowserCommandRequestSignal,
+      ) => void,
+    ) => Unsubscribe
   >(() => () => undefined),
   onBrowserDriving: vi.fn<
     (callback: (signal: BrowserDrivingSignal) => void) => Unsubscribe
@@ -62,14 +67,12 @@ vi.mock("@/lib/ws", () => ({ wsManager }));
  * because that path is the one the remote frames cannot stand in for: a window
  * performing a command is told nothing by the server about it.
  */
-const executeBrowserCommand =
-  vi.fn<(...args: unknown[]) => Promise<BrowserCommandOutcome>>(
-    () => new Promise(() => undefined),
-  );
+const executeBrowserCommand = vi.fn<
+  (...args: unknown[]) => Promise<BrowserCommandOutcome>
+>(() => new Promise(() => undefined));
 
 vi.mock("./execute", () => ({
-  executeBrowserCommand: (...args: unknown[]) =>
-    executeBrowserCommand(...args),
+  executeBrowserCommand: (...args: unknown[]) => executeBrowserCommand(...args),
 }));
 
 const GRANT = {
@@ -106,7 +109,7 @@ function drivingSettled(
   };
 }
 
-function mountBridge() {
+function mountBridge(browser = createNoopDesktopBrowserApi()) {
   window.patcherDesktop = createPatcherDesktopApi(
     {
       lastCheckedAt: null,
@@ -117,7 +120,7 @@ function mountBridge() {
       updateDownloaded: false,
       version: "0.0.0-test",
     },
-    createNoopDesktopBrowserApi(),
+    browser,
   );
   const store = createStore();
   const Bridge = () => {
@@ -159,18 +162,15 @@ function mountBridge() {
 }
 
 // Imported after the mock so the hook's own `../ws` import resolves to it.
-const { useBrowserAgentBridge: useBridge } = await import(
-  "./useBrowserAgentBridge"
-);
+const { useBrowserAgentBridge: useBridge } =
+  await import("./useBrowserAgentBridge");
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   // `clearAllMocks` also clears the implementation, and every test that does
   // not set its own needs the command it starts to stay unfinished.
-  executeBrowserCommand.mockImplementation(
-    () => new Promise(() => undefined),
-  );
+  executeBrowserCommand.mockImplementation(() => new Promise(() => undefined));
 });
 
 describe("the browser agent bridge, in a window that is not serving", () => {
@@ -314,9 +314,7 @@ describe("the browser agent bridge, keeping the record", () => {
     const bridge = mountBridge();
 
     bridge.deliver(drivingStarted("r1"));
-    bridge.deliver(
-      drivingSettled("r1", { ok: false, error: "unknown_tab" }),
-    );
+    bridge.deliver(drivingSettled("r1", { ok: false, error: "unknown_tab" }));
 
     expect(bridge.store.get(browserActivityAtom)[0]?.status).toEqual({
       kind: "failed",
@@ -417,5 +415,55 @@ describe("the browser agent bridge, keeping the record", () => {
       kind: "failed",
       code: "invalid_command",
     });
+  });
+});
+
+describe("scoped command compatibility", () => {
+  const scoped = {
+    type: "browser-scoped-command-request" as const,
+    requestId: "scoped",
+    token: "b576ecbb-bc53-4e12-bbf5-dc1b20b74540",
+    command: { type: "page.get_url" as const, tabId: "tab" },
+  };
+  it("fails closed with an old desktop API without using the legacy executor", async () => {
+    mountBridge();
+    await act(async () => {
+      for (const [callback] of wsManager.onBrowserCommand.mock.calls)
+        callback(scoped);
+    });
+    expect(executeBrowserCommand).not.toHaveBeenCalled();
+    expect(wsManager.sendBrowserCommandResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "scoped",
+        outcome: expect.objectContaining({
+          ok: false,
+          code: "external_access_denied",
+        }),
+      }),
+    );
+  });
+  it("forwards the opaque capability only to the new native dispatcher", async () => {
+    const executeScopedCommand = vi.fn(async () => ({
+      ok: true as const,
+      value: { type: "url" as const, url: "https://example.com/" },
+    }));
+    mountBridge({
+      ...createNoopDesktopBrowserApi(),
+      executeScopedCommand,
+      getScopedHostId: async () => 12,
+    });
+    await act(async () => {
+      for (const [callback] of wsManager.onBrowserCommand.mock.calls)
+        callback(scoped);
+    });
+    expect(executeScopedCommand).toHaveBeenCalledWith({
+      token: scoped.token,
+      command: scoped.command,
+    });
+    expect(executeBrowserCommand).not.toHaveBeenCalled();
+    expect(wsManager.registerBrowserHost).toHaveBeenCalledWith(
+      expect.any(String),
+      12,
+    );
   });
 });

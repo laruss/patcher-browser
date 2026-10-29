@@ -76,6 +76,8 @@ export const PLUGIN_PERMISSIONS = [
   "network.intercept",
   /** Read and write a browsed site's cookies and storage — the user's logins. */
   "page.credentials",
+  /** Propose protected credential operations; never returns plaintext. */
+  "credentials.manage",
   /** Film a tab and record a trace of what was driven. */
   "page.record",
 
@@ -284,6 +286,7 @@ const API_PATH_PERMISSIONS: ReadonlyArray<
   // none), and `plugins` is about installing and configuring, not calling.
   // Empty means classified as costing nothing, which is not the same as
   // unclassified.
+  ["/plugins/site-access", null],
   ["/plugins/:id/http", []],
   ["/plugins/:id/rpc", []],
   ["/plugins/:id/assets", []],

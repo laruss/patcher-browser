@@ -2,6 +2,12 @@
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { assertSecretStorageFormat } from "@patcher/secret-storage";
+import {
+  spawnManagedProcess,
+  type ManagedSpawnArgs,
+} from "./launcher-managed-process.js";
+import type { DesktopSecretRelay } from "./desktop-secret-relay.js";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import {
   access,
@@ -307,13 +313,6 @@ export interface ParsedLauncherArgs {
   positionals: string[];
 }
 
-interface ManagedSpawnArgs {
-  args: string[];
-  command: string;
-  env: NodeJS.ProcessEnv;
-  outputBuffer: OutputBuffer;
-}
-
 interface OutputBuffer {
   flush(): void;
   handler(chunk: OutputChunk): void;
@@ -380,15 +379,12 @@ export interface ManagedFullStackProcesses {
   serverRun: ManagedProcessRun | null;
 }
 
-interface SpawnNamedManagedProcessArgs {
-  args: string[];
-  command: string;
-  env: NodeJS.ProcessEnv;
-  outputBuffer: OutputBuffer;
+interface SpawnNamedManagedProcessArgs extends ManagedSpawnArgs {
   processName: ManagedProcessName;
 }
 
 interface StartFullStackServerProcessArgs {
+  secretRelay?: DesktopSecretRelay;
   context: PatcherAppStartContext;
   env: NodeJS.ProcessEnv;
   outputBuffer: OutputBuffer;
@@ -2358,21 +2354,6 @@ function createOutputBuffer(): OutputBuffer {
   };
 }
 
-function spawnManagedProcess(args: ManagedSpawnArgs): ChildProcess {
-  const child = spawn(args.command, args.args, {
-    cwd: process.cwd(),
-    env: args.env,
-    stdio: ["ignore", "pipe", "inherit"],
-  });
-
-  if (child.stdout === null) {
-    throw new Error("Expected managed process stdout to be piped");
-  }
-
-  child.stdout.on("data", args.outputBuffer.handler);
-  return child;
-}
-
 function spawnNamedManagedProcess(
   args: SpawnNamedManagedProcessArgs,
 ): ChildManagedProcessRun {
@@ -2758,6 +2739,7 @@ Usage:
   }
   assertPatcherAppArtifacts(runtime.context);
 
+  await assertSecretStorageFormat(runtime.context.dataDir);
   const childProcess = spawn(process.execPath, [runtime.context.serverEntry], {
     cwd: process.cwd(),
     env: createServerEnv({
@@ -2989,7 +2971,14 @@ async function startFullStackServerProcess(
   args: StartFullStackServerProcessArgs,
 ): Promise<ManagedProcessRun> {
   const serverRun = spawnNamedManagedProcess({
-    args: [args.context.serverEntry],
+    args: [
+      args.secretRelay === undefined
+        ? args.context.serverEntry
+        : join(dirname(args.context.serverEntry), "desktop-index.js"),
+    ],
+    ...(args.secretRelay === undefined
+      ? {}
+      : { secretRelay: args.secretRelay }),
     command: process.execPath,
     env: args.env,
     outputBuffer: args.outputBuffer,
@@ -3246,6 +3235,7 @@ async function runStopCommand(args: { dataDir: string }): Promise<void> {
 
 export async function runPatcherApp(
   cliArgs: string[] = process.argv.slice(2),
+  secretRelay?: DesktopSecretRelay,
 ): Promise<void> {
   const parsedArgs = parseLauncherArgs(cliArgs);
 
@@ -3346,6 +3336,7 @@ export async function runPatcherApp(
   }
 
   const context = runtime.context;
+  await assertSecretStorageFormat(context.dataDir);
   const outputBuffer = createOutputBuffer();
   const serverEnv = createServerEnv({
     context,
@@ -3403,6 +3394,7 @@ export async function runPatcherApp(
   const startServer = (): Promise<ManagedProcessRun> =>
     startFullStackServerProcess({
       context,
+      ...(secretRelay === undefined ? {} : { secretRelay }),
       env: serverEnv,
       outputBuffer,
       processes,

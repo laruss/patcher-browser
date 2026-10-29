@@ -71,6 +71,9 @@ export interface LoadedPlugin {
 }
 
 export interface PluginServiceDeps {
+  siteAccess?: import("./plugin-site-access.js").PluginSiteAccess;
+  protectedCredentials?: import("./protected-credentials.js").ProtectedCredentials;
+  secretStore?: import("@patcher/secret-storage").PluginSecretStore;
   db: DbConnection;
   /**
    * Whether this plugin runs in a plugin process instead of the server's.

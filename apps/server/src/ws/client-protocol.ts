@@ -91,6 +91,7 @@ export function onClientSocketMessage(
       deps.hub.unsubscribe(socket, parsed.target);
       deps.watchInterests.unsubscribe(socket, parsed.target);
       break;
+    case "browser-host.site-register":
     case "browser-host.register": {
       // The gate one case above says why a subscription is policed here: this
       // socket never passes the request gate, so a message it carries inward
@@ -114,6 +115,9 @@ export function onClientSocketMessage(
       }
       const claim = deps.hub.registerBrowserHost(socket, {
         browserHostId: parsed.browserHostId,
+        ...(parsed.type === "browser-host.site-register"
+          ? { nativeWebContentsId: parsed.nativeWebContentsId }
+          : {}),
       });
       if (!claim.primary) {
         // This window serves nothing until the one driving goes away, and the
