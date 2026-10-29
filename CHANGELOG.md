@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.1-alpha.9
+
+This release fixes a startup crash and long startup waits in alpha.8.
+
+- **Startup crash fixed.** Restoring pages with concurrent HTTPS certificate
+  errors no longer crashes the desktop. Untrusted subresources are rejected.
+- **Bounded shell PATH lookup.** A shell integration that ignores termination
+  no longer stalls startup past the two-second PATH lookup timeout.
+- **Packaged regression check.** Release validation now tests concurrent
+  requests with untrusted certificates alongside SQLite, PTY and window startup.
+
+Uses Electron 45.0.0 with Chromium 156.0.8078.48. Requires macOS 13 (Ventura)
+or later on Apple Silicon. This alpha is ad-hoc signed and requires approval
+on first launch. Updates are downloaded manually.
+
 ## 0.1.1-alpha.8
 
 This release updates the embedded browser to Electron 45.0.0 with Chromium
