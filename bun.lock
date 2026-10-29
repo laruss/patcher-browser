@@ -186,7 +186,7 @@
     },
     "apps/desktop": {
       "name": "@patcher/desktop",
-      "version": "0.1.1-alpha.7",
+      "version": "0.1.1-alpha.8",
       "dependencies": {
         "electron-updater": "^6.8.3",
         "patcher-app": "workspace:*",
@@ -699,7 +699,7 @@
     },
     "packages/patcher-app": {
       "name": "patcher-app",
-      "version": "0.1.1-alpha.7",
+      "version": "0.1.1-alpha.8",
       "bin": {
         "patcher-app": "dist/patcher-app.js",
         "patcher": "dist/patcher.js",

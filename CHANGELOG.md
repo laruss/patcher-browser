@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.1-alpha.8
+
+This release updates the embedded browser to Electron 45.0.0 with Chromium
+156.0.8078.48 and Node.js 24.22.0.
+
+- **Updated browser engine.** Moves from Electron 41.7.0 / Chromium 146 to
+  Electron 45 / Chromium 156.
+- **Native database compatibility.** SQLite uses `better-sqlite3` 13.0.3 and
+  its Node-API binaries, shared by the desktop and agent runtime. Existing
+  database files remain readable after the upgrade.
+- **Checks the packaged native modules.** Release validation runs a SQLite
+  query and a terminal command with the packaged Electron executable before
+  checking that the desktop window starts.
+
+Requires macOS 13 (Ventura) or later on Apple Silicon. Alpha builds remain
+ad-hoc signed and require one approval on first launch. Updates are downloaded
+manually.
+
 ## 0.1.1-alpha.7
 
 This release adds a preinstalled password manager and the desktop protections
