@@ -1,0 +1,66 @@
+name: Electron Updates
+
+on:
+  workflow_run:
+    workflows: [CI, Version Lockstep]
+    types: [requested, completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electron-update-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  request-major-review:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.name == 'CI'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      # Notify when CI is requested, retry on completion even if CI failed.
+      # Only the trusted default branch is checked out, never PR code.
+      - name: Checkout review policy
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Request the repository owner's review for a major update
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { requestMajorUpdateReview } = require('./.github/scripts/electron-updates.cjs');
+            await requestMajorUpdateReview({ github, context, core });
+
+  merge:
+    if: >-
+      github.event.action == 'completed' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+
+    steps:
+      # workflow_run checks out the default branch, never the candidate PR.
+      # The privileged job reads PR files through the API and executes no PR code.
+      - name: Checkout merge policy
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Merge a verified Electron patch or minor update
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { mergeElectronUpdate } = require('./.github/scripts/electron-updates.cjs');
+            await mergeElectronUpdate({ github, context, core });

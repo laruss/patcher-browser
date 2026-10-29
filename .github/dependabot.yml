@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Belgrade
+    allow:
+      - dependency-name: electron
+    open-pull-requests-limit: 2
