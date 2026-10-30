@@ -21,10 +21,14 @@ import { executeScopedBrowserCommand } from "./desktop-scoped-browser-command.js
 
 export function createNativeSiteAuthority(
   manager: () => DesktopBrowserViewManager | null,
+  changed?: () => void,
 ) {
   return createDesktopSiteAuthority({
     resolve: (tabId) => manager()?.resolveSiteTarget(tabId) ?? null,
-    changed: () => manager()?.sitePolicyChanged(),
+    changed: () => {
+      manager()?.sitePolicyChanged();
+      changed?.();
+    },
     cleanup: () => manager()?.siteCleanup() ?? [],
     cancelAuth: (target, id) => {
       const hostWindow = BrowserWindow.getAllWindows().find(

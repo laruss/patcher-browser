@@ -1,3 +1,4 @@
+import { preloadPasswordManager } from "./preload-password-manager.js";
 import { preloadCredentials } from "./preload-credentials.js";
 import {
   SITE_ACCESS_CHANNELS,
@@ -820,6 +821,7 @@ async function invokeDefaultBrowserStatus(
 }
 
 const patcherDesktopApi: PatcherDesktopApi = {
+  passwordManager: preloadPasswordManager,
   secretStorage: {
     status: async () =>
       desktopSecretStorageStatusSchema.parse(

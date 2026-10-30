@@ -1,3 +1,9 @@
+import { registerPasswordManagerBrowser } from "./password-manager-browser.js";
+import { PASSWORD_MANAGER_CHANNELS } from "@patcher/desktop-contract";
+import { createPasswordManager, type PasswordManager } from "./password-manager.js";
+import { createCredentialKeyStore, type CredentialKeyStore } from "./desktop-credential-key.js";
+import { authenticatePasswordManager } from "./password-manager-auth.js";
+import { registerPasswordManagerIpc } from "./password-manager-ipc.js";
 import {
   createNativeCredentialVault,
   registerCredentialIpc,
@@ -200,6 +206,10 @@ const OWNED_RUNTIME_KILL_TIMEOUT_MS = 1_000;
 const FOREIGN_RUNTIME_STOP_TIMEOUT_MS = 15_000;
 const FOREIGN_RUNTIME_KILL_TIMEOUT_MS = 3_000;
 const REMOTE_SYSTEM_CONFIG_POLL_INTERVAL_MS = 5 * 60 * 1000;
+
+let passwordManager: PasswordManager | undefined;
+let passwordManagerBrowser: ReturnType<typeof registerPasswordManagerBrowser> | undefined;
+let passwordManagerEnabled = false;
 
 interface DesktopRuntime {
   secretStorage?: ReturnType<typeof createDesktopSecretBroker>;
@@ -764,6 +774,14 @@ function buildMenuServerItems(): Array<{
 function installCurrentApplicationMenu(): void {
   installApplicationMenu({
     accelerators: currentApplicationMenuAccelerators,
+    passwordManagerEnabled,
+    openPasswordManager() {
+      const window = getFocusedApplicationWindow();
+      if (window) {
+        window.webContents.focus();
+        sendToApplicationRenderer(window, PASSWORD_MANAGER_CHANNELS.open, null);
+      }
+    },
     createNewWindow() {
       void createApplicationWindow({
         initialUrl: currentWindowUrl,
@@ -855,7 +873,10 @@ function refreshApplicationMenu(): void {
 function setCurrentRuntime(runtime: DesktopRuntime | null): void {
   if (currentRuntime?.secretStorage !== runtime?.secretStorage)
     currentRuntime?.secretStorage?.close();
+  passwordManager?.reset();
+  passwordManagerBrowser?.reset();
   currentRuntime = runtime;
+  void passwordManager?.refresh();
   if (runtime === null) {
     stopSystemConfigSync();
   }
@@ -1640,6 +1661,7 @@ async function startOwnedRuntime(
   });
   const siteAuthority = createNativeSiteAuthority(
     () => desktopBrowserViewManager,
+    () => { void passwordManager?.refresh(); },
   );
   const runtime: DesktopRuntime = {
     secretStorage: createDesktopSecretBroker(
@@ -1651,6 +1673,7 @@ async function startOwnedRuntime(
         desktopKeyBackend,
         args.userDataPath,
       ),
+      (available) => { if (!available) { passwordManager?.reset(); passwordManagerBrowser?.reset(); } void passwordManager?.refresh(); },
     ),
     patcherProcess,
     ownership: "spawned",
@@ -2043,6 +2066,10 @@ async function runDesktopApp(): Promise<void> {
     .extensions.loadExtension(
       join(dirname(bridgePath), "browser-security-extension"),
     );
+  session.fromPartition(PATCHER_BROWSER_PARTITION).registerPreloadScript({
+    id: "patcher-password-manager", type: "frame",
+    filePath: join(paths.appPath, "dist", "password-manager-page-preload.cjs"),
+  });
   const resolvedLogViewerPreloadPath = join(
     paths.appPath,
     "dist",
@@ -2158,6 +2185,33 @@ async function runDesktopApp(): Promise<void> {
       return false;
     }
   };
+  let managerKey: { path: string; store: CredentialKeyStore } | undefined;
+  passwordManager = createPasswordManager({
+    store: async (request) => {
+      if (!currentRuntime?.secretStorage) throw new Error("unavailable");
+      return currentRuntime.secretStorage.passwordManagerStore(request);
+    },
+    key: () => {
+      const root = currentRuntime?.userDataPath;
+      if (!root) throw new Error("unavailable");
+      const path = join(root, "protected-credentials", "key.bin");
+      if (managerKey?.path !== path) managerKey = { path, store: createCredentialKeyStore(path, desktopKeyBackend) };
+      return managerKey.store;
+    },
+    authenticate: (reason, signal) => authenticatePasswordManager(join(paths.appPath.replace(/app\.asar$/u, "app.asar.unpacked"), "dist", "password-manager-auth"), reason, signal),
+    changed: (enabled) => {
+      passwordManagerEnabled = enabled;
+      if (!enabled) passwordManagerBrowser?.reset();
+      passwordManagerBrowser?.changed();
+      installCurrentApplicationMenu();
+      for (const window of BrowserWindow.getAllWindows())
+        if (applicationWindowWebContentsIds.has(window.webContents.id)) window.webContents.send(PASSWORD_MANAGER_CHANNELS.changed);
+    },
+  });
+  registerPasswordManagerIpc({ manager: passwordManager, authorize: authorizeApplicationIpc });
+  passwordManagerBrowser = registerPasswordManagerBrowser({ manager: passwordManager, browser: () => desktopBrowserViewManager });
+  app.on("browser-window-focus", () => passwordManagerBrowser?.showPending());
+  void passwordManager.refresh();
   registerDesktopSecretIpc({
     current: () => currentRuntime?.secretStorage,
     authorize: authorizeApplicationIpc,
@@ -2165,8 +2219,10 @@ async function runDesktopApp(): Promise<void> {
   desktopBrowserViewManager = createDesktopBrowserViewManager({
     onBrowserViewVisibilityChanged: (contents, host, visible) => {
       secureKeyboard.browserViewChanged(contents, host, visible);
-      if (!visible)
+      if (!visible) {
         currentRuntime?.secretStorage?.credentials?.cancelView(contents.id);
+        passwordManagerBrowser?.cancelView(contents.id);
+      }
     },
     pageScriptPreloadPath: resolvedPageScriptPreloadPath,
     siteAuthority: () => currentRuntime?.secretStorage?.sites,

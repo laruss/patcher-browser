@@ -2,6 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { access, readFile, readdir, mkdtemp, rm } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -478,6 +479,16 @@ async function smokePackagedApp() {
 
   const desktopVersion = await readDesktopPackageVersion();
   const appBinary = await resolvePackagedAppBinary();
+  const authHelper = resolve(
+    dirname(appBinary),
+    "..",
+    "Resources",
+    "app.asar.unpacked",
+    "dist",
+    "password-manager-auth",
+  );
+  await access(authHelper, fsConstants.X_OK);
+  execFileSync("codesign", ["--verify", authHelper], { stdio: "pipe" });
   // Exercise the packaged server's actual native dependencies in Electron's
   // Node runtime, not the checkout's Node or a renderer that attaches to a stub.
   const packagedManifest = resolve(

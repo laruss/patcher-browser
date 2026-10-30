@@ -6,6 +6,7 @@
   "asar": true,
   "asarUnpack": [
     "dist/patcher-app-bridge.mjs",
+    "dist/password-manager-auth",
     "dist/browser-security-extension/**",
     "node_modules/**"
   ],
