@@ -616,15 +616,39 @@ const input = (label, value) =>
 
   integration.reset();
   await page.loadURL(`${origin}/login`);
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  page.focus();
   await page.executeJavaScript("document.getElementById('username').focus()");
+  await waitFor(
+    () =>
+      page.executeJavaScript(
+        "document.hasFocus() && document.activeElement?.id === 'username' && !!document.querySelector('[role=listbox]')",
+      ),
+    "typing field and account metadata ready",
+  );
+  await page.executeJavaScript(
+    "const u=document.getElementById('username'); u.value=''; document.getElementById('password').value=''; u.focus(); u.select(); window.qaTyping=[]; document.addEventListener('input', e=>window.qaTyping.push({trusted:e.isTrusted,target:e.target.id,username:document.getElementById('username').value}),true);",
+  );
   await send("Input.insertText", { text: "bob" });
   await waitFor(
     () =>
       page.executeJavaScript(
-        "document.getElementById('password').value === 'fixture-bob-secret'",
+        "document.activeElement?.id === 'username' && document.getElementById('username').value === 'bob' && document.getElementById('password').value === 'fixture-bob-secret'",
       ),
     "typing remains editable with suggestions",
+  ).catch(async (error) => {
+    console.error(
+      "Typing fixture state:",
+      await page.executeJavaScript(
+        "({focused:document.hasFocus(),active:document.activeElement?.id,username:document.getElementById('username')?.value,passwordEmpty:document.getElementById('password')?.value==='',bob:document.getElementById('password')?.value==='fixture-bob-secret',events:window.qaTyping})",
+      ),
+    );
+    throw error;
+  });
+  assert.equal(
+    await page.executeJavaScript(
+      "window.qaTyping.some(e=>e.trusted && e.target==='username' && e.username==='bob')",
+    ),
+    true,
   );
   results.push(
     "typing a saved username fills its password without taking keyboard focus",
