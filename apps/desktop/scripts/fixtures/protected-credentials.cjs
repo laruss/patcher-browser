@@ -460,6 +460,10 @@ const input = (label, value) =>
       windowsVirtualKeyCode: code,
     });
   };
+  page.focus();
+  await page.executeJavaScript(
+    "window.qaKeys=[]; window.addEventListener('keydown', e=>window.qaKeys.push({key:e.key,trusted:e.isTrusted,target:e.target.id,focused:document.hasFocus()}),true)",
+  );
   assert.equal(
     await page.executeJavaScript("document.activeElement?.id"),
     "username",
@@ -497,7 +501,15 @@ const input = (label, value) =>
         "document.getElementById('password').value === 'fixture-bob-secret'",
       ),
     "keyboard account selection",
-  );
+  ).catch(async (error) => {
+    console.error("Keyboard picker state:", {
+      initial: accountOptions,
+      page: await page.executeJavaScript(
+        "({keys:window.qaKeys,focused:document.hasFocus(),active:document.activeElement?.id,path:location.pathname,username:document.getElementById('username')?.value,alice:document.getElementById('password')?.value==='fixture-alice-updated',bob:document.getElementById('password')?.value==='fixture-bob-secret'})",
+      ),
+    });
+    throw error;
+  });
   await page.executeJavaScript(
     "document.getElementById('password').type = 'text'",
   );
