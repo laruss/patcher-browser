@@ -10,7 +10,8 @@ saving, filling and a dedicated management page.
   edit and delete them on a separate page. The per-site key button is removed.
 - **Automatic filling and account choice.** A saved login fills without a
   separate system prompt. Choose between multiple accounts at the username field,
-  or replace and clear filled values. HTTP and HTTPS sites are supported, including
+  with keyboard selection preserved during background refreshes, or replace and
+  clear filled values. HTTP and HTTPS sites are supported, including
   pages operated by an agent.
 - **Save and update after signing in.** Main-frame form submissions, dynamic
   forms and username-first flows offer Save or Update after navigation or a
@@ -21,7 +22,7 @@ saving, filling and a dedicated management page.
   Website Save/Update needs only its confirmation button.
 - **Existing passwords are preserved.** One system confirmation migrates older
   entries to automatic filling. Disabling the plugin keeps encrypted records.
-- **Browser and packaged checks.** Release validation exercises the real manager
+- **Browser and packaged checks.** PR and release validation exercise the real manager
   UI, native IPC, form submission, account selection, cancellation and focus return.
   Physical macOS authentication and test-password reveal were verified locally.
 

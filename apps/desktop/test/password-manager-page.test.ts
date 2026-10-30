@@ -90,6 +90,28 @@ describe("Chrome-style form behavior", () => {
       expect.stringMatching(/^[a-f0-9]{32}$/u),
     );
   });
+  it("preserves the highlighted account when an unchanged metadata refresh finishes", async () => {
+    start([alice, bob]);
+    await page!.refresh();
+    document.querySelector<HTMLInputElement>('[name="username"]')!.focus();
+    await vi.waitFor(() =>
+      expect(pickerRoot?.querySelectorAll("button").length).toBe(2),
+    );
+    pickerRoot!
+      .querySelectorAll("button")[1]!
+      .dispatchEvent(new MouseEvent("mouseenter"));
+    expect(
+      pickerRoot!.querySelector('[aria-selected="true"]')?.textContent,
+    ).toBe(bob.username);
+    await page!.refresh();
+    expect(
+      pickerRoot!.querySelector('[aria-selected="true"]')?.textContent,
+    ).toBe(bob.username);
+    (
+      pickerRoot!.querySelector('[aria-selected="true"]') as HTMLButtonElement
+    ).click();
+    await vi.waitFor(() => expect(password().value).toBe("bob-secret"));
+  });
   it("captures submission before navigation and recognizes SPA form removal", async () => {
     const api = start([]);
     await vi.waitFor(() => expect(api.accounts).toHaveBeenCalled());

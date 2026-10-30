@@ -460,10 +460,36 @@ const input = (label, value) =>
       windowsVirtualKeyCode: code,
     });
   };
-  if (
-    suggestions.snapshot.indexOf("bob") > suggestions.snapshot.indexOf("alice")
-  )
-    await press("ArrowDown", 40);
+  assert.equal(
+    await page.executeJavaScript("document.activeElement?.id"),
+    "username",
+  );
+  const accountOptions = [];
+  function collectOptions(node) {
+    const attributes = node.attributes ?? [];
+    if (attributes[attributes.indexOf("role") + 1] === "option")
+      accountOptions.push({
+        name: (node.children ?? [])
+          .map((child) => child.nodeValue ?? "")
+          .join(""),
+        selected:
+          attributes[attributes.indexOf("aria-selected") + 1] === "true",
+      });
+    for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? [])])
+      collectOptions(child);
+  }
+  collectOptions(
+    (await send("DOM.getDocument", { depth: -1, pierce: true })).root,
+  );
+  assert.deepEqual(accountOptions.map((option) => option.name).sort(), [
+    "alice",
+    "bob",
+  ]);
+  const selectedOption = accountOptions.find((option) => option.selected);
+  assert.ok(selectedOption, "The picker must expose its highlighted account");
+  // Exercise keyboard navigation even when Bob happens to be highlighted first.
+  if (selectedOption.name === "bob") await press("ArrowDown", 40);
+  await press("ArrowDown", 40);
   await press("Enter", 13);
   await waitFor(
     () =>
