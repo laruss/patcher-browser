@@ -57,6 +57,7 @@ try {
       contents: [
         'export { prepareCredentialForm } from "./src/desktop-credential-form.ts";',
         'export { createCredentialVault } from "./src/desktop-credential-vault.ts";',
+        'export { registerCredentialIpc } from "./src/desktop-credential-ipc.ts";',
         'export { createCredentialKeyStore } from "./src/desktop-credential-key.ts";',
         'export { createDesktopSiteAuthority } from "./src/desktop-site-authority.ts";',
         'export { createCdpSession } from "./src/desktop-browser-cdp.ts";',

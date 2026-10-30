@@ -1,4 +1,4 @@
-const { app, BrowserWindow, safeStorage, ipcMain } = require("electron");
+const { app, BrowserWindow, safeStorage } = require("electron");
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
@@ -6,6 +6,7 @@ const { createServer } = require("node:https");
 const { randomUUID } = require("node:crypto");
 const root = process.env.PATCHER_CREDENTIAL_SMOKE_ROOT;
 const runtime = require(join(root, "runtime.cjs"));
+app.setName("Patcher Credential Smoke");
 app.setPath("userData", join(root, "profile"));
 process.on("uncaughtException", (error) => {
   console.error(error);
@@ -152,29 +153,25 @@ async function run() {
     },
   });
   const manual = new Map();
-  ipcMain.on("patcher-desktop:credentials:consume-release", (event, input) => {
-    const entry = manual.get(input.token);
-    let value;
-    if (entry === input.operation) {
-      manual.delete(input.token);
-      value =
-        entry === "fill" ? { username: "alice", password: sentinel } : true;
-    } else
-      value = vault.take(
-        input.token,
-        input.operation,
-        event.sender.id,
-        event.senderFrame.url,
-      );
-    event.returnValue = value;
-    if (
-      value &&
-      (input.operation === "capture" || input.operation === "fill")
-    ) {
-      assert.equal(nativeApproved, true);
-      if (input.operation === "capture") captureCount++;
-      else fillCount++;
-    }
+  runtime.registerCredentialIpc({
+    authorize: () => false,
+    current: () => ({
+      take(token, operation, webContentsId, url) {
+        const entry = manual.get(token);
+        let value;
+        if (entry === operation) {
+          manual.delete(token);
+          value =
+            entry === "fill" ? { username: "alice", password: sentinel } : true;
+        } else value = vault.take(token, operation, webContentsId, url);
+        if (value && (operation === "capture" || operation === "fill")) {
+          assert.equal(nativeApproved, true);
+          if (operation === "capture") captureCount++;
+          else fillCount++;
+        }
+        return value;
+      },
+    }),
   });
   const manualPrepare = async () => {
     const token = randomUUID();

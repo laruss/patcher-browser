@@ -93,7 +93,6 @@ export function registerCredentialIpc(args: {
   authorize(event: IpcMainInvokeEvent): boolean;
 }) {
   ipcMain.on(CREDENTIAL_RELEASE_CHANNEL, (event, value: unknown) => {
-    event.returnValue = null;
     const parsed = z
       .object({
         token: z.uuid(),
@@ -101,20 +100,20 @@ export function registerCredentialIpc(args: {
       })
       .strict()
       .safeParse(value);
-    if (
+    // Assign once: Electron sends a synchronous IPC reply on the first assignment.
+    event.returnValue =
       parsed.success &&
       event.senderFrame === event.sender.mainFrame &&
       event.senderFrame
-    )
-      event.returnValue =
-        args
-          .current()
-          ?.take(
-            parsed.data.token,
-            parsed.data.operation,
-            event.sender.id,
-            event.senderFrame.url,
-          ) ?? null;
+        ? (args
+            .current()
+            ?.take(
+              parsed.data.token,
+              parsed.data.operation,
+              event.sender.id,
+              event.senderFrame.url,
+            ) ?? null)
+        : null;
   });
   ipcMain.handle(
     CREDENTIAL_CHANNELS.pending,

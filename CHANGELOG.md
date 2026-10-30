@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.1-alpha.10
+
+This release fixes the password manager's site access, layout and credential
+operations.
+
+- **Available on every supported HTTPS site while enabled.** The bundled
+  manager no longer requires a separate site grant or a “Use here” step.
+  Other plugins retain their runtime site permissions.
+- **Open the manager from the key button.** The permanent left panel is gone.
+  The manager opens beside the address bar when needed and closes on navigation.
+- **Saving and filling work again.** Fixes a desktop IPC error that sent a
+  refusal before the actual credential operation result. Passwords remain in
+  the protected vault; operations stay bound to the exact origin and require
+  fresh native confirmation.
+- **Regression coverage uses the production IPC handler.** Native checks cover
+  save, fill, update, delete, cancellation and changed or unsupported forms.
+
+Uses Electron 45.0.0. Requires macOS 13 (Ventura) or later on Apple Silicon.
+This alpha is ad-hoc signed and requires approval on first launch. Updates are
+downloaded manually.
+
 ## 0.1.1-alpha.9
 
 This release fixes a startup crash and long startup waits in alpha.8.

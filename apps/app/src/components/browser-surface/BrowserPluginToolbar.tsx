@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@patcher/shared-ui/tooltip";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
+import { usePluginSlots } from "@/lib/plugin-slots";
 import { invalidatePluginToolbarStates } from "@/hooks/cache-owners/plugin-cache-owner";
 import {
   runPluginToolbarItem,
@@ -22,6 +23,8 @@ export interface BrowserPluginToolbarProps {
   tabId: string;
   title: string | null;
   url: string;
+  openPanel?: string | null;
+  onPanelToggle?: (id: string) => void;
 }
 
 /**
@@ -39,7 +42,10 @@ export function BrowserPluginToolbar({
   tabId,
   title,
   url,
+  openPanel,
+  onPanelToggle,
 }: BrowserPluginToolbarProps) {
+  const panels = usePluginSlots().browserToolbarPanels ?? [];
   const queryClient = useQueryClient();
   const items = usePluginContributions().data?.browserToolbarItems ?? [];
   const wantsStates = items.some((item) => item.hasState);
@@ -51,7 +57,7 @@ export function BrowserPluginToolbar({
   // No page means nothing for a control to be about, and a press would be
   // refused by the server anyway — so the row is not drawn over Patcher's own
   // screens, which is what `PluginBrowserToolbarContext.url` promises.
-  if (items.length === 0 || url.length === 0) {
+  if ((items.length === 0 && panels.length === 0) || url.length === 0) {
     return null;
   }
   return (
@@ -60,6 +66,28 @@ export function BrowserPluginToolbar({
     // tooltip with no provider above it throws. The delay matches the sidebar's so
     // chrome tooltips feel the same wherever they are.
     <TooltipProvider delayDuration={300} disableHoverableContent>
+      {panels.map((panel) => {
+        const id = `${panel.pluginId}/${panel.id}`;
+        return (
+          <Tooltip key={id}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={panel.title}
+                aria-expanded={openPanel === id}
+                aria-controls={
+                  openPanel === id ? "browser-plugin-toolbar-panel" : undefined
+                }
+                className={BROWSER_CHROME_ICON_BUTTON_CLASS}
+                onClick={() => onPanelToggle?.(id)}
+              >
+                <PluginIcon pluginId={panel.pluginId} icon={panel.icon} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{panel.title}</TooltipContent>
+          </Tooltip>
+        );
+      })}
       {items.map((item) => (
         <BrowserPluginToolbarButton
           key={`${item.pluginId}:${item.itemId}`}

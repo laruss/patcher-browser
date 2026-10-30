@@ -4,6 +4,10 @@ import type { BrowserCommand } from "./browser-control.js";
 
 export const RUNTIME_SITE_ACCESS_SDK_VERSION = "1.1.0";
 export const PLUGIN_SITE_GRANT_MAX_COUNT = 64;
+// Private desktop policy permission, issued by core only for the bundled manager.
+// It is deliberately not a permission third-party manifests can request.
+export const BUILTIN_PASSWORD_MANAGER_ALL_SITES =
+  "builtin.password-manager.all-sites";
 export function runtimeSiteCommandSupported(command: BrowserCommand): boolean {
   if (!("tabId" in command) || !command.tabId) return false;
   switch (command.type) {
@@ -88,6 +92,15 @@ export const sitePolicySchema = z
   })
   .strict();
 export type DesktopSitePolicy = z.infer<typeof sitePolicySchema>;
+export function sitePolicyAccessAllows(
+  policy: DesktopSitePolicy,
+  value: string,
+): boolean {
+  return policy.pluginId === "password-manager" &&
+    policy.permissions.includes(BUILTIN_PASSWORD_MANAGER_ALL_SITES)
+    ? pluginSiteCeilingAllows(policy.sites, value)
+    : pluginSiteAccessAllows(policy.sites, policy.origins, value);
+}
 export const siteContextSchema = z
   .object({
     tabId: z.string().min(1).max(128),

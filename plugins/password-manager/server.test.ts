@@ -71,9 +71,9 @@ describe("password manager backend", () => {
     expect(host.harness.registrations.agentTools).toEqual([]);
     expect(host.harness.registrations.httpRoutes).toEqual([]);
     expect(host.harness.registrations.pageScripts).toHaveLength(1);
-    expect(host.harness.registrations.toolbarItems).toHaveLength(1);
+    expect(host.harness.registrations.toolbarItems).toHaveLength(0);
   });
-  it("does not turn page hints or toolbar clicks into list/request calls", async () => {
+  it("does not turn page hints into list/request calls", async () => {
     const host = load();
     const list = vi.spyOn(host.patcher.browser.credentials, "list");
     const request = vi.spyOn(host.patcher.browser.credentials, "request");
@@ -84,11 +84,6 @@ describe("password manager backend", () => {
         present: true,
       }),
     ).toEqual({ ok: true });
-    await host.harness.registrations.toolbarItems[0]!.run({
-      tabId: "tab",
-      url: `${origin}/login?token=private`,
-      title: null,
-    });
     expect(list).not.toHaveBeenCalled();
     expect(request).not.toHaveBeenCalled();
     expect(JSON.stringify(host.harness.realtimeSignals)).not.toContain(

@@ -13,6 +13,7 @@ import { createPluginSiteAccess } from "../../../src/services/plugins/plugin-sit
 import { runWithPluginSiteCallers } from "../../../src/services/browser/plugin-site-caller.js";
 import type { PluginManifest } from "../../../src/services/plugins/manifest.js";
 import type { DesktopSitePolicy } from "@patcher/domain/plugin-site-access";
+import { BUILTIN_PASSWORD_MANAGER_ALL_SITES } from "@patcher/domain/plugin-site-access";
 
 const databases: DbConnection[] = [];
 afterEach(() => {
@@ -104,6 +105,28 @@ function fixture() {
   return { db, row, manifest, sites, request, callScoped, command, policies };
 }
 describe("core runtime site grants", () => {
+  it("issues installation-wide access only to the genuine bundled password manager", async () => {
+    const f = fixture();
+    const manager = {
+      ...f.row,
+      id: "password-manager",
+      sourceKind: "builtin" as const,
+      sourceBuiltinName: "password-manager",
+    };
+    await f.sites.register(manager, f.manifest);
+    expect(f.policies.get("password-manager")?.permissions).toContain(
+      BUILTIN_PASSWORD_MANAGER_ALL_SITES,
+    );
+    expect(f.sites.list()).toEqual([]);
+    await f.sites.register(
+      { ...manager, sourceKind: "path", sourceBuiltinName: null },
+      f.manifest,
+    );
+    expect(f.policies.get("password-manager")?.permissions).not.toContain(
+      BUILTIN_PASSWORD_MANAGER_ALL_SITES,
+    );
+    expect(f.sites.list()).toHaveLength(1);
+  });
   it("reports native access unavailable after the broker disconnects", async () => {
     const f = fixture();
     await f.sites.register(f.row, f.manifest);

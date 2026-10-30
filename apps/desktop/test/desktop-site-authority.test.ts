@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { browserCommandSchema } from "@patcher/domain";
 import type { DesktopSitePolicy } from "@patcher/desktop-contract";
+import { BUILTIN_PASSWORD_MANAGER_ALL_SITES } from "@patcher/domain/plugin-site-access";
 import {
   createDesktopSiteAuthority,
   siteDigest,
@@ -76,6 +77,45 @@ function fixture() {
   };
 }
 describe("main-owned site capabilities", () => {
+  it("allows the core-installed manager on new sites without grants and revokes it on disable", async () => {
+    const f = fixture();
+    await f.update({
+      pluginId: "password-manager",
+      sites: ["https://**"],
+      permissions: [
+        "tabs.read",
+        "credentials.manage",
+        BUILTIN_PASSWORD_MANAGER_ALL_SITES,
+      ],
+    });
+    expect(
+      f.authority.allows("password-manager", "https://a.example.com/login"),
+    ).toBe(true);
+    expect(
+      f.authority.allows("password-manager", "https://another.example/login"),
+    ).toBe(true);
+    expect(
+      f.authority.allows("password-manager", "http://example.com/login"),
+    ).toBe(false);
+    const { token } = await f.prepare();
+    f.authority.consume(token, f.command, 12).assert();
+    expect(f.confirm).not.toHaveBeenCalled();
+    await f.update({ enabled: false });
+    expect(
+      f.authority.allows("password-manager", "https://a.example.com/login"),
+    ).toBe(false);
+    await expect(f.prepare()).rejects.toThrow();
+  });
+  it("does not treat other plugins as an installation-wide password manager", async () => {
+    const f = fixture();
+    await f.update({
+      permissions: ["tabs.read", BUILTIN_PASSWORD_MANAGER_ALL_SITES],
+    });
+    expect(
+      f.authority.allows("plugin", "https://a.example.com/private/a"),
+    ).toBe(false);
+    await expect(f.prepare()).rejects.toThrow();
+  });
   it("denies before grant, including renderer-supplied contributions", async () => {
     const f = fixture();
     await f.update({});

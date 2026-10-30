@@ -352,6 +352,12 @@ Versioned and additive-only:
   for data. Enabled plugins appear in the
   settings sidebar when they declare settings descriptors OR register
   settings sections.
+- `experimental_browserToolbarPanel` → `{ browserUrl: string | null, browserTabId?: string | null }`.
+  SDK 1.4. Registration: `{ id, title, icon, component }`. Adds a button beside
+  the address bar and mounts the component only when the person opens it. The
+  panel is in the chrome's layout flow so the native page remains visible.
+  Navigation or closing the panel unmounts its content; neither opening it nor
+  these props grant page access or approve a credential operation.
 - `experimental_leadingPanel` → `{ browserUrl: string | null, browserTabId?: string | null }` — a panel on the
   window's **leading** edge, the end opposite the sidebar. Registration:
   `{ id, title, icon, component, matches? }`. It is not a route: nothing links to

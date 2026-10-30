@@ -7,7 +7,8 @@ import {
   permissionForBrowserCommand,
 } from "@patcher/domain";
 import {
-  pluginSiteAccessAllows,
+  sitePolicyAccessAllows,
+  BUILTIN_PASSWORD_MANAGER_ALL_SITES,
   pluginSiteOrigin,
   PLUGIN_SITE_GRANT_MAX_COUNT,
   runtimeSiteCommandSupported,
@@ -203,7 +204,14 @@ export function createPluginSiteAccess(args: {
         revision: randomUUID(),
         enabled: row.enabled && manifest.siteAccess === "runtime",
         sites: [...(manifest.sites ?? [])],
-        permissions: [...(manifest.permissions ?? [])],
+        permissions: [
+          ...(manifest.permissions ?? []),
+          ...(row.id === "password-manager" &&
+          row.sourceKind === "builtin" &&
+          row.sourceBuiltinName === "password-manager"
+            ? [BUILTIN_PASSWORD_MANAGER_ALL_SITES]
+            : []),
+        ],
         origins: persistedOrigins(row.id, fingerprint),
         scripts: contributions.scripts.map(digest),
         styles: contributions.styles.map(digest),
@@ -312,11 +320,7 @@ export function createPluginSiteAccess(args: {
         const state = stateFor(owner.pluginId);
         if (
           state.policy.revision !== owner.revision ||
-          !pluginSiteAccessAllows(
-            state.policy.sites,
-            state.policy.origins,
-            lease.url,
-          )
+          !sitePolicyAccessAllows(state.policy, lease.url)
         )
           return refuse();
       }
@@ -544,15 +548,22 @@ export function createPluginSiteAccess(args: {
       }
     },
     list: () =>
-      [...states.values()].map((state) => ({
-        pluginId: state.policy.pluginId,
-        name: state.policy.name,
-        enabled: state.policy.enabled,
-        available,
-        origins: state.policy.origins,
-        permissions: state.policy.permissions,
-        sites: state.policy.sites,
-      })),
+      [...states.values()]
+        .filter(
+          (state) =>
+            !state.policy.permissions.includes(
+              BUILTIN_PASSWORD_MANAGER_ALL_SITES,
+            ),
+        )
+        .map((state) => ({
+          pluginId: state.policy.pluginId,
+          name: state.policy.name,
+          enabled: state.policy.enabled,
+          available,
+          origins: state.policy.origins,
+          permissions: state.policy.permissions,
+          sites: state.policy.sites,
+        })),
   };
 }
 export type PluginSiteAccess = ReturnType<typeof createPluginSiteAccess>;

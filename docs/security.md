@@ -94,7 +94,10 @@ Interactive password operations use a separate vault described below; see the
 
 The local owned desktop server stores sealed credential records; Electron main
 holds a separate OS-wrapped key. Ordinary settings unwrap cannot open it.
-`credentials.manage` (SDK 1.2.0) requires a live runtime exact-origin grant;
+`credentials.manage` (SDK 1.2.0) requires a live runtime exact-origin grant
+for ordinary plugins; the enabled bundled password manager has core-issued
+access to supported HTTPS sites without separate site grants. Credential records
+and operations remain bound to the exact origin;
 all authenticated deputies are checked, including legacy callers. Agent identity
 survives child calls and the host-owned SDK HTTP correlation. Installed Node
 plugins remain trusted local code; arbitrary custom networking/queues do not
@@ -102,8 +105,9 @@ carry an implicit user identity, and this is not a process sandbox.
 
 The bundled password manager is preinstalled and enabled by default; existing
 disabled state and earlier removal tombstones survive restarts and updates.
-Settings permits disabling builtins, not uninstalling them. Grant each exact HTTPS
-origin with Use here. Its panel receives account metadata
+Settings permits disabling builtins, not uninstalling them. Its key button beside
+the address bar opens the manager on demand; it does not occupy a permanent side
+panel. Its panel receives account metadata
 and invokes Save/Update/Fill/Delete only on manual actions. Page RPC cannot list
 or request credentials, including through child/SDK HTTP deputies. Form/submit
 hints carry only origin, kind and presence; they update advisory text without

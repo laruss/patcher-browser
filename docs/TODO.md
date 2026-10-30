@@ -48,7 +48,7 @@ acceptance remain manual checks.
   authentication** today and lets a plugin answer one
   (`patcher.browser.registerAuthProvider`), which is the rare case; a **form login**,
   which is nearly every case, now has a preinstalled, enabled manager.
-  Its side panel offers manual Save/Update/Fill/Delete through protected core primitives. Chromium's own manager is not in Electron,
+  Its key button beside the address bar opens manual Save/Update/Fill/Delete through protected core primitives. Chromium's own manager is not in Electron,
   so it is not a switch to flip.
 
   The sorting test now answers differently than it would have last week: after
@@ -57,7 +57,7 @@ acceptance remain manual checks.
   Phase 6 now supplies a separate vault that keeps passwords out of plugin backend
   memory and core capture/fill operations that require a person's approval, with
   a sealed per-action Touch ID policy. Phase 7 delivers the manager as a
-  builtin plugin with explicit site grants. A user can disable it; the choice
+  builtin plugin that works on supported HTTPS sites while enabled, without per-site grants. A user can disable it; the choice
   survives restarts and updates. Earlier removal tombstones are also respected.
 
 - **A keychain-backed secret store for the server side.** Implemented in Phase 4

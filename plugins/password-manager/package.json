@@ -6,11 +6,11 @@
   "description": "Save and fill logins with core confirmation for every action.",
   "engines": {
     "patcher": ">=0.0",
-    "patcherPluginSdk": "^1.3.0"
+    "patcherPluginSdk": "^1.4.0"
   },
   "patcher": {
     "name": "Password manager",
-    "description": "Save, update, fill and delete logins with confirmation for every action. Choose which sites can use the manager.",
+    "description": "Save, update, fill and delete logins with confirmation for every action. Works on every supported site while enabled.",
     "branding": {
       "icon": "Key"
     },
@@ -23,7 +23,6 @@
     "permissions": [
       "credentials.manage",
       "tabs.read",
-      "toolbar.register",
       "pageScript.register"
     ]
   },

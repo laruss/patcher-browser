@@ -194,6 +194,7 @@ type SlotPropsByName = {
   settingsSection: PluginSettingsSectionProps;
   navPanel: PluginNavPanelProps;
   experimental_leadingPanel: PluginLeadingPanelProps;
+  experimental_browserToolbarPanel: PluginLeadingPanelProps;
   threadPanelAction: PluginThreadPanelProps;
   experimental_newThreadPanelAction: PluginNewThreadPanelProps;
   pendingInteraction: PluginPendingInteractionProps;
@@ -260,6 +261,7 @@ const FRONTEND_SLOT_PROP_FIELDS = {
   settingsSection: [],
   navPanel: ["subPath"],
   experimental_leadingPanel: ["browserUrl", "browserTabId"],
+  experimental_browserToolbarPanel: ["browserUrl", "browserTabId"],
   threadPanelAction: ["threadId", "params"],
   experimental_newThreadPanelAction: ["projectId", "params"],
   pendingInteraction: ["interaction", "submit", "cancel"],

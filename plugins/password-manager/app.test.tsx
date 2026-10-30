@@ -6,7 +6,7 @@ import { loadPluginApp, renderSlot } from "@patcher/plugin-sdk/testing/app";
 import type { ManagerView } from "./contracts.js";
 
 const app = await loadPluginApp(() => import("./app.js"));
-const panel = app.leadingPanels[0]!;
+const panel = app.browserToolbarPanels[0]!;
 const props = {
   browserTabId: "tab",
   browserUrl: "https://example.test/login?token=private",
@@ -99,28 +99,17 @@ describe("password manager panel", () => {
     expect(view).toHaveBeenCalledTimes(1);
     expect(request).not.toHaveBeenCalled();
   });
-  it("requests site access only on Use here and only for this fixed plugin and tab", async () => {
-    let ready = false;
-    const fetchMock = vi.fn(async () => {
-      ready = true;
-      return new Response("{}", { status: 200 });
-    });
+  it("registers no left panel and offers logins without per-site permission requests", async () => {
+    expect(app.leadingPanels).toHaveLength(0);
+    expect(app.browserToolbarPanels).toHaveLength(1);
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const slot = renderSlot(panel, props, {
-      rpc: {
-        view: () => ({ status: ready ? "ready" : "denied", accounts: [] }),
-      },
+      rpc: { view: () => ({ status: "ready", accounts: [] }) },
     });
-    const button = await slot.findByRole("button", { name: "Use here" });
-    expect(fetchMock).not.toHaveBeenCalled();
-    fireEvent.click(button);
     await slot.findByRole("button", { name: "Save new login" });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/plugins/site-access/confirm",
-      expect.objectContaining({
-        body: JSON.stringify({ pluginId: "password-manager", tabId: "tab" }),
-      }),
-    );
+    expect(slot.queryByRole("button", { name: "Use here" })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it("ignores an older list response and never retries a denied operation", async () => {
     let finish!: (value: ManagerView) => void;
@@ -161,10 +150,7 @@ describe("password manager panel", () => {
       rpc: { view: () => ({ status: "unavailable", accounts: [] }) },
     });
     await slot.findByText("The connected desktop vault is unavailable.");
-    expect(
-      (slot.getByRole("button", { name: "Use here" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
+    expect(slot.queryByRole("button", { name: "Use here" })).toBeNull();
     expect(slot.queryByRole("button", { name: "Save new login" })).toBeNull();
   });
   it.each([

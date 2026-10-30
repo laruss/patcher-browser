@@ -65,6 +65,14 @@ export interface PluginLeadingPanelProps {
   browserUrl: string | null;
 }
 
+/** An on-demand panel opened from a button beside the address bar. */
+export interface PluginBrowserToolbarPanelRegistration {
+  id: string;
+  title: string;
+  icon: string;
+  component: ComponentType<PluginLeadingPanelProps>;
+}
+
 /** Props passed to a `navPanel` component (it owns its whole route). */
 export interface PluginNavPanelProps {
   /**
@@ -822,6 +830,9 @@ export interface PluginAppSlots {
    * docs/api_to_audit.md.
    */
   experimental_leadingPanel(registration: PluginLeadingPanelRegistration): void;
+  experimental_browserToolbarPanel(
+    registration: PluginBrowserToolbarPanelRegistration,
+  ): void;
   /**
    * Add an action to an existing thread's panel launcher. This slot is
    * thread-only; use `experimental_newThreadPanelAction` for root compose.

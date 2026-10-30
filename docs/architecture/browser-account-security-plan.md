@@ -835,15 +835,17 @@ operation не сериализуется как обычный browser `fill` c
 включённый по умолчанию: Save new login, Update existing login, Choose account
 and Fill, Delete. Disable и прежние removal tombstones сохраняются после restart/update.
 Как остальные builtins, manager можно отключить; Settings не позволяет удалить builtin.
-Использует только уже проверенные core primitives. Не получает wildcard access
-при установке; broad manifest ceiling становится доступом лишь после site grant.
+Использует только уже проверенные core primitives. По уточнению UX от 2026-10-29
+включённый bundled manager работает на поддерживаемых HTTPS sites сразу, без
+отдельного site grant. Исключение выдаёт core только builtin source manager;
+остальные plugins сохраняют runtime grants Phase 5. Vault остаётся exact-origin.
 
 **Поведение первой версии:**
 
-- Toolbar action и plugin panel/settings показывают текущий origin, наличие
+- Кнопка ключа у адресной строки открывает panel по запросу и показывает текущий origin, наличие
   аккаунтов и доступность backend. Плагин выбирает account reference и просит
-  core исполнить fill. Первое действие «Use here» использует Phase 5.
-- Page script после grant на HTTPS main frame распознаёт обычную форму с одним
+  core исполнить fill. Постоянной левой панели и действия «Use here» нет.
+- Page script включённого manager на HTTPS main frame распознаёт обычную форму с одним
   username/email и одним password field, стандартный submit и динамическое
   появление полей. Передаёт только `{ origin, kind, present }`, без значений полей и capture ID.
   Подсказка недоверенная, меняет лишь текст панели и истекает через 30 секунд.
@@ -1099,16 +1101,16 @@ Signed аппаратная приёмка и phone QR по-прежнему н�
 
 ## Решения, которые нужно подтвердить до соответствующей реализации
 
-| Решение                                  | Рекомендуемый вариант и причина                                                                                                                                               | Когда блокирует |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| Где находится первый vault               | На машине desktop-owned local server; remote/headless пока unsupported. Это предотвращает неявную передачу локальных секретов удалённому серверу и ограничивает первый broker | Phase 4         |
-| Что делать со старыми tokens без backend | Сохранять совместимый legacy mode с честным статусом; никогда не понижать уже encrypted record и не создавать password vault в plaintext                                      | Phase 4         |
-| Мигрировать автоматически ли             | Явно включаемая миграция с resumable state; пользователь понимает зависимость от desktop и downgrade. Никакого удаления до проверенного ciphertext                            | Phase 4         |
-| Touch ID отсутствует                     | Явный режим OS encryption + подтверждение каждого fill; Require Touch ID всегда fail closed. Не реализовывать свой master password в этом scope                               | Phase 6         |
-| Session unlock                           | Не добавлять в MVP; каждый fill имеет своё разрешение, меньше lifetime/race/replay состояний                                                                                  | Phase 6         |
-| Может ли plugin прочитать пароль         | MVP API выдаёт handle/status и выполняет scoped fill в core. Обычный `settings.get()` остаётся для tokens, не vault                                                           | Phase 6         |
-| Delivery manager                         | Предустановленный и включённый builtin plugin с явными site grants. Disable и прежние removal tombstones сохраняются после restart/update                                     | Phase 7         |
-| Подпись для passkeys                     | Использовать реальную стабильную signing identity; до её готовности честный unsupported path. Не писать собственный authenticator                                             | Phase 8         |
+| Решение                                  | Рекомендуемый вариант и причина                                                                                                                                                                            | Когда блокирует |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Где находится первый vault               | На машине desktop-owned local server; remote/headless пока unsupported. Это предотвращает неявную передачу локальных секретов удалённому серверу и ограничивает первый broker                              | Phase 4         |
+| Что делать со старыми tokens без backend | Сохранять совместимый legacy mode с честным статусом; никогда не понижать уже encrypted record и не создавать password vault в plaintext                                                                   | Phase 4         |
+| Мигрировать автоматически ли             | Явно включаемая миграция с resumable state; пользователь понимает зависимость от desktop и downgrade. Никакого удаления до проверенного ciphertext                                                         | Phase 4         |
+| Touch ID отсутствует                     | Явный режим OS encryption + подтверждение каждого fill; Require Touch ID всегда fail closed. Не реализовывать свой master password в этом scope                                                            | Phase 6         |
+| Session unlock                           | Не добавлять в MVP; каждый fill имеет своё разрешение, меньше lifetime/race/replay состояний                                                                                                               | Phase 6         |
+| Может ли plugin прочитать пароль         | MVP API выдаёт handle/status и выполняет scoped fill в core. Обычный `settings.get()` остаётся для tokens, не vault                                                                                        | Phase 6         |
+| Delivery manager                         | Предустановленный и включённый builtin plugin с доступом к поддерживаемым HTTPS sites без per-site grants и панелью по кнопке ключа. Disable и прежние removal tombstones сохраняются после restart/update | Phase 7         |
+| Подпись для passkeys                     | Использовать реальную стабильную signing identity; до её готовности честный unsupported path. Не писать собственный authenticator                                                                          | Phase 8         |
 
 Эти рекомендации дают реализацию без выбора «на глаз». Они не требуют нового
 подтверждения для Phase 1: её scope не меняет хранение и продуктовые permissions.

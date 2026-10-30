@@ -45,6 +45,7 @@ import {
 import { BrowserTabHandover } from "./BrowserTabHandover";
 import { BrowserOmniboxSuggestions } from "./BrowserOmniboxSuggestions";
 import { BrowserPluginToolbar } from "./BrowserPluginToolbar";
+import { BrowserPluginToolbarPanel } from "./BrowserPluginToolbarPanel";
 import { BrowserSiteInfo } from "./BrowserSiteInfo";
 
 export interface BrowserSurfaceChromeProps {
@@ -168,6 +169,21 @@ export function BrowserSurfaceChrome({
   const { openDownload, revealDownload } = useBrowserDownloadActions();
   const [isDownloadsOpen, setIsDownloadsOpen] = useState(false);
   const [isSiteInfoOpen, setIsSiteInfoOpen] = useState(false);
+  const [toolbarPanel, setToolbarPanel] = useState<{
+    id: string;
+    tabId: string;
+    url: string;
+  } | null>(null);
+  if (
+    toolbarPanel &&
+    (toolbarPanel.tabId !== tabId || toolbarPanel.url !== url)
+  ) {
+    setToolbarPanel(null);
+  }
+  const openToolbarPanel =
+    toolbarPanel?.tabId === tabId && toolbarPanel.url === url
+      ? toolbarPanel.id
+      : null;
   const downloadsPanelRef = useRef<HTMLDivElement>(null);
   const downloadsButtonRef = useRef<HTMLDivElement>(null);
   /**
@@ -577,6 +593,14 @@ export function BrowserSurfaceChrome({
             way a browser keeps its extension area — Patcher's buttons stay where the
             user learned them. */}
         <BrowserPluginToolbar
+          openPanel={openToolbarPanel}
+          onPanelToggle={(id) => {
+            setIsDownloadsOpen(false);
+            setIsSiteInfoOpen(false);
+            setToolbarPanel(
+              openToolbarPanel === id ? null : { id, tabId, url },
+            );
+          }}
           tabId={tabId}
           title={pushedState?.title ?? null}
           url={url}
@@ -608,6 +632,12 @@ export function BrowserSurfaceChrome({
           tab, and it outlives the indicator, which fades a few seconds after
           the last command. */}
       <BrowserTabHandover />
+      <BrowserPluginToolbarPanel
+        id={openToolbarPanel}
+        tabId={tabId}
+        url={url}
+        onClose={() => setToolbarPanel(null)}
+      />
       {isDownloadsOpen ? (
         <BrowserDownloadsPanel
           entries={downloads.entries}

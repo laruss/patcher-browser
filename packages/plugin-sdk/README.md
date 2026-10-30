@@ -90,6 +90,12 @@ paired with `browserUrl` from the same active tab in that window. Treat it as a
 target identifier, not consent or approval. Older hosts omit it; credential UI
 must refuse operations without a tab ID.
 
+SDK 1.4.0 adds `experimental_browserToolbarPanel({ id, title, icon, component })`.
+Its button sits beside the address bar; the component mounts only while opened,
+with the active `browserTabId` and `browserUrl`. Closing it or navigating unmounts
+the component. The panel stays in layout flow so the native page remains usable.
+Opening a panel grants no site access or credential approval.
+
 ## Protected browser credentials
 
 SDK 1.2.0 adds `patcher.browser.credentials`. Declare minimum SDK 1.2.0,
