@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -12,13 +13,17 @@ import type {
   PasswordEntry,
   PasswordManagerRequest,
   PasswordManagerResponse,
+  DesktopPasswordManagerSessionApi,
+  PasswordManagerSessionRequest,
 } from "@patcher/desktop-contract";
 import { PasswordManagerView } from "./PasswordManagerView";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 
 const bridge = vi.hoisted(() => ({
   request: vi.fn(),
   onOpen: vi.fn(() => () => {}),
   onChange: vi.fn(() => () => {}),
+  session: undefined as DesktopPasswordManagerSessionApi | undefined,
 }));
 vi.mock("@/lib/patcher-desktop", () => ({
   getPatcherDesktopInfo: () => ({ passwordManager: bridge }),
@@ -32,7 +37,126 @@ const entry: PasswordEntry = {
   updatedAt: 1,
 };
 beforeEach(() => {
+  bridge.session = undefined;
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
+});
+
+it("unlocks a site card before entry and copies username/password without revealing the password", async () => {
+  let allowed = false;
+  const request = vi.fn(async () => ({
+    status: (allowed ? "done" : "cancelled") as "done" | "cancelled",
+  }));
+  bridge.session = { request, onLock: () => () => {} };
+  setup();
+  fireEvent.click(await screen.findByText("example.com"));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith({
+      operation: "open",
+      origin: entry.origin,
+    }),
+  );
+  expect(screen.queryByRole("button", { name: "Show password" })).toBeNull();
+  allowed = true;
+  fireEvent.click(screen.getByText("example.com"));
+  fireEvent.click(await screen.findByRole("button", { name: "Copy username" }));
+  await screen.findByRole("status");
+  expect(request).toHaveBeenLastCalledWith({
+    operation: "copy",
+    id: entry.id,
+    version: entry.version,
+    field: "username",
+  });
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Copy password" }),
+    ).toHaveProperty("disabled", false),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Copy password" }));
+  await waitFor(() =>
+    expect(request).toHaveBeenLastCalledWith({
+      operation: "copy",
+      id: entry.id,
+      version: entry.version,
+      field: "password",
+    }),
+  );
+  expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+    "type",
+    "password",
+  );
+  expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+    "value",
+    "••••••••",
+  );
+  expect(screen.getByRole("button", { name: "Show password" })).toBeTruthy();
+});
+
+it("masks on session lock and rejects a password response that arrives after locking", async () => {
+  let lock!: () => void;
+  let reveal!: (value: PasswordManagerResponse) => void;
+  const request = vi.fn(async (input: PasswordManagerSessionRequest) =>
+    input.operation === "reveal"
+      ? new Promise<PasswordManagerResponse>((resolve) => {
+          reveal = resolve;
+        })
+      : { status: "done" as const },
+  );
+  bridge.session = {
+    request,
+    onLock: (listener) => {
+      lock = listener;
+      return () => {};
+    },
+  };
+  setup();
+  fireEvent.click(await screen.findByText("example.com"));
+  fireEvent.click(await screen.findByRole("button", { name: "Show password" }));
+  await waitFor(() => expect(reveal).toBeTypeOf("function"));
+  act(() => lock());
+  await act(async () =>
+    reveal({ status: "revealed", password: "must-not-be-rendered" }),
+  );
+  expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+    "type",
+    "password",
+  );
+  expect(document.body.textContent).not.toContain("must-not-be-rendered");
+  expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+    "value",
+    "••••••••",
+  );
+});
+
+it("hides an already revealed password when the native session locks", async () => {
+  let lock!: () => void;
+  bridge.session = {
+    request: async (input) =>
+      input.operation === "reveal"
+        ? { status: "revealed", password: "synthetic-secret" }
+        : { status: "done" },
+    onLock: (listener) => {
+      lock = listener;
+      return () => {};
+    },
+  };
+  setup();
+  fireEvent.click(await screen.findByText("example.com"));
+  fireEvent.click(await screen.findByRole("button", { name: "Show password" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+      "value",
+      "synthetic-secret",
+    ),
+  );
+  act(() => lock());
+  expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+    "type",
+    "password",
+  );
+  expect(screen.getByLabelText("Password for alice")).toHaveProperty(
+    "value",
+    "••••••••",
+  );
 });
 afterEach(() => {
   cleanup();
@@ -46,9 +170,11 @@ function setup() {
       : { status: "cancelled" },
   );
   render(
-    <MemoryRouter>
-      <PasswordManagerView />
-    </MemoryRouter>,
+    <TooltipProvider>
+      <MemoryRouter>
+        <PasswordManagerView />
+      </MemoryRouter>
+    </TooltipProvider>,
   );
 }
 it("searches across websites/usernames and opens details with the password hidden", async () => {

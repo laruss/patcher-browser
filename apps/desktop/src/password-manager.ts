@@ -9,11 +9,15 @@ import {
 } from "@patcher/domain/password-manager";
 import {
   passwordManagerRequestSchema,
+  passwordManagerSessionRequestSchema,
   type PasswordManagerRequest,
+  type PasswordManagerSessionRequest,
   type PasswordManagerResponse,
   type PasswordEntry,
 } from "@patcher/desktop-contract";
 import type { CredentialKeyStore } from "./desktop-credential-key.js";
+
+const UNLOCK_DURATION_MS = 5 * 60_000;
 
 export function passwordMetadata(record: StoredPassword): PasswordEntry {
   const { id, version, origin, username, createdAt, updatedAt } = record;
@@ -25,6 +29,8 @@ export function createPasswordManager(args: {
   key(): CredentialKeyStore;
   authenticate(reason: string, signal: AbortSignal): Promise<boolean>;
   changed(enabled: boolean): void;
+  copy?(value: string): void;
+  locked?(): void;
 }) {
   let epoch = 0,
     enabled = false;
@@ -32,7 +38,11 @@ export function createPasswordManager(args: {
   let expectedVaultId: string | undefined;
   let authenticating = false,
     migrationOffered = false;
+  let authenticatedAt = 0;
   const prompts = new Set<AbortController>();
+  let unlockedUntil = 0;
+  let unlockedSourceHash: string | undefined;
+  let unlockTimer: ReturnType<typeof setTimeout> | undefined;
   const edits = new Map<
     string,
     {
@@ -49,6 +59,7 @@ export function createPasswordManager(args: {
       await args.store({ operation: "status" }),
     );
     if (generation !== epoch) throw new Error("unavailable");
+    if (unlockedSourceHash && unlockedSourceHash !== value.sourceHash) lock();
     if (value.vault) {
       args.key().verify(value.vault);
       if (expectedVaultId && expectedVaultId !== value.vault.vaultId) throw new Error("unavailable");
@@ -96,31 +107,81 @@ export function createPasswordManager(args: {
     return { sourceHash, entries };
   }
   function reset() {
+    lock();
     epoch++;
     active = false;
     expectedVaultId = undefined;
     migrationOffered = false;
     for (const prompt of prompts) prompt.abort();
     prompts.clear();
-    edits.clear();
   }
-  async function authorize(reason: string, current: () => boolean) {
+  function lock() {
+    unlockedUntil = 0;
+    unlockedSourceHash = undefined;
+    clearTimeout(unlockTimer);
+    unlockTimer = undefined;
+    edits.clear();
+    args.locked?.();
+  }
+  function unlocked() {
+    if (unlockedUntil > performance.now()) return true;
+    if (unlockedUntil !== 0) lock();
+    return false;
+  }
+  async function authorize(
+    reason: string,
+    current: () => boolean,
+    waitForFocus = false,
+  ) {
     if (authenticating || !current()) return false;
     authenticating = true;
     const controller = new AbortController(),
       generation = epoch;
     prompts.add(controller);
     try {
-      return (
-        (await args.authenticate(reason, controller.signal)) &&
+      const approved = await args.authenticate(reason, controller.signal);
+      const completedAt = performance.now();
+      // LocalAuthentication may finish before macOS returns focus to the
+      // manager. Native copy must wait for that return before writing secrets.
+      if (approved && waitForFocus) {
+        const deadline = performance.now() + 1000;
+        while (
+          !current() &&
+          !controller.signal.aborted &&
+          generation === epoch &&
+          performance.now() < deadline
+        )
+          await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const accepted =
+        approved &&
         !controller.signal.aborted &&
         generation === epoch &&
-        current()
-      );
+        current();
+      if (accepted) authenticatedAt = completedAt;
+      return accepted;
     } finally {
       authenticating = false;
       prompts.delete(controller);
     }
+  }
+  async function authorizeManager(
+    reason: string,
+    current: () => boolean,
+    useSession: boolean,
+    sourceHash: string,
+  ) {
+    if (!useSession) return authorize(reason, current);
+    if (unlocked() && unlockedSourceHash === sourceHash) return current();
+    const generation = epoch;
+    const approved = await authorize(reason, current, true);
+    if (generation !== epoch) throw new Error("unavailable");
+    if (!approved || !current()) return false;
+    unlockedSourceHash = sourceHash;
+    unlockedUntil = authenticatedAt + UNLOCK_DURATION_MS;
+    unlockTimer = setTimeout(lock, unlockedUntil - performance.now());
+    unlockTimer.unref();
+    return true;
   }
   function site(value: string) {
     const origin = passwordOrigin(
@@ -157,12 +218,15 @@ export function createPasswordManager(args: {
     return sealed;
   }
   async function request(
-    input: PasswordManagerRequest,
+    input: PasswordManagerSessionRequest,
     host: number,
     current: () => boolean,
+    useSession = false,
   ): Promise<PasswordManagerResponse> {
     if (!current()) return { status: "unavailable" };
-    const parsed = passwordManagerRequestSchema.safeParse(input);
+    const parsed = (
+      useSession ? passwordManagerSessionRequestSchema : passwordManagerRequestSchema
+    ).safeParse(input);
     if (!parsed.success) return { status: "invalid" };
     const request = parsed.data,
       generation = epoch;
@@ -174,20 +238,35 @@ export function createPasswordManager(args: {
     try {
       const { sourceHash, entries } = await snapshot();
       const assert = async () => {
+        if (generation !== epoch || !current()) throw new Error("unavailable");
+        const latestSourceHash = await status();
         if (
           generation !== epoch ||
           !current() ||
-          (await status()) !== sourceHash
+          latestSourceHash !== sourceHash
         )
           throw new Error("unavailable");
       };
       await assert();
+      const assertAccess = () => {
+        if (generation !== epoch || !current()) throw new Error("unavailable");
+        if (useSession && !unlocked()) throw new Error("cancelled");
+      };
       if (request.operation === "list")
         return {
           status: "ready",
           entries: entries.map(passwordMetadata),
           migrationNeeded: entries.some((entry) => entry.format === 1),
         };
+      if (request.operation === "open") {
+        if (!entries.some((entry) => entry.origin === request.origin))
+          return { status: "conflict" };
+        if (!(await authorizeManager("Unlock Password Manager", current, true, sourceHash)))
+          return { status: "cancelled" };
+        await assert();
+        assertAccess();
+        return { status: "done" };
+      }
       if (request.operation === "migrate") {
         const legacy = entries.filter((entry) => entry.format === 1);
         if (!legacy.length) return { status: "done" };
@@ -195,6 +274,7 @@ export function createPasswordManager(args: {
           !(await authorize(
             "Enable automatic filling for your saved passwords",
             current,
+            useSession,
           ))
         )
           return { status: "cancelled" };
@@ -239,11 +319,12 @@ export function createPasswordManager(args: {
           )
             return { status: "cancelled" };
           if (
-            edit.expires < Date.now() &&
-            !(await authorize("Save changes to your password", current))
+            (useSession || edit.expires < Date.now()) &&
+            !(await authorizeManager("Save changes to your password", current, useSession, sourceHash))
           )
             return { status: "cancelled" };
           await assert();
+          assertAccess();
           previous = entries.find(
             (entry) =>
               entry.id === edit.record.id &&
@@ -269,6 +350,7 @@ export function createPasswordManager(args: {
           previous,
         );
         await assert();
+        if (request.operation === "update") assertAccess();
         await args.store({
           operation: "put",
           sourceHash,
@@ -285,14 +367,19 @@ export function createPasswordManager(args: {
           reveal: "Show your saved password",
           edit: "Edit your saved password",
           delete: "Delete your saved password",
+          copy: "Copy your saved login",
         };
-        if (!(await authorize(reasons[request.operation], current)))
+        if (!(await authorizeManager(
+          reasons[request.operation], current, useSession, sourceHash,
+        )))
           return { status: "cancelled" };
         await assert();
         const latest = (await records(sourceHash)).find(
           (entry) => entry.id === record.id && entry.version === record.version,
         );
         if (!latest) return { status: "conflict" };
+        await assert();
+        assertAccess();
         if (request.operation === "delete")
           await args.store({
             operation: "delete",
@@ -301,8 +388,17 @@ export function createPasswordManager(args: {
             version: record.version,
           });
         else {
-          await assert();
+          if (request.operation === "copy") {
+            if (!args.copy) return { status: "unavailable" };
+            if (request.field === "username") args.copy(record.username);
+            else args.key().open(record, (password) => {
+              assertAccess();
+              args.copy!(password);
+            });
+            return { status: "done" };
+          }
           return args.key().open(record, (password) => {
+            assertAccess();
             if (request.operation === "reveal")
               return { status: "revealed", password };
             const editToken = randomUUID();
@@ -327,6 +423,8 @@ export function createPasswordManager(args: {
         status:
           code === "disabled"
             ? "disabled"
+            : code === "cancelled"
+              ? "cancelled"
             : code === "conflict"
               ? "conflict"
               : code === "invalid"
@@ -336,7 +434,10 @@ export function createPasswordManager(args: {
     }
   }
   return {
-    request,
+    request: (input: PasswordManagerRequest, host: number, current: () => boolean) =>
+      request(input, host, current),
+    requestSession: (input: PasswordManagerSessionRequest, host: number, current: () => boolean) =>
+      request(input, host, current, true),
     reset,
     enabled: () => enabled && active,
     async prepareSite(origin: string, host: number, current: () => boolean) {

@@ -381,6 +381,7 @@ export function createDesktopSiteAuthority(args: {
   return {
     request,
     known,
+    enabled: (pluginId: string) => connected && policies.get(pluginId)?.enabled === true,
     allows,
     consume,
     consumeCredentialContext(token: string, owner: string) {

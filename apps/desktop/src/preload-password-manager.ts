@@ -1,8 +1,10 @@
 import { ipcRenderer } from "electron";
 import {
   PASSWORD_MANAGER_CHANNELS,
+  PASSWORD_MANAGER_SESSION_CHANNELS,
   passwordManagerResponseSchema,
   type DesktopPasswordManagerApi,
+  type PasswordManagerResponse,
 } from "@patcher/desktop-contract";
 
 function subscribe(channel: string, listener: () => void) {
@@ -32,29 +34,39 @@ function waitForForeground(): Promise<boolean> {
     check();
   });
 }
-export const preloadPasswordManager: DesktopPasswordManagerApi = {
-  async request(input) {
-    try {
-      const result = passwordManagerResponseSchema.parse(
-        await ipcRenderer.invoke(PASSWORD_MANAGER_CHANNELS.request, input),
-      );
-      if (
-        (result.status === "revealed" || result.status === "editing") &&
-        !(await waitForForeground())
-      ) {
-        if (result.status === "editing")
-          void ipcRenderer
-            .invoke(PASSWORD_MANAGER_CHANNELS.request, {
-              operation: "cancel-edit",
-              editToken: result.editToken,
-            })
-            .catch(() => {});
-        return { status: "cancelled" };
-      }
-      return result;
-    } catch {
-      return { status: "unavailable" };
+async function request(
+  channel: string,
+  input: unknown,
+): Promise<PasswordManagerResponse> {
+  try {
+    const result = passwordManagerResponseSchema.parse(
+      await ipcRenderer.invoke(channel, input),
+    );
+    if (
+      (result.status === "revealed" || result.status === "editing") &&
+      !(await waitForForeground())
+    ) {
+      if (result.status === "editing")
+        void ipcRenderer
+          .invoke(channel, {
+            operation: "cancel-edit",
+            editToken: result.editToken,
+          })
+          .catch(() => {});
+      return { status: "cancelled" };
     }
+    return result;
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+export const preloadPasswordManager: DesktopPasswordManagerApi = {
+  request: (input) => request(PASSWORD_MANAGER_CHANNELS.request, input),
+  session: {
+    request: (input) =>
+      request(PASSWORD_MANAGER_SESSION_CHANNELS.request, input),
+    onLock: (listener) =>
+      subscribe(PASSWORD_MANAGER_SESSION_CHANNELS.locked, listener),
   },
   onOpen: (listener) => subscribe(PASSWORD_MANAGER_CHANNELS.open, listener),
   onChange: (listener) =>

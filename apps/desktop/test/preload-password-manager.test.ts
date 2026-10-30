@@ -1,15 +1,50 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { PASSWORD_MANAGER_CHANNELS } from "@patcher/desktop-contract";
+import {
+  PASSWORD_MANAGER_CHANNELS,
+  PASSWORD_MANAGER_SESSION_CHANNELS,
+} from "@patcher/desktop-contract";
 import { preloadPasswordManager } from "../src/preload-password-manager.js";
 
-const ipc = vi.hoisted(() => ({ invoke: vi.fn() }));
+const ipc = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  on: vi.fn(),
+  removeListener: vi.fn(),
+}));
 vi.mock("electron", () => ({ ipcRenderer: ipc }));
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.spyOn(document, "hasFocus").mockReturnValue(false);
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+});
+
+it("uses the negotiated session channel for native copying and lock notifications", async () => {
+  ipc.invoke.mockResolvedValue({ status: "done" });
+  const input = {
+    operation: "copy" as const,
+    id: "00000000-0000-4000-8000-000000000001",
+    version: 1,
+    field: "password" as const,
+  };
+  await expect(preloadPasswordManager.session!.request(input)).resolves.toEqual(
+    { status: "done" },
+  );
+  expect(ipc.invoke).toHaveBeenCalledWith(
+    PASSWORD_MANAGER_SESSION_CHANNELS.request,
+    input,
+  );
+  const listener = vi.fn();
+  const unsubscribe = preloadPasswordManager.session!.onLock(listener);
+  expect(ipc.on).toHaveBeenCalledWith(
+    PASSWORD_MANAGER_SESSION_CHANNELS.locked,
+    listener,
+  );
+  unsubscribe();
+  expect(ipc.removeListener).toHaveBeenCalledWith(
+    PASSWORD_MANAGER_SESSION_CHANNELS.locked,
+    listener,
+  );
 });
 afterEach(() => {
   vi.useRealTimers();

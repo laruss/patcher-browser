@@ -91,6 +91,11 @@ export async function smokeOwnedPasswordManager(appBinary) {
         resolve: () => null,
         confirm: async () => false,
         changed: () => {
+          if (
+            sites.known("password-manager") &&
+            !sites.enabled("password-manager")
+          )
+            manager.reset();
           void manager.refresh();
         },
       });

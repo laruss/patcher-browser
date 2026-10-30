@@ -5,3 +5,4 @@ export * from "./secret-storage.js";
 export * from "./version-feed.js";
 export * from "./site-access.js";
 export * from "./password-manager.js";
+export * from "./password-manager-session.js";
