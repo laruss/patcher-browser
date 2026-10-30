@@ -8,6 +8,7 @@ import {
   type PluginMessageActionRegistration,
   type PluginMessageDirectiveRegistration,
   type PluginLeadingPanelRegistration,
+  type PluginBrowserToolbarPanelRegistration,
   type PluginNavPanelRegistration,
   type PluginNewThreadPanelActionRegistration,
   type PluginPendingInteractionRegistration,
@@ -106,6 +107,7 @@ export function collectPluginAppRegistrations(
   const settingsSections: PluginSettingsSectionRegistration[] = [];
   const navPanels: PluginNavPanelRegistration[] = [];
   const leadingPanels: PluginLeadingPanelRegistration[] = [];
+  const browserToolbarPanels: PluginBrowserToolbarPanelRegistration[] = [];
   const threadPanelActions: PluginThreadPanelActionRegistration[] = [];
   const newThreadPanelActions: PluginNewThreadPanelActionRegistration[] = [];
   const composerCustomizations: ComposerCustomization[] = [];
@@ -122,6 +124,7 @@ export function collectPluginAppRegistrations(
     settingsSection: new Set<string>(),
     navPanel: new Set<string>(),
     leadingPanel: new Set<string>(),
+    browserToolbarPanel: new Set<string>(),
     threadPanelAction: new Set<string>(),
     newThreadPanelAction: new Set<string>(),
     composerCustomization: new Set<string>(),
@@ -205,6 +208,17 @@ export function collectPluginAppRegistrations(
           ...(registration.headerContent !== undefined
             ? { headerContent: registration.headerContent }
             : {}),
+        });
+      },
+      experimental_browserToolbarPanel(registration) {
+        const kind = "slots.experimental_browserToolbarPanel";
+        const id = requireSlotId(kind, registration?.id);
+        requireUniqueId(kind, seenIds.browserToolbarPanel, id);
+        browserToolbarPanels.push({
+          id,
+          title: requireNonEmptyString(kind, "title", registration.title),
+          icon: requireNonEmptyString(kind, "icon", registration.icon),
+          component: requireComponent(kind, registration.component),
         });
       },
       experimental_leadingPanel(registration) {
@@ -417,6 +431,7 @@ export function collectPluginAppRegistrations(
     settingsSections,
     navPanels,
     leadingPanels,
+    browserToolbarPanels,
     threadPanelActions,
     newThreadPanelActions,
     composerCustomizations,

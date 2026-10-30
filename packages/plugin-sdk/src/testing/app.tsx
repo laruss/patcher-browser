@@ -30,6 +30,7 @@ import {
   type PluginMessageActionRegistration,
   type PluginMessageDirectiveRegistration,
   type PluginLeadingPanelRegistration,
+  type PluginBrowserToolbarPanelRegistration,
   type PluginNavPanelRegistration,
   type PluginNewThreadPanelActionRegistration,
   type PluginPendingInteractionRegistration,
@@ -520,6 +521,7 @@ export interface CapturedPluginApp {
   settingsSections: PluginSettingsSectionRegistration[];
   navPanels: PluginNavPanelRegistration[];
   leadingPanels: PluginLeadingPanelRegistration[];
+  browserToolbarPanels: PluginBrowserToolbarPanelRegistration[];
   threadPanelActions: PluginThreadPanelActionRegistration[];
   newThreadPanelActions: PluginNewThreadPanelActionRegistration[];
   composerCustomizations: ComposerCustomization[];
@@ -552,6 +554,7 @@ function collectRegistrations(
     settingsSections: [],
     navPanels: [],
     leadingPanels: [],
+    browserToolbarPanels: [],
     threadPanelActions: [],
     newThreadPanelActions: [],
     composerCustomizations: [],
@@ -569,6 +572,7 @@ function collectRegistrations(
     settingsSection: new Set<string>(),
     navPanel: new Set<string>(),
     leadingPanel: new Set<string>(),
+    browserToolbarPanel: new Set<string>(),
     threadPanelAction: new Set<string>(),
     newThreadPanelAction: new Set<string>(),
     composerCustomization: new Set<string>(),
@@ -608,6 +612,17 @@ function collectRegistrations(
           id,
           ...(title !== undefined ? { title } : {}),
           ...(description !== undefined ? { description } : {}),
+          component: requireComponent(kind, registration.component),
+        });
+      },
+      experimental_browserToolbarPanel(registration) {
+        const kind = "slots.experimental_browserToolbarPanel";
+        const id = requireSlotId(kind, registration?.id);
+        requireUniqueId(kind, seenIds.browserToolbarPanel, id);
+        captured.browserToolbarPanels.push({
+          id,
+          title: requireNonEmptyString(kind, "title", registration.title),
+          icon: requireNonEmptyString(kind, "icon", registration.icon),
           component: requireComponent(kind, registration.component),
         });
       },

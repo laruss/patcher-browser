@@ -11,7 +11,10 @@ import {
   credentialMetadata,
   credentialSourceHash,
 } from "../../../src/services/plugins/protected-credentials.js";
-import type { DesktopSitePolicy } from "@patcher/domain/plugin-site-access";
+import {
+  sitePolicyAccessAllows,
+  type DesktopSitePolicy,
+} from "@patcher/domain/plugin-site-access";
 import type { SealedCredential } from "@patcher/domain/protected-credentials";
 import { TEST_APP_API_KEY, withTestHarness } from "../../helpers/test-app.js";
 
@@ -48,14 +51,18 @@ it("ships enabled, runs the actual manager in a child, and preserves user choice
           policies.set(body.pluginId, body);
           return true;
         }
-        if (method === "site.confirm") return context;
+        if (method === "site.confirm")
+          throw Error("Manager must not ask for a per-site grant");
         if (method === "site.context" || method === "site.prepare") {
           if (
             locked ||
             body.owners.some(
               (owner: any) =>
                 !policies.get(owner.pluginId)?.enabled ||
-                !policies.get(owner.pluginId)?.origins.includes(context.origin),
+                !sitePolicyAccessAllows(
+                  policies.get(owner.pluginId)!,
+                  context.url,
+                ),
             )
           )
             throw Error("Refused");
@@ -175,10 +182,19 @@ it("ships enabled, runs the actual manager in a child, and preserves user choice
         placement: "process",
       });
       expect(await rpc("view", target)).toEqual({
-        status: "denied",
+        status: "ready",
         accounts: [],
       });
-      await pluginService.siteAccess!.confirm("password-manager", "tab");
+      const originalContext = { ...context };
+      Object.assign(context, {
+        url: "https://another.test/login",
+        origin: "https://another.test",
+        documentId: randomUUID(),
+      });
+      expect(
+        await rpc("view", { tabId: context.tabId, origin: context.origin }),
+      ).toEqual({ status: "ready", accounts: [] });
+      Object.assign(context, originalContext);
       expect(await fromPage("view", target)).toMatchObject({
         ok: true,
         result: { status: "denied", accounts: [] },
@@ -255,11 +271,7 @@ it("ships enabled, runs the actual manager in a child, and preserves user choice
         "password-manager",
         context.origin,
       );
-      expect(await rpc("view", target)).toEqual({
-        status: "denied",
-        accounts: [],
-      });
-      await pluginService.siteAccess!.confirm("password-manager", "tab");
+      expect((await rpc("view", target)).accounts).toHaveLength(2);
       expect(await pluginService.remove("password-manager")).toBe(true);
       await pluginService.stop();
       await pluginService.start();
@@ -278,11 +290,7 @@ it("ships enabled, runs the actual manager in a child, and preserves user choice
         provenance: "builtin",
         status: "running",
       });
-      expect(await rpc("view", target)).toEqual({
-        status: "denied",
-        accounts: [],
-      });
-      await pluginService.siteAccess!.confirm("password-manager", "tab");
+      expect((await rpc("view", target)).accounts).toHaveLength(2);
       expect((await rpc("view", target)).accounts).toHaveLength(2);
       expect(
         await manual({

@@ -8,6 +8,7 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import type { PatcherDesktopBrowserApi } from "@patcher/desktop-contract";
 import {
   createPatcherDesktopApi,
@@ -24,6 +25,14 @@ import {
 import { createQueryClientTestHarness } from "@/test/queryClientTestHarness";
 import { BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER } from "@patcher/domain/browser-search-engine";
 import { BrowserSurfaceChrome } from "./BrowserSurfaceChrome";
+import {
+  resetPluginSlotStoreForTest,
+  setPluginSlotRegistrations,
+} from "@/lib/plugin-slots";
+import {
+  collectPluginAppRegistrations,
+  definePluginApp,
+} from "@/lib/plugin-app-definition";
 
 /** Named rather than assumed: the provider has no default engine any more. */
 const GOOGLE_TEMPLATE = `https://www.google.com/search?q=${BROWSER_SEARCH_ENGINE_QUERY_PLACEHOLDER}`;
@@ -162,10 +171,53 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  resetPluginSlotStoreForTest();
   vi.useRealTimers();
 });
 
 describe("BrowserSurfaceChrome", () => {
+  it("opens a plugin panel only on demand, keeps the page interactive and closes it on navigation", () => {
+    const unmount = vi.fn();
+    function Panel({ browserUrl }: { browserUrl: string | null }) {
+      useEffect(() => () => unmount(), []);
+      return <p>Logins for {browserUrl}</p>;
+    }
+    setPluginSlotRegistrations(
+      "password-manager",
+      collectPluginAppRegistrations(
+        definePluginApp((app) => {
+          app.slots.experimental_browserToolbarPanel({
+            id: "logins",
+            title: "Password manager",
+            icon: "Key",
+            component: Panel,
+          });
+        }),
+      ),
+    );
+    const { setUrl, onPageOverlayChange } = renderChrome();
+    expect(screen.queryByText(`Logins for ${CURRENT_URL}`)).toBeNull();
+    const button = screen.getByRole("button", { name: "Password manager" });
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText(`Logins for ${CURRENT_URL}`)).toBeTruthy();
+    expect(onPageOverlayChange).not.toHaveBeenCalledWith(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close Password manager" }),
+    );
+    expect(unmount).toHaveBeenCalledTimes(1);
+    fireEvent.click(button);
+    fireEvent.keyDown(screen.getByText(`Logins for ${CURRENT_URL}`), {
+      key: "Escape",
+    });
+    expect(unmount).toHaveBeenCalledTimes(2);
+    fireEvent.click(button);
+    setUrl("https://another.test/");
+    expect(unmount).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText(/Logins for/)).toBeNull();
+    setUrl(CURRENT_URL);
+    expect(screen.queryByText(/Logins for/)).toBeNull();
+  });
   it("shows the current URL and no suggestions at rest", () => {
     const { input } = renderChrome();
 

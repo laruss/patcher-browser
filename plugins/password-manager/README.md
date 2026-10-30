@@ -2,10 +2,9 @@
 
 **Password manager** is preinstalled and enabled in Patcher. Disable it in
 Settings → Plugins if you prefer another manager; that choice survives restarts
-and updates. Builtin plugins cannot be uninstalled from Settings. Open an HTTPS
-login page and select
-**Use here** in its side panel to grant that exact origin. Reload the page if you
-want form hints on an already open tab.
+and updates. Builtin plugins cannot be uninstalled from Settings. The enabled builtin manager works on every supported HTTPS site without a
+per-site permission prompt. Open its key button beside the address bar to
+manage logins for the current page; close it to reclaim the space.
 
 Enter the username and password in the site's form, choose a new account label
 and select **Save new login**. Review the request in browser chrome, then confirm
@@ -26,6 +25,6 @@ entry for unsupported forms.
 The plugin receives metadata and statuses only. Passwords stay in the protected
 core vault until approved capture/fill. Disable the plugin to stop its actions;
 encrypted records remain. A removal persisted by an earlier build is respected;
-reinstallation needs fresh site grants and the same source identity. Delete each
+reinstallation restores access on supported sites with the same source identity. Delete each
 account explicitly to remove its record.
 There is no reveal, export, import, clipboard, sync or automatic fill/save.

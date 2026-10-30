@@ -23,26 +23,6 @@ export default function plugin(patcher: PatcherPluginApi) {
     matches: ["https://**"],
     code: `(${observeLoginForms.toString()})(patcher);`,
   });
-  patcher.browser.registerToolbarItem({
-    id: "logins",
-    title: "Password manager — use the side panel",
-    icon: "Key",
-    async state({ tabId }) {
-      try {
-        const accounts = await patcher.browser.credentials.list({ tabId });
-        return {
-          active: accounts.length > 0,
-          title: `${accounts.length} saved logins — use the side panel`,
-        };
-      } catch {
-        return null;
-      }
-    },
-    run({ tabId, url }) {
-      const origin = httpsOrigin(url);
-      if (origin) patcher.realtime.publish("refresh", { tabId, origin });
-    },
-  });
   patcher.rpc.register(rpcContract, {
     async view({ tabId, origin }): Promise<ManagerView> {
       if (!patcher.browser.getStatus().connected)

@@ -133,3 +133,18 @@ it("accepts release only from the actual main frame and passes native identity t
     f.frame.url,
   );
 });
+it("sends the synchronous release reply exactly once, after consuming the token", () => {
+  const f = setup();
+  const consume = mocks.on.mock.calls.find(
+    ([name]) => name === CREDENTIAL_RELEASE_CHANNEL,
+  )![1];
+  const replies: unknown[] = [];
+  const event = Object.defineProperty({ ...f.event }, "returnValue", {
+    set(value: unknown) {
+      replies.push(value);
+    },
+  });
+  consume(event, { token: randomUUID(), operation: "prepare" });
+  // Electron sends the reply on assignment; a later assignment cannot replace it.
+  expect(replies).toEqual([true]);
+});

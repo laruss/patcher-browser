@@ -5,7 +5,7 @@ import {
   type BrowserCommand,
 } from "@patcher/domain";
 import {
-  pluginSiteAccessAllows,
+  sitePolicyAccessAllows,
   pluginSiteCeilingAllows,
 } from "@patcher/domain/plugin-site-access";
 import {
@@ -118,13 +118,10 @@ export function createDesktopSiteAuthority(args: {
       if (
         !policy?.enabled ||
         policy.revision !== owner.revision ||
-        !pluginSiteAccessAllows(policy.sites, policy.origins, current.url) ||
+        !sitePolicyAccessAllows(policy, current.url) ||
         (auth !== undefined &&
           (!policy.permissions.includes("auth.provide") ||
-            auth.urls.some(
-              (url) =>
-                !pluginSiteAccessAllows(policy.sites, policy.origins, url),
-            )))
+            auth.urls.some((url) => !sitePolicyAccessAllows(policy, url))))
       )
         refuse();
     }
@@ -185,7 +182,7 @@ export function createDesktopSiteAuthority(args: {
     return (
       connected &&
       policy?.enabled === true &&
-      pluginSiteAccessAllows(policy.sites, policy.origins, url)
+      sitePolicyAccessAllows(policy, url)
     );
   }
   function setContributions(value: ScopedPageContributions) {

@@ -20,7 +20,7 @@ const messages = {
   filled: "Login filled. Submit the form yourself.",
   deleted: "Login deleted.",
   cancelled: "Request cancelled. Nothing will be retried.",
-  denied: "Action refused. Check site access and unlock the desktop app.",
+  denied: "Action refused. Unlock the desktop app and try again.",
   unavailable: "The protected vault is unavailable on this host.",
   unsupported:
     "This form is unsupported. Use one visible login form with a same-origin action.",
@@ -81,28 +81,6 @@ function ManagerForPage({ tabId, origin }: { tabId: string; origin: string }) {
     hintTimer.current = setTimeout(() => setHint(null), 30_000);
   });
 
-  async function useHere() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const response = await fetch("/api/v1/plugins/site-access/confirm", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pluginId: "password-manager", tabId }),
-      });
-      if (!response.ok) throw new Error("Refused");
-      if (live.current) {
-        setMessage(
-          "Site allowed. Reload the page to enable form hints, or save manually.",
-        );
-        await load();
-      }
-    } catch {
-      if (live.current) setMessage("Site access was refused or cancelled.");
-    } finally {
-      if (live.current) setBusy(false);
-    }
-  }
   async function request(
     operation:
       | Omit<
@@ -162,16 +140,8 @@ function ManagerForPage({ tabId, origin }: { tabId: string; origin: string }) {
               ? "Checking access…"
               : view.status === "unavailable"
                 ? "The connected desktop vault is unavailable."
-                : "Allow this site and unlock the desktop app to manage logins."}
+                : "Unlock the desktop app to manage logins."}
           </p>
-          <button
-            className={buttonClass}
-            disabled={busy || view === null || view.status === "unavailable"}
-            onClick={() => void useHere()}
-            type="button"
-          >
-            Use here
-          </button>
         </div>
       ) : (
         <>
@@ -317,11 +287,10 @@ export function PasswordManagerPanel({
 }
 
 export default definePluginApp((app) => {
-  app.slots.experimental_leadingPanel({
+  app.slots.experimental_browserToolbarPanel({
     id: "logins",
     title: "Password manager",
     icon: "Key",
-    matches: ["https://**"],
     component: PasswordManagerPanel,
   });
 });
