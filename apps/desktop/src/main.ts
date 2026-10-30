@@ -1,4 +1,5 @@
 import { registerPasswordManagerBrowser } from "./password-manager-browser.js";
+import { fetchPasswordManagerMenuEnabled } from "./password-manager-menu-state.js";
 import { PASSWORD_MANAGER_CHANNELS } from "@patcher/desktop-contract";
 import { createPasswordManager, type PasswordManager } from "./password-manager.js";
 import { createCredentialKeyStore, type CredentialKeyStore } from "./desktop-credential-key.js";
@@ -210,6 +211,7 @@ const REMOTE_SYSTEM_CONFIG_POLL_INTERVAL_MS = 5 * 60 * 1000;
 let passwordManager: PasswordManager | undefined;
 let passwordManagerBrowser: ReturnType<typeof registerPasswordManagerBrowser> | undefined;
 let passwordManagerEnabled = false;
+let passwordManagerMenuRefreshToken = 0;
 
 interface DesktopRuntime {
   secretStorage?: ReturnType<typeof createDesktopSecretBroker>;
@@ -870,12 +872,20 @@ function refreshApplicationMenu(): void {
   installCurrentApplicationMenu();
 }
 
+function notifyPasswordManagerChanged(): void {
+  for (const window of BrowserWindow.getAllWindows())
+    if (applicationWindowWebContentsIds.has(window.webContents.id))
+      window.webContents.send(PASSWORD_MANAGER_CHANNELS.changed);
+}
+
 function setCurrentRuntime(runtime: DesktopRuntime | null): void {
   if (currentRuntime?.secretStorage !== runtime?.secretStorage)
     currentRuntime?.secretStorage?.close();
   passwordManager?.reset();
   passwordManagerBrowser?.reset();
   currentRuntime = runtime;
+  passwordManagerEnabled = false;
+  passwordManagerMenuRefreshToken++;
   void passwordManager?.refresh();
   if (runtime === null) {
     stopSystemConfigSync();
@@ -961,11 +971,11 @@ function createSystemConfigSync(serverUrl: string): SystemConfigSync {
       if (!parsed.success) {
         return;
       }
-      if (
-        parsed.data.entity === "system" &&
-        parsed.data.changes.includes("config-changed")
-      ) {
-        void refreshSystemConfig({ fetchImpl: fetch, serverUrl });
+      if (parsed.data.entity === "system") {
+        if (parsed.data.changes.includes("config-changed"))
+          void refreshSystemConfig({ fetchImpl: fetch, serverUrl });
+        if (parsed.data.changes.includes("plugins-changed"))
+          void refreshPasswordManagerMenu({ fetchImpl: fetch, serverUrl });
       }
     } catch {
       return;
@@ -982,6 +992,7 @@ function createSystemConfigSync(serverUrl: string): SystemConfigSync {
     socket.addEventListener("open", () => {
       socket?.send(JSON.stringify(subscribeMessage));
       void refreshSystemConfig({ fetchImpl: fetch, serverUrl });
+      void refreshPasswordManagerMenu({ fetchImpl: fetch, serverUrl });
     });
     socket.addEventListener("message", handleMessage);
     socket.addEventListener("close", scheduleReconnect);
@@ -1063,6 +1074,36 @@ function createRemoteSystemConfigSync(serverUrl: string): SystemConfigSync {
   };
 }
 
+async function refreshPasswordManagerMenu(
+  args: FetchSystemConfigArgs,
+): Promise<void> {
+  const runtime = currentRuntime;
+  if (!runtime || runtime.serverUrl !== args.serverUrl) return;
+  const token = ++passwordManagerMenuRefreshToken;
+  try {
+    const enabled = await fetchPasswordManagerMenuEnabled({
+      ...args,
+      headers: desktopAppKeyHeaders(),
+    });
+    if (
+      token !== passwordManagerMenuRefreshToken ||
+      runtime !== currentRuntime ||
+      enabled === passwordManagerEnabled
+    )
+      return;
+    passwordManagerEnabled = enabled;
+    if (!enabled) {
+      passwordManager?.reset();
+      passwordManagerBrowser?.reset();
+    }
+    passwordManagerBrowser?.changed();
+    notifyPasswordManagerChanged();
+    refreshApplicationMenu();
+  } catch {
+    /* Keep the last plugin setting while its server is unavailable. */
+  }
+}
+
 function stopSystemConfigSync(): void {
   systemConfigSync?.stop();
   systemConfigSync = null;
@@ -1072,6 +1113,7 @@ function startSystemConfigSync(serverUrl: string): void {
   systemConfigSync?.stop();
   systemConfigSync = createSystemConfigSync(serverUrl);
   void refreshSystemConfig({ fetchImpl: fetch, serverUrl });
+  void refreshPasswordManagerMenu({ fetchImpl: fetch, serverUrl });
 }
 
 /** System config for a custom target, with no local server. */
@@ -2200,12 +2242,10 @@ async function runDesktopApp(): Promise<void> {
     },
     authenticate: (reason, signal) => authenticatePasswordManager(join(paths.appPath.replace(/app\.asar$/u, "app.asar.unpacked"), "dist", "password-manager-auth"), reason, signal),
     changed: (enabled) => {
-      passwordManagerEnabled = enabled;
       if (!enabled) passwordManagerBrowser?.reset();
       passwordManagerBrowser?.changed();
       installCurrentApplicationMenu();
-      for (const window of BrowserWindow.getAllWindows())
-        if (applicationWindowWebContentsIds.has(window.webContents.id)) window.webContents.send(PASSWORD_MANAGER_CHANNELS.changed);
+      notifyPasswordManagerChanged();
     },
   });
   registerPasswordManagerIpc({ manager: passwordManager, authorize: authorizeApplicationIpc });

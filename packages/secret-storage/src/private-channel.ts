@@ -10,6 +10,9 @@ import {
 
 // A policy can contain 32 long patterns and 64 canonical origins; keep the whole frame bounded, including JSON/UTF-8 expansion.
 export const SECRET_CHANNEL_MAX_BYTES = 1_048_576;
+// Cold packaged startup and synchronous Keychain initialization can exceed five
+// seconds before the peer can process its greeting on the inherited pipe.
+export const SECRET_CHANNEL_HELLO_TIMEOUT_MS = 30_000;
 const MAX_PENDING = 16;
 const METHODS = [
   "status",
@@ -100,7 +103,10 @@ export class PrivateSecretChannel {
       this.readyReject = reject;
     });
     void this.ready.catch(() => {});
-    this.helloTimeout = setTimeout(() => this.close(), 5000);
+    this.helloTimeout = setTimeout(
+      () => this.close(),
+      SECRET_CHANNEL_HELLO_TIMEOUT_MS,
+    );
     this.helloTimeout.unref();
     stream.on("data", (chunk: Buffer) => this.read(chunk));
     stream.on("error", () => this.close());

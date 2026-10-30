@@ -51,6 +51,28 @@ function findServerSubmenu(
 }
 
 describe("application menu", () => {
+  it("opens Password Manager when its plugin setting is enabled", () => {
+    const openPasswordManager = vi.fn();
+    const template = buildApplicationMenuTemplate(
+      menuArgs(() => {}, {
+        passwordManagerEnabled: true,
+        openPasswordManager,
+      }),
+    );
+    const submenu = template[0]!.submenu as MenuItemConstructorOptions[];
+    submenu
+      .find((item) => item.label === "Password Manager")
+      ?.click?.({} as never, undefined, {} as never);
+    expect(openPasswordManager).toHaveBeenCalledOnce();
+    const disabled = buildApplicationMenuTemplate(
+      menuArgs(() => {}, { passwordManagerEnabled: false }),
+    );
+    expect(
+      (disabled[0]!.submenu as MenuItemConstructorOptions[]).some(
+        (item) => item.label === "Password Manager",
+      ),
+    ).toBe(false);
+  });
   it("closes a native panel when Electron omits its window", () => {
     vi.mocked(Menu.sendActionToFirstResponder).mockClear();
     const closeWindowOrSideTab = vi.fn();
