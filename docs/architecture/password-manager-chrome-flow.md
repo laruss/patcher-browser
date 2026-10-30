@@ -7,6 +7,10 @@ This supersedes the original manager's manual per-site panel and per-fill approv
 - The preinstalled plugin is the enable/disable switch. Enabling it adds
   **Patcher → Password Manager** to the macOS application menu. There is no
   per-site toolbar key or side panel. Existing disabled/removal choices survive.
+  Menu visibility reads authenticated plugin metadata and follows plugin-change
+  events independently of Keychain availability. Credential access still uses
+  the owned private pipe. Its 30-second greeting deadline tolerates cold process
+  startup and blocking Keychain initialization.
 - The separate app tab provides search by website/username, grouped entries,
   masked details, manual addition, editing and deletion. Reveal, edit and delete
   use fresh `LAContext.deviceOwnerAuthentication`: Touch ID or the macOS account
@@ -56,5 +60,8 @@ helper: macOS reported success and the manager displayed the synthetic password.
 This check uses `PATCHER_PASSWORD_QA_REAL_AUTH=1` with
 `PATCHER_PASSWORD_QA_AUTH_HELPER` pointing to the packaged helper; it requires a
 person to confirm Touch ID or the macOS login password.
+The packaged smoke also starts the real launcher/server with fresh and existing
+temporary profiles, delaying the first key-backend availability call by 6.5 seconds
+to cover the previously broken cold-start handshake.
 Signed platform passkeys and phone QR acceptance remain deferred Phase 8 work,
 until an official Apple Developer account and signing are available.

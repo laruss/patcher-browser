@@ -10,6 +10,7 @@ import {
   createDesktopReleaseConfig,
   resolveDesktopReleaseChannel,
 } from "./desktop-release-channel.mjs";
+import { smokeOwnedPasswordManager } from "./smoke-owned-password-manager.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopPackageRoot = resolve(scriptDirectory, "..");
@@ -489,6 +490,7 @@ async function smokePackagedApp() {
   );
   await access(authHelper, fsConstants.X_OK);
   execFileSync("codesign", ["--verify", authHelper], { stdio: "pipe" });
+  await smokeOwnedPasswordManager(appBinary);
   // Exercise the packaged server's actual native dependencies in Electron's
   // Node runtime, not the checkout's Node or a renderer that attaches to a stub.
   const packagedManifest = resolve(

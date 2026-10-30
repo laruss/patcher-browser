@@ -248,7 +248,9 @@ export function PasswordManagerView() {
             <p>
               {status === "disabled"
                 ? "Turn on the Password manager plugin to use your saved passwords."
-                : "Open this page in the current Patcher desktop app."}
+                : manager
+                  ? "The protected vault is unavailable. Restart Patcher and try again."
+                  : "Open this page in the current Patcher desktop app."}
             </p>
             {status === "disabled" && (
               <Link to="/tools/plugins">Open Extensions</Link>

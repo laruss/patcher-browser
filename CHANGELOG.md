@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.1-alpha.12
+
+This release fixes a missing Password Manager menu after a cold desktop startup.
+
+- **The menu follows the plugin setting.** An enabled bundled manager appears in
+  Patcher → Password Manager even while the protected vault is unavailable.
+  Plugin changes update the menu immediately.
+- **Keychain startup no longer drops the vault connection after five seconds.**
+  The inherited desktop/launcher/server channel allows a bounded 30-second
+  handshake. Credential authentication and encryption remain required.
+- **Packaged startup coverage.** Release checks now start the actual bundled
+  launcher and server on both fresh and existing temporary profiles, including
+  a blocking Keychain initialization. They also verify that locking the vault
+  does not hide the enabled plugin's menu entry.
+
+Uses Electron 45.0.0. Requires macOS 13 (Ventura) or later on Apple Silicon.
+This alpha is ad-hoc signed and requires approval on first launch. Updates are
+downloaded manually.
+
 ## 0.1.1-alpha.11
 
 This release replaces the password manager's manual panel with browser-integrated
