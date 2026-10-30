@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.1-alpha.14
+
+This release fixes browser tab focus, hard reloads and Settings navigation.
+
+- **Return to the sign-in tab.** When an authentication popup closes, focus
+  returns to the tab that opened it, even with unrelated tabs open.
+- **Reload pages without cache.** Command+Shift+R reloads the active website
+  while bypassing its cache, including when the address bar has focus.
+- **Keep Settings navigation visible.** The sidebar stays open in wide windows
+  while Settings is selected and restores its previous state when leaving.
+  The menu in narrow windows remains dismissible.
+- **Navigate plugin settings more easily.** Plugin settings have a back button.
+  Plugins without settings no longer open an empty detail page; removal remains
+  available from their rows. Hovering a description for one second shows its
+  full text.
+
+Uses Electron 45.0.0. Requires macOS 13 (Ventura) or later on Apple Silicon.
+This alpha is ad-hoc signed and requires approval on first launch. Updates are
+downloaded manually.
+
 ## 0.1.1-alpha.13
 
 This release adds copying and a five-minute unlock session to Password Manager.

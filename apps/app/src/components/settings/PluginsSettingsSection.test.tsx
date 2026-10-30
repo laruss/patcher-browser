@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
   within,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { TooltipProvider } from "@patcher/shared-ui/tooltip";
 import type {
   InstalledPlugin,
   SystemConfigResponse,
@@ -88,6 +90,169 @@ afterEach(() => {
   cleanup();
   resetPluginSlotStoreForTest();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+function RouteProbe() {
+  return <span data-testid="current-route">{useLocation().pathname}</span>;
+}
+
+describe("plugin settings navigation", () => {
+  it("returns from plugin settings to the installed list", () => {
+    const { wrapper, queryClient } = createQueryClientTestHarness();
+    queryClient.setQueryData(pluginListQueryKey(true), {
+      ok: true,
+      plugins: [rowPlugin("disabled")],
+    });
+    render(
+      <MemoryRouter initialEntries={["/settings/plugins/linear"]}>
+        <PluginSettingsDetailSection pluginId="linear" />
+        <RouteProbe />
+      </MemoryRouter>,
+      { wrapper },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to plugins" }));
+    expect(screen.getByTestId("current-route").textContent).toBe(
+      "/settings/plugins",
+    );
+  });
+
+  it("does not navigate to a plugin without settings by click or keyboard", () => {
+    const { wrapper } = createQueryClientTestHarness();
+    render(
+      <MemoryRouter initialEntries={["/settings/plugins"]}>
+        <InstalledPluginRow
+          plugin={{ ...rowPlugin("running"), hasSettings: false }}
+          onUpdateClick={() => {}}
+        />
+        <RouteProbe />
+      </MemoryRouter>,
+      { wrapper },
+    );
+    const row = screen.getByTestId("plugin-row-linear");
+    fireEvent.click(row);
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: " " });
+    expect(screen.getByTestId("current-route").textContent).toBe(
+      "/settings/plugins",
+    );
+    expect(row.getAttribute("role")).toBeNull();
+    expect(row.getAttribute("tabindex")).toBeNull();
+    expect(screen.getByRole("switch", { name: "Enable linear" })).toBeDefined();
+  });
+
+  it("keeps frontend-only settings reachable", () => {
+    setPluginSlotRegistrations("linear", {
+      homepageSections: [],
+      navPanels: [],
+      threadPanelActions: [],
+      sidebarFooterActions: [],
+      fileOpeners: [],
+      messageDirectives: [],
+      settingsSections: [
+        { id: "custom", component: () => <div>Custom settings</div> },
+      ],
+    });
+    const { wrapper } = createQueryClientTestHarness();
+    render(
+      <MemoryRouter initialEntries={["/settings/plugins"]}>
+        <InstalledPluginRow
+          plugin={{ ...rowPlugin("running"), hasSettings: false }}
+          onUpdateClick={() => {}}
+        />
+        <RouteProbe />
+      </MemoryRouter>,
+      { wrapper },
+    );
+    fireEvent.click(
+      screen.getByRole("link", { name: "linear plugin settings" }),
+    );
+    expect(screen.getByTestId("current-route").textContent).toBe(
+      "/settings/plugins/linear",
+    );
+  });
+
+  it("keeps removal available for a plugin without settings", async () => {
+    const requests: RecordedRequest[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        requests.push({ url, init });
+        return jsonOk({ ok: true });
+      }),
+    );
+    const { wrapper } = createQueryClientTestHarness();
+    render(
+      <MemoryRouter initialEntries={["/settings/plugins"]}>
+        <InstalledPluginRow
+          plugin={{
+            ...rowPlugin("running"),
+            hasSettings: false,
+            provenance: "direct",
+          }}
+          onUpdateClick={() => {}}
+        />
+        <RouteProbe />
+      </MemoryRouter>,
+      { wrapper },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(requests).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove plugin" }));
+    await vi.waitFor(() =>
+      expect(requests).toContainEqual({
+        url: "/api/v1/plugins/linear",
+        init: expect.objectContaining({ method: "DELETE" }),
+      }),
+    );
+    expect(screen.getByTestId("current-route").textContent).toBe(
+      "/settings/plugins",
+    );
+  });
+
+  it("shows the full description after one second of hover", async () => {
+    vi.useFakeTimers();
+    const description =
+      "A long plugin description that does not fit into the available row.";
+    const { wrapper } = createQueryClientTestHarness();
+    render(
+      <MemoryRouter>
+        <TooltipProvider>
+          <InstalledPluginRow
+            plugin={{ ...rowPlugin("running"), description }}
+            onUpdateClick={() => {}}
+          />
+          <InstalledPluginRow
+            plugin={{
+              ...rowPlugin("running"),
+              id: "second",
+              description: "Second description",
+            }}
+            onUpdateClick={() => {}}
+          />
+        </TooltipProvider>
+      </MemoryRouter>,
+      { wrapper },
+    );
+    const descriptionElement = screen.getByText(description);
+    fireEvent.pointerMove(descriptionElement, {
+      pointerType: "mouse",
+    });
+    await act(() => vi.advanceTimersByTimeAsync(999));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByRole("tooltip").textContent).toBe(description);
+    fireEvent.pointerLeave(descriptionElement);
+    fireEvent.pointerMove(screen.getByText("Second description"), {
+      pointerType: "mouse",
+    });
+    await act(() => vi.advanceTimersByTimeAsync(999));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByRole("tooltip").textContent).toBe("Second description");
+  });
 });
 
 describe("PluginSettingsForm", () => {

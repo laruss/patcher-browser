@@ -163,6 +163,77 @@ describe("DesktopBrowserViewManager favicons", () => {
 });
 
 describe("DesktopBrowserViewManager", () => {
+  it("reloads the focused page without cache for Cmd+Shift+R", () => {
+    const dispatchAppCommand = vi.fn();
+    const manager = createDesktopBrowserViewManager({
+      partition: "persist:test",
+      dispatchAppCommand,
+    });
+    const hostWindow = new FakeHostWindow({
+      contentBounds: { width: 700, height: 450 },
+      webContentsId: 50,
+    });
+    attachBrowserTab({
+      manager,
+      hostWindow,
+      tabId: "browser:a",
+      url: "https://example.com",
+    });
+    const contents = requireFakeView(0).webContents;
+    const reload = vi.spyOn(contents, "reload");
+    const forceReload = vi.fn();
+    Object.assign(contents, { reloadIgnoringCache: forceReload });
+    expect(
+      contents.emitBeforeInput({ key: "R", meta: true, shift: true }),
+    ).toBe(true);
+    expect(forceReload).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
+    expect(dispatchAppCommand).not.toHaveBeenCalled();
+  });
+
+  it("reloads only the visible page in the requested window when chrome has focus", () => {
+    const manager = createDesktopBrowserViewManager({
+      partition: "persist:test",
+    });
+    const hostWindow = new FakeHostWindow({
+      contentBounds: { width: 700, height: 450 },
+      webContentsId: 50,
+    });
+    const otherWindow = new FakeHostWindow({
+      contentBounds: { width: 700, height: 450 },
+      webContentsId: 51,
+    });
+    attachBrowserTab({
+      manager,
+      hostWindow,
+      tabId: "browser:a",
+      url: "https://example.com",
+    });
+    attachBrowserTab({
+      manager,
+      hostWindow: otherWindow,
+      tabId: "browser:b",
+      url: "https://example.org",
+    });
+    const contents = requireFakeView(0).webContents;
+    const forceReload = vi.fn();
+    Object.assign(contents, { reloadIgnoringCache: forceReload });
+    const otherReload = vi.spyOn(requireFakeView(1).webContents, "reload");
+    expect(manager.reloadVisiblePage({ hostWindow, ignoreCache: true })).toBe(
+      true,
+    );
+    expect(forceReload).toHaveBeenCalledOnce();
+    expect(otherReload).not.toHaveBeenCalled();
+    manager.setVisible({
+      hostWindow,
+      request: { tabId: "browser:a", visible: false },
+    });
+    expect(manager.reloadVisiblePage({ hostWindow, ignoreCache: true })).toBe(
+      false,
+    );
+    expect(forceReload).toHaveBeenCalledOnce();
+  });
+
   it("forwards resolved browser shortcuts and suppresses the untrusted page", () => {
     const dispatchAppCommand = vi.fn();
     const focusHostWebContents = vi.fn();

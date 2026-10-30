@@ -7,14 +7,6 @@ import { PluginIcon } from "@/components/plugin/PluginIcon";
 import { PluginSettingsSections } from "@/components/plugin/PluginSettingsSections";
 import { Button } from "@patcher/shared-ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@patcher/shared-ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,7 +24,6 @@ import {
   invalidatePluginList,
 } from "@/hooks/cache-owners/plugin-cache-owner";
 import {
-  removePlugin,
   setPluginEnabled,
   updatePluginSettings,
   usePluginList,
@@ -55,6 +46,7 @@ import {
   type AddPluginInitial,
 } from "@/components/plugin/management/AddPluginDialog";
 import { BrowsePluginsTab } from "./plugins/BrowsePluginsTab";
+import { RemovePluginButton } from "./plugins/RemovePluginButton";
 import { InstalledPluginsTab } from "./plugins/InstalledPluginsTab";
 import {
   PluginUpdateBanner,
@@ -463,25 +455,8 @@ export function PluginsSettingsSection() {
  */
 function RemovePluginSection({ plugin }: { plugin: PluginListItem }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const isBuiltin = plugin.provenance === "builtin";
   const isPathSource = plugin.sourceDisplay.toLowerCase().startsWith("path");
-  const name = plugin.name ?? plugin.id;
-  const remove = useMutation({
-    mutationFn: () => removePlugin(fetch, plugin.id),
-    onSuccess: () => {
-      invalidatePluginList({ queryClient });
-      appToast.success(`Removed ${name}`);
-      navigate(getSettingsRoutePath("plugins"));
-    },
-    onError: (error) => {
-      appToast.error(`Removing ${name} failed`, {
-        description: pluginAdminErrorMessage(error),
-      });
-    },
-  });
-
   return (
     <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
       <div className="min-w-0">
@@ -494,51 +469,10 @@ function RemovePluginSection({ plugin }: { plugin: PluginListItem }) {
               : "Uninstalls the plugin and deletes its downloaded files."}
         </p>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-7 shrink-0 px-2.5 text-xs text-destructive-text"
-        onClick={() => setConfirmOpen(true)}
-      >
-        Remove
-      </Button>
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Remove {name}?</DialogTitle>
-            <DialogDescription>
-              {isBuiltin
-                ? "This removes the plugin and its stored settings. Patcher remembers the removal so the plugin stays hidden after restart; its bundled files remain in place."
-                : isPathSource
-                  ? "This uninstalls the plugin and removes its stored settings. Its local source files stay on disk, so you can reinstall it."
-                  : "This uninstalls the plugin, deletes its downloaded files, and removes its stored settings."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={remove.isPending}
-              onClick={() => setConfirmOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={remove.isPending}
-              aria-busy={remove.isPending}
-              onClick={() => remove.mutate()}
-            >
-              {remove.isPending ? (
-                <Icon name="Spinner" className="animate-spin" />
-              ) : null}
-              Remove plugin
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RemovePluginButton
+        plugin={plugin}
+        onRemoved={() => navigate(getSettingsRoutePath("plugins"))}
+      />
     </div>
   );
 }
@@ -685,6 +619,7 @@ export function PluginSettingsDetailSection({
 }: {
   pluginId: string;
 }) {
+  const navigate = useNavigate();
   const listQuery = usePluginList({ enabled: true });
   const plugin = listQuery.data?.plugins.find((entry) => entry.id === pluginId);
   if (plugin === undefined) {
@@ -692,5 +627,18 @@ export function PluginSettingsDetailSection({
       <EmptyState message={`Plugin "${pluginId}" is not installed.`} />
     );
   }
-  return <PluginSettingsDetail plugin={plugin} />;
+  return (
+    <div className="space-y-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate(getSettingsRoutePath("plugins"))}
+        aria-label="Back to plugins"
+      >
+        <Icon name="ChevronLeft" />
+        Plugins
+      </Button>
+      <PluginSettingsDetail plugin={plugin} />
+    </div>
+  );
 }

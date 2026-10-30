@@ -561,7 +561,11 @@ export function BrowserSurfaceView({
         return;
       }
       if (surfaceTabIds.has(popup.openerTabId)) {
-        adoptTab({ tabId: popup.tabId, url: popup.url });
+        adoptTab({
+          tabId: popup.tabId,
+          url: popup.url,
+          openerTabId: popup.openerTabId,
+        });
         inheritTabOwner({
           fromTabId: popup.openerTabId,
           toTabId: popup.tabId,

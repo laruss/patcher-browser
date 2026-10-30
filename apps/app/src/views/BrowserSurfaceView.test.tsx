@@ -667,7 +667,7 @@ describe("BrowserSurfaceView", () => {
           | { kind: "closed"; tabId: string },
       ) => void
     > = [];
-    renderSurface({
+    const surface = renderSurface({
       ...createNoopDesktopBrowserApi(),
       attach,
       setPopupTabs,
@@ -677,6 +677,21 @@ describe("BrowserSurfaceView", () => {
       },
     });
     const openerTabId = attach.mock.calls[0]?.[0].tabId as string;
+    act(() => {
+      surface.store.set(browserSurfaceTabsAtom, (state) => ({
+        ...state,
+        tabs: [
+          ...state.tabs,
+          {
+            id: "browser:unrelated",
+            kind: "browser",
+            environmentId: null,
+            title: null,
+            url: "https://example.com/unrelated",
+          },
+        ],
+      }));
+    });
     const emit = (popup: Parameters<(typeof popupListeners)[number]>[0]) => {
       act(() => {
         popupListeners.at(-1)?.(popup);
@@ -685,7 +700,10 @@ describe("BrowserSurfaceView", () => {
 
     // The surface claims its own tabs, which is what lets the shell host a real
     // popup for them at all.
-    expect(setPopupTabs.mock.calls.at(-1)?.[0].tabIds).toEqual([openerTabId]);
+    expect(setPopupTabs.mock.calls.at(-1)?.[0].tabIds).toEqual([
+      openerTabId,
+      "browser:unrelated",
+    ]);
 
     // A popup from a tab this surface does not own is another view's business.
     emit({
@@ -694,7 +712,7 @@ describe("BrowserSurfaceView", () => {
       tabId: "browser-popup:9",
       url: "https://accounts.example.com/oauth",
     });
-    expect(tabButtons()).toHaveLength(1);
+    expect(tabButtons()).toHaveLength(2);
 
     emit({
       kind: "opened",
@@ -703,7 +721,7 @@ describe("BrowserSurfaceView", () => {
       url: "https://accounts.example.com/oauth",
     });
 
-    expect(tabButtons()).toHaveLength(2);
+    expect(tabButtons()).toHaveLength(3);
     // The shell's id, not one this surface invented: the view it already holds
     // is keyed by it.
     expect(attach.mock.calls.at(-1)?.[0].tabId).toBe("browser-popup:1");
@@ -711,7 +729,10 @@ describe("BrowserSurfaceView", () => {
     // How an OAuth flow ends.
     emit({ kind: "closed", tabId: "browser-popup:1" });
 
-    expect(tabButtons()).toHaveLength(1);
+    expect(tabButtons()).toHaveLength(2);
+    expect(surface.store.get(browserSurfaceTabsAtom).activeTabId).toBe(
+      openerTabId,
+    );
   });
 
   // A popup belongs to whoever owned the page that opened it — the agent

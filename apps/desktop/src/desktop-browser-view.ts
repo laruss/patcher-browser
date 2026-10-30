@@ -1,3 +1,4 @@
+import { registerDesktopBrowserShortcuts } from "./desktop-browser-shortcuts.js";
 import { createBrowserSiteTargets } from "./desktop-browser-site-target.js";
 import { redactCredentialNodes } from "./desktop-credential-redaction.js";
 import { createDesktopPageContributions } from "./desktop-page-contributions.js";
@@ -247,14 +248,6 @@ const MAX_REMEMBERED_DOWNLOAD_PATHS = 100;
  * state, so this is not a list to let grow.
  */
 const MAX_CLOSED_TAB_SESSIONS = 10;
-
-/** See the `before-input-event` handler: these need the app to have focus. */
-const HOST_FOCUSING_APP_COMMANDS: ReadonlySet<AppCommandId> = new Set([
-  "browser.focusLocation",
-  "browser.find",
-  "browser.recentTab.next",
-  "browser.recentTab.previous",
-]);
 
 interface ClosedTabSession {
   entries: NavigationEntry[];
@@ -739,8 +732,9 @@ interface SetEntryDesiredBoundsArgs {
   hostWindow: DesktopBrowserHostWindow;
 }
 
-export interface DesktopBrowserViewManager
-  extends ReturnType<typeof createBrowserSiteTargets> {
+export interface DesktopBrowserViewManager extends ReturnType<
+  typeof createBrowserSiteTargets
+> {
   sitePolicyChanged(): void;
   siteScriptBootstrap(
     webContentsId: number,
@@ -767,6 +761,10 @@ export interface DesktopBrowserViewManager
   goBack(args: HostScopedTabArgs): void;
   goForward(args: HostScopedTabArgs): void;
   reload(args: HostScopedTabArgs): void;
+  reloadVisiblePage(args: {
+    hostWindow: DesktopBrowserHostWindow;
+    ignoreCache: boolean;
+  }): boolean;
   stop(args: HostScopedTabArgs): void;
   /**
    * Read the tab's rendered text and selection out of the page. The one command
@@ -2631,34 +2629,10 @@ export function createDesktopBrowserViewManager(
     // during teardown, when reading it off `hostWindow` would throw.
     const hostWebContentsId = hostWindow.webContents.id;
 
-    webContents.on("before-input-event", (event, input) => {
-      if (input.type !== "keyDown" || input.isAutoRepeat || input.isComposing) {
-        return;
-      }
-      const command = args.resolveAppCommand({
-        altKey: input.alt,
-        code: input.code,
-        ctrlKey: input.control,
-        key: input.key,
-        metaKey: input.meta,
-        shiftKey: input.shift,
-      });
-      if (command === null) return;
-      // Prevent both the untrusted page and Electron's application menu from
-      // also handling a chord that Patcher resolved as a browser command.
-      event.preventDefault();
-      // Commands whose *next* keystroke has to land in the app rather than in
-      // the page. The address bar is the obvious one; the tab switcher is the
-      // subtle one — it is driven by further Ctrl+Tab presses and closed by the
-      // Ctrl release, and a key released inside a browsed page never becomes an
-      // app command.
-      if (HOST_FOCUSING_APP_COMMANDS.has(command)) {
-        args.focusHostWebContents(hostWindow.webContents.id);
-      }
-      args.dispatchAppCommand({
-        command,
-        hostWebContentsId: hostWindow.webContents.id,
-      });
+    registerDesktopBrowserShortcuts({
+      webContents,
+      hostWebContentsId,
+      ...args,
     });
 
     webContents.on("will-frame-navigate", (event) => {
@@ -4199,6 +4173,18 @@ export function createDesktopBrowserViewManager(
       withEntry({ hostWindow, tabId }, (entry) => {
         entry.view.webContents.reload();
       });
+    },
+    reloadVisiblePage({ hostWindow, ignoreCache }) {
+      const entry = [...entries.values()].find(
+        (entry) =>
+          entry.hostWindow.webContents.id === hostWindow.webContents.id &&
+          entry.visible &&
+          !entry.view.webContents.isDestroyed(),
+      );
+      if (!entry) return false;
+      if (ignoreCache) entry.view.webContents.reloadIgnoringCache();
+      else entry.view.webContents.reload();
+      return true;
     },
     stop({ hostWindow, tabId }) {
       withEntry({ hostWindow, tabId }, (entry) => {
