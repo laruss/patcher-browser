@@ -96,7 +96,7 @@ The local owned desktop server stores sealed credential records; Electron main
 holds a separate OS-wrapped key. Ordinary settings unwrap cannot open it.
 `credentials.manage` (SDK 1.2.0) requires a live runtime exact-origin grant
 for ordinary plugins; the enabled bundled password manager has core-issued
-access to supported HTTPS sites without separate site grants. Credential records
+access to supported sites without separate site grants. Credential records
 and operations remain bound to the exact origin;
 all authenticated deputies are checked, including legacy callers. Agent identity
 survives child calls and the host-owned SDK HTTP correlation. Installed Node
@@ -104,42 +104,40 @@ plugins remain trusted local code; arbitrary custom networking/queues do not
 carry an implicit user identity, and this is not a process sandbox.
 
 The bundled password manager is preinstalled and enabled by default; existing
-disabled state and earlier removal tombstones survive restarts and updates.
-Settings permits disabling builtins, not uninstalling them. Its key button beside
-the address bar opens the manager on demand; it does not occupy a permanent side
-panel. Its panel receives account metadata
-and invokes Save/Update/Fill/Delete only on manual actions. Page RPC cannot list
-or request credentials, including through child/SDK HTTP deputies. Form/submit
-hints carry only origin, kind and presence; they update advisory text without
-auto-fill, auto-save or a post-submit password buffer.
+choices survive restarts and updates. Its macOS application-menu item opens a
+separate app tab with search, masked details and manual add/edit/delete. It has
+no per-site key or panel. Viewing, editing and deleting require fresh system
+Touch ID or macOS login-password authentication. A fixed, bundled helper invokes
+`LAContext.deviceOwnerAuthentication`; it never handles the account password.
 
-Each Save/Update/Fill/Delete starts as an inert request in core chrome. A fresh
-native gesture opens the native confirmation. The policy chosen at first Save
-is sealed: Require Touch ID always requires a successful native prompt; the
-separate Confirm every action mode requires confirmation without biometrics.
-There is no session unlock, plaintext getter, reveal/export or clipboard API.
-The app renderer, plugin backend and agent tools receive metadata/status only.
+Core fills saved logins automatically, also on agent-operated pages, on HTTP and
+HTTPS exact origins. Multiple accounts use suggestions at the username field.
+Submission captures a bounded draft before the form disappears or navigates;
+Save/Update is offered in core and writes only after explicit acceptance, without
+OS authentication. The plugin backend and ordinary SDK calls never receive
+plaintext. The authenticated management page can receive a revealed password or
+a scoped edit only after system authentication. Blur/visibility changes hide
+secrets, and late background replies are discarded.
 
-A dedicated main-frame isolated world pins the form's exact nodes. Queued Fill
-contains only a one-use token. A synchronous private bridge asks main to check
-sender/document, visibility, grants, backend and cancellation immediately before
-release; processed cancellation refuses a late token. Both field assignments
-precede page events, with no submit or retry after DOM replacement. A revoke
-processed after release cannot recall a password already delivered to the DOM.
-The site and permitted scripts can read filled passwords. AX snapshots redact
-password values without suppressing verified ordinary usernames.
+Format 2 seals the new `system-auth` policy. Old format 1 records keep their old
+protection until one system confirmation migrates them without losing records.
+The legacy SDK Save/Update/Fill/Delete API remains an inert proposal requiring
+its original per-action approvals; existing policy flags are not reinterpreted.
 
-Requests expire within 120 seconds; parent call deadlines can cancel earlier.
-Navigation/hide/lock/revoke/disable/disconnect cancel pending work; an unabortable biometric prompt retains
-its slot until actual settlement. Key/identity files are synced before ciphertext
-is returned for SQL commit. Missing/corrupt keys fail closed without silent
-replacement; encrypted records survive disable/uninstall. This uses application
-checks around `safeStorage` and `promptTouchID`, not a native Keychain
-user-presence ACL, and does not protect against compromised main/server or
-another arbitrary process running as the same user. A real hardware Touch ID
-prompt successfully approved core Save on 2026-10-09. The repeatable native smoke
-uses real OS encryption with a fixture biometric adapter; physical cancellation
-and the full product approval UI still need manual acceptance. Native platform
+Core's private preload binds fills to the live document, origin and input and
+rechecks classification after asynchronous reads. Suggestions contain metadata
+only in a closed shadow root. The site and permitted scripts can read filled
+passwords. AX snapshots redact filled password nodes even after a type toggle.
+Drafts expire within 120 seconds; lock, disable, close and runtime replacement
+cancel pending work. Key and identity files are synced before SQL commits;
+missing/corrupt keys fail closed and encrypted records survive disabling.
+These are application checks around OS-wrapped encryption and LocalAuthentication,
+not a Keychain user-presence ACL or a sandbox against compromised local code.
+See [the manager design](architecture/password-manager-chrome-flow.md) for the
+current behavior and repeatable Electron acceptance scenarios. The smoke uses
+fixture OS wrapping/authentication; physical authentication requires manual QA.
+
+Native platform
 passkeys now have signing/Keychain configuration and a native account chooser;
 signed hardware acceptance and phone QR sign-in remain incomplete Phase 8 work.
 

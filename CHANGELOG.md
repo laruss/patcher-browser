@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.1-alpha.11
+
+This release replaces the password manager's manual panel with browser-integrated
+saving, filling and a dedicated management page.
+
+- **Open Patcher → Password Manager.** Enabling the preinstalled plugin adds a
+  macOS menu item. Search saved logins, view masked details, add entries manually,
+  edit and delete them on a separate page. The per-site key button is removed.
+- **Automatic filling and account choice.** A saved login fills without a
+  separate system prompt. Choose between multiple accounts at the username field,
+  or replace and clear filled values. HTTP and HTTPS sites are supported, including
+  pages operated by an agent.
+- **Save and update after signing in.** Main-frame form submissions, dynamic
+  forms and username-first flows offer Save or Update after navigation or a
+  successful submission signal. Failed login forms do not offer to save.
+- **Touch ID or the macOS login password protects management.** Viewing, editing
+  and deleting a saved password require fresh system authentication. Fixes a focus
+  race that could keep a password hidden after a successful Touch ID confirmation.
+  Website Save/Update needs only its confirmation button.
+- **Existing passwords are preserved.** One system confirmation migrates older
+  entries to automatic filling. Disabling the plugin keeps encrypted records.
+- **Browser and packaged checks.** Release validation exercises the real manager
+  UI, native IPC, form submission, account selection, cancellation and focus return.
+  Physical macOS authentication and test-password reveal were verified locally.
+
+Uses Electron 45.0.0. Requires macOS 13 (Ventura) or later on Apple Silicon.
+This alpha is ad-hoc signed and requires approval on first launch. Updates are
+downloaded manually.
+
 ## 0.1.1-alpha.10
 
 This release fixes the password manager's site access, layout and credential

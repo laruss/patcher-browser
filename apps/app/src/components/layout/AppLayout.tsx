@@ -453,6 +453,7 @@ function SidebarTriggerOverlay({
 const routeTitles: Record<string, { title: string; subtitle?: string }> = {
   "/": { title: "Patcher" },
   "/settings": { title: "Settings" },
+  "/password-manager": { title: "Password Manager" },
   "/automations": { title: "Automations" },
   "/skills": { title: "Skills" },
 };

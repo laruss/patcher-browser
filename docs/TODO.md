@@ -48,8 +48,10 @@ acceptance remain manual checks.
   authentication** today and lets a plugin answer one
   (`patcher.browser.registerAuthProvider`), which is the rare case; a **form login**,
   which is nearly every case, now has a preinstalled, enabled manager.
-  Its key button beside the address bar opens manual Save/Update/Fill/Delete through protected core primitives. Chromium's own manager is not in Electron,
-  so it is not a switch to flip.
+  The macOS application menu opens its separate manager tab. Core offers Save/Update
+  after form submission and fills saved logins automatically; reveal/edit/delete
+  use Touch ID or the macOS account password. See [the current design](architecture/password-manager-chrome-flow.md).
+  Chromium's own manager is not in Electron, so it is not a switch to flip.
 
   The sorting test now answers differently than it would have last week: after
   Phase 9 Stage B a plugin **can** fill a form, on sites it declared. Phases 4–5
@@ -57,7 +59,7 @@ acceptance remain manual checks.
   Phase 6 now supplies a separate vault that keeps passwords out of plugin backend
   memory and core capture/fill operations that require a person's approval, with
   a sealed per-action Touch ID policy. Phase 7 delivers the manager as a
-  builtin plugin that works on supported HTTPS sites while enabled, without per-site grants. A user can disable it; the choice
+  builtin plugin that works on HTTP and HTTPS sites while enabled, without per-site grants. A user can disable it; the choice
   survives restarts and updates. Earlier removal tombstones are also respected.
 
 - **A keychain-backed secret store for the server side.** Implemented in Phase 4
@@ -72,7 +74,8 @@ acceptance remain manual checks.
 - **The machine's own locks: Touch ID, and a keyboard nobody else can read.**
   Both measured present. Secure Keyboard Entry is implemented in Phase 3; the
   vault Touch ID gate is implemented in Phase 6, with a real hardware Save approved
-  on 2026-10-09:
+  on 2026-10-09. That is the legacy SDK policy; the current bundled manager
+  uses [system authentication with the macOS password fallback](architecture/password-manager-chrome-flow.md):
   - `systemPreferences.canPromptTouchID()` → **true**, and `promptTouchID` is
     there. Protected credential actions can require a fresh successful fingerprint.
     Cancel/error/unavailable refuses Require Touch ID without fallback; Confirm

@@ -31,6 +31,7 @@ function setup(authorized = true) {
     action: vi.fn(async () => status),
     availability: vi.fn(),
     close: vi.fn(),
+    passwordManagerStore: vi.fn(),
   };
   registerDesktopSecretIpc({
     current: () => broker,

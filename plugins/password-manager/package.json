@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Save and fill logins with core confirmation for every action.",
+  "description": "Save and automatically fill passwords. Manage them with macOS authentication.",
   "engines": {
     "patcher": ">=0.0",
     "patcherPluginSdk": "^1.4.0"
   },
   "patcher": {
     "name": "Password manager",
-    "description": "Save, update, fill and delete logins with confirmation for every action. Works on every supported site while enabled.",
+    "description": "Offers to save passwords and automatically fills saved logins. Open Password Manager from the macOS application menu to manage them.",
     "branding": {
       "icon": "Key"
     },
@@ -21,9 +21,7 @@
       "https://**"
     ],
     "permissions": [
-      "credentials.manage",
-      "tabs.read",
-      "pageScript.register"
+      "credentials.manage"
     ]
   },
   "keywords": [

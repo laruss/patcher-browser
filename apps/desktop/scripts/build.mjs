@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { build } from "esbuild";
@@ -48,6 +49,13 @@ const commonOptions = {
 };
 
 await Promise.all([
+  build({
+    ...commonOptions,
+    entryPoints: [resolve(packageRoot, "src/password-manager-page-preload.ts")],
+    external: ["electron"],
+    format: "cjs",
+    outfile: resolve(distDir, "password-manager-page-preload.cjs"),
+  }),
   build({
     bundle: true,
     legalComments: "none",
@@ -129,5 +137,30 @@ await Promise.all([
     outfile: resolve(distDir, "patcher-app-bridge.mjs"),
   }),
 ]);
+
+if (process.platform === "darwin") {
+  execFileSync(
+    "xcrun",
+    [
+      "swiftc",
+      "-target",
+      `${process.arch === "arm64" ? "arm64" : "x86_64"}-apple-macos13.0`,
+      "-O",
+      "-framework",
+      "AppKit",
+      "-framework",
+      "LocalAuthentication",
+      resolve(packageRoot, "src/password-manager-auth.swift"),
+      "-o",
+      resolve(distDir, "password-manager-auth"),
+    ],
+    { stdio: "inherit" },
+  );
+  execFileSync(
+    "codesign",
+    ["--force", "--sign", "-", resolve(distDir, "password-manager-auth")],
+    { stdio: "inherit" },
+  );
+}
 
 process.stdout.write("@patcher/desktop: built Electron entries\n");

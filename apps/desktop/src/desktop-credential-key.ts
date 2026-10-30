@@ -1,4 +1,9 @@
 import {
+  managerCredentialSchema,
+  type ManagerCredential,
+  type StoredPassword,
+} from "@patcher/domain/password-manager";
+import {
   createCipheriv,
   createDecipheriv,
   randomBytes,
@@ -51,7 +56,7 @@ function persistPrivate(path: string, bytes: Buffer | string) {
   writeFileSync(path, bytes, { flag: "wx", mode: 0o600, flush: true });
   syncDirectory(parent);
 }
-export function credentialAAD(record: SealedCredential) {
+export function credentialAAD(record: StoredPassword) {
   const {
     format,
     vaultId,
@@ -160,9 +165,53 @@ export function createCredentialKeyStore(
       value.key.fill(0);
     }
   }
+  function sealRecord(
+    metadata: Omit<
+      StoredPassword,
+      "vaultId" | "format" | "seal" | "nonce" | "ciphertext" | "tag"
+    >,
+    password: string,
+    expectedVaultId: string | undefined,
+    format: 1 | 2,
+  ): StoredPassword {
+    if (!password || password.length > 4096)
+      throw new Error("Unsupported password");
+    return withKey(expectedVaultId === undefined, ({ vaultId, key }) => {
+      if (expectedVaultId !== undefined && vaultId !== expectedVaultId)
+        throw new Error("Wrong vault");
+      const record = {
+        ...metadata,
+        format,
+        vaultId,
+        seal: "",
+        nonce: "",
+        ciphertext: "",
+        tag: "",
+      } as StoredPassword;
+      const nonce = randomBytes(12),
+        cipher = createCipheriv("aes-256-gcm", key, nonce);
+      const aad = credentialAAD(record);
+      cipher.setAAD(Buffer.from(aad));
+      const plain = Buffer.from(password, "utf8");
+      try {
+        record.ciphertext = Buffer.concat([
+          cipher.update(plain),
+          cipher.final(),
+        ]).toString("base64");
+        record.nonce = nonce.toString("base64");
+        record.tag = cipher.getAuthTag().toString("base64");
+        record.seal = backend.encrypt(aad).toString("base64");
+        return format === 1
+          ? sealedCredentialSchema.parse(record)
+          : managerCredentialSchema.parse(record);
+      } finally {
+        plain.fill(0);
+      }
+    });
+  }
   return {
     // This authenticates the protection policy before prompting. It contains no key or password.
-    verify(record: SealedCredential) {
+    verify(record: StoredPassword) {
       if (
         !backend.available() ||
         backend.decrypt(Buffer.from(record.seal, "base64")) !==
@@ -178,40 +227,29 @@ export function createCredentialKeyStore(
       password: string,
       expectedVaultId?: string,
     ): SealedCredential {
-      if (!password || password.length > 4096)
-        throw new Error("Unsupported password");
-      return withKey(expectedVaultId === undefined, ({ vaultId, key }) => {
-        if (expectedVaultId !== undefined && vaultId !== expectedVaultId)
-          throw new Error("Wrong vault");
-        const record: SealedCredential = {
-          ...metadata,
-          format: 1,
-          vaultId,
-          seal: "",
-          nonce: "",
-          ciphertext: "",
-          tag: "",
-        };
-        const nonce = randomBytes(12),
-          cipher = createCipheriv("aes-256-gcm", key, nonce);
-        const aad = credentialAAD(record);
-        cipher.setAAD(Buffer.from(aad));
-        const plain = Buffer.from(password, "utf8");
-        try {
-          record.ciphertext = Buffer.concat([
-            cipher.update(plain),
-            cipher.final(),
-          ]).toString("base64");
-          record.nonce = nonce.toString("base64");
-          record.tag = cipher.getAuthTag().toString("base64");
-          record.seal = backend.encrypt(aad).toString("base64");
-          return sealedCredentialSchema.parse(record);
-        } finally {
-          plain.fill(0);
-        }
-      });
+      return sealRecord(
+        metadata,
+        password,
+        expectedVaultId,
+        1,
+      ) as SealedCredential;
     },
-    open<T>(record: SealedCredential, run: (password: string) => T): T {
+    sealManager(
+      metadata: Omit<
+        ManagerCredential,
+        "vaultId" | "format" | "seal" | "nonce" | "ciphertext" | "tag"
+      >,
+      password: string,
+      expectedVaultId?: string,
+    ): ManagerCredential {
+      return sealRecord(
+        metadata,
+        password,
+        expectedVaultId,
+        2,
+      ) as ManagerCredential;
+    },
+    open<T>(record: StoredPassword, run: (password: string) => T): T {
       this.verify(record);
       return withKey(false, ({ vaultId, key }) => {
         if (vaultId !== record.vaultId) throw new Error("Wrong vault");

@@ -1,3 +1,4 @@
+import { PASSWORD_MANAGER_PROBE } from "@patcher/domain/password-manager";
 import type { Duplex } from "node:stream";
 import {
   PluginSecretStore,
@@ -9,12 +10,20 @@ import {
 
 export function createDesktopSecretStorage(dataDir: string, stream?: Duplex) {
   let store: PluginSecretStore;
+  let passwordManagerStore: ((input: unknown) => Promise<unknown>) | undefined;
   let retry: (() => Promise<void>) | undefined;
   const channel =
     stream === undefined
       ? undefined
       : new PrivateSecretChannel(stream, {
           request: async (method, payload, signal) => {
+            if (
+              method === "credential.context" &&
+              payload === PASSWORD_MANAGER_PROBE
+            )
+              return passwordManagerStore !== undefined;
+            if (method === "password-manager.store" && passwordManagerStore)
+              return passwordManagerStore(payload);
             if (payload !== null)
               throw new SecretStorageError("invalid_request");
             if (method === "status") return store.status();
@@ -110,6 +119,11 @@ export function createDesktopSecretStorage(dataDir: string, stream?: Duplex) {
     ) => {
       if (!channel) throw new SecretStorageError("unavailable");
       return channel.request(method, payload, { signal, timeoutMs: 120_000 });
+    },
+    setPasswordManagerStore: (
+      handler: (input: unknown) => Promise<unknown>,
+    ) => {
+      passwordManagerStore = handler;
     },
     setRetry: (callback: () => Promise<void>) => {
       retry = callback;

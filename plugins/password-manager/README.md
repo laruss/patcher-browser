@@ -1,30 +1,25 @@
-# Password manager
+# Password Manager
 
-**Password manager** is preinstalled and enabled in Patcher. Disable it in
-Settings → Plugins if you prefer another manager; that choice survives restarts
-and updates. Builtin plugins cannot be uninstalled from Settings. The enabled builtin manager works on every supported HTTPS site without a
-per-site permission prompt. Open its key button beside the address bar to
-manage logins for the current page; close it to reclaim the space.
+Password manager is preinstalled and enabled. It works on HTTP and HTTPS sites,
+including pages operated by an agent. Disable it in **Extensions** to stop
+saving and filling; encrypted records are retained and the choice survives updates.
 
-Enter the username and password in the site's form, choose a new account label
-and select **Save new login**. Review the request in browser chrome, then confirm
-the native dialog. The first Save seals the chosen policy: Require Touch ID or
-Confirm every action. Each later action requires fresh approval.
+Open **Patcher → Password Manager** in the macOS application menu. The separate
+page provides search, website/account details, manual addition, editing and deletion.
+Passwords are masked. Showing, editing or deleting a saved password requires a
+fresh system authentication with Touch ID or the macOS login password.
 
-Choose a saved account to **Fill**, **Update from form** or **Delete**. Fill does
-not submit the form. Update captures the current form after approval; it never
-overwrites an account automatically. Hints do not establish login success. Save
-works while the live form remains available; after navigation, return to the
-login form and enter the credentials again.
+A single saved login fills automatically. With multiple logins, focus the username
+field to choose an account. Filled fields remain editable and can be cleared.
+The browser does not submit the form. After a submitted form disappears or a
+successful navigation leaves the login form, a compact Save/Update proposal opens
+over the page. Saving and accepting a website update do not require OS authentication.
 
-The MVP accepts a single visible enabled password field and at most one
-username/email field in a main-frame form with a same-origin action. Ambiguous,
-hidden, readonly, new-password and cross-origin forms are refused. Use manual
-entry for unsupported forms.
+Old records keep their original protection until one system confirmation migrates
+them. Migration preserves every record, password and identifier. It is offered on
+first use of an old record and can also be started on the manager page.
 
-The plugin receives metadata and statuses only. Passwords stay in the protected
-core vault until approved capture/fill. Disable the plugin to stop its actions;
-encrypted records remain. A removal persisted by an earlier build is respected;
-reinstallation restores access on supported sites with the same source identity. Delete each
-account explicitly to remove its record.
-There is no reveal, export, import, clipboard, sync or automatic fill/save.
+Core owns form observation, the menu and the manager page. The plugin contributes
+no toolbar key or site panel. It never receives plaintext passwords. Passwords are
+encrypted with the existing OS-wrapped vault key; pending form captures are bounded
+in main-process memory and expire or are discarded on tab close, lock or disable.

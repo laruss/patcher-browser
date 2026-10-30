@@ -183,6 +183,7 @@ interface SendBrowserIpcArgs {
 }
 
 class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
+  passwordTarget = () => null;
   webAuthnTarget() {
     return null;
   }

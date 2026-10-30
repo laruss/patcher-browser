@@ -4,10 +4,7 @@ import { createDesktopPageContributions } from "./desktop-page-contributions.js"
 import { randomUUID } from "node:crypto";
 import { assertBrowserSiteOperation } from "./browser-site-operation.js";
 import { type ScopedPageCall } from "@patcher/desktop-contract";
-import type {
-  DesktopSiteAuthority,
-  SiteTarget,
-} from "./desktop-site-authority.js";
+import type { DesktopSiteAuthority } from "./desktop-site-authority.js";
 import {
   Menu,
   WebContentsView,
@@ -742,11 +739,8 @@ interface SetEntryDesiredBoundsArgs {
   hostWindow: DesktopBrowserHostWindow;
 }
 
-export interface DesktopBrowserViewManager {
-  webAuthnTarget(
-    webContentsId: number,
-  ): { hostWebContentsId: number; current(): boolean } | null;
-  resolveSiteTarget(tabId: string): SiteTarget | null;
+export interface DesktopBrowserViewManager
+  extends ReturnType<typeof createBrowserSiteTargets> {
   sitePolicyChanged(): void;
   siteScriptBootstrap(
     webContentsId: number,

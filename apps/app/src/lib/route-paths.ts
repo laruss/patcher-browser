@@ -246,6 +246,7 @@ export function getThreadRoutePath(args: ThreadRoutePathArgs): string {
 
 const baseRoutePatterns: readonly string[] = [
   APP_ROOT_ROUTE_PATH,
+  "/password-manager",
   AUTH_CALLBACK_ROUTE_PATH,
   SETTINGS_ROUTE_PATH,
   SETTINGS_SECTION_ROUTE_PATH,

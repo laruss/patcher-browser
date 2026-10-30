@@ -98,6 +98,11 @@
       "types": "./src/browser-command-scroll.ts",
       "default": "./src/browser-command-scroll.ts"
     },
+    "./password-manager": {
+      "source": "./src/password-manager.ts",
+      "types": "./src/password-manager.ts",
+      "default": "./src/password-manager.ts"
+    },
     "./protected-credentials": {
       "source": "./src/protected-credentials.ts",
       "types": "./src/protected-credentials.ts",

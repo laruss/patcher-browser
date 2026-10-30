@@ -1,3 +1,7 @@
+import {
+  PASSWORD_MANAGER_PROBE,
+  type PasswordStoreRequest,
+} from "@patcher/domain/password-manager";
 import type { Duplex } from "node:stream";
 import { z } from "zod";
 import {
@@ -50,6 +54,7 @@ export function createDesktopSecretBroker(
   backend: DesktopKeyBackend,
   sites?: import("./desktop-site-authority.js").DesktopSiteAuthority,
   credentials?: import("./desktop-credential-vault.js").CredentialVault,
+  stateChanged?: (available: boolean) => void,
 ) {
   let allowed = true;
   let server = false;
@@ -115,6 +120,7 @@ export function createDesktopSecretBroker(
     notice(name, value) {
       if (name === "server") {
         server = value;
+        stateChanged?.(value && allowed && backend.available());
         if (value) credentials?.availability(allowed && backend.available());
         if (!value) {
           sites?.reset();
@@ -124,6 +130,7 @@ export function createDesktopSecretBroker(
     },
     close() {
       server = false;
+      stateChanged?.(false);
       allowed = false;
       epoch++;
       sites?.disconnect();
@@ -133,6 +140,7 @@ export function createDesktopSecretBroker(
   function availability(value: boolean) {
     allowed = value;
     credentials?.availability(value && server && backend.available());
+    stateChanged?.(value && server && backend.available());
     epoch++;
     peer.notify("availability", value && backend.available());
   }
@@ -177,6 +185,20 @@ export function createDesktopSecretBroker(
   return {
     availability,
     action,
+    async passwordManagerStore(
+      payload: PasswordStoreRequest,
+    ): Promise<unknown> {
+      if (!server || !allowed || !backend.available())
+        throw new SecretStorageError("unavailable");
+      // Probe using an old method: an older server rejects it without dropping
+      // the pipe. Never send the new enum value before negotiation succeeds.
+      if (
+        (await peer.request("credential.context", PASSWORD_MANAGER_PROBE)) !==
+        true
+      )
+        throw new SecretStorageError("unavailable");
+      return peer.request("password-manager.store", payload);
+    },
     ...(credentials === undefined ? {} : { credentials }),
     ...(sites === undefined ? {} : { sites }),
     close: () => peer.close(),

@@ -1,3 +1,4 @@
+import { passwordOrigin } from "@patcher/domain/password-manager";
 import { pluginSiteOrigin } from "@patcher/domain/plugin-site-access";
 import type { BrowserViewEntry } from "./desktop-browser-view.js";
 import type { SiteTarget } from "./desktop-site-authority.js";
@@ -19,6 +20,30 @@ export function createBrowserSiteTargets(
           entriesByWebContentsId.get(entry.view.webContents.id) === entry,
         send,
       }),
+    passwordTarget: (id: number) => {
+      const entry = entriesByWebContentsId.get(id);
+      if (!entry) return null;
+      const target = resolveBrowserSiteTarget({
+        tabId: entry.tabId,
+        entries: [entry],
+        exists: (value) => entriesByWebContentsId.get(id) === value,
+        send,
+        origin: passwordOrigin,
+      });
+      return target
+        ? {
+            ...target,
+            bounds: () => entry.view.getBounds(),
+            visible: () =>
+              !entry.hostWindow.isDestroyed() &&
+              entry.visible &&
+              !entry.overlayActive &&
+              !entry.pendingDialog &&
+              !entry.pagePrompt &&
+              entry.hostWindow.isMinimized?.() !== true,
+          }
+        : null;
+    },
     webAuthnTarget: (id: number) => {
       const entry = entriesByWebContentsId.get(id);
       if (!entry || entry.hostWindow.isDestroyed()) return null;
@@ -39,6 +64,7 @@ export function createBrowserSiteTargets(
 
 export function resolveBrowserSiteTarget(args: {
   tabId: string;
+  origin?: (url: string) => string | null;
   entries: Iterable<BrowserViewEntry>;
   exists(entry: BrowserViewEntry): boolean;
   send(
@@ -63,7 +89,7 @@ export function resolveBrowserSiteTarget(args: {
     )
       return null;
     const url = entry.view.webContents.getURL(),
-      origin = pluginSiteOrigin(url);
+      origin = (args.origin ?? pluginSiteOrigin)(url);
     return origin === null
       ? null
       : { tabId: args.tabId, url, origin, documentId: entry.runtimeDocumentId };

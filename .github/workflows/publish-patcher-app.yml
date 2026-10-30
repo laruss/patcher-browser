@@ -278,6 +278,9 @@ jobs:
       - name: Test desktop and launcher
         run: bunx turbo run test --filter=@patcher/desktop --filter=patcher-app --force --output-logs=new-only
 
+      - name: Verify password manager in Chromium
+        run: bun run --cwd apps/desktop smoke:protected-credentials
+
       - name: Require macOS signing and notarization secrets
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}

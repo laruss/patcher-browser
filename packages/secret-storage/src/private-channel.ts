@@ -22,6 +22,7 @@ const METHODS = [
   "site.context",
   "credential.context",
   "credential.operation",
+  "password-manager.store",
   "site.prepare",
   "site.auth",
   "site.redeem",

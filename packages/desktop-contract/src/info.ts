@@ -87,6 +87,7 @@ export const PATCHER_DESKTOP_WINDOW_KEY_ARGUMENT_PREFIX =
   "--patcher-window-key=";
 
 export interface PatcherDesktopApi extends PatcherDesktopInfo {
+  passwordManager?: import("./password-manager.js").DesktopPasswordManagerApi;
   /** Host-owned ordinary plugin settings; optional for older desktop shells. */
   secretStorage?: import("./secret-storage.js").DesktopSecretStorageApi;
   /**

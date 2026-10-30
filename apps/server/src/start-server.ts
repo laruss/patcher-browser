@@ -1,3 +1,4 @@
+import { createPasswordManagerStore } from "./services/plugins/password-manager-store.js";
 import { serve } from "@hono/node-server";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -74,6 +75,7 @@ export async function runServer(
     dataDir: serverConfig.PATCHER_DATA_DIR,
     logger,
   });
+  secrets.setPasswordManagerStore(createPasswordManagerStore(db));
   const hub = new NotificationHub();
   const watchInterests = new WatchInterestCoordinator({ db, hub });
   const lifecycleDedupers = createLifecycleDedupers();

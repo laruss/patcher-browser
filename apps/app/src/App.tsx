@@ -1,3 +1,4 @@
+import { usePasswordManagerNavigation } from "./lib/password-manager-navigation";
 import { useBrowserRuntimeSiteAccess } from "./lib/browser-runtime-site-access";
 import { lazy, Suspense } from "react";
 import {
@@ -83,6 +84,7 @@ const ProjectSettingsView = lazy(() =>
   })),
 );
 const SplitWorkspaceRoute = lazy(() => import("./views/SplitWorkspaceRoute"));
+const PasswordManagerView = lazy(() => import("./views/PasswordManagerView").then((m) => ({ default: m.PasswordManagerView })));
 const BrowserSurfaceView = lazy(() => import("./views/BrowserSurfaceView"));
 
 /**
@@ -157,11 +159,13 @@ export function LegacyPluginBrowseRedirect() {
 }
 
 function AppRoutes() {
+  usePasswordManagerNavigation();
   useBrowserFirstStartupRoute();
   return (
     <AppLayout>
       <Suspense fallback={null}>
         <Routes>
+          <Route path="/password-manager" element={<PasswordManagerView />} />
           <Route path={SETTINGS_ROUTE_PATH} element={<SettingsView />} />
           <Route
             path={SETTINGS_SECTION_ROUTE_PATH}

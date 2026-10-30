@@ -30,6 +30,8 @@ export interface InstallApplicationMenuArgs {
   openNewTab(): void;
   openNewThread(): void;
   openSettings(): void;
+  passwordManagerEnabled?: boolean;
+  openPasswordManager?(): void;
   reloadWindow(
     browserWindow: BaseWindow | undefined,
     ignoreCache: boolean,
@@ -100,6 +102,17 @@ export function buildApplicationMenuTemplate(
           label: OPEN_SETTINGS_MENU_LABEL,
         },
         { type: "separator" },
+        ...(args.passwordManagerEnabled
+          ? [
+              {
+                label: "Password Manager",
+                click() {
+                  args.openPasswordManager?.();
+                },
+              },
+              { type: "separator" as const },
+            ]
+          : []),
         { role: "services" },
         { type: "separator" },
         { role: "hide" },
