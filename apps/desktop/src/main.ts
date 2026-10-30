@@ -428,6 +428,22 @@ function sendToApplicationRenderer(
   }
 }
 
+function reloadApplicationWindow(
+  browserWindow: BrowserWindow,
+  ignoreCache: boolean,
+): void {
+  if (
+    desktopBrowserViewManager?.reloadVisiblePage({
+      hostWindow: browserWindow,
+      ignoreCache,
+    })
+  ) {
+    return;
+  }
+  if (ignoreCache) browserWindow.webContents.reloadIgnoringCache();
+  else browserWindow.webContents.reload();
+}
+
 function registerApplicationRendererReloadShortcut(
   webContents: WebContents,
 ): void {
@@ -437,10 +453,9 @@ function registerApplicationRendererReloadShortcut(
       return;
     }
     event.preventDefault();
-    if (shortcut === "force-reload") {
-      webContents.reloadIgnoringCache();
-    } else {
-      webContents.reload();
+    const browserWindow = resolveApplicationWindow(webContents);
+    if (browserWindow !== null) {
+      reloadApplicationWindow(browserWindow, shortcut === "force-reload");
     }
   });
 }
@@ -829,11 +844,7 @@ function installCurrentApplicationMenu(): void {
       if (!(browserWindow instanceof BrowserWindow)) {
         return;
       }
-      if (ignoreCache) {
-        browserWindow.webContents.reloadIgnoringCache();
-      } else {
-        browserWindow.webContents.reload();
-      }
+      reloadApplicationWindow(browserWindow, ignoreCache);
     },
     closeWindowOrSideTab(browserWindow) {
       if (browserWindow === undefined) {

@@ -233,6 +233,7 @@ interface SidebarStateBridgeProps {
    * still collapse it and stay collapsed while reading.
    */
   opensForRoute: boolean;
+  lockedOpen: boolean;
   children: ReactNode;
 }
 
@@ -288,15 +289,17 @@ function SidebarStateBridge({
   providerRef,
   style,
   opensForRoute,
+  lockedOpen,
   children,
 }: SidebarStateBridgeProps) {
   const [open, setOpen] = useAtom(sidebarOpenAtom);
   const handleOpenChange = useCallback<SidebarOpenChangeHandler>(
     (nextOpen) => {
+      if (lockedOpen) return;
       setOpen(nextOpen);
       window.requestAnimationFrame(dispatchBrowserViewBoundsSync);
     },
-    [setOpen],
+    [lockedOpen, setOpen],
   );
   return (
     <SidebarProvider
@@ -304,7 +307,7 @@ function SidebarStateBridge({
       style={style}
       className={className}
       data-testid="app-layout-root"
-      open={open}
+      open={lockedOpen || open}
       onOpenChange={handleOpenChange}
     >
       <SidebarRouteOpener opensForRoute={opensForRoute} />
@@ -341,6 +344,7 @@ function resetSidebarResizeDocumentState(): void {
 }
 
 interface SidebarTriggerOverlayProps {
+  lockedOpen: boolean;
   usesDesktopChrome: boolean;
 }
 
@@ -367,6 +371,7 @@ interface SidebarTriggerOverlayProps {
  */
 function SidebarTriggerOverlay({
   usesDesktopChrome,
+  lockedOpen,
 }: SidebarTriggerOverlayProps) {
   const { isCompactViewport, open, openMobile } = useSidebar();
   const shortcut = useAppCommandShortcut("sidebar.toggle");
@@ -376,6 +381,7 @@ function SidebarTriggerOverlay({
   // work out which way it goes.
   const action = isOpen ? "Hide sidebar" : "Show sidebar";
   const triggerProps = {
+    disabled: lockedOpen && !isCompactViewport,
     "aria-label": shortcut ? `${action} (${shortcut.label})` : action,
     "aria-keyshortcuts": shortcut?.ariaKeyshortcuts,
   };
@@ -1086,6 +1092,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 providerRef={providerRef}
                 style={sidebarProviderStyle}
                 opensForRoute={isAgentPanelRoute}
+                lockedOpen={isGlobalSettingsView}
               >
                 {/* The leading edge belongs to plugins, and renders nothing at
                   all until one asks for it — see PluginLeadingPanel. First in
@@ -1149,7 +1156,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                     }
                   />
                 )}
-                <SidebarTriggerOverlay usesDesktopChrome={usesDesktopChrome} />
+                <SidebarTriggerOverlay
+                  usesDesktopChrome={usesDesktopChrome}
+                  lockedOpen={isGlobalSettingsView}
+                />
                 <BrowserSurfaceRouteSyncBridge
                   enabled={hostsBrowserSurface}
                   path={

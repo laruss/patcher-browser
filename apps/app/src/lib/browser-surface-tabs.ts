@@ -265,9 +265,8 @@ export function addBrowserSurfaceTab(
 }
 
 /**
- * Closes a tab and hands focus to its right-hand neighbour, falling back to the
- * left one — what every tab strip does, and what keeps the surface from
- * flashing an unrelated page when a middle tab closes.
+ * Closes a tab and returns to its opener when it is still present. Otherwise,
+ * selects the right-hand neighbour, falling back to the left one.
  */
 export function closeBrowserSurfaceTab(
   state: BrowserSurfaceTabsState,
@@ -281,7 +280,14 @@ export function closeBrowserSurfaceTab(
   if (state.activeTabId !== tabId) {
     return { ...state, tabs };
   }
-  const successor = tabs[index] ?? tabs[index - 1] ?? null;
+  const closed = state.tabs[index];
+  const openerTabId =
+    closed && isWebSurfaceTab(closed) ? closed.openerTabId : undefined;
+  const successor =
+    tabs.find((tab) => tab.id === openerTabId) ??
+    tabs[index] ??
+    tabs[index - 1] ??
+    null;
   return { activeTabId: successor?.id ?? null, tabs };
 }
 
@@ -696,7 +702,11 @@ export interface BrowserSurfaceTabsController {
    * before this surface has heard of it, so the id is the shell's and this side
    * takes it rather than inventing one.
    */
-  adoptTab: (args: { tabId: string; url: string }) => void;
+  adoptTab: (args: {
+    tabId: string;
+    url: string;
+    openerTabId?: string;
+  }) => void;
   /**
    * Copy a web tab beside itself and focus the copy. Returns the new tab so the
    * caller can navigate to it, and null when the id names no web tab.
@@ -783,15 +793,27 @@ export function useBrowserSurfaceTabs(): BrowserSurfaceTabsController {
   }, [setState]);
 
   const adoptTab = useCallback(
-    ({ tabId, url }: { tabId: string; url: string }) => {
+    ({
+      tabId,
+      url,
+      openerTabId,
+    }: {
+      tabId: string;
+      url: string;
+      openerTabId?: string;
+    }) => {
       setState((current) =>
-        addBrowserSurfaceTab(current, {
-          environmentId: null,
-          id: tabId,
-          kind: "browser",
-          title: null,
-          url,
-        }),
+        addBrowserSurfaceTab(
+          current,
+          {
+            environmentId: null,
+            id: tabId,
+            kind: "browser",
+            title: null,
+            url,
+          },
+          { openerTabId },
+        ),
       );
     },
     [setState],

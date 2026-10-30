@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { useAtomValue } from "jotai";
-import { MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   browserSurfaceTabsAtom,
@@ -11,6 +11,7 @@ import {
 } from "@/lib/browser-surface-tabs";
 import { useOpenUrlByPreference } from "@/lib/url-open-routing";
 import { AppLayout } from "./AppLayout";
+import { AppCommandProvider } from "@/components/commands/AppCommandProvider";
 
 const viewportState = vi.hoisted(() => ({ compact: false }));
 // Desktop-only behaviour is gated on this; flipping it is how a test asks for
@@ -32,9 +33,28 @@ vi.mock("@/hooks/useThreadSplitsEnabled", () => ({
   useThreadSplitsEnabled: () => true,
 }));
 
+vi.mock("@/components/settings/SettingsSidebar", () => ({
+  SettingsSidebar: () => <aside data-testid="settings-sidebar" />,
+}));
+
 vi.mock("@/hooks/queries/system-queries", () => ({
   useSystemConfig: () => ({
     data: {
+      keybindings: [
+        {
+          command: "sidebar.toggle",
+          desktopOnly: false,
+          shortcut: {
+            key: "j",
+            meta: true,
+            mod: false,
+            control: false,
+            alt: false,
+            shift: false,
+          },
+          when: { all: [], none: [] },
+        },
+      ],
       experiments: {
         claudeCodeMockCliTraffic: false,
         editMessages: false,
@@ -45,11 +65,18 @@ vi.mock("@/hooks/queries/system-queries", () => ({
   }),
 }));
 
+vi.mock("@/hooks/queries/plugin-contribution-queries", () => ({
+  usePluginContributions: () => ({ data: { commands: [] } }),
+  runPluginCommand: vi.fn(),
+}));
+
 vi.mock("@/lib/plugin-slots", () => ({
   usePluginSlots: () => ({
     // No plugin claims the window's leading edge in these tests, so the panel
     // there renders nothing — which is also its default everywhere.
     leadingPanels: [],
+    settingsSections: [],
+    fileOpeners: [],
     navPanels: [
       {
         pluginId: "helm-wiki",
@@ -403,6 +430,7 @@ describe("AppLayout agent panel routing", () => {
 describe("AppLayout sidebar toggle labelling", () => {
   afterEach(() => {
     cleanup();
+    viewportState.compact = false;
   });
 
   function renderLayout(): void {
@@ -425,6 +453,47 @@ describe("AppLayout sidebar toggle labelling", () => {
     return trigger;
   }
 
+  it.each([false, true])(
+    "locks Settings navigation open and restores open=%s on leaving",
+    (initialOpen) => {
+      viewportState.compact = false;
+      render(
+        <MemoryRouter initialEntries={["/browser"]}>
+          <AppCommandProvider>
+            <AppLayout>
+              <Link to="/settings/plugins">Open settings</Link>
+              <Link to="/settings/general">General settings</Link>
+              <Link to="/browser">Leave settings</Link>
+            </AppLayout>
+          </AppCommandProvider>
+        </MemoryRouter>,
+      );
+      if (
+        (overlayTrigger().getAttribute("aria-expanded") === "true") !==
+        initialOpen
+      ) {
+        fireEvent.click(overlayTrigger());
+      }
+      fireEvent.keyDown(window, { key: "j", metaKey: true });
+      expect(overlayTrigger().getAttribute("aria-expanded")).toBe(
+        String(!initialOpen),
+      );
+      fireEvent.keyDown(window, { key: "j", metaKey: true });
+      fireEvent.click(screen.getByRole("link", { name: "Open settings" }));
+      expect(overlayTrigger().getAttribute("aria-expanded")).toBe("true");
+      expect((overlayTrigger() as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(overlayTrigger());
+      fireEvent.keyDown(window, { key: "j", metaKey: true });
+      expect(overlayTrigger().getAttribute("aria-expanded")).toBe("true");
+      fireEvent.click(screen.getByRole("link", { name: "General settings" }));
+      fireEvent.click(screen.getByRole("link", { name: "Leave settings" }));
+      expect(overlayTrigger().getAttribute("aria-expanded")).toBe(
+        String(initialOpen),
+      );
+      expect((overlayTrigger() as HTMLButtonElement).disabled).toBe(false);
+    },
+  );
+
   it("says what the click will do, not just that there is a sidebar", () => {
     renderLayout();
     // The sidebar starts open, so the button hides it.
@@ -432,6 +501,26 @@ describe("AppLayout sidebar toggle labelling", () => {
       /^Hide sidebar/u,
     );
     expect(overlayTrigger().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps the compact Settings menu dismissible", async () => {
+    viewportState.compact = true;
+    render(
+      <MemoryRouter initialEntries={["/settings/plugins"]}>
+        <AppLayout>
+          <div>Settings body</div>
+        </AppLayout>
+      </MemoryRouter>,
+    );
+    expect((overlayTrigger() as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(overlayTrigger());
+    await vi.waitFor(() =>
+      expect(overlayTrigger().getAttribute("aria-expanded")).toBe("true"),
+    );
+    fireEvent.click(overlayTrigger());
+    await vi.waitFor(() =>
+      expect(overlayTrigger().getAttribute("aria-expanded")).toBe("false"),
+    );
   });
 
   it("flips the label once the sidebar is closed", () => {

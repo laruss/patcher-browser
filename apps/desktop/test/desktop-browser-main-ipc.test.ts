@@ -333,6 +333,10 @@ class RecordingDesktopBrowserViewManager implements DesktopBrowserViewManager {
     this.endAutomationCalls.push(args);
   }
 
+  reloadVisiblePage(): boolean {
+    return false;
+  }
+
   reload(args: TabCommandCall): void {
     this.reloadCalls.push(args);
   }

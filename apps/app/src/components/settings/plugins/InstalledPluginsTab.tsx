@@ -3,6 +3,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { EmptyState } from "@patcher/shared-ui/empty-state";
 import { Icon } from "@patcher/shared-ui/icon";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@patcher/shared-ui/tooltip";
+import { usePluginSlots } from "@/lib/plugin-slots";
 import { Switch } from "@patcher/shared-ui/switch";
 import { appToast } from "@/components/ui/app-toast.js";
 import { pluginAdminErrorMessage } from "@/lib/plugin-admin-error";
@@ -12,6 +19,7 @@ import {
   type PluginListItem,
 } from "@/hooks/queries/plugin-settings-queries";
 import { getSettingsPluginRoutePath } from "@/lib/route-paths";
+import { RemovePluginButton } from "./RemovePluginButton";
 import { pluginRowSignal } from "./plugin-update-signals";
 import { UpdatePluginDialog } from "@/components/plugin/management/UpdatePluginDialog";
 import {
@@ -81,6 +89,10 @@ export function InstalledPluginRow({
   onUpdateClick: () => void;
 }) {
   const navigate = useNavigate();
+  const { settingsSections } = usePluginSlots();
+  const hasSettings =
+    plugin.hasSettings ||
+    settingsSections.some((section) => section.pluginId === plugin.id);
   const queryClient = useQueryClient();
   const toggle = useMutation({
     mutationFn: (enabled: boolean) =>
@@ -99,7 +111,9 @@ export function InstalledPluginRow({
   const enabled = toggle.isPending ? toggle.variables : plugin.enabled;
   const signal = pluginRowSignal(plugin);
 
-  const openDetail = () => navigate(getSettingsPluginRoutePath(plugin.id));
+  const openDetail = () => {
+    if (hasSettings) navigate(getSettingsPluginRoutePath(plugin.id));
+  };
   const onRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
@@ -110,10 +124,12 @@ export function InstalledPluginRow({
 
   return (
     <div
-      role="link"
-      tabIndex={0}
-      aria-label={`${plugin.name ?? plugin.id} plugin settings`}
-      className="group flex cursor-pointer items-center gap-3 py-3 focus-visible:outline-none"
+      role={hasSettings ? "link" : undefined}
+      tabIndex={hasSettings ? 0 : undefined}
+      aria-label={
+        hasSettings ? `${plugin.name ?? plugin.id} plugin settings` : undefined
+      }
+      className={`group flex items-center gap-3 py-3 focus-visible:outline-none${hasSettings ? " cursor-pointer" : ""}`}
       data-testid={`plugin-row-${plugin.id}`}
       onClick={openDetail}
       onKeyDown={onRowKeyDown}
@@ -124,9 +140,20 @@ export function InstalledPluginRow({
           {plugin.name ?? plugin.id}
         </p>
         {plugin.description !== null && plugin.description.length > 0 ? (
-          <p className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">
-            {plugin.description}
-          </p>
+          <TooltipProvider
+            delayDuration={1000}
+            skipDelayDuration={0}
+            disableHoverableContent
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">
+                  {plugin.description}
+                </p>
+              </TooltipTrigger>
+              <TooltipContent>{plugin.description}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
       </div>
       {signal?.kind === "update" ? (
@@ -163,10 +190,21 @@ export function InstalledPluginRow({
           aria-label={`Enable ${plugin.id}`}
         />
       </span>
-      <Icon
-        name="ChevronRight"
-        className="size-3.5 shrink-0 text-subtle-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-      />
+      {!hasSettings &&
+      (plugin.provenance !== "builtin" || plugin.isOrphanedBuiltin) ? (
+        <span
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <RemovePluginButton plugin={plugin} />
+        </span>
+      ) : null}
+      {hasSettings ? (
+        <Icon
+          name="ChevronRight"
+          className="size-3.5 shrink-0 text-subtle-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+        />
+      ) : null}
     </div>
   );
 }

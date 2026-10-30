@@ -70,6 +70,26 @@ describe("browser surface tabs", () => {
     expect(next.activeTabId).toBe("a");
   });
 
+  it("returns to the opener even after the popup was moved past an unrelated tab", () => {
+    const state: BrowserSurfaceTabsState = {
+      activeTabId: "popup",
+      tabs: [
+        tab("opener"),
+        tab("unrelated"),
+        { ...tab("popup"), openerTabId: "opener" },
+      ],
+    };
+    expect(closeBrowserSurfaceTab(state, "popup").activeTabId).toBe("opener");
+    expect(
+      closeBrowserSurfaceTab({ ...state, activeTabId: "unrelated" }, "popup")
+        .activeTabId,
+    ).toBe("unrelated");
+    expect(
+      closeBrowserSurfaceTab({ ...state, tabs: state.tabs.slice(1) }, "popup")
+        .activeTabId,
+    ).toBe("unrelated");
+  });
+
   it("clears focus when the last tab closes", () => {
     const next = closeBrowserSurfaceTab(stateWith(["a"], "a"), "a");
 
