@@ -185,6 +185,12 @@ jobs:
       - name: Boot the app and fail on any start-up error
         run: node apps/desktop/scripts/smoke-app-boot.mjs
 
+      - name: Build desktop preloads
+        run: bun run --cwd apps/desktop build
+
+      - name: Verify password manager in Chromium
+        run: bun run --cwd apps/desktop smoke:protected-credentials
+
   desktop-package-smoke:
     name: Desktop Package Smoke (macos-15, arm64)
     # Dependabot only updates Electron. Human PRs keep the existing CI cost;

@@ -49,6 +49,25 @@ export function createPasswordAccountPicker() {
     accounts: PageAccount[],
     callback: (account: PageAccount) => void,
   ) {
+    if (
+      anchor === input &&
+      accounts.length === choices.length &&
+      accounts.every((account, index) => {
+        const previous = choices[index];
+        return (
+          previous?.id === account.id &&
+          previous.version === account.version &&
+          previous.username === account.username
+        );
+      })
+    ) {
+      // A focus-triggered metadata refresh must not reset an in-progress
+      // keyboard selection when the choices have not changed.
+      choices = accounts;
+      choose = callback;
+      position();
+      return;
+    }
     hide();
     if (!accounts.length || !input.isConnected) return;
     anchor = input;
