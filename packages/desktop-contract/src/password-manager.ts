@@ -78,6 +78,7 @@ export type PasswordManagerResponse = z.infer<
   typeof passwordManagerResponseSchema
 >;
 export interface DesktopPasswordManagerApi {
+  session?: import("./password-manager-session.js").DesktopPasswordManagerSessionApi;
   request(input: PasswordManagerRequest): Promise<PasswordManagerResponse>;
   onOpen(listener: () => void): () => void;
   onChange(listener: () => void): () => void;

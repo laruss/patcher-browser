@@ -7,6 +7,11 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "@patcher/shared-ui/icon";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@patcher/shared-ui/tooltip";
 import type {
   PasswordEntry,
   PasswordManagerResponse,
@@ -36,6 +41,8 @@ function siteName(origin: string) {
 
 export function PasswordManagerView() {
   const manager = getPatcherDesktopInfo()?.passwordManager;
+  const session = manager?.session;
+  const request = session?.request ?? manager?.request;
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
   const [status, setStatus] = useState("loading");
   const [migrationNeeded, setMigrationNeeded] = useState(false);
@@ -49,6 +56,10 @@ export function PasswordManagerView() {
   const [showDraft, setShowDraft] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState<{
+    id: string;
+    field: "username" | "password";
+  } | null>(null);
   const sensitiveRevision = useRef(0);
   const focused = useRef(document.hasFocus());
   const invalidateSensitive = useCallback(() => {
@@ -73,6 +84,19 @@ export function PasswordManagerView() {
       setEditor(null);
     }
   }, [manager]);
+  useEffect(() => {
+    return session?.onLock(() => {
+      invalidateSensitive();
+      setEditor(null);
+      setShowDraft(false);
+      setCopied(null);
+    });
+  }, [session, invalidateSensitive]);
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = window.setTimeout(() => setCopied(null), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [copied]);
   useEffect(() => {
     document.title = "Password Manager";
     void refresh();
@@ -121,28 +145,66 @@ export function PasswordManagerView() {
     const timeout = window.setTimeout(() => setVisible(null), 30_000);
     return () => window.clearTimeout(timeout);
   }, [visible]);
-  async function run(action: () => Promise<PasswordManagerResponse>) {
+  async function run(
+    action: () => Promise<PasswordManagerResponse>,
+    refreshAfter = true,
+  ) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
       const result = await action();
       if (messages[result.status]) setError(messages[result.status]!);
-      if (result.status === "done") await refresh();
+      if (result.status === "done" && refreshAfter) await refresh();
       return result;
     } finally {
       setBusy(false);
     }
   }
+  async function openOrigin(origin: string) {
+    invalidateSensitive();
+    const revision = sensitiveRevision.current;
+    const result = session
+      ? await run(() => session.request({ operation: "open", origin }), false)
+      : { status: "done" };
+    if (
+      result?.status === "done" &&
+      revision === sensitiveRevision.current &&
+      document.hasFocus() &&
+      !document.hidden
+    )
+      setSelectedOrigin(origin);
+  }
+  async function copy(entry: PasswordEntry, field: "username" | "password") {
+    if (!session) return;
+    const revision = sensitiveRevision.current;
+    const result = await run(
+      () =>
+        session.request({
+          operation: "copy",
+          id: entry.id,
+          version: entry.version,
+          field,
+        }),
+      false,
+    );
+    if (
+      result?.status === "done" &&
+      revision === sensitiveRevision.current &&
+      document.hasFocus() &&
+      !document.hidden
+    )
+      setCopied({ id: entry.id, field });
+  }
   async function operate(
     entry: PasswordEntry,
     operation: "reveal" | "edit" | "delete",
   ) {
-    if (!manager) return;
+    if (!request) return;
     setVisible(null);
     const revision = sensitiveRevision.current;
     const result = await run(() =>
-      manager.request({ operation, id: entry.id, version: entry.version }),
+      request({ operation, id: entry.id, version: entry.version }),
     );
     if (
       sensitiveRevision.current !== revision ||
@@ -151,7 +213,7 @@ export function PasswordManagerView() {
       document.visibilityState === "hidden"
     ) {
       if (result?.status === "editing")
-        void manager.request({
+        void request({
           operation: "cancel-edit",
           editToken: result.editToken,
         });
@@ -171,7 +233,7 @@ export function PasswordManagerView() {
   }
   function closeEditor() {
     if (editor?.editToken)
-      void manager?.request({
+      void request?.({
         operation: "cancel-edit",
         editToken: editor.editToken,
       });
@@ -180,10 +242,10 @@ export function PasswordManagerView() {
     setError("");
   }
   async function saveEditor() {
-    if (!editor || !manager) return;
+    if (!editor || !request) return;
     const draft = editor;
     const result = await run(() =>
-      manager.request(
+      request(
         draft.editToken
           ? { operation: "update", ...draft, editToken: draft.editToken }
           : {
@@ -312,6 +374,13 @@ export function PasswordManagerView() {
                 {error}
               </p>
             )}
+            {copied && (
+              <p role="status" className="sr-only">
+                {copied.field === "username"
+                  ? "Username copied"
+                  : "Password copied"}
+              </p>
+            )}
             {selectedOrigin && selected.length ? (
               <div className="password-manager-details">
                 {selected.map((entry) => (
@@ -323,7 +392,33 @@ export function PasswordManagerView() {
                       </div>
                       <div>
                         <dt>Username</dt>
-                        <dd>{entry.username || "No username"}</dd>
+                        <dd className="password-manager-secret">
+                          <span className="password-manager-value">
+                            {entry.username || "No username"}
+                          </span>
+                          {session && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  disabled={busy}
+                                  aria-label="Copy username"
+                                  onClick={() => void copy(entry, "username")}
+                                >
+                                  <Icon
+                                    name={
+                                      copied?.id === entry.id &&
+                                      copied.field === "username"
+                                        ? "Check"
+                                        : "Copy"
+                                    }
+                                    className="size-5"
+                                  />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy username</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </dd>
                       </div>
                       <div>
                         <dt>Password</dt>
@@ -359,6 +454,28 @@ export function PasswordManagerView() {
                               className="size-5"
                             />
                           </button>
+                          {session && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  disabled={busy}
+                                  aria-label="Copy password"
+                                  onClick={() => void copy(entry, "password")}
+                                >
+                                  <Icon
+                                    name={
+                                      copied?.id === entry.id &&
+                                      copied.field === "password"
+                                        ? "Check"
+                                        : "Copy"
+                                    }
+                                    className="size-5"
+                                  />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy password</TooltipContent>
+                            </Tooltip>
+                          )}
                         </dd>
                       </div>
                     </dl>
@@ -385,10 +502,8 @@ export function PasswordManagerView() {
                   <button
                     className="password-manager-row"
                     key={origin}
-                    onClick={() => {
-                      setSelectedOrigin(origin);
-                      invalidateSensitive();
-                    }}
+                    disabled={busy}
+                    onClick={() => void openOrigin(origin)}
                   >
                     <span className="password-manager-site-icon">
                       {siteName(origin).charAt(0).toUpperCase()}

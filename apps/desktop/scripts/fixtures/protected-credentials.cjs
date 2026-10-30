@@ -49,12 +49,13 @@ const input = (label, value) =>
   );
 (async () => {
   await app.whenReady();
-  app.setActivationPolicy("prohibited");
+  app.setActivationPolicy("regular");
   app.on("browser-window-created", (_event, window) => window.setOpacity(0));
   const records = new Map();
   let realAuth = false;
   let hardwareAuthResult;
   let delayAuthFocus = false;
+  let clipboardValue = "";
   let enabled = true,
     authCount = 0,
     authAllowed = false;
@@ -66,12 +67,19 @@ const input = (label, value) =>
   });
   const manager = runtime.createPasswordManager({
     key: () => key,
+    copy: (value) => {
+      clipboardValue = value;
+    },
+    locked: () => {
+      if (host && !host.isDestroyed())
+        host.webContents.send(runtime.PASSWORD_MANAGER_SESSION_CHANNELS.locked);
+    },
     authenticate: async () => {
       authCount++;
       if (realAuth) {
         const success = await runtime.authenticatePasswordManager(
           process.env.PATCHER_PASSWORD_QA_AUTH_HELPER,
-          "Show your saved test password",
+          "Unlock Password Manager for test entries",
           new AbortController().signal,
         );
         hardwareAuthResult = success;
@@ -79,19 +87,15 @@ const input = (label, value) =>
         return success;
       }
       if (delayAuthFocus) {
-        await host.webContents.debugger.sendCommand(
-          "Emulation.setFocusEmulationEnabled",
-          { enabled: false },
-        );
-        assert.equal(await evaluate("document.hasFocus()"), false);
-        setTimeout(
-          () =>
-            void host.webContents.debugger.sendCommand(
-              "Emulation.setFocusEmulationEnabled",
-              { enabled: true },
-            ),
-          150,
-        );
+        const prompt = new BrowserWindow({ width: 220, height: 100 });
+        prompt.setOpacity(1);
+        prompt.show();
+        prompt.focus();
+        setTimeout(() => {
+          prompt.destroy();
+          host.focus();
+          host.webContents.focus();
+        }, 150);
       }
       return authAllowed;
     },
@@ -197,7 +201,12 @@ const input = (label, value) =>
       backgroundThrottling: false,
     },
   });
-  host.showInactive();
+  host.setOpacity(1);
+  host.show();
+  app.focus({ steal: true });
+  host.focus();
+  host.webContents.focus();
+  await waitFor(() => host.isFocused(), "foreground manager fixture");
   runtime.registerPasswordManagerIpc({
     manager,
     authorize: (event) =>
@@ -262,16 +271,57 @@ const input = (label, value) =>
     "list after add",
   );
   await evaluate("document.querySelector('.password-manager-row').click()");
-  await click("Show password");
   await waitFor(() => authCount === 1, "native auth cancellation");
+  assert.equal(
+    await evaluate("!!document.querySelector('.password-manager-card')"),
+    false,
+  );
+  await waitFor(
+    () => evaluate("!document.querySelector('.password-manager-row').disabled"),
+    "cancelled entry finishes",
+  );
+  authAllowed = true;
+  delayAuthFocus = true;
+  await evaluate("document.querySelector('.password-manager-row').click()");
+  await waitFor(
+    () =>
+      evaluate("!!document.querySelector('.password-manager-secret input')"),
+    "authenticated card entry",
+  );
+  assert.equal(authCount, 2);
   assert.equal(
     await evaluate(
       "document.querySelector('.password-manager-secret input').type",
     ),
     "password",
   );
-  authAllowed = true;
-  delayAuthFocus = true;
+  await click("Copy username");
+  await waitFor(() => clipboardValue === "alice", "native username copy");
+  await waitFor(
+    () =>
+      evaluate(
+        "!document.querySelector('[aria-label=\"Copy password\"]').disabled",
+      ),
+    "copy finishes",
+  );
+  await click("Copy password");
+  await waitFor(
+    () => clipboardValue === "fixture-alice-secret",
+    "native password copy without reveal",
+  );
+  assert.equal(
+    await evaluate(
+      "document.querySelector('.password-manager-secret input').value",
+    ),
+    "••••••••",
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        "!document.querySelector('[aria-label=\"Show password\"]').disabled",
+      ),
+    "copy completes before reveal",
+  );
   await click("Show password");
   await waitFor(
     () =>
@@ -290,11 +340,31 @@ const input = (label, value) =>
   await input("Password", "fixture-alice-updated");
   await click("Save");
   await waitFor(() => [...records.values()][0].version === 2, "edit saves");
-  assert.equal(authCount, 3);
+  assert.equal(authCount, 2);
   await waitFor(
     () => evaluate("!document.querySelector('[role=dialog]')"),
     "editor closes after save",
   );
+  clipboardValue = "";
+  manager.reset();
+  authAllowed = false;
+  await click("Copy password");
+  await waitFor(() => authCount === 3, "copy needs approval after lock");
+  await waitFor(
+    () =>
+      evaluate(
+        "!document.querySelector('[aria-label=\"Copy password\"]').disabled",
+      ),
+    "cancelled copy finishes",
+  );
+  assert.equal(clipboardValue, "");
+  assert.equal(
+    await evaluate(
+      "document.querySelector('.password-manager-secret input').type",
+    ),
+    "password",
+  );
+  authAllowed = true;
   await evaluate(
     "new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))",
   );
@@ -303,7 +373,9 @@ const input = (label, value) =>
       process.env.PATCHER_PASSWORD_QA_SCREENSHOT,
       (await host.webContents.capturePage()).toPNG(),
     );
-  results.push("reveal cancelled/approved, masking and authenticated edit");
+  results.push(
+    "entry auth cancelled/approved; native copy stays masked; reveal/edit reuse one approval; lock revokes copy",
+  );
   session
     .fromPartition(runtime.PATCHER_BROWSER_PARTITION)
     .registerPreloadScript({
@@ -760,15 +832,15 @@ const input = (label, value) =>
       "test password details",
     );
     realAuth = true;
+    const beforeAuth = authCount;
+    await click("Back to passwords");
     await evaluate(
       "window.qaFocusEvents=[]; for(const type of ['focus','blur']) window.addEventListener(type,()=>window.qaFocusEvents.push({type,focused:document.hasFocus()}));",
     );
     console.log(
       "Hardware check: waiting for Touch ID or the macOS login password.",
     );
-    await evaluate(
-      "const card=[...document.querySelectorAll('.password-manager-card')].find(card=>[...card.querySelectorAll('dd')].some(e=>e.textContent==='alice')); card.querySelector('[aria-label=\"Show password\"]').click();",
-    );
+    await evaluate("document.querySelector('.password-manager-row').click();");
     await waitFor(
       () => hardwareAuthResult !== undefined,
       "physical system authentication result",
@@ -778,6 +850,33 @@ const input = (label, value) =>
       hardwareAuthResult,
       true,
       "macOS must report successful authentication",
+    );
+    await waitFor(
+      () => evaluate("!!document.querySelector('.password-manager-card')"),
+      "unlocked details after physical approval",
+    );
+    assert.equal(
+      await evaluate(
+        "document.querySelector('.password-manager-secret input').type",
+      ),
+      "password",
+    );
+    await evaluate(
+      "const card=[...document.querySelectorAll('.password-manager-card')].find(card=>[...card.querySelectorAll('dd')].some(e=>e.textContent.trim()==='alice')); card.querySelector('[aria-label=\"Copy password\"]').click();",
+    );
+    await waitFor(
+      () => clipboardValue === "fixture-alice-updated",
+      "copy after physical approval",
+    );
+    await waitFor(
+      () =>
+        evaluate(
+          "![...document.querySelectorAll('.password-manager-card')].find(card=>[...card.querySelectorAll('dd')].some(e=>e.textContent.trim()==='alice')).querySelector('[aria-label=\"Show password\"]').disabled",
+        ),
+      "copy completes after physical approval",
+    );
+    await evaluate(
+      "[...document.querySelectorAll('.password-manager-card')].find(card=>[...card.querySelectorAll('dd')].some(e=>e.textContent.trim()==='alice')).querySelector('[aria-label=\"Show password\"]').click();",
     );
     await waitFor(
       () =>
@@ -795,8 +894,9 @@ const input = (label, value) =>
       );
       throw error;
     });
+    assert.equal(authCount, beforeAuth + 1);
     results.push(
-      "PHYSICAL macOS authentication succeeded and revealed only the test password",
+      "PHYSICAL entry authentication unlocked masked details; copy and reveal reused the single approval",
     );
   }
   finish();

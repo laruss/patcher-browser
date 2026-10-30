@@ -1,6 +1,6 @@
 import { registerPasswordManagerBrowser } from "./password-manager-browser.js";
 import { fetchPasswordManagerMenuEnabled } from "./password-manager-menu-state.js";
-import { PASSWORD_MANAGER_CHANNELS } from "@patcher/desktop-contract";
+import { PASSWORD_MANAGER_CHANNELS, PASSWORD_MANAGER_SESSION_CHANNELS } from "@patcher/desktop-contract";
 import { createPasswordManager, type PasswordManager } from "./password-manager.js";
 import { createCredentialKeyStore, type CredentialKeyStore } from "./desktop-credential-key.js";
 import { authenticatePasswordManager } from "./password-manager-auth.js";
@@ -1703,7 +1703,11 @@ async function startOwnedRuntime(
   });
   const siteAuthority = createNativeSiteAuthority(
     () => desktopBrowserViewManager,
-    () => { void passwordManager?.refresh(); },
+    () => {
+      if (siteAuthority.known("password-manager") && !siteAuthority.enabled("password-manager"))
+        passwordManager?.reset();
+      void passwordManager?.refresh();
+    },
   );
   const runtime: DesktopRuntime = {
     secretStorage: createDesktopSecretBroker(
@@ -2241,6 +2245,12 @@ async function runDesktopApp(): Promise<void> {
       return managerKey.store;
     },
     authenticate: (reason, signal) => authenticatePasswordManager(join(paths.appPath.replace(/app\.asar$/u, "app.asar.unpacked"), "dist", "password-manager-auth"), reason, signal),
+    copy: (value) => clipboard.writeText(value),
+    locked: () => {
+      for (const window of BrowserWindow.getAllWindows())
+        if (applicationWindowWebContentsIds.has(window.webContents.id))
+          window.webContents.send(PASSWORD_MANAGER_SESSION_CHANNELS.locked);
+    },
     changed: (enabled) => {
       if (!enabled) passwordManagerBrowser?.reset();
       passwordManagerBrowser?.changed();

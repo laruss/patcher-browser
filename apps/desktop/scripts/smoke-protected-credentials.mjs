@@ -27,7 +27,7 @@ try {
         'export { createCredentialKeyStore } from "./src/desktop-credential-key.ts";',
         'export { authenticatePasswordManager } from "./src/password-manager-auth.ts";',
         'export { installApplicationMenu } from "./src/menu.ts";',
-        'export { PASSWORD_MANAGER_CHANNELS } from "@patcher/desktop-contract";',
+        'export { PASSWORD_MANAGER_CHANNELS, PASSWORD_MANAGER_SESSION_CHANNELS } from "@patcher/desktop-contract";',
       ].join("\n"),
     },
     outfile: join(root, "runtime.cjs"),
@@ -64,8 +64,9 @@ try {
       import { BrowserRouter, Routes, Route } from "react-router-dom";
       import { PasswordManagerView } from "./src/views/PasswordManagerView.tsx";
       import { usePasswordManagerNavigation } from "./src/lib/password-manager-navigation.ts";
+      import { TooltipProvider } from "@patcher/shared-ui/tooltip";
       function App() { usePasswordManagerNavigation(); return <Routes><Route path="/password-manager" element={<PasswordManagerView/>}/><Route path="*" element={<h1>Browser shell</h1>}/></Routes>; }
-      createRoot(document.getElementById("root")).render(<BrowserRouter><App/></BrowserRouter>);
+      createRoot(document.getElementById("root")).render(<TooltipProvider><BrowserRouter><App/></BrowserRouter></TooltipProvider>);
     `,
     },
     outfile: join(root, "ui.js"),

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.1-alpha.13
+
+This release adds copying and a five-minute unlock session to Password Manager.
+
+- **Copy usernames and passwords separately.** Each field has a copy icon.
+  Copying a password keeps it masked and does not send its plaintext to the page.
+- **Confirm once when opening a website card.** Touch ID or the macOS login
+  password unlocks all manager entries for a fixed five minutes. Viewing,
+  copying, editing and deleting reuse that approval without extending it.
+  Passwords remain hidden until explicitly revealed.
+- **Locking revokes approval.** Screen lock, sleep, runtime replacement and
+  disabling the plugin revoke the session. Switching apps or closing the page
+  hides shown passwords while preserving the remaining time. Expiry hides
+  revealed passwords and closes edits.
+
+Uses Electron 45.0.0. Requires macOS 13 (Ventura) or later on Apple Silicon.
+This alpha is ad-hoc signed and requires approval on first launch. Updates are
+downloaded manually.
+
 ## 0.1.1-alpha.12
 
 This release fixes a missing Password Manager menu after a cold desktop startup.
