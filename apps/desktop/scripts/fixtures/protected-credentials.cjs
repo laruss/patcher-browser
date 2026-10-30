@@ -450,14 +450,18 @@ const input = (label, value) =>
     browser.passwordTarget(page.id).credentials.send(method, params);
   const press = async (key, code) => {
     await send("Input.dispatchKeyEvent", {
-      type: "keyDown",
+      type: "rawKeyDown",
       key,
+      code: key,
       windowsVirtualKeyCode: code,
+      nativeVirtualKeyCode: key === "ArrowDown" ? 0x7d : 0x24,
     });
     await send("Input.dispatchKeyEvent", {
       type: "keyUp",
       key,
+      code: key,
       windowsVirtualKeyCode: code,
+      nativeVirtualKeyCode: key === "ArrowDown" ? 0x7d : 0x24,
     });
   };
   page.focus();
@@ -502,12 +506,15 @@ const input = (label, value) =>
       ),
     "keyboard account selection",
   ).catch(async (error) => {
-    console.error("Keyboard picker state:", {
-      initial: accountOptions,
-      page: await page.executeJavaScript(
-        "({keys:window.qaKeys,focused:document.hasFocus(),active:document.activeElement?.id,path:location.pathname,username:document.getElementById('username')?.value,alice:document.getElementById('password')?.value==='fixture-alice-updated',bob:document.getElementById('password')?.value==='fixture-bob-secret'})",
-      ),
-    });
+    console.error(
+      "Keyboard picker state:",
+      JSON.stringify({
+        initial: accountOptions,
+        page: await page.executeJavaScript(
+          "({keys:window.qaKeys,focused:document.hasFocus(),active:document.activeElement?.id,path:location.pathname,username:document.getElementById('username')?.value,alice:document.getElementById('password')?.value==='fixture-alice-updated',bob:document.getElementById('password')?.value==='fixture-bob-secret'})",
+        ),
+      }),
+    );
     throw error;
   });
   await page.executeJavaScript(
