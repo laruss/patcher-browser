@@ -464,7 +464,20 @@ const input = (label, value) =>
       nativeVirtualKeyCode: key === "ArrowDown" ? 0x7d : 0x24,
     });
   };
+  if (process.env.CI) {
+    app.setActivationPolicy("regular");
+    host.setOpacity(1);
+    host.show();
+    app.focus({ steal: true });
+    host.focus();
+    await waitFor(() => host.isFocused(), "native keyboard fixture focus");
+  }
   page.focus();
+  await page.executeJavaScript("document.getElementById('username').focus()");
+  await waitFor(
+    () => page.executeJavaScript("!!document.querySelector('[role=listbox]')"),
+    "focused account suggestions",
+  );
   await page.executeJavaScript(
     "window.qaKeys=[]; window.addEventListener('keydown', e=>window.qaKeys.push({key:e.key,trusted:e.isTrusted,target:e.target.id,focused:document.hasFocus()}),true)",
   );
