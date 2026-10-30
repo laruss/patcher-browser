@@ -526,6 +526,7 @@ const input = (label, value) =>
       key,
       code: key,
       windowsVirtualKeyCode: code,
+      modifiers: 0,
       nativeVirtualKeyCode: key === "ArrowDown" ? 0x7d : 0x24,
     });
     await send("Input.dispatchKeyEvent", {
@@ -533,6 +534,7 @@ const input = (label, value) =>
       key,
       code: key,
       windowsVirtualKeyCode: code,
+      modifiers: 0,
       nativeVirtualKeyCode: key === "ArrowDown" ? 0x7d : 0x24,
     });
   };
@@ -544,10 +546,16 @@ const input = (label, value) =>
     host.focus();
     await waitFor(() => host.isFocused(), "native keyboard fixture focus");
   }
+  await send("Emulation.setFocusEmulationEnabled", { enabled: false });
   page.focus();
   await page.executeJavaScript("document.getElementById('username').focus()");
   await waitFor(
-    () => page.executeJavaScript("!!document.querySelector('[role=listbox]')"),
+    async () =>
+      host.isFocused() &&
+      page.isFocused() &&
+      (await page.executeJavaScript(
+        "document.hasFocus() && document.activeElement?.id === 'username' && !!document.querySelector('[role=listbox]')",
+      )),
     "focused account suggestions",
   );
   await page.executeJavaScript(
@@ -557,11 +565,20 @@ const input = (label, value) =>
     await page.executeJavaScript("document.activeElement?.id"),
     "username",
   );
-  const accountOptions = [];
-  function collectOptions(node) {
+  const nativeKeys = [];
+  page.on("before-input-event", (_event, input) => {
+    if (["ArrowDown", "Enter"].includes(input.key))
+      nativeKeys.push({
+        type: input.type,
+        key: input.key,
+        focused: page.isFocused(),
+        hostFocused: host.isFocused(),
+      });
+  });
+  function collectOptions(node, options) {
     const attributes = node.attributes ?? [];
     if (attributes[attributes.indexOf("role") + 1] === "option")
-      accountOptions.push({
+      options.push({
         name: (node.children ?? [])
           .map((child) => child.nodeValue ?? "")
           .join(""),
@@ -569,39 +586,65 @@ const input = (label, value) =>
           attributes[attributes.indexOf("aria-selected") + 1] === "true",
       });
     for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? [])])
-      collectOptions(child);
+      collectOptions(child, options);
   }
-  collectOptions(
-    (await send("DOM.getDocument", { depth: -1, pierce: true })).root,
-  );
+  async function readOptions() {
+    const options = [];
+    collectOptions(
+      (await send("DOM.getDocument", { depth: -1, pierce: true })).root,
+      options,
+    );
+    return options;
+  }
+  const accountOptions = await readOptions();
   assert.deepEqual(accountOptions.map((option) => option.name).sort(), [
     "alice",
     "bob",
   ]);
   const selectedOption = accountOptions.find((option) => option.selected);
   assert.ok(selectedOption, "The picker must expose its highlighted account");
-  // Exercise keyboard navigation even when Bob happens to be highlighted first.
-  if (selectedOption.name === "bob") await press("ArrowDown", 40);
-  await press("ArrowDown", 40);
-  await press("Enter", 13);
-  await waitFor(
-    () =>
-      page.executeJavaScript(
-        "document.getElementById('password').value === 'fixture-bob-secret'",
-      ),
-    "keyboard account selection",
-  ).catch(async (error) => {
+  try {
+    // Exercise keyboard navigation even when Bob happens to be highlighted first.
+    if (selectedOption.name === "bob") {
+      await press("ArrowDown", 40);
+      await waitFor(
+        async () =>
+          (await readOptions()).some(
+            (option) => option.selected && option.name === "alice",
+          ),
+        "ArrowDown selects Alice",
+      );
+    }
+    await press("ArrowDown", 40);
+    await waitFor(
+      async () =>
+        (await readOptions()).some(
+          (option) => option.selected && option.name === "bob",
+        ),
+      "ArrowDown selects Bob",
+    );
+    await press("Enter", 13);
+    await waitFor(
+      () =>
+        page.executeJavaScript(
+          "document.getElementById('password').value === 'fixture-bob-secret'",
+        ),
+      "keyboard account selection",
+    );
+  } catch (error) {
     console.error(
       "Keyboard picker state:",
       JSON.stringify({
         initial: accountOptions,
+        nativeKeys,
+        options: await readOptions(),
         page: await page.executeJavaScript(
           "({keys:window.qaKeys,focused:document.hasFocus(),active:document.activeElement?.id,path:location.pathname,username:document.getElementById('username')?.value,alice:document.getElementById('password')?.value==='fixture-alice-updated',bob:document.getElementById('password')?.value==='fixture-bob-secret'})",
         ),
       }),
     );
     throw error;
-  });
+  }
   await page.executeJavaScript(
     "document.getElementById('password').type = 'text'",
   );
